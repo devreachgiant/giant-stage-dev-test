@@ -1,0 +1,452 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>Creative Review · ReachGiant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --rg-red: #D00400;
+  --rg-red-dark: #A60300;
+  --ink: #0A0A0A;
+  --paper: #FAFAF8;
+  --paper-soft: #F2F1ED;
+  --line: rgba(10,10,10,.08);
+  --line-strong: rgba(10,10,10,.18);
+  --muted: rgba(10,10,10,.55);
+  --green: #15803D;
+  --amber: #B45309;
+}
+html, body { background: var(--paper); color: var(--ink); font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased; }
+body { min-height: 100vh; }
+.hidden { display: none !important; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+input, textarea { font-family: inherit; color: inherit; }
+
+/* Top brand bar */
+.rg-bar {
+  background: var(--rg-red); color: #fff; padding: 14px 22px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 50;
+}
+.rg-bar-left { display: flex; align-items: center; gap: 11px; font-weight: 800; font-size: 15px; letter-spacing: -.01em; }
+.rg-bar-mark { width: 30px; height: 30px; display: grid; place-items: center; flex-shrink: 0; }
+.rg-bar-mark svg { width: 100%; height: 100%; display: block; }
+.rg-bar-right { font-size: 12px; opacity: .85; font-weight: 500; }
+.rg-footer-mark { width: 28px; height: 28px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+.rg-footer-mark svg { width: 100%; height: 100%; display: block; }
+
+/* Page header */
+.page-head {
+  padding: 38px 22px 24px; max-width: 740px; margin: 0 auto;
+  border-bottom: 1px solid var(--line);
+}
+.page-head-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--rg-red); margin-bottom: 12px; }
+.page-head h1 { font-size: 32px; font-weight: 800; letter-spacing: -.025em; line-height: 1.15; margin-bottom: 10px; }
+.page-head-subtitle { font-size: 15px; color: var(--muted); margin-bottom: 18px; line-height: 1.5; }
+.page-head-meta { font-size: 12.5px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 14px; }
+.page-head-meta-item { display: inline-flex; align-items: center; gap: 5px; }
+.page-head-meta-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--rg-red); display: inline-block; }
+
+/* Reviewer ID prompt */
+.reviewer-prompt {
+  max-width: 740px; margin: 24px auto; padding: 18px 22px;
+  background: #fff; border: 1px solid var(--line-strong); border-radius: 12px;
+}
+.reviewer-prompt-row { display: flex; gap: 10px; align-items: center; }
+.reviewer-prompt-input {
+  flex: 1; padding: 11px 14px; font-size: 14px;
+  border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper); outline: none;
+  transition: .15s;
+}
+.reviewer-prompt-input:focus { border-color: var(--rg-red); background: #fff; }
+.reviewer-prompt-btn {
+  background: var(--rg-red); color: #fff; padding: 11px 18px; font-size: 13.5px; font-weight: 600; border-radius: 8px;
+  white-space: nowrap; transition: .15s;
+}
+.reviewer-prompt-btn:hover { background: var(--rg-red-dark); }
+.reviewer-prompt-hint { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+
+/* Posts list */
+.posts-wrap { max-width: 740px; margin: 0 auto; padding: 24px 22px 80px; }
+.post-card {
+  background: #fff; border: 1px solid var(--line-strong); border-radius: 14px; overflow: hidden;
+  margin-bottom: 22px;
+}
+.post-card-num {
+  padding: 11px 18px; font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--muted); border-bottom: 1px solid var(--line);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.post-card-num-status { font-size: 10.5px; letter-spacing: .04em; }
+.post-card-num-status.approved { color: var(--green); }
+.post-card-num-status.rejected { color: var(--rg-red); }
+.post-card-img { width: 100%; background: var(--paper-soft); display: block; max-height: 70vh; object-fit: contain; }
+.post-card-img-fallback { padding: 60px 22px; text-align: center; color: var(--muted); font-size: 13px; background: var(--paper-soft); }
+.post-card-body { padding: 18px 22px 20px; }
+.post-card-concept {
+  font-size: 11.5px; color: var(--muted); margin-bottom: 12px; line-height: 1.45;
+  padding-bottom: 12px; border-bottom: 1px solid var(--line);
+}
+.post-card-headline { font-size: 16px; font-weight: 700; letter-spacing: -.01em; margin-bottom: 10px; }
+.post-card-caption { font-size: 14px; line-height: 1.55; color: rgba(10,10,10,.78); margin-bottom: 10px; white-space: pre-wrap; }
+.post-card-hashtags { font-size: 13px; color: var(--rg-red); line-height: 1.4; }
+
+.post-actions {
+  padding: 16px 22px 18px; border-top: 1px solid var(--line); background: var(--paper-soft);
+}
+.post-actions-buttons { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.post-action-btn {
+  flex: 1; min-width: 120px;
+  padding: 11px 14px; font-size: 13px; font-weight: 600; border-radius: 8px;
+  border: 1.5px solid var(--line-strong); background: #fff; color: var(--ink);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  transition: .15s;
+}
+.post-action-btn:hover { border-color: rgba(10,10,10,.4); }
+.post-action-btn.approve.active { background: var(--green); border-color: var(--green); color: #fff; }
+.post-action-btn.reject.active { background: var(--rg-red); border-color: var(--rg-red); color: #fff; }
+.post-comment {
+  width: 100%; padding: 11px 14px; font-size: 13.5px; border: 1px solid var(--line-strong); border-radius: 8px;
+  background: #fff; resize: vertical; min-height: 70px; line-height: 1.5; outline: none; transition: .15s;
+  font-family: inherit;
+}
+.post-comment:focus { border-color: var(--rg-red); }
+.post-comment-actions { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.post-comment-submit {
+  background: var(--ink); color: #fff; padding: 9px 14px; font-size: 12.5px; font-weight: 600; border-radius: 7px;
+}
+.post-comment-submit:hover { background: rgba(10,10,10,.85); }
+.post-comment-status { font-size: 11.5px; color: var(--muted); }
+.post-comment-status.success { color: var(--green); }
+.post-comment-status.error { color: var(--rg-red); }
+
+/* Loading / error states */
+.loading, .error-state, .empty-state {
+  text-align: center; padding: 80px 22px; color: var(--muted); font-size: 14px;
+}
+.loading-spinner {
+  width: 28px; height: 28px; border: 2.5px solid var(--line-strong); border-top-color: var(--rg-red);
+  border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 14px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Footer */
+.page-footer {
+  text-align: center; padding: 28px 22px 40px; font-size: 11.5px; color: var(--muted);
+  border-top: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center; gap: 5px; flex-wrap: wrap;
+}
+.page-footer a { color: var(--rg-red); text-decoration: none; font-weight: 600; }
+
+@media (max-width: 600px) {
+  .page-head { padding: 28px 18px 20px; }
+  .page-head h1 { font-size: 26px; }
+  .reviewer-prompt { margin: 18px 14px; padding: 16px 18px; }
+  .reviewer-prompt-row { flex-direction: column; align-items: stretch; }
+  .posts-wrap { padding: 18px 14px 60px; }
+  .post-card-body, .post-actions { padding-left: 18px; padding-right: 18px; }
+}
+</style>
+</head>
+<body>
+
+<div class="rg-bar">
+  <div class="rg-bar-left">
+    <div class="rg-bar-mark"><svg viewBox="0 0 149 149" fill="none"><rect width="149" height="149" rx="33.44" fill="#fff"/><path d="M38.7805 66.2876V36.3261C38.7805 35.0148 40.4427 34.4493 41.2425 35.4885L75.7656 80.3505C76.1131 80.8021 75.7912 81.456 75.2214 81.456H63.3552C62.5967 81.456 61.9817 82.0709 61.9817 82.8295V114.082C61.9817 115.406 60.293 115.963 59.5048 114.9L26.1264 69.8522C25.4548 68.9457 26.1018 67.661 27.2299 67.661H37.4071C38.1656 67.661 38.7805 67.0461 38.7805 66.2876Z" fill="#D00400"/><path d="M67.0258 61.962L54.9468 45.3534C54.2866 44.4456 54.935 43.1721 56.0575 43.1721H94.9091C95.3384 43.1721 95.7431 43.3729 96.0028 43.7148L121.718 77.5674C122.405 78.4717 121.76 79.7716 120.624 79.7716H99.7764C99.211 79.7716 98.8878 80.4165 99.2262 80.8694L120.696 109.601C121.372 110.506 120.726 111.796 119.595 111.796H98.377C97.9514 111.796 97.5498 111.599 97.2897 111.262L74.4234 81.6323C73.7266 80.7294 74.3702 79.4197 75.5107 79.4197H96.3514C96.9131 79.4197 97.2372 78.7822 96.9063 78.3284L85.7964 63.0919C85.5378 62.7373 85.1254 62.5276 84.6866 62.5276H68.1365C67.6971 62.5276 67.2842 62.3174 67.0258 61.962Z" fill="#D00400"/></svg></div>
+    <span>ReachGiant · Creative Review</span>
+  </div>
+  <div class="rg-bar-right" id="rgBarMeta"></div>
+</div>
+
+<div id="loadingState" class="loading">
+  <div class="loading-spinner"></div>
+  Loading creatives…
+</div>
+
+<div id="errorState" class="error-state hidden">
+  <div style="font-size:42px;margin-bottom:14px;opacity:.4;">⚠</div>
+  <div id="errorMessage">This share link does not exist or has expired.</div>
+</div>
+
+<div id="content" class="hidden">
+  <div class="page-head">
+    <div class="page-head-eyebrow">Creative Review</div>
+    <h1 id="packTitle">—</h1>
+    <p id="packSubtitle" class="page-head-subtitle"></p>
+    <div class="page-head-meta">
+      <span class="page-head-meta-item"><span class="page-head-meta-dot"></span><span id="packCount">— posts</span></span>
+      <span class="page-head-meta-item"><span class="page-head-meta-dot"></span><span id="packDate">—</span></span>
+      <span class="page-head-meta-item" id="packClientWrap" style="display:none;"><span class="page-head-meta-dot"></span><span id="packClient">—</span></span>
+    </div>
+  </div>
+
+  <div id="reviewerPrompt" class="reviewer-prompt">
+    <div class="reviewer-prompt-row">
+      <input id="reviewerNameInput" class="reviewer-prompt-input" type="text" placeholder="Your name (so we know who reviewed)" maxlength="120" />
+      <button id="reviewerSaveBtn" class="reviewer-prompt-btn">Start reviewing</button>
+    </div>
+    <div class="reviewer-prompt-hint">Your feedback is shared with the ReachGiant team. Your name will be saved on this device for next time.</div>
+  </div>
+
+  <div id="postsWrap" class="posts-wrap"></div>
+
+  <div class="page-footer">
+    <span class="rg-footer-mark"><svg viewBox="0 0 149 149" fill="none"><rect width="149" height="149" rx="33.44" fill="#D00400"/><path d="M38.7805 66.2876V36.3261C38.7805 35.0148 40.4427 34.4493 41.2425 35.4885L75.7656 80.3505C76.1131 80.8021 75.7912 81.456 75.2214 81.456H63.3552C62.5967 81.456 61.9817 82.0709 61.9817 82.8295V114.082C61.9817 115.406 60.293 115.963 59.5048 114.9L26.1264 69.8522C25.4548 68.9457 26.1018 67.661 27.2299 67.661H37.4071C38.1656 67.661 38.7805 67.0461 38.7805 66.2876Z" fill="#fff"/><path d="M67.0258 61.962L54.9468 45.3534C54.2866 44.4456 54.935 43.1721 56.0575 43.1721H94.9091C95.3384 43.1721 95.7431 43.3729 96.0028 43.7148L121.718 77.5674C122.405 78.4717 121.76 79.7716 120.624 79.7716H99.7764C99.211 79.7716 98.8878 80.4165 99.2262 80.8694L120.696 109.601C121.372 110.506 120.726 111.796 119.595 111.796H98.377C97.9514 111.796 97.5498 111.599 97.2897 111.262L74.4234 81.6323C73.7266 80.7294 74.3702 79.4197 75.5107 79.4197H96.3514C96.9131 79.4197 97.2372 78.7822 96.9063 78.3284L85.7964 63.0919C85.5378 62.7373 85.1254 62.5276 84.6866 62.5276H68.1365C67.6971 62.5276 67.2842 62.3174 67.0258 61.962Z" fill="#fff"/></svg></span>
+    Powered by ReachGiant · <a href="https://www.reachgiant.com" target="_blank" rel="noopener">reachgiant.com</a>
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://pvuykkdqoxrflbasswal.supabase.co';
+const SUPABASE_ANON = 'sb_publishable_ogf5kmGoZxfBi20v00akRA_ok4_tJvQ';
+
+// Extract slug from URL: supports /share/abc123 and /share.html?s=abc123
+function getSlug() {
+  // First, try the path component after /share/
+  const m = window.location.pathname.match(/\/share\/([^/?#]+)/);
+  if (m) return m[1];
+  // Fallback to query param
+  const url = new URL(window.location.href);
+  return url.searchParams.get('s') || url.searchParams.get('slug') || '';
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
+}
+
+function formatDate(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
+  } catch (e) { return ''; }
+}
+
+async function loadPack() {
+  const slug = getSlug();
+  if (!slug) {
+    document.getElementById('loadingState').classList.add('hidden');
+    document.getElementById('errorState').classList.remove('hidden');
+    document.getElementById('errorMessage').textContent = 'No share link provided.';
+    return;
+  }
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/share_packs?slug=eq.${encodeURIComponent(slug)}&select=*`, {
+      headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${SUPABASE_ANON}` }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const rows = await res.json();
+    if (!Array.isArray(rows) || rows.length === 0) {
+      document.getElementById('loadingState').classList.add('hidden');
+      document.getElementById('errorState').classList.remove('hidden');
+      return;
+    }
+    const pack = rows[0];
+    // Check expiry
+    if (pack.expires_at && new Date(pack.expires_at) < new Date()) {
+      document.getElementById('loadingState').classList.add('hidden');
+      document.getElementById('errorState').classList.remove('hidden');
+      document.getElementById('errorMessage').textContent = 'This share link has expired.';
+      return;
+    }
+    renderPack(pack);
+  } catch (e) {
+    console.error(e);
+    document.getElementById('loadingState').classList.add('hidden');
+    document.getElementById('errorState').classList.remove('hidden');
+    document.getElementById('errorMessage').textContent = 'Could not load this share link. ' + (e.message || '');
+  }
+}
+
+let CURRENT_PACK = null;
+
+function renderPack(pack) {
+  CURRENT_PACK = pack;
+  document.getElementById('loadingState').classList.add('hidden');
+  document.getElementById('content').classList.remove('hidden');
+  document.title = `${pack.title} · Creative Review`;
+  document.getElementById('packTitle').textContent = pack.title || 'Creative Review';
+  const subtitle = pack.subtitle || '';
+  const subEl = document.getElementById('packSubtitle');
+  if (subtitle) { subEl.textContent = subtitle; } else { subEl.style.display = 'none'; }
+  const posts = Array.isArray(pack.posts) ? pack.posts : [];
+  document.getElementById('packCount').textContent = posts.length + ' post' + (posts.length !== 1 ? 's' : '');
+  document.getElementById('packDate').textContent = formatDate(pack.created_at);
+  document.getElementById('rgBarMeta').textContent = formatDate(pack.created_at);
+  if (pack.client_name) {
+    document.getElementById('packClientWrap').style.display = '';
+    document.getElementById('packClient').textContent = 'For ' + pack.client_name;
+  }
+  // Load saved reviewer name
+  const savedName = localStorage.getItem('rg_reviewer_name') || '';
+  if (savedName) {
+    document.getElementById('reviewerPrompt').classList.add('hidden');
+  } else {
+    document.getElementById('reviewerNameInput').focus();
+  }
+  document.getElementById('reviewerSaveBtn').addEventListener('click', () => {
+    const name = document.getElementById('reviewerNameInput').value.trim();
+    if (!name) { document.getElementById('reviewerNameInput').focus(); return; }
+    localStorage.setItem('rg_reviewer_name', name);
+    document.getElementById('reviewerPrompt').classList.add('hidden');
+  });
+  document.getElementById('reviewerNameInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('reviewerSaveBtn').click();
+  });
+  renderPosts(posts);
+}
+
+function renderPosts(posts) {
+  const wrap = document.getElementById('postsWrap');
+  if (posts.length === 0) {
+    wrap.innerHTML = '<div class="empty-state">No posts in this pack.</div>';
+    return;
+  }
+  wrap.innerHTML = posts.map((p, i) => {
+    const localStateKey = `rg_post_state_${CURRENT_PACK.slug}_${i}`;
+    const savedState = JSON.parse(localStorage.getItem(localStateKey) || '{}');
+    const statusLabel = savedState.action === 'approve' ? 'Approved' : savedState.action === 'reject' ? 'Needs work' : '';
+    const statusClass = savedState.action === 'approve' ? 'approved' : savedState.action === 'reject' ? 'rejected' : '';
+    const concept = (p.concept || '').trim();
+    const headline = (p.headline || '').trim();
+    const caption = (p.caption || '').trim();
+    const hashtags = Array.isArray(p.hashtags) ? p.hashtags.map(h => h.startsWith('#') ? h : '#' + h).join(' ') : (p.hashtags || '');
+    const imgHtml = p.image_url
+      ? `<img class="post-card-img" src="${escapeHtml(p.image_url)}" alt="Post ${i+1}" />`
+      : `<div class="post-card-img-fallback">Image not available</div>`;
+    return `
+      <div class="post-card" data-index="${i}">
+        <div class="post-card-num">
+          <span>Post ${i+1} of ${posts.length}</span>
+          <span class="post-card-num-status ${statusClass}">${statusLabel}</span>
+        </div>
+        ${imgHtml}
+        <div class="post-card-body">
+          ${concept ? `<div class="post-card-concept">${escapeHtml(concept)}</div>` : ''}
+          ${headline ? `<div class="post-card-headline">${escapeHtml(headline)}</div>` : ''}
+          ${caption ? `<div class="post-card-caption">${escapeHtml(caption)}</div>` : ''}
+          ${hashtags ? `<div class="post-card-hashtags">${escapeHtml(hashtags)}</div>` : ''}
+        </div>
+        <div class="post-actions">
+          <div class="post-actions-buttons">
+            <button class="post-action-btn approve ${savedState.action === 'approve' ? 'active' : ''}" data-action="approve">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Approve
+            </button>
+            <button class="post-action-btn reject ${savedState.action === 'reject' ? 'active' : ''}" data-action="reject">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              Needs work
+            </button>
+          </div>
+          <textarea class="post-comment" placeholder="Optional comment — what's working, what to change…" maxlength="2000">${escapeHtml(savedState.comment || '')}</textarea>
+          <div class="post-comment-actions">
+            <button class="post-comment-submit">Send comment</button>
+            <span class="post-comment-status"></span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Wire all posts
+  wrap.querySelectorAll('.post-card').forEach((card) => {
+    const idx = parseInt(card.dataset.index);
+    card.querySelectorAll('.post-action-btn').forEach(btn => {
+      btn.addEventListener('click', () => handleAction(card, idx, btn.dataset.action));
+    });
+    card.querySelector('.post-comment-submit').addEventListener('click', () => handleComment(card, idx));
+  });
+}
+
+async function ensureReviewerName() {
+  // Reviewer name is OPTIONAL — return whatever is in localStorage, or empty string.
+  // We never block actions on missing name; the user can leave it blank if they want to stay anonymous.
+  return (localStorage.getItem('rg_reviewer_name') || '').trim() || null;
+}
+
+async function handleAction(card, postIndex, action) {
+  const reviewerName = await ensureReviewerName();
+  const slug = CURRENT_PACK.slug;
+  const statusEl = card.querySelector('.post-comment-status');
+  statusEl.className = 'post-comment-status';
+  statusEl.textContent = 'Sending…';
+  try {
+    const res = await fetch('/.netlify/functions/share-pack-feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug, post_index: postIndex, action, reviewer_name: reviewerName })
+    });
+    let data = null;
+    const rawText = await res.text();
+    try { data = JSON.parse(rawText); } catch (e) { data = null; }
+    if (!res.ok || !data || data.error) {
+      const errMsg = data?.error || (rawText.trim().startsWith('<') ? 'server returned HTML (function not deployed?)' : `HTTP ${res.status}`);
+      throw new Error(errMsg);
+    }
+    // Update UI state
+    card.querySelectorAll('.post-action-btn').forEach(b => b.classList.remove('active'));
+    card.querySelector(`.post-action-btn[data-action="${action}"]`).classList.add('active');
+    const statusBadge = card.querySelector('.post-card-num-status');
+    if (action === 'approve') { statusBadge.className = 'post-card-num-status approved'; statusBadge.textContent = 'Approved'; }
+    else { statusBadge.className = 'post-card-num-status rejected'; statusBadge.textContent = 'Needs work'; }
+    // Persist locally
+    const localStateKey = `rg_post_state_${slug}_${postIndex}`;
+    const existing = JSON.parse(localStorage.getItem(localStateKey) || '{}');
+    existing.action = action;
+    localStorage.setItem(localStateKey, JSON.stringify(existing));
+    statusEl.className = 'post-comment-status success';
+    statusEl.textContent = action === 'approve' ? '✓ Approval recorded.' : '✓ Feedback recorded.';
+    setTimeout(() => { statusEl.textContent = ''; }, 3500);
+  } catch (e) {
+    statusEl.className = 'post-comment-status error';
+    statusEl.textContent = '⚠ Could not save: ' + (e.message || 'unknown error');
+    console.error('[share] handleAction error:', e);
+  }
+}
+
+async function handleComment(card, postIndex) {
+  const reviewerName = await ensureReviewerName();
+  const slug = CURRENT_PACK.slug;
+  const commentEl = card.querySelector('.post-comment');
+  const comment = commentEl.value.trim();
+  if (!comment) { commentEl.focus(); return; }
+  const statusEl = card.querySelector('.post-comment-status');
+  statusEl.className = 'post-comment-status';
+  statusEl.textContent = 'Sending…';
+  try {
+    const res = await fetch('/.netlify/functions/share-pack-feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug, post_index: postIndex, action: 'comment', comment, reviewer_name: reviewerName })
+    });
+    let data = null;
+    const rawText = await res.text();
+    try { data = JSON.parse(rawText); } catch (e) { data = null; }
+    if (!res.ok || !data || data.error) {
+      const errMsg = data?.error || (rawText.trim().startsWith('<') ? 'server returned HTML (function not deployed?)' : `HTTP ${res.status}`);
+      throw new Error(errMsg);
+    }
+    const localStateKey = `rg_post_state_${slug}_${postIndex}`;
+    const existing = JSON.parse(localStorage.getItem(localStateKey) || '{}');
+    existing.comment = comment;
+    localStorage.setItem(localStateKey, JSON.stringify(existing));
+    statusEl.className = 'post-comment-status success';
+    statusEl.textContent = '✓ Comment sent.';
+    setTimeout(() => { statusEl.textContent = ''; }, 3500);
+  } catch (e) {
+    statusEl.className = 'post-comment-status error';
+    statusEl.textContent = '⚠ Could not send: ' + (e.message || 'unknown error');
+    console.error('[share] handleComment error:', e);
+  }
+}
+
+loadPack();
+</script>
+
+</body>
+</html>

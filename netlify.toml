@@ -1,0 +1,116 @@
+[build]
+  functions = "netlify/functions"
+
+# Bump timeout to 26s (Netlify Pro max) for Hercules audits which call Claude API + fetch external URLs.
+# Default is 10s which is too short for Claude responses around 1500-2500 tokens.
+[functions]
+  node_bundler = "esbuild"
+
+[functions."hercules-url-audit"]
+  timeout = 26
+
+[functions."hercules-geo-audit"]
+  timeout = 26
+
+# Vulcan image generation calls Nano Banana Pro sequentially for multiple posts — needs max timeout.
+[functions."vulcan-image"]
+  timeout = 26
+
+[functions."vulcan-brand-parse"]
+  timeout = 26
+
+[functions."vulcan-video-start"]
+  timeout = 26
+
+[functions."vulcan-video-status"]
+  timeout = 26
+
+[functions."magnus-plan"]
+  timeout = 26
+
+[functions."magnus-execute-task"]
+  timeout = 26
+
+[functions."magnus-synthesize"]
+  timeout = 26
+
+[functions."magnus-extract-brand"]
+  timeout = 26
+
+[functions."magnus-router"]
+  timeout = 26
+
+# Prevent caching of the main app file so users always get the latest deploy.
+# Without this, browsers cache index.html aggressively and users may see stale (or broken) versions for hours.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/config.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# Allow /book/* and /booking/* pages to be embedded in iframes on third-party sites
+[[headers]]
+  for = "/book/*"
+  [headers.values]
+    Content-Security-Policy = "frame-ancestors *"
+    X-Frame-Options = "ALLOWALL"
+
+[[headers]]
+  for = "/booking/*"
+  [headers.values]
+    Content-Security-Policy = "frame-ancestors *"
+    X-Frame-Options = "ALLOWALL"
+
+[[redirects]]
+  from = "/share/*"
+  to = "/share.html"
+  status = 200
+
+[[redirects]]
+  from = "/onboard/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/book/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/oauth/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[functions."share-pack-feedback"]
+  timeout = 10
+
+[functions."share-pack-create"]
+  timeout = 10
+
+[functions."vulcan-revise"]
+  timeout = 26
+
+[functions."vulcan-edit"]
+  timeout = 26
+
+# claude-api powers the Report/Template generation from PDF/text. Long PDFs need >10s.
+[functions."claude-api"]
+  timeout = 26
+
+# Always serve a fresh version.json so the desktop app's update check is accurate.
+[[headers]]
+  for = "/version.json"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[functions."hercules-execute"]
+  timeout = 26
