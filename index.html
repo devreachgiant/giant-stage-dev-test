@@ -4095,6 +4095,39 @@ body:has(.screen[data-screen="chat"].on) .gai-fab{display:none;}
 .qr-pill{position:fixed;bottom:24px;right:88px;display:flex;align-items:center;gap:9px;background:rgba(208,4,0,.96);color:#fff;border-radius:27px;padding:11px 11px 11px 17px;font-size:13px;font-weight:800;z-index:9001;box-shadow:0 12px 32px -6px rgba(208,4,0,.6);}
 .qr-pill-dot{width:9px;height:9px;border-radius:50%;background:#fff;animation:recBlink 1.1s ease-in-out infinite;}
 .qr-pill-stop{background:#fff;color:var(--red);border:none;border-radius:16px;padding:5px 13px;font-size:11.5px;font-weight:800;cursor:pointer;font-family:inherit;}
+.report-type-toggle{display:flex;gap:8px;margin-bottom:2px;}
+.report-type-opt{flex:1;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;text-align:center;font-size:12.5px;font-weight:700;color:var(--text-2);transition:all .15s var(--ease);}
+.report-type-opt.sel{border-color:var(--red);color:var(--red);background:rgba(208,4,0,.06);}
+.report-media-drop{border:1.5px dashed var(--line);border-radius:10px;padding:22px 14px;text-align:center;cursor:pointer;transition:all .15s var(--ease);}
+.report-media-drop.is-dragover{border-color:var(--red);background:rgba(208,4,0,.05);}
+.report-media-drop.has-file{padding:10px;}
+.report-media-preview img,.report-media-preview video{max-width:100%;max-height:180px;border-radius:8px;display:block;margin:0 auto;}
+.report-list{display:flex;flex-direction:column;gap:8px;}
+.report-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);}
+.report-row-badge{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;padding:3px 8px;border-radius:6px;flex-shrink:0;}
+.report-row-badge.bug{background:rgba(208,4,0,.12);color:var(--red);}
+.report-row-badge.feature{background:rgba(37,99,235,.12);color:#2563eb;}
+.report-row-main{flex:1;min-width:0;}
+.report-row-title{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.report-row-meta{font-size:11px;color:var(--text-3);margin-top:2px;}
+.report-row-thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0;background:var(--surface-2);}
+.report-status-pill{font-size:11px;font-weight:700;border-radius:7px;padding:5px 9px;border:1px solid var(--line);background:var(--bg);color:var(--text-2);font-family:inherit;}
+.report-filters{display:flex;gap:8px;margin-bottom:14px;}
+.report-filters select{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12px;font-family:inherit;background:var(--surface);color:var(--text);}
+.changelog-list{display:flex;flex-direction:column;gap:18px;}
+.changelog-entry{border:1px solid var(--line);border-radius:12px;padding:18px 20px;background:var(--surface);}
+.changelog-entry-head{display:flex;align-items:baseline;gap:10px;margin-bottom:12px;}
+.changelog-version{font-size:15px;font-weight:800;color:var(--text);}
+.changelog-date{font-size:11.5px;color:var(--text-3);}
+.changelog-item-row{display:flex;align-items:flex-start;gap:8px;padding:4px 0;font-size:13px;color:var(--text-2);}
+.changelog-item-badge{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:5px;flex-shrink:0;margin-top:1px;}
+.changelog-item-badge.fix{background:rgba(208,4,0,.12);color:var(--red);}
+.changelog-item-badge.feature{background:rgba(37,99,235,.12);color:#2563eb;}
+.changelog-item-badge.improvement{background:rgba(16,185,129,.12);color:#10b981;}
+.changelog-form-item{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+.changelog-form-item select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;font-family:inherit;background:var(--surface);color:var(--text);flex-shrink:0;}
+.changelog-form-item input{flex:1;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);outline:none;}
+.changelog-form-item-remove{background:transparent;border:none;color:var(--text-3);cursor:pointer;font-size:16px;padding:0 4px;flex-shrink:0;}
 .gai-fab.has-panel{transform:scale(0);}
 
 .gai-panel{position:fixed;bottom:24px;right:24px;width:380px;max-width:calc(100vw - 32px);max-height:calc(100vh - 60px);background:var(--surface);border:1px solid var(--line-2);border-radius:18px;box-shadow:0 32px 70px -16px rgba(0,0,0,.7);z-index:9001;display:none;flex-direction:column;opacity:0;transform:translateY(20px) scale(.97);transition:opacity .22s var(--ease),transform .22s var(--ease);transform-origin:bottom right;}
@@ -4723,6 +4756,93 @@ window.giantPrompt = function(message, defaultValue){
 <!-- Quick screen-record FAB + live pill -->
 <button class="qr-fab" id="qrFab" title="Quick screen recording"><svg width="19" height="19" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8" r="3" fill="currentColor"/></svg></button>
 <div class="qr-pill" id="qrPill" style="display:none;"><span class="qr-pill-dot"></span><span id="qrPillTimer">00:00</span><button class="qr-pill-stop" id="qrPillStop">Stop</button></div>
+<!-- Report modal — body-level (not nested inside any screen) so it opens from anywhere -->
+<div class="modal-overlay" id="reportModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h3>Help us improve</h3><div class="m-sub">Report a bug or suggest a feature — the team sees every submission</div></div>
+      <div class="m-close" data-close="reportModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+    </div>
+    <div class="modal-body">
+      <div class="m-field">
+        <div class="report-type-toggle">
+          <div class="report-type-opt sel" data-report-type="bug">🐞 Bug report</div>
+          <div class="report-type-opt" data-report-type="feature">💡 Feature suggestion</div>
+        </div>
+      </div>
+      <div class="m-field"><label>Title</label><input type="text" id="reportTitle" placeholder="Short summary"></div>
+      <div class="m-field"><label>Description</label><textarea id="reportDescription" rows="4" placeholder="What happened? Or what would you like to see?" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;resize:vertical;"></textarea></div>
+      <div class="m-field">
+        <label>Screenshot or video <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(required)</span></label>
+        <div class="report-media-drop" id="reportMediaDrop">
+          <input type="file" id="reportMediaInput" accept="image/*,video/*" style="display:none;">
+          <div id="reportMediaPrompt"><svg width="24" height="24" viewBox="0 0 16 16" fill="none" style="opacity:.4;margin-bottom:6px;"><path d="M2 4a1 1 0 011-1h3.5l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1V4Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg><div style="font-size:12.5px;color:var(--text-2);font-weight:600;">Drag & drop, or click to browse</div><div style="font-size:11px;color:var(--text-3);margin-top:2px;">Image or video, up to 50MB</div></div>
+          <div class="report-media-preview" id="reportMediaPreview" style="display:none;"></div>
+        </div>
+      </div>
+      <div class="m-field"><label>Link <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional)</span></label><input type="text" id="reportLink" placeholder="Reference URL, if any"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="m-cancel" data-close="reportModal">Cancel</button>
+      <button class="m-submit" id="reportSubmitBtn">Submit</button>
+    </div>
+  </div>
+</div>
+<!-- Report detail modal — full view of a submitted bug/feature report -->
+<div class="modal-overlay" id="reportDetailModal">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-head">
+      <div><span class="report-row-badge" id="reportDetailBadge" style="display:inline-block;margin-bottom:8px;"></span><h3 id="reportDetailTitle" style="margin:0;"></h3><div class="m-sub" id="reportDetailMeta"></div></div>
+      <div class="m-close" data-close="reportDetailModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+    </div>
+    <div class="modal-body">
+      <div class="m-field"><label>Description</label><div id="reportDetailDescription" style="font-size:13.5px;line-height:1.6;color:var(--text);white-space:pre-wrap;"></div></div>
+      <div class="m-field">
+        <label>Attached media</label>
+        <div id="reportDetailMedia" style="border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center;"></div>
+      </div>
+      <div class="m-field" id="reportDetailLinkField" style="display:none;"><label>Reference link</label><a id="reportDetailLink" href="#" target="_blank" rel="noopener" style="font-size:13px;color:#2563eb;word-break:break-all;"></a></div>
+      <div class="m-field" id="reportDetailTriageField" style="display:none;">
+        <label>Triage</label>
+        <div style="display:flex;gap:10px;">
+          <select class="report-status-pill" id="reportDetailStatus" style="flex:1;"></select>
+          <select class="report-status-pill" id="reportDetailPriority" style="flex:1;">
+            <option value="">No priority</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="m-cancel" data-close="reportDetailModal">Close</button>
+    </div>
+  </div>
+</div>
+<!-- New changelog entry modal — body-level so it opens from anywhere -->
+<div class="modal-overlay" id="changelogModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h3>New changelog entry</h3><div class="m-sub">Record what shipped in this release</div></div>
+      <div class="m-close" data-close="changelogModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+    </div>
+    <div class="modal-body">
+      <div class="m-field"><label>Version</label><input type="text" id="changelogVersion" placeholder="e.g. 0.0.2"></div>
+      <div class="m-field"><label>Release date</label><input type="date" id="changelogDate"></div>
+      <div class="m-field">
+        <label>Changes</label>
+        <div id="changelogItemsList"></div>
+        <button class="m-cancel" id="changelogAddItemBtn" type="button" style="margin-top:8px;">+ Add change</button>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="m-cancel" data-close="changelogModal">Cancel</button>
+      <button class="m-submit" id="changelogSubmitBtn">Save entry</button>
+    </div>
+  </div>
+</div>
 <div class="gai-panel" id="gaiPanel">
   <div class="gai-head">
     <div class="gai-head-title"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.6 4.3 4.4 1.7-4.4 1.7L8 13.5 6.4 9.2 2 7.5l4.4-1.7L8 1.5Z" fill="currentColor"/></svg>Reach AI Assistant</div>
@@ -4894,6 +5014,8 @@ window.giantPrompt = function(message, defaultValue){
         <div class="nav-pill" id="pill2" style="opacity:0;"></div>
         <div class="nav-item" data-screen="settings" data-label="Settings"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/><path d="M13.4 9.6l-1.1-.5a4 4 0 000-2.2l1.1-.5a.6.6 0 00.3-.8l-1-1.7a.6.6 0 00-.8-.2l-1 .5a4 4 0 00-1.9-1.1l-.2-1.1a.6.6 0 00-.6-.5h-2a.6.6 0 00-.6.5l-.2 1.1a4 4 0 00-1.9 1.1l-1-.5a.6.6 0 00-.8.2l-1 1.7a.6.6 0 00.3.8l1.1.5a4 4 0 000 2.2l-1.1.5a.6.6 0 00-.3.8l1 1.7a.6.6 0 00.8.2l1-.5a4 4 0 001.9 1.1l.2 1.1a.6.6 0 00.6.5h2a.6.6 0 00.6-.5l.2-1.1a4 4 0 001.9-1.1l1 .5a.6.6 0 00.8-.2l1-1.7a.6.6 0 00-.3-.8Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></span>Settings</div>
         <div class="nav-item" data-screen="admin" data-label="Admin" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5l5.5 2.5v4c0 3.4-2.3 5.6-5.5 6.5-3.2-.9-5.5-3.1-5.5-6.5v-4L8 1.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>Admin</div>
+        <div class="nav-item" data-screen="report" data-label="Help Us Improve" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3.2M8 11h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>Help Us Improve <span class="badge" id="sidebarBadgeReports" style="display:none;">0</span></div>
+        <div class="nav-item" data-screen="changelog" data-label="Version &amp; Changelog" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M4 2h6l3 3v9H4V2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6 6.5h4M6 9h4M6 11.5h2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>Version &amp; Changelog</div>
       </div>
       </div><!-- /nav-scroll -->
       <div class="sidebar-foot">
@@ -7552,6 +7674,51 @@ window.giantPrompt = function(message, defaultValue){
         </div>
       </div>
 
+      <!-- ===== HELP US IMPROVE (bug reports + feature suggestions) ===== -->
+      <div class="screen" data-screen="report">
+        <div style="max-width:920px;margin:0 auto;padding:28px 24px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+            <div>
+              <div style="font-size:20px;font-weight:800;letter-spacing:-0.01em;">Help us improve</div>
+              <div style="font-size:12.5px;color:var(--text-3);margin-top:2px;">Every bug and idea from the team, in one place</div>
+            </div>
+            <button class="btn-red" id="reportOpenModalBtn">+ Report</button>
+          </div>
+          <div class="report-filters">
+            <select id="reportFilterType">
+              <option value="">All types</option>
+              <option value="bug">Bugs only</option>
+              <option value="feature">Feature suggestions only</option>
+            </select>
+            <select id="reportFilterStatus">
+              <option value="">All statuses</option>
+              <option value="new">New</option>
+              <option value="triaged">Triaged</option>
+              <option value="in_progress">In progress</option>
+              <option value="fixed">Fixed</option>
+              <option value="wont_fix">Won't fix</option>
+            </select>
+          </div>
+          <div class="report-list" id="reportList"></div>
+          <div id="reportEmptyState" style="display:none;text-align:center;padding:48px 0;color:var(--text-3);font-size:13px;">No reports yet. Be the first to flag something.</div>
+        </div>
+      </div>
+
+      <!-- ===== VERSION & CHANGELOG ===== -->
+      <div class="screen" data-screen="changelog">
+        <div style="max-width:760px;margin:0 auto;padding:28px 24px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+            <div>
+              <div style="font-size:20px;font-weight:800;letter-spacing:-0.01em;">Version &amp; Changelog</div>
+              <div style="font-size:12.5px;color:var(--text-3);margin-top:2px;">What changed in each release</div>
+            </div>
+            <button class="btn-red" id="changelogOpenModalBtn">+ New entry</button>
+          </div>
+          <div class="changelog-list" id="changelogList"></div>
+          <div id="changelogEmptyState" style="display:none;text-align:center;padding:48px 0;color:var(--text-3);font-size:13px;">No changelog entries yet.</div>
+        </div>
+      </div>
+
       <!-- ===== SCREEN RECORD ===== -->
       <div class="screen" data-screen="record">
         <div class="rec-wrap">
@@ -9176,6 +9343,511 @@ setupRail('rail2','pill2');
   }
   wireNotes();
   setTimeout(wireNotes, 1200);
+})();
+
+/* ===== HELP US IMPROVE — bug reports + feature suggestions ===== */
+(function reportsModule(){
+  const sb = () => window.supabaseClient;
+  const $ = id => document.getElementById(id);
+  const rEsc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const myId = () => window.giantSession && window.giantSession.user && window.giantSession.user.id;
+  // Any team member can triage (update status/priority) — clients never see this page (data-client-hidden).
+  const isTriager = () => { const r = window.giantCurrentProfile && window.giantCurrentProfile.role; return r !== 'client'; };
+
+  let selectedType = 'bug';
+  let selectedFile = null;
+  let reportsCache = [];
+
+  function currentPageContext(){
+    const active = document.querySelector('.nav-item.active');
+    return (active && (active.dataset.label || active.dataset.screen)) || '';
+  }
+
+  function resetForm(){
+    selectedType = 'bug';
+    selectedFile = null;
+    document.querySelectorAll('.report-type-opt').forEach(o => o.classList.toggle('sel', o.dataset.reportType === 'bug'));
+    if ($('reportTitle')) $('reportTitle').value = '';
+    if ($('reportDescription')) $('reportDescription').value = '';
+    if ($('reportLink')) $('reportLink').value = '';
+    if ($('reportMediaInput')) $('reportMediaInput').value = '';
+    if ($('reportMediaPrompt')) $('reportMediaPrompt').style.display = '';
+    if ($('reportMediaPreview')) { $('reportMediaPreview').style.display = 'none'; $('reportMediaPreview').innerHTML = ''; }
+    const drop = $('reportMediaDrop');
+    if (drop) drop.classList.remove('has-file');
+  }
+
+  function showMediaPreview(file){
+    const preview = $('reportMediaPreview');
+    const prompt = $('reportMediaPrompt');
+    if (!preview || !prompt) return;
+    const url = URL.createObjectURL(file);
+    const isVideo = file.type.startsWith('video/');
+    preview.innerHTML = isVideo
+      ? `<video src="${url}" controls muted></video>`
+      : `<img src="${url}" alt="">`;
+    preview.style.display = 'block';
+    prompt.style.display = 'none';
+    const drop = $('reportMediaDrop');
+    if (drop) drop.classList.add('has-file');
+  }
+
+  function wireModal(){
+    document.querySelectorAll('.report-type-opt').forEach(opt => {
+      opt.addEventListener('click', () => {
+        selectedType = opt.dataset.reportType;
+        document.querySelectorAll('.report-type-opt').forEach(o => o.classList.toggle('sel', o === opt));
+      });
+    });
+
+    const drop = $('reportMediaDrop');
+    const input = $('reportMediaInput');
+    if (drop && input) {
+      drop.addEventListener('click', () => input.click());
+      input.addEventListener('change', () => { if (input.files[0]) { selectedFile = input.files[0]; showMediaPreview(selectedFile); } });
+      ['dragover','dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('is-dragover'); }));
+      ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('is-dragover'); }));
+      drop.addEventListener('drop', e => {
+        const file = e.dataTransfer.files && e.dataTransfer.files[0];
+        if (file) { selectedFile = file; showMediaPreview(file); }
+      });
+    }
+
+    const openBtn = $('reportOpenModalBtn');
+    if (openBtn) openBtn.addEventListener('click', () => { resetForm(); openModal('reportModal'); });
+
+    const submitBtn = $('reportSubmitBtn');
+    if (submitBtn) submitBtn.addEventListener('click', submitReport);
+  }
+
+  async function submitReport(){
+    const title = ($('reportTitle').value || '').trim();
+    const description = ($('reportDescription').value || '').trim();
+    const link = ($('reportLink').value || '').trim();
+    const uid = myId();
+
+    if (!title) { if (typeof toast==='function') toast({type:'error', message:'Title is required'}); return; }
+    if (!description) { if (typeof toast==='function') toast({type:'error', message:'Description is required'}); return; }
+    if (!selectedFile) { if (typeof toast==='function') toast({type:'error', message:'A screenshot or video is required'}); return; }
+    if (!uid) { if (typeof toast==='function') toast({type:'error', message:'Not signed in'}); return; }
+
+    const submitBtn = $('reportSubmitBtn');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting…'; }
+
+    try {
+      const mediaType = selectedFile.type.startsWith('video/') ? 'video' : 'image';
+      const ext = (selectedFile.name.split('.').pop() || (mediaType === 'video' ? 'mp4' : 'png')).toLowerCase();
+      const path = `${selectedType}/${uid}/${Date.now()}.${ext}`;
+      const { error: upErr } = await sb().storage.from('report-media').upload(path, selectedFile, { upsert: false, contentType: selectedFile.type });
+      if (upErr) throw new Error('Upload failed: ' + upErr.message);
+      const { data: pub } = sb().storage.from('report-media').getPublicUrl(path);
+
+      const { data: inserted, error: insErr } = await sb().from('reports').insert({
+        type: selectedType,
+        title,
+        description,
+        media_url: pub.publicUrl,
+        media_type: mediaType,
+        link: link || null,
+        reporter_id: uid,
+        page_context: currentPageContext()
+      }).select('id').single();
+      if (insErr) throw new Error(insErr.message);
+
+      // In-app notification for owner/manager (best-effort — RLS allows any authenticated insert).
+      try {
+        const { data: triagers } = await sb().from('profiles').select('id').in('role', ['owner','manager']);
+        const actor = (window.giantCurrentProfile && window.giantCurrentProfile.full_name) || 'Someone';
+        const notifRows = (triagers || []).filter(p => p.id !== uid).map(p => ({
+          recipient_id: p.id,
+          actor_id: uid,
+          type: 'report_submitted',
+          title: selectedType === 'bug' ? 'New bug report' : 'New feature suggestion',
+          body: `${actor} submitted "${title}"`
+        }));
+        if (notifRows.length) await sb().from('notifications').insert(notifRows);
+      } catch(e) { console.warn('[reports] notification insert failed', e.message); }
+
+      // Email notification — best-effort, fire and forget.
+      try {
+        fetch('/.netlify/functions/report-notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ report_id: inserted.id })
+        }).catch(()=>{});
+      } catch(e) {}
+
+      if (typeof toast==='function') toast({type:'success', message:'Thanks — report submitted!'});
+      closeModal('reportModal');
+      resetForm();
+      if (document.querySelector('.screen[data-screen="report"].on')) loadReports();
+    } catch(e) {
+      if (typeof toast==='function') toast({type:'error', message: e.message || 'Submit failed'});
+    } finally {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Submit'; }
+    }
+  }
+
+  function timeAgo(iso){
+    const d = new Date(iso), diff = (Date.now() - d.getTime()) / 1000;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+    return Math.floor(diff/86400) + 'd ago';
+  }
+
+  const STATUS_LABELS = { new:'New', triaged:'Triaged', in_progress:'In progress', fixed:'Fixed', wont_fix:"Won't fix" };
+
+  function renderReports(){
+    const listEl = $('reportList');
+    const emptyEl = $('reportEmptyState');
+    if (!listEl) return;
+    const typeFilter = $('reportFilterType') ? $('reportFilterType').value : '';
+    const statusFilter = $('reportFilterStatus') ? $('reportFilterStatus').value : '';
+    const rows = reportsCache.filter(r =>
+      (!typeFilter || r.type === typeFilter) && (!statusFilter || r.status === statusFilter)
+    );
+    if (!rows.length) {
+      listEl.innerHTML = '';
+      if (emptyEl) emptyEl.style.display = 'block';
+      return;
+    }
+    if (emptyEl) emptyEl.style.display = 'none';
+    const triager = isTriager();
+    listEl.innerHTML = rows.map(r => {
+      const reporterName = (r.reporter && r.reporter.full_name) || 'Someone';
+      const thumb = r.media_type === 'video'
+        ? `<div class="report-row-thumb" style="display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3.5" width="9" height="9" rx="1.6" stroke="currentColor" stroke-width="1.2"/><path d="M11 6.5l3-1.8v6.6l-3-1.8z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></div>`
+        : `<img class="report-row-thumb" src="${rEsc(r.media_url)}" alt="">`;
+      const statusControl = triager
+        ? `<select class="report-status-pill" data-report-id="${r.id}" data-field="status">${Object.entries(STATUS_LABELS).map(([v,l]) => `<option value="${v}" ${r.status===v?'selected':''}>${l}</option>`).join('')}</select>`
+        : `<span class="report-status-pill">${STATUS_LABELS[r.status] || r.status}</span>`;
+      return `<div class="report-row" data-report-id="${r.id}" style="cursor:pointer;">
+        <span class="report-row-badge ${r.type}">${r.type === 'bug' ? 'Bug' : 'Feature'}</span>
+        ${thumb}
+        <div class="report-row-main">
+          <div class="report-row-title">${rEsc(r.title)}</div>
+          <div class="report-row-meta">${rEsc(reporterName)} · ${r.page_context ? rEsc(r.page_context) + ' · ' : ''}${timeAgo(r.created_at)}</div>
+        </div>
+        <span data-stop-row-click>${statusControl}</span>
+      </div>`;
+    }).join('');
+
+    listEl.querySelectorAll('.report-row').forEach(row => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('[data-stop-row-click]')) return;
+        const r = reportsCache.find(x => x.id === row.dataset.reportId);
+        if (r) openReportDetail(r);
+      });
+    });
+
+    if (triager) {
+      listEl.querySelectorAll('select[data-field="status"]').forEach(sel => {
+        sel.addEventListener('change', async () => {
+          const id = sel.dataset.reportId;
+          try {
+            await sb().from('reports').update({ status: sel.value }).eq('id', id);
+            const row = reportsCache.find(r => r.id === id);
+            if (row) row.status = sel.value;
+          } catch(e) { if (typeof toast==='function') toast({type:'error', message:'Failed to update status'}); }
+        });
+      });
+    }
+  }
+
+  function openReportDetail(r){
+    const reporterName = (r.reporter && r.reporter.full_name) || 'Someone';
+    const badge = $('reportDetailBadge');
+    badge.textContent = r.type === 'bug' ? 'Bug' : 'Feature';
+    badge.className = 'report-row-badge ' + r.type;
+    $('reportDetailTitle').textContent = r.title;
+    $('reportDetailMeta').textContent = `${reporterName} · ${r.page_context ? r.page_context + ' · ' : ''}${timeAgo(r.created_at)}`;
+    $('reportDetailDescription').textContent = r.description;
+
+    const mediaEl = $('reportDetailMedia');
+    mediaEl.innerHTML = r.media_type === 'video'
+      ? `<video src="${rEsc(r.media_url)}" controls style="max-width:100%;max-height:360px;border-radius:8px;"></video>`
+      : `<img src="${rEsc(r.media_url)}" style="max-width:100%;max-height:360px;border-radius:8px;">`;
+
+    const linkField = $('reportDetailLinkField');
+    if (r.link) {
+      linkField.style.display = '';
+      const linkEl = $('reportDetailLink');
+      linkEl.href = r.link; linkEl.textContent = r.link;
+    } else {
+      linkField.style.display = 'none';
+    }
+
+    const triageField = $('reportDetailTriageField');
+    if (isTriager()) {
+      triageField.style.display = '';
+      const statusSel = $('reportDetailStatus');
+      statusSel.innerHTML = Object.entries(STATUS_LABELS).map(([v,l]) => `<option value="${v}" ${r.status===v?'selected':''}>${l}</option>`).join('');
+      statusSel.onchange = async () => {
+        try {
+          await sb().from('reports').update({ status: statusSel.value }).eq('id', r.id);
+          r.status = statusSel.value;
+          renderReports();
+        } catch(e) { if (typeof toast==='function') toast({type:'error', message:'Failed to update status'}); }
+      };
+      const prioritySel = $('reportDetailPriority');
+      prioritySel.value = r.priority || '';
+      prioritySel.onchange = async () => {
+        try {
+          await sb().from('reports').update({ priority: prioritySel.value || null }).eq('id', r.id);
+          r.priority = prioritySel.value || null;
+        } catch(e) { if (typeof toast==='function') toast({type:'error', message:'Failed to update priority'}); }
+      };
+    } else {
+      triageField.style.display = 'none';
+    }
+
+    openModal('reportDetailModal');
+  }
+
+  async function loadReports(){
+    if (!sb()) return;
+    try {
+      const { data, error } = await sb().from('reports').select('*, reporter:profiles!reports_reporter_id_fkey(full_name)').order('created_at', { ascending: false });
+      if (error) throw error;
+      reportsCache = data || [];
+      renderReports();
+    } catch(e) { console.warn('[reports] load failed', e.message); }
+  }
+
+  function wireList(){
+    const typeSel = $('reportFilterType');
+    const statusSel = $('reportFilterStatus');
+    if (typeSel) typeSel.addEventListener('change', renderReports);
+    if (statusSel) statusSel.addEventListener('change', renderReports);
+    document.querySelectorAll('.nav-item[data-screen="report"]').forEach(n => n.addEventListener('click', loadReports));
+  }
+
+  function init(){
+    if (window._reportsWired) return;
+    if (!$('reportModal')) return;
+    window._reportsWired = true;
+    wireModal();
+    wireList();
+  }
+  init();
+  setTimeout(init, 1200);
+  window.giantLoadReports = loadReports;
+})();
+
+/* ===== DRAGGABLE FLOATING BUTTONS (fixes: "can we hide record floating icon") =====
+   Lets the AI assistant + quick-record FABs be freely repositioned instead of
+   staying pinned to a fixed corner. Position persists per-browser via localStorage. */
+(function draggableFabs(){
+  const DRAG_THRESHOLD = 6; // px of movement before we treat it as a drag, not a click
+
+  function makeDraggable(el){
+    if (!el || el._dragWired) return;
+    el._dragWired = true;
+
+    const storageKey = 'giant_fab_pos_' + el.id;
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
+      if (saved && typeof saved.left === 'number' && typeof saved.top === 'number') {
+        applyPosition(saved.left, saved.top);
+      }
+    } catch(e) {}
+
+    function applyPosition(left, top){
+      const w = el.offsetWidth || 54, h = el.offsetHeight || 54;
+      const maxLeft = window.innerWidth - w - 4;
+      const maxTop = window.innerHeight - h - 4;
+      left = Math.max(4, Math.min(left, maxLeft));
+      top = Math.max(4, Math.min(top, maxTop));
+      el.style.left = left + 'px';
+      el.style.top = top + 'px';
+      el.style.right = 'auto';
+      el.style.bottom = 'auto';
+    }
+
+    let dragging = false, moved = false, startX = 0, startY = 0, startLeft = 0, startTop = 0;
+
+    el.addEventListener('pointerdown', (e) => {
+      if (e.button !== undefined && e.button !== 0) return;
+      dragging = true; moved = false;
+      const rect = el.getBoundingClientRect();
+      startX = e.clientX; startY = e.clientY;
+      startLeft = rect.left; startTop = rect.top;
+      el.setPointerCapture(e.pointerId);
+    });
+
+    el.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX, dy = e.clientY - startY;
+      if (!moved && Math.hypot(dx, dy) > DRAG_THRESHOLD) moved = true;
+      if (moved) {
+        el.style.transition = 'none';
+        applyPosition(startLeft + dx, startTop + dy);
+      }
+    });
+
+    el.addEventListener('pointerup', (e) => {
+      if (!dragging) return;
+      dragging = false;
+      el.style.transition = '';
+      if (moved) {
+        try {
+          const rect = el.getBoundingClientRect();
+          localStorage.setItem(storageKey, JSON.stringify({ left: rect.left, top: rect.top }));
+        } catch(err) {}
+      }
+    });
+
+    // Suppress the click that would otherwise fire right after a drag.
+    el.addEventListener('click', (e) => {
+      if (moved) { e.stopImmediatePropagation(); e.preventDefault(); moved = false; }
+    }, true);
+
+    // Keep the FAB on-screen if the window is resized after being dragged.
+    window.addEventListener('resize', () => {
+      const rect = el.getBoundingClientRect();
+      if (el.style.left && el.style.left !== 'auto') applyPosition(rect.left, rect.top);
+    });
+  }
+
+  function init(){
+    makeDraggable(document.getElementById('gaiFab'));
+    makeDraggable(document.getElementById('qrFab'));
+  }
+  init();
+  setTimeout(init, 1200);
+})();
+
+/* ===== VERSION & CHANGELOG ===== */
+(function changelogModule(){
+  const sb = () => window.supabaseClient;
+  const $ = id => document.getElementById(id);
+  const cEsc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const myId = () => window.giantSession && window.giantSession.user && window.giantSession.user.id;
+
+  const ITEM_TYPE_LABELS = { fix: 'Fix', feature: 'Feature', improvement: 'Improvement' };
+  let entriesCache = [];
+
+  function todayStr(){
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  function addItemRow(type, text){
+    const row = document.createElement('div');
+    row.className = 'changelog-form-item';
+    row.innerHTML = `
+      <select class="clog-item-type">
+        <option value="fix" ${type==='fix'?'selected':''}>Fix</option>
+        <option value="feature" ${type==='feature'?'selected':''}>Feature</option>
+        <option value="improvement" ${type==='improvement'?'selected':''}>Improvement</option>
+      </select>
+      <input type="text" class="clog-item-text" placeholder="What changed?" value="${cEsc(text||'')}">
+      <button type="button" class="changelog-form-item-remove">&times;</button>
+    `;
+    row.querySelector('.changelog-form-item-remove').addEventListener('click', () => row.remove());
+    $('changelogItemsList').appendChild(row);
+  }
+
+  function resetForm(){
+    $('changelogVersion').value = '';
+    $('changelogDate').value = todayStr();
+    $('changelogItemsList').innerHTML = '';
+    addItemRow('fix', '');
+  }
+
+  function wireModal(){
+    const openBtn = $('changelogOpenModalBtn');
+    if (openBtn) openBtn.addEventListener('click', () => { resetForm(); openModal('changelogModal'); });
+
+    const addBtn = $('changelogAddItemBtn');
+    if (addBtn) addBtn.addEventListener('click', () => addItemRow('fix', ''));
+
+    const submitBtn = $('changelogSubmitBtn');
+    if (submitBtn) submitBtn.addEventListener('click', submitEntry);
+  }
+
+  async function submitEntry(){
+    const version = ($('changelogVersion').value || '').trim();
+    const releasedAt = $('changelogDate').value;
+    const items = [...document.querySelectorAll('#changelogItemsList .changelog-form-item')].map(row => ({
+      type: row.querySelector('.clog-item-type').value,
+      text: (row.querySelector('.clog-item-text').value || '').trim()
+    })).filter(it => it.text);
+
+    if (!version) { if (typeof toast==='function') toast({type:'error', message:'Version is required'}); return; }
+    if (!releasedAt) { if (typeof toast==='function') toast({type:'error', message:'Release date is required'}); return; }
+    if (!items.length) { if (typeof toast==='function') toast({type:'error', message:'Add at least one change'}); return; }
+
+    const submitBtn = $('changelogSubmitBtn');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving…'; }
+    try {
+      const { error } = await sb().from('changelog_entries').insert({
+        version, released_at: releasedAt, items, created_by: myId()
+      });
+      if (error) throw new Error(error.message);
+      if (typeof toast==='function') toast({type:'success', message:'Changelog entry saved'});
+      closeModal('changelogModal');
+      loadEntries();
+    } catch(e) {
+      if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to save'});
+    } finally {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Save entry'; }
+    }
+  }
+
+  function formatDate(dateStr){
+    try { return new Date(dateStr + 'T00:00:00').toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' }); }
+    catch(e) { return dateStr; }
+  }
+
+  function renderEntries(){
+    const listEl = $('changelogList');
+    const emptyEl = $('changelogEmptyState');
+    if (!listEl) return;
+    if (!entriesCache.length) {
+      listEl.innerHTML = '';
+      if (emptyEl) emptyEl.style.display = 'block';
+      return;
+    }
+    if (emptyEl) emptyEl.style.display = 'none';
+    listEl.innerHTML = entriesCache.map(entry => {
+      const items = Array.isArray(entry.items) ? entry.items : [];
+      const itemsHtml = items.map(it => `<div class="changelog-item-row"><span class="changelog-item-badge ${it.type}">${ITEM_TYPE_LABELS[it.type] || it.type}</span><span>${cEsc(it.text)}</span></div>`).join('');
+      return `<div class="changelog-entry">
+        <div class="changelog-entry-head">
+          <span class="changelog-version">v${cEsc(entry.version)}</span>
+          <span class="changelog-date">${formatDate(entry.released_at)}</span>
+        </div>
+        ${itemsHtml}
+      </div>`;
+    }).join('');
+  }
+
+  async function loadEntries(){
+    if (!sb()) return;
+    try {
+      const { data, error } = await sb().from('changelog_entries').select('*').order('released_at', { ascending: false });
+      if (error) throw error;
+      entriesCache = data || [];
+      renderEntries();
+    } catch(e) { console.warn('[changelog] load failed', e.message); }
+  }
+
+  function wireList(){
+    document.querySelectorAll('.nav-item[data-screen="changelog"]').forEach(n => n.addEventListener('click', loadEntries));
+  }
+
+  function init(){
+    if (window._changelogWired) return;
+    if (!$('changelogModal')) return;
+    window._changelogWired = true;
+    wireModal();
+    wireList();
+  }
+  init();
+  setTimeout(init, 1200);
+  window.giantLoadChangelog = loadEntries;
 })();
 
 /* ===== SCREEN RECORDING (feature #6) ===== */
@@ -22605,6 +23277,17 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         rgHomeCard.addEventListener('mouseenter', () => rgHomeCard.style.background = 'linear-gradient(135deg,rgba(208,4,0,.32),rgba(208,4,0,.10))');
         rgHomeCard.addEventListener('mouseleave', () => rgHomeCard.style.background = 'linear-gradient(135deg,rgba(208,4,0,.22),rgba(208,4,0,.06))');
       }
+      // Restore the last-viewed channel (survives reload) before falling back to a default pick.
+      if (!activeChannelId) {
+        let savedChannelId = null;
+        try { savedChannelId = localStorage.getItem('giant_active_channel'); } catch(_) {}
+        const savedStillValid = savedChannelId && (
+          chatChannels.some(c => c.id === savedChannelId) || chatDmChannels.some(c => c.id === savedChannelId)
+        );
+        if (savedStillValid) {
+          await switchChannel(savedChannelId);
+        }
+      }
       // Pick first channel if none active — skip card channels (section_id) and the Home channel
       if (!activeChannelId) {
         const firstNormal = chatChannels.find(c => !c.section_id && !((c.name || '').toLowerCase().startsWith('reachgiant-home')) && !((c.slug || '').toLowerCase().startsWith('reachgiant-home')));
@@ -23056,6 +23739,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     async function switchChannel(channelId) {
       activeChannelId = channelId;
       window.activeChannelId = channelId; // expose for voice note + other features
+      try { localStorage.setItem('giant_active_channel', channelId); } catch(_) {}
       if (window._resetChatSubtab) window._resetChatSubtab();
       // ── INSTANT VISUAL FEEDBACK ──
       // Move the red active indicator BEFORE any async work, so the user feels the click is registered.
