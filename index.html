@@ -4128,6 +4128,36 @@ body:has(.screen[data-screen="chat"].on) .gai-fab{display:none;}
 .changelog-form-item select{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;font-family:inherit;background:var(--surface);color:var(--text);flex-shrink:0;}
 .changelog-form-item input{flex:1;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;background:var(--surface);color:var(--text);outline:none;}
 .changelog-form-item-remove{background:transparent;border:none;color:var(--text-3);cursor:pointer;font-size:16px;padding:0 4px;flex-shrink:0;}
+.schedule-preset{text-align:left;background:transparent;border:none;border-radius:8px;padding:10px 12px;font-size:13px;color:var(--text);cursor:pointer;font-family:inherit;transition:.12s;}
+.schedule-preset:hover{background:var(--surface-2);}
+.scheduled-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);}
+.scheduled-item:last-child{border-bottom:none;}
+.scheduled-item-body{flex:1;font-size:13px;color:var(--text);line-height:1.4;}
+.scheduled-item-time{font-size:11px;color:var(--text-3);margin-top:2px;}
+.scheduled-item-cancel{background:transparent;border:1px solid var(--line);border-radius:7px;padding:5px 10px;font-size:11px;font-weight:600;color:var(--red);cursor:pointer;font-family:inherit;flex-shrink:0;}
+.scheduled-chip{display:inline-flex;align-items:center;gap:6px;margin-top:8px;padding:5px 11px;font-size:11px;font-weight:600;color:var(--red);background:rgba(208,4,0,.10);border:1px solid rgba(208,4,0,.25);border-radius:20px;cursor:pointer;transition:.12s;}
+.scheduled-chip:hover{background:rgba(208,4,0,.16);}
+.schedule-popover{position:fixed;z-index:10000;width:230px;background:var(--pane,#161616);border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,.5);display:none;flex-direction:column;padding:6px;font-family:inherit;}
+.schedule-popover.on{display:flex;}
+.schedule-popover-title{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-3);padding:8px 10px 4px;}
+.schedule-popover-divider{height:1px;background:var(--line);margin:4px 6px;}
+.schedule-field-btn{width:100%;display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--text);cursor:pointer;font-family:inherit;text-align:left;}
+.schedule-field-btn:hover{border-color:var(--red);}
+.schedule-calendar{position:fixed;z-index:10002;width:250px;background:var(--pane,#161616);border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,.5);padding:12px;display:none;}
+.schedule-calendar.on{display:block;}
+.schedule-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:12.5px;font-weight:700;color:var(--text);}
+.schedule-cal-nav{background:transparent;border:none;color:var(--text-2);cursor:pointer;padding:4px;display:flex;}
+.schedule-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+.schedule-cal-dow{font-size:10px;color:var(--text-3);text-align:center;padding:4px 0;font-weight:700;}
+.schedule-cal-day{font-size:12px;text-align:center;padding:6px 0;border-radius:7px;cursor:pointer;color:var(--text);}
+.schedule-cal-day:hover{background:var(--surface-2);}
+.schedule-cal-day.sel{background:var(--red);color:#fff;font-weight:700;}
+.schedule-cal-day.disabled{color:var(--text-3);opacity:.35;cursor:not-allowed;pointer-events:none;}
+.schedule-time-list{position:fixed;z-index:10002;max-height:220px;overflow-y:auto;background:var(--pane,#161616);border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,.5);padding:6px;display:none;}
+.schedule-time-list.on{display:block;}
+.schedule-time-opt{padding:8px 12px;font-size:12.5px;color:var(--text);border-radius:7px;cursor:pointer;}
+.schedule-time-opt:hover{background:var(--surface-2);}
+.schedule-time-opt.sel{color:var(--red);font-weight:700;}
 .gai-fab.has-panel{transform:scale(0);}
 
 .gai-panel{position:fixed;bottom:24px;right:24px;width:380px;max-width:calc(100vw - 32px);max-height:calc(100vh - 60px);background:var(--surface);border:1px solid var(--line-2);border-radius:18px;box-shadow:0 32px 70px -16px rgba(0,0,0,.7);z-index:9001;display:none;flex-direction:column;opacity:0;transform:translateY(20px) scale(.97);transition:opacity .22s var(--ease),transform .22s var(--ease);transform-origin:bottom right;}
@@ -4229,14 +4259,14 @@ body:has(.screen[data-screen="chat"].on) .gai-fab{display:none;}
 .msg .reaction:hover{transform:translateY(-1px);}
 
 /* Reaction picker — Slack-style horizontal bar */
-.msg-react-bar{position:absolute;top:-18px;right:18px;display:none;background:var(--pane);border:1px solid var(--line-2);border-radius:10px;padding:4px;box-shadow:0 12px 32px -8px rgba(0,0,0,.5),0 4px 12px -4px rgba(0,0,0,.3);z-index:5;gap:1px;align-items:center;flex-wrap:nowrap;white-space:nowrap;}
+.msg-react-bar{position:absolute;top:-12px;right:18px;display:none;background:var(--pane);border:1px solid var(--line-2);border-radius:9px;padding:3px;box-shadow:0 12px 32px -8px rgba(0,0,0,.5),0 4px 12px -4px rgba(0,0,0,.3);z-index:5;gap:1px;align-items:center;flex-wrap:nowrap;white-space:nowrap;}
 .msg{position:relative;}
 .msg:hover .msg-react-bar{display:inline-flex;}
-.msg-react-bar-emoji{padding:6px 8px;border-radius:7px;font-size:14px;cursor:pointer;transition:.12s;line-height:1;display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:28px;}
+.msg-react-bar-emoji{padding:4px 6px;border-radius:6px;font-size:13px;cursor:pointer;transition:.12s;line-height:1;display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;}
 .msg-react-bar-emoji:hover{background:var(--surface-2);transform:scale(1.18);}
-.msg-react-bar-more{padding:0 9px;border-radius:7px;cursor:pointer;color:var(--text-3);display:inline-flex;align-items:center;justify-content:center;height:28px;min-width:28px;}
+.msg-react-bar-more{padding:0 7px;border-radius:6px;cursor:pointer;color:var(--text-3);display:inline-flex;align-items:center;justify-content:center;height:24px;min-width:24px;}
 .msg-react-bar-more:hover{background:var(--surface-2);color:var(--text);}
-.msg-react-bar-sep{width:1px;height:18px;background:var(--line);margin:0 2px;flex-shrink:0;}
+.msg-react-bar-sep{width:1px;height:15px;background:var(--line);margin:0 2px;flex-shrink:0;}
 
 /* Pin / Reply buttons in the bar (Slack-style icon buttons) */
 .msg-pin-btn,.msg-reply-btn{padding:0 9px;border-radius:7px;cursor:pointer;color:var(--text-3);transition:.12s;display:inline-flex;align-items:center;justify-content:center;height:28px;min-width:28px;flex-shrink:0;}
@@ -4840,6 +4870,61 @@ window.giantPrompt = function(message, defaultValue){
     <div class="modal-foot">
       <button class="m-cancel" data-close="changelogModal">Cancel</button>
       <button class="m-submit" id="changelogSubmitBtn">Save entry</button>
+    </div>
+  </div>
+</div>
+<!-- Schedule message modal -->
+<!-- Quick-pick popover (small, anchored above the schedule chevron — Slack's first step) -->
+<div class="schedule-popover" id="schedulePopover">
+  <div class="schedule-popover-title">Schedule message</div>
+  <div id="scheduleMsgPresets"></div>
+  <div class="schedule-popover-divider"></div>
+  <button class="schedule-preset" id="scheduleCustomTimeBtn">Custom time</button>
+</div>
+<!-- Custom time modal (Slack's second step: date + time + calendar, restyled to our theme) -->
+<div class="modal-overlay" id="scheduleMsgModal">
+  <div class="modal" style="max-width:420px;">
+    <div class="modal-head">
+      <div><h3>Schedule message</h3><div class="m-sub" id="scheduleTzLabel">Time zone: —</div></div>
+      <div class="m-close" data-close="scheduleMsgModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+    </div>
+    <div class="modal-body">
+      <div class="m-field"><label>Message</label><textarea id="scheduleMsgBody" rows="3" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;resize:vertical;"></textarea></div>
+      <div style="display:flex;gap:10px;position:relative;">
+        <div style="flex:1;position:relative;">
+          <button class="schedule-field-btn" id="scheduleDateBtn" type="button">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M2 6.5h12M5.5 1.5V4M10.5 1.5V4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            <span id="scheduleDateLabel">Today</span>
+          </button>
+          <div class="schedule-calendar" id="scheduleCalendar"></div>
+        </div>
+        <div style="flex:1;position:relative;">
+          <div class="schedule-field-btn" style="cursor:text;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.3"/><path d="M8 5v3.2l2.2 1.3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            <input type="text" id="scheduleTimeInput" placeholder="12:00 PM" autocomplete="off" style="border:none;background:transparent;color:var(--text);font-size:13px;font-family:inherit;outline:none;width:100%;padding:0;">
+          </div>
+          <div class="schedule-time-list" id="scheduleTimeList"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="m-cancel" data-close="scheduleMsgModal">Cancel</button>
+      <button class="m-submit" id="scheduleMsgCustomBtn">Schedule message</button>
+    </div>
+  </div>
+</div>
+<!-- Pending scheduled messages list -->
+<div class="modal-overlay" id="scheduledListModal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-head">
+      <div><h3>Scheduled messages</h3><div class="m-sub">In this conversation</div></div>
+      <div class="m-close" data-close="scheduledListModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+    </div>
+    <div class="modal-body">
+      <div id="scheduledListItems"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="m-cancel" data-close="scheduledListModal">Close</button>
     </div>
   </div>
 </div>
@@ -6219,7 +6304,14 @@ window.giantPrompt = function(message, defaultValue){
                 <div class="tool" id="chatGifBtn" title="Add a GIF" style="font-size:10px;font-weight:800;letter-spacing:.4px;border:1.4px solid var(--text-2);color:var(--text-2);border-radius:5px;padding:2px 5px;line-height:1;">GIF</div>
                 <div class="tool" id="chatMentionBtn" title="Mention someone" style="font-size:13px;font-weight:800">@</div>
                 <div class="tool" id="chatMicBtn" title="Record voice note" style="background:var(--red);color:#fff;border-radius:8px;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(208,4,0,.35);"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="6" y="2" width="4" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M3 8v.5a5 5 0 0010 0V8M8 13.5V15M5.5 15h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
-                <button class="send" id="chatSend" style="margin-left:auto;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8l12-5-5 12-2-5-5-2Z" fill="currentColor"/></svg></button>
+                <div class="send-split" style="margin-left:auto;display:flex;">
+                  <button class="send" id="chatSend" style="border-radius:8px 0 0 8px;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8l12-5-5 12-2-5-5-2Z" fill="currentColor"/></svg></button>
+                  <button class="send" id="chatScheduleBtn" title="Schedule message" style="border-radius:0 8px 8px 0;width:22px;border-left:1px solid rgba(255,255,255,.25);"><svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                </div>
+              </div>
+              <div id="chatScheduledPill" class="scheduled-chip" style="display:none;">
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.3"/><path d="M8 5v3.2l2.2 1.3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                <span id="chatScheduledPillText">0 scheduled</span>
               </div>
               <!-- Voice note recording overlay (hidden by default) -->
               <div id="chatVoiceRecorder" style="display:none;align-items:center;gap:11px;padding:10px 14px;background:linear-gradient(90deg,rgba(208,4,0,.10),rgba(208,4,0,.04));border:1.5px solid rgba(208,4,0,.30);border-radius:11px;margin-top:8px;">
@@ -13735,21 +13827,27 @@ document.querySelectorAll('.prj-vtab').forEach(attachPrjVtab);
       const sectionsHtml = defaultSections.map(secName => `<div class="prj-section open"><div class="prj-sect-head"><span class="prj-sect-chev"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M5 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="prj-sect-name" contenteditable="true">${escHtml(secName)}</span></div><div class="prj-sect-body"><div class="prj-addrow">+ Add task</div></div></div>`).join('');
       view.innerHTML = sectionsHtml + '<div class="prj-addsection prj-addsection-new">+ Add section</div>';
     } else {
-      view.innerHTML='<div class="prj-view-empty"><div class="pvE-cta" data-newview-addsec><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Add section</div></div><div class="prj-addsection prj-addsection-new" style="display:none;">+ Add section</div>';
+      view.innerHTML='<div class="prj-view-empty"><div style="display:flex;gap:8px;justify-content:center;"><div class="pvE-cta" data-newview-addtask><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Add task</div><div class="pvE-cta" data-newview-addsec style="background:transparent;border:1px solid var(--line);color:var(--text-2);"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Add section</div></div></div><div class="prj-addsection prj-addsection-new" style="display:none;">+ Add section</div>';
     }
     table.appendChild(view);
     /* wire up the CTA inside the empty state to add a section */
     const cta=view.querySelector('[data-newview-addsec]');
+    const ctaTask=view.querySelector('[data-newview-addtask]');
     const addsec=view.querySelector('.prj-addsection-new');
-    function addSectionToView(){
+    function addSectionToView(andAddTask){
       const sec=document.createElement('div');
       sec.className='prj-section open';
-      sec.innerHTML='<div class="prj-sect-head"><span class="prj-sect-chev"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M5 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="prj-sect-name" contenteditable="true">New section</span></div><div class="prj-sect-body"><div class="prj-addrow">+ Add task</div></div>';
+      sec.innerHTML=`<div class="prj-sect-head"><span class="prj-sect-chev"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M5 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="prj-sect-name" contenteditable="true">${andAddTask?'Tasks':'New section'}</span></div><div class="prj-sect-body"><div class="prj-addrow">+ Add task</div></div>`;
       view.insertBefore(sec,addsec);
       addsec.style.display='block';
       const empty=view.querySelector('.prj-view-empty');
       if(empty)empty.style.display='none';
       wirePrjNewSection(sec);
+      if (andAddTask) {
+        const addrow = sec.querySelector('.prj-addrow');
+        if (addrow) addrow.click();
+        return;
+      }
       const nameSpan=sec.querySelector('.prj-sect-name');
       const r=document.createRange();r.selectNodeContents(nameSpan);
       const s=window.getSelection();s.removeAllRanges();s.addRange(r);
@@ -13773,8 +13871,9 @@ document.querySelectorAll('.prj-vtab').forEach(attachPrjVtab);
       });
     }
     window.wirePrjNewSection = wirePrjNewSection; // expose for loadCustomProjectViews
-    if (cta) cta.addEventListener('click',addSectionToView);
-    if (addsec) addsec.addEventListener('click',addSectionToView);
+    if (cta) cta.addEventListener('click',()=>addSectionToView(false));
+    if (ctaTask) ctaTask.addEventListener('click',()=>addSectionToView(true));
+    if (addsec) addsec.addEventListener('click',()=>addSectionToView(false));
     // Wire the pre-created sections for Board mode (they exist immediately)
     if (_newViewType === 'board') {
       view.querySelectorAll('.prj-section').forEach(wirePrjNewSection);
@@ -23740,6 +23839,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       activeChannelId = channelId;
       window.activeChannelId = channelId; // expose for voice note + other features
       try { localStorage.setItem('giant_active_channel', channelId); } catch(_) {}
+      if (window.giantRefreshScheduledPill) window.giantRefreshScheduledPill();
       if (window._resetChatSubtab) window._resetChatSubtab();
       // ── INSTANT VISUAL FEEDBACK ──
       // Move the red active indicator BEFORE any async work, so the user feels the click is registered.
@@ -24887,6 +24987,410 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     }
 
     if (chatSend) chatSend.addEventListener('click', sendChatMessage);
+
+    // ── Schedule message (like Slack's "Schedule send") ──
+    (function scheduleMessageFeature(){
+      const $ = id => document.getElementById(id);
+
+      function fmtTime(d){ return d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true }); }
+      function fmtPresetLabel(d){
+        return d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' }) + ' at ' + fmtTime(d);
+      }
+      function timezoneLabel(){
+        try {
+          const parts = new Intl.DateTimeFormat('en-US', { timeZoneName: 'long' }).formatToParts(new Date());
+          const n = parts.find(p => p.type === 'timeZoneName');
+          return n ? n.value : Intl.DateTimeFormat().resolvedOptions().timeZone;
+        } catch(e) { return ''; }
+      }
+      function buildPresets(){
+        const now = new Date();
+        const later = new Date(now); later.setHours(later.getHours()+3, 0, 0, 0);
+        const tomorrow9 = new Date(now); tomorrow9.setDate(tomorrow9.getDate()+1); tomorrow9.setHours(9,0,0,0);
+        const nextMonday9 = new Date(now);
+        const daysUntilMonday = (8 - nextMonday9.getDay()) % 7 || 7;
+        nextMonday9.setDate(nextMonday9.getDate() + daysUntilMonday); nextMonday9.setHours(9,0,0,0);
+        const opts = [];
+        if (later.getTime() > now.getTime()) opts.push({ label: 'Later today at ' + fmtTime(later), date: later });
+        opts.push({ label: 'Tomorrow at ' + fmtTime(tomorrow9), date: tomorrow9 });
+        opts.push({ label: 'Monday at ' + fmtTime(nextMonday9), date: nextMonday9 });
+        return opts;
+      }
+
+      async function scheduleFor(date){
+        const body = (chatInput.value || '').trim();
+        if (!body){ if (typeof toast==='function') toast({type:'error', message:'Type a message first'}); return; }
+        if (!activeChannelId){ if (typeof toast==='function') toast({type:'error', message:'No channel selected'}); return; }
+        try {
+          const { error } = await supabase.from('scheduled_messages').insert({
+            channel_id: activeChannelId,
+            sender_id: session.user.id,
+            body,
+            scheduled_for: date.toISOString()
+          });
+          if (error) throw new Error(error.message);
+          chatInput.value = '';
+          if (window._autoGrowChat) window._autoGrowChat();
+          if (typeof toast==='function') toast({type:'success', message:'Message scheduled for ' + fmtPresetLabel(date)});
+          closePopover();
+          closeModal('scheduleMsgModal');
+          refreshScheduledPill();
+        } catch(e) {
+          if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to schedule'});
+        }
+      }
+
+      // Used by the "Custom time" modal — supports both creating a new scheduled
+      // message and saving edits to an existing one (editingScheduleId).
+      async function saveCustomSchedule(date){
+        const body = ($('scheduleMsgBody').value || '').trim();
+        if (!body){ if (typeof toast==='function') toast({type:'error', message:'Message can\'t be empty'}); return; }
+        if (!activeChannelId){ if (typeof toast==='function') toast({type:'error', message:'No channel selected'}); return; }
+        try {
+          if (editingScheduleId) {
+            const { error } = await supabase.from('scheduled_messages')
+              .update({ body, scheduled_for: date.toISOString() })
+              .eq('id', editingScheduleId);
+            if (error) throw new Error(error.message);
+            if (typeof toast==='function') toast({type:'success', message:'Scheduled message updated'});
+          } else {
+            const { error } = await supabase.from('scheduled_messages').insert({
+              channel_id: activeChannelId,
+              sender_id: session.user.id,
+              body,
+              scheduled_for: date.toISOString()
+            });
+            if (error) throw new Error(error.message);
+            chatInput.value = '';
+            if (window._autoGrowChat) window._autoGrowChat();
+            if (typeof toast==='function') toast({type:'success', message:'Message scheduled for ' + fmtPresetLabel(date)});
+          }
+          editingScheduleId = null;
+          closeModal('scheduleMsgModal');
+          refreshScheduledPill();
+        } catch(e) {
+          if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to save'});
+        }
+      }
+
+      async function sendScheduledNow(id, channelId, body){
+        try {
+          const { data: inserted, error: insErr } = await supabase.from('messages').insert({
+            channel_id: channelId,
+            author_id: session.user.id,
+            body
+          }).select().single();
+          if (insErr) throw new Error(insErr.message);
+          const { error: updErr } = await supabase.from('scheduled_messages').update({
+            status: 'sent', sent_message_id: inserted.id, sent_at: new Date().toISOString()
+          }).eq('id', id);
+          if (updErr) throw new Error(updErr.message);
+          if (typeof toast==='function') toast({type:'success', message:'Sent'});
+          return true;
+        } catch(e) {
+          if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to send'});
+          return false;
+        }
+      }
+
+      // ── Step 1: small quick-pick popover anchored to the chevron ──
+      function closePopover(){
+        const p = $('schedulePopover');
+        if (p) p.classList.remove('on');
+        document.removeEventListener('click', onDocClickClosePopover);
+      }
+      function onDocClickClosePopover(e){
+        const p = $('schedulePopover');
+        const btn = $('chatScheduleBtn');
+        if (p && !p.contains(e.target) && e.target !== btn && !btn.contains(e.target)) closePopover();
+      }
+
+      const scheduleBtn = $('chatScheduleBtn');
+      if (scheduleBtn) scheduleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const presetsEl = $('scheduleMsgPresets');
+        if (presetsEl) {
+          presetsEl.innerHTML = '';
+          buildPresets().forEach(p => {
+            const btn = document.createElement('button');
+            btn.className = 'schedule-preset';
+            btn.type = 'button';
+            btn.textContent = p.label;
+            btn.addEventListener('click', () => scheduleFor(p.date));
+            presetsEl.appendChild(btn);
+          });
+        }
+        const pop = $('schedulePopover');
+        const r = scheduleBtn.getBoundingClientRect();
+        pop.style.bottom = (window.innerHeight - r.top + 8) + 'px';
+        pop.style.left = Math.max(8, r.right - 230) + 'px';
+        pop.classList.add('on');
+        setTimeout(() => document.addEventListener('click', onDocClickClosePopover), 30);
+      });
+
+      // ── Step 2: "Custom time" — full modal with date/time pickers ──
+      let selDate = new Date();       // currently chosen calendar date (Y/M/D matter)
+      let selTime = { h: 12, m: 0 };  // currently chosen time
+      let calViewMonth = new Date();  // month currently shown in the calendar grid
+
+      function combinedDate(){
+        const d = new Date(selDate);
+        d.setHours(selTime.h, selTime.m, 0, 0);
+        return d;
+      }
+      function parseTimeInput(str){
+        if (!str) return null;
+        str = str.trim().toLowerCase();
+        const m = str.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+        if (!m) return null;
+        let h = parseInt(m[1],10);
+        let min = m[2] ? parseInt(m[2],10) : 0;
+        const ap = m[3];
+        if (isNaN(h) || isNaN(min) || min > 59) return null;
+        if (ap) {
+          if (h < 1 || h > 12) return null;
+          if (ap === 'pm' && h !== 12) h += 12;
+          if (ap === 'am' && h === 12) h = 0;
+        } else if (h > 23) return null;
+        return { h, m: min };
+      }
+
+      function updateFieldLabels(){
+        const now = new Date();
+        const isToday = selDate.toDateString() === now.toDateString();
+        const tmrw = new Date(now); tmrw.setDate(tmrw.getDate()+1);
+        const isTomorrow = selDate.toDateString() === tmrw.toDateString();
+        $('scheduleDateLabel').textContent = isToday ? 'Today' : isTomorrow ? 'Tomorrow' : selDate.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+        const t = new Date(); t.setHours(selTime.h, selTime.m, 0, 0);
+        $('scheduleTimeInput').value = fmtTime(t);
+      }
+
+      function positionPopoverNear(pop, anchorEl){
+        const r = anchorEl.getBoundingClientRect();
+        pop.style.top = (r.bottom + 6) + 'px';
+        pop.style.left = r.left + 'px';
+        pop.style.width = Math.max(r.width, 180) + 'px';
+      }
+
+      function renderCalendar(){
+        const cal = $('scheduleCalendar');
+        const year = calViewMonth.getFullYear(), month = calViewMonth.getMonth();
+        const monthLabel = calViewMonth.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+        const firstDow = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month+1, 0).getDate();
+        const today = new Date(); today.setHours(0,0,0,0);
+        let grid = '';
+        ['Su','Mo','Tu','We','Th','Fr','Sa'].forEach(d => grid += `<div class="schedule-cal-dow">${d}</div>`);
+        for (let i=0; i<firstDow; i++) grid += '<div></div>';
+        for (let day=1; day<=daysInMonth; day++){
+          const d = new Date(year, month, day);
+          const disabled = d < today;
+          const sel = d.toDateString() === selDate.toDateString();
+          grid += `<div class="schedule-cal-day${sel?' sel':''}${disabled?' disabled':''}" data-day="${day}">${day}</div>`;
+        }
+        cal.innerHTML = `<div class="schedule-cal-head">
+          <button type="button" class="schedule-cal-nav" data-nav="-1"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <span>${monthLabel}</span>
+          <button type="button" class="schedule-cal-nav" data-nav="1"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        <div class="schedule-cal-grid">${grid}</div>`;
+        cal.querySelectorAll('[data-nav]').forEach(btn => btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          calViewMonth.setMonth(calViewMonth.getMonth() + parseInt(btn.dataset.nav,10));
+          renderCalendar();
+        }));
+        cal.querySelectorAll('.schedule-cal-day:not(.disabled)').forEach(el => el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selDate = new Date(year, month, parseInt(el.dataset.day,10));
+          updateFieldLabels();
+          cal.classList.remove('on');
+        }));
+      }
+
+      function renderTimeList(){
+        const list = $('scheduleTimeList');
+        let html = '';
+        for (let h=0; h<24; h++){
+          for (let m=0; m<60; m+=15){
+            const t = new Date(); t.setHours(h,m,0,0);
+            const label = fmtTime(t);
+            const sel = selTime.h === h && selTime.m === m;
+            html += `<div class="schedule-time-opt${sel?' sel':''}" data-h="${h}" data-m="${m}">${label}</div>`;
+          }
+        }
+        list.innerHTML = html;
+        list.querySelectorAll('[data-h]').forEach(el => el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selTime = { h: parseInt(el.dataset.h,10), m: parseInt(el.dataset.m,10) };
+          updateFieldLabels();
+          list.classList.remove('on');
+        }));
+        const selEl = list.querySelector('.sel');
+        if (selEl) selEl.scrollIntoView({ block: 'center' });
+      }
+
+      let editingScheduleId = null;
+
+      function openCustomModal(prefill){
+        const now = new Date();
+        const d = (prefill && prefill.date) || now;
+        selDate = new Date(d);
+        selTime = prefill ? { h: d.getHours(), m: d.getMinutes() } : { h: now.getHours(), m: Math.ceil(now.getMinutes()/15)*15 % 60 };
+        calViewMonth = new Date(selDate);
+        $('scheduleMsgBody').value = (prefill && prefill.body != null) ? prefill.body : (chatInput.value || '');
+        $('scheduleTzLabel').textContent = 'Time zone: ' + timezoneLabel();
+        $('scheduleMsgCustomBtn').textContent = editingScheduleId ? 'Save changes' : 'Schedule message';
+        updateFieldLabels();
+        renderCalendar();
+        renderTimeList();
+        openModal('scheduleMsgModal');
+      }
+
+      const customTimeBtn = $('scheduleCustomTimeBtn');
+      if (customTimeBtn) customTimeBtn.addEventListener('click', () => {
+        closePopover();
+        editingScheduleId = null;
+        openCustomModal();
+      });
+
+      const dateBtn = $('scheduleDateBtn');
+      if (dateBtn) dateBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        $('scheduleTimeList').classList.remove('on');
+        const cal = $('scheduleCalendar');
+        if (!cal.classList.contains('on')) positionPopoverNear(cal, dateBtn);
+        cal.classList.toggle('on');
+      });
+      const timeInput = $('scheduleTimeInput');
+      if (timeInput) {
+        timeInput.addEventListener('focus', () => {
+          $('scheduleCalendar').classList.remove('on');
+          const list = $('scheduleTimeList');
+          positionPopoverNear(list, timeInput);
+          list.classList.add('on');
+          const selEl = list.querySelector('.sel');
+          if (selEl) selEl.scrollIntoView({ block: 'center' });
+        });
+        timeInput.addEventListener('input', () => {
+          const parsed = parseTimeInput(timeInput.value);
+          if (parsed) { selTime = parsed; renderTimeList(); }
+        });
+        function commitTimeInput(){
+          const parsed = parseTimeInput(timeInput.value);
+          if (parsed) selTime = parsed;
+          const t = new Date(); t.setHours(selTime.h, selTime.m, 0, 0);
+          timeInput.value = fmtTime(t);
+        }
+        timeInput.addEventListener('blur', () => setTimeout(commitTimeInput, 150));
+        timeInput.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter'){ e.preventDefault(); commitTimeInput(); $('scheduleTimeList').classList.remove('on'); }
+        });
+      }
+      document.addEventListener('click', (e) => {
+        const cal = $('scheduleCalendar'), tl = $('scheduleTimeList');
+        if (cal && cal.classList.contains('on') && !cal.contains(e.target) && e.target !== dateBtn) cal.classList.remove('on');
+        if (tl && tl.classList.contains('on') && !tl.contains(e.target) && e.target !== timeInput) tl.classList.remove('on');
+      });
+
+      const customBtn = $('scheduleMsgCustomBtn');
+      if (customBtn) customBtn.addEventListener('click', () => {
+        const date = combinedDate();
+        if (date.getTime() <= Date.now()){ if (typeof toast==='function') toast({type:'error', message:'Pick a time in the future'}); return; }
+        saveCustomSchedule(date);
+      });
+
+      async function refreshScheduledPill(){
+        const pill = $('chatScheduledPill');
+        const pillText = $('chatScheduledPillText');
+        if (!pill || !activeChannelId) return;
+        try {
+          const { data, error } = await supabase.from('scheduled_messages')
+            .select('id', { count: 'exact' })
+            .eq('channel_id', activeChannelId)
+            .eq('sender_id', session.user.id)
+            .eq('status', 'pending');
+          if (error) throw error;
+          const n = (data || []).length;
+          pill.style.display = n > 0 ? 'flex' : 'none';
+          if (pillText) pillText.textContent = n + (n === 1 ? ' scheduled' : ' scheduled');
+        } catch(e) {}
+      }
+      window.giantRefreshScheduledPill = refreshScheduledPill;
+
+      const pillEl = $('chatScheduledPill');
+      if (pillEl) pillEl.addEventListener('click', async () => {
+        const listEl = $('scheduledListItems');
+        if (!listEl) return;
+        listEl.innerHTML = '<div style="padding:14px;color:var(--text-3);font-size:12px;">Loading…</div>';
+        openModal('scheduledListModal');
+        try {
+          const { data, error } = await supabase.from('scheduled_messages')
+            .select('id, body, scheduled_for')
+            .eq('channel_id', activeChannelId)
+            .eq('sender_id', session.user.id)
+            .eq('status', 'pending')
+            .order('scheduled_for', { ascending: true });
+          if (error) throw error;
+          if (!data || !data.length){
+            listEl.innerHTML = '<div style="padding:14px;color:var(--text-3);font-size:12px;">No scheduled messages in this conversation.</div>';
+            return;
+          }
+          listEl.innerHTML = data.map(m => `<div class="scheduled-item" data-id="${m.id}">
+            <div class="scheduled-item-body">${(m.body||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+              <div class="scheduled-item-time">${fmtPresetLabel(new Date(m.scheduled_for))}</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0;">
+              <button class="scheduled-item-cancel" data-send-id="${m.id}" style="color:var(--text-2);">Send now</button>
+              <button class="scheduled-item-cancel" data-edit-id="${m.id}" style="color:var(--text-2);">Edit</button>
+              <button class="scheduled-item-cancel" data-cancel-id="${m.id}">Cancel</button>
+            </div>
+          </div>`).join('');
+          listEl.querySelectorAll('[data-cancel-id]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              try {
+                const { error } = await supabase.from('scheduled_messages').update({ status: 'cancelled' }).eq('id', btn.dataset.cancelId);
+                if (error) throw new Error(error.message);
+                btn.closest('.scheduled-item').remove();
+                refreshScheduledPill();
+                if (typeof toast==='function') toast({type:'success', message:'Scheduled message cancelled'});
+              } catch(e) {
+                if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to cancel'});
+              }
+            });
+          });
+          listEl.querySelectorAll('[data-send-id]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const id = btn.dataset.sendId;
+              const row = data.find(x => x.id === id);
+              if (!row) return;
+              btn.disabled = true; btn.textContent = 'Sending…';
+              const ok = await sendScheduledNow(id, activeChannelId, row.body);
+              if (ok) {
+                btn.closest('.scheduled-item').remove();
+                refreshScheduledPill();
+              } else {
+                btn.disabled = false; btn.textContent = 'Send now';
+              }
+            });
+          });
+          listEl.querySelectorAll('[data-edit-id]').forEach(btn => {
+            btn.addEventListener('click', () => {
+              const id = btn.dataset.editId;
+              const row = data.find(x => x.id === id);
+              if (!row) return;
+              editingScheduleId = id;
+              closeModal('scheduledListModal');
+              openCustomModal({ body: row.body, date: new Date(row.scheduled_for) });
+            });
+          });
+        } catch(e) {
+          listEl.innerHTML = '<div style="padding:14px;color:var(--red);font-size:12px;">Failed to load.</div>';
+        }
+      });
+
+      refreshScheduledPill();
+    })();
+
     if (chatInput) {
       chatInput.addEventListener('keydown', (e) => {
         // If the mention autocomplete picker is open, Enter/Tab must select a mention, not send the message.
@@ -25168,6 +25672,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const bar = document.createElement('div');
       bar.className = 'msg-react-bar';
       const emojisHtml = QUICK_EMOJIS.map(e => `<div class="msg-react-bar-emoji" data-emoji="${chatEsc(e)}">${chatEsc(e)}</div>`).join('');
+      const moreEmojiHtml = `<div class="msg-react-bar-more" data-action="more-emoji" title="Find another reaction"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 9s.9 1.2 2.5 1.2S10.5 9 10.5 9M6 6.2h.01M10 6.2h.01" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M12.5 3.5v3M11 5h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></div>`;
       const sepHtml = '<div class="msg-react-bar-sep"></div>';
       // AI reply suggest button (works for messages from others)
       const aiHtml = !isMine ? `<div class="msg-react-bar-more" data-action="ai-reply" title="AI suggest reply"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.6 4.3 4.4 1.7-4.4 1.7L8 13.5 6.4 9.2 2 7.5l4.4-1.7L8 1.5Z" fill="currentColor" opacity=".8"/></svg></div>` : '';
@@ -25179,13 +25684,19 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       // Delete button — only the author can delete their own message
       const deleteHtml = isMine ? `<div class="msg-react-bar-more" data-action="delete" title="Delete message" style="color:var(--red);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3.5 4.5h9M6 4.5v-1a1 1 0 011-1h2a1 1 0 011 1v1M5 4.5l.5 8a1 1 0 001 .9h3a1 1 0 001-.9l.5-8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>` : '';
       const editHtml = isMine ? `<div class="msg-react-bar-more" data-action="edit" title="Edit message"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 2.2l2.6 2.6M3 12.5l8.2-8.2 2.6 2.6-8.2 8.2H3v-2.6z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></div>` : '';
-      bar.innerHTML = emojisHtml + sepHtml + aiHtml + createTaskHtml + pinHtml + editHtml + deleteHtml;
+      bar.innerHTML = emojisHtml + moreEmojiHtml + sepHtml + aiHtml + createTaskHtml + pinHtml + editHtml + deleteHtml;
       msgEl.appendChild(bar);
       bar.querySelectorAll('.msg-react-bar-emoji').forEach(el => {
         el.addEventListener('click', (e) => {
           e.stopPropagation();
           toggleReaction(messageId, el.dataset.emoji);
         });
+      });
+      // "Find another reaction" — full emoji picker, same list used for composing messages
+      const moreEmojiBtn = bar.querySelector('[data-action="more-emoji"]');
+      if (moreEmojiBtn) moreEmojiBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openReactionEmojiPicker(moreEmojiBtn, (emoji) => toggleReaction(messageId, emoji));
       });
       // Create task button (in react bar) — wires through to the global create-task flow
       const createTaskBtnRB = bar.querySelector('[data-action="create-task-rb"]');
@@ -26514,6 +27025,40 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         document.addEventListener('click', closeHandler);
       }, 100);
     }
+
+    // Full emoji picker for reacting to a message ("Find another reaction", Slack-style) —
+    // same emoji list as the composer's picker, but calls back with the chosen emoji instead
+    // of inserting it into the chat input.
+    function openReactionEmojiPicker(anchorEl, onPick) {
+      document.querySelectorAll('.chat-emoji-pop').forEach(p => p.remove());
+      const pop = document.createElement('div');
+      pop.className = 'chat-emoji-pop';
+      const r = anchorEl.getBoundingClientRect();
+      const top = Math.max(8, r.top - 250);
+      const left = Math.min(window.innerWidth - 310, Math.max(8, r.left - 130));
+      pop.style.cssText = `position:fixed;left:${left}px;top:${top}px;width:300px;max-height:240px;overflow-y:auto;background:var(--pane);border:1px solid var(--line-2);border-radius:11px;padding:10px;box-shadow:0 16px 40px -8px rgba(0,0,0,.55),0 6px 16px -4px rgba(0,0,0,.35);z-index:10003;display:grid;grid-template-columns:repeat(8,1fr);gap:3px;`;
+      pop.innerHTML = EMOJI_PICKER_LIST.map(e => `<div class="chat-emoji-pop-item" style="font-size:20px;text-align:center;padding:6px;border-radius:6px;cursor:pointer;line-height:1;transition:.1s;">${e}</div>`).join('');
+      document.body.appendChild(pop);
+      pop.querySelectorAll('.chat-emoji-pop-item').forEach(item => {
+        item.addEventListener('mouseenter', () => item.style.background = 'var(--surface-2)');
+        item.addEventListener('mouseleave', () => item.style.background = '');
+        item.addEventListener('click', (e) => {
+          e.stopPropagation();
+          onPick(item.textContent);
+          pop.remove();
+        });
+      });
+      setTimeout(() => {
+        const closeHandler = (e) => {
+          if (!pop.contains(e.target) && e.target !== anchorEl && !anchorEl.contains(e.target)) {
+            pop.remove();
+            document.removeEventListener('click', closeHandler);
+          }
+        };
+        document.addEventListener('click', closeHandler);
+      }, 100);
+    }
+
     if (chatEmojiBtn) {
       chatEmojiBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -26934,6 +27479,11 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       if (chatAttachmentsCache[m.id]) {
         renderAttachmentsForMsg(div, m.id);
       }
+      // Thread replies previously never got the hover reaction bar or existing reactions —
+      // this was the whole "can't react in thread messages" bug (worked in the main channel
+      // because that path calls attachReactBarToMsg, this one never did).
+      attachReactBarToMsg(div, m.id, m.author_id === session.user.id);
+      if (chatReactionsCache[m.id]) renderReactionsForMsg(div, m.id);
     }
 
     async function openThread(parentMessageId) {
@@ -26944,8 +27494,6 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const channel = chatChannels.find(c => c.id === parent.channel_id) || chatDmChannels.find(c => c.id === parent.channel_id);
       threadHeadSub.textContent = channel ? (channel.is_dm ? `with @${channel.name}` : `in #${channel.name}`) : '';
       await hydrateProfiles([parent.author_id]);
-      threadParent.innerHTML = '';
-      renderMessageForThread(parent, threadParent);
       // Load replies
       const { data: replies } = await supabase.from('messages')
         .select('*').eq('parent_id', parentMessageId).order('created_at', { ascending: true });
@@ -26953,6 +27501,11 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       await hydrateProfiles(authorIds);
       const replyIds = (replies||[]).map(r => r.id);
       if (replyIds.length) await loadAttachmentsForMessages(replyIds);
+      // Existing reactions were never loaded for thread messages, so they never showed up
+      // (part of the same bug as the missing react bar) — load them for the parent + all replies.
+      await loadReactionsForMessages([parentMessageId, ...replyIds], null);
+      threadParent.innerHTML = '';
+      renderMessageForThread(parent, threadParent);
       threadReplies.innerHTML = '';
       (replies || []).forEach(r => renderMessageForThread(r, threadReplies));
       threadReplies.scrollTop = threadReplies.scrollHeight;
@@ -27161,8 +27714,26 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     };
 
     // ── REPLY COUNT CTA ON PARENT MESSAGES (Slack-style) ────────────
+    // Two independent realtime listeners (new reply INSERT, parent reply_count UPDATE) can both
+    // fire for the same reply event and call this concurrently. Serialize per-message so a second
+    // call always waits for the first to finish (and correctly remove its element) before adding
+    // its own — otherwise both see "no existing CTA" before either has appended one, and you get
+    // the summary duplicated under the message.
+    const _replyCtaLocks = {};
     async function renderReplyCtaForMsg(msgEl, m) {
       if (!m || !m.reply_count) return;
+      const key = m.id;
+      const prevLock = _replyCtaLocks[key] || Promise.resolve();
+      let releaseLock;
+      _replyCtaLocks[key] = new Promise(res => { releaseLock = res; });
+      await prevLock;
+      try {
+        await _renderReplyCtaForMsgInner(msgEl, m);
+      } finally {
+        releaseLock();
+      }
+    }
+    async function _renderReplyCtaForMsgInner(msgEl, m) {
       const body = msgEl.querySelector('.body');
       if (!body) return;
       const existing = body.querySelector('.msg-reply-cta');
@@ -45914,12 +46485,47 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           ).join('');
           viewEl.innerHTML = sectionsHtml + '<div class="prj-addsection prj-addsection-new">+ Add section</div>';
         } else {
-          viewEl.innerHTML = `<div class="prj-view-empty"><div class="pvE-title">${(v.name || 'View')} is empty</div><div>Add your first section to get started.</div><div class="pvE-cta" data-newview-addsec><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Add section</div></div><div class="prj-addsection prj-addsection-new" style="display:none;">+ Add section</div>`;
+          viewEl.innerHTML = `<div class="prj-view-empty"><div class="pvE-title">${(v.name || 'View')} is empty</div><div>Add a task to get started — sections are optional.</div><div style="display:flex;gap:8px;justify-content:center;margin-top:10px;"><div class="pvE-cta" data-newview-addtask><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Add task</div><div class="pvE-cta" data-newview-addsec style="background:transparent;border:1px solid var(--line);color:var(--text-2);"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>Add section</div></div></div><div class="prj-addsection prj-addsection-new" style="display:none;">+ Add section</div>`;
         }
         table.appendChild(viewEl);
         // Wire sections
         if (typeof window.wirePrjNewSection === 'function') {
           viewEl.querySelectorAll('.prj-section').forEach(window.wirePrjNewSection);
+        }
+        // Wire the empty-state CTAs — these were previously never wired at all, so clicking
+        // "+ Add section" silently did nothing. Both now create a real section (persisted to
+        // project_views.sections so it survives reload), and "+ Add task" additionally opens a
+        // task row immediately, so the user never has to think about sections at all.
+        if (!sections.length) {
+          const provisionSection = async (secName) => {
+            let existing = [];
+            try {
+              const { data: freshView } = await supabase.from('project_views').select('sections').eq('id', v.id).single();
+              existing = Array.isArray(freshView?.sections) ? freshView.sections : [];
+            } catch(_) {}
+            const nextSections = [...existing, secName];
+            try {
+              await supabase.from('project_views').update({ sections: nextSections }).eq('id', v.id);
+            } catch(e) { console.warn('[project-views] failed to persist new section:', e.message); }
+            const sec = document.createElement('div');
+            sec.className = 'prj-section open';
+            sec.innerHTML = `<div class="prj-sect-head"><span class="prj-sect-chev"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M5 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="prj-sect-name" contenteditable="true">${secName}</span></div><div class="prj-sect-body"><div class="prj-addrow">+ Add task</div></div>`;
+            const emptyEl = viewEl.querySelector('.prj-view-empty');
+            const addsecBtn = viewEl.querySelector('.prj-addsection-new');
+            if (emptyEl) emptyEl.style.display = 'none';
+            if (addsecBtn) { viewEl.insertBefore(sec, addsecBtn); addsecBtn.style.display = 'block'; }
+            else viewEl.appendChild(sec);
+            if (typeof window.wirePrjNewSection === 'function') window.wirePrjNewSection(sec);
+            return sec;
+          };
+          const addTaskCta = viewEl.querySelector('[data-newview-addtask]');
+          if (addTaskCta) addTaskCta.addEventListener('click', async () => {
+            const sec = await provisionSection('Tasks');
+            const addrow = sec.querySelector('.prj-addrow');
+            if (addrow) addrow.click();
+          });
+          const addSecCta = viewEl.querySelector('[data-newview-addsec]');
+          if (addSecCta) addSecCta.addEventListener('click', () => provisionSection('New section'));
         }
       });
       // ── Load tasks for this project and inject them into the custom views ──
@@ -46772,9 +47378,32 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           _notifs.unshift(n); updateDot();
           if (_panel && _panel.style.display==='flex') renderList();
           push(n);
-        }).subscribe();
+        }).subscribe((status) => {
+          // Realtime channels can silently die (tab backgrounded, laptop sleep, network blip)
+          // and never recover on their own — this leaves notifications stuck until a manual
+          // reload. Detect the dead states and resubscribe.
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            try { sb().removeChannel(_sub); } catch(e){}
+            _sub = null;
+            setTimeout(subscribe, 3000);
+          }
+        });
     } catch(e){}
   }
+
+  // Safety net: realtime can miss events during the time it's reconnecting (or if it silently
+  // died — see subscribe() above), so re-fetch from the DB whenever the tab regains focus.
+  // Matches the same pattern already used for chat (see visibilitychange listener in chat module).
+  (function watchVisibility(){
+    let lastRefresh = Date.now();
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastRefresh < 15000) return; // throttle
+      lastRefresh = Date.now();
+      load();
+      if (!_sub) subscribe(); // also recover the realtime channel if it died while backgrounded
+    });
+  })();
 
   // Insert a notification when a task is assigned to someone (called by the project UI)
   async function notifyTaskAssignment(taskId, assigneeId){
