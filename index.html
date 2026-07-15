@@ -11943,65 +11943,40 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
   window.renderHistory=renderHistory;
 
   /* ---- Client + Task type pickers ---- */
-  const TASK_TYPES_BY_CLIENT={
-    accelerate:[
-      {key:'ad-strategy',label:'Ad strategy',color:'#D00400'},
-      {key:'campaign-setup',label:'Campaign setup',color:'#F2A93B'},
-      {key:'seo-audit',label:'SEO audit',color:'#3DCB7F'},
-      {key:'reporting',label:'Reporting',color:'#5BA0E8'},
-      {key:'client-call',label:'Client call',color:'#C46BF5'}
-    ],
-    kaminos:[
-      {key:'seo-audit',label:'SEO audit',color:'#3DCB7F'},
-      {key:'content',label:'Content writing',color:'#F2A93B'},
-      {key:'keyword-research',label:'Keyword research',color:'#5BA0E8'},
-      {key:'link-building',label:'Link building',color:'#C46BF5'},
-      {key:'client-call',label:'Client call',color:'#D00400'}
-    ],
-    vaultik:[
-      {key:'seo-audit',label:'SEO audit',color:'#3DCB7F'},
-      {key:'tech-audit',label:'Technical audit',color:'#5BA0E8'},
-      {key:'client-call',label:'Client call',color:'#D00400'},
-      {key:'reporting',label:'Reporting',color:'#F2A93B'}
-    ],
-    boston:[
-      {key:'ad-strategy',label:'Ad strategy',color:'#D00400'},
-      {key:'campaign-setup',label:'Campaign setup',color:'#F2A93B'},
-      {key:'seo-audit',label:'SEO audit',color:'#3DCB7F'},
-      {key:'design',label:'Design',color:'#C46BF5'},
-      {key:'reporting',label:'Reporting',color:'#5BA0E8'},
-      {key:'client-call',label:'Client call',color:'#FF7B5B'}
-    ],
-    northhaven:[
-      {key:'ad-strategy',label:'Ad strategy',color:'#D00400'},
-      {key:'meta-campaigns',label:'Meta campaigns',color:'#5BA0E8'},
-      {key:'design',label:'Design',color:'#C46BF5'},
-      {key:'client-call',label:'Client call',color:'#F2A93B'}
-    ],
-    blockmedical:[
-      {key:'seo-audit',label:'SEO audit',color:'#3DCB7F'},
-      {key:'meta-campaigns',label:'Meta campaigns',color:'#5BA0E8'},
-      {key:'content',label:'Content writing',color:'#F2A93B'},
-      {key:'design',label:'Design',color:'#C46BF5'},
-      {key:'reporting',label:'Reporting',color:'#D00400'}
-    ],
-    blueplanet:[
-      {key:'ad-strategy',label:'Ad strategy',color:'#D00400'},
-      {key:'campaign-setup',label:'Campaign setup',color:'#F2A93B'},
-      {key:'client-call',label:'Client call',color:'#5BA0E8'}
-    ],
-    internal:[
-      {key:'admin',label:'Admin / ops',color:'#929296'},
-      {key:'team-mgmt',label:'Team management',color:'#5BA0E8'},
-      {key:'sales',label:'Sales / prospecting',color:'#D00400'},
-      {key:'learning',label:'Learning / training',color:'#3DCB7F'},
-      {key:'personal',label:'Personal / focus time',color:'#C46BF5'}
-    ]
-  };
-  const CLIENT_LABELS={
-    accelerate:'Accelerate',kaminos:'Kaminos',vaultik:'Vaultik',boston:'Boston Best Rate',
-    northhaven:'North Haven Gardens',blockmedical:'Block Medical Center',blueplanet:'Blue Planet AVL',internal:'Internal'
-  };
+  // Task Type is one universal list shared by every client (real clients come from the
+  // clients_public table and don't map to fixed per-client categories, so a single shared
+  // list is what actually works — see the Team Pulse task-type/client wiring fix, 2026-07-15).
+  const TASK_TYPE_MASTER=[
+    {key:'google-ads-setup',label:'Google Ads setup',color:'#D00400'},
+    {key:'google-ads-maintenance',label:'Google Ads maintenance',color:'#F2A93B'},
+    {key:'meta-ads',label:'Meta Ads',color:'#5BA0E8'},
+    {key:'seo',label:'SEO',color:'#3DCB7F'},
+    {key:'seo-audit',label:'SEO audit',color:'#3DCB7F'},
+    {key:'geo-ai-search',label:'GEO / AI search optimization',color:'#C46BF5'},
+    {key:'content',label:'Content writing',color:'#F2A93B'},
+    {key:'copywriting',label:'Copywriting',color:'#FF7B5B'},
+    {key:'web-development',label:'Web development',color:'#5BA0E8'},
+    {key:'web-design',label:'Web design',color:'#C46BF5'},
+    {key:'ui-ux-design',label:'UI / UX design',color:'#38BDF8'},
+    {key:'branding',label:'Branding',color:'#F472B6'},
+    {key:'graphic-design',label:'Graphic design',color:'#FBBF24'},
+    {key:'video-editing',label:'Video editing',color:'#FF7B5B'},
+    {key:'client-call',label:'Client communication',color:'#D00400'},
+    {key:'client-meeting',label:'Client meeting',color:'#F2A93B'},
+    {key:'strategy',label:'Strategy',color:'#3DCB7F'},
+    {key:'research',label:'Research',color:'#5BA0E8'},
+    {key:'reporting',label:'Reporting',color:'#C46BF5'},
+    {key:'analytics',label:'Analytics',color:'#38BDF8'},
+    {key:'qa-testing',label:'QA / testing',color:'#3DCB7F'},
+    {key:'bug-fixes',label:'Bug fixes',color:'#D00400'},
+    {key:'automation',label:'Automation',color:'#F2A93B'},
+    {key:'ai-development',label:'AI development',color:'#C46BF5'},
+    {key:'platform-development',label:'Platform development',color:'#5BA0E8'},
+    {key:'project-management',label:'Project management',color:'#38BDF8'},
+    {key:'admin',label:'Admin',color:'#929296'},
+    {key:'training',label:'Training',color:'#FBBF24'},
+    {key:'internal-meeting',label:'Internal meeting',color:'#F472B6'}
+  ];
 
   const clientPicker=document.getElementById('tpClientPicker');
   const clientDropdown=document.getElementById('tpClientDropdown');
@@ -12015,7 +11990,7 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
   const taskDdClientName=document.getElementById('tpDdTaskClient');
 
   let selectedClient='accelerate';
-  let selectedTaskType={key:'ad-strategy',label:'Ad strategy',color:'#D00400'};
+  let selectedTaskType={key:TASK_TYPE_MASTER[0].key,label:TASK_TYPE_MASTER[0].label,color:TASK_TYPE_MASTER[0].color};
 
   function positionDropdown(picker,dropdown){
     /* Dropdown is position:fixed → coordinates are viewport-relative.
@@ -12044,9 +12019,9 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
     taskDropdown.classList.remove('on');
   }
   function renderTaskTypes(){
-    const types=TASK_TYPES_BY_CLIENT[selectedClient]||[];
+    const types=TASK_TYPE_MASTER;
     taskDdItems.innerHTML='';
-    taskDdClientName.textContent=CLIENT_LABELS[selectedClient]||'this client';
+    taskDdClientName.textContent=clientLabel.textContent||'this client';
     types.forEach(t=>{
       const div=document.createElement('div');
       div.className='tp-dd-item'+(t.key===selectedTaskType.key?' sel':'');
@@ -12059,9 +12034,9 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
         taskLabel.textContent=t.label;
         taskDot.style.background=t.color;
         closeAllDropdowns();
-        toast({type:'info',message:'Working on <b>'+t.label+'</b> for <b>'+(CLIENT_LABELS[selectedClient]||'')+'</b>',duration:2000});
+        toast({type:'info',message:'Working on <b>'+t.label+'</b> for <b>'+(clientLabel.textContent||'')+'</b>',duration:2000});
         if(timerInterval&&floatingTimerLabel){
-          floatingTimerLabel.textContent=t.label+' · '+(CLIENT_LABELS[selectedClient]||'');
+          floatingTimerLabel.textContent=t.label+' · '+(clientLabel.textContent||'');
         }
       });
       taskDdItems.appendChild(div);
@@ -12083,7 +12058,7 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
       closeAllDropdowns();
       toast({type:'success',message:'Custom task added: <b>'+v+'</b>',duration:2000});
       if(timerInterval&&floatingTimerLabel){
-        floatingTimerLabel.textContent=v+' · '+(CLIENT_LABELS[selectedClient]||'');
+        floatingTimerLabel.textContent=v+' · '+(clientLabel.textContent||'');
       }
     }
     btn.addEventListener('click',e=>{e.stopPropagation();commit();});
@@ -12133,13 +12108,45 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
     if (typeof toast === 'function') toast({type:'success', message:'Active task: <b>'+(task.name||'')+'</b>', duration:1800});
   };
 
+  // Buckets tasks so overdue/today/tomorrow/urgent surface first in the picker.
+  function taskUrgencyBucket(t) {
+    if (!t.due_date) return t.priority === 'fire' ? 3 : 5;
+    const due = new Date(t.due_date + 'T00:00:00');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((due - today) / 86400000);
+    if (diffDays < 0) return 0; // overdue
+    if (diffDays === 0) return 1; // due today
+    if (diffDays === 1) return 2; // due tomorrow
+    return 4; // future due date
+  }
+
+  function compareTaskUrgency(a, b) {
+    const ba = taskUrgencyBucket(a), bb = taskUrgencyBucket(b);
+    if (ba !== bb) return ba - bb;
+    if (a.due_date && b.due_date) return a.due_date.localeCompare(b.due_date);
+    if (a.due_date) return -1;
+    if (b.due_date) return 1;
+    const pri = { fire: 0, medium: 1, low: 2 };
+    return (pri[a.priority] ?? 3) - (pri[b.priority] ?? 3);
+  }
+
+  function taskDueLabel(t) {
+    if (!t.due_date) return '';
+    const bucket = taskUrgencyBucket(t);
+    if (bucket === 0) return 'Overdue';
+    if (bucket === 1) return 'Due today';
+    if (bucket === 2) return 'Due tomorrow';
+    try { return 'Due ' + new Date(t.due_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); }
+    catch (e) { return ''; }
+  }
+
   async function loadMyProjectTasks() {
     const sb = window.giantSupabase;
     const sess = sb ? (await sb.auth.getSession()).data.session : null;
     if (!sb || !sess?.user) return [];
     // Fetch tasks assigned to me that are still open (not done), with their project name
     const { data, error } = await sb.from('tasks')
-      .select('id, name, status, project_id, priority, projects:project_id(name, color)')
+      .select('id, name, status, project_id, priority, due_date, projects:project_id(name, color)')
       .contains('assigned_to', [sess.user.id])
       .neq('status', 'done')
       .order('created_at', { ascending: false })
@@ -12148,7 +12155,7 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
       console.warn('[tp-project-task] fetch failed:', error.message);
       return [];
     }
-    return data || [];
+    return (data || []).sort(compareTaskUrgency);
   }
 
   function renderProjectTaskItems() {
@@ -12176,11 +12183,18 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
       <div style="padding:6px 12px 4px;font-size:9.5px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;display:flex;align-items:center;gap:5px;">
         <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${g.color};"></span>${pn}
       </div>
-      ${g.tasks.map(t => `
-        <div class="tp-dd-item" data-task-id="${t.id}" data-task-name="${(t.name||'').replace(/"/g,'&quot;')}" data-project-name="${pn.replace(/"/g,'&quot;')}" style="padding-left:24px;">
-          <span class="tp-dd-name" style="font-size:12px;">${(t.name||'(no name)').replace(/[<>&]/g,s=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]))}</span>
+      ${g.tasks.map(t => {
+        const dueLabel = taskDueLabel(t);
+        const bucket = taskUrgencyBucket(t);
+        const dueColor = bucket === 0 ? 'var(--red)' : (bucket <= 2 ? '#F2A93B' : 'var(--text-3)');
+        const fireIcon = t.priority === 'fire' ? '🔥 ' : '';
+        return `
+        <div class="tp-dd-item" data-task-id="${t.id}" data-task-name="${(t.name||'').replace(/"/g,'&quot;')}" data-project-name="${pn.replace(/"/g,'&quot;')}" style="padding-left:24px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <span class="tp-dd-name" style="font-size:12px;">${fireIcon}${(t.name||'(no name)').replace(/[<>&]/g,s=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]))}</span>
+          ${dueLabel ? `<span style="font-size:10px;font-weight:700;color:${dueColor};white-space:nowrap;flex-shrink:0;">${dueLabel}</span>` : ''}
         </div>
-      `).join('')}
+      `;
+      }).join('')}
     `).join('');
     projectTaskItems.innerHTML = html;
     // Wire click on each item
@@ -12249,17 +12263,11 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
   clientDropdown.querySelectorAll('.tp-dd-item').forEach(item=>{
     item.addEventListener('click',()=>{
       selectedClient=item.dataset.client;
-      clientLabel.textContent=item.dataset.client==='internal'?'Internal':CLIENT_LABELS[selectedClient];
+      clientLabel.textContent='Internal';
       clientIco.textContent=item.dataset.initial;
       clientIco.style.background=item.dataset.color;
       clientIco.style.color=item.dataset.colorFg;
-      /* reset task type to first one of new client */
-      const types=TASK_TYPES_BY_CLIENT[selectedClient]||[];
-      if(types.length){
-        selectedTaskType={key:types[0].key,label:types[0].label,color:types[0].color};
-        taskLabel.textContent=types[0].label;
-        taskDot.style.background=types[0].color;
-      }
+      /* Task type list is universal (same options for every client), so no reset needed here. */
       closeAllDropdowns();
       toast({type:'success',message:'Now tracking work for <b>'+clientLabel.textContent+'</b>',duration:2000});
       /* update floating timer if running */
