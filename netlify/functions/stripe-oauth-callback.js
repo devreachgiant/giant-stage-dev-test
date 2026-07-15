@@ -17,9 +17,10 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
 
+  // Stripe integration disabled — keys removed by owner decision. Fail closed with 503.
   const SECRET_KEY = process.env.STRIPE_SECRET_KEY;
   if (!SECRET_KEY) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: 'STRIPE_SECRET_KEY not configured' }) };
+    return { statusCode: 503, headers, body: JSON.stringify({ error: 'Stripe integration is currently disabled' }) };
   }
 
   let body;

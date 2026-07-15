@@ -55,12 +55,19 @@ exports.handler = async (event) => {
     return { statusCode: 405, body: 'Method not allowed' };
   }
 
-  const sigHeader = event.headers['stripe-signature'] || event.headers['Stripe-Signature'];
+  // Stripe integration is disabled when the webhook secret is absent — fail closed and
+  // process nothing (keys removed by owner decision). This also closes the prior hole where
+  // signature verification was skipped whenever the secret was unset, letting forged
+  // "invoice paid" events through: verification below is now mandatory, never conditional.
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) {
+    return { statusCode: 503, body: 'Stripe integration disabled' };
+  }
+
+  const sigHeader = event.headers['stripe-signature'] || event.headers['Stripe-Signature'];
   const payload = event.body;
 
-  // Verify signature (if secret configured)
-  if (secret && !verifySignature(payload, sigHeader, secret)) {
+  if (!verifySignature(payload, sigHeader, secret)) {
     return { statusCode: 400, body: 'Invalid signature' };
   }
 
