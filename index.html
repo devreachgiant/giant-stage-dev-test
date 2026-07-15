@@ -4268,6 +4268,10 @@ body:has(.screen[data-screen="chat"].on) .gai-fab{display:none;}
 .msg-react-bar-more:hover{background:var(--surface-2);color:var(--text);}
 .msg-react-bar-sep{width:1px;height:15px;background:var(--line);margin:0 2px;flex-shrink:0;}
 
+.reaction-tooltip{position:fixed;display:none;flex-direction:column;align-items:center;gap:4px;background:var(--pane);border:1px solid var(--line-2);border-radius:9px;padding:8px 12px;box-shadow:0 12px 32px -8px rgba(0,0,0,.5),0 4px 12px -4px rgba(0,0,0,.3);z-index:200;max-width:220px;text-align:center;pointer-events:none;}
+.reaction-tooltip-emoji{font-size:20px;line-height:1;}
+.reaction-tooltip-text{font-size:12px;font-weight:600;color:var(--text);line-height:1.35;}
+
 /* Pin / Reply buttons in the bar (Slack-style icon buttons) */
 .msg-pin-btn,.msg-reply-btn{padding:0 9px;border-radius:7px;cursor:pointer;color:var(--text-3);transition:.12s;display:inline-flex;align-items:center;justify-content:center;height:28px;min-width:28px;flex-shrink:0;}
 .msg-pin-btn:hover{background:var(--surface-2);color:var(--amber);}
@@ -25747,14 +25751,67 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       }
       reactionsEl.innerHTML = Object.entries(grouped).map(([emoji, ids]) => {
         const mine = ids.includes(session.user.id);
-        return `<span class="reaction" data-emoji="${chatEsc(emoji)}" data-msg-id="${chatEsc(messageId)}" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:11px;font-size:11px;font-weight:600;background:${mine?'rgba(208,4,0,.15)':'var(--surface-2)'};border:1px solid ${mine?'rgba(208,4,0,.4)':'var(--line)'};color:${mine?'var(--text)':'var(--text-2)'};">${chatEsc(emoji)} ${ids.length}</span>`;
+        return `<span class="reaction" data-emoji="${chatEsc(emoji)}" data-msg-id="${chatEsc(messageId)}" data-ids="${chatEsc(ids.join(','))}" style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:11px;font-size:11px;font-weight:600;background:${mine?'rgba(208,4,0,.15)':'var(--surface-2)'};border:1px solid ${mine?'rgba(208,4,0,.4)':'var(--line)'};color:${mine?'var(--text)':'var(--text-2)'};">${chatEsc(emoji)} ${ids.length}</span>`;
       }).join('');
       reactionsEl.querySelectorAll('.reaction').forEach(el => {
         el.addEventListener('click', (e) => {
           e.stopPropagation();
           toggleReaction(el.dataset.msgId, el.dataset.emoji);
         });
+        el.addEventListener('mouseenter', () => showReactionTooltip(el));
+        el.addEventListener('mouseleave', hideReactionTooltip);
       });
+    }
+
+    function formatReactorNames(names) {
+      if (names.length === 1) return names[0];
+      if (names.length === 2) return `${names[0]} and ${names[1]}`;
+      if (names.length === 3) return `${names[0]}, ${names[1]} and ${names[2]}`;
+      const shown = names.slice(0, 2);
+      const remaining = names.length - shown.length;
+      return `${shown.join(', ')} and ${remaining} other${remaining > 1 ? 's' : ''}`;
+    }
+
+    let _reactionTooltipEl = null;
+    function ensureReactionTooltip() {
+      if (_reactionTooltipEl) return _reactionTooltipEl;
+      const el = document.createElement('div');
+      el.className = 'reaction-tooltip';
+      el.innerHTML = '<div class="reaction-tooltip-emoji"></div><div class="reaction-tooltip-text"></div>';
+      document.body.appendChild(el);
+      _reactionTooltipEl = el;
+      return el;
+    }
+
+    function showReactionTooltip(pillEl) {
+      const emoji = pillEl.dataset.emoji;
+      const ids = (pillEl.dataset.ids || '').split(',').filter(Boolean);
+      if (!ids.length) return;
+      const names = ids.map(id => {
+        if (id === session.user.id) return 'You';
+        const p = chatProfilesCache[id];
+        return (p && (p.full_name || p.email)) ? (p.full_name || p.email).split(' ')[0] : 'Someone';
+      });
+      const tooltip = ensureReactionTooltip();
+      tooltip.querySelector('.reaction-tooltip-emoji').textContent = emoji;
+      tooltip.querySelector('.reaction-tooltip-text').textContent = `${formatReactorNames(names)} reacted with ${emoji}`;
+      tooltip.style.display = 'flex';
+      const rect = pillEl.getBoundingClientRect();
+      tooltip.style.visibility = 'hidden';
+      requestAnimationFrame(() => {
+        const tRect = tooltip.getBoundingClientRect();
+        let left = rect.left + rect.width / 2 - tRect.width / 2;
+        left = Math.max(6, Math.min(left, window.innerWidth - tRect.width - 6));
+        let top = rect.top - tRect.height - 8;
+        if (top < 6) top = rect.bottom + 8;
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = top + 'px';
+        tooltip.style.visibility = 'visible';
+      });
+    }
+
+    function hideReactionTooltip() {
+      if (_reactionTooltipEl) _reactionTooltipEl.style.display = 'none';
     }
 
     async function toggleReaction(messageId, emoji) {
