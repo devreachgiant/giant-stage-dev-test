@@ -4845,6 +4845,10 @@ window.giantPrompt = function(message, defaultValue){
           </select>
         </div>
       </div>
+      <div class="m-field" id="reportDetailOrderField" style="display:none;">
+        <label>Work order <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(owner/manager only — 1 = fix first)</span></label>
+        <select class="report-status-pill" id="reportDetailOrder" style="width:100%;"></select>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="m-cancel" data-close="reportDetailModal">Close</button>
@@ -6304,9 +6308,9 @@ window.giantPrompt = function(message, defaultValue){
                 <div class="tool" id="chatGifBtn" title="Add a GIF" style="font-size:10px;font-weight:800;letter-spacing:.4px;border:1.4px solid var(--text-2);color:var(--text-2);border-radius:5px;padding:2px 5px;line-height:1;">GIF</div>
                 <div class="tool" id="chatMentionBtn" title="Mention someone" style="font-size:13px;font-weight:800">@</div>
                 <div class="tool" id="chatMicBtn" title="Record voice note" style="background:var(--red);color:#fff;border-radius:8px;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(208,4,0,.35);"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="6" y="2" width="4" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M3 8v.5a5 5 0 0010 0V8M8 13.5V15M5.5 15h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></div>
-                <div class="send-split" style="margin-left:auto;display:flex;">
-                  <button class="send" id="chatSend" style="border-radius:8px 0 0 8px;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8l12-5-5 12-2-5-5-2Z" fill="currentColor"/></svg></button>
-                  <button class="send" id="chatScheduleBtn" title="Schedule message" style="border-radius:0 8px 8px 0;width:22px;border-left:1px solid rgba(255,255,255,.25);"><svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                <div class="send-split" style="margin-left:auto;display:flex;flex-shrink:0;">
+                  <button class="send" id="chatSend" style="border-radius:8px 0 0 8px;flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 8l12-5-5 12-2-5-5-2Z" fill="currentColor"/></svg></button>
+                  <button class="send" id="chatScheduleBtn" title="Schedule message" style="border-radius:0 8px 8px 0;width:22px;padding:0;flex-shrink:0;border-left:1px solid rgba(255,255,255,.25);background:var(--red);color:#fff;"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" style="display:block;"><path d="M4 6l4 4 4-4" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
                 </div>
               </div>
               <div id="chatScheduledPill" class="scheduled-chip" style="display:none;">
@@ -6360,7 +6364,14 @@ window.giantPrompt = function(message, defaultValue){
                 <input type="file" id="threadFileInput" multiple style="display:none;" accept="image/*,video/*,audio/*,application/pdf,.zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.json,.md">
                 <button id="threadAttachBtn" title="Attach a file" style="background:transparent;color:var(--text-3);border:none;padding:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M11 5L5.5 10.5a2 2 0 01-3-3L9 1a3 3 0 014 4l-6.5 6.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
                 <textarea id="threadInput" placeholder="Reply to thread…  (@ to mention)" rows="1" autocomplete="off"></textarea>
-                <button id="threadSend"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 8l12-5-5 12-2-5-5-2Z" fill="currentColor"/></svg></button>
+                <div class="send-split" style="display:flex;flex-shrink:0;">
+                  <button id="threadSend" style="border-radius:8px 0 0 8px;flex-shrink:0;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 8l12-5-5 12-2-5-5-2Z" fill="currentColor"/></svg></button>
+                  <button class="send" id="threadScheduleBtn" title="Schedule message" style="border-radius:0 8px 8px 0;width:22px;padding:0;flex-shrink:0;border-left:1px solid rgba(255,255,255,.25);background:var(--red);color:#fff;"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" style="display:block;"><path d="M4 6l4 4 4-4" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                </div>
+              </div>
+              <div id="threadScheduledPill" class="scheduled-chip" style="display:none;margin:0 14px 8px;">
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.3"/><path d="M8 5v3.2l2.2 1.3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                <span id="threadScheduledPillText">0 scheduled</span>
               </div>
             </div>
           </main>
@@ -9455,10 +9466,22 @@ setupRail('rail2','pill2');
     return (active && (active.dataset.label || active.dataset.screen)) || '';
   }
 
+  // Only owner/manager/inhouse_dev can submit feature suggestions — everyone can report bugs.
+  const canSuggestFeatures = () => {
+    const r = window.giantCurrentProfile && window.giantCurrentProfile.role;
+    return r === 'owner' || r === 'manager' || r === 'inhouse_dev';
+  };
+
   function resetForm(){
     selectedType = 'bug';
     selectedFile = null;
     document.querySelectorAll('.report-type-opt').forEach(o => o.classList.toggle('sel', o.dataset.reportType === 'bug'));
+    const featureOpt = document.querySelector('.report-type-opt[data-report-type="feature"]');
+    if (featureOpt) {
+      const allowed = canSuggestFeatures();
+      featureOpt.style.display = allowed ? '' : 'none';
+      featureOpt.title = allowed ? '' : 'Feature suggestions are limited to owner/manager for now';
+    }
     if ($('reportTitle')) $('reportTitle').value = '';
     if ($('reportDescription')) $('reportDescription').value = '';
     if ($('reportLink')) $('reportLink').value = '';
@@ -9522,6 +9545,7 @@ setupRail('rail2','pill2');
     if (!description) { if (typeof toast==='function') toast({type:'error', message:'Description is required'}); return; }
     if (!selectedFile) { if (typeof toast==='function') toast({type:'error', message:'A screenshot or video is required'}); return; }
     if (!uid) { if (typeof toast==='function') toast({type:'error', message:'Not signed in'}); return; }
+    if (selectedType === 'feature' && !canSuggestFeatures()) { if (typeof toast==='function') toast({type:'error', message:'Feature suggestions are limited to owner/manager for now'}); return; }
 
     const submitBtn = $('reportSubmitBtn');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Submitting…'; }
@@ -9614,7 +9638,14 @@ setupRail('rail2','pill2');
       const statusControl = triager
         ? `<select class="report-status-pill" data-report-id="${r.id}" data-field="status">${Object.entries(STATUS_LABELS).map(([v,l]) => `<option value="${v}" ${r.status===v?'selected':''}>${l}</option>`).join('')}</select>`
         : `<span class="report-status-pill">${STATUS_LABELS[r.status] || r.status}</span>`;
+      const orderOpts = ['<option value="">—</option>'].concat(
+        Array.from({length:10}, (_,i)=>i+1).map(n => `<option value="${n}" ${r.work_order===n?'selected':''}>${n}</option>`)
+      ).join('');
+      const orderControl = canSuggestFeatures()
+        ? `<select class="report-status-pill report-order-pill" data-report-id="${r.id}" data-field="work_order" title="Work order — which should be fixed first">${orderOpts}</select>`
+        : `<span class="report-status-pill report-order-pill" title="Work order">${r.work_order ? '#' + r.work_order : '—'}</span>`;
       return `<div class="report-row" data-report-id="${r.id}" style="cursor:pointer;">
+        <span data-stop-row-click>${orderControl}</span>
         <span class="report-row-badge ${r.type}">${r.type === 'bug' ? 'Bug' : 'Feature'}</span>
         ${thumb}
         <div class="report-row-main">
@@ -9642,6 +9673,21 @@ setupRail('rail2','pill2');
             const row = reportsCache.find(r => r.id === id);
             if (row) row.status = sel.value;
           } catch(e) { if (typeof toast==='function') toast({type:'error', message:'Failed to update status'}); }
+        });
+      });
+    }
+    if (canSuggestFeatures()) {
+      listEl.querySelectorAll('select[data-field="work_order"]').forEach(sel => {
+        sel.addEventListener('change', async () => {
+          const id = sel.dataset.reportId;
+          const val = sel.value ? parseInt(sel.value, 10) : null;
+          try {
+            const { error } = await sb().from('reports').update({ work_order: val }).eq('id', id);
+            if (error) throw new Error(error.message);
+            const row = reportsCache.find(r => r.id === id);
+            if (row) row.work_order = val;
+            loadReports(); // re-sort so the list reflects the new order immediately
+          } catch(e) { if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to set order'}); }
         });
       });
     }
@@ -9694,13 +9740,36 @@ setupRail('rail2','pill2');
       triageField.style.display = 'none';
     }
 
+    const orderField = $('reportDetailOrderField');
+    if (canSuggestFeatures()) {
+      orderField.style.display = '';
+      const orderSel = $('reportDetailOrder');
+      orderSel.innerHTML = ['<option value="">—</option>'].concat(
+        Array.from({length:10}, (_,i)=>i+1).map(n => `<option value="${n}">${n}</option>`)
+      ).join('');
+      orderSel.value = r.work_order || '';
+      orderSel.onchange = async () => {
+        const val = orderSel.value ? parseInt(orderSel.value, 10) : null;
+        try {
+          const { error } = await sb().from('reports').update({ work_order: val }).eq('id', r.id);
+          if (error) throw new Error(error.message);
+          r.work_order = val;
+          loadReports();
+        } catch(e) { if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to set order'}); }
+      };
+    } else {
+      orderField.style.display = 'none';
+    }
+
     openModal('reportDetailModal');
   }
 
   async function loadReports(){
     if (!sb()) return;
     try {
-      const { data, error } = await sb().from('reports').select('*, reporter:profiles!reports_reporter_id_fkey(full_name)').order('created_at', { ascending: false });
+      const { data, error } = await sb().from('reports').select('*, reporter:profiles!reports_reporter_id_fkey(full_name)')
+        .order('work_order', { ascending: true, nullsFirst: false })
+        .order('created_at', { ascending: false });
       if (error) throw error;
       reportsCache = data || [];
       renderReports();
@@ -11769,7 +11838,7 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
     thBtn.addEventListener('click',async ()=>{
       // Determine scope based on current user role (now that role info is available)
       const role = (window.giantUserRole || '').toLowerCase();
-      const isOwnerOrManager = role === 'owner' || role === 'manager';
+      const isOwnerOrManager = role === 'owner' || role === 'manager' || role === 'inhouse_dev';
       // Owner/Manager default to 'team', members default to 'mine'
       // But if user has manually toggled, respect their choice (don't override mid-session)
       if (!window._thScopeUserSet) {
@@ -17908,7 +17977,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       }
       teamMembersList.innerHTML = profiles.map(p => {
         const isMe = p.id === session.user.id;
-        const isOwner = profile.role === 'owner';
+        const isOwner = profile.role === 'owner' || profile.role === 'inhouse_dev';
         const canRemove = isOwner && !isMe && p.role !== 'owner';
         const initial = (p.full_name || p.email || '?').charAt(0).toUpperCase();
         const avaStyle = p.avatar_url
@@ -18289,7 +18358,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     const csOnboarding   = document.getElementById('csOnboarding');
     const csAtRisk       = document.getElementById('csAtRisk');
 
-    const isOwner = profile.role === 'owner';
+    const isOwner = profile.role === 'owner' || profile.role === 'inhouse_dev';
 
     function escClient(s) { return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
     function fmtEuros(cents) {
@@ -24992,6 +25061,28 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     (function scheduleMessageFeature(){
       const $ = id => document.getElementById(id);
 
+      // Two composers (main channel + thread reply) share one modal/popover. activeScheduleKind
+      // tracks which one is currently being scheduled from, set whenever a chevron is clicked.
+      let activeScheduleKind = 'channel';
+      function getTarget(){
+        if (activeScheduleKind === 'thread') {
+          return {
+            channelId: activeThreadParent ? activeThreadParent.channel_id : null,
+            parentId: activeThreadParent ? activeThreadParent.id : null,
+            inputEl: threadInput,
+            pillEl: $('threadScheduledPill'),
+            pillTextEl: $('threadScheduledPillText')
+          };
+        }
+        return {
+          channelId: activeChannelId,
+          parentId: null,
+          inputEl: chatInput,
+          pillEl: $('chatScheduledPill'),
+          pillTextEl: $('chatScheduledPillText')
+        };
+      }
+
       function fmtTime(d){ return d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', hour12:true }); }
       function fmtPresetLabel(d){
         return d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' }) + ' at ' + fmtTime(d);
@@ -25018,23 +25109,25 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       }
 
       async function scheduleFor(date){
-        const body = (chatInput.value || '').trim();
+        const target = getTarget();
+        const body = (target.inputEl.value || '').trim();
         if (!body){ if (typeof toast==='function') toast({type:'error', message:'Type a message first'}); return; }
-        if (!activeChannelId){ if (typeof toast==='function') toast({type:'error', message:'No channel selected'}); return; }
+        if (!target.channelId){ if (typeof toast==='function') toast({type:'error', message:'No channel selected'}); return; }
         try {
           const { error } = await supabase.from('scheduled_messages').insert({
-            channel_id: activeChannelId,
+            channel_id: target.channelId,
+            parent_id: target.parentId,
             sender_id: session.user.id,
             body,
             scheduled_for: date.toISOString()
           });
           if (error) throw new Error(error.message);
-          chatInput.value = '';
+          target.inputEl.value = '';
           if (window._autoGrowChat) window._autoGrowChat();
           if (typeof toast==='function') toast({type:'success', message:'Message scheduled for ' + fmtPresetLabel(date)});
           closePopover();
           closeModal('scheduleMsgModal');
-          refreshScheduledPill();
+          refreshScheduledPill(target);
         } catch(e) {
           if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to schedule'});
         }
@@ -25043,9 +25136,10 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       // Used by the "Custom time" modal — supports both creating a new scheduled
       // message and saving edits to an existing one (editingScheduleId).
       async function saveCustomSchedule(date){
+        const target = getTarget();
         const body = ($('scheduleMsgBody').value || '').trim();
         if (!body){ if (typeof toast==='function') toast({type:'error', message:'Message can\'t be empty'}); return; }
-        if (!activeChannelId){ if (typeof toast==='function') toast({type:'error', message:'No channel selected'}); return; }
+        if (!target.channelId){ if (typeof toast==='function') toast({type:'error', message:'No channel selected'}); return; }
         try {
           if (editingScheduleId) {
             const { error } = await supabase.from('scheduled_messages')
@@ -25055,30 +25149,32 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
             if (typeof toast==='function') toast({type:'success', message:'Scheduled message updated'});
           } else {
             const { error } = await supabase.from('scheduled_messages').insert({
-              channel_id: activeChannelId,
+              channel_id: target.channelId,
+              parent_id: target.parentId,
               sender_id: session.user.id,
               body,
               scheduled_for: date.toISOString()
             });
             if (error) throw new Error(error.message);
-            chatInput.value = '';
+            target.inputEl.value = '';
             if (window._autoGrowChat) window._autoGrowChat();
             if (typeof toast==='function') toast({type:'success', message:'Message scheduled for ' + fmtPresetLabel(date)});
           }
           editingScheduleId = null;
           closeModal('scheduleMsgModal');
-          refreshScheduledPill();
+          refreshScheduledPill(target);
         } catch(e) {
           if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to save'});
         }
       }
 
-      async function sendScheduledNow(id, channelId, body){
+      async function sendScheduledNow(id, channelId, body, parentId){
         try {
           const { data: inserted, error: insErr } = await supabase.from('messages').insert({
             channel_id: channelId,
             author_id: session.user.id,
-            body
+            body,
+            parent_id: parentId || null
           }).select().single();
           if (insErr) throw new Error(insErr.message);
           const { error: updErr } = await supabase.from('scheduled_messages').update({
@@ -25093,7 +25189,8 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         }
       }
 
-      // ── Step 1: small quick-pick popover anchored to the chevron ──
+      // ── Step 1: small quick-pick popover anchored to whichever chevron was clicked ──
+      let popoverTriggerBtn = null;
       function closePopover(){
         const p = $('schedulePopover');
         if (p) p.classList.remove('on');
@@ -25101,32 +25198,39 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       }
       function onDocClickClosePopover(e){
         const p = $('schedulePopover');
-        const btn = $('chatScheduleBtn');
-        if (p && !p.contains(e.target) && e.target !== btn && !btn.contains(e.target)) closePopover();
+        const btn = popoverTriggerBtn;
+        if (p && !p.contains(e.target) && e.target !== btn && !(btn && btn.contains(e.target))) closePopover();
       }
 
-      const scheduleBtn = $('chatScheduleBtn');
-      if (scheduleBtn) scheduleBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const presetsEl = $('scheduleMsgPresets');
-        if (presetsEl) {
-          presetsEl.innerHTML = '';
-          buildPresets().forEach(p => {
-            const btn = document.createElement('button');
-            btn.className = 'schedule-preset';
-            btn.type = 'button';
-            btn.textContent = p.label;
-            btn.addEventListener('click', () => scheduleFor(p.date));
-            presetsEl.appendChild(btn);
-          });
-        }
-        const pop = $('schedulePopover');
-        const r = scheduleBtn.getBoundingClientRect();
-        pop.style.bottom = (window.innerHeight - r.top + 8) + 'px';
-        pop.style.left = Math.max(8, r.right - 230) + 'px';
-        pop.classList.add('on');
-        setTimeout(() => document.addEventListener('click', onDocClickClosePopover), 30);
-      });
+      function wireScheduleChevron(btnId, kind){
+        const btn = $(btnId);
+        if (!btn) return;
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          activeScheduleKind = kind;
+          popoverTriggerBtn = btn;
+          const presetsEl = $('scheduleMsgPresets');
+          if (presetsEl) {
+            presetsEl.innerHTML = '';
+            buildPresets().forEach(p => {
+              const pbtn = document.createElement('button');
+              pbtn.className = 'schedule-preset';
+              pbtn.type = 'button';
+              pbtn.textContent = p.label;
+              pbtn.addEventListener('click', () => scheduleFor(p.date));
+              presetsEl.appendChild(pbtn);
+            });
+          }
+          const pop = $('schedulePopover');
+          const r = btn.getBoundingClientRect();
+          pop.style.bottom = (window.innerHeight - r.top + 8) + 'px';
+          pop.style.left = Math.max(8, r.right - 230) + 'px';
+          pop.classList.add('on');
+          setTimeout(() => document.addEventListener('click', onDocClickClosePopover), 30);
+        });
+      }
+      wireScheduleChevron('chatScheduleBtn', 'channel');
+      wireScheduleChevron('threadScheduleBtn', 'thread');
 
       // ── Step 2: "Custom time" — full modal with date/time pickers ──
       let selDate = new Date();       // currently chosen calendar date (Y/M/D matter)
@@ -25237,7 +25341,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         selDate = new Date(d);
         selTime = prefill ? { h: d.getHours(), m: d.getMinutes() } : { h: now.getHours(), m: Math.ceil(now.getMinutes()/15)*15 % 60 };
         calViewMonth = new Date(selDate);
-        $('scheduleMsgBody').value = (prefill && prefill.body != null) ? prefill.body : (chatInput.value || '');
+        $('scheduleMsgBody').value = (prefill && prefill.body != null) ? prefill.body : (getTarget().inputEl.value || '');
         $('scheduleTzLabel').textContent = 'Time zone: ' + timezoneLabel();
         $('scheduleMsgCustomBtn').textContent = editingScheduleId ? 'Save changes' : 'Schedule message';
         updateFieldLabels();
@@ -25299,94 +25403,124 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         saveCustomSchedule(date);
       });
 
-      async function refreshScheduledPill(){
-        const pill = $('chatScheduledPill');
-        const pillText = $('chatScheduledPillText');
-        if (!pill || !activeChannelId) return;
+      function applyParentFilter(query, target){
+        return target.parentId ? query.eq('parent_id', target.parentId) : query.is('parent_id', null);
+      }
+
+      async function refreshScheduledPill(target){
+        target = target || getTarget();
+        const pill = target.pillEl;
+        const pillText = target.pillTextEl;
+        if (!pill || !target.channelId) return;
         try {
-          const { data, error } = await supabase.from('scheduled_messages')
+          let q = supabase.from('scheduled_messages')
             .select('id', { count: 'exact' })
-            .eq('channel_id', activeChannelId)
+            .eq('channel_id', target.channelId)
             .eq('sender_id', session.user.id)
             .eq('status', 'pending');
+          q = applyParentFilter(q, target);
+          const { data, error } = await q;
           if (error) throw error;
           const n = (data || []).length;
           pill.style.display = n > 0 ? 'flex' : 'none';
           if (pillText) pillText.textContent = n + (n === 1 ? ' scheduled' : ' scheduled');
         } catch(e) {}
       }
-      window.giantRefreshScheduledPill = refreshScheduledPill;
+      // Refresh both independently (e.g. after channel switch or opening a thread, only one
+      // target's channel/parent is known yet — callers pass an explicit target when they can).
+      // Both helpers force the kind explicitly rather than trusting whatever activeScheduleKind
+      // happens to be — e.g. switchChannel calls the channel one, but if the user had just been
+      // scheduling inside a thread, ambient state could otherwise leak the wrong context in.
+      window.giantRefreshScheduledPill = () => {
+        activeScheduleKind = 'channel';
+        refreshScheduledPill(getTarget());
+      };
+      window.giantRefreshThreadScheduledPill = () => {
+        activeScheduleKind = 'thread';
+        refreshScheduledPill(getTarget());
+        activeScheduleKind = 'channel';
+      };
 
-      const pillEl = $('chatScheduledPill');
-      if (pillEl) pillEl.addEventListener('click', async () => {
-        const listEl = $('scheduledListItems');
-        if (!listEl) return;
-        listEl.innerHTML = '<div style="padding:14px;color:var(--text-3);font-size:12px;">Loading…</div>';
-        openModal('scheduledListModal');
-        try {
-          const { data, error } = await supabase.from('scheduled_messages')
-            .select('id, body, scheduled_for')
-            .eq('channel_id', activeChannelId)
-            .eq('sender_id', session.user.id)
-            .eq('status', 'pending')
-            .order('scheduled_for', { ascending: true });
-          if (error) throw error;
-          if (!data || !data.length){
-            listEl.innerHTML = '<div style="padding:14px;color:var(--text-3);font-size:12px;">No scheduled messages in this conversation.</div>';
-            return;
+      function wireScheduledPillClick(pillId, kind){
+        const pillEl = $(pillId);
+        if (!pillEl) return;
+        pillEl.addEventListener('click', async () => {
+          activeScheduleKind = kind;
+          const target = getTarget();
+          const listEl = $('scheduledListItems');
+          if (!listEl) return;
+          listEl.innerHTML = '<div style="padding:14px;color:var(--text-3);font-size:12px;">Loading…</div>';
+          openModal('scheduledListModal');
+          try {
+            let q = supabase.from('scheduled_messages')
+              .select('id, body, scheduled_for')
+              .eq('channel_id', target.channelId)
+              .eq('sender_id', session.user.id)
+              .eq('status', 'pending')
+              .order('scheduled_for', { ascending: true });
+            q = applyParentFilter(q, target);
+            const { data, error } = await q;
+            if (error) throw error;
+            if (!data || !data.length){
+              listEl.innerHTML = '<div style="padding:14px;color:var(--text-3);font-size:12px;">No scheduled messages in this conversation.</div>';
+              return;
+            }
+            listEl.innerHTML = data.map(m => `<div class="scheduled-item" data-id="${m.id}">
+              <div class="scheduled-item-body">${(m.body||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+                <div class="scheduled-item-time">${fmtPresetLabel(new Date(m.scheduled_for))}</div>
+              </div>
+              <div style="display:flex;gap:6px;flex-shrink:0;">
+                <button class="scheduled-item-cancel" data-send-id="${m.id}" style="color:var(--text-2);">Send now</button>
+                <button class="scheduled-item-cancel" data-edit-id="${m.id}" style="color:var(--text-2);">Edit</button>
+                <button class="scheduled-item-cancel" data-cancel-id="${m.id}">Cancel</button>
+              </div>
+            </div>`).join('');
+            listEl.querySelectorAll('[data-cancel-id]').forEach(btn => {
+              btn.addEventListener('click', async () => {
+                try {
+                  const { error } = await supabase.from('scheduled_messages').update({ status: 'cancelled' }).eq('id', btn.dataset.cancelId);
+                  if (error) throw new Error(error.message);
+                  btn.closest('.scheduled-item').remove();
+                  refreshScheduledPill(target);
+                  if (typeof toast==='function') toast({type:'success', message:'Scheduled message cancelled'});
+                } catch(e) {
+                  if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to cancel'});
+                }
+              });
+            });
+            listEl.querySelectorAll('[data-send-id]').forEach(btn => {
+              btn.addEventListener('click', async () => {
+                const id = btn.dataset.sendId;
+                const row = data.find(x => x.id === id);
+                if (!row) return;
+                btn.disabled = true; btn.textContent = 'Sending…';
+                const ok = await sendScheduledNow(id, target.channelId, row.body, target.parentId);
+                if (ok) {
+                  btn.closest('.scheduled-item').remove();
+                  refreshScheduledPill(target);
+                } else {
+                  btn.disabled = false; btn.textContent = 'Send now';
+                }
+              });
+            });
+            listEl.querySelectorAll('[data-edit-id]').forEach(btn => {
+              btn.addEventListener('click', () => {
+                const id = btn.dataset.editId;
+                const row = data.find(x => x.id === id);
+                if (!row) return;
+                activeScheduleKind = kind;
+                editingScheduleId = id;
+                closeModal('scheduledListModal');
+                openCustomModal({ body: row.body, date: new Date(row.scheduled_for) });
+              });
+            });
+          } catch(e) {
+            listEl.innerHTML = '<div style="padding:14px;color:var(--red);font-size:12px;">Failed to load.</div>';
           }
-          listEl.innerHTML = data.map(m => `<div class="scheduled-item" data-id="${m.id}">
-            <div class="scheduled-item-body">${(m.body||'').replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
-              <div class="scheduled-item-time">${fmtPresetLabel(new Date(m.scheduled_for))}</div>
-            </div>
-            <div style="display:flex;gap:6px;flex-shrink:0;">
-              <button class="scheduled-item-cancel" data-send-id="${m.id}" style="color:var(--text-2);">Send now</button>
-              <button class="scheduled-item-cancel" data-edit-id="${m.id}" style="color:var(--text-2);">Edit</button>
-              <button class="scheduled-item-cancel" data-cancel-id="${m.id}">Cancel</button>
-            </div>
-          </div>`).join('');
-          listEl.querySelectorAll('[data-cancel-id]').forEach(btn => {
-            btn.addEventListener('click', async () => {
-              try {
-                const { error } = await supabase.from('scheduled_messages').update({ status: 'cancelled' }).eq('id', btn.dataset.cancelId);
-                if (error) throw new Error(error.message);
-                btn.closest('.scheduled-item').remove();
-                refreshScheduledPill();
-                if (typeof toast==='function') toast({type:'success', message:'Scheduled message cancelled'});
-              } catch(e) {
-                if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to cancel'});
-              }
-            });
-          });
-          listEl.querySelectorAll('[data-send-id]').forEach(btn => {
-            btn.addEventListener('click', async () => {
-              const id = btn.dataset.sendId;
-              const row = data.find(x => x.id === id);
-              if (!row) return;
-              btn.disabled = true; btn.textContent = 'Sending…';
-              const ok = await sendScheduledNow(id, activeChannelId, row.body);
-              if (ok) {
-                btn.closest('.scheduled-item').remove();
-                refreshScheduledPill();
-              } else {
-                btn.disabled = false; btn.textContent = 'Send now';
-              }
-            });
-          });
-          listEl.querySelectorAll('[data-edit-id]').forEach(btn => {
-            btn.addEventListener('click', () => {
-              const id = btn.dataset.editId;
-              const row = data.find(x => x.id === id);
-              if (!row) return;
-              editingScheduleId = id;
-              closeModal('scheduledListModal');
-              openCustomModal({ body: row.body, date: new Date(row.scheduled_for) });
-            });
-          });
-        } catch(e) {
-          listEl.innerHTML = '<div style="padding:14px;color:var(--red);font-size:12px;">Failed to load.</div>';
-        }
-      });
+        });
+      }
+      wireScheduledPillClick('chatScheduledPill', 'channel');
+      wireScheduledPillClick('threadScheduledPill', 'thread');
 
       refreshScheduledPill();
     })();
@@ -25679,7 +25813,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       // Create task button — visible on EVERY message (creates task assigned to message author)
       const createTaskHtml = `<div class="msg-react-bar-more" data-action="create-task-rb" title="Create task for message author"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2.5" y="3" width="11" height="10" rx="1.6" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 6.5h5M5.5 9h3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="11.5" cy="11" r="2.6" fill="var(--pane)" stroke="currentColor" stroke-width="1.3"/><path d="M11.5 9.8v2.4M10.3 11h2.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></div>`;
       // Pin button — only owner/manager OR author can pin
-      const canPin = (currentProfile.role === 'owner' || currentProfile.role === 'manager' || isMine);
+      const canPin = (currentProfile.role === 'owner' || currentProfile.role === 'manager' || currentProfile.role === 'inhouse_dev' || isMine);
       const pinHtml = canPin ? `<div class="msg-pin-btn" data-action="pin" title="Pin message"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M9 1.5L14.5 7l-2 2-1-1-3.5 3.5v3l-1.5-1.5-2 2-1.5-1.5 2-2L3.5 10h3L10 6.5l-1-1 2-2-2-2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></div>` : '';
       // Delete button — only the author can delete their own message
       const deleteHtml = isMine ? `<div class="msg-react-bar-more" data-action="delete" title="Delete message" style="color:var(--red);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3.5 4.5h9M6 4.5v-1a1 1 0 011-1h2a1 1 0 011 1v1M5 4.5l.5 8a1 1 0 001 .9h3a1 1 0 001-.9l.5-8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>` : '';
@@ -25905,7 +26039,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
             ? `background-image:url(${chatEsc(author.avatar_url)});background-size:cover;`
             : `background:${chatEsc(author.avatar_bg||'#4A2424')};color:${chatEsc(author.avatar_fg||'#F0A0A0')};`;
           const avaInner = author.avatar_url ? '' : chatEsc(initial);
-          const canUnpin = (currentProfile.role === 'owner' || currentProfile.role === 'manager' || m.author_id === session.user.id);
+          const canUnpin = (currentProfile.role === 'owner' || currentProfile.role === 'manager' || currentProfile.role === 'inhouse_dev' || m.author_id === session.user.id);
           return `<div style="padding:12px;background:var(--surface);border:1px solid var(--line);border-radius:9px;">
             <div style="display:flex;align-items:center;gap:9px;margin-bottom:6px;">
               <div style="width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;${avaStyle}">${avaInner}</div>
@@ -26059,7 +26193,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const listEl = document.getElementById('chMembersList');
       const countEl = document.getElementById('chMembersCount');
       countEl.textContent = `· ${members.length}`;
-      const canManage = (currentProfile.role === 'owner' || currentProfile.role === 'manager' || currentProfile.role === 'admin');
+      const canManage = (currentProfile.role === 'owner' || currentProfile.role === 'manager' || currentProfile.role === 'inhouse_dev' || currentProfile.role === 'admin');
       listEl.innerHTML = members.map(p => {
         const initial = (p.full_name || p.email || '?').charAt(0).toUpperCase();
         const avaStyle = p.avatar_url
@@ -27512,6 +27646,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       threadInput.placeholder = `Reply to thread…`;
       threadPanel.classList.add('on');
       setTimeout(() => threadInput.focus(), 200);
+      if (window.giantRefreshThreadScheduledPill) window.giantRefreshThreadScheduledPill();
       // Subscribe to realtime replies
       subscribeThreadRealtime(parentMessageId);
     }

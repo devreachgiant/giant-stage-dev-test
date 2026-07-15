@@ -38,7 +38,7 @@ export default async () => {
   const nowIso = new Date().toISOString();
   let due = [];
   try {
-    due = await sb(`scheduled_messages?status=eq.pending&scheduled_for=lte.${encodeURIComponent(nowIso)}&select=id,channel_id,sender_id,body&limit=50`);
+    due = await sb(`scheduled_messages?status=eq.pending&scheduled_for=lte.${encodeURIComponent(nowIso)}&select=id,channel_id,sender_id,body,parent_id&limit=50`);
   } catch (e) {
     console.error('[scheduled-message-send] fetch due failed:', e.message);
     return new Response('fetch failed', { status: 500 });
@@ -49,7 +49,8 @@ export default async () => {
       const [inserted] = await sb('messages', 'POST', {
         channel_id: row.channel_id,
         author_id: row.sender_id,
-        body: row.body
+        body: row.body,
+        parent_id: row.parent_id || null
       });
       await sb(`scheduled_messages?id=eq.${encodeURIComponent(row.id)}`, 'PATCH', {
         status: 'sent',
