@@ -673,6 +673,9 @@ html[data-theme="dark"] .rk-yellow{background:#6E5E20;color:#F0E08C;}
 .modal-head .m-sub{font-size:11.5px;color:var(--text-3);margin-top:1px;}
 .modal-head .m-close{margin-left:auto;width:30px;height:30px;border-radius:8px;background:var(--surface-2);border:1px solid var(--line-2);display:flex;align-items:center;justify-content:center;color:var(--text-2);cursor:pointer;transition:.14s;}
 .modal-head .m-close:hover{color:var(--text);border-color:var(--text-3);}
+.modal-head-actions{margin-left:auto;display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.modal-head-actions .m-close{margin-left:0;}
+.modal-head-actions .report-modal-icon-btn{width:30px;height:30px;border-radius:8px;background:var(--surface-2);border:1px solid var(--line-2);}
 .modal-body{padding:18px 20px;}
 .m-field{margin-bottom:14px;}
 .m-field label{display:block;font-size:11px;font-weight:700;color:var(--text-2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
@@ -4112,6 +4115,8 @@ body:has(.screen[data-screen="chat"].on) .gai-fab{display:none;}
 .report-row-meta{font-size:11px;color:var(--text-3);margin-top:2px;}
 .report-row-thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0;background:var(--surface-2);}
 .report-status-pill{font-size:11px;font-weight:700;border-radius:7px;padding:5px 9px;border:1px solid var(--line);background:var(--bg);color:var(--text-2);font-family:inherit;}
+.report-row-icon-btn{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--text-3);cursor:pointer;transition:.14s;flex-shrink:0;}
+.report-row-icon-btn:hover{background:var(--surface-2);color:var(--text);}
 .report-filters{display:flex;gap:8px;margin-bottom:14px;}
 .report-filters select{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12px;font-family:inherit;background:var(--surface);color:var(--text);}
 .changelog-list{display:flex;flex-direction:column;gap:18px;}
@@ -4826,11 +4831,24 @@ window.giantPrompt = function(message, defaultValue){
 <div class="modal-overlay" id="reportDetailModal">
   <div class="modal" style="max-width:560px;">
     <div class="modal-head">
-      <div><span class="report-row-badge" id="reportDetailBadge" style="display:inline-block;margin-bottom:8px;"></span><h3 id="reportDetailTitle" style="margin:0;"></h3><div class="m-sub" id="reportDetailMeta"></div></div>
-      <div class="m-close" data-close="reportDetailModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+      <div style="flex:1;min-width:0;">
+        <span class="report-row-badge" id="reportDetailBadge" style="display:inline-block;margin-bottom:8px;"></span>
+        <h3 id="reportDetailTitle" style="margin:0;"></h3>
+        <input type="text" id="reportDetailTitleInput" style="display:none;width:100%;font-size:15px;font-weight:700;background:var(--surface);border:1px solid var(--line-2);border-radius:7px;padding:6px 10px;color:var(--text);font-family:inherit;outline:none;box-sizing:border-box;">
+        <div class="m-sub" id="reportDetailMeta"></div>
+      </div>
+      <div class="modal-head-actions">
+        <div class="report-row-icon-btn report-modal-icon-btn" id="reportDetailEditBtn" title="Edit" style="display:none;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></div>
+        <div class="report-row-icon-btn report-modal-icon-btn" id="reportDetailDeleteBtn" title="Delete" style="display:none;color:var(--red);"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M6 4.5V3a1 1 0 011-1h2a1 1 0 011 1v1.5M4.5 4.5l.6 8a1 1 0 001 .9h3.8a1 1 0 001-.9l.6-8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="m-close" data-close="reportDetailModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+      </div>
     </div>
     <div class="modal-body">
-      <div class="m-field"><label>Description</label><div id="reportDetailDescription" style="font-size:13.5px;line-height:1.6;color:var(--text);white-space:pre-wrap;"></div></div>
+      <div class="m-field">
+        <label>Description</label>
+        <div id="reportDetailDescription" style="font-size:13.5px;line-height:1.6;color:var(--text);white-space:pre-wrap;"></div>
+        <textarea id="reportDetailDescriptionInput" rows="4" style="display:none;width:100%;font-size:13.5px;line-height:1.6;background:var(--surface);border:1px solid var(--line-2);border-radius:7px;padding:8px 10px;color:var(--text);font-family:inherit;outline:none;resize:vertical;box-sizing:border-box;"></textarea>
+      </div>
       <div class="m-field">
         <label>Attached media</label>
         <div id="reportDetailMedia" style="border:1px solid var(--line);border-radius:10px;padding:10px;text-align:center;"></div>
@@ -4855,7 +4873,9 @@ window.giantPrompt = function(message, defaultValue){
       </div>
     </div>
     <div class="modal-foot">
-      <button class="m-cancel" data-close="reportDetailModal">Close</button>
+      <button class="m-cancel" id="reportDetailEditCancelBtn" style="display:none;">Cancel</button>
+      <button class="m-cancel" data-close="reportDetailModal" id="reportDetailCloseBtn">Close</button>
+      <button class="m-submit" id="reportDetailSaveBtn" style="display:none;">Save</button>
     </div>
   </div>
 </div>
@@ -9648,6 +9668,12 @@ setupRail('rail2','pill2');
       const orderControl = canSuggestFeatures()
         ? `<select class="report-status-pill report-order-pill" data-report-id="${r.id}" data-field="work_order" title="Work order — which should be fixed first">${orderOpts}</select>`
         : `<span class="report-status-pill report-order-pill" title="Work order">${r.work_order ? '#' + r.work_order : '—'}</span>`;
+      const manageControls = canManageReport(r)
+        ? `<span data-stop-row-click class="report-row-manage" style="display:flex;align-items:center;gap:2px;">
+            <span class="report-row-icon-btn" data-action="edit-report" title="Edit"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
+            <span class="report-row-icon-btn" data-action="delete-report" title="Delete" style="color:var(--red);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M6 4.5V3a1 1 0 011-1h2a1 1 0 011 1v1.5M4.5 4.5l.6 8a1 1 0 001 .9h3.8a1 1 0 001-.9l.6-8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </span>`
+        : '';
       return `<div class="report-row" data-report-id="${r.id}" style="cursor:pointer;">
         <span data-stop-row-click>${orderControl}</span>
         <span class="report-row-badge ${r.type}">${r.type === 'bug' ? 'Bug' : 'Feature'}</span>
@@ -9656,6 +9682,7 @@ setupRail('rail2','pill2');
           <div class="report-row-title">${rEsc(r.title)}</div>
           <div class="report-row-meta">${rEsc(reporterName)} · ${r.page_context ? rEsc(r.page_context) + ' · ' : ''}${timeAgo(r.created_at)}</div>
         </div>
+        ${manageControls}
         <span data-stop-row-click>${statusControl}</span>
       </div>`;
     }).join('');
@@ -9665,6 +9692,21 @@ setupRail('rail2','pill2');
         if (e.target.closest('[data-stop-row-click]')) return;
         const r = reportsCache.find(x => x.id === row.dataset.reportId);
         if (r) openReportDetail(r);
+      });
+    });
+
+    listEl.querySelectorAll('[data-action="edit-report"]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const r = reportsCache.find(x => x.id === btn.closest('.report-row').dataset.reportId);
+        if (r) editReportInline(r);
+      });
+    });
+    listEl.querySelectorAll('[data-action="delete-report"]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const r = reportsCache.find(x => x.id === btn.closest('.report-row').dataset.reportId);
+        if (r) deleteReport(r);
       });
     });
 
@@ -9697,6 +9739,41 @@ setupRail('rail2','pill2');
     }
   }
 
+  // Reporter can edit/delete their own report; owner/manager/inhouse_dev can edit/delete any.
+  const canManageReport = (r) => r && (r.reporter_id === myId() || canSuggestFeatures());
+
+  async function deleteReport(r){
+    if (!confirm('Permanently delete this report? This cannot be undone.')) return;
+    try {
+      const { error } = await sb().from('reports').delete().eq('id', r.id);
+      if (error) throw new Error(error.message);
+      reportsCache = reportsCache.filter(x => x.id !== r.id);
+      renderReports();
+      if (typeof closeModal === 'function') closeModal('reportDetailModal');
+      if (typeof toast==='function') toast({type:'info', message:'Report deleted', duration:1600});
+    } catch(e) { if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to delete'}); }
+  }
+
+  // Opens the detail modal already in edit mode — used by the row-level pencil icon so users
+  // don't have to open a report first just to find the edit button inside.
+  function editReportInline(r){
+    openReportDetail(r);
+    const editBtn = $('reportDetailEditBtn');
+    if (editBtn && editBtn.style.display !== 'none') editBtn.click();
+  }
+
+  function exitReportEditMode(){
+    $('reportDetailTitle').style.display = '';
+    $('reportDetailTitleInput').style.display = 'none';
+    $('reportDetailDescription').style.display = '';
+    $('reportDetailDescriptionInput').style.display = 'none';
+    $('reportDetailEditBtn').style.display = '';
+    $('reportDetailDeleteBtn').style.display = '';
+    $('reportDetailCloseBtn').style.display = '';
+    $('reportDetailEditCancelBtn').style.display = 'none';
+    $('reportDetailSaveBtn').style.display = 'none';
+  }
+
   function openReportDetail(r){
     const reporterName = (r.reporter && r.reporter.full_name) || 'Someone';
     const badge = $('reportDetailBadge');
@@ -9705,6 +9782,48 @@ setupRail('rail2','pill2');
     $('reportDetailTitle').textContent = r.title;
     $('reportDetailMeta').textContent = `${reporterName} · ${r.page_context ? r.page_context + ' · ' : ''}${timeAgo(r.created_at)}`;
     $('reportDetailDescription').textContent = r.description;
+    exitReportEditMode();
+
+    const canManage = canManageReport(r);
+    const editBtn = $('reportDetailEditBtn');
+    const deleteBtn = $('reportDetailDeleteBtn');
+    editBtn.style.display = canManage ? '' : 'none';
+    deleteBtn.style.display = canManage ? '' : 'none';
+
+    editBtn.onclick = () => {
+      const titleInput = $('reportDetailTitleInput');
+      const descInput = $('reportDetailDescriptionInput');
+      titleInput.value = r.title || '';
+      descInput.value = r.description || '';
+      $('reportDetailTitle').style.display = 'none';
+      titleInput.style.display = '';
+      $('reportDetailDescription').style.display = 'none';
+      descInput.style.display = '';
+      editBtn.style.display = 'none';
+      deleteBtn.style.display = 'none';
+      $('reportDetailCloseBtn').style.display = 'none';
+      $('reportDetailEditCancelBtn').style.display = '';
+      $('reportDetailSaveBtn').style.display = '';
+      titleInput.focus();
+    };
+    $('reportDetailEditCancelBtn').onclick = exitReportEditMode;
+    $('reportDetailSaveBtn').onclick = async () => {
+      const newTitle = $('reportDetailTitleInput').value.trim();
+      const newDesc = $('reportDetailDescriptionInput').value.trim();
+      if (!newTitle) { if (typeof toast==='function') toast({type:'error', message:'Title is required'}); return; }
+      try {
+        const { error } = await sb().from('reports').update({ title: newTitle, description: newDesc }).eq('id', r.id);
+        if (error) throw new Error(error.message);
+        r.title = newTitle;
+        r.description = newDesc;
+        $('reportDetailTitle').textContent = newTitle;
+        $('reportDetailDescription').textContent = newDesc;
+        exitReportEditMode();
+        renderReports();
+        if (typeof toast==='function') toast({type:'success', message:'Saved', duration:1400});
+      } catch(e) { if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to save'}); }
+    };
+    deleteBtn.onclick = () => deleteReport(r);
 
     const mediaEl = $('reportDetailMedia');
     mediaEl.innerHTML = r.media_type === 'video'
