@@ -4139,15 +4139,15 @@ body:has(.screen[data-screen="chat"].on) .gai-fab{display:none;}
 .tpay-group-edit:hover{background:var(--surface-2);color:var(--text);}
 .tpay-group-body{display:flex;flex-direction:column;gap:8px;}
 .tpay-group-empty{padding:16px;text-align:center;font-size:11.5px;color:var(--text-3);font-style:italic;border:1px dashed var(--line);border-radius:10px;}
-.tpay-card{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);cursor:pointer;transition:.14s;}
+.tpay-card{display:grid;grid-template-columns:36px minmax(0,1fr) 192px 88px 130px 26px;align-items:center;gap:14px;padding:12px 16px;border:1px solid var(--line);border-radius:10px;background:var(--surface);cursor:pointer;transition:.14s;}
 .tpay-card:hover{border-color:var(--line-2);}
 .tpay-card-ava{width:36px;height:36px;border-radius:50%;background:var(--surface-2);color:var(--text-2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;}
-.tpay-card-main{flex:1;min-width:0;}
+.tpay-card-main{min-width:0;}
 .tpay-card-name{font-size:13px;font-weight:700;color:var(--text);}
-.tpay-card-formula{font-size:11.5px;color:var(--text-3);margin-top:2px;line-height:1.5;}
-.tpay-card-amount{text-align:right;flex-shrink:0;}
-.tpay-card-amount-num{font-size:15px;font-weight:800;color:var(--text);}
-.tpay-card-amount-local{font-size:10.5px;color:var(--text-3);margin-top:1px;}
+.tpay-card-formula{font-size:11.5px;color:var(--text-3);margin-top:2px;line-height:1.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tpay-card-amount{text-align:right;}
+.tpay-card-amount-num{font-size:15px;font-weight:800;color:var(--text);white-space:nowrap;}
+.tpay-card-amount-local{font-size:10.5px;color:var(--text-3);margin-top:1px;white-space:nowrap;}
 .tpay-tab-bar{position:relative;display:flex;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;gap:4px;margin-bottom:16px;overflow-x:auto;}
 .tpay-tab-slider{position:absolute;top:4px;bottom:4px;left:4px;border-radius:9px;background:var(--red);z-index:0;transition:transform .32s cubic-bezier(.4,0,.2,1);}
 .tpay-tab{position:relative;z-index:1;flex:1;min-width:110px;text-align:center;padding:10px 14px;border-radius:9px;cursor:pointer;font-size:12.5px;font-weight:700;color:var(--text-3);transition:color .18s;white-space:nowrap;}
@@ -4164,21 +4164,22 @@ body:has(.screen[data-screen="chat"].on) .gai-fab{display:none;}
 .tpay-formula{background:var(--surface);border:1px solid rgba(208,4,0,.3);border-radius:13px;padding:18px;text-align:center;margin-bottom:14px;}
 .tpay-formula-eq{font-size:15px;font-weight:800;color:var(--text);}
 .tpay-formula-sub{font-size:11.5px;color:var(--text-3);margin-top:6px;}
-.tpay-card-rates{display:flex;align-items:flex-end;gap:6px;flex-shrink:0;}
+.tpay-card-rates{display:flex;align-items:flex-end;justify-content:center;gap:6px;}
 .tpay-card-fld{text-align:center;}
 .tpay-card-fld label{display:block;font-size:8.5px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:3px;}
 .tpay-card-x{color:var(--text-3);font-size:12px;padding-bottom:8px;}
 .tpay-inline-input{width:64px;background:var(--bg);border:1px solid var(--line);border-radius:7px;color:var(--text);font-family:inherit;font-size:12.5px;font-weight:700;text-align:center;padding:6px 4px;}
 .tpay-inline-input:hover{border-color:var(--line-2);}
 .tpay-inline-input:focus{outline:none;border-color:var(--red);background:rgba(208,4,0,.06);}
-.tpay-card-fld-solo .tpay-inline-input{width:88px;}
-.tpay-card-step{display:flex;align-items:center;gap:3px;flex-shrink:0;}
-.tpay-step-btn{width:24px;height:28px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line-2);color:var(--text-2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;}
+.tpay-card-fld-solo .tpay-inline-input{width:100%;max-width:150px;}
+.tpay-card-step{display:flex;align-items:center;justify-content:center;gap:4px;}
+.tpay-card-step-empty{visibility:hidden;}
+.tpay-step-btn{width:24px;height:28px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line-2);color:var(--text-2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:1;flex-shrink:0;}
 .tpay-step-btn:hover{background:var(--surface-3);color:var(--text);}
 .tpay-step-btn:active{background:var(--red);border-color:var(--red);color:#fff;}
 .tpay-card-step-num{width:42px;text-align:center;font-size:13.5px;font-weight:800;color:var(--text);line-height:1.15;}
 .tpay-card-step-num span{display:block;font-size:8px;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;font-weight:700;}
-.tpay-card-edit{flex-shrink:0;color:var(--text-3);cursor:pointer;display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;transition:.14s;}
+.tpay-card-edit{color:var(--text-3);cursor:pointer;display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;transition:.14s;}
 .tpay-card-edit:hover{background:var(--surface-2);color:var(--text);}
 .tpay-step-btn:disabled{opacity:.4;cursor:not-allowed;}
 .tpay-step-btn:disabled:active{background:var(--surface-2);border-color:var(--line-2);color:var(--text-2);}
@@ -10607,7 +10608,7 @@ setupRail('rail2','pill2');
             <div class="tpay-card-step-num">${Number(r.client_units)||0}<span>${locked?'🔒 Units':'Units'}</span></div>
             <button type="button" class="tpay-step-btn" data-step="0.5" data-pay-id="${r.id}" ${locked?'disabled':''}>+</button>
           </div>`
-        : '';
+        : `<div class="tpay-card-step tpay-card-step-empty"></div>`;
 
       return `<div class="tpay-card" data-pay-id="${r.id}">
         <span class="tpay-card-ava" style="background:${tEsc(bg)};color:${tEsc(fg)};">${tEsc(initials(name))}</span>
