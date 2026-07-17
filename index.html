@@ -11388,22 +11388,28 @@ setupRail('rail2','pill2');
       const labels={holiday:'Public holiday'+(st.label?' — '+st.label:''), leave:'On approved leave'+(st.label?' — '+st.label:''), off:'Day off'};
       return {kind:st.kind, segments:[], hoursLabel:labels[st.kind], fullColor:colors[st.kind]};
     }
-    const s=parseHM(member.start), e=parseHM(member.end);
-    const utcS=homeInstant(baseDate,s.h,s.m,member.tz), utcE=homeInstant(baseDate,e.h,e.m,member.tz);
-    let sf=hourFracInTz(utcS,viewerTz), ef=hourFracInTz(utcE,viewerTz);
-    if(ef<=sf) ef+=24;
+    const blocks = [{start:member.start, end:member.end}];
+    if (member.start2 && member.end2) blocks.push({start:member.start2, end:member.end2});
     const nowFrac = isViewingToday ? hourFracInTz(new Date(), viewerTz) : null;
-    let pieces = ef>24 ? [[sf,24],[0,ef-24]] : [[sf,ef]];
     let segments=[];
-    pieces.forEach(([a,b])=>{
-      if(nowFrac!==null && nowFrac>a && nowFrac<b){
-        segments.push({start:a,end:nowFrac,color:'rgba(208,4,0,.5)'});
-        segments.push({start:nowFrac,end:b,color:'var(--surface-3)'});
-      } else if(nowFrac!==null && nowFrac>=b){
-        segments.push({start:a,end:b,color:'rgba(208,4,0,.5)'});
-      } else {
-        segments.push({start:a,end:b,color:'var(--surface-3)'});
-      }
+    const hourLabels=[];
+    blocks.forEach(blk=>{
+      const s=parseHM(blk.start), e=parseHM(blk.end);
+      const utcS=homeInstant(baseDate,s.h,s.m,member.tz), utcE=homeInstant(baseDate,e.h,e.m,member.tz);
+      let sf=hourFracInTz(utcS,viewerTz), ef=hourFracInTz(utcE,viewerTz);
+      if(ef<=sf) ef+=24;
+      hourLabels.push(fmtClock(utcS,viewerTz)+' – '+fmtClock(utcE,viewerTz));
+      let pieces = ef>24 ? [[sf,24],[0,ef-24]] : [[sf,ef]];
+      pieces.forEach(([a,b])=>{
+        if(nowFrac!==null && nowFrac>a && nowFrac<b){
+          segments.push({start:a,end:nowFrac,color:'rgba(208,4,0,.5)'});
+          segments.push({start:nowFrac,end:b,color:'var(--surface-3)'});
+        } else if(nowFrac!==null && nowFrac>=b){
+          segments.push({start:a,end:b,color:'rgba(208,4,0,.5)'});
+        } else {
+          segments.push({start:a,end:b,color:'var(--surface-3)'});
+        }
+      });
     });
     if(member.breakStart && member.breakEnd){
       const bs=parseHM(member.breakStart), be=parseHM(member.breakEnd);
@@ -11412,7 +11418,7 @@ setupRail('rail2','pill2');
       if(bef<=bsf) bef+=24;
       segments.push({start:bsf,end:bef,color:'rgba(230,180,60,.45)'});
     }
-    return {kind:'work', segments, hoursLabel: fmtClock(utcS,viewerTz)+' – '+fmtClock(utcE,viewerTz)};
+    return {kind:'work', segments, hoursLabel: hourLabels.join(', ')};
   }
 
   const TONE_COLORS = {
@@ -11426,10 +11432,14 @@ setupRail('rail2','pill2');
     const st=dayStatus(member, now);
     if(st.kind!=='work') return {label:'Not scheduled today', tone:'muted'};
     const nowFrac=hourFracInTz(now, member.tz);
-    const s=parseHM(member.start), e=parseHM(member.end);
-    let sf=s.h+s.m/60, ef=e.h+e.m/60; if(ef<=sf) ef+=24;
-    let nf=nowFrac; if(nf<sf) nf+=24;
-    const workingNow = nf>=sf && nf<ef;
+    const blocks = [{start:member.start, end:member.end}];
+    if (member.start2 && member.end2) blocks.push({start:member.start2, end:member.end2});
+    const workingNow = blocks.some(blk=>{
+      const s=parseHM(blk.start), e=parseHM(blk.end);
+      let sf=s.h+s.m/60, ef=e.h+e.m/60; if(ef<=sf) ef+=24;
+      let nf=nowFrac; if(nf<sf) nf+=24;
+      return nf>=sf && nf<ef;
+    });
     let onBreak=false;
     if(member.breakStart && member.breakEnd){
       const bs=parseHM(member.breakStart), be=parseHM(member.breakEnd);
@@ -11518,6 +11528,8 @@ setupRail('rail2','pill2');
           workDays: sched ? sched.work_days : ['Mon','Tue','Wed','Thu','Fri'],
           start: sched ? String(sched.start_time).slice(0,5) : '09:00',
           end: sched ? String(sched.end_time).slice(0,5) : '17:00',
+          start2: sched && sched.start_time_2 ? String(sched.start_time_2).slice(0,5) : null,
+          end2: sched && sched.end_time_2 ? String(sched.end_time_2).slice(0,5) : null,
           breakStart: sched && sched.break_start ? String(sched.break_start).slice(0,5) : null,
           breakEnd: sched && sched.break_end ? String(sched.break_end).slice(0,5) : null,
           leave: exc.leave, holidays: exc.holidays, daysOff: exc.daysOff, tempChanges: exc.tempChanges,
@@ -11691,6 +11703,7 @@ setupRail('rail2','pill2');
     if (!m) return;
     draft = {
       tz: m.tz, workDays: [...m.workDays], start: m.start, end: m.end,
+      hasSecondBlock: !!(m.start2 && m.end2), start2: m.start2||'13:00', end2: m.end2||'17:00',
       breakStart: m.breakStart||'', breakEnd: m.breakEnd||'',
       newDate: '', newLabel: '',
     };
@@ -11724,6 +11737,7 @@ setupRail('rail2','pill2');
         <div class="tp-sched-panel-section">Normal hours &amp; breaks</div>
         <div class="tp-sched-panel-box">
           <div>Start – finish: ${sEsc(m.start)} – ${sEsc(m.end)} (${sEsc(m.tz)})</div>
+          ${m.start2 && m.end2 ? `<div>Second block: ${sEsc(m.start2)} – ${sEsc(m.end2)} (${sEsc(m.tz)})</div>` : ''}
           <div>Break: ${m.breakStart ? sEsc(m.breakStart)+' – '+sEsc(m.breakEnd) : 'No scheduled break'}</div>
         </div>
         <div class="tp-sched-panel-section">Upcoming leave</div>
@@ -11747,6 +11761,13 @@ setupRail('rail2','pill2');
           <div><div class="tp-sched-field-lbl">START</div><input type="time" class="tp-sched-input" id="tpSchedDraftStart" value="${sEsc(draft.start)}"></div>
           <div><div class="tp-sched-field-lbl">FINISH</div><input type="time" class="tp-sched-input" id="tpSchedDraftEnd" value="${sEsc(draft.end)}"></div>
         </div>
+        ${draft.hasSecondBlock ? `
+        <div class="tp-sched-2col" style="margin-bottom:8px;">
+          <div><div class="tp-sched-field-lbl">2ND BLOCK START</div><input type="time" class="tp-sched-input" id="tpSchedDraftStart2" value="${sEsc(draft.start2)}"></div>
+          <div><div class="tp-sched-field-lbl">2ND BLOCK FINISH</div><input type="time" class="tp-sched-input" id="tpSchedDraftEnd2" value="${sEsc(draft.end2)}"></div>
+        </div>
+        <div class="tp-sched-btn-ghost" id="tpSchedRemoveBlock2Btn" style="margin-bottom:16px;">− Remove second block</div>
+        ` : `<div class="tp-sched-btn-ghost" id="tpSchedAddBlock2Btn" style="margin-bottom:16px;">+ Add a second work block (split shift)</div>`}
         <div class="tp-sched-2col" style="margin-bottom:20px;">
           <div><div class="tp-sched-field-lbl">BREAK START</div><input type="time" class="tp-sched-input" id="tpSchedDraftBreakStart" value="${sEsc(draft.breakStart)}"></div>
           <div><div class="tp-sched-field-lbl">BREAK END</div><input type="time" class="tp-sched-input" id="tpSchedDraftBreakEnd" value="${sEsc(draft.breakEnd)}"></div>
@@ -11768,6 +11789,13 @@ setupRail('rail2','pill2');
       $('tpSchedDraftTz').addEventListener('change', e=>{ draft.tz = e.target.value; });
       $('tpSchedDraftStart').addEventListener('change', e=>{ draft.start = e.target.value; });
       $('tpSchedDraftEnd').addEventListener('change', e=>{ draft.end = e.target.value; });
+      if (draft.hasSecondBlock) {
+        $('tpSchedDraftStart2').addEventListener('change', e=>{ draft.start2 = e.target.value; });
+        $('tpSchedDraftEnd2').addEventListener('change', e=>{ draft.end2 = e.target.value; });
+        $('tpSchedRemoveBlock2Btn').addEventListener('click', ()=>{ draft.hasSecondBlock = false; renderPanel(); });
+      } else {
+        $('tpSchedAddBlock2Btn').addEventListener('click', ()=>{ draft.hasSecondBlock = true; renderPanel(); });
+      }
       $('tpSchedDraftBreakStart').addEventListener('change', e=>{ draft.breakStart = e.target.value; });
       $('tpSchedDraftBreakEnd').addEventListener('change', e=>{ draft.breakEnd = e.target.value; });
       $('tpSchedDraftNewDate').addEventListener('change', e=>{ draft.newDate = e.target.value; });
@@ -11809,6 +11837,7 @@ setupRail('rail2','pill2');
     try {
       const payload = {
         profile_id: panelMemberId, work_days: draft.workDays, start_time: draft.start, end_time: draft.end,
+        start_time_2: draft.hasSecondBlock ? draft.start2 : null, end_time_2: draft.hasSecondBlock ? draft.end2 : null,
         break_start: draft.breakStart || null, break_end: draft.breakEnd || null, updated_by: uid
       };
       const { error } = await sb.from('team_schedules').upsert(payload, { onConflict: 'profile_id' });
