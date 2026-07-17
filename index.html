@@ -13458,19 +13458,37 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
   const tpScreen=document.querySelector('.screen[data-screen="pulse"]');
   if(!tpScreen)return;
 
-  /* ---- View toggle (Team / Manager) ---- */
+  /* ---- View toggle (Team / Manager / Schedule) ---- */
   const toggle=document.getElementById('tpViewToggle');
   if(toggle){
+    const TP_TAB_STORAGE_KEY='giant_pulse_tab';
+    function selectPulseMode(mode,btn){
+      toggle.querySelectorAll('.tp-vt-btn').forEach(x=>x.classList.remove('active'));
+      btn.classList.add('active');
+      tpScreen.querySelectorAll('.tp-view').forEach(v=>{
+        v.classList.toggle('active',v.dataset.tpview===mode);
+      });
+    }
     toggle.querySelectorAll('.tp-vt-btn').forEach(btn=>{
       btn.addEventListener('click',()=>{
-        toggle.querySelectorAll('.tp-vt-btn').forEach(x=>x.classList.remove('active'));
-        btn.classList.add('active');
         const mode=btn.dataset.tpmode;
-        tpScreen.querySelectorAll('.tp-view').forEach(v=>{
-          v.classList.toggle('active',v.dataset.tpview===mode);
-        });
+        selectPulseMode(mode,btn);
+        try{ localStorage.setItem(TP_TAB_STORAGE_KEY,mode); }catch(e){}
       });
     });
+    // Restore the last-used tab after login — called from initApp once the user's role
+    // (and therefore which tabs are actually visible to them) is known, so we never
+    // restore a tab that's hidden for their role.
+    window.giantRestorePulseTab=function(){
+      try{
+        const saved=localStorage.getItem(TP_TAB_STORAGE_KEY);
+        if(!saved)return;
+        const btn=toggle.querySelector(`.tp-vt-btn[data-tpmode="${saved}"]`);
+        // Use a real click (not just class-toggling) so other listeners on this button —
+        // e.g. teamScheduleModule's own click handler that loads its data — fire too.
+        if(btn && btn.offsetParent!==null) btn.click();
+      }catch(e){}
+    };
   }
 
   /* ---- Status picker (my card) ---- */
@@ -19791,6 +19809,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     // Apply role to body for RBAC CSS
     document.body.classList.remove('role-owner','role-manager','role-member','role-client');
     document.body.classList.add('role-' + profile.role);
+    // Restore whichever Team Pulse tab (Team/Manager/Schedule) the user had open last,
+    // now that role-based visibility above is in effect.
+    if (typeof window.giantRestorePulseTab === 'function') window.giantRestorePulseTab();
 
     // === CLIENT ROLE: hide forbidden nav items, restrict access ===
     if (profile.role === 'client') {
