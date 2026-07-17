@@ -8202,8 +8202,27 @@ window.giantPrompt = function(message, defaultValue){
               <div><label>Units status</label><div id="tpayReviewStatus" style="font-size:11.5px;color:var(--text-3);padding:9px 0;"></div></div>
             </div>
             <div class="m-field m-2col">
-              <div><label>Local currency <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional)</span></label><input type="text" id="tpayCurrencyCodeInput" placeholder="e.g. INR" maxlength="6"></div>
-              <div><label>Exchange rate <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(per $1)</span></label><input type="number" id="tpayExchangeRateInput" placeholder="0" min="0" step="0.0001"></div>
+              <div>
+                <label>Local currency <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional)</span></label>
+                <select id="tpayCurrencyCodeInput">
+                  <option value="">None — USD only</option>
+                  <option value="USD">🇺🇸 US Dollar (USD)</option>
+                  <option value="GBP">🇬🇧 British Pound (GBP)</option>
+                  <option value="INR">🇮🇳 Indian Rupee (INR)</option>
+                  <option value="PKR">🇵🇰 Pakistani Rupee (PKR)</option>
+                  <option value="PHP">🇵🇭 Philippine Peso (PHP)</option>
+                  <option value="CAD">🇨🇦 Canadian Dollar (CAD)</option>
+                  <option value="AUD">🇦🇺 Australian Dollar (AUD)</option>
+                  <option value="EUR">🇪🇺 Euro (EUR)</option>
+                </select>
+              </div>
+              <div>
+                <label style="display:flex;align-items:center;justify-content:space-between;">
+                  <span>Exchange rate <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(per $1)</span></span>
+                  <span id="tpayFxStatus" style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;font-size:10.5px;"></span>
+                </label>
+                <input type="number" id="tpayExchangeRateInput" placeholder="0" min="0" step="0.0001">
+              </div>
             </div>
           </div>
           <div class="modal-foot">
@@ -10923,6 +10942,7 @@ setupRail('rail2','pill2');
     $('tpayReviewCycleInput').value = row ? (row.review_cycle_days || 30) : 30;
     $('tpayCurrencyCodeInput').value = row ? (row.local_currency_code || '') : '';
     $('tpayExchangeRateInput').value = row ? (row.local_exchange_rate || '') : '';
+    $('tpayFxStatus').textContent = '';
     if (row) $('tpayPersonSelect').value = row.profile_id;
     refreshBonusPreview();
     refreshReviewStatus(row);
@@ -10945,10 +10965,27 @@ setupRail('rail2','pill2');
     } catch(e) { if (typeof toast==='function') toast({type:'error', message: e.message || 'Could not pull hours'}); }
   }
 
+  async function fetchFxRate(code){
+    const statusEl = $('tpayFxStatus');
+    if (!code) { if (statusEl) statusEl.textContent = ''; return; }
+    if (statusEl) statusEl.textContent = 'Fetching live rate…';
+    try {
+      const res = await fetch(`/.netlify/functions/fx-rate?to=${encodeURIComponent(code)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not fetch rate');
+      $('tpayExchangeRateInput').value = Math.round(Number(data.rate) * 10000) / 10000;
+      if (statusEl) statusEl.textContent = 'Live rate — edit to override';
+    } catch(e) {
+      if (statusEl) statusEl.textContent = 'Could not fetch — enter manually';
+      if (typeof toast === 'function') toast({type:'error', message: e.message || 'Failed to fetch exchange rate', duration:2500});
+    }
+  }
+
   function wirePersonModal(){
     document.querySelectorAll('.tpay-type-btn').forEach(btn => {
       btn.addEventListener('click', () => setBaseType(btn.dataset.baseType));
     });
+    $('tpayCurrencyCodeInput').addEventListener('change', (e) => fetchFxRate(e.target.value));
     $('tpayBonusToggle').addEventListener('change', (e) => {
       $('tpayBonusFields').style.display = e.target.checked ? '' : 'none';
       $('tpayReviewFields').style.display = e.target.checked ? '' : 'none';
