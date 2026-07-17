@@ -4117,6 +4117,14 @@ body:has(.screen[data-screen="chat"].on) .gai-fab{display:none;}
 .report-status-pill{font-size:11px;font-weight:700;border-radius:7px;padding:5px 9px;border:1px solid var(--line);background:var(--bg);color:var(--text-2);font-family:inherit;}
 .report-row-icon-btn{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--text-3);cursor:pointer;transition:.14s;flex-shrink:0;}
 .report-row-icon-btn:hover{background:var(--surface-2);color:var(--text);}
+/* Channel public/private toggle switch */
+.chat-privacy-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 12px;border-radius:20px;background:var(--surface-2);border:1px solid var(--line-2);flex-shrink:0;transition:.14s;}
+.chat-privacy-toggle:hover{border-color:var(--text-3);}
+.chat-privacy-toggle-label{font-size:12px;font-weight:700;color:var(--text-2);}
+.chat-privacy-switch{position:relative;width:34px;height:20px;border-radius:10px;background:var(--line-2);transition:background .2s;flex-shrink:0;}
+.chat-privacy-switch.on{background:var(--red);}
+.chat-privacy-switch-thumb{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.35);}
+.chat-privacy-switch.on .chat-privacy-switch-thumb{transform:translateX(14px);}
 .report-filters{display:flex;gap:8px;margin-bottom:14px;}
 .report-filters select{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12px;font-family:inherit;background:var(--surface);color:var(--text);}
 .changelog-list{display:flex;flex-direction:column;gap:18px;}
@@ -6144,6 +6152,10 @@ window.giantPrompt = function(message, defaultValue){
               <button class="btn-ghost" id="chatHeadSearchBtn" title="Search in channel" style="display:flex;align-items:center;justify-content:center;padding:6px 9px;">
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
               </button>
+              <div class="chat-privacy-toggle" id="chatHeadPrivacyBtn" title="Toggle channel privacy" style="display:none;">
+                <span class="chat-privacy-toggle-label" id="chatHeadPrivacyLabel">Public</span>
+                <span class="chat-privacy-switch" id="chatHeadPrivacySwitch"><span class="chat-privacy-switch-thumb"></span></span>
+              </div>
               <button class="btn-ghost" id="chatHeadMembersBtn">Members</button>
               <button class="btn-huddle" id="chatHuddleBtn">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M12 14a3 3 0 003-3V6a3 3 0 00-6 0v5a3 3 0 003 3z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M19 11a7 7 0 01-14 0M12 18v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
@@ -6448,6 +6460,13 @@ window.giantPrompt = function(message, defaultValue){
                 <div class="m-close" data-close="channelMembersModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
               </div>
               <div class="modal-body">
+                <div class="m-field" id="chPrivacyField" style="display:none;align-items:center;justify-content:space-between;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:10px 12px;">
+                  <div style="font-size:11.5px;color:var(--text-2);" id="chPrivacyStatusText"></div>
+                  <div class="chat-privacy-toggle" id="chConvertPrivacyBtn">
+                    <span class="chat-privacy-toggle-label" id="chPrivacyToggleLabel">Public</span>
+                    <span class="chat-privacy-switch" id="chPrivacyToggleSwitch"><span class="chat-privacy-switch-thumb"></span></span>
+                  </div>
+                </div>
                 <div class="m-field"><label>Add a teammate</label><input type="text" id="chMembersSearch" placeholder="Search to add…" autocomplete="off"></div>
                 <div id="chMembersAddList" class="ch-members-list" style="max-height:160px;display:none;border:1px solid var(--line);border-radius:9px;background:var(--surface);padding:4px;margin-bottom:14px;"></div>
                 <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px;">Members <span id="chMembersCount">·</span></div>
@@ -24122,6 +24141,19 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         chatInput.placeholder = `Message #${c.name}…`;
         const membersBtn = document.getElementById('chatHeadMembersBtn');
         if (membersBtn) membersBtn.style.display = '';
+        const privacyBtn = document.getElementById('chatHeadPrivacyBtn');
+        if (privacyBtn) {
+          const role = window.giantCurrentProfile && window.giantCurrentProfile.role;
+          const canManagePrivacy = role === 'owner' || role === 'manager' || role === 'inhouse_dev';
+          if (canManagePrivacy) {
+            privacyBtn.style.display = 'flex';
+            document.getElementById('chatHeadPrivacyLabel').textContent = c.is_private ? 'Private' : 'Public';
+            document.getElementById('chatHeadPrivacySwitch').classList.toggle('on', !!c.is_private);
+            privacyBtn.onclick = () => convertChannelPrivacy(c);
+          } else {
+            privacyBtn.style.display = 'none';
+          }
+        }
       }
       await loadMessages(channelId);
       subscribeRealtime(channelId);
@@ -26359,9 +26391,56 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       if (channel.is_dm) return; // No member management for DMs
       document.getElementById('chMembersTitle').textContent = `#${channel.name} members`;
       document.getElementById('chMembersSub').textContent = channel.is_private ? 'Private channel — manage who can see this channel' : 'Public channel — all workspace members can see this';
+      const privacyField = document.getElementById('chPrivacyField');
+      const privacyStatus = document.getElementById('chPrivacyStatusText');
+      const convertBtn = document.getElementById('chConvertPrivacyBtn');
+      const role = window.giantCurrentProfile && window.giantCurrentProfile.role;
+      const canManagePrivacy = role === 'owner' || role === 'manager' || role === 'inhouse_dev';
+      if (privacyField && canManagePrivacy) {
+        privacyField.style.display = 'flex';
+        privacyStatus.textContent = channel.is_private ? '🔒 Private channel' : '🌐 Public channel';
+        document.getElementById('chPrivacyToggleLabel').textContent = channel.is_private ? 'Private' : 'Public';
+        document.getElementById('chPrivacyToggleSwitch').classList.toggle('on', !!channel.is_private);
+        convertBtn.onclick = () => convertChannelPrivacy(channel);
+      } else if (privacyField) {
+        privacyField.style.display = 'none';
+      }
       await renderChannelMembersList();
       if (typeof openModal === 'function') openModal('channelMembersModal');
       else document.getElementById('channelMembersModal').classList.add('on');
+    }
+
+    // Manual, explicit conversion — owner/manager/inhouse_dev only. Public→private restricts
+    // visibility to current channel_members; private→public opens it to the whole workspace.
+    // Both are consequential enough to warrant a confirm() spelling out exactly what changes.
+    async function convertChannelPrivacy(channel) {
+      const makingPrivate = !channel.is_private;
+      const msg = makingPrivate
+        ? `Make #${channel.name} private? Only current members will be able to see it — everyone else loses access immediately.`
+        : `Make #${channel.name} public? Everyone in the workspace will be able to see and read it, not just current members.`;
+      if (!confirm(msg)) return;
+      try {
+        const { error } = await supabase.from('channels').update({ is_private: makingPrivate }).eq('id', channel.id);
+        if (error) throw new Error(error.message);
+        channel.is_private = makingPrivate;
+        document.getElementById('chMembersSub').textContent = makingPrivate ? 'Private channel — manage who can see this channel' : 'Public channel — all workspace members can see this';
+        document.getElementById('chPrivacyStatusText').textContent = makingPrivate ? '🔒 Private channel' : '🌐 Public channel';
+        document.getElementById('chPrivacyToggleLabel').textContent = makingPrivate ? 'Private' : 'Public';
+        document.getElementById('chPrivacyToggleSwitch').classList.toggle('on', makingPrivate);
+        const privacyBtn = document.getElementById('chatHeadPrivacyBtn');
+        if (privacyBtn) {
+          document.getElementById('chatHeadPrivacyLabel').textContent = makingPrivate ? 'Private' : 'Public';
+          document.getElementById('chatHeadPrivacySwitch').classList.toggle('on', makingPrivate);
+        }
+        if (!channel.description) {
+          const topicEl = document.getElementById('chatHeadTopic');
+          if (topicEl) topicEl.textContent = makingPrivate ? 'Private channel' : 'Public channel';
+        }
+        if (typeof loadChannels === 'function') await loadChannels();
+        if (typeof toast === 'function') toast({type:'success', message: makingPrivate ? 'Channel is now private' : 'Channel is now public', duration:2200});
+      } catch(e) {
+        if (typeof toast === 'function') toast({type:'error', message: e.message || 'Failed to update channel privacy'});
+      }
     }
 
     async function renderChannelMembersList() {
