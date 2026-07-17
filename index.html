@@ -10359,12 +10359,24 @@ setupRail('rail2','pill2');
     }).join('');
   }
 
+  // Compares "0.0.10" vs "0.0.9" etc. numerically per segment — a plain string/date sort put
+  // same-day releases in whatever order the DB happened to return them, not version order,
+  // and would break the moment any segment reaches double digits either way.
+  function compareVersionsDesc(a, b) {
+    const pa = String(a.version || '0').split('.').map(n => parseInt(n, 10) || 0);
+    const pb = String(b.version || '0').split('.').map(n => parseInt(n, 10) || 0);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const diff = (pb[i] || 0) - (pa[i] || 0);
+      if (diff) return diff;
+    }
+    return 0;
+  }
   async function loadEntries(){
     if (!sb()) return;
     try {
-      const { data, error } = await sb().from('changelog_entries').select('*').order('released_at', { ascending: false });
+      const { data, error } = await sb().from('changelog_entries').select('*');
       if (error) throw error;
-      entriesCache = data || [];
+      entriesCache = (data || []).sort(compareVersionsDesc);
       renderEntries();
     } catch(e) { console.warn('[changelog] load failed', e.message); }
   }
