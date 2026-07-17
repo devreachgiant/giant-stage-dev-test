@@ -11499,7 +11499,7 @@ setupRail('rail2','pill2');
     if (!sb) return;
     try {
       const [profRes, schedRes, excRes] = await Promise.all([
-        sb.from('profiles').select('id, full_name, email, role, avatar_bg, avatar_fg, timezone, status').neq('role','client').order('full_name', {ascending:true}),
+        sb.from('profiles').select('id, full_name, email, role, avatar_bg, avatar_fg, timezone, status, last_active_at').neq('role','client').order('full_name', {ascending:true}),
         sb.from('team_schedules').select('*'),
         sb.from('schedule_exceptions').select('*')
       ]);
@@ -11518,7 +11518,11 @@ setupRail('rail2','pill2');
         const sched = schedById[p.id];
         const exc = excByProfile[p.id] || {leave:[],holidays:[],daysOff:[],tempChanges:[]};
         const tz = p.timezone || 'UTC';
-        const liveStatus = (p.status==='online' || p.status==='focus' || p.status==='meeting') ? 'online' : 'offline';
+        // profiles.status is a manual picker that isn't reliably persisted, so treat recent
+        // heartbeat activity (updated every 60s while the app is open) as the real presence signal.
+        const ACTIVE_WINDOW_MS = 3 * 60 * 1000;
+        const recentlyActive = p.last_active_at && (Date.now() - new Date(p.last_active_at).getTime()) < ACTIVE_WINDOW_MS;
+        const liveStatus = recentlyActive ? 'online' : 'offline';
         return {
           id: p.id, name: p.full_name || p.email || 'Unknown', role: (p.role||'').replace(/^\w/,c=>c.toUpperCase()),
           location: locationFromTz(tz), tz,
