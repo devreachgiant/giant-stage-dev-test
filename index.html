@@ -23488,6 +23488,14 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       // Keep the global reference fresh so the custom cards (which read window.chatChannels) populate correctly
       window.chatChannels = chatChannels;
 
+      // Cache which channels I actually belong to (real channel_members rows), so incoming-
+      // message notifications can be scoped to "channels I'm a member of" instead of blasting
+      // everyone for every message in every public channel. Refreshed whenever channels reload.
+      try {
+        const { data: myMemberships } = await supabase.from('channel_members').select('channel_id').eq('profile_id', session.user.id);
+        window._myChannelMemberIds = new Set((myMemberships || []).map(r => r.channel_id));
+      } catch(e) { console.warn('[chat] failed to load my channel memberships', e); }
+
       // Tag each non-DM channel as 'team' or 'client' based on member composition.
       //
       // NEW LOGIC:
@@ -26713,6 +26721,18 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           )) kind = 'mention';
           else if (m.body && /@(everyone|here|channel)\b/i.test(m.body)) kind = 'mention';
         } catch(e) {}
+        // Public channels don't require an explicit "join" — anyone can read them (see
+        // channels_select RLS: is_private = false OR you're a channel_members row). Left
+        // unchecked, that means a bare "channel_message" would notify EVERY workspace member
+        // for EVERY message in EVERY public channel, regardless of whether they've ever opened
+        // it. Scope channel_message notifications to channels you actually have a
+        // channel_members row for — DMs, mentions, and thread-replies-you're-involved-in are
+        // unaffected, since being tagged should always notify you.
+        let isChannelMember = true;
+        if (kind === 'channel_message') {
+          const myMemberships = window._myChannelMemberIds;
+          isChannelMember = !!(myMemberships && myMemberships.has(m.channel_id));
+        }
         // Huddle invitations (system message "🎧 Started a huddle") are time-sensitive — treat them
         // like an incoming call: play sound + push notif even if the user is focused on the channel.
         const isHuddleInvite = m.body && /^🎧 Started a huddle/.test(m.body);
@@ -26723,10 +26743,11 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
             try { window.giantPushNotif && window.giantPushNotif({ ...m, body: '🎧 Incoming huddle — click to join' }); } catch(e) {}
           }
         }
-        // Only notify if user preferences allow this kind of notification
-        const shouldNotify = window.giantShouldNotify && window.giantShouldNotify(kind);
-        // Sound plays on EVERY incoming message you're not actively viewing (gated by sound_enabled inside the fn)
-        if (!isViewingChannel && !isMuted && !isHuddleInvite) {
+        // Only notify if user preferences allow this kind of notification AND (for plain channel
+        // messages) you're actually a member of the channel it happened in
+        const shouldNotify = isChannelMember && !!(window.giantShouldNotify && window.giantShouldNotify(kind));
+        // Sound follows the same membership scoping — no point pinging for a channel you're not in
+        if (!isViewingChannel && !isMuted && !isHuddleInvite && isChannelMember) {
           try { window.giantPlayNotifSound && window.giantPlayNotifSound(); } catch(e) {}
         }
         if (!isViewingChannel && !isMuted && shouldNotify && !isHuddleInvite) {
