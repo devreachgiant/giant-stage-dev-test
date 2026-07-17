@@ -4232,10 +4232,16 @@ body:has(.screen[data-screen="chat"].on) .gai-fab{display:none;}
 .tp-sched-month-headrow{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:8px;}
 .tp-sched-month-headcell{text-align:center;font-size:10.5px;color:var(--text-3);font-weight:700;}
 .tp-sched-month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
-.tp-sched-month-cell{min-height:82px;border-radius:10px;border:1px solid var(--line);background:var(--surface);padding:8px;cursor:pointer;display:flex;flex-direction:column;}
+.tp-sched-month-cell{min-height:82px;border-radius:10px;border:1px solid var(--line);background:var(--surface);padding:8px;cursor:pointer;display:flex;flex-direction:column;transition:.14s;}
+.tp-sched-month-cell:hover{border-color:var(--line-2);}
 .tp-sched-month-cell.today{border-color:var(--red);}
+.tp-sched-month-cell.weekend{background:rgba(93,169,196,.06);border-color:rgba(93,169,196,.22);}
+.tp-sched-month-cell.weekend.today{border-color:var(--red);}
 .tp-sched-month-daynum{font-size:11.5px;font-weight:700;color:var(--text-2);}
-.tp-sched-month-summary{font-size:10px;color:var(--text-3);margin-top:3px;}
+.tp-sched-month-summary{font-size:10px;color:var(--text-3);margin-top:3px;font-weight:700;}
+.tp-sched-month-summary.is-all-working{color:#3DCB7F;}
+.tp-sched-month-summary.is-weekend{color:#5da9c4;}
+.tp-sched-month-summary.is-away{color:#F2A93B;}
 .tp-sched-month-dots{display:flex;flex-wrap:wrap;gap:3px;margin-top:auto;}
 .tp-sched-month-dot{width:6px;height:6px;border-radius:50%;}
 .tp-sched-panel-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:400;display:none;}
@@ -11349,8 +11355,11 @@ setupRail('rail2','pill2');
   }
 
   function dayStatus(member, baseDate){
-    const wd=weekdayInTz(baseDate, member.tz);
-    const ymd=ymdInTz(baseDate, member.tz);
+    // Which calendar day is a workday/weekend is a company-wide policy (e.g. Sat/Sun off for
+    // everyone), not something that should shift per person's own timezone — use a fixed
+    // UTC-anchored weekday/date here, matching how the Week/Month grids build their columns.
+    const wd=weekdayInTz(baseDate, 'UTC');
+    const ymd=ymdInTz(baseDate, 'UTC');
     const holiday=member.holidays.find(h=>h.date===ymd);
     const leave=member.leave.find(l=>l.date===ymd);
     const dayOff=(member.daysOff||[]).find(o=>o.date===ymd);
@@ -11664,20 +11673,24 @@ setupRail('rail2','pill2');
     });
   }
 
-  const CAL_COLORS = {work:'rgba(255,255,255,.28)', holiday:'#5da9c4', leave:'#b88ce0', off:'var(--text-3)'};
+  const CAL_COLORS = {work:'#3DCB7F', holiday:'#5da9c4', leave:'#b88ce0', off:'var(--text-3)'};
   function renderMonth(){
     const cells = buildMonthGrid(calendarMonth);
     const todayYmd = ymdInTz(new Date(),'UTC');
     const headHtml = WEEKDAYS.map(w=>`<div class="tp-sched-month-headcell">${w}</div>`).join('');
     const cellsHtml = cells.map(d=>{
       const ymd = ymdInTz(d,'UTC');
+      const wd = weekdayInTz(d,'UTC');
+      const isWeekend = wd==='Sat' || wd==='Sun';
       const inMonth = d.getUTCMonth()===calendarMonth.getUTCMonth();
       const statuses = filteredMembers().map(m=>dayStatus(m,d));
       const awayCount = statuses.filter(s=>s.kind!=='work').length;
       const dotsHtml = statuses.map(s=>`<div class="tp-sched-month-dot" style="background:${CAL_COLORS[s.kind]};"></div>`).join('');
-      return `<div class="tp-sched-month-cell${ymd===todayYmd?' today':''}" data-day="${ymd}" style="opacity:${inMonth?1:.35};">
+      const summaryText = isWeekend ? 'Weekend' : (awayCount===0 ? 'All working' : awayCount+' away');
+      const summaryClass = isWeekend ? 'is-weekend' : (awayCount===0 ? 'is-all-working' : 'is-away');
+      return `<div class="tp-sched-month-cell${ymd===todayYmd?' today':''}${isWeekend?' weekend':''}" data-day="${ymd}" style="opacity:${inMonth?1:.35};">
         <div class="tp-sched-month-daynum">${d.getUTCDate()}</div>
-        <div class="tp-sched-month-summary">${awayCount===0?'All working':awayCount+' away'}</div>
+        <div class="tp-sched-month-summary ${summaryClass}">${summaryText}</div>
         <div class="tp-sched-month-dots">${dotsHtml}</div>
       </div>`;
     }).join('');
