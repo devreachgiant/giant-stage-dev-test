@@ -57,8 +57,12 @@ exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
 
+  // Stripe integration is disabled: keys removed by owner decision. Fail closed with 503.
+  // NOTE: this proxy has no caller authentication and executes with the platform key, so
+  // re-enabling it MUST ship together with JWT auth (see _auth.mjs) and a caller→account
+  // ownership check — do not just restore the key. Tracked as batch 2.
   const SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-  if (!SECRET_KEY) return { statusCode: 500, headers, body: JSON.stringify({ error: 'STRIPE_SECRET_KEY not configured' }) };
+  if (!SECRET_KEY) return { statusCode: 503, headers, body: JSON.stringify({ error: 'Stripe integration is currently disabled' }) };
 
   let body;
   try { body = JSON.parse(event.body); } catch(e) { return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) }; }

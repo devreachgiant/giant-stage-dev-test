@@ -203,9 +203,6 @@ input, textarea { font-family: inherit; color: inherit; }
 </div>
 
 <script>
-const SUPABASE_URL = 'https://pvuykkdqoxrflbasswal.supabase.co';
-const SUPABASE_ANON = 'sb_publishable_ogf5kmGoZxfBi20v00akRA_ok4_tJvQ';
-
 // Extract slug from URL: supports /share/abc123 and /share.html?s=abc123
 function getSlug() {
   // First, try the path component after /share/
@@ -236,22 +233,26 @@ async function loadPack() {
     return;
   }
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/share_packs?slug=eq.${encodeURIComponent(slug)}&select=*`, {
-      headers: { 'apikey': SUPABASE_ANON, 'Authorization': `Bearer ${SUPABASE_ANON}` }
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const rows = await res.json();
-    if (!Array.isArray(rows) || rows.length === 0) {
+    // Anon table access to share_packs is revoked (security batch 1) — packs are read
+    // through the share-pack-get function, which enforces expiry and strips internal fields.
+    const res = await fetch(`/.netlify/functions/share-pack-get?slug=${encodeURIComponent(slug)}`);
+    if (res.status === 410) {
+      document.getElementById('loadingState').classList.add('hidden');
+      document.getElementById('errorState').classList.remove('hidden');
+      document.getElementById('errorMessage').textContent = 'This share link has expired.';
+      return;
+    }
+    if (res.status === 404 || res.status === 400) {
       document.getElementById('loadingState').classList.add('hidden');
       document.getElementById('errorState').classList.remove('hidden');
       return;
     }
-    const pack = rows[0];
-    // Check expiry
-    if (pack.expires_at && new Date(pack.expires_at) < new Date()) {
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const pack = data && data.pack;
+    if (!pack) {
       document.getElementById('loadingState').classList.add('hidden');
       document.getElementById('errorState').classList.remove('hidden');
-      document.getElementById('errorMessage').textContent = 'This share link has expired.';
       return;
     }
     renderPack(pack);
