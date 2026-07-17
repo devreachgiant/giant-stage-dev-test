@@ -5627,6 +5627,38 @@ window.giantPrompt = function(message, defaultValue){
               </div>
             </div>
 
+          <!-- SCHEDULE VIEW -->
+          <div class="tp-view tp-view-schedule" data-tpview="schedule">
+            <div class="tp-sched-toolbar">
+              <div class="tp-view-toggle" id="tpSchedModeToggle">
+                <button class="tp-vt-btn active" data-schedmode="today">Today</button>
+                <button class="tp-vt-btn" data-schedmode="week">Week</button>
+                <button class="tp-vt-btn" data-schedmode="month">Month</button>
+              </div>
+              <div class="tp-sched-nav" id="tpSchedNav">
+                <button class="tp-sched-nav-btn" id="tpSchedPrevBtn">‹</button>
+                <button class="tp-sched-nav-btn" id="tpSchedTodayBtn">Today</button>
+                <button class="tp-sched-nav-btn" id="tpSchedNextBtn">›</button>
+              </div>
+              <div class="tp-sched-date-label" id="tpSchedDateLabel"></div>
+              <div style="flex:1;"></div>
+              <select class="tp-sched-select" id="tpSchedTzSelect"></select>
+              <input class="tp-sched-search" id="tpSchedSearch" placeholder="Search people…">
+              <select class="tp-sched-select" id="tpSchedStatusFilter">
+                <option value="all">All statuses</option>
+                <option value="good">Working now</option>
+                <option value="break">On break</option>
+                <option value="warn">Needs attention</option>
+                <option value="muted">Not scheduled</option>
+              </select>
+            </div>
+            <div class="tp-sched-meta" id="tpSchedMeta"></div>
+
+            <div id="tpSchedTodayView"></div>
+            <div id="tpSchedWeekView" style="display:none;"></div>
+            <div id="tpSchedMonthView" style="display:none;"></div>
+          </div>
+
           <!-- Status picker dropdown (positioned via JS) -->
           <div class="tp-status-menu" id="tpStatusMenu">
             <div class="tp-status-menu-item" data-status="online"><span class="tp-status-dot online"></span>Online<span class="tp-sm-desc">Available and responsive</span></div>
@@ -6200,38 +6232,6 @@ window.giantPrompt = function(message, defaultValue){
               <div class="crew-timeline-row"><span class="crew-timeline-dot" style="background:#A855F7;"></span><b>Atlas</b><span style="color:rgba(255,255,255,.6);">drafted "Hero copy — Reach Giant"</span><span class="crew-timeline-time">5m ago</span></div>
               <div class="crew-timeline-row"><span class="crew-timeline-dot" style="background:#FB923C;"></span><b>Titan</b><span style="color:rgba(255,255,255,.6);">published "Q4 trends" blog post</span><span class="crew-timeline-time">12m ago</span></div>
             </div>
-          </div>
-
-          <!-- SCHEDULE VIEW -->
-          <div class="tp-view tp-view-schedule" data-tpview="schedule">
-            <div class="tp-sched-toolbar">
-              <div class="tp-view-toggle" id="tpSchedModeToggle">
-                <button class="tp-vt-btn active" data-schedmode="today">Today</button>
-                <button class="tp-vt-btn" data-schedmode="week">Week</button>
-                <button class="tp-vt-btn" data-schedmode="month">Month</button>
-              </div>
-              <div class="tp-sched-nav" id="tpSchedNav">
-                <button class="tp-sched-nav-btn" id="tpSchedPrevBtn">‹</button>
-                <button class="tp-sched-nav-btn" id="tpSchedTodayBtn">Today</button>
-                <button class="tp-sched-nav-btn" id="tpSchedNextBtn">›</button>
-              </div>
-              <div class="tp-sched-date-label" id="tpSchedDateLabel"></div>
-              <div style="flex:1;"></div>
-              <select class="tp-sched-select" id="tpSchedTzSelect"></select>
-              <input class="tp-sched-search" id="tpSchedSearch" placeholder="Search people…">
-              <select class="tp-sched-select" id="tpSchedStatusFilter">
-                <option value="all">All statuses</option>
-                <option value="good">Working now</option>
-                <option value="break">On break</option>
-                <option value="warn">Needs attention</option>
-                <option value="muted">Not scheduled</option>
-              </select>
-            </div>
-            <div class="tp-sched-meta" id="tpSchedMeta"></div>
-
-            <div id="tpSchedTodayView"></div>
-            <div id="tpSchedWeekView" style="display:none;"></div>
-            <div id="tpSchedMonthView" style="display:none;"></div>
           </div>
 
         </div>
