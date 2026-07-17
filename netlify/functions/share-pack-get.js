@@ -1,6 +1,8 @@
 // Netlify Function: share-pack-get
-// Public, anonymous read of a shared pack by slug. Used by the /share/<slug> page.
-// Bumps the views_count as a side effect (best-effort, non-blocking).
+// Public, anonymous read of a share pack by slug. Used by the /share/<slug> page.
+// Runs with the service role — anon SELECT on share_packs is revoked (security batch 1),
+// so this function is the only public read path. Returns only the public fields and
+// enforces expiry server-side. Bumps view_count as a side effect (best-effort).
 
 exports.handler = async (event) => {
   const headers = {
@@ -37,7 +39,7 @@ async function inner(event, headers) {
     try { slug = (JSON.parse(event.body || '{}').slug || '').trim(); } catch (e) { slug = ''; }
   }
   if (!slug) return { statusCode: 400, headers, body: JSON.stringify({ error: 'slug required' }) };
-  // Basic format check
+  // Slugs are 4-16 chars from share-pack-create's alphabet (23456789abcdefghjkmnpqrstuvwxyz)
   if (!/^[a-z2-9]{4,16}$/.test(slug)) {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'invalid slug format' }) };
   }
@@ -45,7 +47,7 @@ async function inner(event, headers) {
   // Read the pack
   let pack;
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/shared_packs?slug=eq.${encodeURIComponent(slug)}&is_active=eq.true&select=*`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/share_packs?slug=eq.${encodeURIComponent(slug)}&select=*`, {
       headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` }
     });
     const rows = await res.json();
@@ -60,23 +62,27 @@ async function inner(event, headers) {
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'Supabase error', detail: e.message }) };
   }
 
-  // Bump views_count best-effort (fire-and-forget — don't await)
-  fetch(`${SUPABASE_URL}/rest/v1/shared_packs?slug=eq.${encodeURIComponent(slug)}`, {
+  // Enforce expiry server-side (the page also shows a friendly message)
+  if (pack.expires_at && new Date(pack.expires_at) < new Date()) {
+    return { statusCode: 410, headers, body: JSON.stringify({ error: 'expired' }) };
+  }
+
+  // Bump view_count best-effort (fire-and-forget — don't await)
+  fetch(`${SUPABASE_URL}/rest/v1/share_packs?slug=eq.${encodeURIComponent(slug)}`, {
     method: 'PATCH',
     headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ views_count: (pack.views_count || 0) + 1 })
+    body: JSON.stringify({ view_count: (pack.view_count || 0) + 1 })
   }).catch(() => {});
 
   // Strip internal fields, return the public view of the pack
   const publicPack = {
     slug: pack.slug,
     title: pack.title,
-    intro: pack.intro,
-    posts: pack.posts || [],
-    brand_name: pack.brand_name,
+    subtitle: pack.subtitle,
     client_name: pack.client_name,
+    posts: pack.posts || [],
     created_at: pack.created_at,
-    views_count: (pack.views_count || 0) + 1
+    expires_at: pack.expires_at
   };
 
   return { statusCode: 200, headers, body: JSON.stringify({ pack: publicPack }) };
