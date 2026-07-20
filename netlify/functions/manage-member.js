@@ -1,7 +1,23 @@
 // Netlify Function: manage-member
-// Deactivate / reactivate a team member (Slack-style: blocks login, keeps all their data).
-// Requires the caller to be an authenticated owner or manager — verified here, not trusted
-// from the frontend, since this wields the service role key.
+// Deactivate / reactivate a team member (Slack-style: blocks login, keeps all their data),
+// or fully Remove them (permanent — deletes their login AND, via DB cascade, their messages,
+// tasks, live pages, time tracking, recordings, huddles, etc.). Requires the caller to be an
+// authenticated owner or manager — verified here, not trusted from the frontend, since this
+// wields the service role key.
+
+// Columns referencing profiles.id with ON DELETE NO ACTION (i.e. they'd block a profile
+// delete outright) that are nullable — cleared before attempting the delete so removal
+// succeeds for the common case. `projects.created_by` is NOT NULL and deliberately excluded:
+// a profile that created a project can't be fully removed until that project is reassigned
+// or deleted, and the delete below fails with a clear error in that case rather than silently
+// leaving projects in a broken state.
+const NO_ACTION_NULLABLE_REFS = [
+  ['tasks', 'created_by'], ['tasks', 'completed_by'],
+  ['pay_adspend_tiers', 'created_by'], ['pay_bonus_tiers', 'created_by'], ['pay_departments', 'created_by'],
+  ['project_members', 'added_by'], ['project_views', 'created_by'],
+  ['schedule_exceptions', 'created_by'], ['subtasks', 'created_by'],
+  ['team_pay', 'created_by'], ['team_schedules', 'updated_by']
+];
 
 const { allowOrigin } = require('./_cors');
 const { requireUser } = require('./_auth');
@@ -49,6 +65,20 @@ async function setAuthBan(userId, banned) {
   }
 }
 
+async function deleteAuthUser(userId) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const res = await fetch(`${url}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+    headers: { apikey: key, Authorization: `Bearer ${key}` }
+  });
+  // 404 here just means there's no matching auth user (already gone) — not fatal for Remove.
+  if (!res.ok && res.status !== 404) {
+    const txt = await res.text();
+    throw new Error(`Auth admin API ${res.status}: ${txt.slice(0, 200)}`);
+  }
+}
+
 exports.handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': allowOrigin(event),
@@ -67,8 +97,8 @@ exports.handler = async (event) => {
   catch (e) { return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) }; }
 
   const { action, profile_id } = body;
-  if (!profile_id || !['deactivate', 'reactivate'].includes(action)) {
-    return { statusCode: 400, headers, body: JSON.stringify({ error: 'action must be deactivate/reactivate, profile_id required' }) };
+  if (!profile_id || !['deactivate', 'reactivate', 'remove'].includes(action)) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: 'action must be deactivate/reactivate/remove, profile_id required' }) };
   }
 
   try {
@@ -84,28 +114,49 @@ exports.handler = async (event) => {
     }
 
     if (profile_id === auth.user.id) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: "You can't deactivate your own account" }) };
+      return { statusCode: 400, headers, body: JSON.stringify({ error: `You can't ${action} your own account` }) };
     }
 
     const targets = await sb(`profiles?id=eq.${encodeURIComponent(profile_id)}&select=id,role,full_name,email,deactivated_at`);
     const target = targets[0];
     if (!target) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Member not found' }) };
 
+    // Both deactivate and remove permanently take away an owner's access — same
+    // last-owner protection applies to either.
+    if ((action === 'deactivate' || action === 'remove') && target.role === 'owner') {
+      const owners = await sb(`profiles?role=eq.owner&deactivated_at=is.null&select=id`);
+      if (owners.length <= 1) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: `Can't ${action} the last remaining owner` }) };
+      }
+    }
+
     if (action === 'deactivate') {
       if (target.deactivated_at) {
         return { statusCode: 200, headers, body: JSON.stringify({ ok: true, already: true }) };
       }
-      if (target.role === 'owner') {
-        const owners = await sb(`profiles?role=eq.owner&deactivated_at=is.null&select=id`);
-        if (owners.length <= 1) {
-          return { statusCode: 400, headers, body: JSON.stringify({ error: "Can't deactivate the last remaining owner" }) };
-        }
-      }
       await setAuthBan(profile_id, true);
       await sb(`profiles?id=eq.${encodeURIComponent(profile_id)}`, 'PATCH', { deactivated_at: new Date().toISOString() });
-    } else {
+    } else if (action === 'reactivate') {
       await setAuthBan(profile_id, false);
       await sb(`profiles?id=eq.${encodeURIComponent(profile_id)}`, 'PATCH', { deactivated_at: null });
+    } else {
+      // remove — permanent. Delete the login first so access is gone even if the data
+      // delete below can't fully complete (e.g. they created a project).
+      await deleteAuthUser(profile_id);
+      // Best-effort: clear nullable NO ACTION references so the profile delete isn't
+      // blocked by e.g. a task they created. Failures here are non-fatal — the delete
+      // attempt below will surface a clear error if something still blocks it.
+      for (const [table, column] of NO_ACTION_NULLABLE_REFS) {
+        try { await sb(`${table}?${column}=eq.${encodeURIComponent(profile_id)}`, 'PATCH', { [column]: null }); }
+        catch (e) { console.warn(`[manage-member] pre-clear ${table}.${column} failed:`, e.message); }
+      }
+      try {
+        await sb(`profiles?id=eq.${encodeURIComponent(profile_id)}`, 'DELETE');
+      } catch (e) {
+        return { statusCode: 409, headers, body: JSON.stringify({
+          error: `Login removed, but their data couldn't be fully deleted — they likely created a project that still references them. Reassign or delete that first, or use Deactivate instead. (${e.message})`
+        }) };
+      }
     }
 
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true, profile_id, action }) };

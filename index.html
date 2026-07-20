@@ -46657,9 +46657,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const statusText = isDeactivated ? '' : (isOnline ? 'Online' : (p.last_active_at ? timeAgoAdmin(p.last_active_at) : 'Never'));
         const statusLabel = isDeactivated ? 'Deactivated' : (isOnline ? 'Online' : 'Last seen');
         const statusColor = isDeactivated ? 'var(--text-3)' : (isOnline ? 'var(--green)' : 'var(--text-3)');
+        const removeSpan = `<span data-action="remove-member" data-id="${adminEsc(p.id)}" data-name="${adminEsc(p.full_name || p.email)}" data-role-min="manager" style="cursor:pointer;text-decoration:underline;color:var(--text-3);margin-left:8px;" title="Permanently delete their login and all their data">Remove</span>`;
         const actionHtml = isMe ? '' : (isDeactivated
-          ? `<span data-action="reactivate-member" data-id="${adminEsc(p.id)}" data-name="${adminEsc(p.full_name || p.email)}" data-role-min="manager" style="cursor:pointer;text-decoration:underline;color:var(--green);">Reactivate</span>`
-          : `<span data-action="deactivate-member" data-id="${adminEsc(p.id)}" data-name="${adminEsc(p.full_name || p.email)}" data-role-min="manager" style="cursor:pointer;text-decoration:underline;color:var(--red);">Deactivate</span>`);
+          ? `<span data-action="reactivate-member" data-id="${adminEsc(p.id)}" data-name="${adminEsc(p.full_name || p.email)}" data-role-min="manager" style="cursor:pointer;text-decoration:underline;color:var(--green);">Reactivate</span>${removeSpan}`
+          : `<span data-action="deactivate-member" data-id="${adminEsc(p.id)}" data-name="${adminEsc(p.full_name || p.email)}" data-role-min="manager" style="cursor:pointer;text-decoration:underline;color:var(--red);">Deactivate</span>${removeSpan}`);
         return `<div class="grow" style="grid-template-columns:2fr 1.2fr 1fr 1fr 1fr;${isDeactivated?'opacity:.55;':''}">
           <div class="tname"><div class="a-ava" style="${avaStyle};width:30px;height:30px;">${avaInner}</div><div><div class="nm">${adminEsc(p.full_name || p.email)}${isMe?' <span style="color:var(--text-3);font-size:10px;font-weight:600;">(you)</span>':''}</div><div class="sub">${adminEsc(p.email)}</div></div></div>
           <div><span class="pill ${rolePillCls}">${adminEsc(roleLabel)}</span></div>
@@ -46756,6 +46757,32 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             if (typeof toast==='function') toast({type:'success', message:`${name} reactivated`, duration:2000});
           } catch(e) {
             if (typeof toast==='function') toast({type:'error', message:`Failed to reactivate: ${e.message}`, duration:5000});
+          }
+          loadAdminTeam();
+        });
+      });
+      // Wire remove — permanent, deletes their login AND (via DB cascade) their messages,
+      // tasks, live pages, time tracking, recordings, etc. Type-the-name gate given the
+      // severity; a plain confirm() isn't enough friction for something this irreversible.
+      rowsEl.querySelectorAll('[data-action="remove-member"]').forEach(el => {
+        el.addEventListener('click', async () => {
+          const name = el.dataset.name;
+          const typed = await window.giantPrompt(`This permanently deletes ${name}'s login AND all their messages, tasks, and other data — this can't be undone. Type their name to confirm:`);
+          if (typed !== name) {
+            if (typed !== null && typeof toast==='function') toast({type:'info', message:'Name didn\'t match — nothing removed', duration:2200});
+            return;
+          }
+          try {
+            const r = await fetch('/.netlify/functions/manage-member', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'remove', profile_id: el.dataset.id })
+            });
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok || data.error) throw new Error(data.error || `HTTP ${r.status}`);
+            if (typeof toast==='function') toast({type:'success', message:`${name} removed`, duration:2000});
+          } catch(e) {
+            if (typeof toast==='function') toast({type:'error', message:`${e.message}`, duration:7000});
           }
           loadAdminTeam();
         });
