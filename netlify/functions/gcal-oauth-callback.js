@@ -1,14 +1,21 @@
 // Netlify Function: gcal-oauth-callback
 // Exchanges the OAuth code from Google for an access_token + refresh_token.
 
+const { allowOrigin } = require('./_cors');
+const { requireUser } = require('./_auth');
+
 exports.handler = async (event) => {
   const headers = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': allowOrigin(event),
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Content-Type': 'application/json'
   };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
+  // Security batch 2: caller must be a logged-in Giant user. The frontend fetch
+  // wrapper sends the Supabase session token; _auth.js verifies it with the Auth API.
+  const auth = await requireUser(event);
+  if (!auth.ok) return { statusCode: auth.response.statusCode, headers, body: auth.response.body };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
 
   const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '821166997756-483v3q5verbk94el54lq05c5m7ppqe99.apps.googleusercontent.com';

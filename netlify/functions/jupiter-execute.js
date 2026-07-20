@@ -34,9 +34,16 @@ You receive a request (a question, an audit brief, or pasted account data) and y
 
 You are decisive and specific. The user should be able to act on your answer today.`;
 
+const { allowOrigin } = require('./_cors');
+const { requireUser } = require('./_auth');
+
 exports.handler = async (event) => {
-  const headers = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Content-Type': 'application/json' };
+  const headers = { 'Access-Control-Allow-Origin': allowOrigin(event), 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Content-Type': 'application/json' };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
+  // Security batch 2: caller must be a logged-in Giant user. The frontend fetch
+  // wrapper sends the Supabase session token; _auth.js verifies it with the Auth API.
+  const auth = await requireUser(event);
+  if (!auth.ok) return { statusCode: auth.response.statusCode, headers, body: auth.response.body };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
   if (!API_KEY) return { statusCode: 500, headers, body: JSON.stringify({ error: 'ANTHROPIC_API_KEY not configured' }) };
 

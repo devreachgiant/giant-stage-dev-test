@@ -4,9 +4,11 @@
 // so this function is the only public read path. Returns only the public fields and
 // enforces expiry server-side. Bumps view_count as a side effect (best-effort).
 
+const { allowOrigin } = require('./_cors');
+
 exports.handler = async (event) => {
   const headers = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': allowOrigin(event),
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Content-Type': 'application/json'

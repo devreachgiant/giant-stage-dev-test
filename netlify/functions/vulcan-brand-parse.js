@@ -42,14 +42,21 @@ Rules:
 - If a field genuinely isn't in the document, use null — do not invent.
 - ALWAYS write all tone/voice_notes and every output string in ENGLISH only, regardless of the brand book's language.`;
 
+const { allowOrigin } = require('./_cors');
+const { requireUser } = require('./_auth');
+
 exports.handler = async (event) => {
   const headers = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': allowOrigin(event),
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Content-Type': 'application/json'
   };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
+  // Security batch 2: caller must be a logged-in Giant user. The frontend fetch
+  // wrapper sends the Supabase session token; _auth.js verifies it with the Auth API.
+  const auth = await requireUser(event);
+  if (!auth.ok) return { statusCode: auth.response.statusCode, headers, body: auth.response.body };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
 
   const API_KEY = process.env.ANTHROPIC_API_KEY;
