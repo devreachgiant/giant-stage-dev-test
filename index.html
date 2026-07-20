@@ -10092,7 +10092,7 @@ setupRail('rail2','pill2');
     return Math.floor(diff/86400) + 'd ago';
   }
 
-  const STATUS_LABELS = { new:'New', triaged:'Triaged', in_progress:'In progress', fixed:'Fixed', wont_fix:"Won't fix" };
+  const STATUS_LABELS = { new:'New', triaged:'Triaged', in_progress:'In progress', ready_for_review:'Ready for review', fixed:'Fixed', done:'Done', wont_fix:"Won't fix", closed:'Closed' };
 
   function renderReports(){
     const listEl = $('reportList');
