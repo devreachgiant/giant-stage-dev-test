@@ -3,3 +3,5 @@ node_modules/
 .netlify/
 supabase/.temp/
 GIANT/
+.DS_Store
+APP FILES/
