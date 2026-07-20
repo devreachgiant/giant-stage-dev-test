@@ -808,19 +808,6 @@ body.col-resizing{cursor:col-resize;user-select:none;}
 .mr-link-box input{flex:1;background:var(--surface);border:1px solid var(--line-2);border-radius:9px;padding:11px 13px;font-size:13px;color:var(--text);font-family:inherit;outline:none;}
 .mr-actions{display:flex;gap:10px;justify-content:center;}
 .mr-hint{font-size:11.5px;color:var(--text-3);margin-top:16px;}
-.dl-hero{text-align:center;padding:36px 0 28px;}
-.dl-hero-title{font-size:22px;font-weight:800;color:var(--text);}
-.dl-hero-sub{font-size:13px;color:var(--text-3);margin-top:6px;}
-.dl-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,260px));gap:16px;justify-content:center;max-width:600px;margin:0 auto;}
-.dl-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:26px 20px;text-align:center;display:flex;flex-direction:column;align-items:center;}
-.dl-card-ico{width:56px;height:56px;border-radius:14px;background:var(--surface-2);color:var(--text);display:flex;align-items:center;justify-content:center;margin-bottom:14px;}
-.dl-card-name{font-size:15px;font-weight:800;color:var(--text);}
-.dl-card-sub{font-size:11.5px;color:var(--text-3);margin-top:2px;margin-bottom:16px;}
-.dl-card-btn{display:block;width:100%;background:var(--red);color:#fff;font-size:12.5px;font-weight:700;border:none;border-radius:9px;padding:10px 14px;cursor:pointer;text-decoration:none;box-shadow:0 6px 16px -5px rgba(208,4,0,.55);transition:transform .16s var(--ease);}
-.dl-card-btn:hover{transform:translateY(-1px);}
-.dl-card-file{font-size:10.5px;color:var(--text-3);margin-top:10px;font-family:ui-monospace,SFMono-Regular,monospace;}
-.dl-note{text-align:center;font-size:11.5px;color:var(--text-3);margin-top:24px;}
-.dl-note code{background:var(--surface-2);padding:2px 6px;border-radius:5px;font-family:ui-monospace,SFMono-Regular,monospace;}
 .rec-headrow{margin-bottom:22px;}
 .rec-title{font-size:24px;font-weight:800;color:var(--text);}
 .rec-sub{font-size:12.5px;color:var(--text-3);margin-top:4px;}
@@ -5265,7 +5252,7 @@ window.giantPrompt = function(message, defaultValue){
       <div class="nav-rail" id="rail2" data-navgroup-body="system">
         <div class="nav-pill" id="pill2" style="opacity:0;"></div>
         <div class="nav-item" data-screen="settings" data-label="Settings"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/><path d="M13.4 9.6l-1.1-.5a4 4 0 000-2.2l1.1-.5a.6.6 0 00.3-.8l-1-1.7a.6.6 0 00-.8-.2l-1 .5a4 4 0 00-1.9-1.1l-.2-1.1a.6.6 0 00-.6-.5h-2a.6.6 0 00-.6.5l-.2 1.1a4 4 0 00-1.9 1.1l-1-.5a.6.6 0 00-.8.2l-1 1.7a.6.6 0 00.3.8l1.1.5a4 4 0 000 2.2l-1.1.5a.6.6 0 00-.3.8l1 1.7a.6.6 0 00.8.2l1-.5a4 4 0 001.9 1.1l.2 1.1a.6.6 0 00.6.5h2a.6.6 0 00.6-.5l.2-1.1a4 4 0 001.9-1.1l1 .5a.6.6 0 00.8-.2l1-1.7a.6.6 0 00-.3-.8Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></span>Settings</div>
-        <div class="nav-item" data-screen="download" data-label="Download App"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5v8.2M4.7 6.7L8 9.9l3.3-3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11.5v1.3a1.7 1.7 0 001.7 1.7h8.6a1.7 1.7 0 001.7-1.7v-1.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>Download App</div>
+        <div class="nav-item" data-external-link="https://drive.google.com/drive/folders/1_VbrE6kjVCYpglLC5ubkabMRuo78fNHg?usp=sharing" data-label="Download App"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5v8.2M4.7 6.7L8 9.9l3.3-3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11.5v1.3a1.7 1.7 0 001.7 1.7h8.6a1.7 1.7 0 001.7-1.7v-1.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>Download App</div>
         <div class="nav-item" data-screen="admin" data-label="Admin" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5l5.5 2.5v4c0 3.4-2.3 5.6-5.5 6.5-3.2-.9-5.5-3.1-5.5-6.5v-4L8 1.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>Admin</div>
         <div class="nav-item" data-screen="report" data-label="Help Us Improve" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3.2M8 11h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>Help Us Improve <span class="badge" id="sidebarBadgeReports" style="display:none;">0</span></div>
         <div class="nav-item" data-screen="changelog" data-label="Version &amp; Changelog" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M4 2h6l3 3v9H4V2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6 6.5h4M6 9h4M6 11.5h2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>Version &amp; Changelog</div>
@@ -7997,38 +7984,6 @@ window.giantPrompt = function(message, defaultValue){
         </div>
       </div>
 
-      <!-- ===== DOWNLOAD APP ===== -->
-      <div class="screen" data-screen="download">
-        <div class="topbar"><h1>Download Giant</h1></div>
-        <div class="content">
-          <div class="dl-hero">
-            <div class="dl-hero-title">Get the Giant desktop app</div>
-            <div class="dl-hero-sub">A faster, always-on experience — pick your platform below.</div>
-          </div>
-          <div class="dl-grid">
-            <div class="dl-card">
-              <div class="dl-card-ico">
-                <svg width="30" height="30" viewBox="0 0 16 16" fill="currentColor"><path d="M11.2 8.5c0-2 1.6-2.9 1.7-3-.9-1.3-2.3-1.5-2.8-1.5-1.2-.1-2.3.7-2.9.7-.6 0-1.5-.7-2.5-.7-1.3 0-2.5.7-3.1 1.9-1.3 2.3-.3 5.7 1 7.6.6.9 1.3 1.9 2.3 1.9.9 0 1.3-.6 2.4-.6s1.4.6 2.4.6c1 0 1.6-.9 2.2-1.8.7-1 1-2 1-2.1-.1 0-1.7-.6-1.7-2.6v.6ZM9.5 2.7c.5-.6.8-1.4.7-2.2-.7 0-1.5.5-2 1.1-.4.5-.8 1.3-.7 2.1.8.1 1.5-.4 2-1Z"/></svg>
-              </div>
-              <div class="dl-card-name">macOS</div>
-              <div class="dl-card-sub">Intel &amp; Apple Silicon</div>
-              <a class="dl-card-btn" href="https://drive.google.com/drive/folders/1_VbrE6kjVCYpglLC5ubkabMRuo78fNHg?usp=sharing" target="_blank" rel="noopener noreferrer">Download for Mac</a>
-              <div class="dl-card-file">giant-mac.zip</div>
-            </div>
-            <div class="dl-card">
-              <div class="dl-card-ico">
-                <svg width="30" height="30" viewBox="0 0 16 16" fill="currentColor"><path d="M1 3.5l5.5-.8v5.2H1V3.5Zm6.4-.9L15 1.5v6.4H7.4V2.6ZM1 8.6h5.5v5.2L1 13V8.6Zm6.4 0H15V15l-7.6-1.1V8.6Z"/></svg>
-              </div>
-              <div class="dl-card-name">Windows</div>
-              <div class="dl-card-sub">Windows 10 &amp; 11</div>
-              <a class="dl-card-btn" href="https://drive.google.com/drive/folders/1_VbrE6kjVCYpglLC5ubkabMRuo78fNHg?usp=sharing" target="_blank" rel="noopener noreferrer">Download for Windows</a>
-              <div class="dl-card-file">giant-windows.zip</div>
-            </div>
-          </div>
-          <div class="dl-note">Both links open the same shared folder — grab <code>giant-mac.zip</code> or <code>giant-windows.zip</code> depending on your platform.</div>
-        </div>
-      </div>
-
       <!-- ===== SCREEN RECORD ===== -->
       <div class="screen" data-screen="record">
         <div class="rec-wrap">
@@ -9548,6 +9503,9 @@ function setupRail(railId,pillId){
   const pill=document.getElementById(pillId);
   const items=[...rail.querySelectorAll('.nav-item')];
   items.forEach(it=>it.addEventListener('click',()=>{
+    // Some nav items (e.g. Download App) just open an external link — they have no
+    // matching .screen, so skip the screen-switching logic entirely for those.
+    if(it.dataset.externalLink){ window.open(it.dataset.externalLink,'_blank','noopener,noreferrer'); return; }
     document.querySelectorAll('.nav-item').forEach(i=>i.classList.remove('active'));
     document.querySelectorAll('.nav-pill').forEach(p=>p.style.opacity=0);
     it.classList.add('active');
