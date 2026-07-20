@@ -4191,6 +4191,92 @@ body:has(.screen[data-screen="chat"].on) .gai-fab{display:none;}
 .tpay-tier-input:focus{outline:none;border-color:var(--red);}
 .tpay-tier-del{margin-left:auto;background:transparent;border:none;color:var(--text-3);cursor:pointer;font-size:14px;padding:2px 6px;border-radius:5px;flex-shrink:0;}
 .tpay-tier-del:hover{color:var(--red);background:var(--surface-2);}
+/* Team Schedule */
+.tp-sched-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+.tp-sched-nav{display:flex;align-items:center;gap:4px;}
+.tp-sched-nav-btn{background:var(--surface);border:1px solid var(--line-2);border-radius:8px;color:var(--text-2);cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:600;padding:7px 12px;display:flex;align-items:center;justify-content:center;}
+.tp-sched-nav-btn:hover{border-color:var(--text-3);color:var(--text);}
+.tp-sched-date-label{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;}
+.tp-sched-select{background:var(--surface);color:var(--text);border:1px solid var(--line-2);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:600;font-family:inherit;}
+.tp-sched-search{background:var(--surface);color:var(--text);border:1px solid var(--line-2);border-radius:8px;padding:7px 12px;font-size:12px;font-family:inherit;width:160px;}
+.tp-sched-meta{font-size:11.5px;color:var(--text-3);margin-bottom:16px;}
+.tp-sched-meta b{color:var(--text-2);}
+.tp-sched-row{border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:14px 16px;margin-bottom:8px;}
+.tp-sched-row-main{display:flex;align-items:center;gap:14px;}
+.tp-sched-row-ava{width:36px;height:36px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;flex-shrink:0;cursor:pointer;}
+.tp-sched-row-who{width:180px;flex-shrink:0;cursor:pointer;min-width:0;}
+.tp-sched-row-name{font-weight:700;font-size:13.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tp-sched-row-sub{color:var(--text-3);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tp-sched-row-time{width:100px;flex-shrink:0;}
+.tp-sched-row-time-num{font-size:14.5px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text);}
+.tp-sched-row-time-lbl{color:var(--text-3);font-size:10.5px;}
+.tp-sched-row-hours{width:190px;flex-shrink:0;}
+.tp-sched-row-hours-main{font-size:12px;color:var(--text-2);}
+.tp-sched-row-hours-next{font-size:10.5px;color:var(--text-3);margin-top:1px;}
+.tp-sched-timeline{flex:1;position:relative;height:18px;background:var(--surface-2);border-radius:5px;overflow:hidden;min-width:80px;}
+.tp-sched-timeline-seg{position:absolute;top:0;bottom:0;}
+.tp-sched-timeline-now{position:absolute;top:0;bottom:0;width:1px;background:var(--text);opacity:.6;}
+.tp-sched-row-status{width:150px;flex-shrink:0;text-align:right;}
+.tp-sched-status-pill{font-size:10.5px;font-weight:700;padding:3px 9px;border-radius:20px;display:inline-block;white-space:nowrap;}
+.tp-sched-row-edit{width:26px;height:26px;flex-shrink:0;border:1px solid var(--line-2);border-radius:7px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-3);}
+.tp-sched-row-edit:hover{background:var(--surface-2);color:var(--text);}
+.tp-sched-week-wrap{overflow-x:auto;}
+.tp-sched-week-grid{min-width:820px;}
+.tp-sched-week-headrow{display:grid;grid-template-columns:190px repeat(7,1fr);gap:8px;margin-bottom:8px;}
+.tp-sched-week-headcell{text-align:center;font-size:11px;color:var(--text-3);font-weight:700;}
+.tp-sched-week-row{display:grid;grid-template-columns:190px repeat(7,1fr);gap:8px;margin-bottom:8px;}
+.tp-sched-week-who{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--surface);border-radius:11px;padding:9px 11px;cursor:pointer;min-width:0;}
+.tp-sched-week-cell{border:1px solid var(--line);border-radius:9px;padding:7px 5px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;min-height:52px;cursor:pointer;}
+.tp-sched-week-cell-l1{font-size:10.5px;font-weight:700;}
+.tp-sched-week-cell-l2{font-size:9.5px;opacity:.85;margin-top:2px;}
+.tp-sched-month-headrow{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:8px;}
+.tp-sched-month-headcell{text-align:center;font-size:10.5px;color:var(--text-3);font-weight:700;}
+.tp-sched-month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;}
+.tp-sched-month-cell{min-height:82px;border-radius:10px;border:1px solid var(--line);background:var(--surface);padding:8px;cursor:pointer;display:flex;flex-direction:column;transition:.14s;}
+.tp-sched-month-cell:hover{border-color:var(--line-2);}
+.tp-sched-month-cell.today{border-color:var(--red);}
+.tp-sched-month-cell.weekend{background:rgba(93,169,196,.06);border-color:rgba(93,169,196,.22);}
+.tp-sched-month-cell.weekend.today{border-color:var(--red);}
+.tp-sched-month-daynum{font-size:11.5px;font-weight:700;color:var(--text-2);}
+.tp-sched-month-summary{font-size:10px;color:var(--text-3);margin-top:3px;font-weight:700;}
+.tp-sched-month-summary.is-all-working{color:#3DCB7F;}
+.tp-sched-month-summary.is-weekend{color:#5da9c4;}
+.tp-sched-month-summary.is-away{color:#F2A93B;}
+.tp-sched-month-dots{display:flex;flex-wrap:wrap;gap:3px;margin-top:auto;}
+.tp-sched-month-dot{width:6px;height:6px;border-radius:50%;}
+.tp-sched-panel-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:400;display:none;}
+.tp-sched-panel-overlay.on{display:block;}
+.tp-sched-panel{position:fixed;top:0;right:-420px;bottom:0;width:400px;background:var(--pane);border-left:1px solid var(--line-2);z-index:401;overflow-y:auto;transition:right .22s var(--ease);padding:24px;}
+.tp-sched-panel.on{right:0;}
+.tp-sched-panel-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;}
+.tp-sched-panel-ava{width:44px;height:44px;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;}
+.tp-sched-panel-name{font-weight:800;font-size:16px;color:var(--text);}
+.tp-sched-panel-role{color:var(--text-3);font-size:12px;}
+.tp-sched-panel-stats{display:flex;gap:10px;margin-bottom:18px;}
+.tp-sched-panel-stat{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;}
+.tp-sched-panel-stat-lbl{font-size:10px;color:var(--text-3);letter-spacing:.06em;}
+.tp-sched-panel-stat-val{font-size:16px;font-weight:800;color:var(--text);margin-top:4px;}
+.tp-sched-panel-section{font-size:11px;letter-spacing:.06em;color:var(--text-3);font-weight:700;margin:16px 0 8px;text-transform:uppercase;}
+.tp-sched-daychips{display:flex;gap:6px;margin-bottom:4px;}
+.tp-sched-daychip{width:34px;height:34px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;}
+.tp-sched-daychip.editable{cursor:pointer;}
+.tp-sched-panel-box{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:12.5px;line-height:1.7;color:var(--text-2);}
+.tp-sched-list-item{font-size:12.5px;padding:8px 0;border-bottom:1px solid var(--line);color:var(--text-2);}
+.tp-sched-list-item:last-child{border-bottom:none;}
+.tp-sched-list-empty{font-size:12.5px;color:var(--text-3);}
+.tp-sched-edit-btn{text-align:center;padding:11px;border-radius:10px;background:var(--red);color:#fff;font-weight:700;cursor:pointer;margin-top:6px;}
+.tp-sched-input{width:100%;background:var(--surface);color:var(--text);border:1px solid var(--line-2);border-radius:9px;padding:9px 10px;font-size:13px;font-family:inherit;box-sizing:border-box;}
+.tp-sched-2col{display:flex;gap:10px;}
+.tp-sched-2col>div{flex:1;}
+.tp-sched-field-lbl{font-size:11px;color:var(--text-3);margin-bottom:6px;}
+.tp-sched-btnrow{display:flex;gap:10px;margin-top:6px;}
+.tp-sched-btn-ghost{flex:1;text-align:center;padding:10px;border-radius:9px;border:1px solid var(--line-2);cursor:pointer;font-weight:600;font-size:12.5px;color:var(--text-2);}
+.tp-sched-btn-ghost:hover{border-color:var(--text-3);color:var(--text);}
+.tp-sched-day-row{border:1px solid var(--line);border-radius:10px;padding:10px 12px;}
+.tp-sched-day-row-head{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.tp-sched-day-chips{display:flex;gap:6px;}
+.tp-sched-day-chip{flex:1;text-align:center;padding:6px 4px;border-radius:7px;cursor:pointer;font-size:11px;font-weight:600;}
+@media (max-width:900px){.tp-sched-panel{width:100%;right:-100%;}}
 .report-filters{display:flex;gap:8px;margin-bottom:14px;}
 .report-filters select{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12px;font-family:inherit;background:var(--surface);color:var(--text);}
 .changelog-list{display:flex;flex-direction:column;gap:18px;}
@@ -5352,6 +5438,7 @@ window.giantPrompt = function(message, defaultValue){
             <div class="tp-view-toggle" id="tpViewToggle">
               <button class="tp-vt-btn active" data-tpmode="member"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2.5" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.4"/><rect x="8.5" y="2.5" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.4"/><rect x="2.5" y="8.5" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.4"/><rect x="8.5" y="8.5" width="5" height="5" rx="1.5" stroke="currentColor" stroke-width="1.4"/></svg>Team</button>
               <button class="tp-vt-btn" data-tpmode="manager" data-role-min="manager"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Manager</button>
+              <button class="tp-vt-btn" data-tpmode="schedule" id="tpScheduleTabBtn"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M2 6.5h12M5.5 1.5V4M10.5 1.5V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Schedule</button>
             </div>
             <button class="btn-ghost" id="tpHistoryBtn" style="margin-right:8px;display:inline-flex;align-items:center;gap:6px;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3.5l2 1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Time history</button>
             <button class="btn-ghost" id="tpLunchBtn" style="margin-right:6px;display:inline-flex;align-items:center;gap:6px;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2v6c0 1 1 2 2 2v4M3 2l-.5 4a1 1 0 001 1m4-5v6c0 1-1 2-2 2M11 2c1.5 0 2.5 1.5 2.5 3.5S12.5 9 11 9v5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="tpLunchBtnLabel">Lunch</span></button>
@@ -5545,6 +5632,38 @@ window.giantPrompt = function(message, defaultValue){
               <div id="tpMgrLoading" style="padding:32px 16px;text-align:center;color:var(--text-3);font-size:12.5px;">Loading team activity…</div>
               </div>
             </div>
+
+          <!-- SCHEDULE VIEW -->
+          <div class="tp-view tp-view-schedule" data-tpview="schedule">
+            <div class="tp-sched-toolbar">
+              <div class="tp-view-toggle" id="tpSchedModeToggle">
+                <button class="tp-vt-btn active" data-schedmode="today">Today</button>
+                <button class="tp-vt-btn" data-schedmode="week">Week</button>
+                <button class="tp-vt-btn" data-schedmode="month">Month</button>
+              </div>
+              <div class="tp-sched-nav" id="tpSchedNav">
+                <button class="tp-sched-nav-btn" id="tpSchedPrevBtn">‹</button>
+                <button class="tp-sched-nav-btn" id="tpSchedTodayBtn">Today</button>
+                <button class="tp-sched-nav-btn" id="tpSchedNextBtn">›</button>
+              </div>
+              <div class="tp-sched-date-label" id="tpSchedDateLabel"></div>
+              <div style="flex:1;"></div>
+              <select class="tp-sched-select" id="tpSchedTzSelect"></select>
+              <input class="tp-sched-search" id="tpSchedSearch" placeholder="Search people…">
+              <select class="tp-sched-select" id="tpSchedStatusFilter">
+                <option value="all">All statuses</option>
+                <option value="good">Working now</option>
+                <option value="break">On break</option>
+                <option value="warn">Needs attention</option>
+                <option value="muted">Not scheduled</option>
+              </select>
+            </div>
+            <div class="tp-sched-meta" id="tpSchedMeta"></div>
+
+            <div id="tpSchedTodayView"></div>
+            <div id="tpSchedWeekView" style="display:none;"></div>
+            <div id="tpSchedMonthView" style="display:none;"></div>
+          </div>
 
           <!-- Status picker dropdown (positioned via JS) -->
           <div class="tp-status-menu" id="tpStatusMenu">
@@ -6119,6 +6238,37 @@ window.giantPrompt = function(message, defaultValue){
               <div class="crew-timeline-row"><span class="crew-timeline-dot" style="background:#A855F7;"></span><b>Atlas</b><span style="color:rgba(255,255,255,.6);">drafted "Hero copy — Reach Giant"</span><span class="crew-timeline-time">5m ago</span></div>
               <div class="crew-timeline-row"><span class="crew-timeline-dot" style="background:#FB923C;"></span><b>Titan</b><span style="color:rgba(255,255,255,.6);">published "Q4 trends" blog post</span><span class="crew-timeline-time">12m ago</span></div>
             </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Schedule person panel (slide-in) -->
+      <div class="tp-sched-panel-overlay" id="tpSchedPanelOverlay"></div>
+      <div class="tp-sched-panel" id="tpSchedPanel">
+        <div class="tp-sched-panel-head">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div class="tp-sched-panel-ava" id="tpSchedPanelAva"></div>
+            <div>
+              <div class="tp-sched-panel-name" id="tpSchedPanelName"></div>
+              <div class="tp-sched-panel-role" id="tpSchedPanelRole"></div>
+            </div>
+          </div>
+          <div class="m-close" id="tpSchedPanelClose"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+        </div>
+        <div class="tp-sched-panel-body" id="tpSchedPanelBody"></div>
+      </div>
+
+      <!-- Schedule day-detail modal (Month view click) -->
+      <div class="modal-overlay" id="tpSchedDayModal">
+        <div class="modal" style="max-width:460px;">
+          <div class="modal-head">
+            <div><h3 id="tpSchedDayModalTitle">Day</h3></div>
+            <div class="m-close" data-close="tpSchedDayModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+          </div>
+          <div class="modal-body" id="tpSchedDayModalBody" style="display:flex;flex-direction:column;gap:10px;"></div>
+          <div class="modal-foot">
+            <button class="m-cancel" data-close="tpSchedDayModal">Close</button>
           </div>
         </div>
       </div>
@@ -11138,6 +11288,677 @@ setupRail('rail2','pill2');
   setTimeout(init, 1200);
 })();
 
+/* ===== TEAM SCHEDULE (Team Pulse "Schedule" tab) ===== */
+(function teamScheduleModule(){
+  const $ = id => document.getElementById(id);
+  const sEsc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const canManage = () => {
+    const r = window.giantCurrentProfile && window.giantCurrentProfile.role;
+    return r === 'owner' || r === 'manager' || r === 'inhouse_dev';
+  };
+
+  const WEEKDAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const VIEWER_TIMEZONES = [
+    {id:'lisbon', tz:'Europe/Lisbon', label:'Portugal'},
+    {id:'ny', tz:'America/New_York', label:'USA'},
+    {id:'sa', tz:'Africa/Johannesburg', label:'South Africa'},
+    {id:'ph', tz:'Asia/Manila', label:'Philippines'},
+    {id:'pk', tz:'Asia/Karachi', label:'Pakistan'},
+    {id:'in', tz:'Asia/Kolkata', label:'India'},
+    {id:'utc', tz:'UTC', label:'UTC'},
+  ];
+  const IANA_TZ_OPTIONS = [
+    {tz:'Europe/Lisbon', label:'Lisbon (Europe/Lisbon)'},
+    {tz:'Europe/Paris', label:'Paris (Europe/Paris)'},
+    {tz:'Europe/London', label:'London (Europe/London)'},
+    {tz:'America/New_York', label:'New York (America/New_York)'},
+    {tz:'America/Los_Angeles', label:'Los Angeles (America/Los_Angeles)'},
+    {tz:'Africa/Johannesburg', label:'South Africa (Africa/Johannesburg)'},
+    {tz:'Asia/Manila', label:'Philippines (Asia/Manila)'},
+    {tz:'Asia/Karachi', label:'Pakistan (Asia/Karachi)'},
+    {tz:'Asia/Kolkata', label:'India (Asia/Kolkata)'},
+    {tz:'UTC', label:'UTC'},
+  ];
+
+  // ── Pure timezone/schedule math (no framework dependency, same logic regardless of data source) ──
+  function tzOffsetMinutes(tz,date){
+    try{
+      const part=new Intl.DateTimeFormat('en-US',{timeZone:tz,timeZoneName:'shortOffset',hour:'2-digit'}).formatToParts(date).find(p=>p.type==='timeZoneName').value;
+      const m=part.match(/GMT([+-])(\d+)(?::(\d+))?/);
+      if(!m) return 0;
+      const sign=m[1]==='-'?-1:1;
+      return sign*((parseInt(m[2],10)*60)+(m[3]?parseInt(m[3],10):0));
+    }catch(e){return 0;}
+  }
+  function ymdInTz(date,tz){
+    const o={}; new Intl.DateTimeFormat('en-US',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date).forEach(x=>o[x.type]=x.value);
+    return `${o.year}-${o.month}-${o.day}`;
+  }
+  function weekdayInTz(date,tz){return new Intl.DateTimeFormat('en-US',{timeZone:tz,weekday:'short'}).format(date);}
+  function hourFracInTz(date,tz){
+    const o={}; new Intl.DateTimeFormat('en-US',{timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(date).forEach(x=>o[x.type]=x.value);
+    let h=parseInt(o.hour,10); if(h===24)h=0;
+    return h+parseInt(o.minute,10)/60;
+  }
+  function homeInstant(baseDate,hh,mm,tz){
+    const y=baseDate.getUTCFullYear(),mo=baseDate.getUTCMonth(),d=baseDate.getUTCDate();
+    const off=tzOffsetMinutes(tz,baseDate);
+    return new Date(Date.UTC(y,mo,d,hh,mm)-off*60000);
+  }
+  function parseHM(str){const [h,m]=String(str||'0:0').split(':').map(Number);return {h:h||0,m:m||0};}
+  function fmtClock(date,tz){return new Intl.DateTimeFormat('en-US',{timeZone:tz,hour:'numeric',minute:'2-digit',hour12:true}).format(date);}
+  function fmtDateLabel(date,tz){return new Intl.DateTimeFormat('en-US',{timeZone:tz,weekday:'long',month:'long',day:'numeric'}).format(date);}
+  function locationFromTz(tz){
+    if(!tz) return '';
+    const parts=tz.split('/');
+    return (parts[parts.length-1]||tz).replace(/_/g,' ');
+  }
+
+  function dayStatus(member, baseDate){
+    // Which calendar day is a workday/weekend is a company-wide policy (e.g. Sat/Sun off for
+    // everyone), not something that should shift per person's own timezone — use a fixed
+    // UTC-anchored weekday/date here, matching how the Week/Month grids build their columns.
+    const wd=weekdayInTz(baseDate, 'UTC');
+    const ymd=ymdInTz(baseDate, 'UTC');
+    const holiday=member.holidays.find(h=>h.date===ymd);
+    const leave=member.leave.find(l=>l.date===ymd);
+    const dayOff=(member.daysOff||[]).find(o=>o.date===ymd);
+    const isWorkDay=member.workDays.includes(wd);
+    if(holiday) return {kind:'holiday', label:holiday.label};
+    if(leave) return {kind:'leave', label:leave.label};
+    if(dayOff) return {kind:'off', label:dayOff.label};
+    if(!isWorkDay) return {kind:'off'};
+    return {kind:'work'};
+  }
+  function buildMonthGrid(monthDate){
+    const y=monthDate.getUTCFullYear(), mo=monthDate.getUTCMonth();
+    const first=new Date(Date.UTC(y,mo,1,12));
+    const firstWeekday=first.getUTCDay();
+    const leading=(firstWeekday===0?6:firstWeekday-1);
+    const start=new Date(first.getTime()-leading*86400000);
+    const cells=[];
+    for(let i=0;i<42;i++) cells.push(new Date(start.getTime()+i*86400000));
+    return cells;
+  }
+  function startOfWeekMonday(date){
+    const d = new Date(date);
+    const day = d.getUTCDay();
+    const diff = (day===0?-6:1-day);
+    d.setUTCDate(d.getUTCDate()+diff);
+    d.setUTCHours(0,0,0,0);
+    return d;
+  }
+
+  function buildTimeline(member, baseDate, viewerTz, isViewingToday){
+    const st=dayStatus(member, baseDate);
+    if(st.kind!=='work'){
+      const colors={holiday:'rgba(93,169,196,.22)', leave:'rgba(184,140,224,.22)', off:'var(--surface-2)'};
+      const labels={holiday:'Public holiday'+(st.label?' — '+st.label:''), leave:'On approved leave'+(st.label?' — '+st.label:''), off:'Day off'};
+      return {kind:st.kind, segments:[], hoursLabel:labels[st.kind], fullColor:colors[st.kind]};
+    }
+    const blocks = [{start:member.start, end:member.end}];
+    if (member.start2 && member.end2) blocks.push({start:member.start2, end:member.end2});
+    const nowFrac = isViewingToday ? hourFracInTz(new Date(), viewerTz) : null;
+    let segments=[];
+    const hourLabels=[];
+    blocks.forEach(blk=>{
+      const s=parseHM(blk.start), e=parseHM(blk.end);
+      const utcS=homeInstant(baseDate,s.h,s.m,member.tz), utcE=homeInstant(baseDate,e.h,e.m,member.tz);
+      let sf=hourFracInTz(utcS,viewerTz), ef=hourFracInTz(utcE,viewerTz);
+      if(ef<=sf) ef+=24;
+      hourLabels.push(fmtClock(utcS,viewerTz)+' – '+fmtClock(utcE,viewerTz));
+      let pieces = ef>24 ? [[sf,24],[0,ef-24]] : [[sf,ef]];
+      pieces.forEach(([a,b])=>{
+        if(nowFrac!==null && nowFrac>a && nowFrac<b){
+          segments.push({start:a,end:nowFrac,color:'rgba(208,4,0,.5)'});
+          segments.push({start:nowFrac,end:b,color:'var(--surface-3)'});
+        } else if(nowFrac!==null && nowFrac>=b){
+          segments.push({start:a,end:b,color:'rgba(208,4,0,.5)'});
+        } else {
+          segments.push({start:a,end:b,color:'var(--surface-3)'});
+        }
+      });
+    });
+    if(member.breakStart && member.breakEnd){
+      const bs=parseHM(member.breakStart), be=parseHM(member.breakEnd);
+      const utcBS=homeInstant(baseDate,bs.h,bs.m,member.tz), utcBE=homeInstant(baseDate,be.h,be.m,member.tz);
+      let bsf=hourFracInTz(utcBS,viewerTz), bef=hourFracInTz(utcBE,viewerTz);
+      if(bef<=bsf) bef+=24;
+      segments.push({start:bsf,end:bef,color:'rgba(230,180,60,.45)'});
+    }
+    return {kind:'work', segments, hoursLabel: hourLabels.join(', ')};
+  }
+
+  const TONE_COLORS = {
+    good:{bg:'rgba(61,203,127,.14)', color:'#3DCB7F'},
+    break:{bg:'rgba(242,169,59,.14)', color:'#F2A93B'},
+    warn:{bg:'rgba(208,4,0,.14)', color:'var(--red)'},
+    muted:{bg:'var(--surface-2)', color:'var(--text-3)'},
+  };
+  function combinedStatus(member){
+    const now=new Date();
+    const st=dayStatus(member, now);
+    if(st.kind!=='work') return {label:'Not scheduled today', tone:'muted'};
+    const nowFrac=hourFracInTz(now, member.tz);
+    const blocks = [{start:member.start, end:member.end}];
+    if (member.start2 && member.end2) blocks.push({start:member.start2, end:member.end2});
+    const workingNow = blocks.some(blk=>{
+      const s=parseHM(blk.start), e=parseHM(blk.end);
+      let sf=s.h+s.m/60, ef=e.h+e.m/60; if(ef<=sf) ef+=24;
+      let nf=nowFrac; if(nf<sf) nf+=24;
+      return nf>=sf && nf<ef;
+    });
+    let onBreak=false;
+    if(member.breakStart && member.breakEnd){
+      const bs=parseHM(member.breakStart), be=parseHM(member.breakEnd);
+      let bsf=bs.h+bs.m/60, bef=be.h+be.m/60; if(bef<=bsf) bef+=24;
+      let nf2=nowFrac; if(nf2<bsf) nf2+=24;
+      onBreak = nf2>=bsf && nf2<bef;
+    }
+    const isOnline = member.liveStatus!=='offline';
+    if(!isOnline && workingNow) return {label:'Scheduled now, not online', tone:'warn'};
+    if(isOnline && !workingNow) return {label:'Online outside scheduled hours', tone:'warn'};
+    if(onBreak) return {label:'On break', tone:'break'};
+    return {label: isOnline ? 'Online and working' : 'Offline', tone: isOnline ? 'good' : 'muted'};
+  }
+  function nextShiftLabel(member, viewerTz){
+    const now=new Date();
+    for(let i=0;i<=8;i++){
+      const d=new Date(now.getTime()+i*86400000);
+      const st=dayStatus(member, d);
+      if(st.kind==='work'){
+        if(i===0) return 'Working today';
+        const s=parseHM(member.start);
+        const utcS=homeInstant(d,s.h,s.m,member.tz);
+        const dayLabel = i===1 ? 'Tomorrow' : new Intl.DateTimeFormat('en-US',{weekday:'long'}).format(d);
+        return `Next shift: ${dayLabel} ${fmtClock(utcS,viewerTz)}`;
+      }
+    }
+    return 'No upcoming shifts';
+  }
+
+  // ── State ──
+  let members = [];
+  let loaded = false;
+  let schedMode = 'today';
+  let currentDate = new Date();
+  let calendarMonth = new Date();
+  let viewerTzId = 'lisbon';
+  let searchQuery = '';
+  let statusFilter = 'all';
+  let panelMemberId = null;
+  let panelMode = 'view';
+  let draft = null;
+  let dayModalDate = null;
+
+  function initials(name){
+    const parts=(name||'?').trim().split(/\s+/);
+    return ((parts[0]||'')[0]||'?').toUpperCase()+((parts[1]||'')[0]||'').toUpperCase();
+  }
+
+  function viewerTz(){
+    const opt = VIEWER_TIMEZONES.find(t=>t.id===viewerTzId);
+    if (opt && opt.tz) return opt.tz;
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  }
+
+  // ── Data loading ──
+  async function loadScheduleData(){
+    const sb = window.giantSupabase || window.supabaseClient;
+    if (!sb) return;
+    try {
+      const [profRes, schedRes, excRes] = await Promise.all([
+        sb.from('profiles').select('id, full_name, email, role, avatar_bg, avatar_fg, timezone, status, last_active_at').neq('role','client').order('full_name', {ascending:true}),
+        sb.from('team_schedules').select('*'),
+        sb.from('schedule_exceptions').select('*')
+      ]);
+      const profiles = profRes.data || [];
+      const schedById = {}; (schedRes.data||[]).forEach(s=>{ schedById[s.profile_id]=s; });
+      const excByProfile = {};
+      (excRes.data||[]).forEach(e=>{
+        if (!excByProfile[e.profile_id]) excByProfile[e.profile_id]={leave:[],holidays:[],daysOff:[],tempChanges:[]};
+        const bucket = excByProfile[e.profile_id];
+        if (e.kind==='leave') bucket.leave.push({date:e.date, label:e.label||'Approved leave', id:e.id});
+        else if (e.kind==='holiday') bucket.holidays.push({date:e.date, label:e.label||'Public holiday', id:e.id});
+        else if (e.kind==='off') bucket.daysOff.push({date:e.date, label:e.label||'Day off', id:e.id});
+        else if (e.kind==='temp') bucket.tempChanges.push({date:e.date, note:e.label||'', id:e.id});
+      });
+      members = profiles.map(p=>{
+        const sched = schedById[p.id];
+        const exc = excByProfile[p.id] || {leave:[],holidays:[],daysOff:[],tempChanges:[]};
+        const tz = p.timezone || 'UTC';
+        // profiles.status is a manual picker that isn't reliably persisted, so treat recent
+        // heartbeat activity (updated every 60s while the app is open) as the real presence signal.
+        const ACTIVE_WINDOW_MS = 3 * 60 * 1000;
+        const recentlyActive = p.last_active_at && (Date.now() - new Date(p.last_active_at).getTime()) < ACTIVE_WINDOW_MS;
+        const liveStatus = recentlyActive ? 'online' : 'offline';
+        return {
+          id: p.id, name: p.full_name || p.email || 'Unknown', role: (p.role||'').replace(/^\w/,c=>c.toUpperCase()),
+          location: locationFromTz(tz), tz,
+          avatarBg: p.avatar_bg || '#22344F', avatarFg: p.avatar_fg || '#9DC0F0',
+          liveStatus,
+          workDays: sched ? sched.work_days : ['Mon','Tue','Wed','Thu','Fri'],
+          start: sched ? String(sched.start_time).slice(0,5) : '09:00',
+          end: sched ? String(sched.end_time).slice(0,5) : '17:00',
+          start2: sched && sched.start_time_2 ? String(sched.start_time_2).slice(0,5) : null,
+          end2: sched && sched.end_time_2 ? String(sched.end_time_2).slice(0,5) : null,
+          breakStart: sched && sched.break_start ? String(sched.break_start).slice(0,5) : null,
+          breakEnd: sched && sched.break_end ? String(sched.break_end).slice(0,5) : null,
+          leave: exc.leave, holidays: exc.holidays, daysOff: exc.daysOff, tempChanges: exc.tempChanges,
+          lastEditedBy: sched && sched.updated_by ? sched.updated_by : null,
+          lastEditedAt: sched ? sched.updated_at : null,
+        };
+      });
+      loaded = true;
+      renderAll();
+    } catch(e) { console.warn('[team-schedule] load failed', e); }
+  }
+
+  // ── Render dispatcher ──
+  function renderAll(){
+    if (!loaded) return;
+    $('tpSchedTodayView').style.display = schedMode==='today' ? '' : 'none';
+    $('tpSchedWeekView').style.display = schedMode==='week' ? '' : 'none';
+    $('tpSchedMonthView').style.display = schedMode==='month' ? '' : 'none';
+    $('tpSchedNav').style.display = schedMode==='month' ? 'none' : 'flex';
+    const monthNavShown = schedMode==='month';
+    if (monthNavShown) renderMonthNavInline();
+    $('tpSchedDateLabel').textContent = schedMode==='month'
+      ? new Intl.DateTimeFormat('en-US',{month:'long',year:'numeric',timeZone:'UTC'}).format(calendarMonth)
+      : fmtDateLabel(currentDate, viewerTz());
+    $('tpSchedMeta').innerHTML = `All working hours shown in <b>${sEsc(viewerTzLabel())}</b> — click any person to see their full schedule.`;
+    if (schedMode==='today') renderToday();
+    else if (schedMode==='week') renderWeek();
+    else renderMonth();
+  }
+  function viewerTzLabel(){
+    const opt = VIEWER_TIMEZONES.find(t=>t.id===viewerTzId);
+    return opt ? opt.label : viewerTz();
+  }
+  function renderMonthNavInline(){
+    // Month mode reuses the same prev/today/next buttons but they navigate months instead of days —
+    // handled directly in the nav button click handlers via schedMode check.
+  }
+
+  function filteredMembers(){
+    const q = searchQuery.trim().toLowerCase();
+    return members.filter(m=>{
+      if (q && !(m.name.toLowerCase().includes(q) || m.role.toLowerCase().includes(q) || m.location.toLowerCase().includes(q))) return false;
+      if (statusFilter!=='all') {
+        const cs = combinedStatus(m);
+        if (cs.tone !== statusFilter) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderToday(){
+    const vt = viewerTz();
+    const isTodayReal = ymdInTz(currentDate, vt) === ymdInTz(new Date(), vt);
+    const rows = filteredMembers().map(m=>{
+      const tl = buildTimeline(m, currentDate, vt, isTodayReal);
+      const cs = combinedStatus(m);
+      const tone = TONE_COLORS[cs.tone];
+      let segHtml = '';
+      if (tl.kind==='work') {
+        segHtml = tl.segments.map(seg=>`<div class="tp-sched-timeline-seg" style="left:${(seg.start/24*100).toFixed(2)}%;width:${((seg.end-seg.start)/24*100).toFixed(2)}%;background:${seg.color};"></div>`).join('');
+        if (isTodayReal) segHtml += `<div class="tp-sched-timeline-now" style="left:${(hourFracInTz(new Date(),vt)/24*100).toFixed(2)}%;"></div>`;
+      } else {
+        segHtml = `<div class="tp-sched-timeline-seg" style="left:0;width:100%;background:${tl.fullColor};"></div>`;
+      }
+      const editBtn = canManage() ? `<div class="tp-sched-row-edit" data-edit-id="${m.id}" title="Edit schedule"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></div>` : '';
+      return `<div class="tp-sched-row">
+        <div class="tp-sched-row-main">
+          <div class="tp-sched-row-ava" data-open-id="${m.id}" style="background:${sEsc(m.avatarBg)};color:${sEsc(m.avatarFg)};">${sEsc(initials(m.name))}</div>
+          <div class="tp-sched-row-who" data-open-id="${m.id}">
+            <div class="tp-sched-row-name">${sEsc(m.name)}</div>
+            <div class="tp-sched-row-sub">${sEsc(m.role)} · ${sEsc(m.location)}</div>
+          </div>
+          <div class="tp-sched-row-time">
+            <div class="tp-sched-row-time-num">${fmtClock(new Date(), m.tz)}</div>
+            <div class="tp-sched-row-time-lbl">local time</div>
+          </div>
+          <div class="tp-sched-row-hours">
+            <div class="tp-sched-row-hours-main">${sEsc(tl.hoursLabel)}</div>
+            <div class="tp-sched-row-hours-next">${isTodayReal ? sEsc(nextShiftLabel(m, vt)) : ''}</div>
+          </div>
+          <div class="tp-sched-timeline">${segHtml}</div>
+          <div class="tp-sched-row-status"><span class="tp-sched-status-pill" style="background:${tone.bg};color:${tone.color};">${sEsc(cs.label)}</span></div>
+          ${editBtn}
+        </div>
+      </div>`;
+    }).join('');
+    $('tpSchedTodayView').innerHTML = rows || `<div class="tpay-group-empty">No one matches this filter</div>`;
+    $('tpSchedTodayView').querySelectorAll('[data-open-id]').forEach(el=>{
+      el.addEventListener('click', ()=>openPanel(el.dataset.openId));
+    });
+    $('tpSchedTodayView').querySelectorAll('[data-edit-id]').forEach(el=>{
+      el.addEventListener('click', (e)=>{ e.stopPropagation(); openPanel(el.dataset.editId); enterEditMode(); });
+    });
+  }
+
+  function renderWeek(){
+    const vt = viewerTz();
+    const monday = startOfWeekMonday(currentDate);
+    const weekDates = [0,1,2,3,4,5,6].map(i=>new Date(monday.getTime()+i*86400000));
+    const headHtml = weekDates.map(d=>`<div class="tp-sched-week-headcell">${sEsc(new Intl.DateTimeFormat('en-US',{weekday:'short',day:'numeric',timeZone:'UTC'}).format(d))}</div>`).join('');
+    const rowsHtml = filteredMembers().map(m=>{
+      const cellsHtml = weekDates.map(d=>{
+        const tl = buildTimeline(m, d, vt, false);
+        let l1, l2, bg, color;
+        if (tl.kind==='work') { const parts=tl.hoursLabel.split(' – '); l1=parts[0]; l2=parts[1]; bg='rgba(208,4,0,.10)'; color='var(--text)'; }
+        else { l1=tl.hoursLabel; l2=''; const bgs={holiday:'rgba(93,169,196,.14)',leave:'rgba(184,140,224,.14)',off:'var(--surface-2)'}; const cols={holiday:'#5da9c4',leave:'#b88ce0',off:'var(--text-3)'}; bg=bgs[tl.kind]; color=cols[tl.kind]; }
+        return `<div class="tp-sched-week-cell" data-open-id="${m.id}" style="background:${bg};">
+          <div class="tp-sched-week-cell-l1" style="color:${color};">${sEsc(l1)}</div>
+          <div class="tp-sched-week-cell-l2" style="color:${color};">${sEsc(l2)}</div>
+        </div>`;
+      }).join('');
+      return `<div class="tp-sched-week-row">
+        <div class="tp-sched-week-who" data-open-id="${m.id}">
+          <div class="tp-sched-row-ava" style="width:32px;height:32px;font-size:11px;background:${sEsc(m.avatarBg)};color:${sEsc(m.avatarFg)};">${sEsc(initials(m.name))}</div>
+          <div style="min-width:0;">
+            <div class="tp-sched-row-name" style="font-size:13px;">${sEsc(m.name)}</div>
+            <div class="tp-sched-row-sub">${sEsc(m.location)}</div>
+          </div>
+        </div>
+        ${cellsHtml}
+      </div>`;
+    }).join('');
+    $('tpSchedWeekView').innerHTML = `<div class="tp-sched-week-wrap"><div class="tp-sched-week-grid">
+      <div class="tp-sched-week-headrow"><div></div>${headHtml}</div>
+      ${rowsHtml || '<div class="tpay-group-empty">No one matches this filter</div>'}
+    </div></div>`;
+    $('tpSchedWeekView').querySelectorAll('[data-open-id]').forEach(el=>{
+      el.addEventListener('click', ()=>openPanel(el.dataset.openId));
+    });
+  }
+
+  const CAL_COLORS = {work:'#3DCB7F', holiday:'#5da9c4', leave:'#b88ce0', off:'var(--text-3)'};
+  function renderMonth(){
+    const cells = buildMonthGrid(calendarMonth);
+    const todayYmd = ymdInTz(new Date(),'UTC');
+    const headHtml = WEEKDAYS.map(w=>`<div class="tp-sched-month-headcell">${w}</div>`).join('');
+    const cellsHtml = cells.map(d=>{
+      const ymd = ymdInTz(d,'UTC');
+      const wd = weekdayInTz(d,'UTC');
+      const isWeekend = wd==='Sat' || wd==='Sun';
+      const inMonth = d.getUTCMonth()===calendarMonth.getUTCMonth();
+      const statuses = filteredMembers().map(m=>dayStatus(m,d));
+      const awayCount = statuses.filter(s=>s.kind!=='work').length;
+      const dotsHtml = statuses.map(s=>`<div class="tp-sched-month-dot" style="background:${CAL_COLORS[s.kind]};"></div>`).join('');
+      const summaryText = isWeekend ? 'Weekend' : (awayCount===0 ? 'All working' : awayCount+' away');
+      const summaryClass = isWeekend ? 'is-weekend' : (awayCount===0 ? 'is-all-working' : 'is-away');
+      return `<div class="tp-sched-month-cell${ymd===todayYmd?' today':''}${isWeekend?' weekend':''}" data-day="${ymd}" style="opacity:${inMonth?1:.35};">
+        <div class="tp-sched-month-daynum">${d.getUTCDate()}</div>
+        <div class="tp-sched-month-summary ${summaryClass}">${summaryText}</div>
+        <div class="tp-sched-month-dots">${dotsHtml}</div>
+      </div>`;
+    }).join('');
+    $('tpSchedMonthView').innerHTML = `<div class="tp-sched-month-headrow">${headHtml}</div><div class="tp-sched-month-grid">${cellsHtml}</div>`;
+    $('tpSchedMonthView').querySelectorAll('[data-day]').forEach(el=>{
+      el.addEventListener('click', ()=>openDayModal(el.dataset.day));
+    });
+  }
+
+  // ── Person panel (view + edit) ──
+  function openPanel(id){
+    panelMemberId = id; panelMode = 'view'; draft = null;
+    renderPanel();
+    $('tpSchedPanelOverlay').classList.add('on');
+    $('tpSchedPanel').classList.add('on');
+  }
+  function closePanel(){
+    $('tpSchedPanelOverlay').classList.remove('on');
+    $('tpSchedPanel').classList.remove('on');
+    panelMemberId = null; draft = null;
+  }
+  function findMember(id){ return members.find(m=>m.id===id); }
+
+  function enterEditMode(){
+    const m = findMember(panelMemberId);
+    if (!m) return;
+    draft = {
+      tz: m.tz, workDays: [...m.workDays], start: m.start, end: m.end,
+      hasSecondBlock: !!(m.start2 && m.end2), start2: m.start2||'13:00', end2: m.end2||'17:00',
+      breakStart: m.breakStart||'', breakEnd: m.breakEnd||'',
+      newDate: '', newLabel: '',
+    };
+    panelMode = 'edit';
+    renderPanel();
+  }
+
+  function renderPanel(){
+    const m = findMember(panelMemberId);
+    if (!m) return;
+    $('tpSchedPanelAva').style.background = m.avatarBg; $('tpSchedPanelAva').style.color = m.avatarFg;
+    $('tpSchedPanelAva').textContent = initials(m.name);
+    $('tpSchedPanelName').textContent = m.name;
+    $('tpSchedPanelRole').textContent = `${m.role} · ${m.location}`;
+
+    if (panelMode === 'view') {
+      const tl = buildTimeline(m, new Date(), m.tz, true);
+      const weekChipsHtml = WEEKDAYS.map(w=>`<div class="tp-sched-daychip" style="background:${m.workDays.includes(w)?'var(--red)':'var(--surface-2)'};color:${m.workDays.includes(w)?'#fff':'var(--text-3)'};">${w[0]}</div>`).join('');
+      const leaveHtml = m.leave.length ? m.leave.map(l=>`<div class="tp-sched-list-item">${sEsc(l.date)} — ${sEsc(l.label)}</div>`).join('') : `<div class="tp-sched-list-empty">None scheduled</div>`;
+      const holidayHtml = m.holidays.length ? m.holidays.map(h=>`<div class="tp-sched-list-item">${sEsc(h.date)} — ${sEsc(h.label)}</div>`).join('') : `<div class="tp-sched-list-empty">None scheduled</div>`;
+      const tempHtml = m.tempChanges.length ? `<div class="tp-sched-panel-section">Temporary changes</div>` + m.tempChanges.map(t=>`<div class="tp-sched-list-item">${sEsc(t.date)} — ${sEsc(t.note)}</div>`).join('') : '';
+      const editedHtml = m.lastEditedAt ? `<div style="font-size:11px;color:var(--text-3);margin-top:8px;">Last edited ${sEsc(new Date(m.lastEditedAt).toLocaleDateString())}</div>` : '';
+      const editBtn = canManage() ? `<div class="tp-sched-edit-btn" id="tpSchedEnterEditBtn">Edit schedule</div>` : '';
+      $('tpSchedPanelBody').innerHTML = `
+        <div class="tp-sched-panel-stats">
+          <div class="tp-sched-panel-stat"><div class="tp-sched-panel-stat-lbl">CURRENT LOCAL TIME</div><div class="tp-sched-panel-stat-val">${fmtClock(new Date(), m.tz)}</div><div style="font-size:11px;color:var(--text-3);margin-top:2px;">${sEsc(m.tz)}</div></div>
+          <div class="tp-sched-panel-stat"><div class="tp-sched-panel-stat-lbl">TODAY</div><div style="font-size:13px;font-weight:700;margin-top:6px;">${sEsc(tl.hoursLabel)}</div></div>
+        </div>
+        <div class="tp-sched-panel-section">Working days</div>
+        <div class="tp-sched-daychips">${weekChipsHtml}</div>
+        <div class="tp-sched-panel-section">Normal hours &amp; breaks</div>
+        <div class="tp-sched-panel-box">
+          <div>Start – finish: ${sEsc(m.start)} – ${sEsc(m.end)} (${sEsc(m.tz)})</div>
+          ${m.start2 && m.end2 ? `<div>Second block: ${sEsc(m.start2)} – ${sEsc(m.end2)} (${sEsc(m.tz)})</div>` : ''}
+          <div>Break: ${m.breakStart ? sEsc(m.breakStart)+' – '+sEsc(m.breakEnd) : 'No scheduled break'}</div>
+        </div>
+        <div class="tp-sched-panel-section">Upcoming leave</div>
+        ${leaveHtml}
+        <div class="tp-sched-panel-section">Public holidays</div>
+        ${holidayHtml}
+        ${tempHtml}
+        ${editedHtml}
+        ${editBtn}
+      `;
+      $('tpSchedEnterEditBtn') && $('tpSchedEnterEditBtn').addEventListener('click', enterEditMode);
+    } else {
+      const dayChipsHtml = WEEKDAYS.map(w=>`<div class="tp-sched-daychip editable" data-toggle-day="${w}" style="background:${draft.workDays.includes(w)?'var(--red)':'var(--surface-2)'};color:${draft.workDays.includes(w)?'#fff':'var(--text-3)'};">${w[0]}</div>`).join('');
+      const tzOptsHtml = IANA_TZ_OPTIONS.map(t=>`<option value="${sEsc(t.tz)}" ${t.tz===draft.tz?'selected':''}>${sEsc(t.label)}</option>`).join('');
+      $('tpSchedPanelBody').innerHTML = `
+        <div class="tp-sched-panel-section">Home timezone</div>
+        <select class="tp-sched-input" id="tpSchedDraftTz" style="margin-bottom:16px;">${tzOptsHtml}</select>
+        <div class="tp-sched-panel-section">Working days</div>
+        <div class="tp-sched-daychips" style="margin-bottom:16px;">${dayChipsHtml}</div>
+        <div class="tp-sched-2col" style="margin-bottom:16px;">
+          <div><div class="tp-sched-field-lbl">START</div><input type="time" class="tp-sched-input" id="tpSchedDraftStart" value="${sEsc(draft.start)}"></div>
+          <div><div class="tp-sched-field-lbl">FINISH</div><input type="time" class="tp-sched-input" id="tpSchedDraftEnd" value="${sEsc(draft.end)}"></div>
+        </div>
+        ${draft.hasSecondBlock ? `
+        <div class="tp-sched-2col" style="margin-bottom:8px;">
+          <div><div class="tp-sched-field-lbl">2ND BLOCK START</div><input type="time" class="tp-sched-input" id="tpSchedDraftStart2" value="${sEsc(draft.start2)}"></div>
+          <div><div class="tp-sched-field-lbl">2ND BLOCK FINISH</div><input type="time" class="tp-sched-input" id="tpSchedDraftEnd2" value="${sEsc(draft.end2)}"></div>
+        </div>
+        <div class="tp-sched-btn-ghost" id="tpSchedRemoveBlock2Btn" style="margin-bottom:16px;">− Remove second block</div>
+        ` : `<div class="tp-sched-btn-ghost" id="tpSchedAddBlock2Btn" style="margin-bottom:16px;">+ Add a second work block (split shift)</div>`}
+        <div class="tp-sched-2col" style="margin-bottom:20px;">
+          <div><div class="tp-sched-field-lbl">BREAK START</div><input type="time" class="tp-sched-input" id="tpSchedDraftBreakStart" value="${sEsc(draft.breakStart)}"></div>
+          <div><div class="tp-sched-field-lbl">BREAK END</div><input type="time" class="tp-sched-input" id="tpSchedDraftBreakEnd" value="${sEsc(draft.breakEnd)}"></div>
+        </div>
+        <div class="tp-sched-panel-section">Add leave or holiday</div>
+        <div class="tp-sched-2col" style="margin-bottom:10px;">
+          <input type="date" class="tp-sched-input" id="tpSchedDraftNewDate" value="${sEsc(draft.newDate)}">
+          <input type="text" class="tp-sched-input" id="tpSchedDraftNewLabel" placeholder="e.g. Vacation" value="${sEsc(draft.newLabel)}">
+        </div>
+        <div class="tp-sched-btnrow" style="margin-bottom:20px;">
+          <div class="tp-sched-btn-ghost" id="tpSchedAddLeaveBtn">+ Add leave</div>
+          <div class="tp-sched-btn-ghost" id="tpSchedAddHolidayBtn">+ Add holiday</div>
+        </div>
+        <div class="tp-sched-btnrow">
+          <div class="tp-sched-btn-ghost" id="tpSchedCancelEditBtn">Cancel</div>
+          <div class="tp-sched-edit-btn" id="tpSchedSaveEditBtn" style="flex:1;margin-top:0;">Save changes</div>
+        </div>
+      `;
+      $('tpSchedDraftTz').addEventListener('change', e=>{ draft.tz = e.target.value; });
+      $('tpSchedDraftStart').addEventListener('change', e=>{ draft.start = e.target.value; });
+      $('tpSchedDraftEnd').addEventListener('change', e=>{ draft.end = e.target.value; });
+      if (draft.hasSecondBlock) {
+        $('tpSchedDraftStart2').addEventListener('change', e=>{ draft.start2 = e.target.value; });
+        $('tpSchedDraftEnd2').addEventListener('change', e=>{ draft.end2 = e.target.value; });
+        $('tpSchedRemoveBlock2Btn').addEventListener('click', ()=>{ draft.hasSecondBlock = false; renderPanel(); });
+      } else {
+        $('tpSchedAddBlock2Btn').addEventListener('click', ()=>{ draft.hasSecondBlock = true; renderPanel(); });
+      }
+      $('tpSchedDraftBreakStart').addEventListener('change', e=>{ draft.breakStart = e.target.value; });
+      $('tpSchedDraftBreakEnd').addEventListener('change', e=>{ draft.breakEnd = e.target.value; });
+      $('tpSchedDraftNewDate').addEventListener('change', e=>{ draft.newDate = e.target.value; });
+      $('tpSchedDraftNewLabel').addEventListener('input', e=>{ draft.newLabel = e.target.value; });
+      $('tpSchedPanelBody').querySelectorAll('[data-toggle-day]').forEach(el=>{
+        el.addEventListener('click', ()=>{
+          const w = el.dataset.toggleDay;
+          draft.workDays = draft.workDays.includes(w) ? draft.workDays.filter(x=>x!==w) : [...draft.workDays, w];
+          renderPanel();
+        });
+      });
+      $('tpSchedAddLeaveBtn').addEventListener('click', ()=>addDraftException('leave'));
+      $('tpSchedAddHolidayBtn').addEventListener('click', ()=>addDraftException('holiday'));
+      $('tpSchedCancelEditBtn').addEventListener('click', ()=>{ panelMode='view'; draft=null; renderPanel(); });
+      $('tpSchedSaveEditBtn').addEventListener('click', saveEdit);
+    }
+  }
+
+  async function addDraftException(kind){
+    if (!draft.newDate) { if (typeof toast==='function') toast({type:'info', message:'Pick a date first'}); return; }
+    const sb = window.giantSupabase || window.supabaseClient;
+    try {
+      const { error } = await sb.from('schedule_exceptions').insert({
+        profile_id: panelMemberId, date: draft.newDate, kind,
+        label: draft.newLabel || (kind==='leave' ? 'Approved leave' : 'Public holiday'),
+        created_by: (window.giantSession && window.giantSession.user && window.giantSession.user.id) || null
+      });
+      if (error) throw new Error(error.message);
+      draft.newDate=''; draft.newLabel='';
+      await loadScheduleData();
+      panelMode='view'; renderPanel();
+      if (typeof toast==='function') toast({type:'success', message:'Added', duration:1600});
+    } catch(e) { if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to add'}); }
+  }
+
+  async function saveEdit(){
+    const sb = window.giantSupabase || window.supabaseClient;
+    const uid = (window.giantSession && window.giantSession.user && window.giantSession.user.id) || null;
+    try {
+      const payload = {
+        profile_id: panelMemberId, work_days: draft.workDays, start_time: draft.start, end_time: draft.end,
+        start_time_2: draft.hasSecondBlock ? draft.start2 : null, end_time_2: draft.hasSecondBlock ? draft.end2 : null,
+        break_start: draft.breakStart || null, break_end: draft.breakEnd || null, updated_by: uid
+      };
+      const { error } = await sb.from('team_schedules').upsert(payload, { onConflict: 'profile_id' });
+      if (error) throw new Error(error.message);
+      if (draft.tz) {
+        await sb.from('profiles').update({ timezone: draft.tz }).eq('id', panelMemberId);
+      }
+      panelMode = 'view'; draft = null;
+      await loadScheduleData();
+      renderPanel();
+      if (typeof toast==='function') toast({type:'success', message:'Schedule saved', duration:1800});
+    } catch(e) { if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to save'}); }
+  }
+
+  // ── Day-detail modal (Month view) ──
+  function openDayModal(ymd){
+    dayModalDate = ymd;
+    renderDayModal();
+    if (typeof openModal === 'function') openModal('tpSchedDayModal');
+  }
+  function renderDayModal(){
+    const d = new Date(dayModalDate+'T12:00:00Z');
+    $('tpSchedDayModalTitle').textContent = new Intl.DateTimeFormat('en-US',{weekday:'long',month:'long',day:'numeric',timeZone:'UTC'}).format(d);
+    const chipDefs = [{key:'work',label:'Working'},{key:'off',label:'Day off'},{key:'leave',label:'Leave'},{key:'holiday',label:'Holiday'}];
+    const kindLabels = {work:'Working', holiday:'Public holiday', leave:'On leave', off:'Day off'};
+    const rowsHtml = members.map(m=>{
+      const st = dayStatus(m, d);
+      const chipsHtml = chipDefs.map(c=>`<div class="tp-sched-day-chip" data-member="${m.id}" data-kind="${c.key}" style="background:${c.key===st.kind?'var(--red)':'var(--surface-2)'};color:${c.key===st.kind?'#fff':'var(--text-2)'};">${c.label}</div>`).join('');
+      return `<div class="tp-sched-day-row">
+        <div class="tp-sched-day-row-head">
+          <div class="tp-sched-row-ava" style="width:28px;height:28px;font-size:10.5px;background:${sEsc(m.avatarBg)};color:${sEsc(m.avatarFg)};">${sEsc(initials(m.name))}</div>
+          <div style="flex:1;font-weight:600;font-size:13px;">${sEsc(m.name)}</div>
+          <div style="font-size:11px;color:var(--text-3);">${kindLabels[st.kind]}</div>
+        </div>
+        ${canManage() ? `<div class="tp-sched-day-chips">${chipsHtml}</div>` : ''}
+      </div>`;
+    }).join('');
+    $('tpSchedDayModalBody').innerHTML = rowsHtml;
+    if (canManage()) {
+      $('tpSchedDayModalBody').querySelectorAll('[data-kind]').forEach(el=>{
+        el.addEventListener('click', ()=>setDateStatus(el.dataset.member, dayModalDate, el.dataset.kind));
+      });
+    }
+  }
+  async function setDateStatus(memberId, ymd, kind){
+    const sb = window.giantSupabase || window.supabaseClient;
+    const uid = (window.giantSession && window.giantSession.user && window.giantSession.user.id) || null;
+    try {
+      // Clear any existing exception rows for this person/date, then insert the new one (unless "work")
+      await sb.from('schedule_exceptions').delete().eq('profile_id', memberId).eq('date', ymd);
+      if (kind !== 'work') {
+        const labels = {leave:'Approved leave', holiday:'Public holiday', off:'Day off'};
+        const { error } = await sb.from('schedule_exceptions').insert({ profile_id: memberId, date: ymd, kind, label: labels[kind], created_by: uid });
+        if (error) throw new Error(error.message);
+      }
+      await loadScheduleData();
+      renderDayModal();
+    } catch(e) { if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to update'}); }
+  }
+
+  // ── Wiring ──
+  function wireToolbar(){
+    const modeToggle = $('tpSchedModeToggle');
+    if (modeToggle) modeToggle.querySelectorAll('.tp-vt-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        modeToggle.querySelectorAll('.tp-vt-btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        schedMode = btn.dataset.schedmode;
+        renderAll();
+      });
+    });
+    $('tpSchedPrevBtn').addEventListener('click', ()=>{
+      if (schedMode==='month') calendarMonth = new Date(Date.UTC(calendarMonth.getUTCFullYear(), calendarMonth.getUTCMonth()-1, 1, 12));
+      else currentDate = new Date(currentDate.getTime() - (schedMode==='week'?7:1)*86400000);
+      renderAll();
+    });
+    $('tpSchedNextBtn').addEventListener('click', ()=>{
+      if (schedMode==='month') calendarMonth = new Date(Date.UTC(calendarMonth.getUTCFullYear(), calendarMonth.getUTCMonth()+1, 1, 12));
+      else currentDate = new Date(currentDate.getTime() + (schedMode==='week'?7:1)*86400000);
+      renderAll();
+    });
+    $('tpSchedTodayBtn').addEventListener('click', ()=>{
+      currentDate = new Date(); calendarMonth = new Date();
+      renderAll();
+    });
+    const tzSel = $('tpSchedTzSelect');
+    tzSel.innerHTML = VIEWER_TIMEZONES.map(t=>`<option value="${t.id}" ${t.id===viewerTzId?'selected':''}>${sEsc(t.label)}</option>`).join('');
+    tzSel.addEventListener('change', e=>{ viewerTzId = e.target.value; renderAll(); });
+    $('tpSchedSearch').addEventListener('input', e=>{ searchQuery = e.target.value; renderAll(); });
+    $('tpSchedStatusFilter').addEventListener('change', e=>{ statusFilter = e.target.value; renderAll(); });
+    $('tpSchedPanelOverlay').addEventListener('click', closePanel);
+    $('tpSchedPanelClose').addEventListener('click', closePanel);
+  }
+
+  function init(){
+    if (window._teamScheduleWired) return;
+    if (!$('tpScheduleTabBtn')) return;
+    window._teamScheduleWired = true;
+    wireToolbar();
+    $('tpScheduleTabBtn').addEventListener('click', ()=>{ if (!loaded) loadScheduleData(); else renderAll(); });
+  }
+  init();
+  setTimeout(init, 1200);
+})();
+
 /* ===== SCREEN RECORDING (feature #6) ===== */
 (function recordModule(){
   const $ = id => document.getElementById(id);
@@ -12637,19 +13458,37 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
   const tpScreen=document.querySelector('.screen[data-screen="pulse"]');
   if(!tpScreen)return;
 
-  /* ---- View toggle (Team / Manager) ---- */
+  /* ---- View toggle (Team / Manager / Schedule) ---- */
   const toggle=document.getElementById('tpViewToggle');
   if(toggle){
+    const TP_TAB_STORAGE_KEY='giant_pulse_tab';
+    function selectPulseMode(mode,btn){
+      toggle.querySelectorAll('.tp-vt-btn').forEach(x=>x.classList.remove('active'));
+      btn.classList.add('active');
+      tpScreen.querySelectorAll('.tp-view').forEach(v=>{
+        v.classList.toggle('active',v.dataset.tpview===mode);
+      });
+    }
     toggle.querySelectorAll('.tp-vt-btn').forEach(btn=>{
       btn.addEventListener('click',()=>{
-        toggle.querySelectorAll('.tp-vt-btn').forEach(x=>x.classList.remove('active'));
-        btn.classList.add('active');
         const mode=btn.dataset.tpmode;
-        tpScreen.querySelectorAll('.tp-view').forEach(v=>{
-          v.classList.toggle('active',v.dataset.tpview===mode);
-        });
+        selectPulseMode(mode,btn);
+        try{ localStorage.setItem(TP_TAB_STORAGE_KEY,mode); }catch(e){}
       });
     });
+    // Restore the last-used tab after login — called from initApp once the user's role
+    // (and therefore which tabs are actually visible to them) is known, so we never
+    // restore a tab that's hidden for their role.
+    window.giantRestorePulseTab=function(){
+      try{
+        const saved=localStorage.getItem(TP_TAB_STORAGE_KEY);
+        if(!saved)return;
+        const btn=toggle.querySelector(`.tp-vt-btn[data-tpmode="${saved}"]`);
+        // Use a real click (not just class-toggling) so other listeners on this button —
+        // e.g. teamScheduleModule's own click handler that loads its data — fire too.
+        if(btn && btn.offsetParent!==null) btn.click();
+      }catch(e){}
+    };
   }
 
   /* ---- Status picker (my card) ---- */
@@ -18970,6 +19809,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     // Apply role to body for RBAC CSS
     document.body.classList.remove('role-owner','role-manager','role-member','role-client');
     document.body.classList.add('role-' + profile.role);
+    // Restore whichever Team Pulse tab (Team/Manager/Schedule) the user had open last,
+    // now that role-based visibility above is in effect.
+    if (typeof window.giantRestorePulseTab === 'function') window.giantRestorePulseTab();
 
     // === CLIENT ROLE: hide forbidden nav items, restrict access ===
     if (profile.role === 'client') {
