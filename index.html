@@ -4796,6 +4796,7 @@ window.giantPrompt = function(message, defaultValue){
 // a plain browser confirm() can't be styled and doesn't give room for a real explanation.
 // Resolves true only if the user clicks the (danger-colored) confirm button.
 window.giantConfirmWarn = function(title, message, confirmLabel, tone){
+  const toneColor = tone === 'positive' ? 'var(--green,#3DCB7F)' : tone === 'warning' ? 'var(--amber,#F2A93B)' : 'var(--red,#D00400)';
   const isPositive = tone === 'positive';
   return new Promise((resolve)=>{
     const prev = document.getElementById('giantConfirmWarnOverlay'); if(prev) prev.remove();
@@ -4807,8 +4808,8 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
     const titleEl = document.createElement('div');
     titleEl.style.cssText = 'font-size:15px;font-weight:800;color:var(--text,#e8e8ea);margin-bottom:8px;display:flex;align-items:center;gap:8px;';
     titleEl.innerHTML = isPositive
-      ? '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="color:var(--green,#3DCB7F);flex-shrink:0;"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.4"/><path d="M5.3 8.2l1.9 1.9 3.5-3.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span></span>'
-      : '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="color:var(--red,#D00400);flex-shrink:0;"><path d="M8 1.5 14.5 13H1.5L8 1.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6v3.2M8 11.3h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span></span>';
+      ? `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="color:${toneColor};flex-shrink:0;"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.4"/><path d="M5.3 8.2l1.9 1.9 3.5-3.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span></span>`
+      : `<svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="color:${toneColor};flex-shrink:0;"><path d="M8 1.5 14.5 13H1.5L8 1.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6v3.2M8 11.3h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span></span>`;
     titleEl.querySelector('span').textContent = title;
     const msg = document.createElement('div');
     msg.style.cssText = 'font-size:13px;color:var(--text-2,#b8b8bc);margin-bottom:20px;white-space:pre-wrap;line-height:1.55;';
@@ -4820,7 +4821,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
     cancel.style.cssText = 'background:rgba(255,255,255,.08);color:var(--text,#e8e8ea);border:none;border-radius:8px;padding:8px 16px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;';
     const ok = document.createElement('button');
     ok.textContent = confirmLabel || 'Confirm';
-    ok.style.cssText = `background:${isPositive ? 'var(--green,#3DCB7F)' : 'var(--red,#D00400)'};color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;`;
+    ok.style.cssText = `background:${toneColor};color:#fff;border:none;border-radius:8px;padding:8px 18px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;`;
     row.appendChild(cancel); row.appendChild(ok);
     box.appendChild(titleEl); box.appendChild(msg); box.appendChild(row);
     ov.appendChild(box); document.body.appendChild(ov);
@@ -46673,7 +46674,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const rowsEl = document.getElementById('adminTeamRows');
       const countEl = document.getElementById('adminMembersCount');
       if (!rowsEl) return;
-      rowsEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-3);font-size:12px;">Loading…</div>';
+      // Only show the "Loading…" placeholder on the very first load — background refreshes
+      // (e.g. from someone's last_active_at heartbeat elsewhere) should swap the rows in
+      // silently instead of flashing the whole table blank every time.
+      if (!rowsEl.dataset.loadedOnce) {
+        rowsEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-3);font-size:12px;">Loading…</div>';
+      }
       const [profilesRes, invitationsRes] = await Promise.all([
         supabase.from('profiles').select('id, email, full_name, avatar_url, avatar_bg, avatar_fg, role, joined_at, last_active_at, deactivated_at').order('joined_at', { ascending: true, nullsFirst: false }),
         supabase.from('invitations').select('id, email, full_name, role, expires_at, created_at').is('accepted_at', null).is('revoked_at', null).gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false })
@@ -46700,10 +46706,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const statusText = isDeactivated ? '' : (isOnline ? 'Online' : (p.last_active_at ? timeAgoAdmin(p.last_active_at) : 'Never'));
         const statusLabel = isDeactivated ? 'Deactivated' : (isOnline ? 'Online' : 'Last seen');
         const statusColor = isDeactivated ? 'var(--text-3)' : (isOnline ? 'var(--green)' : 'var(--text-3)');
-        const removeSpan = `<span data-action="remove-member" data-id="${adminEsc(p.id)}" data-name="${adminEsc(p.full_name || p.email)}" data-role-min="manager" style="cursor:pointer;text-decoration:underline;color:var(--text-3);margin-left:8px;" title="Permanently delete their login and all their data">Remove</span>`;
+        const removeSpan = `<span data-action="remove-member" data-id="${adminEsc(p.id)}" data-name="${adminEsc(p.full_name || p.email)}" data-role-min="manager" style="cursor:pointer;text-decoration:underline;color:var(--red);margin-left:8px;" title="Permanently delete their login and all their data">Remove</span>`;
         const actionHtml = isMe ? '' : (isDeactivated
           ? `<span data-action="reactivate-member" data-id="${adminEsc(p.id)}" data-name="${adminEsc(p.full_name || p.email)}" data-role-min="manager" style="cursor:pointer;text-decoration:underline;color:var(--green);">Reactivate</span>${removeSpan}`
-          : `<span data-action="deactivate-member" data-id="${adminEsc(p.id)}" data-name="${adminEsc(p.full_name || p.email)}" data-role-min="manager" style="cursor:pointer;text-decoration:underline;color:var(--red);">Deactivate</span>${removeSpan}`);
+          : `<span data-action="deactivate-member" data-id="${adminEsc(p.id)}" data-name="${adminEsc(p.full_name || p.email)}" data-role-min="manager" style="cursor:pointer;text-decoration:underline;color:var(--amber);">Deactivate</span>${removeSpan}`);
         return `<div class="grow" style="grid-template-columns:2fr 1.2fr 1fr 1fr 1fr;${isDeactivated?'opacity:.55;':''}">
           <div class="tname"><div class="a-ava" style="${avaStyle};width:30px;height:30px;">${avaInner}</div><div><div class="nm">${adminEsc(p.full_name || p.email)}${isMe?' <span style="color:var(--text-3);font-size:10px;font-weight:600;">(you)</span>':''}</div><div class="sub">${adminEsc(p.email)}</div></div></div>
           <div><span class="pill ${rolePillCls}">${adminEsc(roleLabel)}</span></div>
@@ -46727,6 +46733,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       });
 
       rowsEl.innerHTML = memberRows.join('') + inviteRows.join('');
+      rowsEl.dataset.loadedOnce = '1';
 
       // Wire revoke
       rowsEl.querySelectorAll('[data-action="revoke-inv"]').forEach(el => {
@@ -46772,7 +46779,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           const confirmed = await window.giantConfirmWarn(
             `Deactivate ${name}?`,
             `They'll immediately lose access to Giant — they won't be able to sign in.\n\nAll their messages, tasks, and history stay exactly as they are, and you can reactivate them anytime.`,
-            'Deactivate'
+            'Deactivate',
+            'warning'
           );
           if (!confirmed) return;
           try {
@@ -47062,10 +47070,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // Also load early so the table isn't empty if user goes there
     setTimeout(() => { loadAdminTeam(); renderAdminConnectedServices(); }, 500);
 
-    // Realtime: refresh admin table when invitations change
+    // Realtime: refresh admin table when invitations/profiles change. profiles gets an UPDATE
+    // from EVERY team member roughly every 60s (the last_active_at heartbeat), so a naive
+    // reload-on-every-event here reruns constantly while this screen is open. Debounce bursts
+    // into a single reload, and loadAdminTeam() itself skips the "Loading…" flash for anything
+    // but the very first load.
+    let adminTeamReloadTimer = null;
+    function scheduleAdminTeamReload() {
+      clearTimeout(adminTeamReloadTimer);
+      adminTeamReloadTimer = setTimeout(loadAdminTeam, 1500);
+    }
     supabase.channel('admin-invitations')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'invitations' }, () => loadAdminTeam())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => loadAdminTeam())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'invitations' }, scheduleAdminTeamReload)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, scheduleAdminTeamReload)
       .subscribe();
 
     // Realtime: refresh team list when an invitation is accepted or a profile changes
