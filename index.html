@@ -4612,6 +4612,57 @@ body:has(.screen[data-screen="chat"].on) .gai-fab{display:none;}
 </style>
 <script src="/config.js?_t=20260611u17"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ── Security batch 2: authenticated function calls ─────────────────────────
+// Netlify functions now require `Authorization: Bearer <supabase access token>`
+// (see netlify/functions/_auth.js). Rather than touching every call site, this
+// wrapper intercepts fetch() to /.netlify/functions/* and attaches the current
+// session token. Public endpoints (share-pack-get/feedback, bookings-api)
+// ignore the header, so attaching it unconditionally is harmless.
+(function () {
+  const origFetch = window.fetch.bind(window);
+
+  function tokenFromStorage() {
+    try {
+      const ref = new URL(window.GIANT_SUPABASE_URL).hostname.split('.')[0];
+      const raw = localStorage.getItem('sb-' + ref + '-auth-token');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return (parsed && (parsed.access_token || (parsed.currentSession && parsed.currentSession.access_token))) || null;
+    } catch (e) { return null; }
+  }
+
+  async function currentToken() {
+    // Prefer the app's live client (auto-refreshes expired tokens); fall back
+    // to the persisted session in localStorage.
+    try {
+      if (window.__giantSb) {
+        const { data } = await window.__giantSb.auth.getSession();
+        if (data && data.session && data.session.access_token) return data.session.access_token;
+      }
+    } catch (e) { /* fall through */ }
+    return tokenFromStorage();
+  }
+
+  window.fetch = async function (input, init) {
+    try {
+      const wrappable = typeof input === 'string' || input instanceof URL;
+      const url = typeof input === 'string' ? input : (input instanceof URL ? input.href : '');
+      if (wrappable && url.indexOf('/.netlify/functions/') !== -1) {
+        const opts = init ? Object.assign({}, init) : {};
+        const headers = new Headers(opts.headers || {});
+        if (!headers.has('Authorization')) {
+          const token = await currentToken();
+          if (token) headers.set('Authorization', 'Bearer ' + token);
+        }
+        opts.headers = headers;
+        return origFetch(input, opts);
+      }
+    } catch (e) { /* on any wrapper error, fall back to a plain fetch */ }
+    return origFetch(input, init);
+  };
+})();
+</script>
 </head>
 <body class="role-owner">
 
@@ -16905,6 +16956,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
   const SUPABASE_ANON_KEY = window.GIANT_SUPABASE_ANON_KEY || 'sb_publishable_ogf5kmGoZxfBi20v00akRA_ok4_tJvQ';
 
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // Expose for the auth fetch-wrapper in <head> (security batch 2): lets it read a
+  // fresh, auto-refreshed session token when attaching Authorization headers.
+  window.__giantSb = supabase;
   window.giantSupabase = supabase; // expose for the global AI FAB (IIFE)
   window.supabaseClient = supabase;
 
@@ -17502,7 +17556,10 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     const SB_URL = window.GIANT_SUPABASE_URL || 'https://pvuykkdqoxrflbasswal.supabase.co';
     const SB_KEY = window.GIANT_SUPABASE_ANON_KEY || 'sb_publishable_ogf5kmGoZxfBi20v00akRA_ok4_tJvQ';
     const supabase = window.supabase.createClient(SB_URL, SB_KEY);
-    const { data: meetings, error } = await supabase.from('meetings').select('*').eq('token', token).limit(1);
+    // Security batch 2: anon SELECT on meetings is gone (it allowed enumerating every
+    // meeting's token/guest details). Guests fetch exactly one meeting via this
+    // token-scoped SECURITY DEFINER RPC instead.
+    const { data: meetings, error } = await supabase.rpc('get_meeting_by_token', { p_token: token });
     if (error || !meetings || !meetings.length) {
       document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0a0a0a;color:#fff;font-family:'Archivo',sans-serif;">
         <div style="text-align:center;max-width:400px;padding:30px;">
