@@ -15,14 +15,21 @@ async function readJsonSafely(res) {
   }
 }
 
+const { allowOrigin } = require('./_cors');
+const { requireUser } = require('./_auth');
+
 exports.handler = async (event) => {
   const headers = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': allowOrigin(event),
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Content-Type': 'application/json'
   };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
+  // Security batch 2: caller must be a logged-in Giant user. The frontend fetch
+  // wrapper sends the Supabase session token; _auth.js verifies it with the Auth API.
+  const auth = await requireUser(event);
+  if (!auth.ok) return { statusCode: auth.response.statusCode, headers, body: auth.response.body };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
 
   const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -98,7 +105,7 @@ exports.handler = async (event) => {
     if (task.agent === 'atlas') {
       const r = await fetch(`${baseUrl}/.netlify/functions/atlas-execute`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
         body: JSON.stringify({ brief: task.brief, context: task.context, fix_title: task.title })
       });
       const parsed = await readJsonSafely(r);
@@ -108,7 +115,7 @@ exports.handler = async (event) => {
     } else if (task.agent === 'titan') {
       const r = await fetch(`${baseUrl}/.netlify/functions/titan-execute`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
         body: JSON.stringify({ brief: task.brief, context: task.context, fix_title: task.title })
       });
       const parsed = await readJsonSafely(r);
@@ -120,7 +127,7 @@ exports.handler = async (event) => {
       const effectiveBrandKit = brandKit || extractedBrandKit || (task.context && task.context.brand_kit) || undefined;
       const r = await fetch(`${baseUrl}/.netlify/functions/vulcan-image`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
         body: JSON.stringify({
           brief: task.brief,
           count: 1,
@@ -137,7 +144,7 @@ exports.handler = async (event) => {
       if (!targetUrl) throw new Error('No target_url for Hercules URL audit');
       const r = await fetch(`${baseUrl}/.netlify/functions/hercules-url-audit`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
         body: JSON.stringify({ url: targetUrl })
       });
       const parsed = await readJsonSafely(r);
@@ -149,7 +156,7 @@ exports.handler = async (event) => {
       if (!targetUrl) throw new Error('No target_url for Hercules GEO audit');
       const r = await fetch(`${baseUrl}/.netlify/functions/hercules-geo-audit`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
         body: JSON.stringify({ url: targetUrl })
       });
       const parsed = await readJsonSafely(r);
@@ -161,7 +168,7 @@ exports.handler = async (event) => {
       if (!targetUrl) throw new Error('No target_url for brand extraction');
       const r = await fetch(`${baseUrl}/.netlify/functions/magnus-extract-brand`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${auth.token}` },
         body: JSON.stringify({ url: targetUrl })
       });
       const parsed = await readJsonSafely(r);
