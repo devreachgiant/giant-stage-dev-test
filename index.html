@@ -4863,6 +4863,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       <div class="auth-field">
         <div class="auth-field-row">
           <label>Password</label>
+          <span id="forgotPwdLink" style="font-size:11.5px;color:var(--text-3);cursor:pointer;text-decoration:underline;">Forgot password?</span>
         </div>
         <input type="password" id="signInPwd" placeholder="••••••••" required autocomplete="current-password">
       </div>
@@ -4933,6 +4934,31 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         <p style="margin-top:14px;font-size:11.5px;color:var(--text-3);line-height:1.55;text-align:center;">We'll send you a one-time link to access your new account.</p>
       </form>
     </div>
+  </div>
+</div>
+
+<!-- RESET PASSWORD SCREEN -->
+<div class="auth-screen" id="resetPasswordScreen">
+  <div class="auth-screen-logo">
+    <span class="auth-screen-logo-mark"><svg width="17" height="17" viewBox="0 0 149 149" fill="none"><path d="M38.7805 66.2876V36.3261C38.7805 35.0148 40.4427 34.4493 41.2425 35.4885L75.7656 80.3505C76.1131 80.8021 75.7912 81.456 75.2214 81.456H63.3552C62.5967 81.456 61.9817 82.0709 61.9817 82.8295V114.082C61.9817 115.406 60.293 115.963 59.5048 114.9L26.1264 69.8522C25.4548 68.9457 26.1018 67.661 27.2299 67.661H37.4071C38.1656 67.661 38.7805 67.0461 38.7805 66.2876Z" fill="#fff"/><path d="M67.0258 61.962L54.9468 45.3534C54.2866 44.4456 54.935 43.1721 56.0575 43.1721H94.9091C95.3384 43.1721 95.7431 43.3729 96.0028 43.7148L121.718 77.5674C122.405 78.4717 121.76 79.7716 120.624 79.7716H99.7764C99.211 79.7716 98.8878 80.4165 99.2262 80.8694L120.696 109.601C121.372 110.506 120.726 111.796 119.595 111.796H98.377C97.9514 111.796 97.5498 111.599 97.2897 111.262L74.4234 81.6323C73.7266 80.7294 74.3702 79.4197 75.5107 79.4197H96.3514C96.9131 79.4197 97.2372 78.7822 96.9063 78.3284L85.7964 63.0919C85.5378 62.7373 85.1254 62.5276 84.6866 62.5276H68.1365C67.6971 62.5276 67.2842 62.3174 67.0258 61.962Z" fill="#fff"/></svg></span>
+    <span class="auth-screen-logo-word">Giant<sup style="font-size:8px;color:var(--text-3);margin-left:1px;">®</sup></span>
+  </div>
+  <div class="auth-card">
+    <h1>Set a new password</h1>
+    <p class="auth-sub">Choose a new password for your account.</p>
+    <div class="auth-alert" id="resetPwdAlert"></div>
+    <form id="resetPwdForm">
+      <div class="auth-field">
+        <label>New password</label>
+        <input type="password" id="resetPwdNew" placeholder="At least 8 characters" required minlength="8" autocomplete="new-password">
+        <div class="auth-field-hint">Minimum 8 characters.</div>
+      </div>
+      <div class="auth-field">
+        <label>Confirm password</label>
+        <input type="password" id="resetPwdConfirm" placeholder="Re-enter password" required minlength="8" autocomplete="new-password">
+      </div>
+      <button type="submit" class="auth-btn"><span class="auth-spinner"></span><span class="auth-btn-text">Set password →</span></button>
+    </form>
   </div>
 </div>
 
@@ -17856,8 +17882,13 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
   // ── DOM refs ───────────────────────────────────────────────────────
   const signInScreen      = document.getElementById('signInScreen');
   const acceptScreen      = document.getElementById('acceptInviteScreen');
+  const resetPwdScreen    = document.getElementById('resetPasswordScreen');
   const onboardingScreen  = document.getElementById('onboardingScreen');
   const appView           = document.getElementById('appView');
+  // Supabase's client parses type=recovery out of the URL hash asynchronously
+  // (detectSessionInUrl), but the hash is still readable synchronously right now —
+  // grab it before deciding how to route below.
+  const isPasswordRecovery = window.location.hash.includes('type=recovery');
   // The HTML has two top-level views: #view-auth (the welcome back / sign-in
   // form wrapper) and #view-app (the dashboard). The .on class needs to be
   // toggled between these two, not on the #appView wrapper itself.
@@ -17865,7 +17896,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
   const viewApp           = document.getElementById('view-app');
 
   function showScreen(which) {
-    [signInScreen, acceptScreen, onboardingScreen].forEach(s => s.classList.remove('on'));
+    [signInScreen, acceptScreen, resetPwdScreen, onboardingScreen].forEach(s => s.classList.remove('on'));
     if (viewAuth) viewAuth.classList.remove('on');
     if (viewApp)  viewApp.classList.remove('on');
     appView.classList.remove('on');
@@ -17874,6 +17905,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       if (viewAuth) viewAuth.classList.add('on');
     } else if (which === 'accept') {
       acceptScreen.classList.add('on');
+      if (viewAuth) viewAuth.classList.add('on');
+    } else if (which === 'reset-password') {
+      resetPwdScreen.classList.add('on');
       if (viewAuth) viewAuth.classList.add('on');
     } else if (which === 'onboarding') {
       onboardingScreen.classList.add('on');
@@ -19526,6 +19560,16 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     console.log('[bootstrap] session present=' + !!session + ' err=' + (sessErr?.message || 'none'));
     if (session) window.giantSession = session;
 
+    // A password-reset email link lands here with #type=recovery in the URL — Supabase
+    // already established a temporary session for it via detectSessionInUrl, but the
+    // person still needs to actually pick a new password before going any further.
+    if (isPasswordRecovery && session) {
+      console.log('[bootstrap] → reset-password (recovery link)');
+      showScreen('reset-password');
+      initResetPassword();
+      return;
+    }
+
     // /accept-invite?token=... is its own flow (works whether logged in or not)
     // ALSO detect ?invite=<token> on any path (this is what the email link uses for backwards-compat)
     const queryInviteToken = new URLSearchParams(window.location.search).get('invite');
@@ -19654,6 +19698,39 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       setLoading(btn, false);
       if (error) { showAlert(error.message || 'Could not send magic link.'); return; }
       showAlert('Check your inbox — we sent a magic link to ' + email, 'success');
+    });
+
+    const forgotLink = document.getElementById('forgotPwdLink');
+    if (forgotLink) {
+      forgotLink.addEventListener('click', async () => {
+        const email = (document.getElementById('signInEmailPwd').value || '').trim() || await window.giantPrompt('Enter your email to reset your password:');
+        if (!email) return;
+        const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/app' });
+        if (error) { showAlert(error.message || 'Could not send reset email.'); return; }
+        showAlert('Check your inbox — we sent a password reset link to ' + email, 'success');
+      });
+    }
+  }
+
+  // ── RESET PASSWORD (from email link) ─────────────────────────────
+  function initResetPassword() {
+    const alertEl = document.getElementById('resetPwdAlert');
+    function showAlert(msg, type='error') { alertEl.textContent = msg; alertEl.className = 'auth-alert ' + type; }
+    function setLoading(btn, l) { btn.classList.toggle('loading', l); btn.disabled = l; }
+
+    document.getElementById('resetPwdForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const pwd = document.getElementById('resetPwdNew').value;
+      const confirmPwd = document.getElementById('resetPwdConfirm').value;
+      if (pwd !== confirmPwd) { showAlert("Passwords don't match."); return; }
+      const btn = e.target.querySelector('.auth-btn');
+      setLoading(btn, true);
+      const { error } = await supabase.auth.updateUser({ password: pwd });
+      setLoading(btn, false);
+      if (error) { showAlert(error.message || 'Could not set new password.'); return; }
+      showAlert('Password updated — taking you in…', 'success');
+      history.replaceState({}, '', '/app');
+      setTimeout(() => window.location.reload(), 1000);
     });
   }
 
@@ -46707,9 +46784,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const statusLabel = isDeactivated ? 'Deactivated' : (isOnline ? 'Online' : 'Last seen');
         const statusColor = isDeactivated ? 'var(--text-3)' : (isOnline ? 'var(--green)' : 'var(--text-3)');
         const removeSpan = `<span data-action="remove-member" data-id="${adminEsc(p.id)}" data-name="${adminEsc(p.full_name || p.email)}" data-role-min="manager" style="cursor:pointer;text-decoration:underline;color:var(--red);margin-left:8px;" title="Permanently delete their login and all their data">Remove</span>`;
+        const resetPwdSpan = isDeactivated ? '' : `<span data-action="reset-password-member" data-id="${adminEsc(p.id)}" data-name="${adminEsc(p.full_name || p.email)}" data-email="${adminEsc(p.email)}" data-role-min="manager" style="cursor:pointer;text-decoration:underline;color:var(--text-2);margin-left:8px;" title="Email them a link to set a new password">Reset password</span>`;
         const actionHtml = isMe ? '' : (isDeactivated
           ? `<span data-action="reactivate-member" data-id="${adminEsc(p.id)}" data-name="${adminEsc(p.full_name || p.email)}" data-role-min="manager" style="cursor:pointer;text-decoration:underline;color:var(--green);">Reactivate</span>${removeSpan}`
-          : `<span data-action="deactivate-member" data-id="${adminEsc(p.id)}" data-name="${adminEsc(p.full_name || p.email)}" data-role-min="manager" style="cursor:pointer;text-decoration:underline;color:var(--amber);">Deactivate</span>${removeSpan}`);
+          : `<span data-action="deactivate-member" data-id="${adminEsc(p.id)}" data-name="${adminEsc(p.full_name || p.email)}" data-role-min="manager" style="cursor:pointer;text-decoration:underline;color:var(--amber);">Deactivate</span>${resetPwdSpan}${removeSpan}`);
         return `<div class="grow" style="grid-template-columns:2fr 1.2fr 1fr 1fr 1fr;${isDeactivated?'opacity:.55;':''}">
           <div class="tname"><div class="a-ava" style="${avaStyle};width:30px;height:30px;">${avaInner}</div><div><div class="nm">${adminEsc(p.full_name || p.email)}${isMe?' <span style="color:var(--text-3);font-size:10px;font-weight:600;">(you)</span>':''}</div><div class="sub">${adminEsc(p.email)}</div></div></div>
           <div><span class="pill ${rolePillCls}">${adminEsc(roleLabel)}</span></div>
@@ -46821,6 +46899,28 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             if (typeof toast==='function') toast({type:'error', message:`Failed to reactivate: ${e.message}`, duration:5000});
           }
           loadAdminTeam();
+        });
+      });
+      // Wire reset password — emails them a Supabase recovery link; doesn't touch their
+      // login or data, just lets them set a new password themselves.
+      rowsEl.querySelectorAll('[data-action="reset-password-member"]').forEach(el => {
+        el.addEventListener('click', async () => {
+          const name = el.dataset.name;
+          const email = el.dataset.email;
+          const confirmed = await window.giantConfirmWarn(
+            `Send password reset to ${name}?`,
+            `We'll email a link to ${email} that lets them set a new password. Their access and data are unaffected until they use it.`,
+            'Send reset link',
+            'positive'
+          );
+          if (!confirmed) return;
+          try {
+            const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + '/app' });
+            if (error) throw new Error(error.message || 'Could not send reset email');
+            if (typeof toast==='function') toast({type:'success', message:`Reset link sent to <b>${email}</b>`, duration:2500});
+          } catch(e) {
+            if (typeof toast==='function') toast({type:'error', message:`Failed to send reset link: ${e.message}`, duration:5000});
+          }
         });
       });
       // Wire remove — permanent, deletes their login AND (via DB cascade) their messages,
