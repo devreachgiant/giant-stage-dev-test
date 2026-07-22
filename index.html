@@ -4699,6 +4699,28 @@ body:has(.screen[data-screen="chat"].on) .gai-fab{display:none;}
 #appView.on{display:block;height:100vh;width:100%;overflow:hidden;}
 #appView.on > .view,#appView.on > .view > .app-view{height:100%;}
 </style>
+<!-- Quill — used for the SOP "Details" rich-text field (headings/bold/lists) -->
+<link href="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/quill@2/dist/quill.js"></script>
+<style>
+.ql-toolbar.ql-snow{background:var(--surface-2);border:1px solid var(--line);border-bottom:none;border-radius:9px 9px 0 0;}
+.ql-container.ql-snow{background:var(--surface);border:1px solid var(--line);border-radius:0 0 9px 9px;}
+.ql-editor{color:var(--text);font-family:inherit;font-size:13px;min-height:130px;line-height:1.55;}
+.ql-editor.ql-blank::before{color:var(--text-3);font-style:normal;}
+.ql-editor h2{font-size:16px;font-weight:800;margin:8px 0 4px;color:var(--text);}
+.ql-editor h3{font-size:14px;font-weight:700;margin:6px 0 4px;color:var(--text);}
+.ql-editor ol,.ql-editor ul{padding-left:1.5em;}
+.ql-snow .ql-stroke{stroke:var(--text-2);}
+.ql-snow .ql-fill,.ql-snow .ql-stroke.ql-fill{fill:var(--text-2);}
+.ql-snow .ql-picker{color:var(--text-2);}
+.ql-snow .ql-picker-options{background:var(--surface-2);border:1px solid var(--line) !important;box-shadow:0 8px 20px rgba(0,0,0,.35);}
+.ql-snow .ql-picker-item{color:var(--text-2);}
+.ql-snow.ql-toolbar button:hover .ql-stroke,.ql-snow .ql-toolbar button.ql-active .ql-stroke{stroke:var(--red);}
+.ql-snow.ql-toolbar button:hover .ql-fill,.ql-snow .ql-toolbar button.ql-active .ql-fill{fill:var(--red);}
+.ql-snow.ql-toolbar button:hover,.ql-snow .ql-toolbar button.ql-active{color:var(--red);}
+.ql-snow .ql-tooltip{background:var(--surface-2);border:1px solid var(--line);color:var(--text);box-shadow:0 8px 20px rgba(0,0,0,.35);}
+.ql-snow .ql-tooltip input[type=text]{background:var(--surface);border:1px solid var(--line);color:var(--text);}
+</style>
 <script src="/config.js?_t=20260611u17"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -5167,7 +5189,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
 <div class="modal-overlay" id="sopNewModal">
   <div class="modal">
     <div class="modal-head">
-      <div><h3>New SOP / Workflow</h3><div class="m-sub">Document how this gets done so the whole team can follow it</div></div>
+      <div><h3 id="sopModalHeading">New SOP / Workflow</h3><div class="m-sub">Document how this gets done so the whole team can follow it</div></div>
       <div class="m-close" data-close="sopNewModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
     </div>
     <div class="modal-body">
@@ -5178,17 +5200,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       <div class="m-field"><label>Category <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional)</span></label><input type="text" id="sopCategory" placeholder="e.g. Weekly"></div>
       <div class="m-field">
         <label>Details <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional — why it matters, steps, etc.)</span></label>
-        <div style="display:flex;align-items:center;gap:5px;padding:6px 8px;background:var(--surface-2);border:1px solid var(--line);border-bottom:none;border-radius:9px 9px 0 0;flex-wrap:wrap;">
-          <button type="button" data-sop-fmt="bold" title="Bold" style="background:transparent;border:none;color:var(--text);width:28px;height:26px;border-radius:5px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:800;">B</button>
-          <button type="button" data-sop-fmt="italic" title="Italic" style="background:transparent;border:none;color:var(--text);width:28px;height:26px;border-radius:5px;cursor:pointer;font-family:inherit;font-size:12.5px;font-style:italic;">I</button>
-          <div style="width:1px;height:18px;background:var(--line);margin:0 4px;"></div>
-          <button type="button" data-sop-fmt="h2" title="Heading" style="background:transparent;border:none;color:var(--text);height:26px;padding:0 8px;border-radius:5px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;">H2</button>
-          <button type="button" data-sop-fmt="h3" title="Subheading" style="background:transparent;border:none;color:var(--text);height:26px;padding:0 8px;border-radius:5px;cursor:pointer;font-family:inherit;font-size:11.5px;font-weight:700;">H3</button>
-          <div style="width:1px;height:18px;background:var(--line);margin:0 4px;"></div>
-          <button type="button" data-sop-fmt="ul" title="Bulleted list" style="background:transparent;border:none;color:var(--text);width:28px;height:26px;border-radius:5px;cursor:pointer;font-family:inherit;font-size:13px;">•</button>
-          <button type="button" data-sop-fmt="ol" title="Numbered list" style="background:transparent;border:none;color:var(--text);width:28px;height:26px;border-radius:5px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;">1.</button>
-        </div>
-        <div id="sopDetailsInput" contenteditable="true" data-placeholder="Why this matters, step-by-step instructions…" style="width:100%;background:var(--surface);border:1px solid var(--line);border-top:none;border-radius:0 0 9px 9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;min-height:110px;outline:none;box-sizing:border-box;line-height:1.55;overflow-y:auto;"></div>
+        <div id="sopDetailsQuill"></div>
       </div>
       <div class="m-field">
         <label>Video or screenshot <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional)</span></label>
@@ -5202,6 +5214,45 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
     <div class="modal-foot">
       <button class="m-cancel" data-close="sopNewModal">Cancel</button>
       <button class="m-submit" id="sopSubmitBtn">Create SOP</button>
+    </div>
+  </div>
+</div>
+<!-- Manage SOP departments modal — body-level so it opens from anywhere -->
+<div class="modal-overlay" id="sopManageDeptsModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h3>Manage departments</h3><div class="m-sub">Rename or remove a department</div></div>
+      <div class="m-close" data-close="sopManageDeptsModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+    </div>
+    <div class="modal-body">
+      <div id="sopManageDeptsList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"></div>
+      <button id="sopAddDeptBtn" type="button" style="width:100%;background:transparent;border:1px dashed var(--line);color:var(--text-2);border-radius:9px;padding:10px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;">+ Add department</button>
+    </div>
+    <div class="modal-foot">
+      <button class="m-cancel" data-close="sopManageDeptsModal">Close</button>
+    </div>
+  </div>
+</div>
+<!-- Move-or-delete SOPs modal (shown when deleting a department that still has SOPs in it) -->
+<div class="modal-overlay" id="sopMoveSopsModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h3>Before you delete this department</h3><div class="m-sub" id="sopMoveSub"></div></div>
+      <div class="m-close" data-close="sopMoveSopsModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+    </div>
+    <div class="modal-body">
+      <div class="m-field" id="sopMoveTargetField">
+        <label>Move its SOPs to</label>
+        <select id="sopMoveTargetSelect" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;"></select>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--text-2);margin-top:10px;cursor:pointer;">
+        <input type="checkbox" id="sopMoveDeleteInstead" style="margin:0;">
+        Delete these SOPs instead of moving them
+      </label>
+    </div>
+    <div class="modal-foot">
+      <button class="m-cancel" data-close="sopMoveSopsModal">Cancel</button>
+      <button class="m-submit" id="sopMoveConfirmBtn">Continue</button>
     </div>
   </div>
 </div>
@@ -8244,11 +8295,16 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               <div style="font-size:12.5px;color:var(--text-3);margin-top:2px;">How each department gets things done</div>
             </div>
             <div style="display:flex;gap:8px;">
-              <button id="sopNewDeptBtn" style="background:transparent;border:1px solid var(--line);color:var(--text-2);border-radius:8px;padding:8px 14px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;">+ Department</button>
               <button class="btn-red" id="sopOpenModalBtn">+ New SOP</button>
             </div>
           </div>
-          <div id="sopDeptTabs" style="display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:16px;"></div>
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:16px;">
+            <div id="sopDeptTabs" style="display:flex;gap:6px;flex-wrap:wrap;flex:1;"></div>
+            <button id="sopManageDeptsBtn" style="flex-shrink:0;background:transparent;border:1px solid var(--line);color:var(--text-2);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/><path d="M13.4 9.6l-1.1-.5a4 4 0 000-2.2l1.1-.5a.6.6 0 00.3-.8l-1-1.7a.6.6 0 00-.8-.2l-1 .5a4 4 0 00-1.9-1.1l-.2-1.1a.6.6 0 00-.6-.5h-2a.6.6 0 00-.6.5l-.2 1.1a4 4 0 00-1.9 1.1l-1-.5a.6.6 0 00-.8.2l-1 1.7a.6.6 0 00.3.8l1.1.5a4 4 0 000 2.2l-1.1.5a.6.6 0 00-.3.8l1 1.7a.6.6 0 00.8.2l1-.5a4 4 0 001.9 1.1l.2 1.1a.6.6 0 00.6.5h2a.6.6 0 00.6-.5l.2-1.1a4 4 0 001.9-1.1l1 .5a.6.6 0 00.8-.2l1-1.7a.6.6 0 00-.3-.8Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+              Manage
+            </button>
+          </div>
           <div class="report-list" id="sopList"></div>
           <div id="sopEmptyState" style="display:none;text-align:center;padding:48px 0;color:var(--text-3);font-size:13px;">No SOPs in this department yet — add the first one.</div>
         </div>
@@ -10610,39 +10666,56 @@ setupRail('rail2','pill2');
   const sb = () => window.supabaseClient;
   const $ = id => document.getElementById(id);
   const sEsc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const myId = () => (window.giantSession && window.giantSession.user && window.giantSession.user.id) || null;
 
   let deptsCache = [];
   let sopsCache = [];
   let activeDeptId = null;
+  let editingSopId = null;
+  let sopSelectedFile = null;
+
+  // ── "Details" rich-text field — Quill, themed to match the app's dark UI.
+  let sopQuill = null;
+  if (window.Quill && $('sopDetailsQuill')) {
+    sopQuill = new window.Quill('#sopDetailsQuill', {
+      theme: 'snow',
+      placeholder: 'Why this matters, step-by-step instructions…',
+      modules: {
+        toolbar: [
+          ['bold', 'italic'],
+          [{ header: 2 }, { header: 3 }],
+          [{ list: 'ordered' }, { list: 'bullet' }],
+        ],
+      },
+    });
+  }
+  function setSopDetails(html) {
+    if (!sopQuill) return;
+    sopQuill.setText('');
+    if (html) sopQuill.clipboard.dangerouslyPasteHTML(html);
+  }
+  function getSopDetailsHtml() {
+    if (!sopQuill) return null;
+    const html = sopQuill.root.innerHTML;
+    return (!html || html === '<p><br></p>') ? null : html;
+  }
 
   function renderDeptTabs() {
     const wrap = $('sopDeptTabs');
     if (!wrap) return;
     if (!deptsCache.length) {
-      wrap.innerHTML = `<div style="font-size:12px;color:var(--text-3);">No departments yet — click "+ Department" to add the first one.</div>`;
+      wrap.innerHTML = `<div style="font-size:12px;color:var(--text-3);">No departments yet — click "Manage" to add the first one.</div>`;
       return;
     }
     wrap.innerHTML = deptsCache.map(d => {
       const active = d.id === activeDeptId;
-      return `<div class="sop-dept-tab" data-dept-id="${sEsc(d.id)}" style="display:flex;align-items:center;gap:6px;padding:7px 10px 7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;background:${active ? 'var(--red)' : 'transparent'};color:${active ? '#fff' : 'var(--text-2)'};border:1px solid ${active ? 'var(--red)' : 'var(--line)'};">
-        <span>${sEsc(d.name)}</span>
-        <span data-action="edit-dept" data-dept-id="${sEsc(d.id)}" title="Rename department" style="opacity:.6;display:flex;align-items:center;padding:2px;">
-          <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
-        </span>
-      </div>`;
+      return `<div class="sop-dept-tab" data-dept-id="${sEsc(d.id)}" style="padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;background:${active ? 'var(--red)' : 'transparent'};color:${active ? '#fff' : 'var(--text-2)'};border:1px solid ${active ? 'var(--red)' : 'var(--line)'};">${sEsc(d.name)}</div>`;
     }).join('');
     wrap.querySelectorAll('.sop-dept-tab').forEach(tab => {
-      tab.addEventListener('click', (e) => {
-        if (e.target.closest('[data-action="edit-dept"]')) return;
+      tab.addEventListener('click', () => {
         activeDeptId = tab.dataset.deptId;
         renderDeptTabs();
         loadSops();
-      });
-    });
-    wrap.querySelectorAll('[data-action="edit-dept"]').forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        renameDepartment(btn.dataset.deptId);
       });
     });
   }
@@ -10671,10 +10744,10 @@ setupRail('rail2','pill2');
     if (!listEl) return;
     if (!activeDeptId) {
       listEl.innerHTML = '';
-      if (emptyEl) { emptyEl.style.display = 'block'; emptyEl.textContent = 'No departments yet — add one to start documenting SOPs.'; }
+      if (emptyEl) { emptyEl.style.display = 'block'; emptyEl.textContent = 'No departments yet — click "Manage" to add one.'; }
       return;
     }
-    const { data, error } = await sb().from('sops').select('id, title, category, content_html, video_url').eq('department_id', activeDeptId).order('created_at', { ascending: true });
+    const { data, error } = await sb().from('sops').select('id, title, category, content_html, video_url, department_id').eq('department_id', activeDeptId).order('created_at', { ascending: true });
     if (error) { if (typeof toast==='function') toast({type:'error', message:'Failed to load SOPs'}); return; }
     sopsCache = data || [];
     if (!sopsCache.length) {
@@ -10687,20 +10760,80 @@ setupRail('rail2','pill2');
       const text = String(html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
       return text.length > 120 ? text.slice(0, 120) + '…' : text;
     };
-    listEl.innerHTML = sopsCache.map(s => `<div class="report-row">
+    listEl.innerHTML = sopsCache.map(s => `<div class="report-row" data-sop-id="${sEsc(s.id)}">
         <span class="report-row-badge" style="background:var(--surface-2);color:var(--text-2);">${sEsc(s.category || 'General')}</span>
         <div class="report-row-main">
           <div class="report-row-title">${sEsc(s.title)}</div>
           <div class="report-row-meta">${sEsc(plainSnippet(s.content_html))}</div>
         </div>
         ${s.video_url ? `<span title="Has attached video/screenshot" style="flex-shrink:0;color:var(--text-3);"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3.5" width="9" height="9" rx="1.6" stroke="currentColor" stroke-width="1.2"/><path d="M11 6.5l3-1.8v6.6l-3-1.8z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></span>` : ''}
+        <span data-stop-row-click style="display:flex;gap:2px;flex-shrink:0;">
+          <span class="report-row-icon-btn" data-action="share-sop" data-sop-id="${sEsc(s.id)}" title="Copy share link"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M7 9.5L9 11.5a2.5 2.5 0 003.5 0L14 10a2.5 2.5 0 000-3.5L12.5 5M9 6.5L7 4.5a2.5 2.5 0 00-3.5 0L2 6a2.5 2.5 0 000 3.5L3.5 11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+          <span class="report-row-icon-btn" data-action="edit-sop" data-sop-id="${sEsc(s.id)}" title="Edit"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
+          <span class="report-row-icon-btn" data-action="delete-sop" data-sop-id="${sEsc(s.id)}" title="Delete" style="color:var(--red);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M6 4.5V3a1 1 0 011-1h2a1 1 0 011 1v1.5M4.5 4.5l.6 8a1 1 0 001 .9h3.8a1 1 0 001-.9l.6-8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        </span>
       </div>`).join('');
+    listEl.querySelectorAll('[data-action="share-sop"]').forEach(btn => btn.addEventListener('click', () => shareSop(btn.dataset.sopId)));
+    listEl.querySelectorAll('[data-action="edit-sop"]').forEach(btn => btn.addEventListener('click', () => openSopEditModal(btn.dataset.sopId)));
+    listEl.querySelectorAll('[data-action="delete-sop"]').forEach(btn => btn.addEventListener('click', () => deleteSop(btn.dataset.sopId)));
+  }
+
+  async function shareSop(id) {
+    const url = `${window.location.origin}/app?sop=${id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      if (typeof toast==='function') toast({type:'success', message:'Link copied — anyone on the team can open it directly.'});
+    } catch (_) {
+      await window.giantPrompt('Copy this link:', url);
+    }
+  }
+
+  async function deleteSop(id) {
+    const s = sopsCache.find(x => x.id === id);
+    if (!s) return;
+    const confirmed = await window.giantConfirmWarn(`Delete "${s.title}"?`, `This can't be undone.`, 'Delete', 'warning');
+    if (!confirmed) return;
+    const { error } = await sb().from('sops').delete().eq('id', id);
+    if (error) { if (typeof toast==='function') toast({type:'error', message: error.message || 'Failed to delete SOP'}); return; }
+    if (typeof toast==='function') toast({type:'success', message: `Deleted "${s.title}"`});
+    await loadSops();
+  }
+
+  function openSopEditModal(id) {
+    const s = sopsCache.find(x => x.id === id);
+    if (!s) return;
+    editingSopId = id;
+    populateDeptSelect();
+    if ($('sopDeptSelect')) $('sopDeptSelect').value = s.department_id;
+    if ($('sopTitle')) $('sopTitle').value = s.title || '';
+    if ($('sopCategory')) $('sopCategory').value = s.category || '';
+    setSopDetails(s.content_html || '');
+    sopSelectedFile = null;
+    const prompt = $('sopMediaPrompt'), preview = $('sopMediaPreview'), drop = $('sopMediaDrop');
+    if (s.video_url) {
+      const isVideo = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(s.video_url);
+      if (preview) {
+        preview.innerHTML = isVideo
+          ? `<video src="${sEsc(s.video_url)}" controls muted style="max-width:100%;max-height:180px;border-radius:8px;"></video>`
+          : `<img src="${sEsc(s.video_url)}" style="max-width:100%;max-height:180px;border-radius:8px;">`;
+        preview.style.display = 'block';
+      }
+      if (prompt) prompt.style.display = 'none';
+      if (drop) drop.classList.add('has-file');
+    } else {
+      if (preview) { preview.innerHTML = ''; preview.style.display = 'none'; }
+      if (prompt) prompt.style.display = 'block';
+      if (drop) drop.classList.remove('has-file');
+    }
+    if ($('sopModalHeading')) $('sopModalHeading').textContent = 'Edit SOP / Workflow';
+    if ($('sopSubmitBtn')) $('sopSubmitBtn').textContent = 'Save changes';
+    openModal('sopNewModal');
   }
 
   async function createDepartment() {
     const name = await window.giantPrompt('Department name:');
     if (!name || !name.trim()) return;
-    const { data, error } = await sb().from('sop_departments').insert({ name: name.trim(), created_by: (window.giantSession && window.giantSession.user && window.giantSession.user.id) || null }).select('id, name, created_at').single();
+    const { data, error } = await sb().from('sop_departments').insert({ name: name.trim(), created_by: myId() }).select('id, name, created_at').single();
     if (error) { if (typeof toast==='function') toast({type:'error', message: error.message || 'Failed to create department'}); return; }
     activeDeptId = data.id;
     await loadSopDepartments();
@@ -10716,41 +10849,95 @@ setupRail('rail2','pill2');
     if (error) { if (typeof toast==='function') toast({type:'error', message: error.message || 'Failed to rename department'}); return; }
     if (typeof toast==='function') toast({type:'success', message: `Renamed to "${name.trim()}"`});
     await loadSopDepartments();
+    renderManageDeptsList();
   }
 
-  let sopSelectedFile = null;
+  // ── "Manage departments" modal — list with per-row rename/delete.
+  function renderManageDeptsList() {
+    const wrap = $('sopManageDeptsList');
+    if (!wrap) return;
+    if (!deptsCache.length) {
+      wrap.innerHTML = `<div style="font-size:12px;color:var(--text-3);">No departments yet.</div>`;
+      return;
+    }
+    wrap.innerHTML = deptsCache.map(d => `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--line);border-radius:9px;">
+        <span style="font-size:13px;font-weight:600;">${sEsc(d.name)}</span>
+        <span style="display:flex;gap:4px;">
+          <span class="report-row-icon-btn" data-action="mgmt-edit-dept" data-dept-id="${sEsc(d.id)}" title="Rename"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
+          <span class="report-row-icon-btn" data-action="mgmt-delete-dept" data-dept-id="${sEsc(d.id)}" title="Delete" style="color:var(--red);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M6 4.5V3a1 1 0 011-1h2a1 1 0 011 1v1.5M4.5 4.5l.6 8a1 1 0 001 .9h3.8a1 1 0 001-.9l.6-8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        </span>
+      </div>`).join('');
+    wrap.querySelectorAll('[data-action="mgmt-edit-dept"]').forEach(btn => btn.addEventListener('click', () => renameDepartment(btn.dataset.deptId)));
+    wrap.querySelectorAll('[data-action="mgmt-delete-dept"]').forEach(btn => btn.addEventListener('click', () => deleteDepartment(btn.dataset.deptId)));
+  }
+
+  // Resolves to a target department id, 'delete', or null (cancelled).
+  function promptMoveOrDeleteSops(dept, count, others) {
+    return new Promise(resolve => {
+      $('sopMoveSub').textContent = `"${dept.name}" has ${count} SOP${count===1?'':'s'}. Choose where they should go, or delete them.`;
+      $('sopMoveTargetField').style.display = others.length ? 'block' : 'none';
+      $('sopMoveTargetSelect').innerHTML = others.map(d => `<option value="${sEsc(d.id)}">${sEsc(d.name)}</option>`).join('');
+      $('sopMoveDeleteInstead').checked = !others.length;
+      $('sopMoveDeleteInstead').disabled = !others.length;
+      openModal('sopMoveSopsModal');
+      const confirmBtn = $('sopMoveConfirmBtn');
+      const closeEls = document.querySelectorAll('#sopMoveSopsModal [data-close]');
+      function cleanup() {
+        confirmBtn.removeEventListener('click', onConfirm);
+        closeEls.forEach(el => el.removeEventListener('click', onCancel));
+      }
+      function onConfirm() {
+        const del = $('sopMoveDeleteInstead').checked;
+        cleanup();
+        resolve(del ? 'delete' : $('sopMoveTargetSelect').value);
+      }
+      function onCancel() { cleanup(); resolve(null); }
+      confirmBtn.addEventListener('click', onConfirm);
+      closeEls.forEach(el => el.addEventListener('click', onCancel));
+    });
+  }
+
+  async function deleteDepartment(id) {
+    const dept = deptsCache.find(d => d.id === id);
+    if (!dept) return;
+    const { count, error: countErr } = await sb().from('sops').select('id', { count: 'exact', head: true }).eq('department_id', id);
+    if (countErr) { if (typeof toast==='function') toast({type:'error', message:'Failed to check this department\'s SOPs'}); return; }
+    const others = deptsCache.filter(d => d.id !== id);
+    if (count && count > 0) {
+      const choice = await promptMoveOrDeleteSops(dept, count, others);
+      if (choice === null) return;
+      if (choice !== 'delete') {
+        const { error: moveErr } = await sb().from('sops').update({ department_id: choice }).eq('department_id', id);
+        if (moveErr) { if (typeof toast==='function') toast({type:'error', message: moveErr.message || 'Failed to move SOPs'}); return; }
+      } else {
+        const confirmed = await window.giantConfirmWarn(`Delete "${dept.name}" and its ${count} SOP${count===1?'':'s'}?`, `This can't be undone.`, 'Delete everything', 'warning');
+        if (!confirmed) return;
+      }
+    } else {
+      const confirmed = await window.giantConfirmWarn(`Delete "${dept.name}"?`, `This department has no SOPs. This can't be undone.`, 'Delete', 'warning');
+      if (!confirmed) return;
+    }
+    const { error } = await sb().from('sop_departments').delete().eq('id', id);
+    if (error) { if (typeof toast==='function') toast({type:'error', message: error.message || 'Failed to delete department'}); return; }
+    if (activeDeptId === id) activeDeptId = null;
+    if (typeof toast==='function') toast({type:'success', message: `Deleted "${dept.name}"`});
+    await loadSopDepartments();
+    renderManageDeptsList();
+  }
 
   function resetSopForm() {
+    editingSopId = null;
     if ($('sopTitle')) $('sopTitle').value = '';
     if ($('sopCategory')) $('sopCategory').value = '';
-    if ($('sopDetailsInput')) $('sopDetailsInput').innerHTML = '';
+    setSopDetails('');
     sopSelectedFile = null;
     const prompt = $('sopMediaPrompt'), preview = $('sopMediaPreview'), drop = $('sopMediaDrop');
     if (preview) { preview.innerHTML = ''; preview.style.display = 'none'; }
     if (prompt) prompt.style.display = 'block';
     if (drop) drop.classList.remove('has-file');
+    if ($('sopModalHeading')) $('sopModalHeading').textContent = 'New SOP / Workflow';
+    if ($('sopSubmitBtn')) $('sopSubmitBtn').textContent = 'Create SOP';
   }
-
-  // ── Rich-text "Details" field — execCommand on the contenteditable, same
-  // minimal pattern as the inbox signature editor.
-  function sopExecFmt(cmd, arg) {
-    const editor = $('sopDetailsInput');
-    if (!editor) return;
-    editor.focus();
-    try { document.execCommand(cmd, false, arg); } catch(_) {}
-  }
-  document.querySelectorAll('#sopNewModal [data-sop-fmt]').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      const fmt = btn.dataset.sopFmt;
-      if (fmt === 'bold') sopExecFmt('bold');
-      else if (fmt === 'italic') sopExecFmt('italic');
-      else if (fmt === 'h2') sopExecFmt('formatBlock', '<h2>');
-      else if (fmt === 'h3') sopExecFmt('formatBlock', '<h3>');
-      else if (fmt === 'ul') sopExecFmt('insertUnorderedList');
-      else if (fmt === 'ol') sopExecFmt('insertOrderedList');
-    });
-  });
 
   // ── Media dropzone — same drag/drop + click-to-browse pattern as the report modal.
   function showSopMediaPreview(file) {
@@ -10785,50 +10972,72 @@ setupRail('rail2','pill2');
     if (!deptId) { if (typeof toast==='function') toast({type:'error', message:'Add a department first'}); return; }
     if (!title) { if (typeof toast==='function') toast({type:'error', message:'Title is required'}); return; }
     const category = ($('sopCategory') && $('sopCategory').value.trim()) || null;
-    const detailsHtml = $('sopDetailsInput') ? $('sopDetailsInput').innerHTML.trim() : '';
-    const content_html = detailsHtml && detailsHtml !== '<br>' ? detailsHtml : null;
-    const uid = (window.giantSession && window.giantSession.user && window.giantSession.user.id) || null;
+    const content_html = getSopDetailsHtml();
     const btn = $('sopSubmitBtn');
     if (btn) btn.disabled = true;
     try {
-      let video_url = null;
+      let video_url; // undefined = leave untouched on an edit; explicit null/url otherwise
       if (sopSelectedFile) {
         const ext = (sopSelectedFile.name.split('.').pop() || 'bin').toLowerCase();
-        const path = `${uid || 'anon'}/${Date.now()}.${ext}`;
+        const path = `${myId() || 'anon'}/${Date.now()}.${ext}`;
         const { error: upErr } = await sb().storage.from('sop-media').upload(path, sopSelectedFile, { upsert: false, contentType: sopSelectedFile.type });
         if (upErr) throw new Error('Upload failed: ' + upErr.message);
         const { data: pub } = sb().storage.from('sop-media').getPublicUrl(path);
         video_url = pub && pub.publicUrl;
       }
-      const { error } = await sb().from('sops').insert({
-        department_id: deptId,
-        title,
-        category,
-        content_html,
-        video_url,
-        created_by: uid,
-      });
-      if (error) throw new Error(error.message);
+      const payload = { department_id: deptId, title, category, content_html };
+      if (editingSopId) {
+        if (video_url !== undefined) payload.video_url = video_url;
+        const { error } = await sb().from('sops').update(payload).eq('id', editingSopId);
+        if (error) throw new Error(error.message);
+        if (typeof toast==='function') toast({type:'success', message: `Saved "${title}"`});
+      } else {
+        payload.video_url = video_url === undefined ? null : video_url;
+        payload.created_by = myId();
+        const { error } = await sb().from('sops').insert(payload);
+        if (error) throw new Error(error.message);
+        if (typeof toast==='function') toast({type:'success', message: `SOP "${title}" created`});
+      }
       closeModal('sopNewModal');
       resetSopForm();
-      if (typeof toast==='function') toast({type:'success', message: `SOP "${title}" created`});
       activeDeptId = deptId;
       renderDeptTabs();
       await loadSops();
     } catch (e) {
-      if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to create SOP'});
+      if (typeof toast==='function') toast({type:'error', message: e.message || 'Failed to save SOP'});
     } finally {
       if (btn) btn.disabled = false;
     }
   }
 
+  // ── Open a shared SOP link (?sop=<id>) directly into its department, highlighted.
+  async function openSharedSopFromUrl() {
+    const sopId = new URLSearchParams(window.location.search).get('sop');
+    if (!sopId) return;
+    const { data } = await sb().from('sops').select('department_id').eq('id', sopId).maybeSingle();
+    if (!data) return;
+    activeDeptId = data.department_id;
+    const navBtn = document.querySelector('.nav-item[data-screen="sops"]');
+    if (navBtn) navBtn.click();
+    setTimeout(() => {
+      const row = document.querySelector(`.report-row[data-sop-id="${sopId}"]`);
+      if (!row) return;
+      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.style.outline = '2px solid var(--red)';
+      setTimeout(() => { row.style.outline = ''; }, 2000);
+    }, 700);
+  }
+
   document.querySelectorAll('.nav-item[data-screen="sops"]').forEach(n => n.addEventListener('click', loadSopDepartments));
-  const newDeptBtn = $('sopNewDeptBtn');
-  if (newDeptBtn) newDeptBtn.addEventListener('click', createDepartment);
   const openModalBtn = $('sopOpenModalBtn');
-  if (openModalBtn) openModalBtn.addEventListener('click', () => { populateDeptSelect(); openModal('sopNewModal'); });
+  if (openModalBtn) openModalBtn.addEventListener('click', () => { resetSopForm(); populateDeptSelect(); openModal('sopNewModal'); });
   const submitBtn = $('sopSubmitBtn');
   if (submitBtn) submitBtn.addEventListener('click', submitSop);
+  const manageDeptsBtn = $('sopManageDeptsBtn');
+  if (manageDeptsBtn) manageDeptsBtn.addEventListener('click', () => { renderManageDeptsList(); openModal('sopManageDeptsModal'); });
+  const addDeptBtn = $('sopAddDeptBtn');
+  if (addDeptBtn) addDeptBtn.addEventListener('click', async () => { await createDepartment(); renderManageDeptsList(); });
+  setTimeout(openSharedSopFromUrl, 1500);
 })();
 
 /* ===== VERSION & CHANGELOG ===== */
