@@ -5176,8 +5176,28 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       </div>
       <div class="m-field"><label>Title</label><input type="text" id="sopTitle" placeholder="e.g. Weekly Reporting Process"></div>
       <div class="m-field"><label>Category <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional)</span></label><input type="text" id="sopCategory" placeholder="e.g. Weekly"></div>
-      <div class="m-field"><label>Why this matters <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional)</span></label><textarea id="sopWhy" rows="2" placeholder="One or two sentences on why the team should follow this" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;resize:vertical;"></textarea></div>
-      <div class="m-field"><label>Steps <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(one per line, optional)</span></label><textarea id="sopSteps" rows="4" placeholder="Open the client folder&#10;Fill in the brief template&#10;Send for approval" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;resize:vertical;"></textarea></div>
+      <div class="m-field">
+        <label>Details <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional — why it matters, steps, etc.)</span></label>
+        <div style="display:flex;align-items:center;gap:5px;padding:6px 8px;background:var(--surface-2);border:1px solid var(--line);border-bottom:none;border-radius:9px 9px 0 0;flex-wrap:wrap;">
+          <button type="button" data-sop-fmt="bold" title="Bold" style="background:transparent;border:none;color:var(--text);width:28px;height:26px;border-radius:5px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:800;">B</button>
+          <button type="button" data-sop-fmt="italic" title="Italic" style="background:transparent;border:none;color:var(--text);width:28px;height:26px;border-radius:5px;cursor:pointer;font-family:inherit;font-size:12.5px;font-style:italic;">I</button>
+          <div style="width:1px;height:18px;background:var(--line);margin:0 4px;"></div>
+          <button type="button" data-sop-fmt="h2" title="Heading" style="background:transparent;border:none;color:var(--text);height:26px;padding:0 8px;border-radius:5px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;">H2</button>
+          <button type="button" data-sop-fmt="h3" title="Subheading" style="background:transparent;border:none;color:var(--text);height:26px;padding:0 8px;border-radius:5px;cursor:pointer;font-family:inherit;font-size:11.5px;font-weight:700;">H3</button>
+          <div style="width:1px;height:18px;background:var(--line);margin:0 4px;"></div>
+          <button type="button" data-sop-fmt="ul" title="Bulleted list" style="background:transparent;border:none;color:var(--text);width:28px;height:26px;border-radius:5px;cursor:pointer;font-family:inherit;font-size:13px;">•</button>
+          <button type="button" data-sop-fmt="ol" title="Numbered list" style="background:transparent;border:none;color:var(--text);width:28px;height:26px;border-radius:5px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;">1.</button>
+        </div>
+        <div id="sopDetailsInput" contenteditable="true" data-placeholder="Why this matters, step-by-step instructions…" style="width:100%;background:var(--surface);border:1px solid var(--line);border-top:none;border-radius:0 0 9px 9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;min-height:110px;outline:none;box-sizing:border-box;line-height:1.55;overflow-y:auto;"></div>
+      </div>
+      <div class="m-field">
+        <label>Video or screenshot <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional)</span></label>
+        <div class="report-media-drop" id="sopMediaDrop">
+          <input type="file" id="sopMediaInput" accept="image/*,video/*" style="display:none;">
+          <div id="sopMediaPrompt"><svg width="24" height="24" viewBox="0 0 16 16" fill="none" style="opacity:.4;margin-bottom:6px;"><path d="M2 4a1 1 0 011-1h3.5l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1V4Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg><div style="font-size:12.5px;color:var(--text-2);font-weight:600;">Drag &amp; drop, or click to browse</div><div style="font-size:11px;color:var(--text-3);margin-top:2px;">Walkthrough video or screenshot, up to 50MB</div></div>
+          <div class="report-media-preview" id="sopMediaPreview" style="display:none;"></div>
+        </div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="m-cancel" data-close="sopNewModal">Cancel</button>
@@ -10654,7 +10674,7 @@ setupRail('rail2','pill2');
       if (emptyEl) { emptyEl.style.display = 'block'; emptyEl.textContent = 'No departments yet — add one to start documenting SOPs.'; }
       return;
     }
-    const { data, error } = await sb().from('sops').select('id, title, category, why, steps').eq('department_id', activeDeptId).order('created_at', { ascending: true });
+    const { data, error } = await sb().from('sops').select('id, title, category, content_html, video_url').eq('department_id', activeDeptId).order('created_at', { ascending: true });
     if (error) { if (typeof toast==='function') toast({type:'error', message:'Failed to load SOPs'}); return; }
     sopsCache = data || [];
     if (!sopsCache.length) {
@@ -10663,12 +10683,17 @@ setupRail('rail2','pill2');
       return;
     }
     if (emptyEl) emptyEl.style.display = 'none';
+    const plainSnippet = html => {
+      const text = String(html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      return text.length > 120 ? text.slice(0, 120) + '…' : text;
+    };
     listEl.innerHTML = sopsCache.map(s => `<div class="report-row">
         <span class="report-row-badge" style="background:var(--surface-2);color:var(--text-2);">${sEsc(s.category || 'General')}</span>
         <div class="report-row-main">
           <div class="report-row-title">${sEsc(s.title)}</div>
-          <div class="report-row-meta">${sEsc(s.why || '')}${(s.steps && s.steps.length) ? ' · ' + s.steps.length + ' step' + (s.steps.length===1?'':'s') : ''}</div>
+          <div class="report-row-meta">${sEsc(plainSnippet(s.content_html))}</div>
         </div>
+        ${s.video_url ? `<span title="Has attached video/screenshot" style="flex-shrink:0;color:var(--text-3);"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3.5" width="9" height="9" rx="1.6" stroke="currentColor" stroke-width="1.2"/><path d="M11 6.5l3-1.8v6.6l-3-1.8z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></span>` : ''}
       </div>`).join('');
   }
 
@@ -10693,12 +10718,66 @@ setupRail('rail2','pill2');
     await loadSopDepartments();
   }
 
+  let sopSelectedFile = null;
+
   function resetSopForm() {
     if ($('sopTitle')) $('sopTitle').value = '';
     if ($('sopCategory')) $('sopCategory').value = '';
-    if ($('sopWhy')) $('sopWhy').value = '';
-    if ($('sopSteps')) $('sopSteps').value = '';
+    if ($('sopDetailsInput')) $('sopDetailsInput').innerHTML = '';
+    sopSelectedFile = null;
+    const prompt = $('sopMediaPrompt'), preview = $('sopMediaPreview'), drop = $('sopMediaDrop');
+    if (preview) { preview.innerHTML = ''; preview.style.display = 'none'; }
+    if (prompt) prompt.style.display = 'block';
+    if (drop) drop.classList.remove('has-file');
   }
+
+  // ── Rich-text "Details" field — execCommand on the contenteditable, same
+  // minimal pattern as the inbox signature editor.
+  function sopExecFmt(cmd, arg) {
+    const editor = $('sopDetailsInput');
+    if (!editor) return;
+    editor.focus();
+    try { document.execCommand(cmd, false, arg); } catch(_) {}
+  }
+  document.querySelectorAll('#sopNewModal [data-sop-fmt]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      const fmt = btn.dataset.sopFmt;
+      if (fmt === 'bold') sopExecFmt('bold');
+      else if (fmt === 'italic') sopExecFmt('italic');
+      else if (fmt === 'h2') sopExecFmt('formatBlock', '<h2>');
+      else if (fmt === 'h3') sopExecFmt('formatBlock', '<h3>');
+      else if (fmt === 'ul') sopExecFmt('insertUnorderedList');
+      else if (fmt === 'ol') sopExecFmt('insertOrderedList');
+    });
+  });
+
+  // ── Media dropzone — same drag/drop + click-to-browse pattern as the report modal.
+  function showSopMediaPreview(file) {
+    const prompt = $('sopMediaPrompt'), preview = $('sopMediaPreview'), drop = $('sopMediaDrop');
+    if (!preview) return;
+    const url = URL.createObjectURL(file);
+    preview.innerHTML = file.type.startsWith('video/')
+      ? `<video src="${url}" controls muted style="max-width:100%;max-height:180px;border-radius:8px;"></video>`
+      : `<img src="${url}" style="max-width:100%;max-height:180px;border-radius:8px;">`;
+    preview.style.display = 'block';
+    if (prompt) prompt.style.display = 'none';
+    if (drop) drop.classList.add('has-file');
+  }
+  (function wireSopMedia() {
+    const drop = $('sopMediaDrop'), input = $('sopMediaInput');
+    if (!drop || !input) return;
+    drop.addEventListener('click', () => input.click());
+    input.addEventListener('change', () => { if (input.files[0]) { sopSelectedFile = input.files[0]; showSopMediaPreview(sopSelectedFile); } });
+    ['dragover','dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('is-dragover'); }));
+    drop.addEventListener('dragleave', () => drop.classList.remove('is-dragover'));
+    drop.addEventListener('drop', e => {
+      e.preventDefault();
+      drop.classList.remove('is-dragover');
+      const file = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) { sopSelectedFile = file; showSopMediaPreview(file); }
+    });
+  })();
 
   async function submitSop() {
     const deptId = $('sopDeptSelect') && $('sopDeptSelect').value;
@@ -10706,18 +10785,28 @@ setupRail('rail2','pill2');
     if (!deptId) { if (typeof toast==='function') toast({type:'error', message:'Add a department first'}); return; }
     if (!title) { if (typeof toast==='function') toast({type:'error', message:'Title is required'}); return; }
     const category = ($('sopCategory') && $('sopCategory').value.trim()) || null;
-    const why = ($('sopWhy') && $('sopWhy').value.trim()) || null;
-    const steps = (($('sopSteps') && $('sopSteps').value) || '').split('\n').map(s => s.trim()).filter(Boolean);
+    const detailsHtml = $('sopDetailsInput') ? $('sopDetailsInput').innerHTML.trim() : '';
+    const content_html = detailsHtml && detailsHtml !== '<br>' ? detailsHtml : null;
+    const uid = (window.giantSession && window.giantSession.user && window.giantSession.user.id) || null;
     const btn = $('sopSubmitBtn');
     if (btn) btn.disabled = true;
     try {
+      let video_url = null;
+      if (sopSelectedFile) {
+        const ext = (sopSelectedFile.name.split('.').pop() || 'bin').toLowerCase();
+        const path = `${uid || 'anon'}/${Date.now()}.${ext}`;
+        const { error: upErr } = await sb().storage.from('sop-media').upload(path, sopSelectedFile, { upsert: false, contentType: sopSelectedFile.type });
+        if (upErr) throw new Error('Upload failed: ' + upErr.message);
+        const { data: pub } = sb().storage.from('sop-media').getPublicUrl(path);
+        video_url = pub && pub.publicUrl;
+      }
       const { error } = await sb().from('sops').insert({
         department_id: deptId,
         title,
         category,
-        why,
-        steps,
-        created_by: (window.giantSession && window.giantSession.user && window.giantSession.user.id) || null,
+        content_html,
+        video_url,
+        created_by: uid,
       });
       if (error) throw new Error(error.message);
       closeModal('sopNewModal');
