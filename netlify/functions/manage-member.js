@@ -140,21 +140,24 @@ exports.handler = async (event) => {
       await setAuthBan(profile_id, false);
       await sb(`profiles?id=eq.${encodeURIComponent(profile_id)}`, 'PATCH', { deactivated_at: null });
     } else {
-      // remove — permanent. Delete the login first so access is gone even if the data
-      // delete below can't fully complete (e.g. they created a project).
-      await deleteAuthUser(profile_id);
-      // Best-effort: clear nullable NO ACTION references so the profile delete isn't
-      // blocked by e.g. a task they created. Failures here are non-fatal — the delete
-      // attempt below will surface a clear error if something still blocks it.
+      // remove — permanent. profiles.id is ON DELETE CASCADE from auth.users, so deleting
+      // the auth user cascade-deletes the profile row automatically — there's no separate
+      // "delete profiles" step to run afterward. That means the nullable NO_ACTION refs
+      // MUST be cleared before the auth delete, not after: if a blocker (e.g. a task they
+      // created) is still in place when the cascade fires, the whole auth.users delete
+      // fails transactionally with a raw Postgres FK error instead of the clean message
+      // below. (Previously this ran auth-delete first, which meant a blocked removal left
+      // the login deleted but the profile — and their data — stuck; now a blocked removal
+      // leaves everything untouched, which is the safer failure mode.)
       for (const [table, column] of NO_ACTION_NULLABLE_REFS) {
         try { await sb(`${table}?${column}=eq.${encodeURIComponent(profile_id)}`, 'PATCH', { [column]: null }); }
         catch (e) { console.warn(`[manage-member] pre-clear ${table}.${column} failed:`, e.message); }
       }
       try {
-        await sb(`profiles?id=eq.${encodeURIComponent(profile_id)}`, 'DELETE');
+        await deleteAuthUser(profile_id);
       } catch (e) {
         return { statusCode: 409, headers, body: JSON.stringify({
-          error: `Login removed, but their data couldn't be fully deleted — they likely created a project that still references them. Reassign or delete that first, or use Deactivate instead. (${e.message})`
+          error: `Couldn't remove ${target.full_name || target.email} — they likely created a project that still references them. Reassign or delete that project first, or use Deactivate instead. (${e.message})`
         }) };
       }
     }
