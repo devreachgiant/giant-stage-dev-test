@@ -10727,7 +10727,7 @@ setupRail('rail2','pill2');
   }
 
   async function loadSopDepartments() {
-    const { data, error } = await sb().from('sop_departments').select('id, name, created_at').order('created_at', { ascending: true });
+    const { data, error } = await sb().from('sop_departments').select('id, name, created_at, sort_order').order('sort_order', { ascending: true }).order('created_at', { ascending: true });
     if (error) { if (typeof toast==='function') toast({type:'error', message:'Failed to load departments'}); return; }
     deptsCache = data || [];
     if (!activeDeptId || !deptsCache.find(d => d.id === activeDeptId)) {
@@ -10833,7 +10833,8 @@ setupRail('rail2','pill2');
   async function createDepartment() {
     const name = await window.giantPrompt('Department name:');
     if (!name || !name.trim()) return;
-    const { data, error } = await sb().from('sop_departments').insert({ name: name.trim(), created_by: myId() }).select('id, name, created_at').single();
+    const nextOrder = deptsCache.length ? Math.max(...deptsCache.map(d => d.sort_order || 0)) + 1 : 1;
+    const { data, error } = await sb().from('sop_departments').insert({ name: name.trim(), created_by: myId(), sort_order: nextOrder }).select('id, name, created_at').single();
     if (error) { if (typeof toast==='function') toast({type:'error', message: error.message || 'Failed to create department'}); return; }
     activeDeptId = data.id;
     await loadSopDepartments();
@@ -10860,15 +10861,37 @@ setupRail('rail2','pill2');
       wrap.innerHTML = `<div style="font-size:12px;color:var(--text-3);">No departments yet.</div>`;
       return;
     }
-    wrap.innerHTML = deptsCache.map(d => `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--line);border-radius:9px;">
+    wrap.innerHTML = deptsCache.map((d, i) => {
+      const isFirst = i === 0, isLast = i === deptsCache.length - 1;
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border:1px solid var(--line);border-radius:9px;">
         <span style="font-size:13px;font-weight:600;">${sEsc(d.name)}</span>
-        <span style="display:flex;gap:4px;">
+        <span style="display:flex;align-items:center;gap:2px;">
+          <span class="report-row-icon-btn" data-action="mgmt-move-up" data-dept-id="${sEsc(d.id)}" title="Move up" style="${isFirst ? 'opacity:.25;pointer-events:none;' : ''}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 12.5V3.5M4.5 7L8 3.5 11.5 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span class="report-row-icon-btn" data-action="mgmt-move-down" data-dept-id="${sEsc(d.id)}" title="Move down" style="${isLast ? 'opacity:.25;pointer-events:none;' : ''}"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3.5v9M4.5 9L8 12.5 11.5 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <span style="width:1px;height:16px;background:var(--line);margin:0 4px;"></span>
           <span class="report-row-icon-btn" data-action="mgmt-edit-dept" data-dept-id="${sEsc(d.id)}" title="Rename"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
           <span class="report-row-icon-btn" data-action="mgmt-delete-dept" data-dept-id="${sEsc(d.id)}" title="Delete" style="color:var(--red);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M6 4.5V3a1 1 0 011-1h2a1 1 0 011 1v1.5M4.5 4.5l.6 8a1 1 0 001 .9h3.8a1 1 0 001-.9l.6-8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         </span>
-      </div>`).join('');
+      </div>`;
+    }).join('');
+    wrap.querySelectorAll('[data-action="mgmt-move-up"]').forEach(btn => btn.addEventListener('click', () => moveDepartment(btn.dataset.deptId, -1)));
+    wrap.querySelectorAll('[data-action="mgmt-move-down"]').forEach(btn => btn.addEventListener('click', () => moveDepartment(btn.dataset.deptId, 1)));
     wrap.querySelectorAll('[data-action="mgmt-edit-dept"]').forEach(btn => btn.addEventListener('click', () => renameDepartment(btn.dataset.deptId)));
     wrap.querySelectorAll('[data-action="mgmt-delete-dept"]').forEach(btn => btn.addEventListener('click', () => deleteDepartment(btn.dataset.deptId)));
+  }
+
+  async function moveDepartment(id, dir) {
+    const idx = deptsCache.findIndex(d => d.id === id);
+    const swapIdx = idx + dir;
+    if (idx === -1 || swapIdx < 0 || swapIdx >= deptsCache.length) return;
+    const a = deptsCache[idx], b = deptsCache[swapIdx];
+    const [r1, r2] = await Promise.all([
+      sb().from('sop_departments').update({ sort_order: b.sort_order }).eq('id', a.id),
+      sb().from('sop_departments').update({ sort_order: a.sort_order }).eq('id', b.id),
+    ]);
+    if (r1.error || r2.error) { if (typeof toast==='function') toast({type:'error', message:'Failed to reorder'}); return; }
+    await loadSopDepartments();
+    renderManageDeptsList();
   }
 
   // Resolves to a target department id, 'delete', or null (cancelled).
