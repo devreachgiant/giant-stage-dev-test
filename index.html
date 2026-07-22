@@ -808,6 +808,9 @@ body.col-resizing{cursor:col-resize;user-select:none;}
 .mr-link-box input{flex:1;background:var(--surface);border:1px solid var(--line-2);border-radius:9px;padding:11px 13px;font-size:13px;color:var(--text);font-family:inherit;outline:none;}
 .mr-actions{display:flex;gap:10px;justify-content:center;}
 .mr-hint{font-size:11.5px;color:var(--text-3);margin-top:16px;}
+#tplPreviewBody.tpl-editing [data-edit]{outline:1px dashed rgba(208,4,0,.4);outline-offset:2px;border-radius:3px;cursor:text;transition:outline-color .12s,background .12s;}
+#tplPreviewBody.tpl-editing [data-edit]:hover{outline-color:rgba(208,4,0,.7);background:rgba(208,4,0,.06);}
+#tplPreviewBody.tpl-editing [data-edit]:focus{outline:1.5px solid var(--red);outline-offset:2px;background:rgba(208,4,0,.08);}
 .rec-headrow{margin-bottom:22px;}
 .rec-title{font-size:24px;font-weight:800;color:var(--text);}
 .rec-sub{font-size:12.5px;color:var(--text-3);margin-top:4px;}
@@ -8912,7 +8915,19 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                     <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M7 3H3v10h10V9M9 3h4v4M7 9l6-6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     Open
                   </button>
+                  <button id="tplEditBtn" title="Edit this page's text" style="display:none;align-items:center;gap:5px;background:transparent;border:1px solid var(--line);color:var(--text-2);border-radius:7px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0;transition:.14s;">
+                    <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M9.5 2.5l4 4M2 14l.6-3.5 8-8 3.4 3.4-8 8L2 14Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+                    Edit
+                  </button>
+                  <button id="tplSaveEditBtn" title="Save changes" style="display:none;align-items:center;gap:5px;background:var(--red);border:none;color:#fff;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;flex-shrink:0;transition:.14s;">
+                    <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    Save changes
+                  </button>
+                  <button id="tplCancelEditBtn" title="Discard changes" style="display:none;align-items:center;gap:5px;background:transparent;border:1px solid var(--line);color:var(--text-2);border-radius:7px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;flex-shrink:0;transition:.14s;">
+                    Cancel
+                  </button>
                 </div>
+                <div id="tplEditHint" style="display:none;font-size:11px;color:var(--red);margin:-9px 0 12px;padding:0 2px;">Click any text below to edit it, then Save changes.</div>
                 <div id="tplPreviewBody" style="background:#0A0A0A;border-radius:14px;overflow:hidden;border:1px solid var(--line);box-shadow:0 24px 60px -24px rgba(0,0,0,.7);">
                   <!-- Generated content injected here -->
                 </div>
@@ -35063,40 +35078,44 @@ ${COMMON_SCHEMA}`;
         // Hero
         let html = `<div style="padding:32px 26px;background:linear-gradient(150deg,#161616,#000);position:relative;overflow:hidden;">
           <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 80% 5%,rgba(208,4,0,.4),transparent 58%);"></div>
-          <div style="font-size:9px;font-weight:700;letter-spacing:.18em;color:rgba(255,255,255,.5);text-transform:uppercase;position:relative;z-index:1;">${esc(page.hero?.eyebrow || 'ReachGiant')}</div>
-          <div style="font-size:31px;font-weight:800;color:#fff;letter-spacing:-0.04em;line-height:1.05;margin-top:18px;position:relative;z-index:1;">${esc(page.hero?.title || 'Untitled')}</div>
-          ${page.hero?.subtitle || page.hero?.price ? `<div style="font-size:11.5px;color:rgba(255,255,255,.65);margin-top:11px;position:relative;z-index:1;">${esc(page.hero?.subtitle || '')}${page.hero?.price ? ` · from <b style="color:var(--red-bright);">${esc(page.hero.price)}</b>` : ''}</div>` : ''}
+          <div data-edit="hero.eyebrow" style="font-size:9px;font-weight:700;letter-spacing:.18em;color:rgba(255,255,255,.5);text-transform:uppercase;position:relative;z-index:1;">${esc(page.hero?.eyebrow || 'ReachGiant')}</div>
+          <div data-edit="hero.title" style="font-size:31px;font-weight:800;color:#fff;letter-spacing:-0.04em;line-height:1.05;margin-top:18px;position:relative;z-index:1;">${esc(page.hero?.title || 'Untitled')}</div>
+          ${page.hero?.subtitle || page.hero?.price ? `<div style="font-size:11.5px;color:rgba(255,255,255,.65);margin-top:11px;position:relative;z-index:1;">${page.hero?.subtitle ? `<span data-edit="hero.subtitle">${esc(page.hero.subtitle)}</span>` : ''}${page.hero?.price ? ` · from <b data-edit="hero.price" style="color:var(--red-bright);">${esc(page.hero.price)}</b>` : ''}</div>` : ''}
         </div>`;
         // Sections
         (page.sections || []).forEach((sec, idx) => {
           const num = String(idx + 1).padStart(2, '0');
           html += `<div style="padding:26px;border-top:1px solid #1c1c1c;">
             <div style="font-size:9px;font-weight:700;letter-spacing:.14em;color:#5C5C5F;text-transform:uppercase;">${num} — ${esc(sec.id || 'section')}</div>
-            <div style="font-size:20px;font-weight:800;color:#fff;letter-spacing:-0.03em;margin-top:8px;">${esc(sec.title || '')}</div>`;
+            <div data-edit="sections[${idx}].title" style="font-size:20px;font-weight:800;color:#fff;letter-spacing:-0.03em;margin-top:8px;">${esc(sec.title || '')}</div>`;
           if (sec.kind === 'stats' && Array.isArray(sec.stats)) {
             html += `<div style="display:grid;grid-template-columns:${'1fr '.repeat(sec.stats.length).trim()};gap:10px;margin-top:16px;">`;
-            sec.stats.forEach(st => {
-              html += `<div style="background:#141414;border:1px solid #242424;border-radius:11px;padding:13px;"><div style="font-size:20px;font-weight:800;color:${st.highlight?'var(--red-bright)':'#fff'};letter-spacing:-0.03em;">${esc(st.value || '')}</div><div style="font-size:8.5px;font-weight:600;color:#5C5C5F;text-transform:uppercase;margin-top:3px;">${esc(st.label || '')}</div></div>`;
+            sec.stats.forEach((st, si) => {
+              html += `<div style="background:#141414;border:1px solid #242424;border-radius:11px;padding:13px;"><div data-edit="sections[${idx}].stats[${si}].value" style="font-size:20px;font-weight:800;color:${st.highlight?'var(--red-bright)':'#fff'};letter-spacing:-0.03em;">${esc(st.value || '')}</div><div data-edit="sections[${idx}].stats[${si}].label" style="font-size:8.5px;font-weight:600;color:#5C5C5F;text-transform:uppercase;margin-top:3px;">${esc(st.label || '')}</div></div>`;
             });
             html += `</div>`;
           } else if (sec.kind === 'list' && Array.isArray(sec.items)) {
             html += `<ul style="margin-top:12px;padding-left:0;list-style:none;">`;
-            sec.items.forEach(it => {
-              html += `<li style="font-size:13px;color:rgba(255,255,255,.85);margin-bottom:10px;padding-left:18px;position:relative;line-height:1.55;"><span style="position:absolute;left:0;top:8px;width:6px;height:6px;background:var(--red-bright);border-radius:50%;"></span>${esc(it)}</li>`;
+            sec.items.forEach((it, ii) => {
+              html += `<li style="font-size:13px;color:rgba(255,255,255,.85);margin-bottom:10px;padding-left:18px;position:relative;line-height:1.55;"><span style="position:absolute;left:0;top:8px;width:6px;height:6px;background:var(--red-bright);border-radius:50%;"></span><span data-edit="sections[${idx}].items[${ii}]">${esc(it)}</span></li>`;
             });
             html += `</ul>`;
           } else if (sec.kind === 'pricing' && Array.isArray(sec.pricing)) {
             html += `<div style="display:grid;grid-template-columns:repeat(${sec.pricing.length},1fr);gap:10px;margin-top:16px;">`;
-            sec.pricing.forEach(p => {
-              html += `<div style="background:#141414;border:1px solid #242424;border-radius:11px;padding:14px;"><div style="font-size:10px;font-weight:700;color:#5C5C5F;text-transform:uppercase;">${esc(p.tier || '')}</div><div style="font-size:22px;font-weight:800;color:var(--red-bright);margin-top:6px;letter-spacing:-0.03em;">${esc(p.price || '')}</div>${(p.features||[]).map(f => `<div style="font-size:11px;color:rgba(255,255,255,.75);margin-top:8px;display:flex;gap:6px;align-items:flex-start;"><span style="color:var(--green);flex-shrink:0;">✓</span>${esc(f)}</div>`).join('')}</div>`;
+            sec.pricing.forEach((p, pi) => {
+              html += `<div style="background:#141414;border:1px solid #242424;border-radius:11px;padding:14px;"><div data-edit="sections[${idx}].pricing[${pi}].tier" style="font-size:10px;font-weight:700;color:#5C5C5F;text-transform:uppercase;">${esc(p.tier || '')}</div><div data-edit="sections[${idx}].pricing[${pi}].price" style="font-size:22px;font-weight:800;color:var(--red-bright);margin-top:6px;letter-spacing:-0.03em;">${esc(p.price || '')}</div>${(p.features||[]).map((f, fi) => `<div style="font-size:11px;color:rgba(255,255,255,.75);margin-top:8px;display:flex;gap:6px;align-items:flex-start;"><span style="color:var(--green);flex-shrink:0;">✓</span><span data-edit="sections[${idx}].pricing[${pi}].features[${fi}]">${esc(f)}</span></div>`).join('')}</div>`;
             });
             html += `</div>`;
           } else if (sec.content) {
-            html += `<div style="font-size:13px;color:rgba(255,255,255,.75);margin-top:12px;line-height:1.6;">${esc(sec.content)}</div>`;
+            html += `<div data-edit="sections[${idx}].content" style="font-size:13px;color:rgba(255,255,255,.75);margin-top:12px;line-height:1.6;">${esc(sec.content)}</div>`;
           }
           html += `</div>`;
         });
         body.innerHTML = html;
+        // Edit button only makes sense for a page that's already saved (has a dbId) —
+        // editing an unpublished in-memory draft should go through regenerate/Publish instead.
+        const editBtn = document.getElementById('tplEditBtn');
+        if (editBtn) editBtn.style.display = page.dbId ? 'inline-flex' : 'none';
         // Sections aside
         if (sectionsAside) {
           let aside = `<div style="display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:8px;background:var(--surface-2);margin-bottom:2px;"><span style="font-size:9px;font-weight:700;color:var(--text-3);width:14px;">00</span><span style="font-size:11.5px;font-weight:600;">Hero</span></div>`;
@@ -35107,6 +35126,86 @@ ${COMMON_SCHEMA}`;
           sectionsAside.innerHTML = aside;
         }
       }
+
+      // === EDIT AN ALREADY-SAVED PAGE ===
+      // Reads/writes a dotted+bracketed path like "sections[2].stats[1].value" against a plain object.
+      function tplPathGet(obj, path) {
+        const tokens = path.match(/[^.\[\]]+/g) || [];
+        return tokens.reduce((o, k) => (o == null ? undefined : o[k]), obj);
+      }
+      function tplPathSet(obj, path, value) {
+        const tokens = path.match(/[^.\[\]]+/g) || [];
+        let node = obj;
+        for (let i = 0; i < tokens.length - 1; i++) {
+          const k = tokens[i];
+          if (node[k] == null) node[k] = /^\d+$/.test(tokens[i+1]) ? [] : {};
+          node = node[k];
+        }
+        node[tokens[tokens.length - 1]] = value;
+      }
+
+      function tplSetEditMode(on) {
+        const body = document.getElementById('tplPreviewBody');
+        const editBtn = document.getElementById('tplEditBtn');
+        const saveBtn = document.getElementById('tplSaveEditBtn');
+        const cancelBtn = document.getElementById('tplCancelEditBtn');
+        const hint = document.getElementById('tplEditHint');
+        const copyBtn = document.getElementById('tplPreviewCopyBtn');
+        const openBtn = document.getElementById('tplPreviewOpenBtn');
+        if (!body) return;
+        body.classList.toggle('tpl-editing', on);
+        body.querySelectorAll('[data-edit]').forEach(el => { el.contentEditable = on ? 'true' : 'false'; });
+        if (editBtn) editBtn.style.display = on ? 'none' : (currentTplPage && currentTplPage.dbId ? 'inline-flex' : 'none');
+        if (saveBtn) saveBtn.style.display = on ? 'inline-flex' : 'none';
+        if (cancelBtn) cancelBtn.style.display = on ? 'inline-flex' : 'none';
+        if (hint) hint.style.display = on ? 'block' : 'none';
+        if (copyBtn) copyBtn.style.display = on ? 'none' : 'inline-flex';
+        if (openBtn) openBtn.style.display = on ? 'none' : 'inline-flex';
+      }
+
+      async function tplSaveEdits() {
+        if (!currentTplPage || !currentTplPage.dbId) return;
+        const body = document.getElementById('tplPreviewBody');
+        if (!body) return;
+        // Pull every edited field's live text back into the in-memory hero/sections objects.
+        body.querySelectorAll('[data-edit]').forEach(el => {
+          tplPathSet(currentTplPage, el.dataset.edit, el.textContent.trim());
+        });
+        const saveBtn = document.getElementById('tplSaveEditBtn');
+        const originalLabel = saveBtn ? saveBtn.innerHTML : '';
+        if (saveBtn) { saveBtn.disabled = true; saveBtn.innerHTML = 'Saving…'; }
+        try {
+          const { error } = await supabase.from('live_pages').update({
+            title: currentTplPage.hero?.title || 'Untitled',
+            subtitle: currentTplPage.hero?.subtitle || null,
+            hero: currentTplPage.hero || {},
+            sections: currentTplPage.sections || []
+          }).eq('id', currentTplPage.dbId);
+          if (error) throw new Error(error.message);
+          tplSetEditMode(false);
+          renderPreview(currentTplPage);
+          if (typeof loadSavedTemplates === 'function') loadSavedTemplates();
+          if (typeof toast === 'function') toast({type:'success', message:'Changes saved', duration:1800});
+        } catch(e) {
+          if (typeof toast === 'function') toast({type:'error', message:'Save failed: ' + e.message});
+        } finally {
+          if (saveBtn) { saveBtn.disabled = false; saveBtn.innerHTML = originalLabel; }
+        }
+      }
+
+      function tplCancelEdit() {
+        tplSetEditMode(false);
+        if (currentTplPage) renderPreview(currentTplPage); // discard unsaved DOM edits, re-render from last-saved state
+      }
+
+      (function wireTplEditButtons(){
+        const editBtn = document.getElementById('tplEditBtn');
+        const saveBtn = document.getElementById('tplSaveEditBtn');
+        const cancelBtn = document.getElementById('tplCancelEditBtn');
+        if (editBtn) editBtn.addEventListener('click', () => tplSetEditMode(true));
+        if (saveBtn) saveBtn.addEventListener('click', tplSaveEdits);
+        if (cancelBtn) cancelBtn.addEventListener('click', tplCancelEdit);
+      })();
 
       // === PDF UPLOAD with pdf.js ===
       let pdfExtractedText = '';
