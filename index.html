@@ -10313,12 +10313,12 @@ setupRail('rail2','pill2');
     return Math.floor(diff/86400) + 'd ago';
   }
 
-  const STATUS_LABELS = { new:'New', triaged:'Triaged', in_progress:'In progress', ready_for_review:'Ready for review', fixed:'Fixed', done:'Done', wont_fix:"Won't fix", closed:'Closed' };
+  const STATUS_LABELS = { not_started:'Not started', in_progress:'In progress', ready_for_review:'Ready for review (Live)', all_good:'All good', roadblock:'Roadblock', on_hold:'On hold', waiting_for_approval:'Waiting for approval', closed:'Closed' };
 
   // Defaults to "what's new and in flight" rather than everything — Luke keeps
-  // adding reports, so surfacing New + In progress by default keeps them from
-  // getting buried under older Fixed/Done/Won't fix rows. Empty set = no filter.
-  let statusFilters = new Set(['new', 'in_progress']);
+  // adding reports, so surfacing Not started + In progress by default keeps
+  // them from getting buried under older/closed-out rows. Empty set = no filter.
+  let statusFilters = new Set(['not_started', 'in_progress']);
 
   function renderStatusFilterMenu(){
     const menu = $('reportStatusFilterMenu');
