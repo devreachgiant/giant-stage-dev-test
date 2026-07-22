@@ -811,7 +811,9 @@ body.col-resizing{cursor:col-resize;user-select:none;}
 #tplPreviewBody.tpl-editing [data-edit]{outline:1px dashed rgba(208,4,0,.4);outline-offset:2px;border-radius:3px;cursor:text;transition:outline-color .12s,background .12s;}
 #tplPreviewBody.tpl-editing [data-edit]:hover{outline-color:rgba(208,4,0,.7);background:rgba(208,4,0,.06);}
 #tplPreviewBody.tpl-editing [data-edit]:focus{outline:1.5px solid var(--red);outline-offset:2px;background:rgba(208,4,0,.08);}
-#tplPreviewBody.tpl-editing .tpl-media-controls{display:flex!important;}
+#tplPreviewBody.tpl-editing .tpl-media-controls,
+#tplPreviewBody.tpl-editing .tpl-section-toolbar{display:flex!important;}
+#tplPreviewBody.tpl-editing .tpl-add-section-row{display:block!important;}
 .rec-headrow{margin-bottom:22px;}
 .rec-title{font-size:24px;font-weight:800;color:var(--text);}
 .rec-sub{font-size:12.5px;color:var(--text-3);margin-top:4px;}
@@ -19449,11 +19451,13 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         sections.forEach((sec, idx) => {
           const num = String(idx + 1).padStart(2, '0');
           const kickerText = sec.kicker != null ? sec.kicker : (num + ' — ' + (sec.id || 'section'));
+          const mediaBlockView = (sec.image_url ? '<img src="' + escView(sec.image_url) + '" style="max-width:100%;border-radius:14px;display:block;margin-top:20px;">' : '') +
+            (sec.video_url ? '<video src="' + escView(sec.video_url) + '" controls style="max-width:100%;border-radius:14px;display:block;margin-top:20px;"></video>' : '');
           html += '<div style="padding:50px 40px;border-top:1px solid #1c1c1c;">' +
+            (sec.media_position === 'above' ? mediaBlockView : '') +
             '<div style="font-size:10px;font-weight:700;letter-spacing:.14em;color:#5C5C5F;text-transform:uppercase;">' + escView(kickerText) + '</div>' +
             '<div style="font-size:26px;font-weight:800;color:#fff;letter-spacing:-0.03em;margin-top:10px;">' + escView(sec.title || '') + '</div>' +
-            (sec.image_url ? '<img src="' + escView(sec.image_url) + '" style="max-width:100%;border-radius:14px;display:block;margin-top:20px;">' : '') +
-            (sec.video_url ? '<video src="' + escView(sec.video_url) + '" controls style="max-width:100%;border-radius:14px;display:block;margin-top:20px;"></video>' : '');
+            (sec.media_position === 'above' ? '' : mediaBlockView);
           if (sec.kind === 'stats' && Array.isArray(sec.stats)) {
             html += '<div style="display:grid;grid-template-columns:' + ('1fr '.repeat(sec.stats.length).trim()) + ';gap:14px;margin-top:24px;">';
             sec.stats.forEach(st => {
@@ -35090,15 +35094,26 @@ ${COMMON_SCHEMA}`;
         (page.sections || []).forEach((sec, idx) => {
           const num = String(idx + 1).padStart(2, '0');
           const kickerText = sec.kicker != null ? sec.kicker : `${num} — ${sec.id || 'section'}`;
+          const isFirst = idx === 0, isLast = idx === (page.sections.length - 1);
+          const mediaAbove = sec.media_position === 'above';
+          const mediaBlock = (sec.image_url || sec.video_url) ? `${sec.image_url ? `<img src="${esc(sec.image_url)}" style="max-width:100%;border-radius:10px;display:block;margin-top:14px;">` : ''}${sec.video_url ? `<video src="${esc(sec.video_url)}" controls style="max-width:100%;border-radius:10px;display:block;margin-top:14px;"></video>` : ''}` : '';
+          const mediaControls = `<div class="tpl-media-controls" style="display:none;gap:8px;margin-top:10px;flex-wrap:wrap;">
+            <button type="button" class="tpl-add-media-btn" data-media-idx="${idx}" style="background:transparent;border:1px dashed var(--line);color:var(--text-2);border-radius:7px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">${(sec.image_url || sec.video_url) ? '↻ Replace image/video' : '+ Add image/video'}</button>
+            ${(sec.image_url || sec.video_url) ? `<button type="button" class="tpl-remove-media-btn" data-media-idx="${idx}" style="background:transparent;border:1px solid var(--line);color:var(--red);border-radius:7px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">Remove</button><button type="button" class="tpl-toggle-media-pos-btn" data-media-idx="${idx}" style="background:transparent;border:1px solid var(--line);color:var(--text-2);border-radius:7px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">${mediaAbove ? '↓ Move image below heading' : '↑ Move image above heading'}</button>` : ''}
+          </div>`;
+          const sectionToolbar = `<div class="tpl-section-toolbar" style="display:none;align-items:center;gap:6px;margin-bottom:14px;">
+            <button type="button" class="tpl-move-section-btn" data-dir="-1" data-section-idx="${idx}" title="Move section up" style="${isFirst?'opacity:.3;pointer-events:none;':''}background:transparent;border:1px solid var(--line);color:var(--text-2);border-radius:6px;width:26px;height:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 12.5V3.5M4.5 7L8 3.5 11.5 7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button type="button" class="tpl-move-section-btn" data-dir="1" data-section-idx="${idx}" title="Move section down" style="${isLast?'opacity:.3;pointer-events:none;':''}background:transparent;border:1px solid var(--line);color:var(--text-2);border-radius:6px;width:26px;height:26px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:inherit;"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3.5v9M4.5 9L8 12.5 11.5 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <span style="flex:1;"></span>
+            <button type="button" class="tpl-delete-section-btn" data-section-idx="${idx}" title="Delete section" style="background:transparent;border:1px solid var(--line);color:var(--red);border-radius:6px;padding:5px 10px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;">Delete section</button>
+          </div>`;
           html += `<div style="padding:26px;border-top:1px solid #1c1c1c;">
+            ${sectionToolbar}
+            ${mediaAbove ? mediaBlock : ''}
             <div data-edit="sections[${idx}].kicker" style="font-size:9px;font-weight:700;letter-spacing:.14em;color:#5C5C5F;text-transform:uppercase;">${esc(kickerText)}</div>
             <div data-edit="sections[${idx}].title" style="font-size:20px;font-weight:800;color:#fff;letter-spacing:-0.03em;margin-top:8px;">${esc(sec.title || '')}</div>
-            ${sec.image_url ? `<img src="${esc(sec.image_url)}" style="max-width:100%;border-radius:10px;display:block;margin-top:14px;">` : ''}
-            ${sec.video_url ? `<video src="${esc(sec.video_url)}" controls style="max-width:100%;border-radius:10px;display:block;margin-top:14px;"></video>` : ''}
-            <div class="tpl-media-controls" style="display:none;gap:8px;margin-top:10px;">
-              <button type="button" class="tpl-add-media-btn" data-media-idx="${idx}" style="background:transparent;border:1px dashed var(--line);color:var(--text-2);border-radius:7px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">${(sec.image_url || sec.video_url) ? '↻ Replace image/video' : '+ Add image/video'}</button>
-              ${(sec.image_url || sec.video_url) ? `<button type="button" class="tpl-remove-media-btn" data-media-idx="${idx}" style="background:transparent;border:1px solid var(--line);color:var(--red);border-radius:7px;padding:6px 12px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">Remove</button>` : ''}
-            </div>`;
+            ${!mediaAbove ? mediaBlock : ''}
+            ${mediaControls}`;
           if (sec.kind === 'stats' && Array.isArray(sec.stats)) {
             html += `<div style="display:grid;grid-template-columns:${'1fr '.repeat(sec.stats.length).trim()};gap:10px;margin-top:16px;">`;
             sec.stats.forEach((st, si) => {
@@ -35122,6 +35137,9 @@ ${COMMON_SCHEMA}`;
           }
           html += `</div>`;
         });
+        html += `<div class="tpl-add-section-row" style="display:none;padding:20px 26px;border-top:1px solid #1c1c1c;">
+          <button type="button" id="tplAddSectionBtn" style="width:100%;background:transparent;border:1px dashed var(--line);color:var(--text-2);border-radius:9px;padding:12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;">+ Add section</button>
+        </div>`;
         body.innerHTML = html;
         body.querySelectorAll('.tpl-add-media-btn').forEach(btn => {
           btn.addEventListener('click', () => tplPickSectionMedia(parseInt(btn.dataset.mediaIdx, 10)));
@@ -35129,6 +35147,17 @@ ${COMMON_SCHEMA}`;
         body.querySelectorAll('.tpl-remove-media-btn').forEach(btn => {
           btn.addEventListener('click', () => tplRemoveSectionMedia(parseInt(btn.dataset.mediaIdx, 10)));
         });
+        body.querySelectorAll('.tpl-toggle-media-pos-btn').forEach(btn => {
+          btn.addEventListener('click', () => tplToggleMediaPosition(parseInt(btn.dataset.mediaIdx, 10)));
+        });
+        body.querySelectorAll('.tpl-move-section-btn').forEach(btn => {
+          btn.addEventListener('click', () => tplMoveSection(parseInt(btn.dataset.sectionIdx, 10), parseInt(btn.dataset.dir, 10)));
+        });
+        body.querySelectorAll('.tpl-delete-section-btn').forEach(btn => {
+          btn.addEventListener('click', () => tplDeleteSection(parseInt(btn.dataset.sectionIdx, 10)));
+        });
+        const addSectionBtn = document.getElementById('tplAddSectionBtn');
+        if (addSectionBtn) addSectionBtn.addEventListener('click', tplAddSection);
         // Edit button only makes sense for a page that's already saved (has a dbId) —
         // editing an unpublished in-memory draft should go through regenerate/Publish instead.
         const editBtn = document.getElementById('tplEditBtn');
@@ -35180,8 +35209,24 @@ ${COMMON_SCHEMA}`;
         if (openBtn) openBtn.style.display = on ? 'none' : 'inline-flex';
       }
 
-      // ── Section image/video attach — uploads immediately (unlike text edits, which
-      // only save on "Save changes"), since there's no natural "draft" state for a file.
+      // ── Structural changes (media, section add/move/delete) persist immediately, unlike
+      // text edits which only save on "Save changes" — there's no natural "draft" state for
+      // a file upload or a reorder, so treating them like the text fields would make Cancel's
+      // behavior inconsistent (it only ever discards DOM text, never currentTplPage itself).
+      async function tplPersistSectionsChange(successMsg) {
+        if (!currentTplPage || !currentTplPage.dbId) return;
+        try {
+          const { error } = await supabase.from('live_pages').update({ sections: currentTplPage.sections }).eq('id', currentTplPage.dbId);
+          if (error) throw new Error(error.message);
+          renderPreview(currentTplPage);
+          const body = document.getElementById('tplPreviewBody');
+          if (body && body.classList.contains('tpl-editing')) tplSetEditMode(true);
+          if (successMsg && typeof toast === 'function') toast({type:'success', message: successMsg, duration:1200});
+        } catch(e) {
+          if (typeof toast === 'function') toast({type:'error', message: 'Failed to save: ' + e.message});
+        }
+      }
+
       function tplPickSectionMedia(idx) {
         const input = document.createElement('input');
         input.type = 'file';
@@ -35201,30 +35246,46 @@ ${COMMON_SCHEMA}`;
           const { data: pub } = supabase.storage.from('template-media').getPublicUrl(path);
           currentTplPage.sections[idx][isVideo ? 'video_url' : 'image_url'] = pub.publicUrl;
           delete currentTplPage.sections[idx][isVideo ? 'image_url' : 'video_url'];
-          const { error } = await supabase.from('live_pages').update({ sections: currentTplPage.sections }).eq('id', currentTplPage.dbId);
-          if (error) throw new Error(error.message);
-          renderPreview(currentTplPage);
-          const body = document.getElementById('tplPreviewBody');
-          if (body && body.classList.contains('tpl-editing')) tplSetEditMode(true);
-          if (typeof toast === 'function') toast({type:'success', message:'Media added', duration:1500});
+          await tplPersistSectionsChange('Media added');
         } catch(e) {
           if (typeof toast === 'function') toast({type:'error', message:'Upload failed: ' + e.message});
         }
       }
-      async function tplRemoveSectionMedia(idx) {
-        if (!currentTplPage || !currentTplPage.dbId) return;
+      function tplRemoveSectionMedia(idx) {
+        if (!currentTplPage || !currentTplPage.sections[idx]) return;
         delete currentTplPage.sections[idx].image_url;
         delete currentTplPage.sections[idx].video_url;
-        try {
-          const { error } = await supabase.from('live_pages').update({ sections: currentTplPage.sections }).eq('id', currentTplPage.dbId);
-          if (error) throw new Error(error.message);
-          renderPreview(currentTplPage);
-          const body = document.getElementById('tplPreviewBody');
-          if (body && body.classList.contains('tpl-editing')) tplSetEditMode(true);
-          if (typeof toast === 'function') toast({type:'success', message:'Media removed', duration:1200});
-        } catch(e) {
-          if (typeof toast === 'function') toast({type:'error', message:'Failed to remove media: ' + e.message});
-        }
+        tplPersistSectionsChange('Media removed');
+      }
+      function tplToggleMediaPosition(idx) {
+        if (!currentTplPage || !currentTplPage.sections[idx]) return;
+        const sec = currentTplPage.sections[idx];
+        sec.media_position = sec.media_position === 'above' ? 'below' : 'above';
+        tplPersistSectionsChange();
+      }
+
+      // ── Whole-section add/reorder/delete.
+      function tplMoveSection(idx, dir) {
+        if (!currentTplPage || !Array.isArray(currentTplPage.sections)) return;
+        const arr = currentTplPage.sections;
+        const swapIdx = idx + dir;
+        if (swapIdx < 0 || swapIdx >= arr.length) return;
+        [arr[idx], arr[swapIdx]] = [arr[swapIdx], arr[idx]];
+        tplPersistSectionsChange('Section moved');
+      }
+      async function tplDeleteSection(idx) {
+        if (!currentTplPage || !Array.isArray(currentTplPage.sections) || !currentTplPage.sections[idx]) return;
+        const sec = currentTplPage.sections[idx];
+        const confirmed = await window.giantConfirmWarn(`Delete "${sec.title || 'this section'}"?`, `This can't be undone.`, 'Delete', 'warning');
+        if (!confirmed) return;
+        currentTplPage.sections.splice(idx, 1);
+        tplPersistSectionsChange('Section deleted');
+      }
+      function tplAddSection() {
+        if (!currentTplPage) return;
+        if (!Array.isArray(currentTplPage.sections)) currentTplPage.sections = [];
+        currentTplPage.sections.push({ id: 'new-section', title: 'New section', kind: 'content', content: '' });
+        tplPersistSectionsChange('Section added');
       }
 
       async function tplSaveEdits() {
