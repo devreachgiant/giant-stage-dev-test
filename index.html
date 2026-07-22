@@ -4283,8 +4283,23 @@ body:has(.screen[data-screen="chat"].on) .gai-fab{display:none;}
 .tp-sched-day-chips{display:flex;gap:6px;}
 .tp-sched-day-chip{flex:1;text-align:center;padding:6px 4px;border-radius:7px;cursor:pointer;font-size:11px;font-weight:600;}
 @media (max-width:900px){.tp-sched-panel{width:100%;right:-100%;}}
-.report-filters{display:flex;gap:8px;margin-bottom:14px;}
+.report-filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;}
 .report-filters select{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12px;font-family:inherit;background:var(--surface);color:var(--text);}
+.filter-multiselect{position:relative;}
+.filter-multiselect-btn{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12px;font-family:inherit;background:var(--surface);color:var(--text);cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+.filter-multiselect-btn:hover{border-color:var(--text-3);}
+.filter-multiselect-menu{position:absolute;top:calc(100% + 4px);left:0;z-index:30;background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:4px;min-width:170px;box-shadow:0 12px 28px -8px rgba(0,0,0,.5);display:none;}
+.filter-multiselect-menu.on{display:block;}
+.filter-multiselect-opt{padding:8px 10px;border-radius:7px;font-size:12.5px;cursor:pointer;display:flex;align-items:center;gap:8px;color:var(--text-2);}
+.filter-multiselect-opt:hover{background:var(--surface);}
+.filter-multiselect-opt .fm-check{width:14px;height:14px;border-radius:4px;border:1.5px solid var(--line-2);flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.filter-multiselect-opt.sel .fm-check{background:var(--red);border-color:var(--red);}
+.filter-multiselect-opt.sel{color:var(--text);font-weight:600;}
+.filter-multiselect-opt.fm-all{border-bottom:1px solid var(--line);border-radius:7px 7px 0 0;margin-bottom:2px;padding-bottom:9px;}
+.filter-chip-row{display:flex;gap:6px;flex-wrap:wrap;}
+.filter-chip{display:inline-flex;align-items:center;gap:6px;background:var(--red-bg,rgba(208,4,0,.12));color:var(--red);border:1px solid var(--red);border-radius:7px;padding:6px 8px 6px 10px;font-size:11.5px;font-weight:700;text-transform:capitalize;}
+.filter-chip .fc-remove{cursor:pointer;display:flex;align-items:center;opacity:.8;}
+.filter-chip .fc-remove:hover{opacity:1;}
 .changelog-list{display:flex;flex-direction:column;gap:18px;}
 .changelog-entry{border:1px solid var(--line);border-radius:12px;padding:18px 20px;background:var(--surface);}
 .changelog-entry-head{display:flex;align-items:baseline;gap:10px;margin-bottom:12px;}
@@ -8275,14 +8290,14 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               <option value="bug">Bugs only</option>
               <option value="feature">Feature suggestions only</option>
             </select>
-            <select id="reportFilterStatus">
-              <option value="">All statuses</option>
-              <option value="new">New</option>
-              <option value="triaged">Triaged</option>
-              <option value="in_progress">In progress</option>
-              <option value="fixed">Fixed</option>
-              <option value="wont_fix">Won't fix</option>
-            </select>
+            <div class="filter-multiselect" id="reportStatusFilterWrap">
+              <button type="button" class="filter-multiselect-btn" id="reportStatusFilterBtn">
+                <span id="reportStatusFilterLabel">All statuses</span>
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <div class="filter-multiselect-menu" id="reportStatusFilterMenu"></div>
+            </div>
+            <div class="filter-chip-row" id="reportStatusChips"></div>
           </div>
           <div class="report-list" id="reportList"></div>
           <div id="reportEmptyState" style="display:none;text-align:center;padding:48px 0;color:var(--text-3);font-size:13px;">No reports yet. Be the first to flag something.</div>
@@ -10300,18 +10315,73 @@ setupRail('rail2','pill2');
 
   const STATUS_LABELS = { new:'New', triaged:'Triaged', in_progress:'In progress', ready_for_review:'Ready for review', fixed:'Fixed', done:'Done', wont_fix:"Won't fix", closed:'Closed' };
 
+  // Defaults to "what's new and in flight" rather than everything — Luke keeps
+  // adding reports, so surfacing New + In progress by default keeps them from
+  // getting buried under older Fixed/Done/Won't fix rows. Empty set = no filter.
+  let statusFilters = new Set(['new', 'in_progress']);
+
+  function renderStatusFilterMenu(){
+    const menu = $('reportStatusFilterMenu');
+    if (!menu) return;
+    const allOpt = `<div class="filter-multiselect-opt fm-all${statusFilters.size===0?' sel':''}" data-status-opt=""><span class="fm-check">${statusFilters.size===0?'✓':''}</span>All statuses</div>`;
+    const opts = Object.entries(STATUS_LABELS).map(([v,l]) => `<div class="filter-multiselect-opt${statusFilters.has(v)?' sel':''}" data-status-opt="${v}"><span class="fm-check">${statusFilters.has(v)?'✓':''}</span>${l}</div>`).join('');
+    menu.innerHTML = allOpt + opts;
+    menu.querySelectorAll('[data-status-opt]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const v = el.dataset.statusOpt;
+        if (v === '') { statusFilters.clear(); }
+        else if (statusFilters.has(v)) { statusFilters.delete(v); }
+        else { statusFilters.add(v); }
+        renderStatusFilterMenu();
+        renderStatusFilterChips();
+        renderReports();
+      });
+    });
+  }
+
+  function renderStatusFilterChips(){
+    const label = $('reportStatusFilterLabel');
+    if (label) label.textContent = statusFilters.size ? `${statusFilters.size} status${statusFilters.size>1?'es':''}` : 'All statuses';
+    const chips = $('reportStatusChips');
+    if (!chips) return;
+    chips.innerHTML = Array.from(statusFilters).map(v => `<span class="filter-chip" data-chip="${v}">${STATUS_LABELS[v]||v}<span class="fc-remove" data-chip-remove="${v}"><svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></span>`).join('');
+    chips.querySelectorAll('[data-chip-remove]').forEach(el => {
+      el.addEventListener('click', () => {
+        statusFilters.delete(el.dataset.chipRemove);
+        renderStatusFilterMenu();
+        renderStatusFilterChips();
+        renderReports();
+      });
+    });
+  }
+
+  function wireStatusFilterDropdown(){
+    const btn = $('reportStatusFilterBtn');
+    const menu = $('reportStatusFilterMenu');
+    if (!btn || !menu) return;
+    btn.addEventListener('click', (e) => { e.stopPropagation(); menu.classList.toggle('on'); });
+    document.addEventListener('click', (e) => { if (!e.target.closest('#reportStatusFilterWrap')) menu.classList.remove('on'); });
+    renderStatusFilterMenu();
+    renderStatusFilterChips();
+  }
+
   function renderReports(){
     const listEl = $('reportList');
     const emptyEl = $('reportEmptyState');
     if (!listEl) return;
     const typeFilter = $('reportFilterType') ? $('reportFilterType').value : '';
-    const statusFilter = $('reportFilterStatus') ? $('reportFilterStatus').value : '';
     const rows = reportsCache.filter(r =>
-      (!typeFilter || r.type === typeFilter) && (!statusFilter || r.status === statusFilter)
+      (!typeFilter || r.type === typeFilter) && (!statusFilters.size || statusFilters.has(r.status))
     );
     if (!rows.length) {
       listEl.innerHTML = '';
-      if (emptyEl) emptyEl.style.display = 'block';
+      if (emptyEl) {
+        emptyEl.style.display = 'block';
+        emptyEl.textContent = reportsCache.length
+          ? 'Nothing matches these filters — try clearing a status.'
+          : 'No reports yet. Be the first to flag something.';
+      }
       return;
     }
     if (emptyEl) emptyEl.style.display = 'none';
@@ -10563,9 +10633,8 @@ setupRail('rail2','pill2');
 
   function wireList(){
     const typeSel = $('reportFilterType');
-    const statusSel = $('reportFilterStatus');
     if (typeSel) typeSel.addEventListener('change', renderReports);
-    if (statusSel) statusSel.addEventListener('change', renderReports);
+    wireStatusFilterDropdown();
     document.querySelectorAll('.nav-item[data-screen="report"]').forEach(n => n.addEventListener('click', loadReports));
   }
 
