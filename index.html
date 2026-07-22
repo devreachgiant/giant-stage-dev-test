@@ -10604,13 +10604,25 @@ setupRail('rail2','pill2');
     }
     wrap.innerHTML = deptsCache.map(d => {
       const active = d.id === activeDeptId;
-      return `<div class="sop-dept-tab" data-dept-id="${sEsc(d.id)}" style="padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;background:${active ? 'var(--red)' : 'transparent'};color:${active ? '#fff' : 'var(--text-2)'};border:1px solid ${active ? 'var(--red)' : 'var(--line)'};">${sEsc(d.name)}</div>`;
+      return `<div class="sop-dept-tab" data-dept-id="${sEsc(d.id)}" style="display:flex;align-items:center;gap:6px;padding:7px 10px 7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;background:${active ? 'var(--red)' : 'transparent'};color:${active ? '#fff' : 'var(--text-2)'};border:1px solid ${active ? 'var(--red)' : 'var(--line)'};">
+        <span>${sEsc(d.name)}</span>
+        <span data-action="edit-dept" data-dept-id="${sEsc(d.id)}" title="Rename department" style="opacity:.6;display:flex;align-items:center;padding:2px;">
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+        </span>
+      </div>`;
     }).join('');
     wrap.querySelectorAll('.sop-dept-tab').forEach(tab => {
-      tab.addEventListener('click', () => {
+      tab.addEventListener('click', (e) => {
+        if (e.target.closest('[data-action="edit-dept"]')) return;
         activeDeptId = tab.dataset.deptId;
         renderDeptTabs();
         loadSops();
+      });
+    });
+    wrap.querySelectorAll('[data-action="edit-dept"]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        renameDepartment(btn.dataset.deptId);
       });
     });
   }
@@ -10668,6 +10680,17 @@ setupRail('rail2','pill2');
     activeDeptId = data.id;
     await loadSopDepartments();
     if (typeof toast==='function') toast({type:'success', message: `Department "${data.name}" created`});
+  }
+
+  async function renameDepartment(id) {
+    const dept = deptsCache.find(d => d.id === id);
+    if (!dept) return;
+    const name = await window.giantPrompt('Rename department:', dept.name);
+    if (!name || !name.trim() || name.trim() === dept.name) return;
+    const { error } = await sb().from('sop_departments').update({ name: name.trim() }).eq('id', id);
+    if (error) { if (typeof toast==='function') toast({type:'error', message: error.message || 'Failed to rename department'}); return; }
+    if (typeof toast==='function') toast({type:'success', message: `Renamed to "${name.trim()}"`});
+    await loadSopDepartments();
   }
 
   function resetSopForm() {
