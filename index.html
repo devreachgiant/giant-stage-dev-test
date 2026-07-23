@@ -28276,19 +28276,21 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         chatMsgsList.innerHTML = '';
       }
 
-      const { data, error } = await supabase
+      const { data, error } = await queryWithRetry(() => supabase
         .from('messages')
         .select('id, body, created_at, edited_at, author_id, channel_id, parent_id, reply_count, voice_note_url, voice_note_duration_ms')
         .eq('channel_id', channelId)
         .is('parent_id', null)
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(50));
 
       chatMsgsLoading.style.display = 'none';
 
       if (error) {
         if (!renderedFromCache) {
-          chatMsgsList.innerHTML = `<div style="padding:20px;color:#FF6B66;font-size:12px;">Failed to load messages: ${chatEsc(error.message)}</div>`;
+          chatMsgsList.innerHTML = `<div style="padding:20px;color:#FF6B66;font-size:12px;">Failed to load messages: ${chatEsc(error.message)} <a href="#" data-chat-retry-load style="color:#FF6B66;text-decoration:underline;">Retry</a></div>`;
+          const retryLink = chatMsgsList.querySelector('[data-chat-retry-load]');
+          if (retryLink) retryLink.addEventListener('click', (e) => { e.preventDefault(); loadMessages(channelId); });
         }
         return;
       }
@@ -31690,6 +31692,31 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     }
     window._isLikelyChatAuthError = isLikelyAuthError;
 
+    // Supabase's API gateway can occasionally hang with no response at all (not even
+    // an error) — a plain await would then leave the chat stuck on "Loading messages…"
+    // forever. Bounds each attempt to timeoutMs and retries transient failures with
+    // backoff, so a brief upstream blip self-heals instead of requiring a page reload.
+    function withTimeout(promiseFactory, ms) {
+      return Promise.race([
+        promiseFactory(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), ms))
+      ]);
+    }
+    async function queryWithRetry(promiseFactory, { attempts = 3, timeoutMs = 8000, delayMs = 700 } = {}) {
+      let lastError;
+      for (let i = 0; i < attempts; i++) {
+        try {
+          const result = await withTimeout(promiseFactory, timeoutMs);
+          if (!result.error) return result;
+          lastError = result.error;
+        } catch (e) {
+          lastError = e;
+        }
+        if (i < attempts - 1) await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+      }
+      return { data: null, error: lastError };
+    }
+
     // ── UPLOAD ATTACHMENTS FOR A MESSAGE ─────────────────────────
     async function uploadPendingAttachments(messageId, channelId, attsOverride) {
       const source = attsOverride || pendingAttachments;
@@ -31929,16 +31956,22 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     }
 
     async function openThread(parentMessageId) {
-      const { data: parent } = await supabase.from('messages')
-        .select('*').eq('id', parentMessageId).single();
-      if (!parent) return;
+      const { data: parent, error: parentError } = await queryWithRetry(() => supabase.from('messages')
+        .select('*').eq('id', parentMessageId).single());
+      if (!parent) {
+        if (typeof toast === 'function') toast({ type: 'error', message: parentError ? `Failed to load thread: ${parentError.message}` : 'Thread not found' });
+        return;
+      }
       activeThreadParent = parent;
       const channel = chatChannels.find(c => c.id === parent.channel_id) || chatDmChannels.find(c => c.id === parent.channel_id);
       threadHeadSub.textContent = channel ? (channel.is_dm ? `with @${channel.name}` : `in #${channel.name}`) : '';
       await hydrateProfiles([parent.author_id]);
       // Load replies
-      const { data: replies } = await supabase.from('messages')
-        .select('*').eq('parent_id', parentMessageId).order('created_at', { ascending: true });
+      const { data: replies, error: repliesError } = await queryWithRetry(() => supabase.from('messages')
+        .select('*').eq('parent_id', parentMessageId).order('created_at', { ascending: true }));
+      if (repliesError && typeof toast === 'function') {
+        toast({ type: 'error', message: `Failed to load some replies: ${repliesError.message}` });
+      }
       const authorIds = [...new Set((replies||[]).map(r => r.author_id))];
       await hydrateProfiles(authorIds);
       const replyIds = (replies||[]).map(r => r.id);
