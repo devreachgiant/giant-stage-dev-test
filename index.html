@@ -4510,6 +4510,11 @@ body:has(.screen[data-screen="chat"].on) .gai-fab{display:none;}
 /* Attachments — inline image previews + file pills */
 .msg-attachments{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px;}
 .msg-attach-img{max-width:340px;max-height:260px;border-radius:9px;cursor:zoom-in;display:block;border:1px solid var(--line);object-fit:cover;transition:transform .15s,border-color .15s;}
+/* The thread panel is only 380px wide (see .thread-panel), so the normal 340px cap left
+   almost no breathing room against the panel edges — images looked like they were touching
+   the sides. Cap tighter inside the thread. */
+.thread-panel .msg-attach-img{max-width:240px;max-height:180px;}
+.thread-panel .msg-attach-video{max-width:240px !important;max-height:180px !important;}
 .msg-attach-img:hover{transform:scale(1.01);border-color:var(--text-3);}
 .msg-attach-file{display:inline-flex;align-items:center;gap:9px;padding:9px 12px;background:var(--surface);border:1px solid var(--line);border-radius:9px;font-size:11.5px;cursor:pointer;transition:.15s;max-width:280px;}
 .msg-attach-file:hover{background:var(--surface-2);border-color:var(--text-3);}
@@ -27894,11 +27899,18 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       }
       // Insert the message and upload attachments
       try {
-        const { data: inserted, error } = await supabase.from('messages').insert({
+        const insertMsg = () => supabase.from('messages').insert({
           channel_id: activeChannelId,
           author_id: session.user.id,
           body: body || ''
         }).select().single();
+        let { data: inserted, error } = await insertMsg();
+        if (error && typeof isLikelyAuthError === 'function' && isLikelyAuthError(error)) {
+          try {
+            await supabase.auth.refreshSession();
+            ({ data: inserted, error } = await insertMsg());
+          } catch(e) { /* fall through */ }
+        }
         if (error) {
           if (el) {
             el.style.borderLeft = '3px solid var(--red)';
@@ -28421,6 +28433,29 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       window._autoGrowChat = () => { chatInput.style.height = 'auto'; chatInput.style.height = Math.min(chatInput.scrollHeight, 140) + 'px'; };
       chatInput.addEventListener('input', window._autoGrowChat);
     }
+
+    // Paste an image (e.g. a copied screenshot) straight into whichever composer makes sense
+    // as an attachment, Slack-style. Scoped to `document` rather than the textareas themselves —
+    // Slack lets you paste as long as the channel/thread is open, without requiring you to have
+    // literally clicked into the text box first, and this matches that. No-ops (lets normal text
+    // paste through) unless the clipboard actually contains an image file.
+    document.addEventListener('paste', (e) => {
+      const chatScreenOn = document.querySelector('.screen[data-screen="chat"].on');
+      if (!chatScreenOn) return;
+      const items = e.clipboardData && e.clipboardData.items;
+      if (!items) return;
+      const files = [...items].filter(it => it.kind === 'file' && it.type.startsWith('image/')).map(it => it.getAsFile()).filter(Boolean);
+      if (!files.length) return;
+      e.preventDefault();
+      const panel = document.getElementById('threadPanel');
+      const intoThread = panel && panel.classList.contains('on') &&
+        (!e.target || e.target.closest('#threadPanel') || !e.target.closest('main.thread'));
+      if (intoThread && typeof addThreadAttachment === 'function') {
+        files.forEach(addThreadAttachment);
+      } else if (typeof addPendingAttachment === 'function') {
+        files.forEach(addPendingAttachment);
+      }
+    });
 
     // ── New channel button — opens the modal (modal submit handles DB insert) ───
     if (newChannelBtn) {
@@ -29096,6 +29131,25 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     });
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden && typeof loadUnreadCounts === 'function') loadUnreadCounts();
+    });
+
+    // A tab left backgrounded for a while (browsers throttle timers heavily when hidden) can end up
+    // with a realtime socket that silently died and/or an access token that's past its refresh window —
+    // this is why chat/threads would "stop working" until a full page reload after ~20-30 min idle.
+    // Force a session refresh + resubscribe the channels currently in view whenever the tab comes back.
+    let _lastChatVisibleAt = Date.now();
+    document.addEventListener('visibilitychange', async () => {
+      if (document.hidden) return;
+      const wasHiddenMs = Date.now() - _lastChatVisibleAt;
+      _lastChatVisibleAt = Date.now();
+      if (wasHiddenMs < 60000) return; // only bother resyncing after a real gap
+      try { await supabase.auth.refreshSession(); } catch(e) { console.warn('[chat] session refresh on refocus failed', e); }
+      try { if (activeChannelId && typeof subscribeRealtime === 'function') subscribeRealtime(activeChannelId); } catch(e) {}
+      try {
+        if (typeof activeThreadParent !== 'undefined' && activeThreadParent && typeof subscribeThreadRealtime === 'function') {
+          subscribeThreadRealtime(activeThreadParent.id);
+        }
+      } catch(e) {}
     });
 
     // ── CHANNEL MEMBERS MODAL ──────────────────────────────────────
@@ -30330,12 +30384,21 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     }
 
     // ── DRAG AND DROP ────────────────────────────────────────────
+    // #threadPanel is nested INSIDE this same main.thread container (see markup), so a drop
+    // anywhere on the thread panel bubbles straight into these listeners — without checking
+    // the target, files dropped on a thread reply always ended up attached to the main channel
+    // composer instead. Route based on whether the drop actually landed inside the open thread panel.
     let dragCounter = 0;
     const chatMain = document.querySelector('.screen[data-screen="chat"] main.thread');
+    const isOverOpenThreadPanel = (e) => {
+      const panel = document.getElementById('threadPanel');
+      return !!(panel && panel.classList.contains('on') && e.target && e.target.closest && e.target.closest('#threadPanel'));
+    };
     if (chatMain && chatDropOverlay) {
       chatMain.addEventListener('dragenter', (e) => {
         if (!e.dataTransfer || ![...e.dataTransfer.types].includes('Files')) return;
         e.preventDefault();
+        if (isOverOpenThreadPanel(e)) return;
         dragCounter++;
         chatDropOverlay.classList.add('on');
       });
@@ -30352,6 +30415,10 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         dragCounter = 0;
         chatDropOverlay.classList.remove('on');
         const files = [...(e.dataTransfer?.files || [])];
+        if (isOverOpenThreadPanel(e)) {
+          if (typeof addThreadAttachment === 'function') files.forEach(addThreadAttachment);
+          return;
+        }
         files.forEach(addPendingAttachment);
       });
     }
@@ -30379,6 +30446,16 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       else body.appendChild(el);
     }
 
+    // A stale/expired access token surfaces from supabase-js as a 401 with wording like
+    // "JWT expired" / "invalid claim" / "invalid JWT" — used to decide whether a failed
+    // insert/upload is worth retrying after a forced session refresh (see visibilitychange
+    // handler above) rather than just failing.
+    function isLikelyAuthError(err) {
+      const msg = ((err && err.message) || '').toLowerCase();
+      return /jwt|token|401|unauthorized|invalid claim/.test(msg);
+    }
+    window._isLikelyChatAuthError = isLikelyAuthError;
+
     // ── UPLOAD ATTACHMENTS FOR A MESSAGE ─────────────────────────
     async function uploadPendingAttachments(messageId, channelId, attsOverride) {
       const source = attsOverride || pendingAttachments;
@@ -30391,11 +30468,15 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           const ext = att.file.name.split('.').pop() || 'bin';
           const safeName = att.file.name.replace(/[^\w.\-]/g, '_').slice(0, 80);
           const path = `${channelId}/${messageId}/${Date.now()}-${Math.random().toString(36).slice(2,7)}-${safeName}`;
-          const { error: upErr } = await supabase.storage.from('chat-attachments').upload(path, att.file, {
+          const doUpload = () => supabase.storage.from('chat-attachments').upload(path, att.file, {
             cacheControl: '3600',
             upsert: false,
             contentType: att.file.type || 'application/octet-stream'
           });
+          let { error: upErr } = await doUpload();
+          if (upErr && isLikelyAuthError(upErr)) {
+            try { await supabase.auth.refreshSession(); ({ error: upErr } = await doUpload()); } catch(e) {}
+          }
           if (upErr) {
             console.error('[chat] Upload failed:', upErr);
             if (typeof toast==='function') toast({type:'error', message:'Upload failed: ' + (upErr.message||'')});
@@ -30709,13 +30790,23 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         if (el) { el.style.opacity = '0.55'; el.dataset.optimisticThread = '1'; }
         threadReplies.scrollTop = threadReplies.scrollHeight;
       } catch(e) { console.warn('[thread optimistic]', e); }
-      // Insert and wait for confirmation
-      const { data: inserted, error } = await supabase.from('messages').insert({
+      // Insert and wait for confirmation. A tab idle for 20-30+ min can come back with a stale
+      // access token (background-tab timer throttling can delay supabase-js's own auto-refresh
+      // past expiry) — if the insert fails for what looks like an auth reason, force a refresh
+      // and retry once before giving up, instead of just failing silently.
+      const insertReply = () => supabase.from('messages').insert({
         channel_id: activeThreadParent.channel_id,
         author_id: session.user.id,
         body,
         parent_id: parentId
       }).select().single();
+      let { data: inserted, error } = await insertReply();
+      if (error && isLikelyAuthError(error)) {
+        try {
+          await supabase.auth.refreshSession();
+          ({ data: inserted, error } = await insertReply());
+        } catch(e) { /* fall through to the error handling below */ }
+      }
       if (error) {
         if (typeof toast==='function') toast({type:'error', message:error.message});
         const el = threadReplies.querySelector(`[data-msg-id="${tempId}"]`);
@@ -30746,7 +30837,10 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           const mel = threadReplies.querySelector(`[data-msg-id="${inserted.id}"]`);
           if (mel) renderAttachmentsForMsg(mel, inserted.id);
         }
-      } catch(e) { console.warn('[thread attach]', e); }
+      } catch(e) {
+        console.error('[thread attach]', e);
+        if (typeof toast==='function') toast({type:'error', message:'Attachment failed to upload: ' + (e.message||'')});
+      }
       // Refresh the parent's reply CTA in main channel view immediately
       try {
         // Wait a tick for the DB trigger to run
@@ -30818,6 +30912,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       });
       window._autoGrowThread = () => { threadInput.style.height = 'auto'; threadInput.style.height = Math.min(threadInput.scrollHeight, 120) + 'px'; };
       threadInput.addEventListener('input', window._autoGrowThread);
+      // Paste-to-attach is handled by the single document-level listener above (see chatInput
+      // wiring), which routes to the thread vs. main composer based on whether the thread panel
+      // is open — kept here would double-attach the same pasted file via event bubbling.
     }
 
     // ── ADD REPLY BUTTON TO MESSAGE HOVER BAR ────────────────────
