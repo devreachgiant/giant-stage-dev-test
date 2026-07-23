@@ -83,22 +83,22 @@ body::after{content:"";position:fixed;inset:0;z-index:9999;pointer-events:none;o
 /* ===== shared sidebar ===== */
 .sidebar{background:var(--shell);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:20px 15px;transition:width .25s var(--ease),padding .25s var(--ease),background .3s var(--ease),border-color .3s var(--ease);width:236px;flex-shrink:0;}
 .brand{display:flex;align-items:center;gap:11px;padding:6px 8px 20px 8px;cursor:pointer;position:relative;}
-.sidebar-collapse{position:absolute;right:0;top:4px;width:24px;height:24px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--text);cursor:pointer;transition:.14s var(--ease);opacity:1;}
-.brand:hover .sidebar-collapse,.sidebar.collapsed .sidebar-collapse,.sidebar-collapse:hover{opacity:1;color:var(--text);}
-.sidebar-collapse:hover{background:var(--surface-2);color:var(--text);}
+.sidebar-collapse{position:absolute;right:0;top:4px;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--text-2);background:var(--surface-2);border:1px solid var(--line-2);cursor:pointer;transition:.14s var(--ease);opacity:1;}
+.brand:hover .sidebar-collapse,.sidebar.collapsed .sidebar-collapse,.sidebar-collapse:hover{opacity:1;color:var(--text-2);}
+.sidebar-collapse:hover{background:var(--surface-3);color:var(--text);border-color:var(--red);}
 .sidebar.collapsed .sidebar-collapse svg{transform:rotate(180deg);}
 
 /* === Collapsed state === */
-.sidebar.collapsed{width:62px;padding:20px 8px;}
-.sidebar.collapsed .brand{padding:6px 4px 18px;justify-content:center;flex-direction:column;gap:8px;}
+.sidebar.collapsed{width:74px;padding:20px 8px;}
+.sidebar.collapsed .brand{padding:6px 4px 18px;justify-content:flex-start;gap:6px;}
 .sidebar.collapsed .brand-name{display:none;}
-.sidebar.collapsed .sidebar-collapse{position:relative;right:auto;top:auto;}
+.sidebar.collapsed .sidebar-collapse{position:relative;right:auto;top:auto;width:20px;height:20px;}
 .sidebar.collapsed .nav-group-label{opacity:0;height:0;padding:0;overflow:hidden;}
-.sidebar.collapsed .nav-rail{padding:0;}
+.sidebar.collapsed .nav-rail{padding:6px 0 0;}
 /* Hide text node of nav-item by collapsing font-size, then restore for ico/badge children */
 .sidebar.collapsed .nav-item{justify-content:center;padding:0;gap:0;font-size:0;width:46px;height:36px;margin:0 auto;}
 .sidebar.collapsed .nav-item .ico{font-size:13.5px;}
-.sidebar.collapsed .nav-item .badge{position:absolute;top:-4px;right:-4px;font-size:9px;font-weight:700;padding:1px 5px;min-width:14px;height:14px;line-height:12px;border-radius:7px;text-align:center;background:var(--surface-3);color:var(--text);border:2px solid var(--shell);box-sizing:content-box;}
+.sidebar.collapsed .nav-item .badge{position:absolute;top:1px;right:9px;font-size:9px;font-weight:700;padding:1px 5px;min-width:14px;height:14px;line-height:12px;border-radius:7px;text-align:center;background:var(--surface-3);color:var(--text);border:2px solid var(--shell);box-sizing:content-box;}
 .sidebar.collapsed .nav-item.active .badge{background:var(--red);color:#fff;border-color:var(--shell);}
 .sidebar.collapsed .nav-item.alert:not(.active) .badge{background:var(--red);color:#fff;}
 /* Pill positions and sizes correctly in collapsed mode */
@@ -5496,7 +5496,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         <svg class="logo-mark" viewBox="0 0 149 149" fill="none"><rect width="149" height="149" rx="33.44" fill="#D00400"/><path d="M38.7805 66.2876V36.3261C38.7805 35.0148 40.4427 34.4493 41.2425 35.4885L75.7656 80.3505C76.1131 80.8021 75.7912 81.456 75.2214 81.456H63.3552C62.5967 81.456 61.9817 82.0709 61.9817 82.8295V114.082C61.9817 115.406 60.293 115.963 59.5048 114.9L26.1264 69.8522C25.4548 68.9457 26.1018 67.661 27.2299 67.661H37.4071C38.1656 67.661 38.7805 67.0461 38.7805 66.2876Z" fill="white"/><path d="M67.0258 61.962L54.9468 45.3534C54.2866 44.4456 54.935 43.1721 56.0575 43.1721H94.9091C95.3384 43.1721 95.7431 43.3729 96.0028 43.7148L121.718 77.5674C122.405 78.4717 121.76 79.7716 120.624 79.7716H99.7764C99.211 79.7716 98.8878 80.4165 99.2262 80.8694L120.696 109.601C121.372 110.506 120.726 111.796 119.595 111.796H98.377C97.9514 111.796 97.5498 111.599 97.2897 111.262L74.4234 81.6323C73.7266 80.7294 74.3702 79.4197 75.5107 79.4197H96.3514C96.9131 79.4197 97.2372 78.7822 96.9063 78.3284L85.7964 63.0919C85.5378 62.7373 85.1254 62.5276 84.6866 62.5276H68.1365C67.6971 62.5276 67.2842 62.3174 67.0258 61.962Z" fill="white"/></svg>
         <div class="brand-name">Giant<sup>®</sup></div>
         <div class="sidebar-collapse" id="sidebarCollapseBtn" title="Collapse sidebar">
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2.5" width="12" height="11" rx="1.6" stroke="currentColor" stroke-width="1.4"/><path d="M6.5 2.5v11" stroke="currentColor" stroke-width="1.4"/><path d="M10 5.5l-1.5 2.5L10 10.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M9.5 4L5.5 8l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </div>
       </div>
       <div class="nav-scroll" id="navScroll">
