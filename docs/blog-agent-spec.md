@@ -38,7 +38,7 @@ Every finished piece is stored per-client in a new `blog_posts` table — which 
 | `blog-draft.js` | `{brief, brand_kit, section, prior_sections}` → one section; `{mode:'meta'}` / `{mode:'faq'}` variants | section Markdown / meta / FAQ | Called once per outline section → each call fast (<26s). Frontend loops + assembles. |
 | `blog-images.js` | `{article, brand_kit, spot_count}` | `spots[{position, prompt, alt}]` + images | Reuse `planCampaign`-style plan + `generateImage` + `uploadImageToStorage` (existing `vulcan-images` bucket, `blog/` prefix — no new storage setup). |
 
-**Model:** `BLOG_MODEL` constant per function; v1 = `'claude-sonnet-4-5-20250929'` (known-good on the account) → bump to `claude-sonnet-5` once verified against the key. Draft ~1500 max_tokens/section.
+**Model:** `BLOG_MODEL` = `claude-sonnet-5` for research + draft; the image *planner* uses Haiku for speed/vision. Draft ~1500 max_tokens/section. (If the account key lacks Sonnet 5 access, revert the constant to `claude-sonnet-4-5-20250929`.)
 
 ## 5. Data model — new migration (client-scoped, RLS-correct)
 
@@ -53,7 +53,7 @@ Every finished piece is stored per-client in a new `blog_posts` table — which 
 - `ANTHROPIC_API_KEY` + `GEMINI_API_KEY` already in Netlify (used by Vulcan). ✓
 - **Ahrefs:** none → v1 fallback; flag to connect a real provider for volume/difficulty.
 - **26s function timeout** → section-by-section drafting (mitigated). netlify.toml sets 26s for `blog-*`.
-- **"Trained Claude per client"** (their manual Claude.ai projects) can't be read by automation → we encode the equivalent via `brand_kits.tone/voice_notes` + an editable per-client **content-guidelines** box (persisted for reuse; extend `brand_kits` or a small `blog_client_settings` if needed).
+- **"Trained Claude per client"** (their manual Claude.ai projects) can't be read by automation → we encode the equivalent via `brand_kits.tone/voice_notes` + a per-client **content-guidelines** box persisted on `clients.content_guidelines` (edited in the wizard, auto-applied every run).
 
 ## 7. Test plan (testable tomorrow)
 
