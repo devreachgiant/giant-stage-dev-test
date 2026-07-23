@@ -18,8 +18,10 @@ function brandVoiceContext({ kit, client, guidelines } = {}) {
     if (clean(client.name)) lines.push(`Client / business: ${clean(client.name)}`);
     if (clean(client.industry)) lines.push(`Industry: ${clean(client.industry)}`);
     if (clean(client.company_website)) lines.push(`Website: ${clean(client.company_website)}`);
-    if (Array.isArray(client.services) && client.services.length) {
-      lines.push(`Services offered: ${client.services.map(clean).filter(Boolean).join(', ')}`);
+    // clients.services is a text column (not an array) — but accept either defensively.
+    if (client.services) {
+      const svc = Array.isArray(client.services) ? client.services.map(clean).filter(Boolean).join(', ') : clean(client.services);
+      if (svc) lines.push(`Services offered: ${svc}`);
     }
   }
 
