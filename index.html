@@ -8725,9 +8725,11 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               <div class="m-field">
                 <label>Assign team members</label>
                 <div id="addClientMembersChips" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;"></div>
-                <div style="position:relative;">
+                <div>
                   <input type="text" id="addClientMembersInput" placeholder="Type a name to assign…" autocomplete="off">
-                  <div id="addClientMembersDropdown" style="display:none;position:absolute;top:calc(100% + 3px);left:0;right:0;background:var(--pane);border:1px solid var(--line-2);border-radius:9px;box-shadow:0 14px 36px -10px rgba(0,0,0,.55);max-height:200px;overflow-y:auto;z-index:50;"></div>
+                  <!-- In normal flow (not position:absolute) so it pushes the modal-foot
+                       buttons down instead of floating on top of them when open. -->
+                  <div id="addClientMembersDropdown" style="display:none;margin-top:3px;background:var(--pane);border:1px solid var(--line-2);border-radius:9px;box-shadow:0 14px 36px -10px rgba(0,0,0,.55);max-height:200px;overflow-y:auto;"></div>
                 </div>
               </div>
             </div>
@@ -8765,8 +8767,8 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               <div class="cd-pane on" data-cdpane="details">
                 <div class="cd-grid">
                   <div class="cd-field"><span class="cd-lbl">Legal name</span><span class="cd-val" data-cd-field="name">—</span></div>
-                  <div class="cd-field"><span class="cd-lbl">Primary contact</span><span class="cd-val" data-cd-field="email">—</span></div>
-                  <div class="cd-field"><span class="cd-lbl">Phone</span><span class="cd-val" data-cd-field="phone">—</span></div>
+                  <div class="cd-field" data-role-min="manager"><span class="cd-lbl">Primary contact</span><span class="cd-val" data-cd-field="email">—</span></div>
+                  <div class="cd-field" data-role-min="manager"><span class="cd-lbl">Phone</span><span class="cd-val" data-cd-field="phone">—</span></div>
                   <div class="cd-field"><span class="cd-lbl">Address</span><span class="cd-val" data-cd-field="address">—</span></div>
                   <div class="cd-field"><span class="cd-lbl">Assigned owner</span><span class="cd-val" data-cd-owner>—</span></div>
                   <div class="cd-field" data-role-min="owner"><span class="cd-lbl">MRR</span><span class="cd-val" data-cd-mrr>—</span></div>
@@ -15713,7 +15715,7 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
         if (!sb) throw new Error('Supabase not yet initialized');
         const [tasksRes, clientsRes, invoicesRes] = await Promise.all([
           sb.from('tasks').select('label, status, due_date, priority').order('created_at', { ascending: false }).limit(20),
-          sb.from('clients').select('name, status, mrr_cents, email').limit(15),
+          sb.from('clients').select('name, status, mrr_cents').limit(15),
           sb.from('invoices').select('number, status, amount_cents, currency, due_date, paid_at').order('created_at', { ascending: false }).limit(15)
         ]);
         context = { tasks: tasksRes.data || [], clients: clientsRes.data || [], invoices: invoicesRes.data || [] };
@@ -19802,8 +19804,14 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       document.body.innerHTML = '';
       document.body.style.cssText = 'margin:0;padding:0;background:#0A0A0A;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;overflow-y:auto;';
       const esc = (s) => String(s||'').replace(/[&<>"\']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-      // Init Supabase client locally (use the global config — config.js is loaded already)
-      const supa = window.supabase.createClient(window.GIANT_SUPABASE_URL, window.GIANT_SUPABASE_ANON_KEY);
+      // Init Supabase client locally (use the global config — config.js is loaded already).
+      // Must stay fully anonymous even if this browser also has an authenticated Giant
+      // session: without a dedicated storageKey, supabase-js falls back to the same
+      // localStorage key as the main app's client and silently authenticates as that
+      // user, which then fails Storage RLS (no authenticated INSERT policy on this bucket).
+      const supa = window.supabase.createClient(window.GIANT_SUPABASE_URL, window.GIANT_SUPABASE_ANON_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false, storageKey: 'giant-onboarding-anon' }
+      });
       const { data: clientRow, error } = await supa.from('clients')
         .select('id, name, contact_name, contact_email, onboarding_answers, onboarding_submitted_at, status')
         .eq('onboarding_token', token).maybeSingle();
@@ -19880,9 +19888,13 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
               ${fld('Additional Information', 'additional_info', a.additional_info, 'textarea', false, 'Any other details that could improve campaign effectiveness.')}
 
               ${section('Assets (optional)')}
-              <div style="background:#0A0A0A;border:1px dashed #2c2c2c;border-radius:10px;padding:18px;text-align:center;">
-                <div style="font-size:12.5px;color:#aaa;line-height:1.6;">Send your logos, images & brand assets to <a href="mailto:support@reachgiant.com" style="color:#D00400;text-decoration:none;font-weight:600;">support@reachgiant.com</a><br>via <a href="https://wetransfer.com/" target="_blank" rel="noopener" style="color:#D00400;text-decoration:none;font-weight:600;">WeTransfer</a> or any large-file service.</div>
+              <div style="font-size:11px;color:#777;margin:-2px 0 8px;line-height:1.5;">Upload logos, images, or brand assets. For very large files, you can also send them to <a href="mailto:support@reachgiant.com" style="color:#D00400;text-decoration:none;font-weight:600;">support@reachgiant.com</a> via <a href="https://wetransfer.com/" target="_blank" rel="noopener" style="color:#D00400;text-decoration:none;font-weight:600;">WeTransfer</a>.</div>
+              <div id="onbAssetDrop" style="background:#0A0A0A;border:1.5px dashed #2c2c2c;border-radius:10px;padding:24px 16px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;">
+                <input type="file" id="onbAssetInput" multiple style="display:none;">
+                <div style="font-size:12.5px;color:#aaa;font-weight:600;">Click to select files, or drag and drop here</div>
+                <div style="font-size:10.5px;color:#666;margin-top:3px;">Any file type, up to 50MB each</div>
               </div>
+              <div id="onbAssetList" style="display:flex;flex-direction:column;gap:6px;margin-top:10px;"></div>
 
               <div id="onbAlert" style="display:none;padding:10px 14px;border-radius:8px;font-size:12.5px;"></div>
               <button id="onbSubmit" type="button" style="background:#D00400;color:#fff;border:none;border-radius:10px;padding:15px 28px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:-0.005em;margin-top:12px;">Submit my onboarding</button>
@@ -19922,6 +19934,57 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
             ${options.map(o => `<option value="${esc(o)}" ${val === o ? 'selected' : ''}>${esc(o)}</option>`).join('')}
           </select>${help}</div>`;
       }
+      // ── Asset drop-zone — uploads straight to the onboarding-assets bucket as
+      // each file is picked, so submit just attaches whatever finished uploading.
+      let onbAssets = []; // { id, name, url|null, status: 'uploading'|'done'|'error' }
+      function renderOnbAssetList() {
+        const wrap = document.getElementById('onbAssetList');
+        if (!wrap) return;
+        wrap.innerHTML = onbAssets.map(a => `
+          <div style="display:flex;align-items:center;gap:8px;background:#0A0A0A;border:1px solid #232323;border-radius:8px;padding:8px 10px;">
+            <span style="font-size:11px;color:${a.status==='error'?'#ff6b66':'#ccc'};flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.name)}</span>
+            <span style="font-size:10px;color:${a.status==='error'?'#ff6b66':'#666'};flex-shrink:0;">${a.status==='uploading'?'Uploading…':a.status==='error'?'Failed':'Ready'}</span>
+            <span data-onb-asset-remove="${a.id}" style="cursor:pointer;color:#666;flex-shrink:0;font-size:13px;line-height:1;padding:0 2px;">×</span>
+          </div>`).join('');
+        wrap.querySelectorAll('[data-onb-asset-remove]').forEach(el => {
+          el.addEventListener('click', () => {
+            onbAssets = onbAssets.filter(a => a.id !== el.dataset.onbAssetRemove);
+            renderOnbAssetList();
+          });
+        });
+      }
+      async function uploadOnbAsset(file) {
+        const id = 'a' + Date.now() + Math.random().toString(36).slice(2, 7);
+        const entry = { id, name: file.name, url: null, status: 'uploading' };
+        onbAssets.push(entry);
+        renderOnbAssetList();
+        try {
+          const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
+          const path = `${token}/${Date.now()}-${Math.random().toString(36).slice(2,7)}.${ext}`;
+          const { error: upErr } = await supa.storage.from('onboarding-assets').upload(path, file, { upsert: false, contentType: file.type || 'application/octet-stream' });
+          if (upErr) throw new Error(upErr.message);
+          const { data: pub } = supa.storage.from('onboarding-assets').getPublicUrl(path);
+          entry.url = pub && pub.publicUrl;
+          entry.status = 'done';
+        } catch (e) {
+          entry.status = 'error';
+          console.error('onboarding asset upload failed:', e.message || e);
+        }
+        renderOnbAssetList();
+      }
+      (function wireOnbAssetDrop() {
+        const drop = document.getElementById('onbAssetDrop');
+        const input = document.getElementById('onbAssetInput');
+        if (!drop || !input) return;
+        drop.addEventListener('click', () => input.click());
+        drop.addEventListener('mouseenter', () => drop.style.borderColor = '#3a3a3a');
+        drop.addEventListener('mouseleave', () => drop.style.borderColor = '#2c2c2c');
+        input.addEventListener('change', () => { Array.from(input.files || []).forEach(uploadOnbAsset); input.value = ''; });
+        ['dragover','dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.style.borderColor = '#D00400'; drop.style.background = 'rgba(208,4,0,.04)'; }));
+        ['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.style.borderColor = '#2c2c2c'; drop.style.background = '#0A0A0A'; }));
+        drop.addEventListener('drop', e => { Array.from(e.dataTransfer.files || []).forEach(uploadOnbAsset); });
+      })();
+
       document.getElementById('onbSubmit').addEventListener('click', async () => {
         const answers = {};
         document.querySelectorAll('[data-onb]').forEach(el => { answers[el.dataset.onb] = el.value.trim(); });
@@ -19933,6 +19996,16 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           }
         });
         Object.assign(answers, multi);
+        answers.assets = onbAssets.filter(a => a.status === 'done' && a.url).map(a => ({ name: a.name, url: a.url }));
+        if (onbAssets.some(a => a.status === 'uploading')) {
+          const alert = document.getElementById('onbAlert');
+          alert.style.display = 'block';
+          alert.style.background = 'rgba(208,4,0,.15)';
+          alert.style.color = '#ff6b66';
+          alert.style.border = '1px solid rgba(208,4,0,.3)';
+          alert.textContent = 'Still uploading your files — one moment and try again.';
+          return;
+        }
         // Required validation — new spec
         const required = ['business_name','contact_name','contact_email','phone','primary_goals'];
         for (const k of required) {
@@ -21087,6 +21160,20 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     const csAtRisk       = document.getElementById('csAtRisk');
 
     const isOwner = profile.role === 'owner' || profile.role === 'inhouse_dev';
+    // Contact info (email/phone) is a wider tier than MRR — owner/manager/inhouse_dev,
+    // not just owner. Backed by clients_manager/clients_public views (see migration
+    // 20260724120000) so this is a real column-level restriction, not just hidden markup.
+    const canSeeClientContact = isOwner || profile.role === 'manager';
+    const clientTableForRole = () => isOwner ? 'clients' : (canSeeClientContact ? 'clients_manager' : 'clients_public');
+    const ROLE_MIN_RANK = { member: 0, client: 0, manager: 1, owner: 2, inhouse_dev: 2 };
+    function applyRoleMinVisibility(container) {
+      if (!container) return;
+      const rank = ROLE_MIN_RANK[profile.role] ?? 0;
+      container.querySelectorAll('[data-role-min]').forEach(el => {
+        const need = ROLE_MIN_RANK[el.dataset.roleMin] ?? 0;
+        el.style.display = rank >= need ? '' : 'none';
+      });
+    }
 
     function escClient(s) { return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
     function fmtEuros(cents) {
@@ -21268,8 +21355,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     async function openClientDetailFromRow(row, editMode) {
       const clientId = row.dataset.clientId;
       if (!clientId) return;
-      // Fetch client info from DB
-      const { data: c, error } = await supabase.from('clients').select('*').eq('id', clientId).maybeSingle();
+      // Fetch client info from DB — table choice is the actual access control for
+      // contact info (email/phone), not just hiding the field afterward.
+      const { data: c, error } = await supabase.from(clientTableForRole()).select('*').eq('id', clientId).maybeSingle();
       if (error || !c) {
         if (typeof toast === 'function') toast({type:'error', message:'Could not load client'});
         return;
@@ -21297,6 +21385,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         if (val !== undefined && val !== null && val !== '') el.textContent = String(val);
         else el.textContent = '—';
       });
+      // Hide fields the current role shouldn't see (contact info, MRR) — the fetch
+      // above already excludes them at the DB level, this just hides the row/label too.
+      applyRoleMinVisibility(document.getElementById('clientDetailModal'));
       // Owner: lookup profile name (avoids showing UUID)
       const ownerEl = document.querySelector('#clientDetailModal [data-cd-owner]');
       if (ownerEl) {
@@ -21425,6 +21516,14 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           });
           html += `</div></div>`;
         });
+        if (Array.isArray(ans.assets) && ans.assets.length) {
+          html += `<div style="margin-bottom:18px;">
+            <div style="font-size:10.5px;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:.1em;border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:10px;">Assets</div>
+            <div style="display:flex;flex-direction:column;gap:6px;">
+              ${ans.assets.map(a => `<a href="${escOnb(a.url)}" target="_blank" rel="noopener" style="font-size:12.5px;color:var(--red);text-decoration:none;font-weight:600;">📎 ${escOnb(a.name)}</a>`).join('')}
+            </div>
+          </div>`;
+        }
         pane.innerHTML = html || '<div style="padding:32px 16px;text-align:center;color:var(--text-3);font-style:italic;">Submission received but empty.</div>';
       }
       // Wire "Add field" button (idempotent — only wire once per modal open)
@@ -21474,8 +21573,12 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           if (cdName && cdName.textContent.trim() && cdName.textContent.trim() !== c.name) {
             updates.name = cdName.textContent.trim();
           }
-          // All cd-val with data-cd-field
+          // All cd-val with data-cd-field — skip anything hidden by role (e.g. contact
+          // info for a role that can't see it): its "—" placeholder isn't a real edit,
+          // and c[field] is undefined here since it was never fetched for this role.
           document.querySelectorAll('#clientDetailModal [data-cd-field][contenteditable="true"]').forEach(el => {
+            const roleGate = el.closest('[data-role-min]');
+            if (roleGate && roleGate.style.display === 'none') return;
             const field = el.dataset.cdField;
             const newVal = el.textContent.trim();
             if (newVal !== String(c[field] || '')) {
@@ -33342,7 +33445,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const future30d = new Date(Date.now() + 30 * 86400000).toISOString();
       const [tasksData, clientsData, projectsData, invoicesData, msgsData, profilesData, bookingsData, eventTypesData, calEventsData] = await Promise.all([
         safe(supabase.from('tasks').select('id, name, status, project_id, assigned_to, created_at').order('created_at', { ascending: false }).limit(30)),
-        safe(supabase.from('clients').select('id, name, status, mrr_cents, notes, email').limit(20)),
+        safe(supabase.from('clients').select('id, name, status, mrr_cents, notes').limit(20)),
         safe(supabase.from('projects').select('id, name, client_id, created_at').limit(20)),
         safe(supabase.from('invoices').select('id, number, status, amount_cents, currency, due_date, paid_at, client_id, description').order('created_at', { ascending: false }).limit(20)),
         safe(supabase.from('messages').select('id, body, author_id, channel_id, created_at').order('created_at', { ascending: false }).limit(30)),
@@ -33362,7 +33465,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const clients = clientsData.map(c => ({
         name: c.name, status: c.status,
         mrr: c.mrr_cents ? `$${(c.mrr_cents/100).toLocaleString()}/mo` : null,
-        email: c.email, notes: c.notes
+        notes: c.notes
       }));
       const projects = projectsData.map(p => ({ name: p.name }));
       const invoices = invoicesData.map(i => ({
