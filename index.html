@@ -4113,14 +4113,17 @@ body:has(.screen[data-screen="chat"].on) .gai-fab{display:none;}
 .report-media-preview img,.report-media-preview video{max-width:100%;max-height:180px;border-radius:8px;display:block;margin:0 auto;}
 .report-list{display:flex;flex-direction:column;gap:8px;}
 .report-row{display:flex;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);}
+.report-row.report-row-urgent{border-color:var(--red);background:rgba(208,4,0,.06);}
 .report-row-badge{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;padding:3px 8px;border-radius:6px;flex-shrink:0;}
 .report-row-badge.bug{background:rgba(208,4,0,.12);color:var(--red);}
 .report-row-badge.feature{background:rgba(37,99,235,.12);color:#2563eb;}
+.report-row-badge.urgent{background:var(--red);color:#fff;}
 .report-row-main{flex:1;min-width:0;}
 .report-row-title{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .report-row-meta{font-size:11px;color:var(--text-3);margin-top:2px;}
 .report-row-thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0;background:var(--surface-2);}
 .report-status-pill{font-size:11px;font-weight:700;border-radius:7px;padding:5px 9px;border:1px solid var(--line);background:var(--bg);color:var(--text-2);font-family:inherit;}
+.report-status-pill.report-priority-pill-urgent{border-color:var(--red);color:var(--red);background:rgba(208,4,0,.08);}
 .report-row-icon-btn{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--text-3);cursor:pointer;transition:.14s;flex-shrink:0;}
 .report-row-icon-btn:hover{background:var(--surface-2);color:var(--text);}
 /* Channel public/private toggle switch */
@@ -10401,6 +10404,11 @@ setupRail('rail2','pill2');
       const statusControl = triager
         ? `<select class="report-status-pill" data-report-id="${r.id}" data-field="status">${Object.entries(STATUS_LABELS).map(([v,l]) => `<option value="${v}" ${r.status===v?'selected':''}>${l}</option>`).join('')}</select>`
         : `<span class="report-status-pill">${STATUS_LABELS[r.status] || r.status}</span>`;
+      const priorityOpts = [['', 'No priority'], ['low','Low'], ['medium','Medium'], ['high','High'], ['critical','Critical']]
+        .map(([v,l]) => `<option value="${v}" ${(r.priority||'')===v?'selected':''}>${l}</option>`).join('');
+      const priorityControl = triager
+        ? `<select class="report-status-pill${isUrgentReport(r) ? ' report-priority-pill-urgent' : ''}" data-report-id="${r.id}" data-field="priority" title="Priority">${priorityOpts}</select>`
+        : (r.priority ? `<span class="report-status-pill${isUrgentReport(r) ? ' report-priority-pill-urgent' : ''}">${r.priority[0].toUpperCase()}${r.priority.slice(1)}</span>` : '');
       const orderOpts = ['<option value="">—</option>'].concat(
         Array.from({length:10}, (_,i)=>i+1).map(n => `<option value="${n}" ${r.work_order===n?'selected':''}>${n}</option>`)
       ).join('');
@@ -10413,8 +10421,9 @@ setupRail('rail2','pill2');
             <span class="report-row-icon-btn" data-action="delete-report" title="Delete" style="color:var(--red);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M6 4.5V3a1 1 0 011-1h2a1 1 0 011 1v1.5M4.5 4.5l.6 8a1 1 0 001 .9h3.8a1 1 0 001-.9l.6-8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
           </span>`
         : '';
-      return `<div class="report-row" data-report-id="${r.id}" style="cursor:pointer;">
+      return `<div class="report-row${isUrgentReport(r) ? ' report-row-urgent' : ''}" data-report-id="${r.id}" style="cursor:pointer;">
         <span data-stop-row-click>${orderControl}</span>
+        ${isUrgentReport(r) ? '<span class="report-row-badge urgent">Urgent</span>' : ''}
         <span class="report-row-badge ${r.type}">${r.type === 'bug' ? 'Bug' : 'Feature'}</span>
         ${thumb}
         <div class="report-row-main">
@@ -10422,6 +10431,7 @@ setupRail('rail2','pill2');
           <div class="report-row-meta">${rEsc(reporterName)} · ${r.page_context ? rEsc(r.page_context) + ' · ' : ''}${timeAgo(r.created_at)}</div>
         </div>
         ${manageControls}
+        <span data-stop-row-click>${priorityControl}</span>
         <span data-stop-row-click>${statusControl}</span>
       </div>`;
     }).join('');
@@ -10458,6 +10468,18 @@ setupRail('rail2','pill2');
             const row = reportsCache.find(r => r.id === id);
             if (row) row.status = sel.value;
           } catch(e) { if (typeof toast==='function') toast({type:'error', message:'Failed to update status'}); }
+        });
+      });
+      listEl.querySelectorAll('select[data-field="priority"]').forEach(sel => {
+        sel.addEventListener('change', async () => {
+          const id = sel.dataset.reportId;
+          try {
+            await sb().from('reports').update({ priority: sel.value || null }).eq('id', id);
+            const row = reportsCache.find(r => r.id === id);
+            if (row) row.priority = sel.value || null;
+            reportsCache.sort((a, b) => (PRIORITY_RANK[a.priority] ?? 4) - (PRIORITY_RANK[b.priority] ?? 4));
+            renderReports();
+          } catch(e) { if (typeof toast==='function') toast({type:'error', message:'Failed to update priority'}); }
         });
       });
     }
@@ -10602,6 +10624,8 @@ setupRail('rail2','pill2');
         try {
           await sb().from('reports').update({ priority: prioritySel.value || null }).eq('id', r.id);
           r.priority = prioritySel.value || null;
+          reportsCache.sort((a, b) => (PRIORITY_RANK[a.priority] ?? 4) - (PRIORITY_RANK[b.priority] ?? 4));
+          renderReports();
         } catch(e) { if (typeof toast==='function') toast({type:'error', message:'Failed to update priority'}); }
       };
     } else {
@@ -10632,6 +10656,9 @@ setupRail('rail2','pill2');
     openModal('reportDetailModal');
   }
 
+  const PRIORITY_RANK = { critical: 0, high: 1, medium: 2, low: 3 };
+  const isUrgentReport = (r) => r.priority === 'critical' || r.priority === 'high';
+
   async function loadReports(){
     if (!sb()) return;
     try {
@@ -10639,7 +10666,8 @@ setupRail('rail2','pill2');
         .order('work_order', { ascending: true, nullsFirst: false })
         .order('created_at', { ascending: false });
       if (error) throw error;
-      reportsCache = data || [];
+      // High/critical priority reports always float to the top, above manual work order.
+      reportsCache = (data || []).slice().sort((a, b) => (PRIORITY_RANK[a.priority] ?? 4) - (PRIORITY_RANK[b.priority] ?? 4));
       renderReports();
     } catch(e) { console.warn('[reports] load failed', e.message); }
   }
