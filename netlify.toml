@@ -40,6 +40,16 @@
 [functions."magnus-router"]
   timeout = 26
 
+# Blog Content Agent — research (long brief) + image planning/generation need the max.
+[functions."blog-research"]
+  timeout = 26
+
+[functions."blog-draft"]
+  timeout = 26
+
+[functions."blog-images"]
+  timeout = 26
+
 # Prevent caching of the main app file so users always get the latest deploy.
 # Without this, browsers cache index.html aggressively and users may see stale (or broken) versions for hours.
 [[headers]]
