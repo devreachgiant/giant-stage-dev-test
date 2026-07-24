@@ -13245,7 +13245,10 @@ setupRail('rail2','pill2');
     Object.assign(acme, { name:'Acme Digital Partners', mainContact:'Jordan Miles', email:'jordan@acmedigital.com', phone:'(555) 010-2200', status:'in_progress' });
 
     const client1 = emptyClient(acme.id);
-    Object.assign(client1, { name:'Rebecca Hall', businessName:'Hall & Co. Law', email:'rebecca@hallandco.com', phone:'(555) 220-9911', website:'hallandcolaw.com', mainContact:'Rebecca Hall', summary:'Rebrand + new marketing website for a boutique law firm.', onboardingStatus:'reviewed' });
+    // onboardingStatus:'not_sent' — seeded demo clients have no real linked Supabase
+    // row/token, so claiming a further-along status here would be misleading now that
+    // "View responses" reflects the real backend instead of fake local answers.
+    Object.assign(client1, { name:'Rebecca Hall', businessName:'Hall & Co. Law', email:'rebecca@hallandco.com', phone:'(555) 220-9911', website:'hallandcolaw.com', mainContact:'Rebecca Hall', summary:'Rebrand + new marketing website for a boutique law firm.', onboardingStatus:'not_sent' });
     const p1 = emptyProject(client1.id);
     Object.assign(p1, { name:'Hall & Co. Website Redesign', type:'Website Redesign', price:8500, paid:5000, startDate:'2026-06-01', targetDate:'2026-08-15', status:'in_progress', pm:'Luke Griffin', team:['Priya Nair','Sam Okafor'] });
     p1.milestones.forEach((m,i) => { if (i < 7) { m.status='completed'; m.pct=100; } else if (i===7) { m.status='in_progress'; m.pct=40; } });
@@ -13257,7 +13260,7 @@ setupRail('rail2','pill2');
     client1.projects.push(p1);
 
     const client2 = emptyClient(acme.id);
-    Object.assign(client2, { name:'Marcus Webb', businessName:'Webb Fitness Studio', email:'marcus@webbfitness.com', phone:'(555) 442-1180', website:'webbfitness.com', mainContact:'Marcus Webb', summary:'New booking-enabled website for a boutique gym.', onboardingStatus:'submitted' });
+    Object.assign(client2, { name:'Marcus Webb', businessName:'Webb Fitness Studio', email:'marcus@webbfitness.com', phone:'(555) 442-1180', website:'webbfitness.com', mainContact:'Marcus Webb', summary:'New booking-enabled website for a boutique gym.', onboardingStatus:'not_sent' });
     const p2 = emptyProject(client2.id);
     Object.assign(p2, { name:'Webb Fitness Website', type:'New Website', price:6000, paid:1500, startDate:'2026-07-10', targetDate:'2026-09-01', status:'onboarding', pm:'Priya Nair', team:['Sam Okafor'] });
     p2.scope = { included: DEFAULT_SCOPE_INCLUDED.map(s=>s.replace('Custom design & build','Custom fitness studio website')), excluded: DEFAULT_SCOPE_EXCLUDED.slice() };
@@ -13270,7 +13273,7 @@ setupRail('rail2','pill2');
     const bright = emptyCompany();
     Object.assign(bright, { name:'BrightPath Marketing', mainContact:'Alicia Chen', email:'alicia@brightpathmkt.com', phone:'(555) 774-3300', status:'waiting_client' });
     const client3 = emptyClient(bright.id);
-    Object.assign(client3, { name:'Devon Price', businessName:'Price Home Renovations', email:'devon@pricehome.com', phone:'(555) 660-2245', website:'', mainContact:'Devon Price', summary:'Local contractor site with quote request form.', onboardingStatus:'started' });
+    Object.assign(client3, { name:'Devon Price', businessName:'Price Home Renovations', email:'devon@pricehome.com', phone:'(555) 660-2245', website:'', mainContact:'Devon Price', summary:'Local contractor site with quote request form.', onboardingStatus:'not_sent' });
     const p3 = emptyProject(client3.id);
     Object.assign(p3, { name:'Price Home Renovations Site', type:'New Website', price:4500, paid:0, startDate:'2026-07-05', targetDate:'2026-07-30', status:'waiting_client', pm:'Sam Okafor', team:[] });
     p3.milestones[0].status='completed'; p3.milestones[0].pct=100;
@@ -13825,12 +13828,29 @@ setupRail('rail2','pill2');
       { key:'onboardingStatus', label:'Onboarding status', type:'select', value:cl.onboardingStatus, options: Object.keys(ONBOARD_STATUS_INFO).map(k=>({value:k,label:ONBOARD_STATUS_INFO[k].label})) },
     ], (v) => { Object.assign(cl, { name:v.name.trim()||cl.name, businessName:v.businessName, email:v.email, phone:v.phone, website:v.website, summary:v.summary, onboardingStatus:v.onboardingStatus }); if (typeof toast==='function') toast({type:'success', message:'Client updated'}); });
   }
+  // WL company/client/project data is in-memory only, so a page reload forgets which
+  // Supabase clients.id a WL client is linked to — even though the real row (and any
+  // submitted answers) still exists. Best-effort re-associate by exact name match
+  // against rows we tagged source:'white_label', so a refresh doesn't look "blank"
+  // when a real link/submission actually exists.
+  async function findLinkedSupabaseClient(cl) {
+    if (!sb() || !cl.name) return null;
+    const { data } = await sb().from('clients')
+      .select('id, onboarding_token, onboarding_sent_at, onboarding_submitted_at, reviewed_at')
+      .eq('source', 'white_label').eq('name', cl.name)
+      .order('onboarding_sent_at', { ascending: false }).limit(1).maybeSingle();
+    return data || null;
+  }
   // Lazily creates the real, linked Supabase `clients` row (tagged source:'white_label')
   // and generates a real onboarding_token if this WL client doesn't have one yet, so
   // "Send form" always works whether the client was just created, seeded, or already
   // has a link. Safe to call repeatedly — no-ops once both exist.
   async function ensureOnboardingLink(cl) {
     if (!sb()) { if (typeof toast==='function') toast({type:'error', message:'Not connected — try again in a moment.'}); return null; }
+    if (!cl.supabaseClientId) {
+      const found = await findLinkedSupabaseClient(cl);
+      if (found) { cl.supabaseClientId = found.id; cl.onboardingToken = found.onboarding_token || null; }
+    }
     if (!cl.supabaseClientId) {
       const slug = (cl.name||'client').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') + '-' + Math.random().toString(36).slice(2,6);
       const payload = {
@@ -13873,6 +13893,10 @@ setupRail('rail2','pill2');
     const cl = findClient(activeCompanyId, activeClientId); if (!cl) return;
     onboardingView = { loading: true }; // must be set before goTo(), which renders synchronously
     goTo('onboarding', { companyId: activeCompanyId, clientId: cl.id });
+    if (!cl.supabaseClientId) {
+      const found = await findLinkedSupabaseClient(cl);
+      if (found) { cl.supabaseClientId = found.id; cl.onboardingToken = found.onboarding_token || null; }
+    }
     if (!cl.supabaseClientId) { onboardingView = { loading:false, notLinked:true }; render(); return; }
     let assetCount = 0;
     try {
