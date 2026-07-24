@@ -13580,6 +13580,8 @@ setupRail('rail2','pill2');
   function renderCompanyRow(c) {
     const totals = companyTotals(c);
     const st = STATUS_INFO[c.status] || STATUS_INFO.not_started;
+    const clientCount = (c.clients||[]).length;
+    const stat = (label, value, color) => `<div><div style="font-size:10.5px;color:var(--text-3);text-transform:uppercase;font-weight:700;letter-spacing:.03em;">${esc(label)}</div><div style="font-size:15px;font-weight:700;margin-top:3px;${color?`color:${color};`:''}">${esc(String(value))}</div></div>`;
     return `<div class="report-row" data-wl-open-company="${esc(c.id)}" style="cursor:pointer;flex-direction:column;align-items:stretch;${c.archived?'opacity:.55;':''}">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;width:100%;">
         <div style="flex:1;min-width:0;">
@@ -13589,16 +13591,18 @@ setupRail('rail2','pill2');
             ${c.archived ? `<span style="background:var(--surface);color:var(--text-3);font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;">Archived</span>` : ''}
           </div>
           <div class="report-row-meta" style="margin-top:4px;">${esc(c.mainContact||'No main contact')} ${c.email?'· '+esc(c.email):''}</div>
-          <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;font-size:11.5px;color:var(--text-3);">
-            <span>${companyActiveProjectCount(c)} active project${companyActiveProjectCount(c)===1?'':'s'}</span>
-            <span>${esc(fmtMoney(totals.value))} total value</span>
-            ${isNotPartnerView() ? `<span>${esc(fmtMoney(totals.paid))} paid</span><span style="color:${totals.outstanding?'#e8a83e':'var(--text-3)'};">${esc(fmtMoney(totals.outstanding))} outstanding</span>` : ''}
-          </div>
         </div>
         ${isNotPartnerView() ? `<span data-stop-row-click style="display:flex;gap:2px;flex-shrink:0;">
           <span class="report-row-icon-btn" data-wl-action="edit-company" data-wl-id="${esc(c.id)}" title="Edit"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
           <span class="report-row-icon-btn" data-wl-action="archive-company" data-wl-id="${esc(c.id)}" title="${c.archived?'Unarchive':'Archive'}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3.5" width="12" height="3" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 6.5V12a1 1 0 001 1h8a1 1 0 001-1V6.5M6.5 9h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>
         </span>` : ''}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(${isNotPartnerView()?5:2},1fr);gap:12px;margin-top:14px;">
+        ${stat('Active projects', companyActiveProjectCount(c))}
+        ${stat('Total value', fmtMoney(totals.value))}
+        ${isNotPartnerView() ? stat('Paid', fmtMoney(totals.paid), '#3ecf8e') : ''}
+        ${isNotPartnerView() ? stat('Outstanding', fmtMoney(totals.outstanding), totals.outstanding?'#e8a83e':undefined) : ''}
+        ${stat('Clients', clientCount)}
       </div>
     </div>`;
   }
