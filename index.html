@@ -50416,11 +50416,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   async function _tdpCopyLink() {
     if (!_tdpTaskId) return;
     const url = `${window.location.origin}/app?task=${_tdpTaskId}`;
+    const title = (document.getElementById('tdpName')?.value || '').trim() || 'Untitled task';
+    const text = `${title} : ${url}`;
     try {
-      await navigator.clipboard.writeText(url);
-      if (typeof toast === 'function') toast({type:'success', message:'Link copied — anyone on the team can open it directly.'});
+      await navigator.clipboard.writeText(text);
+      if (typeof toast === 'function') toast({type:'success', message:'Title + link copied — ready to drop in a channel.'});
     } catch (_) {
-      await window.giantPrompt('Copy this link:', url);
+      await window.giantPrompt('Copy this:', text);
     }
   }
   document.getElementById('tdpCopyLink')?.addEventListener('click', _tdpCopyLink);
