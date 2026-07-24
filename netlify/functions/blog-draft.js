@@ -111,7 +111,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         model: BLOG_MODEL,
         max_tokens: maxTokens,
-        temperature,
+        thinking: { type: 'disabled' }, // sonnet-5 rejects `temperature`; keep this a plain completion
         system,
         messages: [{ role: 'user', content: userMsg }]
       })

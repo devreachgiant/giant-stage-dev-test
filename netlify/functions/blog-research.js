@@ -88,7 +88,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         model: BLOG_MODEL,
         max_tokens: 2600,
-        temperature: 0.4, // briefs should be consistent, not creative
+        thinking: { type: 'disabled' }, // sonnet-5 rejects `temperature`; keep this a plain, all-output-token completion so the JSON brief isn't truncated by adaptive thinking
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userMsg }]
       })
