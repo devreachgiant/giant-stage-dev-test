@@ -13166,28 +13166,50 @@ setupRail('rail2','pill2');
     submitted: { label:'Submitted', color:'#9a8ac8' },
     reviewed: { label:'Reviewed', color:'#3ecf8e' },
   };
+  const PARTNER_PAYOUT_STATUS_INFO = {
+    'Unpaid': { label:'Unpaid', color:'#ff6b5c' },
+    'Deposit paid': { label:'Deposit paid', color:'#e8a83e' },
+    'Paid in full': { label:'Paid in full', color:'#3ecf8e' },
+  };
   const DEFAULT_MILESTONE_NAMES = ['Onboarding complete','Content received','Sitemap approved','Wireframes approved','Homepage design approved','Full design approved','Development started','Development completed','Mobile review completed','Testing completed','Client review completed','Final changes completed','Website launched'];
   const PERMISSION_LEVELS = ['Owner','Manager','Team member','View only','White label partner'];
   const PROJECT_TYPES = ['New Website','Website Redesign','Landing Page','E-commerce Site','Web App','Other'];
+  const DEFAULT_SCOPE_INCLUDED = ['Custom design & build','Mobile-responsive design','2 rounds of revisions','Basic on-page SEO setup','Launch support'];
+  const DEFAULT_SCOPE_EXCLUDED = ['Ongoing content updates after launch','Paid ad management','Copywriting beyond provided brief','Third-party integrations not listed in proposal'];
 
   function fmtMoney(n) { return '$' + Number(n||0).toLocaleString(undefined,{maximumFractionDigits:0}); }
   function fmtDate(iso) { if (!iso) return '—'; try { return new Date(iso+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}); } catch(e){ return iso; } }
   function badge(info) { return `<span style="background:${info.color}22;color:${info.color};font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;white-space:nowrap;">${esc(info.label)}</span>`; }
   function selectHtml(id, options, value, extra) { return `<select id="${id}" ${extra||''} style="background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;font-weight:600;font-family:inherit;">${options.map(o=>`<option value="${esc(o.value)}" ${o.value===value?'selected':''}>${esc(o.label)}</option>`).join('')}</select>`; }
 
+  // ---- viewAs simulation (client-side only — not real auth gating) ----
+  let viewAs = 'owner'; // 'owner' | 'team' | 'partner'
+  function isNotPartnerView() { return viewAs !== 'partner'; }
+  function isOwnerView() { return viewAs === 'owner'; }
+
   function emptyMilestone(name) { return { id: uid(), name: name||'', description:'', due:'', assignee:'', status:'not_started', pct:0, paymentAmount:0, clientApproval:false, notes:'', link:'' }; }
   function emptyProject(clientId) {
     return { id: uid(), clientId, name:'New Website Project', type:'New Website', price:0, paid:0, startDate:'', targetDate:'', status:'not_started', pm:'', team:[],
-      milestones: DEFAULT_MILESTONE_NAMES.map(n => emptyMilestone(n)), notes:[], files:[], billing:{ internalCost:0, paymentStatus:'not_invoiced', dueDate:'' } };
+      milestones: DEFAULT_MILESTONE_NAMES.map(n => emptyMilestone(n)), notes:[], files:[],
+      scope: { included: DEFAULT_SCOPE_INCLUDED.slice(), excluded: DEFAULT_SCOPE_EXCLUDED.slice() },
+      billing:{ internalCost:0, partnerPayout:0, partnerPaidTotal:0, paymentStatus:'not_invoiced', dueDate:'' } };
   }
   function emptyOnboardingAnswers() { return { clientName:'', businessName:'', email:'', phone:'', currentWebsite:'', aboutBusiness:'', goal:'', pagesNeeded:'', targetCustomer:'', likedWebsites:'', brandFilesNote:'', contentFilesNote:'', additionalNotes:'' }; }
-  function emptyClient(companyId) { return { id: uid(), companyId, name:'New Client', businessName:'', email:'', phone:'', website:'', mainContact:'', summary:'', team:[], notes:[], files:[], onboardingStatus:'not_sent', onboarding: emptyOnboardingAnswers(), projects:[] }; }
-  function emptyCompany() { return { id: uid(), name:'New Company', mainContact:'', email:'', phone:'', status:'in_progress', archived:false, team:[], notes:[], files:[], clients:[] }; }
+  function emptyClient(companyId) { return { id: uid(), companyId, name:'New Client', businessName:'', email:'', phone:'', website:'', mainContact:'', summary:'', onboardingStatus:'not_sent', onboarding: emptyOnboardingAnswers(), projects:[] }; }
+  function emptyCompany() { return { id: uid(), name:'New Company', mainContact:'', email:'', phone:'', status:'in_progress', archived:false, team:[], clients:[] }; }
 
   function projectProgress(p) { const ms = p.milestones||[]; if (!ms.length) return 0; return Math.round(ms.reduce((a,m)=>a+(Number(m.pct)||0),0)/ms.length); }
   function projectOutstanding(p) { return Math.max(0, (Number(p.price)||0) - (Number(p.paid)||0)); }
   function isBehindSchedule(p) { if (!p.targetDate || p.status==='completed' || p.status==='cancelled') return false; return new Date(p.targetDate+'T00:00:00') < new Date(new Date().toDateString()); }
   function isUpcomingDeadline(p) { if (!p.targetDate || p.status==='completed' || p.status==='cancelled') return false; const d = (new Date(p.targetDate+'T00:00:00') - new Date(new Date().toDateString())) / 86400000; return d >= 0 && d <= 14; }
+  function partnerOutstanding(p) { const b = p.billing||{}; return Math.max(0, (Number(b.partnerPayout)||0) - (Number(b.partnerPaidTotal)||0)); }
+  function partnerPayoutStatus(p) {
+    const b = p.billing||{}; const payout = Number(b.partnerPayout)||0, paid = Number(b.partnerPaidTotal)||0;
+    if (paid <= 0) return 'Unpaid';
+    if (paid >= payout && payout > 0) return 'Paid in full';
+    return 'Deposit paid';
+  }
+  function projectProfit(p) { const b = p.billing||{}; return (Number(p.price)||0) - (Number(b.internalCost)||0) - (Number(b.partnerPayout)||0); }
 
   function seed() {
     const acme = emptyCompany();
@@ -13199,20 +13221,22 @@ setupRail('rail2','pill2');
     Object.assign(p1, { name:'Hall & Co. Website Redesign', type:'Website Redesign', price:8500, paid:5000, startDate:'2026-06-01', targetDate:'2026-08-15', status:'in_progress', pm:'Luke Griffin', team:['Priya Nair','Sam Okafor'] });
     p1.milestones.forEach((m,i) => { if (i < 7) { m.status='completed'; m.pct=100; } else if (i===7) { m.status='in_progress'; m.pct=40; } });
     p1.milestones[0].paymentAmount = 2000; p1.milestones[6].paymentAmount = 3000; p1.milestones[12].paymentAmount = 3500;
+    p1.milestones[0].link = 'https://drive.google.com/hallco-onboarding';
     p1.notes.push({ id:uid(), author:'Luke Griffin', date:'2026-07-20', content:'Client approved full design, moving into dev.', visibility:'internal', pinned:true });
-    p1.billing = { internalCost:3200, paymentStatus:'partially_paid', dueDate:'2026-08-01' };
+    p1.scope = { included:['Custom law-firm website design','Mobile-responsive design','2 rounds of revisions','Basic on-page SEO setup','Launch support'], excluded:['Ongoing content updates after launch','Paid ad management','Copywriting beyond provided brief','Third-party integrations not listed in proposal'] };
+    p1.billing = { internalCost:3200, partnerPayout:2975, partnerPaidTotal:1200, paymentStatus:'partially_paid', dueDate:'2026-08-01' };
     client1.projects.push(p1);
 
     const client2 = emptyClient(acme.id);
     Object.assign(client2, { name:'Marcus Webb', businessName:'Webb Fitness Studio', email:'marcus@webbfitness.com', phone:'(555) 442-1180', website:'webbfitness.com', mainContact:'Marcus Webb', summary:'New booking-enabled website for a boutique gym.', onboardingStatus:'submitted' });
     const p2 = emptyProject(client2.id);
     Object.assign(p2, { name:'Webb Fitness Website', type:'New Website', price:6000, paid:1500, startDate:'2026-07-10', targetDate:'2026-09-01', status:'onboarding', pm:'Priya Nair', team:['Sam Okafor'] });
-    p2.billing = { internalCost:2100, paymentStatus:'invoice_sent', dueDate:'2026-07-25' };
+    p2.scope = { included: DEFAULT_SCOPE_INCLUDED.map(s=>s.replace('Custom design & build','Custom fitness studio website')), excluded: DEFAULT_SCOPE_EXCLUDED.slice() };
+    p2.billing = { internalCost:2100, partnerPayout:2100, partnerPaidTotal:0, paymentStatus:'invoice_sent', dueDate:'2026-07-25' };
     client2.projects.push(p2);
 
     acme.clients.push(client1, client2);
-    acme.team = [ { id:uid(), name:'Luke Griffin', role:'Project Manager', email:'luke@reachgiant.com', permission:'Manager' }, { id:uid(), name:'Priya Nair', role:'Designer', email:'priya@reachgiant.com', permission:'Team member' } ];
-    acme.notes.push({ id:uid(), author:'Luke Griffin', date:'2026-07-15', content:'Great partner to work with — fast approvals, clear briefs.', visibility:'internal', pinned:false });
+    acme.team = [ { id:uid(), name:'Luke Griffin', role:'Project Manager', email:'luke@reachgiant.com', permission:'Manager' }, { id:uid(), name:'Priya Nair', role:'Designer', email:'priya@reachgiant.com', permission:'Team member' }, { id:uid(), name:'Sam Okafor', role:'Developer', email:'sam@reachgiant.com', permission:'Team member' } ];
 
     const bright = emptyCompany();
     Object.assign(bright, { name:'BrightPath Marketing', mainContact:'Alicia Chen', email:'alicia@brightpathmkt.com', phone:'(555) 774-3300', status:'waiting_client' });
@@ -13221,28 +13245,33 @@ setupRail('rail2','pill2');
     const p3 = emptyProject(client3.id);
     Object.assign(p3, { name:'Price Home Renovations Site', type:'New Website', price:4500, paid:0, startDate:'2026-07-05', targetDate:'2026-07-30', status:'waiting_client', pm:'Sam Okafor', team:[] });
     p3.milestones[0].status='completed'; p3.milestones[0].pct=100;
-    p3.billing = { internalCost:1600, paymentStatus:'not_invoiced', dueDate:'' };
+    p3.billing = { internalCost:1600, partnerPayout:1575, partnerPaidTotal:0, paymentStatus:'not_invoiced', dueDate:'' };
     client3.projects.push(p3);
     bright.clients.push(client3);
+    bright.team = [ { id:uid(), name:'Sam Okafor', role:'Developer', email:'sam@reachgiant.com', permission:'Team member' } ];
 
     return [acme, bright];
   }
 
   let companies = seed();
   let view = 'dashboard'; // dashboard | companies | company | client | project
-  let activeCompanyId = null, activeClientId = null, activeProjectId = null, activeCompanyTab = 'overview';
+  let activeCompanyId = null, activeClientId = null, activeProjectId = null, activeCompanyTab = 'clients', activeProjectTab = 'milestones';
   let companySearch = '', showArchived = false;
   let dashFilters = { company:'all', pm:'all', status:'all', paymentStatus:'all', type:'all' };
-  let dashQuickFilter = null; // 'active'|'waiting'|'behind'|'upcoming'|'outstanding'|'completed'|null
+  let dashQuickFilter = null; // 'active'|'waiting'|'upcoming'|'outstanding'|'completed'|null
+  let dashBehindOpen = false;
+  let recentlyViewed = []; // project ids, most-recent-first, deduped, max 5
+  let milestoneLinkEditing = null; // milestone id currently showing the inline link editor
 
   function findCompany(id) { return companies.find(c => c.id === id); }
   function findClient(companyId, clientId) { const c = findCompany(companyId); return c && c.clients.find(cl => cl.id === clientId); }
   function findProject(companyId, clientId, projectId) { const cl = findClient(companyId, clientId); return cl && cl.projects.find(p => p.id === projectId); }
   function findProjectAnywhere(projectId) { for (const c of companies) for (const cl of c.clients) for (const p of cl.projects) if (p.id === projectId) return { company:c, client:cl, project:p }; return null; }
   function allProjectRows() { const out = []; companies.forEach(c => c.clients.forEach(cl => cl.projects.forEach(p => out.push({ company:c, client:cl, project:p })))); return out; }
-  function allNotes() { const out = []; companies.forEach(c => { (c.notes||[]).forEach(n => out.push({ ...n, scope:c.name })); c.clients.forEach(cl => cl.projects.forEach(p => (p.notes||[]).forEach(n => out.push({ ...n, scope:`${c.name} · ${p.name}` })))); }); return out; }
+  function allNotes() { const out = []; companies.forEach(c => c.clients.forEach(cl => cl.projects.forEach(p => (p.notes||[]).forEach(n => out.push({ ...n, scope:`${c.name} · ${p.name}` }))))); return out; }
   function companyActiveProjectCount(c) { let n=0; c.clients.forEach(cl => cl.projects.forEach(p => { if (!['completed','cancelled'].includes(p.status)) n++; })); return n; }
-  function companyTotals(c) { let value=0, paid=0; c.clients.forEach(cl => cl.projects.forEach(p => { value += Number(p.price)||0; paid += Number(p.paid)||0; })); return { value, paid, outstanding: Math.max(0,value-paid) }; }
+  function companyTotals(c) { let value=0, paid=0, profit=0; c.clients.forEach(cl => cl.projects.forEach(p => { value += Number(p.price)||0; paid += Number(p.paid)||0; profit += projectProfit(p); })); return { value, paid, outstanding: Math.max(0,value-paid), profit }; }
+  function clientAssignedTeam(cl) { const names = new Set(); (cl.projects||[]).forEach(p => (p.team||[]).forEach(n => names.add(n))); return Array.from(names); }
 
   function computeAlerts() {
     const out = [];
@@ -13287,9 +13316,14 @@ setupRail('rail2','pill2');
       </div>`;
   }
 
+  function pushRecentlyViewed(projectId) {
+    recentlyViewed = [projectId, ...recentlyViewed.filter(id => id !== projectId)].slice(0,5);
+  }
+
   function goTo(v, opts) {
     view = v;
     if (opts) { ['companyId','clientId','projectId','companyTab'].forEach(k => { if (k in opts) { if (k==='companyId') activeCompanyId = opts[k]; if (k==='clientId') activeClientId = opts[k]; if (k==='projectId') activeProjectId = opts[k]; if (k==='companyTab') activeCompanyTab = opts[k]; } }); }
+    if (v === 'project' && activeProjectId) { pushRecentlyViewed(activeProjectId); activeProjectTab = 'milestones'; }
     render();
   }
 
@@ -13314,14 +13348,14 @@ setupRail('rail2','pill2');
   const modalSaveBtn = $('wlModalSaveBtn');
   if (modalSaveBtn) modalSaveBtn.addEventListener('click', () => { if (wlModalOnSave) { const fn = wlModalOnSave; wlModalOnSave = null; fn(); closeModal('wlModalOverlay'); render(); } });
 
-  // ---- header (breadcrumbs + primary action) ----
+  // ---- header (breadcrumbs + primary action + view-as toggle) ----
   function renderHeader() {
     const host = $('wlHeader');
     if (!host) return;
     let crumbs = `<span class="wl-crumb" data-wl-crumb="dashboard">White Label</span>`;
     let action = '';
-    if (view === 'dashboard') { action = `<button class="btn-red" data-wl-action="new-company">+ New Company</button>`; }
-    else if (view === 'companies') { crumbs += ` <span style="color:var(--text-3);">/</span> Companies`; action = `<button class="btn-red" data-wl-action="new-company">+ New Company</button>`; }
+    if (view === 'dashboard') { action = isNotPartnerView() ? `<button class="btn-red" data-wl-action="new-company">+ New Company</button>` : ''; }
+    else if (view === 'companies') { crumbs += ` <span style="color:var(--text-3);">/</span> Companies`; action = isNotPartnerView() ? `<button class="btn-red" data-wl-action="new-company">+ New Company</button>` : ''; }
     else if (view === 'company') {
       const c = findCompany(activeCompanyId);
       crumbs += ` <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="companies">Companies</span> <span style="color:var(--text-3);">/</span> ${esc(c?c.name:'')}`;
@@ -13345,7 +13379,13 @@ setupRail('rail2','pill2');
           <div class="wl-tab ${view!=='dashboard'&&view!=='alerts'?'on':''}" data-wl-crumb="companies" style="padding:7px 14px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${view!=='dashboard'&&view!=='alerts'?'background:var(--red);color:#fff;':'color:var(--text-2);'}">Companies</div>
           <div class="wl-tab ${view==='alerts'?'on':''}" data-wl-crumb="alerts" style="padding:7px 14px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${view==='alerts'?'background:var(--red);color:#fff;':'color:var(--text-2);'}position:relative;">Alerts${(function(){ const n=computeAlerts().length; return n?` <span style="background:${view==='alerts'?'#fff':'var(--red)'};color:${view==='alerts'?'var(--red)':'#fff'};font-size:10px;font-weight:800;padding:1px 5px;border-radius:8px;margin-left:2px;">${n}</span>`:''; })()}</div>
         </div>
-        <div style="display:flex;gap:8px;">${action}</div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.03em;">
+            View as
+            ${selectHtml('wlViewAsSelect', [{value:'owner',label:'Owner'},{value:'team',label:'Team'},{value:'partner',label:'Partner'}], viewAs)}
+          </label>
+          ${action}
+        </div>
       </div>`;
     host.querySelectorAll('[data-wl-crumb]').forEach(el => el.addEventListener('click', () => {
       const target = el.dataset.wlCrumb;
@@ -13358,9 +13398,12 @@ setupRail('rail2','pill2');
     }));
     const newCompanyBtn = host.querySelector('[data-wl-action="new-company"]');
     if (newCompanyBtn) newCompanyBtn.addEventListener('click', openNewCompanyModal);
+    const viewAsSel = $('wlViewAsSelect');
+    if (viewAsSel) viewAsSel.addEventListener('change', () => { viewAs = viewAsSel.value; render(); });
   }
 
   function openNewCompanyModal() {
+    if (!isNotPartnerView()) return;
     openWlModal('New White Label Company', [
       { key:'name', label:'Company name', value:'' },
       { key:'mainContact', label:'Main contact', value:'' },
@@ -13373,7 +13416,7 @@ setupRail('rail2','pill2');
       Object.assign(c, { name:v.name.trim(), mainContact:v.mainContact, email:v.email, phone:v.phone, status:v.status });
       companies.push(c);
       if (typeof toast==='function') toast({type:'success', message:'Company added'});
-      goTo('company', { companyId: c.id, companyTab:'overview' });
+      goTo('company', { companyId: c.id, companyTab:'clients' });
     });
   }
 
@@ -13383,16 +13426,17 @@ setupRail('rail2','pill2');
     const activeCompanies = companies.filter(c => !c.archived).length;
     const activeProjects = rows.filter(r => !['completed','cancelled'].includes(r.project.status)).length;
     const waitingClient = rows.filter(r => r.project.status === 'waiting_client').length;
-    const behind = rows.filter(r => isBehindSchedule(r.project)).length;
+    const behindRows = rows.filter(r => isBehindSchedule(r.project));
     const upcoming = rows.filter(r => isUpcomingDeadline(r.project)).sort((a,b)=> new Date(a.project.targetDate) - new Date(b.project.targetDate));
     const outstanding = rows.reduce((a,r)=>a+projectOutstanding(r.project),0);
     const recentlyCompleted = rows.filter(r => r.project.status === 'completed');
+    const totalProfit = rows.reduce((a,r)=>a+projectProfit(r.project),0);
     const notes = allNotes().sort((a,b)=> new Date(b.date)-new Date(a.date)).slice(0,6);
 
-    const statCard = (label, value, color, quickKey) => {
+    const statCard = (label, value, color, quickKey, extraAttr) => {
       const active = quickKey && dashQuickFilter === quickKey;
-      const clickable = !!quickKey;
-      return `<div ${clickable?`data-wl-quick-filter="${quickKey}"`:''} style="background:${active?'var(--red)':'var(--surface-2)'};border:1px solid ${active?'var(--red)':'var(--line)'};border-radius:10px;padding:15px 16px;${clickable?'cursor:pointer;':''}">
+      const clickable = !!quickKey || !!extraAttr;
+      return `<div ${quickKey?`data-wl-quick-filter="${quickKey}"`:''} ${extraAttr||''} style="background:${active?'var(--red)':'var(--surface-2)'};border:1px solid ${active?'var(--red)':'var(--line)'};border-radius:10px;padding:15px 16px;${clickable?'cursor:pointer;':''}">
         <div style="font-size:11.5px;color:${active?'rgba(255,255,255,.75)':'var(--text-3)'};font-weight:600;text-transform:uppercase;letter-spacing:.03em;">${esc(label)}</div>
         <div style="font-size:24px;font-weight:800;margin-top:6px;color:${active?'#fff':color};">${esc(String(value))}</div>
       </div>`;
@@ -13403,7 +13447,6 @@ setupRail('rail2','pill2');
       if (!dashQuickFilter) return true;
       if (dashQuickFilter === 'active') return !['completed','cancelled'].includes(r.project.status);
       if (dashQuickFilter === 'waiting') return r.project.status === 'waiting_client';
-      if (dashQuickFilter === 'behind') return isBehindSchedule(r.project);
       if (dashQuickFilter === 'upcoming') return isUpcomingDeadline(r.project);
       if (dashQuickFilter === 'outstanding') return projectOutstanding(r.project) > 0;
       if (dashQuickFilter === 'completed') return r.project.status === 'completed';
@@ -13419,19 +13462,42 @@ setupRail('rail2','pill2');
       return true;
     });
 
+    const recentChips = recentlyViewed.map(id => findProjectAnywhere(id)).filter(Boolean);
+
     return `
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;">
         ${statCard('Active companies', activeCompanies, 'var(--text)')}
         ${statCard('Active projects', activeProjects, 'var(--text)', 'active')}
         ${statCard('Waiting for client', waitingClient, waitingClient?'#e8a83e':'#3ecf8e', 'waiting')}
-        ${statCard('Behind schedule', behind, behind?'#ff6b5c':'#3ecf8e', 'behind')}
+        ${statCard('Behind schedule', behindRows.length, behindRows.length?'#ff6b5c':'#3ecf8e', null, `data-wl-behind-toggle`)}
       </div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:26px;">
+      <div style="display:grid;grid-template-columns:repeat(${isOwnerView()?4:3},1fr);gap:12px;margin-bottom:18px;">
         ${statCard('Upcoming deadlines (14d)', upcoming.length, 'var(--text)', 'upcoming')}
         ${statCard('Outstanding payments', fmtMoney(outstanding), outstanding?'#e8a83e':'#3ecf8e', 'outstanding')}
         ${statCard('Recently completed', recentlyCompleted.length, 'var(--text)', 'completed')}
+        ${isOwnerView() ? statCard('Total profit', fmtMoney(totalProfit), '#3ecf8e') : ''}
       </div>
-      ${dashQuickFilter ? `<div style="margin-bottom:14px;"><span data-wl-quick-filter-clear style="background:var(--surface-2);border:1px solid var(--line);color:var(--text-2);font-size:12px;font-weight:600;padding:6px 12px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">Showing: ${esc({active:'Active projects',waiting:'Waiting for client',behind:'Behind schedule',upcoming:'Upcoming deadlines',outstanding:'Outstanding payments',completed:'Recently completed'}[dashQuickFilter])} <span style="font-weight:800;">×</span></span></div>` : ''}
+      ${dashBehindOpen ? `
+        <div style="background:var(--surface-2);border:1px solid #4a2622;border-radius:10px;padding:14px 16px;margin-bottom:18px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-size:13px;font-weight:800;color:#ff6b5c;">Behind schedule (${behindRows.length})</div>
+            <span data-wl-behind-close style="cursor:pointer;color:var(--text-3);font-weight:800;font-size:14px;">Close ×</span>
+          </div>
+          ${behindRows.length ? behindRows.map(r => `<div data-wl-open-project="${esc(r.project.id)}" style="cursor:pointer;padding:8px 4px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;font-size:12.5px;">
+            <span><strong>${esc(r.project.name)}</strong> — ${esc(r.company.name)}</span>
+            <span style="color:#ff6b5c;">Target was ${esc(fmtDate(r.project.targetDate))}</span>
+          </div>`).join('') : `<div style="font-size:12.5px;color:var(--text-3);padding:6px 4px;">Nothing behind schedule right now.</div>`}
+        </div>` : ''}
+      ${recentChips.length ? `
+        <div style="margin-bottom:18px;">
+          <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:8px;">Recently viewed</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            ${recentChips.map(r => `<span data-wl-open-project="${esc(r.project.id)}" style="cursor:pointer;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:12px;">
+              <strong>${esc(r.project.name)}</strong> <span style="color:var(--text-3);">· ${esc(r.company.name)}</span>
+            </span>`).join('')}
+          </div>
+        </div>` : ''}
+      ${dashQuickFilter ? `<div style="margin-bottom:14px;"><span data-wl-quick-filter-clear style="background:var(--surface-2);border:1px solid var(--line);color:var(--text-2);font-size:12px;font-weight:600;padding:6px 12px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">Showing: ${esc({active:'Active projects',waiting:'Waiting for client',upcoming:'Upcoming deadlines',outstanding:'Outstanding payments',completed:'Recently completed'}[dashQuickFilter])} <span style="font-weight:800;">×</span></span></div>` : ''}
 
       <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
         ${selectHtml('wlFilterCompany', [{value:'all',label:'All companies'}, ...companies.map(c=>({value:c.id,label:c.name}))], dashFilters.company)}
@@ -13479,7 +13545,7 @@ setupRail('rail2','pill2');
             <span>${esc(project.type)}</span>
             <span>PM: ${esc(project.pm||'Unassigned')}</span>
             <span>Due ${esc(fmtDate(project.targetDate))}</span>
-            <span>${esc(fmtMoney(projectOutstanding(project)))} outstanding</span>
+            ${isNotPartnerView() ? `<span>${esc(fmtMoney(projectOutstanding(project)))} outstanding</span>` : ''}
           </div>
         </div>
         <div style="text-align:right;flex-shrink:0;width:100px;">
@@ -13518,18 +13584,18 @@ setupRail('rail2','pill2');
           <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;font-size:11.5px;color:var(--text-3);">
             <span>${companyActiveProjectCount(c)} active project${companyActiveProjectCount(c)===1?'':'s'}</span>
             <span>${esc(fmtMoney(totals.value))} total value</span>
-            <span>${esc(fmtMoney(totals.paid))} paid</span>
-            <span style="color:${totals.outstanding?'#e8a83e':'var(--text-3)'};">${esc(fmtMoney(totals.outstanding))} outstanding</span>
+            ${isNotPartnerView() ? `<span>${esc(fmtMoney(totals.paid))} paid</span><span style="color:${totals.outstanding?'#e8a83e':'var(--text-3)'};">${esc(fmtMoney(totals.outstanding))} outstanding</span>` : ''}
           </div>
         </div>
-        <span data-stop-row-click style="display:flex;gap:2px;flex-shrink:0;">
+        ${isNotPartnerView() ? `<span data-stop-row-click style="display:flex;gap:2px;flex-shrink:0;">
           <span class="report-row-icon-btn" data-wl-action="edit-company" data-wl-id="${esc(c.id)}" title="Edit"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
           <span class="report-row-icon-btn" data-wl-action="archive-company" data-wl-id="${esc(c.id)}" title="${c.archived?'Unarchive':'Archive'}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3.5" width="12" height="3" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 6.5V12a1 1 0 001 1h8a1 1 0 001-1V6.5M6.5 9h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>
-        </span>
+        </span>` : ''}
       </div>
     </div>`;
   }
   function openEditCompanyModal(id) {
+    if (!isNotPartnerView()) return;
     const c = findCompany(id); if (!c) return;
     openWlModal('Edit Company', [
       { key:'name', label:'Company name', value:c.name },
@@ -13540,8 +13606,8 @@ setupRail('rail2','pill2');
     ], (v) => { Object.assign(c, { name:v.name.trim()||c.name, mainContact:v.mainContact, email:v.email, phone:v.phone, status:v.status }); if (typeof toast==='function') toast({type:'success', message:'Company updated'}); });
   }
 
-  // ---- Company detail ----
-  const COMPANY_TABS = [ ['overview','Overview'], ['clients','Clients'], ['projects','Projects'], ['team','Team'], ['notes','Notes'], ['files','Files'], ['billing','Billing'] ];
+  // ---- Company detail (lightweight: header rollup + Clients / Projects tabs only) ----
+  const COMPANY_TABS = [ ['clients','Clients'], ['projects','Projects'] ];
   function renderCompanyDetail() {
     const c = findCompany(activeCompanyId);
     if (!c) return `<div style="padding:40px;text-align:center;color:var(--text-3);">Company not found.</div>`;
@@ -13549,14 +13615,10 @@ setupRail('rail2','pill2');
     const st = STATUS_INFO[c.status] || STATUS_INFO.not_started;
     const tabsHtml = COMPANY_TABS.map(([key,label]) => `<div class="wl-ctab" data-wl-company-tab="${key}" style="padding:8px 15px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${activeCompanyTab===key?'background:var(--red);color:#fff;':'color:var(--text-2);'}">${esc(label)}</div>`).join('');
     let body = '';
-    if (activeCompanyTab === 'overview') body = renderCompanyOverviewTab(c, totals);
-    else if (activeCompanyTab === 'clients') body = renderCompanyClientsTab(c);
-    else if (activeCompanyTab === 'projects') body = renderCompanyProjectsTab(c);
-    else if (activeCompanyTab === 'team') body = renderCompanyTeamTab(c);
-    else if (activeCompanyTab === 'notes') body = renderNotesSection(c.notes, { scope:'company', companyId:c.id });
-    else if (activeCompanyTab === 'files') body = renderFilesSection(c.files, { scope:'company', companyId:c.id });
-    else if (activeCompanyTab === 'billing') body = renderCompanyBillingTab(c);
+    if (activeCompanyTab === 'clients') body = renderCompanyClientsTab(c);
+    else body = renderCompanyProjectsTab(c);
 
+    const statCols = isOwnerView() ? 5 : 4;
     return `
       <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin-bottom:20px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;">
@@ -13565,45 +13627,26 @@ setupRail('rail2','pill2');
             <div style="font-size:13px;color:var(--text-3);margin-top:6px;">${esc(c.mainContact||'No main contact')} ${c.email?'· '+esc(c.email):''} ${c.phone?'· '+esc(c.phone):''}</div>
             <div style="margin-top:10px;">${badge(st)}</div>
           </div>
-          <div style="display:flex;gap:8px;">
+          ${isNotPartnerView() ? `<div style="display:flex;gap:8px;">
             <div class="btn-outline" data-wl-action="edit-company" data-wl-id="${esc(c.id)}" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Edit</div>
             <div class="btn-outline" data-wl-action="archive-company" data-wl-id="${esc(c.id)}" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">${c.archived?'Unarchive':'Archive'}</div>
-          </div>
+          </div>` : ''}
         </div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line);">
+        <div style="display:grid;grid-template-columns:repeat(${statCols},1fr);gap:14px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line);">
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Active projects</div><div style="font-size:16px;font-weight:700;margin-top:4px;">${companyActiveProjectCount(c)}</div></div>
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Total value</div><div style="font-size:16px;font-weight:700;margin-top:4px;">${esc(fmtMoney(totals.value))}</div></div>
-          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Amount paid</div><div style="font-size:16px;font-weight:700;margin-top:4px;">${esc(fmtMoney(totals.paid))}</div></div>
-          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Outstanding</div><div style="font-size:16px;font-weight:700;margin-top:4px;color:${totals.outstanding?'#e8a83e':'var(--text)'};">${esc(fmtMoney(totals.outstanding))}</div></div>
+          ${isNotPartnerView() ? `<div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Amount paid</div><div style="font-size:16px;font-weight:700;margin-top:4px;">${esc(fmtMoney(totals.paid))}</div></div>
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Outstanding</div><div style="font-size:16px;font-weight:700;margin-top:4px;color:${totals.outstanding?'#e8a83e':'var(--text)'};">${esc(fmtMoney(totals.outstanding))}</div></div>` : ''}
+          ${isOwnerView() ? `<div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Profit</div><div style="font-size:16px;font-weight:700;margin-top:4px;color:#3ecf8e;">${esc(fmtMoney(totals.profit))}</div></div>` : ''}
         </div>
       </div>
       <div style="display:flex;gap:4px;margin-bottom:18px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:4px;width:fit-content;flex-wrap:wrap;">${tabsHtml}</div>
       <div>${body}</div>
     `;
   }
-  function renderCompanyOverviewTab(c, totals) {
-    const recentProjects = []; c.clients.forEach(cl => cl.projects.forEach(p => recentProjects.push({client:cl,project:p})));
-    return `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
-        <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:16px 18px;">
-          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Contact</div>
-          <div style="font-size:13.5px;line-height:1.9;color:var(--text-2);">
-            <div>Main contact: ${esc(c.mainContact||'—')}</div>
-            <div>Email: ${esc(c.email||'—')}</div>
-            <div>Phone: ${esc(c.phone||'—')}</div>
-            <div>Clients: ${c.clients.length}</div>
-          </div>
-        </div>
-        <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:16px 18px;">
-          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Recent projects</div>
-          ${recentProjects.length ? recentProjects.slice(0,4).map(r => `<div data-wl-open-project="${esc(r.project.id)}" style="cursor:pointer;padding:8px 0;border-top:1px solid var(--line);font-size:13px;display:flex;justify-content:space-between;"><span>${esc(r.project.name)}</span>${badge(STATUS_INFO[r.project.status]||STATUS_INFO.not_started)}</div>`).join('') : `<div style="font-size:13px;color:var(--text-3);">No projects yet.</div>`}
-        </div>
-      </div>
-    `;
-  }
   function renderCompanyClientsTab(c) {
     return `
-      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button class="btn-red" data-wl-action="new-client" data-wl-id="${esc(c.id)}">+ Add Client</button></div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">${isNotPartnerView() ? `<button class="btn-red" data-wl-action="new-client" data-wl-id="${esc(c.id)}">+ Add Client</button>` : ''}</div>
       <div style="display:flex;flex-direction:column;gap:10px;">
         ${c.clients.length ? c.clients.map(cl => renderClientRow(c, cl)).join('') : `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:32px;text-align:center;">No clients yet — add the first one.</div>`}
       </div>
@@ -13628,46 +13671,8 @@ setupRail('rail2','pill2');
       </div>
     `;
   }
-  function memberAssignedMilestones(c, memberName) {
-    const out = [];
-    c.clients.forEach(cl => cl.projects.forEach(p => (p.milestones||[]).forEach(m => { if (m.assignee === memberName) out.push(`${p.name} — ${m.name}`); })));
-    return out;
-  }
-  function renderCompanyTeamTab(c) {
-    return `
-      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button class="btn-red" data-wl-action="new-team-member" data-wl-id="${esc(c.id)}">+ Add Team Member</button></div>
-      <div style="border-radius:8px;overflow:hidden;border:1px solid var(--line);">
-        <div style="display:grid;grid-template-columns:1.1fr .9fr 1.1fr .8fr 1.3fr 60px;background:var(--surface-2);padding:8px 12px;font-size:10.5px;font-weight:800;text-transform:uppercase;color:var(--text-3);"><div>Name</div><div>Role</div><div>Email</div><div>Permission</div><div>Assigned milestones</div><div></div></div>
-        ${(c.team||[]).map(m => { const ms = memberAssignedMilestones(c, m.name); return `<div style="display:grid;grid-template-columns:1.1fr .9fr 1.1fr .8fr 1.3fr 60px;padding:10px 12px;border-top:1px solid var(--line);align-items:center;font-size:12.5px;">
-          <div style="font-weight:600;">${esc(m.name)}</div>
-          <div style="color:var(--text-3);">${esc(m.role||'—')}</div>
-          <div style="color:var(--text-3);">${esc(m.email||'—')}</div>
-          <div>${esc(m.permission)}</div>
-          <div style="color:var(--text-3);font-size:11.5px;" title="${esc(ms.join(', '))}">${ms.length ? ms.length + ' assigned' : '—'}</div>
-          <div style="display:flex;gap:2px;">
-            <span class="report-row-icon-btn" data-wl-action="edit-team-member" data-wl-id="${esc(c.id)}" data-wl-member-id="${esc(m.id)}" title="Edit"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
-            <span class="report-row-icon-btn" data-wl-action="delete-team-member" data-wl-id="${esc(c.id)}" data-wl-member-id="${esc(m.id)}" title="Remove" style="color:var(--red);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M6 4.5V3a1 1 0 011-1h2a1 1 0 011 1v1.5M4.5 4.5l.6 8a1 1 0 001 .9h3.8a1 1 0 001-.9l.6-8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-          </div>
-        </div>`; }).join('') || `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:13px;">No team members assigned yet.</div>`}
-      </div>
-    `;
-  }
-  function renderCompanyBillingTab(c) {
-    const rows = []; c.clients.forEach(cl => cl.projects.forEach(p => rows.push({client:cl,project:p})));
-    const totals = companyTotals(c);
-    return `
-      <div style="border-radius:8px;overflow:hidden;border:1px solid var(--line);margin-bottom:16px;">
-        <div style="display:grid;grid-template-columns:1.4fr .8fr .8fr .8fr 1fr;background:var(--surface-2);padding:8px 12px;font-size:10.5px;font-weight:800;text-transform:uppercase;color:var(--text-3);"><div>Project</div><div>Price</div><div>Paid</div><div>Outstanding</div><div>Payment status</div></div>
-        ${rows.length ? rows.map(r => { const b = r.project.billing||{}; const ps = PAYMENT_STATUS_INFO[b.paymentStatus]||PAYMENT_STATUS_INFO.not_invoiced; return `<div style="display:grid;grid-template-columns:1.4fr .8fr .8fr .8fr 1fr;padding:10px 12px;border-top:1px solid var(--line);align-items:center;font-size:12.5px;cursor:pointer;" data-wl-open-project="${esc(r.project.id)}"><div style="font-weight:600;">${esc(r.project.name)}</div><div>${esc(fmtMoney(r.project.price))}</div><div>${esc(fmtMoney(r.project.paid))}</div><div style="color:${projectOutstanding(r.project)?'#e8a83e':'var(--text-3)'};">${esc(fmtMoney(projectOutstanding(r.project)))}</div><div>${badge(ps)}</div></div>`; }).join('') : `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:13px;">No billing data yet.</div>`}
-      </div>
-      <div style="display:flex;gap:24px;font-size:13px;color:var(--text-2);">
-        <div>Total value: <strong>${esc(fmtMoney(totals.value))}</strong></div>
-        <div>Paid: <strong>${esc(fmtMoney(totals.paid))}</strong></div>
-        <div>Outstanding: <strong style="color:${totals.outstanding?'#e8a83e':'var(--text)'};">${esc(fmtMoney(totals.outstanding))}</strong></div>
-      </div>
-    `;
-  }
   function openNewClientModal(companyId) {
+    if (!isNotPartnerView()) return;
     openWlModal('Add Client', [
       { key:'name', label:'Client name', value:'' },
       { key:'businessName', label:'Business name', value:'' },
@@ -13685,50 +13690,13 @@ setupRail('rail2','pill2');
       goTo('client', { companyId, clientId: cl.id });
     });
   }
-  function openNewTeamMemberModal(companyId) {
-    openWlModal('Add Team Member', [
-      { key:'name', label:'Name', value:'' },
-      { key:'role', label:'Role', value:'' },
-      { key:'email', label:'Email', type:'email', value:'' },
-      { key:'permission', label:'Permission level', type:'select', value:'Team member', options: PERMISSION_LEVELS.map(p=>({value:p,label:p})) },
-    ], (v) => {
-      if (!v.name.trim()) return;
-      const c = findCompany(companyId); if (!c) return;
-      c.team.push({ id:uid(), name:v.name.trim(), role:v.role, email:v.email, permission:v.permission });
-      if (typeof toast==='function') toast({type:'success', message:'Team member added'});
-    });
-  }
-  function openEditTeamMemberModal(companyId, memberId) {
-    const c = findCompany(companyId); if (!c) return;
-    const m = (c.team||[]).find(x => x.id === memberId); if (!m) return;
-    openWlModal('Edit Team Member', [
-      { key:'name', label:'Name', value:m.name },
-      { key:'role', label:'Role', value:m.role },
-      { key:'email', label:'Email', type:'email', value:m.email },
-      { key:'permission', label:'Permission level', type:'select', value:m.permission, options: PERMISSION_LEVELS.map(p=>({value:p,label:p})) },
-    ], (v) => {
-      const oldName = m.name;
-      Object.assign(m, { name:v.name.trim()||m.name, role:v.role, email:v.email, permission:v.permission });
-      // Keep milestone assignments pointing at this person after a rename — they're matched by name, not id.
-      if (oldName !== m.name) c.clients.forEach(cl => cl.projects.forEach(p => (p.milestones||[]).forEach(ms => { if (ms.assignee === oldName) ms.assignee = m.name; })));
-      if (typeof toast==='function') toast({type:'success', message:'Team member updated'});
-    });
-  }
-  async function deleteTeamMember(companyId, memberId) {
-    const c = findCompany(companyId); if (!c) return;
-    const m = (c.team||[]).find(x => x.id === memberId); if (!m) return;
-    const confirmed = await window.giantConfirmWarn(`Remove ${m.name}?`, "They'll be unassigned from any milestones, but existing history stays.", 'Remove', 'warning');
-    if (!confirmed) return;
-    c.team = c.team.filter(x => x.id !== memberId);
-    if (typeof toast==='function') toast({type:'success', message:'Team member removed'});
-    render();
-  }
 
-  // ---- Client detail ----
+  // ---- Client detail (lightweight: header + Projects list only) ----
   function renderClientDetail() {
     const c = findCompany(activeCompanyId), cl = findClient(activeCompanyId, activeClientId);
     if (!c || !cl) return `<div style="padding:40px;text-align:center;color:var(--text-3);">Client not found.</div>`;
     const ob = ONBOARD_STATUS_INFO[cl.onboardingStatus] || ONBOARD_STATUS_INFO.not_sent;
+    const team = clientAssignedTeam(cl);
     return `
       <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin-bottom:20px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;">
@@ -13736,11 +13704,11 @@ setupRail('rail2','pill2');
             <div style="font-size:20px;font-weight:800;">${esc(cl.name)}${cl.businessName?' — '+esc(cl.businessName):''}</div>
             <div style="font-size:13px;color:var(--text-3);margin-top:6px;max-width:560px;">${esc(cl.summary||'No project summary yet.')}</div>
           </div>
-          <div style="display:flex;gap:8px;">
-            <div class="btn-outline" data-wl-action="edit-client" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Edit</div>
-            <div class="btn-outline" data-wl-action="send-onboarding" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Copy onboarding link</div>
-            <div class="btn-outline" data-wl-action="open-onboarding" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Open onboarding form</div>
-            <div class="btn-outline" data-wl-action="delete-client" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--red);font-size:12.5px;font-weight:700;cursor:pointer;">Delete</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            ${isNotPartnerView() ? `<div class="btn-outline" data-wl-action="edit-client" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Edit</div>
+            <div class="btn-outline" data-wl-action="send-onboarding" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Send form</div>` : ''}
+            <div class="btn-outline" data-wl-action="open-onboarding" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">View responses</div>
+            ${isNotPartnerView() ? `<div class="btn-outline" data-wl-action="delete-client" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--red);font-size:12.5px;font-weight:700;cursor:pointer;">Delete</div>` : ''}
           </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line);">
@@ -13750,33 +13718,25 @@ setupRail('rail2','pill2');
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Onboarding</div><div style="margin-top:4px;">${badge(ob)}</div></div>
         </div>
         <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);">
-          <div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">Assigned team members</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-            ${(cl.team||[]).length ? cl.team.map(name => `<span style="background:var(--surface);border:1px solid var(--line);color:var(--text-2);font-size:12px;font-weight:600;padding:5px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;">${esc(name)}<span data-wl-action="remove-client-team" data-wl-name="${esc(name)}" style="cursor:pointer;color:var(--text-3);font-weight:800;">×</span></span>`).join('') : `<span style="font-size:12.5px;color:var(--text-3);">Nobody assigned yet.</span>`}
-            ${(() => { const avail = (c.team||[]).filter(m => !(cl.team||[]).includes(m.name)); return avail.length ? selectHtml('wlClientTeamAdd', [{value:'',label:'+ Add from company team'}, ...avail.map(m=>({value:m.name,label:m.name}))], '') : ''; })()}
-          </div>
+          <div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">Main contact</div>
+          <div style="font-size:13.5px;">${esc(cl.mainContact||'—')}</div>
+          ${team.length ? `<div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;margin:12px 0 6px;">Team assigned across projects</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">${team.map(name => `<span style="background:var(--surface);border:1px solid var(--line);color:var(--text-2);font-size:12px;font-weight:600;padding:5px 9px;border-radius:6px;">${esc(name)}</span>`).join('')}</div>` : ''}
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:18px;align-items:start;">
-        <div>
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-            <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);">Projects</div>
-            <button class="btn-red" data-wl-action="new-project" style="padding:7px 13px;font-size:12px;">+ Add Project</button>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:8px;">
-            ${cl.projects.length ? cl.projects.map(p => renderProjectRow(c, cl, p)).join('') : `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:24px;text-align:center;">No projects yet.</div>`}
-          </div>
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);">Projects</div>
+          ${isNotPartnerView() ? `<button class="btn-red" data-wl-action="new-project" style="padding:7px 13px;font-size:12px;">+ Add Project</button>` : ''}
         </div>
-        <div>
-          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Notes</div>
-          ${renderNotesSection(cl.notes, { scope:'client', companyId:c.id, clientId:cl.id }, true)}
-          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin:18px 0 10px;">Files</div>
-          ${renderFilesSection(cl.files, { scope:'client', companyId:c.id, clientId:cl.id }, true)}
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${cl.projects.length ? cl.projects.map(p => renderProjectRow(c, cl, p)).join('') : `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:24px;text-align:center;">No projects yet.</div>`}
         </div>
       </div>
     `;
   }
   function openEditClientModal() {
+    if (!isNotPartnerView()) return;
     const cl = findClient(activeCompanyId, activeClientId); if (!cl) return;
     openWlModal('Edit Client', [
       { key:'name', label:'Client name', value:cl.name },
@@ -13789,12 +13749,14 @@ setupRail('rail2','pill2');
     ], (v) => { Object.assign(cl, { name:v.name.trim()||cl.name, businessName:v.businessName, email:v.email, phone:v.phone, website:v.website, summary:v.summary, onboardingStatus:v.onboardingStatus }); if (typeof toast==='function') toast({type:'success', message:'Client updated'}); });
   }
   function copyOnboardingLink() {
+    if (!isNotPartnerView()) return;
     const cl = findClient(activeCompanyId, activeClientId); if (!cl) return;
     const url = `${window.location.origin}/app?onboarding=${cl.id}`;
     if (cl.onboardingStatus === 'not_sent') cl.onboardingStatus = 'sent';
     navigator.clipboard.writeText(url).then(() => { if (typeof toast==='function') toast({type:'success', message:'Onboarding link copied'}); render(); }).catch(async () => { await window.giantPrompt('Copy this link:', url); render(); });
   }
   async function deleteClient() {
+    if (!isNotPartnerView()) return;
     const c = findCompany(activeCompanyId), cl = findClient(activeCompanyId, activeClientId); if (!c || !cl) return;
     const confirmed = await window.giantConfirmWarn(`Delete ${cl.name}?`, `This removes the client and all ${cl.projects.length} linked project${cl.projects.length===1?'':'s'}. This can't be undone.`, 'Delete', 'warning');
     if (!confirmed) return;
@@ -13805,7 +13767,7 @@ setupRail('rail2','pill2');
 
   function openOnboardingForm() {
     const cl = findClient(activeCompanyId, activeClientId); if (!cl) return;
-    if (cl.onboardingStatus === 'not_sent' || cl.onboardingStatus === 'sent') cl.onboardingStatus = 'started';
+    if (isNotPartnerView() && (cl.onboardingStatus === 'not_sent' || cl.onboardingStatus === 'sent')) cl.onboardingStatus = 'started';
     goTo('onboarding', { companyId: activeCompanyId, clientId: cl.id });
   }
 
@@ -13830,7 +13792,7 @@ setupRail('rail2','pill2');
     if (!c || !cl) return `<div style="padding:40px;text-align:center;color:var(--text-3);">Client not found.</div>`;
     const ob = ONBOARD_STATUS_INFO[cl.onboardingStatus] || ONBOARD_STATUS_INFO.not_sent;
     const answers = cl.onboarding || (cl.onboarding = emptyOnboardingAnswers());
-    const readOnly = cl.onboardingStatus === 'reviewed';
+    const readOnly = cl.onboardingStatus === 'reviewed' || !isNotPartnerView();
     return `
       <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin-bottom:20px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;">
@@ -13851,7 +13813,7 @@ setupRail('rail2','pill2');
         </div>
         <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);display:flex;gap:10px;flex-wrap:wrap;">
           ${!readOnly ? `<button class="btn-red" data-wl-action="submit-onboarding">${cl.onboardingStatus==='submitted'?'Re-submit':'Submit'} onboarding form</button>` : ''}
-          ${cl.onboardingStatus==='submitted' ? `<div class="btn-outline" data-wl-action="mark-onboarding-reviewed" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Mark reviewed</div>` : ''}
+          ${cl.onboardingStatus==='submitted' && isNotPartnerView() ? `<div class="btn-outline" data-wl-action="mark-onboarding-reviewed" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Mark reviewed</div>` : ''}
           <div class="btn-outline" data-wl-action="back-to-client" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Back to client</div>
         </div>
       </div>`;
@@ -13881,6 +13843,7 @@ setupRail('rail2','pill2');
   }
 
   async function deleteProject() {
+    if (!isNotPartnerView()) return;
     const found = findProjectAnywhere(activeProjectId); if (!found) return;
     const { client, project } = found;
     const confirmed = await window.giantConfirmWarn(`Delete ${project.name}?`, `This removes the project and all its milestones, notes, and files. This can't be undone.`, 'Delete', 'warning');
@@ -13890,15 +13853,24 @@ setupRail('rail2','pill2');
     goTo('client', { companyId: activeCompanyId, clientId: client.id });
   }
 
-  // ---- Project detail ----
+  // ---- Project detail (tabbed: Milestones / Scope / Team / Notes / Files / Billing) ----
+  const PROJECT_TABS = [ ['milestones','Milestones'], ['scope','Scope'], ['team','Team'], ['notes','Notes'], ['files','Files'], ['billing','Billing'] ];
   function renderProjectDetail() {
     const found = findProjectAnywhere(activeProjectId);
     if (!found) return `<div style="padding:40px;text-align:center;color:var(--text-3);">Project not found.</div>`;
     const { company, client, project } = found;
     const pct = projectProgress(project);
     const outstanding = projectOutstanding(project);
-    const b = project.billing || {};
-    const ps = PAYMENT_STATUS_INFO[b.paymentStatus] || PAYMENT_STATUS_INFO.not_invoiced;
+    const showClientBilling = isNotPartnerView();
+    const tabsHtml = PROJECT_TABS.map(([key,label]) => `<div class="wl-ctab" data-wl-project-tab="${key}" style="padding:8px 15px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${activeProjectTab===key?'background:var(--red);color:#fff;':'color:var(--text-2);'}">${esc(label)}</div>`).join('');
+    let body = '';
+    if (activeProjectTab === 'milestones') body = renderMilestonesTab(project);
+    else if (activeProjectTab === 'scope') body = renderScopeTab(project);
+    else if (activeProjectTab === 'team') body = renderProjectTeamTab(company, project);
+    else if (activeProjectTab === 'notes') body = renderNotesSection(project.notes, { scope:'project', projectId:project.id });
+    else if (activeProjectTab === 'files') body = renderFilesSection(project.files, { scope:'project', projectId:project.id });
+    else if (activeProjectTab === 'billing') body = renderProjectBillingTab(project);
+
     return `
       <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin-bottom:20px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;">
@@ -13906,14 +13878,15 @@ setupRail('rail2','pill2');
             <div style="font-size:20px;font-weight:800;">${esc(project.name)}</div>
             <div style="font-size:13px;color:var(--text-3);margin-top:6px;">${esc(company.name)} · ${esc(client.name)} · ${esc(project.type)}</div>
           </div>
-          <div style="display:flex;align-items:center;gap:10px;">
+          ${isNotPartnerView() ? `<div style="display:flex;align-items:center;gap:10px;">
             ${selectHtml('wlProjectStatus', Object.keys(STATUS_INFO).map(k=>({value:k,label:STATUS_INFO[k].label})), project.status)}
-          </div>
+          </div>` : `<div>${badge(STATUS_INFO[project.status]||STATUS_INFO.not_started)}</div>`}
         </div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line);">
+        <div style="display:grid;grid-template-columns:repeat(${showClientBilling?4:1},1fr);gap:14px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line);">
+          ${showClientBilling ? `
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Price</div><div style="font-size:15px;font-weight:700;margin-top:4px;">${esc(fmtMoney(project.price))}</div></div>
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Paid</div><div style="font-size:15px;font-weight:700;margin-top:4px;">${esc(fmtMoney(project.paid))}</div></div>
-          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Outstanding</div><div style="font-size:15px;font-weight:700;margin-top:4px;color:${outstanding?'#e8a83e':'var(--text)'};">${esc(fmtMoney(outstanding))}</div></div>
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Outstanding</div><div style="font-size:15px;font-weight:700;margin-top:4px;color:${outstanding?'#e8a83e':'var(--text)'};">${esc(fmtMoney(outstanding))}</div></div>` : ''}
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Progress</div><div style="display:flex;align-items:center;gap:8px;margin-top:6px;"><div style="flex:1;height:6px;background:var(--surface);border-radius:3px;overflow:hidden;"><div id="wlProjectProgressBar" style="height:100%;width:${pct}%;background:${pct===100?'#3ecf8e':'var(--red)'};border-radius:3px;"></div></div><span id="wlProjectProgressPct" style="font-size:12.5px;font-weight:700;">${pct}%</span></div></div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px;">
@@ -13921,50 +13894,21 @@ setupRail('rail2','pill2');
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Target completion</div><div style="font-size:13.5px;font-weight:600;margin-top:4px;">${esc(fmtDate(project.targetDate))}</div></div>
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Project manager</div><div style="font-size:13.5px;font-weight:600;margin-top:4px;">${esc(project.pm||'Unassigned')}</div></div>
         </div>
-        <div style="margin-top:14px;">
-          <div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">Assigned team members</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
-            ${(project.team||[]).length ? project.team.map(name => `<span style="background:var(--surface);border:1px solid var(--line);color:var(--text-2);font-size:12px;font-weight:600;padding:5px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;">${esc(name)}<span data-wl-action="remove-project-team" data-wl-name="${esc(name)}" style="cursor:pointer;color:var(--text-3);font-weight:800;">×</span></span>`).join('') : `<span style="font-size:12.5px;color:var(--text-3);">Nobody assigned yet.</span>`}
-            ${(() => { const avail = (company.team||[]).filter(m => !(project.team||[]).includes(m.name)); return avail.length ? selectHtml('wlProjectTeamAdd', [{value:'',label:'+ Add from company team'}, ...avail.map(m=>({value:m.name,label:m.name}))], '') : ''; })()}
-          </div>
-        </div>
-        <div style="margin-top:14px;display:flex;gap:10px;"><div class="btn-outline" data-wl-action="edit-project" style="display:inline-block;padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Edit project details</div><div class="btn-outline" data-wl-action="delete-project" style="display:inline-block;padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--red);font-size:12.5px;font-weight:700;cursor:pointer;">Delete</div></div>
+        ${isNotPartnerView() ? `<div style="margin-top:14px;display:flex;gap:10px;"><div class="btn-outline" data-wl-action="edit-project" style="display:inline-block;padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Edit project details</div><div class="btn-outline" data-wl-action="delete-project" style="display:inline-block;padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--red);font-size:12.5px;font-weight:700;cursor:pointer;">Delete</div></div>` : ''}
       </div>
+      <div style="display:flex;gap:4px;margin-bottom:18px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:4px;width:fit-content;flex-wrap:wrap;">${tabsHtml}</div>
+      <div>${body}</div>
+    `;
+  }
 
-      <div style="margin-bottom:22px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);">Milestones</div>
-          <div style="display:flex;gap:8px;">
-            <button class="btn-outline" id="wlAddDefaultMilestonesBtn" style="padding:7px 13px;border-radius:7px;border:1px solid var(--line-2);color:var(--text-2);font-size:12px;font-weight:700;cursor:pointer;background:transparent;">+ Insert missing defaults</button>
-            <button class="btn-red" id="wlAddMilestoneBtn" style="padding:7px 13px;font-size:12px;">+ Add Milestone</button>
-          </div>
-        </div>
-        <div id="wlMilestonesList" style="display:flex;flex-direction:column;gap:8px;">${renderMilestonesList(project)}</div>
+  // -- Milestones tab: gamified circle checkbox --
+  function renderMilestonesTab(project) {
+    return `
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;gap:8px;">
+        ${isNotPartnerView() ? `<button class="btn-outline" id="wlAddDefaultMilestonesBtn" style="padding:7px 13px;border-radius:7px;border:1px solid var(--line-2);color:var(--text-2);font-size:12px;font-weight:700;cursor:pointer;background:transparent;">+ Insert missing defaults</button>
+        <button class="btn-red" id="wlAddMilestoneBtn" style="padding:7px 13px;font-size:12px;">+ Add Milestone</button>` : ''}
       </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start;margin-bottom:22px;">
-        <div>
-          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Notes</div>
-          ${renderNotesSection(project.notes, { scope:'project', projectId:project.id }, true)}
-        </div>
-        <div>
-          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Files</div>
-          ${renderFilesSection(project.files, { scope:'project', projectId:project.id }, true)}
-        </div>
-      </div>
-
-      <div>
-        <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Billing</div>
-        <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:16px 18px;">
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
-            <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Internal cost</div><div style="font-size:15px;font-weight:700;margin-top:4px;">${esc(fmtMoney(b.internalCost))}</div></div>
-            <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Profit</div><div style="font-size:15px;font-weight:700;margin-top:4px;color:#3ecf8e;">${esc(fmtMoney((Number(project.price)||0)-(Number(b.internalCost)||0)))}</div></div>
-            <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Payment status</div><div style="margin-top:4px;">${badge(ps)}</div></div>
-          </div>
-          <div style="margin-top:14px;"><div class="btn-outline" data-wl-action="edit-billing" style="display:inline-block;padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Edit billing</div></div>
-          <div style="margin-top:10px;font-size:11.5px;color:var(--text-3);">Internal cost and profit are never shown to the white label partner.</div>
-        </div>
-      </div>
+      <div id="wlMilestonesList" style="display:flex;flex-direction:column;gap:8px;">${renderMilestonesList(project)}</div>
     `;
   }
   function renderMilestonesList(project) {
@@ -13972,37 +13916,138 @@ setupRail('rail2','pill2');
     // A milestone's current assignee might not be on the project team (e.g. removed since), so
     // it still needs an option in its own dropdown or the value would silently reset on render.
     const withCustomAssignee = (m) => assigneeOptions.some(o=>o.value===m.assignee) || !m.assignee ? assigneeOptions : [...assigneeOptions, {value:m.assignee,label:m.assignee+' (not on project team)'}];
-    return (project.milestones||[]).map((m, i) => `
+    const editable = isNotPartnerView();
+    return (project.milestones||[]).map((m, i) => {
+      const done = m.status === 'completed';
+      const circle = `<span ${editable?`data-wl-action="ms-toggle-done" data-wl-id="${esc(m.id)}"`:''} style="width:24px;height:24px;border-radius:50%;border:2px solid ${done?'#3ecf8e':'#4a4a4d'};background:${done?'#3ecf8e':'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;${editable?'cursor:pointer;':''}">${done?'<span style="color:#fff;font-size:13px;font-weight:800;line-height:1;">✓</span>':''}</span>`;
+      const linkRow = milestoneLinkEditing === m.id
+        ? `<div style="display:flex;gap:6px;margin-top:8px;"><input type="text" placeholder="https://..." value="${esc(m.link)}" data-wl-link-input="${esc(m.id)}" style="flex:1;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;"><span data-wl-action="ms-link-save" data-wl-id="${esc(m.id)}" style="cursor:pointer;background:var(--red);color:#fff;font-size:11.5px;font-weight:700;padding:6px 10px;border-radius:6px;">Save</span></div>`
+        : `<div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+            ${m.link ? `<a href="${esc(m.link)}" target="_blank" rel="noopener" style="font-size:11.5px;color:#5b9dff;text-decoration:none;">🔗 Preview</a>` : ''}
+            ${editable ? `<span data-wl-action="ms-link-edit" data-wl-id="${esc(m.id)}" style="cursor:pointer;font-size:11.5px;color:var(--text-3);font-weight:700;">${m.link?'Edit link':'+ Link'}</span>` : ''}
+          </div>`;
+      return `
       <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-          <div style="font-size:13.5px;font-weight:700;flex:1;min-width:160px;">${i+1}. ${esc(m.name)}</div>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            ${selectHtml(`wlMsStatus_${m.id}`, Object.keys(STATUS_INFO).filter(k=>['not_started','in_progress','waiting_client','in_review','completed','on_hold'].includes(k)).map(k=>({value:k,label:STATUS_INFO[k].label})), m.status, `data-wl-ms-field="status" data-wl-ms-id="${esc(m.id)}"`)}
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          ${circle}
+          <div style="font-size:13.5px;font-weight:700;flex:1;min-width:160px;${done?'text-decoration:line-through;color:var(--text-3);':''}">${i+1}. ${esc(m.name)}</div>
+          ${editable ? `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             <input type="number" min="0" max="100" value="${esc(m.pct)}" data-wl-ms-field="pct" data-wl-ms-id="${esc(m.id)}" style="width:56px;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:5px 6px;color:var(--text);font-size:12px;text-align:center;">%
             <span data-wl-action="ms-up" data-wl-id="${esc(m.id)}" style="cursor:pointer;color:var(--text-3);font-weight:700;font-size:12px;">↑</span>
             <span data-wl-action="ms-down" data-wl-id="${esc(m.id)}" style="cursor:pointer;color:var(--text-3);font-weight:700;font-size:12px;">↓</span>
             <span data-wl-action="ms-delete" data-wl-id="${esc(m.id)}" style="cursor:pointer;color:var(--red);font-weight:700;font-size:11.5px;">Delete</span>
+          </div>` : ''}
+        </div>
+        <div style="margin-top:8px;padding-left:34px;">
+          ${editable ? `<input type="text" placeholder="Description" value="${esc(m.description)}" data-wl-ms-field="description" data-wl-ms-id="${esc(m.id)}" style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;">` : (m.description ? `<div style="font-size:12.5px;color:var(--text-3);">${esc(m.description)}</div>` : '')}
+        </div>
+        <div style="padding-left:34px;">
+          ${editable ? `<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;">
+            ${selectHtml(`wlMsAssignee_${m.id}`, withCustomAssignee(m), m.assignee, `data-wl-ms-field="assignee" data-wl-ms-id="${esc(m.id)}"`)}
+            <input type="date" value="${esc(m.due)}" data-wl-ms-field="due" data-wl-ms-id="${esc(m.id)}" style="background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;">
+            <input type="number" min="0" placeholder="Payment $" value="${esc(m.paymentAmount)}" data-wl-ms-field="paymentAmount" data-wl-ms-id="${esc(m.id)}" style="background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;">
+          </div>` : `<div style="display:flex;gap:14px;margin-top:8px;font-size:11.5px;color:var(--text-3);"><span>Assignee: ${esc(m.assignee||'Unassigned')}</span><span>Due ${esc(fmtDate(m.due))}</span></div>`}
+          ${linkRow}
+          ${editable ? `<div style="margin-top:8px;"><textarea placeholder="Internal notes" data-wl-ms-field="notes" data-wl-ms-id="${esc(m.id)}" style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 8px;color:var(--text);font-size:12px;font-family:inherit;min-height:34px;resize:vertical;">${esc(m.notes)}</textarea></div>
+          <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11.5px;color:var(--text-3);cursor:pointer;"><input type="checkbox" data-wl-ms-field="clientApproval" data-wl-ms-id="${esc(m.id)}" ${m.clientApproval?'checked':''}> Client approval required</label>` : (m.clientApproval ? `<div style="margin-top:8px;font-size:11.5px;color:#e8a83e;">Needs client approval</div>` : '')}
+        </div>
+      </div>
+    `; }).join('') || `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:24px;text-align:center;">No milestones yet.</div>`;
+  }
+
+  // -- Scope tab --
+  function renderScopeTab(project) {
+    const editable = isNotPartnerView();
+    const line = (text, idx, key) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px;">
+      <span>${esc(text)}</span>
+      ${editable ? `<span data-wl-action="scope-remove" data-wl-scope-key="${key}" data-wl-scope-idx="${idx}" style="cursor:pointer;color:var(--text-3);font-weight:800;">×</span>` : ''}
+    </div>`;
+    const scope = project.scope || (project.scope = { included:[], excluded:[] });
+    return `
+      <div style="margin-bottom:18px;">
+        <div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Project price</div>
+        <div style="font-size:24px;font-weight:800;margin-top:4px;">${esc(fmtMoney(project.price))}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+        <div style="background:#2a4a3a22;border:1px solid #2a4a3a;border-radius:10px;padding:16px 18px;">
+          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#3ecf8e;margin-bottom:10px;">Included in this project</div>
+          ${(scope.included||[]).length ? scope.included.map((t,i)=>line(t,i,'included')).join('') : `<div style="font-size:12.5px;color:var(--text-3);">Nothing added yet.</div>`}
+          ${editable ? `<div style="display:flex;gap:6px;margin-top:10px;"><input type="text" placeholder="+ Add..." data-wl-scope-input="included" style="flex:1;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 9px;color:var(--text);font-size:12.5px;"><span data-wl-action="scope-add" data-wl-scope-key="included" style="cursor:pointer;background:#3ecf8e;color:#0e1f16;font-size:11.5px;font-weight:700;padding:7px 12px;border-radius:6px;">Add</span></div>` : ''}
+        </div>
+        <div style="background:#4a262222;border:1px solid #4a2622;border-radius:10px;padding:16px 18px;">
+          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#ff6b5c;margin-bottom:10px;">Not included / out of scope</div>
+          ${(scope.excluded||[]).length ? scope.excluded.map((t,i)=>line(t,i,'excluded')).join('') : `<div style="font-size:12.5px;color:var(--text-3);">Nothing added yet.</div>`}
+          ${editable ? `<div style="display:flex;gap:6px;margin-top:10px;"><input type="text" placeholder="+ Add..." data-wl-scope-input="excluded" style="flex:1;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 9px;color:var(--text);font-size:12.5px;"><span data-wl-action="scope-add" data-wl-scope-key="excluded" style="cursor:pointer;background:#ff6b5c;color:#2b0e0a;font-size:11.5px;font-weight:700;padding:7px 12px;border-radius:6px;">Add</span></div>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  // -- Team tab --
+  function renderProjectTeamTab(company, project) {
+    const editable = isNotPartnerView();
+    return `
+      <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:16px 18px;">
+        <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Assigned team members</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+          ${(project.team||[]).length ? project.team.map(name => `<span style="background:var(--surface);border:1px solid var(--line);color:var(--text-2);font-size:12px;font-weight:600;padding:5px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;">${esc(name)}${editable?`<span data-wl-action="remove-project-team" data-wl-name="${esc(name)}" style="cursor:pointer;color:var(--text-3);font-weight:800;">×</span>`:''}</span>`).join('') : `<span style="font-size:12.5px;color:var(--text-3);">Nobody assigned yet.</span>`}
+          ${editable ? (() => { const avail = (company.team||[]).filter(m => !(project.team||[]).includes(m.name)); return avail.length ? selectHtml('wlProjectTeamAdd', [{value:'',label:'+ Add from company team'}, ...avail.map(m=>({value:m.name,label:m.name}))], '') : `<span style="font-size:12px;color:var(--text-3);">All company team members are assigned.</span>`; })() : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  // -- Billing tab (owner / team / partner) --
+  function renderProjectBillingTab(project) {
+    const b = project.billing || {};
+    const ps = PAYMENT_STATUS_INFO[b.paymentStatus] || PAYMENT_STATUS_INFO.not_invoiced;
+    if (viewAs === 'partner') {
+      const payoutStatus = partnerPayoutStatus(project);
+      const psi = PARTNER_PAYOUT_STATUS_INFO[payoutStatus];
+      return `
+        <div style="max-width:420px;margin:0 auto;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:28px 26px;text-align:center;">
+          <div style="font-size:11.5px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;">Your payout for this project</div>
+          <div style="font-size:32px;font-weight:800;color:#3ecf8e;margin-top:8px;">${esc(fmtMoney(b.partnerPayout))}</div>
+          <div style="margin-top:10px;">${badge(psi)}</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line);text-align:left;">
+            <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Paid to you</div><div style="font-size:16px;font-weight:700;margin-top:4px;color:#3ecf8e;">${esc(fmtMoney(b.partnerPaidTotal))}</div></div>
+            <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Outstanding to you</div><div style="font-size:16px;font-weight:700;margin-top:4px;color:${partnerOutstanding(project)?'#e8a83e':'var(--text)'};">${esc(fmtMoney(partnerOutstanding(project)))}</div></div>
           </div>
         </div>
-        <div style="margin-top:8px;">
-          <input type="text" placeholder="Description" value="${esc(m.description)}" data-wl-ms-field="description" data-wl-ms-id="${esc(m.id)}" style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;">
+      `;
+    }
+    const ownerBlock = isOwnerView() ? `
+      <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-top:16px;">
+        <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:12px;">Owner-only breakdown</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Internal cost</div><div style="font-size:15px;font-weight:700;margin-top:4px;">${esc(fmtMoney(b.internalCost))}</div></div>
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Partner payout</div><div style="font-size:15px;font-weight:700;margin-top:4px;">${esc(fmtMoney(b.partnerPayout))}</div></div>
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Profit</div><div style="font-size:15px;font-weight:700;margin-top:4px;color:#3ecf8e;">${esc(fmtMoney(projectProfit(project)))}</div></div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;">
-          ${selectHtml(`wlMsAssignee_${m.id}`, withCustomAssignee(m), m.assignee, `data-wl-ms-field="assignee" data-wl-ms-id="${esc(m.id)}"`)}
-          <input type="date" value="${esc(m.due)}" data-wl-ms-field="due" data-wl-ms-id="${esc(m.id)}" style="background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;">
-          <input type="number" min="0" placeholder="Payment $" value="${esc(m.paymentAmount)}" data-wl-ms-field="paymentAmount" data-wl-ms-id="${esc(m.id)}" style="background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px;">
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Payout status</div><div style="margin-top:4px;">${badge(PARTNER_PAYOUT_STATUS_INFO[partnerPayoutStatus(project)])}</div></div>
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Paid to partner</div><div style="font-size:15px;font-weight:700;margin-top:4px;">${esc(fmtMoney(b.partnerPaidTotal))}</div></div>
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Outstanding to partner</div><div style="font-size:15px;font-weight:700;margin-top:4px;color:${partnerOutstanding(project)?'#e8a83e':'var(--text)'};">${esc(fmtMoney(partnerOutstanding(project)))}</div></div>
         </div>
-        <div style="margin-top:8px;">
-          <input type="text" placeholder="File or link (URL)" value="${esc(m.link)}" data-wl-ms-field="link" data-wl-ms-id="${esc(m.id)}" style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;">
+        <div style="margin-top:14px;"><div class="btn-outline" data-wl-action="edit-billing" style="display:inline-block;padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Edit billing</div></div>
+        <div style="margin-top:12px;font-size:11.5px;color:var(--text-3);">Visible to you (ReachGiant owner) only — hidden from your team and the white label partner.</div>
+      </div>` : '';
+    return `
+      <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:16px 18px;">
+        <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:12px;">Client billing</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;">
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Price</div><div style="font-size:15px;font-weight:700;margin-top:4px;">${esc(fmtMoney(project.price))}</div></div>
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Paid</div><div style="font-size:15px;font-weight:700;margin-top:4px;">${esc(fmtMoney(project.paid))}</div></div>
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Outstanding</div><div style="font-size:15px;font-weight:700;margin-top:4px;color:${projectOutstanding(project)?'#e8a83e':'var(--text)'};">${esc(fmtMoney(projectOutstanding(project)))}</div></div>
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Payment status</div><div style="margin-top:4px;">${badge(ps)}</div></div>
         </div>
-        <div style="margin-top:8px;">
-          <textarea placeholder="Internal notes" data-wl-ms-field="notes" data-wl-ms-id="${esc(m.id)}" style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 8px;color:var(--text);font-size:12px;font-family:inherit;min-height:34px;resize:vertical;">${esc(m.notes)}</textarea>
-        </div>
-        <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:11.5px;color:var(--text-3);cursor:pointer;"><input type="checkbox" data-wl-ms-field="clientApproval" data-wl-ms-id="${esc(m.id)}" ${m.clientApproval?'checked':''}> Client approval required</label>
       </div>
-    `).join('') || `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:24px;text-align:center;">No milestones yet.</div>`;
+      ${ownerBlock}
+    `;
   }
+
   function openNewProjectModal() {
+    if (!isNotPartnerView()) return;
     const cl = findClient(activeCompanyId, activeClientId); if (!cl) return;
     openWlModal('Add Project', [
       { key:'name', label:'Project name', value:'' },
@@ -14015,12 +14060,14 @@ setupRail('rail2','pill2');
       if (!v.name.trim()) return;
       const p = emptyProject(cl.id);
       Object.assign(p, { name:v.name.trim(), type:v.type, price:v.price, startDate:v.startDate, targetDate:v.targetDate, pm:v.pm });
+      p.billing.partnerPayout = Math.round((Number(v.price)||0) * 0.35);
       cl.projects.push(p);
       if (typeof toast==='function') toast({type:'success', message:'Project added'});
       goTo('project', { projectId: p.id });
     });
   }
   function openEditProjectModal() {
+    if (!isNotPartnerView()) return;
     const found = findProjectAnywhere(activeProjectId); if (!found) return;
     const p = found.project;
     openWlModal('Edit Project', [
@@ -14037,16 +14084,19 @@ setupRail('rail2','pill2');
     });
   }
   function openEditBillingModal() {
+    if (!isOwnerView()) return;
     const found = findProjectAnywhere(activeProjectId); if (!found) return;
-    const b = found.project.billing || (found.project.billing = { internalCost:0, paymentStatus:'not_invoiced', dueDate:'' });
+    const b = found.project.billing || (found.project.billing = { internalCost:0, partnerPayout:0, partnerPaidTotal:0, paymentStatus:'not_invoiced', dueDate:'' });
     openWlModal('Edit Billing', [
       { key:'internalCost', label:'Internal cost', type:'number', value:b.internalCost },
-      { key:'paymentStatus', label:'Payment status', type:'select', value:b.paymentStatus, options: Object.keys(PAYMENT_STATUS_INFO).map(k=>({value:k,label:PAYMENT_STATUS_INFO[k].label})) },
+      { key:'partnerPayout', label:'Partner payout (total owed)', type:'number', value:b.partnerPayout },
+      { key:'partnerPaidTotal', label:'Paid to partner so far', type:'number', value:b.partnerPaidTotal },
+      { key:'paymentStatus', label:'Client payment status', type:'select', value:b.paymentStatus, options: Object.keys(PAYMENT_STATUS_INFO).map(k=>({value:k,label:PAYMENT_STATUS_INFO[k].label})) },
       { key:'dueDate', label:'Payment due date', type:'date', value:b.dueDate },
     ], (v) => { Object.assign(b, v); if (typeof toast==='function') toast({type:'success', message:'Billing updated'}); });
   }
 
-  // ---- shared Notes / Files sections (used by company/client/project) ----
+  // ---- shared Notes / Files sections (used by project only) ----
   let noteSearch = '';
   function renderNotesSection(notes, ctx, compact) {
     const q = noteSearch.trim().toLowerCase();
@@ -14059,14 +14109,14 @@ setupRail('rail2','pill2');
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <div style="font-size:11.5px;color:var(--text-3);">${esc(n.author)} · ${esc(fmtDate(n.date))}</div>
             <div style="display:flex;gap:8px;align-items:center;">
-              <span data-wl-action="toggle-pin-note" data-wl-ctx='${esc(JSON.stringify(ctx))}' data-wl-note-id="${esc(n.id)}" title="${n.pinned?'Unpin':'Pin'}" style="cursor:pointer;color:${n.pinned?'var(--red)':'var(--text-3)'};font-size:12px;">📌</span>
+              ${isNotPartnerView() ? `<span data-wl-action="toggle-pin-note" data-wl-ctx='${esc(JSON.stringify(ctx))}' data-wl-note-id="${esc(n.id)}" title="${n.pinned?'Unpin':'Pin'}" style="cursor:pointer;color:${n.pinned?'var(--red)':'var(--text-3)'};font-size:12px;">📌</span>` : ''}
               <span style="background:${n.visibility==='partner'?'rgba(94,158,255,.15)':'var(--surface)'};color:${n.visibility==='partner'?'#5b9dff':'var(--text-3)'};font-size:10.5px;font-weight:700;padding:3px 7px;border-radius:5px;">${n.visibility==='partner'?'Partner visible':'Internal'}</span>
-              <span data-wl-action="delete-note" data-wl-ctx='${esc(JSON.stringify(ctx))}' data-wl-note-id="${esc(n.id)}" title="Delete" style="cursor:pointer;color:var(--red);font-size:11px;font-weight:700;">✕</span>
+              ${isNotPartnerView() ? `<span data-wl-action="delete-note" data-wl-ctx='${esc(JSON.stringify(ctx))}' data-wl-note-id="${esc(n.id)}" title="Delete" style="cursor:pointer;color:var(--red);font-size:11px;font-weight:700;">✕</span>` : ''}
             </div>
           </div>
           <div style="font-size:13px;color:var(--text-2);margin-top:6px;">${esc(n.content)}</div>
         </div>`).join('') : `<div style="font-size:12.5px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:16px;text-align:center;">${q?'No notes match your search.':'No notes yet.'}</div>`}
-        <button data-wl-action="new-note" data-wl-ctx='${esc(JSON.stringify(ctx))}' style="text-align:center;padding:9px;border-radius:8px;border:1.5px dashed var(--line-2);font-size:12.5px;font-weight:700;color:var(--text-2);cursor:pointer;background:transparent;">+ Add note</button>
+        ${isNotPartnerView() ? `<button data-wl-action="new-note" data-wl-ctx='${esc(JSON.stringify(ctx))}' style="text-align:center;padding:9px;border-radius:8px;border:1.5px dashed var(--line-2);font-size:12.5px;font-weight:700;color:var(--text-2);cursor:pointer;background:transparent;">+ Add note</button>` : ''}
       </div>
     `;
   }
@@ -14078,21 +14128,20 @@ setupRail('rail2','pill2');
           <span style="font-weight:600;">${esc(f.name)}</span>
           <span style="display:flex;align-items:center;gap:8px;">
             <span style="color:var(--text-3);font-size:11px;">${esc(f.category)}${f.milestoneName?' · '+esc(f.milestoneName):''}</span>
-            <span data-wl-action="delete-file" data-wl-ctx='${esc(JSON.stringify(ctx))}' data-wl-file-id="${esc(f.id)}" title="Delete" style="cursor:pointer;color:var(--red);font-weight:700;">✕</span>
+            ${isNotPartnerView() ? `<span data-wl-action="delete-file" data-wl-ctx='${esc(JSON.stringify(ctx))}' data-wl-file-id="${esc(f.id)}" title="Delete" style="cursor:pointer;color:var(--red);font-weight:700;">✕</span>` : ''}
           </span>
         </div>`).join('') : `<div style="font-size:12.5px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:16px;text-align:center;">No files yet.</div>`}
-        <button data-wl-action="new-file" data-wl-ctx='${esc(JSON.stringify(ctx))}' style="text-align:center;padding:9px;border-radius:8px;border:1.5px dashed var(--line-2);font-size:12.5px;font-weight:700;color:var(--text-2);cursor:pointer;background:transparent;">+ Add file</button>
+        ${isNotPartnerView() ? `<button data-wl-action="new-file" data-wl-ctx='${esc(JSON.stringify(ctx))}' style="text-align:center;padding:9px;border-radius:8px;border:1.5px dashed var(--line-2);font-size:12.5px;font-weight:700;color:var(--text-2);cursor:pointer;background:transparent;">+ Add file</button>` : ''}
       </div>
     `;
   }
   const FILE_CATEGORIES = ['Contract','Brand files','Content','Design','Development files','Invoice','Client upload','Final website files'];
   function resolveNoteTarget(ctx) {
-    if (ctx.scope === 'company') return findCompany(ctx.companyId);
-    if (ctx.scope === 'client') return findClient(ctx.companyId, ctx.clientId);
     if (ctx.scope === 'project') { const f = findProjectAnywhere(ctx.projectId); return f && f.project; }
     return null;
   }
   function openNewNoteModal(ctx) {
+    if (!isNotPartnerView()) return;
     openWlModal('Add Note', [
       { key:'content', label:'Note', type:'textarea', value:'' },
       { key:'visibility', label:'Visibility', type:'select', value:'internal', options:[{value:'internal',label:'Internal only'},{value:'partner',label:'Partner visible'}] },
@@ -14106,12 +14155,14 @@ setupRail('rail2','pill2');
     });
   }
   function togglePinNote(ctx, noteId) {
+    if (!isNotPartnerView()) return;
     const target = resolveNoteTarget(ctx); if (!target) return;
     const n = (target.notes||[]).find(x => x.id === noteId); if (!n) return;
     n.pinned = !n.pinned;
     render();
   }
   async function deleteNote(ctx, noteId) {
+    if (!isNotPartnerView()) return;
     const target = resolveNoteTarget(ctx); if (!target) return;
     const confirmed = await window.giantConfirmWarn('Delete this note?', "This can't be undone.", 'Delete', 'warning');
     if (!confirmed) return;
@@ -14120,6 +14171,7 @@ setupRail('rail2','pill2');
     render();
   }
   function openNewFileModal(ctx) {
+    if (!isNotPartnerView()) return;
     const target = resolveNoteTarget(ctx);
     const milestoneOpts = (ctx.scope === 'project' && target && target.milestones && target.milestones.length)
       ? [{value:'',label:'General (not milestone-specific)'}, ...target.milestones.map(m=>({value:m.id,label:m.name}))] : null;
@@ -14138,6 +14190,7 @@ setupRail('rail2','pill2');
     });
   }
   async function deleteFile(ctx, fileId) {
+    if (!isNotPartnerView()) return;
     const target = resolveNoteTarget(ctx); if (!target) return;
     const confirmed = await window.giantConfirmWarn('Delete this file?', "This can't be undone.", 'Delete', 'warning');
     if (!confirmed) return;
@@ -14165,16 +14218,13 @@ setupRail('rail2','pill2');
     const host = $('wlContent');
     if (!host) return;
 
-    host.querySelectorAll('[data-wl-open-company]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('[data-stop-row-click]')) return; goTo('company', { companyId: el.dataset.wlOpenCompany, companyTab:'overview' }); }));
+    host.querySelectorAll('[data-wl-open-company]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('[data-stop-row-click]')) return; goTo('company', { companyId: el.dataset.wlOpenCompany, companyTab:'clients' }); }));
     host.querySelectorAll('[data-wl-open-client]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('[data-stop-row-click]')) return; const [companyId, clientId] = el.dataset.wlOpenClient.split('::'); goTo('client', { companyId, clientId }); }));
     host.querySelectorAll('[data-wl-open-project]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('[data-stop-row-click]')) return; goTo('project', { projectId: el.dataset.wlOpenProject }); }));
 
     host.querySelectorAll('[data-wl-action="edit-company"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); openEditCompanyModal(el.dataset.wlId || activeCompanyId); }));
-    host.querySelectorAll('[data-wl-action="archive-company"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); const c = findCompany(el.dataset.wlId || activeCompanyId); if (c) { c.archived = !c.archived; if (typeof toast==='function') toast({type:'success', message: c.archived?'Company archived':'Company unarchived'}); render(); } }));
+    host.querySelectorAll('[data-wl-action="archive-company"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); if (!isNotPartnerView()) return; const c = findCompany(el.dataset.wlId || activeCompanyId); if (c) { c.archived = !c.archived; if (typeof toast==='function') toast({type:'success', message: c.archived?'Company archived':'Company unarchived'}); render(); } }));
     host.querySelectorAll('[data-wl-action="new-client"]').forEach(el => el.addEventListener('click', () => openNewClientModal(el.dataset.wlId)));
-    host.querySelectorAll('[data-wl-action="new-team-member"]').forEach(el => el.addEventListener('click', () => openNewTeamMemberModal(el.dataset.wlId)));
-    host.querySelectorAll('[data-wl-action="edit-team-member"]').forEach(el => el.addEventListener('click', () => openEditTeamMemberModal(el.dataset.wlId, el.dataset.wlMemberId)));
-    host.querySelectorAll('[data-wl-action="delete-team-member"]').forEach(el => el.addEventListener('click', () => deleteTeamMember(el.dataset.wlId, el.dataset.wlMemberId)));
     host.querySelectorAll('[data-wl-action="edit-client"]').forEach(el => el.addEventListener('click', openEditClientModal));
     host.querySelectorAll('[data-wl-action="send-onboarding"]').forEach(el => el.addEventListener('click', copyOnboardingLink));
     host.querySelectorAll('[data-wl-action="open-onboarding"]').forEach(el => el.addEventListener('click', openOnboardingForm));
@@ -14185,7 +14235,7 @@ setupRail('rail2','pill2');
       const companyId = el.dataset.wlAlertCompany, clientId = el.dataset.wlAlertClient, projectId = el.dataset.wlAlertProject;
       if (projectId) goTo('project', { projectId });
       else if (clientId) goTo('client', { companyId, clientId });
-      else goTo('company', { companyId, companyTab:'overview' });
+      else goTo('company', { companyId, companyTab:'clients' });
     }));
     host.querySelectorAll('[data-wl-action="new-project"]').forEach(el => el.addEventListener('click', openNewProjectModal));
     host.querySelectorAll('[data-wl-action="edit-project"]').forEach(el => el.addEventListener('click', openEditProjectModal));
@@ -14200,6 +14250,7 @@ setupRail('rail2','pill2');
     if (noteSearchInput) { let t=null; noteSearchInput.addEventListener('input', () => { noteSearch = noteSearchInput.value; clearTimeout(t); t = setTimeout(render, 200); }); }
 
     host.querySelectorAll('[data-wl-company-tab]').forEach(el => el.addEventListener('click', () => goTo('company', { companyTab: el.dataset.wlCompanyTab })));
+    host.querySelectorAll('[data-wl-project-tab]').forEach(el => el.addEventListener('click', () => { activeProjectTab = el.dataset.wlProjectTab; milestoneLinkEditing = null; render(); }));
 
     const searchInput = $('wlCompanySearch');
     if (searchInput) { let t=null; searchInput.addEventListener('input', () => { companySearch = searchInput.value; clearTimeout(t); t = setTimeout(() => { host.innerHTML = renderCompaniesList(); wireContent(); }, 200); }); }
@@ -14209,6 +14260,10 @@ setupRail('rail2','pill2');
     host.querySelectorAll('[data-wl-quick-filter]').forEach(el => el.addEventListener('click', () => { const k = el.dataset.wlQuickFilter; dashQuickFilter = (dashQuickFilter === k) ? null : k; render(); }));
     const quickClear = host.querySelector('[data-wl-quick-filter-clear]');
     if (quickClear) quickClear.addEventListener('click', () => { dashQuickFilter = null; render(); });
+    const behindToggle = host.querySelector('[data-wl-behind-toggle]');
+    if (behindToggle) behindToggle.addEventListener('click', () => { dashBehindOpen = !dashBehindOpen; render(); });
+    const behindClose = host.querySelector('[data-wl-behind-close]');
+    if (behindClose) behindClose.addEventListener('click', (e) => { e.stopPropagation(); dashBehindOpen = false; render(); });
 
     ['wlFilterCompany','wlFilterPm','wlFilterStatus','wlFilterPayment','wlFilterType'].forEach(id => {
       const el = $(id); if (!el) return;
@@ -14219,14 +14274,28 @@ setupRail('rail2','pill2');
     const statusSel = $('wlProjectStatus');
     if (statusSel) statusSel.addEventListener('change', () => { const f = findProjectAnywhere(activeProjectId); if (f) { f.project.status = statusSel.value; render(); } });
 
-    const clientTeamAddSel = $('wlClientTeamAdd');
-    if (clientTeamAddSel) clientTeamAddSel.addEventListener('change', () => { const cl = findClient(activeCompanyId, activeClientId); if (cl && clientTeamAddSel.value) { cl.team = cl.team || []; cl.team.push(clientTeamAddSel.value); render(); } });
-    host.querySelectorAll('[data-wl-action="remove-client-team"]').forEach(el => el.addEventListener('click', () => { const cl = findClient(activeCompanyId, activeClientId); if (cl) { cl.team = (cl.team||[]).filter(n => n !== el.dataset.wlName); render(); } }));
     host.querySelectorAll('[data-wl-action="delete-client"]').forEach(el => el.addEventListener('click', deleteClient));
 
     const teamAddSel = $('wlProjectTeamAdd');
     if (teamAddSel) teamAddSel.addEventListener('change', () => { const f = findProjectAnywhere(activeProjectId); if (f && teamAddSel.value) { f.project.team = f.project.team || []; f.project.team.push(teamAddSel.value); render(); } });
     host.querySelectorAll('[data-wl-action="remove-project-team"]').forEach(el => el.addEventListener('click', () => { const f = findProjectAnywhere(activeProjectId); if (f) { f.project.team = (f.project.team||[]).filter(n => n !== el.dataset.wlName); render(); } }));
+
+    // Scope tab
+    host.querySelectorAll('[data-wl-action="scope-add"]').forEach(el => el.addEventListener('click', () => {
+      const f = findProjectAnywhere(activeProjectId); if (!f) return;
+      const key = el.dataset.wlScopeKey;
+      const input = host.querySelector(`[data-wl-scope-input="${key}"]`); if (!input) return;
+      const val = input.value.trim(); if (!val) return;
+      f.project.scope = f.project.scope || { included:[], excluded:[] };
+      f.project.scope[key] = f.project.scope[key] || [];
+      f.project.scope[key].push(val);
+      render();
+    }));
+    host.querySelectorAll('[data-wl-action="scope-remove"]').forEach(el => el.addEventListener('click', () => {
+      const f = findProjectAnywhere(activeProjectId); if (!f) return;
+      const key = el.dataset.wlScopeKey, idx = Number(el.dataset.wlScopeIdx);
+      if (f.project.scope && f.project.scope[key]) { f.project.scope[key].splice(idx, 1); render(); }
+    }));
 
     // Milestones
     const addMsBtn = $('wlAddMilestoneBtn');
@@ -14238,6 +14307,23 @@ setupRail('rail2','pill2');
       DEFAULT_MILESTONE_NAMES.forEach(n => { if (!existing.has(n)) f.project.milestones.push(emptyMilestone(n)); });
       render();
     });
+    host.querySelectorAll('[data-wl-action="ms-toggle-done"]').forEach(el => el.addEventListener('click', () => {
+      const f = findProjectAnywhere(activeProjectId); if (!f) return;
+      const m = f.project.milestones.find(x => x.id === el.dataset.wlId); if (!m) return;
+      const done = m.status === 'completed';
+      m.status = done ? 'not_started' : 'completed';
+      m.pct = done ? 0 : 100;
+      render();
+    }));
+    host.querySelectorAll('[data-wl-action="ms-link-edit"]').forEach(el => el.addEventListener('click', () => { milestoneLinkEditing = el.dataset.wlId; render(); }));
+    host.querySelectorAll('[data-wl-action="ms-link-save"]').forEach(el => el.addEventListener('click', () => {
+      const f = findProjectAnywhere(activeProjectId); if (!f) return;
+      const m = f.project.milestones.find(x => x.id === el.dataset.wlId); if (!m) return;
+      const input = host.querySelector(`[data-wl-link-input="${el.dataset.wlId}"]`);
+      m.link = input ? input.value.trim() : m.link;
+      milestoneLinkEditing = null;
+      render();
+    }));
     host.querySelectorAll('[data-wl-ms-field]').forEach(el => {
       const isContinuousInput = !(el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'date');
       const evt = isContinuousInput ? 'input' : 'change';
@@ -14248,7 +14334,6 @@ setupRail('rail2','pill2');
         if (field === 'clientApproval') m[field] = el.checked;
         else if (field === 'pct' || field === 'paymentAmount') m[field] = Number(el.value||0);
         else m[field] = el.value;
-        if (field === 'status' && el.value === 'completed') m.pct = 100;
         if (field === 'pct') {
           // Text/number fields fire on every keystroke — a full render() here would steal
           // focus mid-typing, so just patch the overall project progress bar directly.
