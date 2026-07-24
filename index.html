@@ -13166,6 +13166,36 @@ setupRail('rail2','pill2');
     submitted: { label:'Submitted', color:'#9a8ac8' },
     reviewed: { label:'Reviewed', color:'#3ecf8e' },
   };
+  // White Label reuses the real public /onboard/:token onboarding form + the `clients`
+  // table (same one the general Clients CRM module uses) instead of a second in-app-only
+  // form — this gives White Label clients an actual cross-device shareable link. Rows
+  // created from here are tagged source:'white_label' so they stay distinguishable from
+  // CRM-created clients even though they share a table.
+  const sb = () => window.supabaseClient || window.giantSupabase;
+  const myId = () => (window.giantSession && window.giantSession.user && window.giantSession.user.id) || null;
+  const REAL_ONBOARDING_FIELDS = [
+    { key:'business_name', label:'Business name' },
+    { key:'website_url', label:'Business website URL' },
+    { key:'address', label:'Business address' },
+    { key:'ein', label:'Employer Identification Number (EIN)' },
+    { key:'contact_name', label:'Primary contact name' },
+    { key:'contact_email', label:'Primary contact email' },
+    { key:'phone', label:'Phone number' },
+    { key:'google_ads_id', label:'Google Ads 10-digit ID' },
+    { key:'meta_page', label:'Facebook page / Business Manager link' },
+    { key:'meta_ad_account', label:'Meta ad account ID' },
+    { key:'website_platform', label:'Website platform' },
+    { key:'challenges_solutions', label:'Customer challenges and solutions' },
+    { key:'budget', label:'Monthly ad budget range' },
+    { key:'products_services', label:'Products or services offered' },
+    { key:'ideal_customer', label:'Ideal customer' },
+    { key:'target_locations', label:'Target locations' },
+    { key:'primary_goals', label:'Primary goal for leads', isArray:true },
+    { key:'leads_destination', label:'Where leads should be sent' },
+    { key:'ad_schedule', label:'Advertising schedule preferences' },
+    { key:'avoid_notes', label:'Anything to avoid or be aware of' },
+    { key:'additional_info', label:'Additional information' },
+  ];
   const PARTNER_PAYOUT_STATUS_INFO = {
     'Unpaid': { label:'Unpaid', color:'#ff6b5c' },
     'Deposit paid': { label:'Deposit paid', color:'#e8a83e' },
@@ -13194,8 +13224,7 @@ setupRail('rail2','pill2');
       scope: { included: DEFAULT_SCOPE_INCLUDED.slice(), excluded: DEFAULT_SCOPE_EXCLUDED.slice() },
       billing:{ internalCost:0, partnerPayout:0, partnerPaidTotal:0, paymentStatus:'not_invoiced', dueDate:'' } };
   }
-  function emptyOnboardingAnswers() { return { clientName:'', businessName:'', email:'', phone:'', currentWebsite:'', aboutBusiness:'', goal:'', pagesNeeded:'', targetCustomer:'', likedWebsites:'', brandFilesNote:'', contentFilesNote:'', additionalNotes:'' }; }
-  function emptyClient(companyId) { return { id: uid(), companyId, name:'New Client', businessName:'', email:'', phone:'', website:'', mainContact:'', summary:'', onboardingStatus:'not_sent', onboarding: emptyOnboardingAnswers(), projects:[] }; }
+  function emptyClient(companyId) { return { id: uid(), companyId, name:'New Client', businessName:'', email:'', phone:'', website:'', mainContact:'', summary:'', onboardingStatus:'not_sent', supabaseClientId:null, onboardingToken:null, projects:[] }; }
   function emptyCompany() { return { id: uid(), name:'New Company', mainContact:'', email:'', phone:'', status:'in_progress', archived:false, team:[], clients:[] }; }
 
   function projectProgress(p) { const ms = p.milestones||[]; if (!ms.length) return 0; return Math.round(ms.reduce((a,m)=>a+(Number(m.pct)||0),0)/ms.length); }
@@ -13262,6 +13291,7 @@ setupRail('rail2','pill2');
   let dashBehindOpen = false;
   let recentlyViewed = []; // project ids, most-recent-first, deduped, max 5
   let milestoneLinkEditing = null; // milestone id currently showing the inline link editor
+  let onboardingView = null; // { loading, error, row, assetCount } — fetched real onboarding data for the 'onboarding' view
 
   function findCompany(id) { return companies.find(c => c.id === id); }
   function findClient(companyId, clientId) { const c = findCompany(companyId); return c && c.clients.find(cl => cl.id === clientId); }
@@ -13720,6 +13750,9 @@ setupRail('rail2','pill2');
       c.clients.push(cl);
       if (typeof toast==='function') toast({type:'success', message:'Client added'});
       goTo('client', { companyId, clientId: cl.id });
+      // Same process as "Send form" on the client page — generate the real onboarding
+      // link right away so it's ready the moment the client detail page loads.
+      ensureOnboardingLink(cl).then(result => { render(); if (result && typeof toast==='function') toast({type:'success', message:'Onboarding link ready — copy it from the client page.'}); });
     });
   }
 
@@ -13780,12 +13813,39 @@ setupRail('rail2','pill2');
       { key:'onboardingStatus', label:'Onboarding status', type:'select', value:cl.onboardingStatus, options: Object.keys(ONBOARD_STATUS_INFO).map(k=>({value:k,label:ONBOARD_STATUS_INFO[k].label})) },
     ], (v) => { Object.assign(cl, { name:v.name.trim()||cl.name, businessName:v.businessName, email:v.email, phone:v.phone, website:v.website, summary:v.summary, onboardingStatus:v.onboardingStatus }); if (typeof toast==='function') toast({type:'success', message:'Client updated'}); });
   }
-  function copyOnboardingLink() {
+  // Lazily creates the real, linked Supabase `clients` row (tagged source:'white_label')
+  // and generates a real onboarding_token if this WL client doesn't have one yet, so
+  // "Send form" always works whether the client was just created, seeded, or already
+  // has a link. Safe to call repeatedly — no-ops once both exist.
+  async function ensureOnboardingLink(cl) {
+    if (!sb()) { if (typeof toast==='function') toast({type:'error', message:'Not connected — try again in a moment.'}); return null; }
+    if (!cl.supabaseClientId) {
+      const slug = (cl.name||'client').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') + '-' + Math.random().toString(36).slice(2,6);
+      const payload = {
+        name: cl.name, slug, initial: (cl.name||'C').trim().charAt(0).toUpperCase(),
+        source: 'white_label', contact_name: cl.mainContact || cl.name,
+        contact_email: cl.email || null, contact_phone: cl.phone || null,
+        company_website: cl.website || null, owner_id: myId(),
+      };
+      const { data, error } = await sb().from('clients').insert(payload).select('id').single();
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not create onboarding record: '+error.message}); return null; }
+      cl.supabaseClientId = data.id;
+    }
+    if (!cl.onboardingToken) {
+      const { data: tok, error } = await sb().rpc('generate_onboarding_token', { p_client_id: cl.supabaseClientId });
+      if (error || !tok) { if (typeof toast==='function') toast({type:'error', message:'Could not generate link: '+(error?.message||'unknown')}); return null; }
+      cl.onboardingToken = tok;
+    }
+    if (cl.onboardingStatus === 'not_sent') cl.onboardingStatus = 'sent';
+    return { url: window.location.origin + '/onboard/' + cl.onboardingToken, token: cl.onboardingToken };
+  }
+  async function copyOnboardingLink() {
     if (!isNotPartnerView()) return;
     const cl = findClient(activeCompanyId, activeClientId); if (!cl) return;
-    const url = `${window.location.origin}/app?onboarding=${cl.id}`;
-    if (cl.onboardingStatus === 'not_sent') cl.onboardingStatus = 'sent';
-    navigator.clipboard.writeText(url).then(() => { if (typeof toast==='function') toast({type:'success', message:'Onboarding link copied'}); render(); }).catch(async () => { await window.giantPrompt('Copy this link:', url); render(); });
+    const result = await ensureOnboardingLink(cl);
+    render();
+    if (!result) return;
+    navigator.clipboard.writeText(result.url).then(() => { if (typeof toast==='function') toast({type:'success', message:'Onboarding link copied'}); }).catch(async () => { await window.giantPrompt('Copy this link:', result.url); });
   }
   async function deleteClient() {
     if (!isNotPartnerView()) return;
@@ -13797,79 +13857,80 @@ setupRail('rail2','pill2');
     goTo('company', { companyTab:'clients' });
   }
 
-  function openOnboardingForm() {
+  async function openOnboardingForm() {
     const cl = findClient(activeCompanyId, activeClientId); if (!cl) return;
-    if (isNotPartnerView() && (cl.onboardingStatus === 'not_sent' || cl.onboardingStatus === 'sent')) cl.onboardingStatus = 'started';
+    onboardingView = { loading: true }; // must be set before goTo(), which renders synchronously
     goTo('onboarding', { companyId: activeCompanyId, clientId: cl.id });
+    if (!cl.supabaseClientId) { onboardingView = { loading:false, notLinked:true }; render(); return; }
+    let assetCount = 0;
+    try {
+      const { data: files } = await sb().storage.from('onboarding-assets').list(cl.onboardingToken || '');
+      assetCount = (files||[]).length;
+    } catch (e) { /* storage listing is best-effort */ }
+    const { data: row, error } = await sb().from('clients')
+      .select('id, name, contact_name, contact_email, onboarding_answers, onboarding_submitted_at, onboarding_sent_at, reviewed_at')
+      .eq('id', cl.supabaseClientId).maybeSingle();
+    if (error || !row) { onboardingView = { loading:false, error: error?.message || 'Not found' }; render(); return; }
+    // Sync the badge status shown elsewhere in WL to what's actually true in Supabase.
+    cl.onboardingStatus = row.reviewed_at ? 'reviewed' : row.onboarding_submitted_at ? 'submitted' : row.onboarding_sent_at ? 'sent' : 'not_sent';
+    onboardingView = { loading:false, row, assetCount };
+    render();
   }
-
-  const ONBOARDING_FIELDS = [
-    { key:'clientName', label:'Client name', type:'text' },
-    { key:'businessName', label:'Business name', type:'text' },
-    { key:'email', label:'Email', type:'email' },
-    { key:'phone', label:'Phone', type:'text' },
-    { key:'currentWebsite', label:'Current website (if any)', type:'text' },
-    { key:'aboutBusiness', label:'Tell us about the business', type:'textarea' },
-    { key:'goal', label:'Goal of the new website', type:'textarea' },
-    { key:'pagesNeeded', label:'Pages needed', type:'textarea' },
-    { key:'targetCustomer', label:'Target customer', type:'textarea' },
-    { key:'likedWebsites', label:'Websites you like (and why)', type:'textarea' },
-    { key:'brandFilesNote', label:'Brand files — describe what you\'ll send (logo, fonts, colors, etc.)', type:'textarea' },
-    { key:'contentFilesNote', label:'Website content — describe what you\'ll send (copy, images, etc.)', type:'textarea' },
-    { key:'additionalNotes', label:'Additional notes', type:'textarea' },
-  ];
 
   function renderOnboardingForm() {
     const c = findCompany(activeCompanyId), cl = findClient(activeCompanyId, activeClientId);
     if (!c || !cl) return `<div style="padding:40px;text-align:center;color:var(--text-3);">Client not found.</div>`;
     const ob = ONBOARD_STATUS_INFO[cl.onboardingStatus] || ONBOARD_STATUS_INFO.not_sent;
-    const answers = cl.onboarding || (cl.onboarding = emptyOnboardingAnswers());
-    const readOnly = cl.onboardingStatus === 'reviewed' || !isNotPartnerView();
+    const v = onboardingView || {};
+    let body;
+    if (v.loading) {
+      body = `<div style="padding:40px;text-align:center;color:var(--text-3);font-size:13px;">Loading responses…</div>`;
+    } else if (v.notLinked) {
+      body = `<div style="padding:40px;text-align:center;color:var(--text-3);font-size:13px;">No onboarding link has been sent yet — click "Send form" on the client page first.</div>`;
+    } else if (v.error) {
+      body = `<div style="padding:40px;text-align:center;color:#ff6b5c;font-size:13px;">Couldn't load responses: ${esc(v.error)}</div>`;
+    } else if (!v.row.onboarding_submitted_at) {
+      body = `<div style="padding:40px;text-align:center;color:var(--text-3);font-size:13px;">Sent, but the client hasn't submitted it yet.</div>`;
+    } else {
+      const a = v.row.onboarding_answers || {};
+      body = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px;">
+          ${REAL_ONBOARDING_FIELDS.map(f => { const val = f.isArray ? (Array.isArray(a[f.key])?a[f.key].join(', '):'') : (a[f.key]||''); return `
+          <div>
+            <div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">${esc(f.label)}</div>
+            <div style="font-size:13px;color:${val?'var(--text)':'var(--text-3)'};background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 11px;min-height:20px;white-space:pre-wrap;">${esc(val || '—')}</div>
+          </div>`; }).join('')}
+          <div>
+            <div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">Brand / content assets</div>
+            <div style="font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:9px 11px;">${v.assetCount} file${v.assetCount===1?'':'s'} uploaded</div>
+          </div>
+        </div>`;
+    }
     return `
       <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin-bottom:20px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;">
           <div>
-            <div style="font-size:20px;font-weight:800;">Onboarding form — ${esc(cl.name)}</div>
-            <div style="font-size:12.5px;color:var(--text-3);margin-top:6px;max-width:600px;">Fill this out with the client, then submit. Answers auto-populate the client record. This form's data lives in this browser session only — it isn't yet backed by a shareable cross-device link.</div>
+            <div style="font-size:20px;font-weight:800;">Onboarding responses — ${esc(cl.name)}</div>
+            <div style="font-size:12.5px;color:var(--text-3);margin-top:6px;max-width:600px;">Real, shareable onboarding form — same one used elsewhere in Giant. The client fills this out at the link on their own device; responses appear here once submitted.</div>
           </div>
           <div style="display:flex;align-items:center;gap:10px;">${badge(ob)}</div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px;">
-          ${ONBOARDING_FIELDS.map(f => `
-            <div style="${f.type==='textarea'?'grid-column:1 / -1;':''}">
-              <div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">${esc(f.label)}</div>
-              ${f.type==='textarea'
-                ? `<textarea id="wlob_${f.key}" ${readOnly?'disabled':''} rows="3" style="width:100%;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:13px;font-family:inherit;resize:vertical;">${esc(answers[f.key]||'')}</textarea>`
-                : `<input id="wlob_${f.key}" ${readOnly?'disabled':''} type="${f.type}" value="${esc(answers[f.key]||'')}" style="width:100%;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:13px;font-family:inherit;" />`}
-            </div>`).join('')}
-        </div>
+        ${body}
         <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);display:flex;gap:10px;flex-wrap:wrap;">
-          ${!readOnly ? `<button class="btn-red" data-wl-action="submit-onboarding">${cl.onboardingStatus==='submitted'?'Re-submit':'Submit'} onboarding form</button>` : ''}
-          ${cl.onboardingStatus==='submitted' && isNotPartnerView() ? `<div class="btn-outline" data-wl-action="mark-onboarding-reviewed" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Mark reviewed</div>` : ''}
+          ${(!v.loading && v.row && v.row.onboarding_submitted_at && !v.row.reviewed_at && isNotPartnerView()) ? `<button class="btn-red" data-wl-action="mark-onboarding-reviewed">Mark reviewed</button>` : ''}
           <div class="btn-outline" data-wl-action="back-to-client" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Back to client</div>
         </div>
       </div>`;
   }
 
-  function submitOnboardingForm() {
-    const c = findCompany(activeCompanyId), cl = findClient(activeCompanyId, activeClientId); if (!c || !cl) return;
-    const answers = {};
-    ONBOARDING_FIELDS.forEach(f => { const el = $('wlob_'+f.key); answers[f.key] = el ? el.value : (cl.onboarding||{})[f.key] || ''; });
-    cl.onboarding = answers;
-    cl.onboardingStatus = 'submitted';
-    if (answers.clientName.trim()) cl.name = answers.clientName.trim();
-    if (answers.businessName.trim()) cl.businessName = answers.businessName.trim();
-    if (answers.email.trim()) cl.email = answers.email.trim();
-    if (answers.phone.trim()) cl.phone = answers.phone.trim();
-    if (answers.currentWebsite.trim()) cl.website = answers.currentWebsite.trim();
-    if (answers.goal.trim()) cl.summary = answers.goal.trim();
-    if (typeof toast==='function') toast({type:'success', message:'Onboarding form submitted — client record updated'});
-    render();
-  }
-
-  function markOnboardingReviewed() {
-    const cl = findClient(activeCompanyId, activeClientId); if (!cl) return;
+  async function markOnboardingReviewed() {
+    if (!isNotPartnerView()) return;
+    const cl = findClient(activeCompanyId, activeClientId); if (!cl || !cl.supabaseClientId) return;
+    const nowIso = new Date().toISOString();
+    const { error } = await sb().from('clients').update({ reviewed_at: nowIso }).eq('id', cl.supabaseClientId);
+    if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not mark reviewed: '+error.message}); return; }
     cl.onboardingStatus = 'reviewed';
+    if (onboardingView && onboardingView.row) onboardingView.row.reviewed_at = nowIso;
     if (typeof toast==='function') toast({type:'success', message:'Onboarding marked reviewed'});
     render();
   }
@@ -14265,7 +14326,6 @@ setupRail('rail2','pill2');
     host.querySelectorAll('[data-wl-action="edit-client"]').forEach(el => el.addEventListener('click', openEditClientModal));
     host.querySelectorAll('[data-wl-action="send-onboarding"]').forEach(el => el.addEventListener('click', copyOnboardingLink));
     host.querySelectorAll('[data-wl-action="open-onboarding"]').forEach(el => el.addEventListener('click', openOnboardingForm));
-    host.querySelectorAll('[data-wl-action="submit-onboarding"]').forEach(el => el.addEventListener('click', submitOnboardingForm));
     host.querySelectorAll('[data-wl-action="mark-onboarding-reviewed"]').forEach(el => el.addEventListener('click', markOnboardingReviewed));
     host.querySelectorAll('[data-wl-action="back-to-client"]').forEach(el => el.addEventListener('click', () => goTo('client')));
     host.querySelectorAll('[data-wl-open-alert]').forEach(el => el.addEventListener('click', () => {
