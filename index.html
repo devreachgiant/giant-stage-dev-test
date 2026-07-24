@@ -12710,9 +12710,11 @@ setupRail('rail2','pill2');
   }
 
   function filteredRows(){
-    if (activeDeptTab === 'all') return payRows;
-    if (activeDeptTab === 'unassigned') return unassignedRows();
-    return payRows.filter(r => r.department_id === activeDeptTab);
+    let rows;
+    if (activeDeptTab === 'all') rows = payRows;
+    else if (activeDeptTab === 'unassigned') rows = unassignedRows();
+    else rows = payRows.filter(r => r.department_id === activeDeptTab);
+    return [...rows].sort((a, b) => weeklyTotal(b) - weeklyTotal(a));
   }
 
   function renderStats(rows){
@@ -12834,6 +12836,8 @@ setupRail('rail2','pill2');
       depts.forEach(d => { byDept[d.id] = []; });
       const un = [];
       payRows.forEach(r => { if (r.department_id && byDept[r.department_id]) byDept[r.department_id].push(r); else un.push(r); });
+      Object.keys(byDept).forEach(id => byDept[id].sort((a, b) => weeklyTotal(b) - weeklyTotal(a)));
+      un.sort((a, b) => weeklyTotal(b) - weeklyTotal(a));
       const renderGroup = (dept, groupRows) => {
         const deptTotal = groupRows.reduce((sum, r) => sum + periodTotal(r, period), 0);
         const cardsHtml = groupRows.length ? groupRows.map(cardHtml).join('') : `<div class="tpay-group-empty">Nobody here yet</div>`;
