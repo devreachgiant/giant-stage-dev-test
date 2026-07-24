@@ -13175,12 +13175,13 @@ setupRail('rail2','pill2');
   function badge(info) { return `<span style="background:${info.color}22;color:${info.color};font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;white-space:nowrap;">${esc(info.label)}</span>`; }
   function selectHtml(id, options, value, extra) { return `<select id="${id}" ${extra||''} style="background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:6px 9px;font-size:12px;font-weight:600;font-family:inherit;">${options.map(o=>`<option value="${esc(o.value)}" ${o.value===value?'selected':''}>${esc(o.label)}</option>`).join('')}</select>`; }
 
-  function emptyMilestone(name) { return { id: uid(), name: name||'', description:'', due:'', assignee:'', status:'not_started', pct:0, paymentAmount:0, clientApproval:false, notes:'' }; }
+  function emptyMilestone(name) { return { id: uid(), name: name||'', description:'', due:'', assignee:'', status:'not_started', pct:0, paymentAmount:0, clientApproval:false, notes:'', link:'' }; }
   function emptyProject(clientId) {
     return { id: uid(), clientId, name:'New Website Project', type:'New Website', price:0, paid:0, startDate:'', targetDate:'', status:'not_started', pm:'', team:[],
       milestones: DEFAULT_MILESTONE_NAMES.map(n => emptyMilestone(n)), notes:[], files:[], billing:{ internalCost:0, paymentStatus:'not_invoiced', dueDate:'' } };
   }
-  function emptyClient(companyId) { return { id: uid(), companyId, name:'New Client', businessName:'', email:'', phone:'', website:'', mainContact:'', summary:'', team:[], notes:[], files:[], onboardingStatus:'not_sent', projects:[] }; }
+  function emptyOnboardingAnswers() { return { clientName:'', businessName:'', email:'', phone:'', currentWebsite:'', aboutBusiness:'', goal:'', pagesNeeded:'', targetCustomer:'', likedWebsites:'', brandFilesNote:'', contentFilesNote:'', additionalNotes:'' }; }
+  function emptyClient(companyId) { return { id: uid(), companyId, name:'New Client', businessName:'', email:'', phone:'', website:'', mainContact:'', summary:'', team:[], notes:[], files:[], onboardingStatus:'not_sent', onboarding: emptyOnboardingAnswers(), projects:[] }; }
   function emptyCompany() { return { id: uid(), name:'New Company', mainContact:'', email:'', phone:'', status:'in_progress', archived:false, team:[], notes:[], files:[], clients:[] }; }
 
   function projectProgress(p) { const ms = p.milestones||[]; if (!ms.length) return 0; return Math.round(ms.reduce((a,m)=>a+(Number(m.pct)||0),0)/ms.length); }
@@ -13242,6 +13243,49 @@ setupRail('rail2','pill2');
   function companyActiveProjectCount(c) { let n=0; c.clients.forEach(cl => cl.projects.forEach(p => { if (!['completed','cancelled'].includes(p.status)) n++; })); return n; }
   function companyTotals(c) { let value=0, paid=0; c.clients.forEach(cl => cl.projects.forEach(p => { value += Number(p.price)||0; paid += Number(p.paid)||0; })); return { value, paid, outstanding: Math.max(0,value-paid) }; }
 
+  function computeAlerts() {
+    const out = [];
+    const today = new Date(); today.setHours(0,0,0,0);
+    companies.forEach(c => {
+      if (c.archived) return;
+      c.clients.forEach(cl => {
+        if (cl.onboardingStatus === 'submitted') out.push({ type:'onboarding', severity:'info', text:`${cl.name}'s onboarding form was submitted and needs review`, company:c, client:cl });
+        cl.projects.forEach(p => {
+          if (p.status === 'waiting_client') out.push({ type:'waiting', severity:'warn', text:`${p.name} is waiting on the client`, company:c, client:cl, project:p });
+          if (p.billing && p.billing.paymentStatus === 'overdue') out.push({ type:'payment', severity:'urgent', text:`Payment overdue on ${p.name} (${fmtMoney(projectOutstanding(p))} outstanding)`, company:c, client:cl, project:p });
+          else if (p.billing && p.billing.dueDate && new Date(p.billing.dueDate+'T00:00:00') < today && projectOutstanding(p) > 0) out.push({ type:'payment', severity:'urgent', text:`${p.name}'s payment due date has passed (${fmtMoney(projectOutstanding(p))} outstanding)`, company:c, client:cl, project:p });
+          (p.milestones||[]).forEach(m => {
+            if (m.status === 'completed') return;
+            if (m.due && new Date(m.due+'T00:00:00') < today) out.push({ type:'milestone_overdue', severity:'urgent', text:`Milestone "${m.name}" on ${p.name} is overdue`, company:c, client:cl, project:p, milestone:m });
+            if (m.clientApproval) out.push({ type:'approval', severity:'warn', text:`Milestone "${m.name}" on ${p.name} needs client approval`, company:c, client:cl, project:p, milestone:m });
+          });
+        });
+      });
+    });
+    const order = { urgent:0, warn:1, info:2 };
+    out.sort((a,b) => order[a.severity]-order[b.severity]);
+    return out;
+  }
+
+  function renderAlerts() {
+    const alerts = computeAlerts();
+    const sevInfo = { urgent:{label:'Urgent',color:'#ff6b5c'}, warn:{label:'Needs attention',color:'#e8a83e'}, info:{label:'Info',color:'#5b9dff'} };
+    return `
+      <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:20px 22px;">
+        <div style="font-size:16px;font-weight:800;margin-bottom:4px;">Alerts</div>
+        <div style="font-size:12.5px;color:var(--text-3);margin-bottom:16px;">Overdue milestones, payments, approvals needed, and clients waiting on a response — across all companies.</div>
+        ${alerts.length ? alerts.map(a => `
+          <div data-wl-open-alert data-wl-alert-company="${esc(a.company.id)}" data-wl-alert-client="${esc(a.client?a.client.id:'')}" data-wl-alert-project="${esc(a.project?a.project.id:'')}" style="display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line);cursor:pointer;">
+            <span style="width:8px;height:8px;border-radius:50%;background:${sevInfo[a.severity].color};flex-shrink:0;"></span>
+            <div style="flex:1;">
+              <div style="font-size:13px;font-weight:600;">${esc(a.text)}</div>
+              <div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">${esc(a.company.name)}${a.client?' · '+esc(a.client.name):''}</div>
+            </div>
+            ${badge(sevInfo[a.severity])}
+          </div>`).join('') : `<div style="padding:30px 0;text-align:center;color:var(--text-3);font-size:13px;">Nothing needs attention right now.</div>`}
+      </div>`;
+  }
+
   function goTo(v, opts) {
     view = v;
     if (opts) { ['companyId','clientId','projectId','companyTab'].forEach(k => { if (k in opts) { if (k==='companyId') activeCompanyId = opts[k]; if (k==='clientId') activeClientId = opts[k]; if (k==='projectId') activeProjectId = opts[k]; if (k==='companyTab') activeCompanyTab = opts[k]; } }); }
@@ -13286,19 +13330,25 @@ setupRail('rail2','pill2');
     } else if (view === 'project') {
       const found = findProjectAnywhere(activeProjectId);
       if (found) crumbs += ` <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="companies">Companies</span> <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="company">${esc(found.company.name)}</span> <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="client">${esc(found.client.name)}</span> <span style="color:var(--text-3);">/</span> ${esc(found.project.name)}`;
+    } else if (view === 'alerts') {
+      crumbs += ` <span style="color:var(--text-3);">/</span> Alerts`;
+    } else if (view === 'onboarding') {
+      const c = findCompany(activeCompanyId), cl = findClient(activeCompanyId, activeClientId);
+      crumbs += ` <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="companies">Companies</span> <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="company">${esc(c?c.name:'')}</span> <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="client">${esc(cl?cl.name:'')}</span> <span style="color:var(--text-3);">/</span> Onboarding form`;
     }
     host.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;">
         <div style="font-size:13px;color:var(--text-2);font-weight:600;">${crumbs}</div>
         <div style="display:flex;gap:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:4px;width:fit-content;">
           <div class="wl-tab ${view==='dashboard'?'on':''}" data-wl-crumb="dashboard" style="padding:7px 14px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${view==='dashboard'?'background:var(--red);color:#fff;':'color:var(--text-2);'}">Dashboard</div>
-          <div class="wl-tab ${view!=='dashboard'?'on':''}" data-wl-crumb="companies" style="padding:7px 14px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${view!=='dashboard'?'background:var(--red);color:#fff;':'color:var(--text-2);'}">Companies</div>
+          <div class="wl-tab ${view!=='dashboard'&&view!=='alerts'?'on':''}" data-wl-crumb="companies" style="padding:7px 14px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${view!=='dashboard'&&view!=='alerts'?'background:var(--red);color:#fff;':'color:var(--text-2);'}">Companies</div>
+          <div class="wl-tab ${view==='alerts'?'on':''}" data-wl-crumb="alerts" style="padding:7px 14px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${view==='alerts'?'background:var(--red);color:#fff;':'color:var(--text-2);'}position:relative;">Alerts${(function(){ const n=computeAlerts().length; return n?` <span style="background:${view==='alerts'?'#fff':'var(--red)'};color:${view==='alerts'?'var(--red)':'#fff'};font-size:10px;font-weight:800;padding:1px 5px;border-radius:8px;margin-left:2px;">${n}</span>`:''; })()}</div>
         </div>
         <div style="display:flex;gap:8px;">${action}</div>
       </div>`;
     host.querySelectorAll('[data-wl-crumb]').forEach(el => el.addEventListener('click', () => {
       const target = el.dataset.wlCrumb;
-      if (target === 'companies' && (view === 'client' || view === 'project')) {
+      if (target === 'companies' && (view === 'client' || view === 'project' || view === 'onboarding')) {
         // "Companies" crumb while deep in a client/project still means "back to the list", not the company we came from
         goTo('companies');
       } else if (target === 'company') goTo('company', { companyTab: 'clients' });
@@ -13558,12 +13608,27 @@ setupRail('rail2','pill2');
       </div>
     `;
   }
+  function memberAssignedMilestones(c, memberName) {
+    const out = [];
+    c.clients.forEach(cl => cl.projects.forEach(p => (p.milestones||[]).forEach(m => { if (m.assignee === memberName) out.push(`${p.name} — ${m.name}`); })));
+    return out;
+  }
   function renderCompanyTeamTab(c) {
     return `
       <div style="display:flex;justify-content:flex-end;margin-bottom:12px;"><button class="btn-red" data-wl-action="new-team-member" data-wl-id="${esc(c.id)}">+ Add Team Member</button></div>
       <div style="border-radius:8px;overflow:hidden;border:1px solid var(--line);">
-        <div style="display:grid;grid-template-columns:1.2fr 1fr 1.2fr 1fr;background:var(--surface-2);padding:8px 12px;font-size:10.5px;font-weight:800;text-transform:uppercase;color:var(--text-3);"><div>Name</div><div>Role</div><div>Email</div><div>Permission</div></div>
-        ${(c.team||[]).map(m => `<div style="display:grid;grid-template-columns:1.2fr 1fr 1.2fr 1fr;padding:10px 12px;border-top:1px solid var(--line);align-items:center;font-size:12.5px;"><div style="font-weight:600;">${esc(m.name)}</div><div style="color:var(--text-3);">${esc(m.role||'—')}</div><div style="color:var(--text-3);">${esc(m.email||'—')}</div><div>${esc(m.permission)}</div></div>`).join('') || `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:13px;">No team members assigned yet.</div>`}
+        <div style="display:grid;grid-template-columns:1.1fr .9fr 1.1fr .8fr 1.3fr 60px;background:var(--surface-2);padding:8px 12px;font-size:10.5px;font-weight:800;text-transform:uppercase;color:var(--text-3);"><div>Name</div><div>Role</div><div>Email</div><div>Permission</div><div>Assigned milestones</div><div></div></div>
+        ${(c.team||[]).map(m => { const ms = memberAssignedMilestones(c, m.name); return `<div style="display:grid;grid-template-columns:1.1fr .9fr 1.1fr .8fr 1.3fr 60px;padding:10px 12px;border-top:1px solid var(--line);align-items:center;font-size:12.5px;">
+          <div style="font-weight:600;">${esc(m.name)}</div>
+          <div style="color:var(--text-3);">${esc(m.role||'—')}</div>
+          <div style="color:var(--text-3);">${esc(m.email||'—')}</div>
+          <div>${esc(m.permission)}</div>
+          <div style="color:var(--text-3);font-size:11.5px;" title="${esc(ms.join(', '))}">${ms.length ? ms.length + ' assigned' : '—'}</div>
+          <div style="display:flex;gap:2px;">
+            <span class="report-row-icon-btn" data-wl-action="edit-team-member" data-wl-id="${esc(c.id)}" data-wl-member-id="${esc(m.id)}" title="Edit"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
+            <span class="report-row-icon-btn" data-wl-action="delete-team-member" data-wl-id="${esc(c.id)}" data-wl-member-id="${esc(m.id)}" title="Remove" style="color:var(--red);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M6 4.5V3a1 1 0 011-1h2a1 1 0 011 1v1.5M4.5 4.5l.6 8a1 1 0 001 .9h3.8a1 1 0 001-.9l.6-8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </div>
+        </div>`; }).join('') || `<div style="padding:24px;text-align:center;color:var(--text-3);font-size:13px;">No team members assigned yet.</div>`}
       </div>
     `;
   }
@@ -13613,6 +13678,31 @@ setupRail('rail2','pill2');
       if (typeof toast==='function') toast({type:'success', message:'Team member added'});
     });
   }
+  function openEditTeamMemberModal(companyId, memberId) {
+    const c = findCompany(companyId); if (!c) return;
+    const m = (c.team||[]).find(x => x.id === memberId); if (!m) return;
+    openWlModal('Edit Team Member', [
+      { key:'name', label:'Name', value:m.name },
+      { key:'role', label:'Role', value:m.role },
+      { key:'email', label:'Email', type:'email', value:m.email },
+      { key:'permission', label:'Permission level', type:'select', value:m.permission, options: PERMISSION_LEVELS.map(p=>({value:p,label:p})) },
+    ], (v) => {
+      const oldName = m.name;
+      Object.assign(m, { name:v.name.trim()||m.name, role:v.role, email:v.email, permission:v.permission });
+      // Keep milestone assignments pointing at this person after a rename — they're matched by name, not id.
+      if (oldName !== m.name) c.clients.forEach(cl => cl.projects.forEach(p => (p.milestones||[]).forEach(ms => { if (ms.assignee === oldName) ms.assignee = m.name; })));
+      if (typeof toast==='function') toast({type:'success', message:'Team member updated'});
+    });
+  }
+  async function deleteTeamMember(companyId, memberId) {
+    const c = findCompany(companyId); if (!c) return;
+    const m = (c.team||[]).find(x => x.id === memberId); if (!m) return;
+    const confirmed = await window.giantConfirmWarn(`Remove ${m.name}?`, "They'll be unassigned from any milestones, but existing history stays.", 'Remove', 'warning');
+    if (!confirmed) return;
+    c.team = c.team.filter(x => x.id !== memberId);
+    if (typeof toast==='function') toast({type:'success', message:'Team member removed'});
+    render();
+  }
 
   // ---- Client detail ----
   function renderClientDetail() {
@@ -13629,6 +13719,8 @@ setupRail('rail2','pill2');
           <div style="display:flex;gap:8px;">
             <div class="btn-outline" data-wl-action="edit-client" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Edit</div>
             <div class="btn-outline" data-wl-action="send-onboarding" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Copy onboarding link</div>
+            <div class="btn-outline" data-wl-action="open-onboarding" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Open onboarding form</div>
+            <div class="btn-outline" data-wl-action="delete-client" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--red);font-size:12.5px;font-weight:700;cursor:pointer;">Delete</div>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line);">
@@ -13636,6 +13728,13 @@ setupRail('rail2','pill2');
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Phone</div><div style="font-size:13.5px;font-weight:600;margin-top:4px;">${esc(cl.phone||'—')}</div></div>
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Website</div><div style="font-size:13.5px;font-weight:600;margin-top:4px;">${esc(cl.website||'—')}</div></div>
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Onboarding</div><div style="margin-top:4px;">${badge(ob)}</div></div>
+        </div>
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);">
+          <div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">Assigned team members</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            ${(cl.team||[]).length ? cl.team.map(name => `<span style="background:var(--surface);border:1px solid var(--line);color:var(--text-2);font-size:12px;font-weight:600;padding:5px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;">${esc(name)}<span data-wl-action="remove-client-team" data-wl-name="${esc(name)}" style="cursor:pointer;color:var(--text-3);font-weight:800;">×</span></span>`).join('') : `<span style="font-size:12.5px;color:var(--text-3);">Nobody assigned yet.</span>`}
+            ${(() => { const avail = (c.team||[]).filter(m => !(cl.team||[]).includes(m.name)); return avail.length ? selectHtml('wlClientTeamAdd', [{value:'',label:'+ Add from company team'}, ...avail.map(m=>({value:m.name,label:m.name}))], '') : ''; })()}
+          </div>
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:18px;align-items:start;">
@@ -13675,6 +13774,101 @@ setupRail('rail2','pill2');
     if (cl.onboardingStatus === 'not_sent') cl.onboardingStatus = 'sent';
     navigator.clipboard.writeText(url).then(() => { if (typeof toast==='function') toast({type:'success', message:'Onboarding link copied'}); render(); }).catch(async () => { await window.giantPrompt('Copy this link:', url); render(); });
   }
+  async function deleteClient() {
+    const c = findCompany(activeCompanyId), cl = findClient(activeCompanyId, activeClientId); if (!c || !cl) return;
+    const confirmed = await window.giantConfirmWarn(`Delete ${cl.name}?`, `This removes the client and all ${cl.projects.length} linked project${cl.projects.length===1?'':'s'}. This can't be undone.`, 'Delete', 'warning');
+    if (!confirmed) return;
+    c.clients = c.clients.filter(x => x.id !== cl.id);
+    if (typeof toast==='function') toast({type:'success', message:'Client deleted'});
+    goTo('company', { companyTab:'clients' });
+  }
+
+  function openOnboardingForm() {
+    const cl = findClient(activeCompanyId, activeClientId); if (!cl) return;
+    if (cl.onboardingStatus === 'not_sent' || cl.onboardingStatus === 'sent') cl.onboardingStatus = 'started';
+    goTo('onboarding', { companyId: activeCompanyId, clientId: cl.id });
+  }
+
+  const ONBOARDING_FIELDS = [
+    { key:'clientName', label:'Client name', type:'text' },
+    { key:'businessName', label:'Business name', type:'text' },
+    { key:'email', label:'Email', type:'email' },
+    { key:'phone', label:'Phone', type:'text' },
+    { key:'currentWebsite', label:'Current website (if any)', type:'text' },
+    { key:'aboutBusiness', label:'Tell us about the business', type:'textarea' },
+    { key:'goal', label:'Goal of the new website', type:'textarea' },
+    { key:'pagesNeeded', label:'Pages needed', type:'textarea' },
+    { key:'targetCustomer', label:'Target customer', type:'textarea' },
+    { key:'likedWebsites', label:'Websites you like (and why)', type:'textarea' },
+    { key:'brandFilesNote', label:'Brand files — describe what you\'ll send (logo, fonts, colors, etc.)', type:'textarea' },
+    { key:'contentFilesNote', label:'Website content — describe what you\'ll send (copy, images, etc.)', type:'textarea' },
+    { key:'additionalNotes', label:'Additional notes', type:'textarea' },
+  ];
+
+  function renderOnboardingForm() {
+    const c = findCompany(activeCompanyId), cl = findClient(activeCompanyId, activeClientId);
+    if (!c || !cl) return `<div style="padding:40px;text-align:center;color:var(--text-3);">Client not found.</div>`;
+    const ob = ONBOARD_STATUS_INFO[cl.onboardingStatus] || ONBOARD_STATUS_INFO.not_sent;
+    const answers = cl.onboarding || (cl.onboarding = emptyOnboardingAnswers());
+    const readOnly = cl.onboardingStatus === 'reviewed';
+    return `
+      <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin-bottom:20px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;">
+          <div>
+            <div style="font-size:20px;font-weight:800;">Onboarding form — ${esc(cl.name)}</div>
+            <div style="font-size:12.5px;color:var(--text-3);margin-top:6px;max-width:600px;">Fill this out with the client, then submit. Answers auto-populate the client record. This form's data lives in this browser session only — it isn't yet backed by a shareable cross-device link.</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">${badge(ob)}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:20px;">
+          ${ONBOARDING_FIELDS.map(f => `
+            <div style="${f.type==='textarea'?'grid-column:1 / -1;':''}">
+              <div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">${esc(f.label)}</div>
+              ${f.type==='textarea'
+                ? `<textarea id="wlob_${f.key}" ${readOnly?'disabled':''} rows="3" style="width:100%;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:13px;font-family:inherit;resize:vertical;">${esc(answers[f.key]||'')}</textarea>`
+                : `<input id="wlob_${f.key}" ${readOnly?'disabled':''} type="${f.type}" value="${esc(answers[f.key]||'')}" style="width:100%;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font-size:13px;font-family:inherit;" />`}
+            </div>`).join('')}
+        </div>
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);display:flex;gap:10px;flex-wrap:wrap;">
+          ${!readOnly ? `<button class="btn-red" data-wl-action="submit-onboarding">${cl.onboardingStatus==='submitted'?'Re-submit':'Submit'} onboarding form</button>` : ''}
+          ${cl.onboardingStatus==='submitted' ? `<div class="btn-outline" data-wl-action="mark-onboarding-reviewed" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Mark reviewed</div>` : ''}
+          <div class="btn-outline" data-wl-action="back-to-client" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Back to client</div>
+        </div>
+      </div>`;
+  }
+
+  function submitOnboardingForm() {
+    const c = findCompany(activeCompanyId), cl = findClient(activeCompanyId, activeClientId); if (!c || !cl) return;
+    const answers = {};
+    ONBOARDING_FIELDS.forEach(f => { const el = $('wlob_'+f.key); answers[f.key] = el ? el.value : (cl.onboarding||{})[f.key] || ''; });
+    cl.onboarding = answers;
+    cl.onboardingStatus = 'submitted';
+    if (answers.clientName.trim()) cl.name = answers.clientName.trim();
+    if (answers.businessName.trim()) cl.businessName = answers.businessName.trim();
+    if (answers.email.trim()) cl.email = answers.email.trim();
+    if (answers.phone.trim()) cl.phone = answers.phone.trim();
+    if (answers.currentWebsite.trim()) cl.website = answers.currentWebsite.trim();
+    if (answers.goal.trim()) cl.summary = answers.goal.trim();
+    if (typeof toast==='function') toast({type:'success', message:'Onboarding form submitted — client record updated'});
+    render();
+  }
+
+  function markOnboardingReviewed() {
+    const cl = findClient(activeCompanyId, activeClientId); if (!cl) return;
+    cl.onboardingStatus = 'reviewed';
+    if (typeof toast==='function') toast({type:'success', message:'Onboarding marked reviewed'});
+    render();
+  }
+
+  async function deleteProject() {
+    const found = findProjectAnywhere(activeProjectId); if (!found) return;
+    const { client, project } = found;
+    const confirmed = await window.giantConfirmWarn(`Delete ${project.name}?`, `This removes the project and all its milestones, notes, and files. This can't be undone.`, 'Delete', 'warning');
+    if (!confirmed) return;
+    client.projects = client.projects.filter(p => p.id !== project.id);
+    if (typeof toast==='function') toast({type:'success', message:'Project deleted'});
+    goTo('client', { companyId: activeCompanyId, clientId: client.id });
+  }
 
   // ---- Project detail ----
   function renderProjectDetail() {
@@ -13702,13 +13896,19 @@ setupRail('rail2','pill2');
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Outstanding</div><div style="font-size:15px;font-weight:700;margin-top:4px;color:${outstanding?'#e8a83e':'var(--text)'};">${esc(fmtMoney(outstanding))}</div></div>
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Progress</div><div style="display:flex;align-items:center;gap:8px;margin-top:6px;"><div style="flex:1;height:6px;background:var(--surface);border-radius:3px;overflow:hidden;"><div id="wlProjectProgressBar" style="height:100%;width:${pct}%;background:${pct===100?'#3ecf8e':'var(--red)'};border-radius:3px;"></div></div><span id="wlProjectProgressPct" style="font-size:12.5px;font-weight:700;">${pct}%</span></div></div>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:14px;">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:14px;">
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Start date</div><div style="font-size:13.5px;font-weight:600;margin-top:4px;">${esc(fmtDate(project.startDate))}</div></div>
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Target completion</div><div style="font-size:13.5px;font-weight:600;margin-top:4px;">${esc(fmtDate(project.targetDate))}</div></div>
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Project manager</div><div style="font-size:13.5px;font-weight:600;margin-top:4px;">${esc(project.pm||'Unassigned')}</div></div>
-          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Team</div><div style="font-size:13.5px;font-weight:600;margin-top:4px;">${esc((project.team||[]).join(', ')||'—')}</div></div>
         </div>
-        <div style="margin-top:14px;"><div class="btn-outline" data-wl-action="edit-project" style="display:inline-block;padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Edit project details</div></div>
+        <div style="margin-top:14px;">
+          <div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">Assigned team members</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+            ${(project.team||[]).length ? project.team.map(name => `<span style="background:var(--surface);border:1px solid var(--line);color:var(--text-2);font-size:12px;font-weight:600;padding:5px 9px;border-radius:6px;display:inline-flex;align-items:center;gap:6px;">${esc(name)}<span data-wl-action="remove-project-team" data-wl-name="${esc(name)}" style="cursor:pointer;color:var(--text-3);font-weight:800;">×</span></span>`).join('') : `<span style="font-size:12.5px;color:var(--text-3);">Nobody assigned yet.</span>`}
+            ${(() => { const avail = (company.team||[]).filter(m => !(project.team||[]).includes(m.name)); return avail.length ? selectHtml('wlProjectTeamAdd', [{value:'',label:'+ Add from company team'}, ...avail.map(m=>({value:m.name,label:m.name}))], '') : ''; })()}
+          </div>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:10px;"><div class="btn-outline" data-wl-action="edit-project" style="display:inline-block;padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Edit project details</div><div class="btn-outline" data-wl-action="delete-project" style="display:inline-block;padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--red);font-size:12.5px;font-weight:700;cursor:pointer;">Delete</div></div>
       </div>
 
       <div style="margin-bottom:22px;">
@@ -13748,6 +13948,10 @@ setupRail('rail2','pill2');
     `;
   }
   function renderMilestonesList(project) {
+    const assigneeOptions = [{value:'',label:'Unassigned'}, ...((project.team||[]).map(n=>({value:n,label:n})))];
+    // A milestone's current assignee might not be on the project team (e.g. removed since), so
+    // it still needs an option in its own dropdown or the value would silently reset on render.
+    const withCustomAssignee = (m) => assigneeOptions.some(o=>o.value===m.assignee) || !m.assignee ? assigneeOptions : [...assigneeOptions, {value:m.assignee,label:m.assignee+' (not on project team)'}];
     return (project.milestones||[]).map((m, i) => `
       <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -13760,10 +13964,16 @@ setupRail('rail2','pill2');
             <span data-wl-action="ms-delete" data-wl-id="${esc(m.id)}" style="cursor:pointer;color:var(--red);font-weight:700;font-size:11.5px;">Delete</span>
           </div>
         </div>
+        <div style="margin-top:8px;">
+          <input type="text" placeholder="Description" value="${esc(m.description)}" data-wl-ms-field="description" data-wl-ms-id="${esc(m.id)}" style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;">
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;">
-          <input type="text" placeholder="Assigned to" value="${esc(m.assignee)}" data-wl-ms-field="assignee" data-wl-ms-id="${esc(m.id)}" style="background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;">
+          ${selectHtml(`wlMsAssignee_${m.id}`, withCustomAssignee(m), m.assignee, `data-wl-ms-field="assignee" data-wl-ms-id="${esc(m.id)}"`)}
           <input type="date" value="${esc(m.due)}" data-wl-ms-field="due" data-wl-ms-id="${esc(m.id)}" style="background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;">
           <input type="number" min="0" placeholder="Payment $" value="${esc(m.paymentAmount)}" data-wl-ms-field="paymentAmount" data-wl-ms-id="${esc(m.id)}" style="background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;">
+        </div>
+        <div style="margin-top:8px;">
+          <input type="text" placeholder="File or link (URL)" value="${esc(m.link)}" data-wl-ms-field="link" data-wl-ms-id="${esc(m.id)}" style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:6px 8px;color:var(--text);font-size:12px;">
         </div>
         <div style="margin-top:8px;">
           <textarea placeholder="Internal notes" data-wl-ms-field="notes" data-wl-ms-id="${esc(m.id)}" style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 8px;color:var(--text);font-size:12px;font-family:inherit;min-height:34px;resize:vertical;">${esc(m.notes)}</textarea>
@@ -13801,9 +14011,8 @@ setupRail('rail2','pill2');
       { key:'startDate', label:'Start date', type:'date', value:p.startDate },
       { key:'targetDate', label:'Target completion date', type:'date', value:p.targetDate },
       { key:'pm', label:'Assigned project manager', value:p.pm },
-      { key:'team', label:'Team members (comma-separated)', value:(p.team||[]).join(', ') },
     ], (v) => {
-      Object.assign(p, { name:v.name.trim()||p.name, type:v.type, price:v.price, paid:v.paid, startDate:v.startDate, targetDate:v.targetDate, pm:v.pm, team: v.team.split(',').map(s=>s.trim()).filter(Boolean) });
+      Object.assign(p, { name:v.name.trim()||p.name, type:v.type, price:v.price, paid:v.paid, startDate:v.startDate, targetDate:v.targetDate, pm:v.pm });
       if (typeof toast==='function') toast({type:'success', message:'Project updated'});
     });
   }
@@ -13818,31 +14027,39 @@ setupRail('rail2','pill2');
   }
 
   // ---- shared Notes / Files sections (used by company/client/project) ----
+  let noteSearch = '';
   function renderNotesSection(notes, ctx, compact) {
-    const list = (notes||[]).slice().sort((a,b)=> (b.pinned?1:0)-(a.pinned?1:0) || new Date(b.date)-new Date(a.date));
+    const q = noteSearch.trim().toLowerCase();
+    const list = (notes||[]).filter(n => !q || n.content.toLowerCase().includes(q) || (n.author||'').toLowerCase().includes(q))
+      .slice().sort((a,b)=> (b.pinned?1:0)-(a.pinned?1:0) || new Date(b.date)-new Date(a.date));
     return `
       <div style="display:flex;flex-direction:column;gap:8px;">
+        ${(notes||[]).length > 3 ? `<input id="wlNoteSearch" placeholder="Search notes..." value="${esc(noteSearch)}" style="background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:12px;font-family:inherit;">` : ''}
         ${list.length ? list.map(n => `<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:${compact?'10px 12px':'12px 14px'};">
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <div style="font-size:11.5px;color:var(--text-3);">${esc(n.author)} · ${esc(fmtDate(n.date))}</div>
-            <div style="display:flex;gap:6px;align-items:center;">
-              ${n.pinned?'<span style="color:var(--red);font-size:11px;">📌</span>':''}
+            <div style="display:flex;gap:8px;align-items:center;">
+              <span data-wl-action="toggle-pin-note" data-wl-ctx='${esc(JSON.stringify(ctx))}' data-wl-note-id="${esc(n.id)}" title="${n.pinned?'Unpin':'Pin'}" style="cursor:pointer;color:${n.pinned?'var(--red)':'var(--text-3)'};font-size:12px;">📌</span>
               <span style="background:${n.visibility==='partner'?'rgba(94,158,255,.15)':'var(--surface)'};color:${n.visibility==='partner'?'#5b9dff':'var(--text-3)'};font-size:10.5px;font-weight:700;padding:3px 7px;border-radius:5px;">${n.visibility==='partner'?'Partner visible':'Internal'}</span>
+              <span data-wl-action="delete-note" data-wl-ctx='${esc(JSON.stringify(ctx))}' data-wl-note-id="${esc(n.id)}" title="Delete" style="cursor:pointer;color:var(--red);font-size:11px;font-weight:700;">✕</span>
             </div>
           </div>
           <div style="font-size:13px;color:var(--text-2);margin-top:6px;">${esc(n.content)}</div>
-        </div>`).join('') : `<div style="font-size:12.5px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:16px;text-align:center;">No notes yet.</div>`}
+        </div>`).join('') : `<div style="font-size:12.5px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:16px;text-align:center;">${q?'No notes match your search.':'No notes yet.'}</div>`}
         <button data-wl-action="new-note" data-wl-ctx='${esc(JSON.stringify(ctx))}' style="text-align:center;padding:9px;border-radius:8px;border:1.5px dashed var(--line-2);font-size:12.5px;font-weight:700;color:var(--text-2);cursor:pointer;background:transparent;">+ Add note</button>
       </div>
     `;
   }
-  function renderFilesSection(files, ctx, compact) {
+  function renderFilesSection(files, ctx, compact, milestoneOptions) {
     const list = files||[];
     return `
       <div style="display:flex;flex-direction:column;gap:6px;">
         ${list.length ? list.map(f => `<div style="display:flex;justify-content:space-between;align-items:center;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:${compact?'8px 10px':'10px 12px'};font-size:12.5px;">
           <span style="font-weight:600;">${esc(f.name)}</span>
-          <span style="color:var(--text-3);font-size:11px;">${esc(f.category)}</span>
+          <span style="display:flex;align-items:center;gap:8px;">
+            <span style="color:var(--text-3);font-size:11px;">${esc(f.category)}${f.milestoneName?' · '+esc(f.milestoneName):''}</span>
+            <span data-wl-action="delete-file" data-wl-ctx='${esc(JSON.stringify(ctx))}' data-wl-file-id="${esc(f.id)}" title="Delete" style="cursor:pointer;color:var(--red);font-weight:700;">✕</span>
+          </span>
         </div>`).join('') : `<div style="font-size:12.5px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:16px;text-align:center;">No files yet.</div>`}
         <button data-wl-action="new-file" data-wl-ctx='${esc(JSON.stringify(ctx))}' style="text-align:center;padding:9px;border-radius:8px;border:1.5px dashed var(--line-2);font-size:12.5px;font-weight:700;color:var(--text-2);cursor:pointer;background:transparent;">+ Add file</button>
       </div>
@@ -13868,17 +14085,45 @@ setupRail('rail2','pill2');
       if (typeof toast==='function') toast({type:'success', message:'Note added'});
     });
   }
+  function togglePinNote(ctx, noteId) {
+    const target = resolveNoteTarget(ctx); if (!target) return;
+    const n = (target.notes||[]).find(x => x.id === noteId); if (!n) return;
+    n.pinned = !n.pinned;
+    render();
+  }
+  async function deleteNote(ctx, noteId) {
+    const target = resolveNoteTarget(ctx); if (!target) return;
+    const confirmed = await window.giantConfirmWarn('Delete this note?', "This can't be undone.", 'Delete', 'warning');
+    if (!confirmed) return;
+    target.notes = (target.notes||[]).filter(x => x.id !== noteId);
+    if (typeof toast==='function') toast({type:'success', message:'Note deleted'});
+    render();
+  }
   function openNewFileModal(ctx) {
-    openWlModal('Add File', [
+    const target = resolveNoteTarget(ctx);
+    const milestoneOpts = (ctx.scope === 'project' && target && target.milestones && target.milestones.length)
+      ? [{value:'',label:'General (not milestone-specific)'}, ...target.milestones.map(m=>({value:m.id,label:m.name}))] : null;
+    const fields = [
       { key:'name', label:'File name', value:'' },
       { key:'category', label:'Category', type:'select', value:FILE_CATEGORIES[0], options: FILE_CATEGORIES.map(c=>({value:c,label:c})) },
-    ], (v) => {
+    ];
+    if (milestoneOpts) fields.push({ key:'milestoneId', label:'Linked milestone (optional)', type:'select', value:'', options: milestoneOpts });
+    openWlModal('Add File', fields, (v) => {
       if (!v.name.trim()) return;
-      const target = resolveNoteTarget(ctx); if (!target) return;
+      if (!target) return;
       target.files = target.files || [];
-      target.files.push({ id:uid(), name:v.name.trim(), category:v.category });
+      const ms = v.milestoneId ? (target.milestones||[]).find(m=>m.id===v.milestoneId) : null;
+      target.files.push({ id:uid(), name:v.name.trim(), category:v.category, milestoneId: v.milestoneId||null, milestoneName: ms?ms.name:null });
       if (typeof toast==='function') toast({type:'success', message:'File added'});
     });
+  }
+  async function deleteFile(ctx, fileId) {
+    const target = resolveNoteTarget(ctx); if (!target) return;
+    const confirmed = await window.giantConfirmWarn('Delete this file?', "This can't be undone.", 'Delete', 'warning');
+    if (!confirmed) return;
+    target.files = (target.files||[]).filter(x => x.id !== fileId);
+    if (typeof toast==='function') toast({type:'success', message:'File deleted'});
+    render();
   }
 
   // ---- render orchestration + event wiring ----
@@ -13891,6 +14136,8 @@ setupRail('rail2','pill2');
     else if (view === 'company') host.innerHTML = renderCompanyDetail();
     else if (view === 'client') host.innerHTML = renderClientDetail();
     else if (view === 'project') host.innerHTML = renderProjectDetail();
+    else if (view === 'onboarding') host.innerHTML = renderOnboardingForm();
+    else if (view === 'alerts') host.innerHTML = renderAlerts();
     wireContent();
   }
 
@@ -13906,13 +14153,31 @@ setupRail('rail2','pill2');
     host.querySelectorAll('[data-wl-action="archive-company"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); const c = findCompany(el.dataset.wlId || activeCompanyId); if (c) { c.archived = !c.archived; if (typeof toast==='function') toast({type:'success', message: c.archived?'Company archived':'Company unarchived'}); render(); } }));
     host.querySelectorAll('[data-wl-action="new-client"]').forEach(el => el.addEventListener('click', () => openNewClientModal(el.dataset.wlId)));
     host.querySelectorAll('[data-wl-action="new-team-member"]').forEach(el => el.addEventListener('click', () => openNewTeamMemberModal(el.dataset.wlId)));
+    host.querySelectorAll('[data-wl-action="edit-team-member"]').forEach(el => el.addEventListener('click', () => openEditTeamMemberModal(el.dataset.wlId, el.dataset.wlMemberId)));
+    host.querySelectorAll('[data-wl-action="delete-team-member"]').forEach(el => el.addEventListener('click', () => deleteTeamMember(el.dataset.wlId, el.dataset.wlMemberId)));
     host.querySelectorAll('[data-wl-action="edit-client"]').forEach(el => el.addEventListener('click', openEditClientModal));
     host.querySelectorAll('[data-wl-action="send-onboarding"]').forEach(el => el.addEventListener('click', copyOnboardingLink));
+    host.querySelectorAll('[data-wl-action="open-onboarding"]').forEach(el => el.addEventListener('click', openOnboardingForm));
+    host.querySelectorAll('[data-wl-action="submit-onboarding"]').forEach(el => el.addEventListener('click', submitOnboardingForm));
+    host.querySelectorAll('[data-wl-action="mark-onboarding-reviewed"]').forEach(el => el.addEventListener('click', markOnboardingReviewed));
+    host.querySelectorAll('[data-wl-action="back-to-client"]').forEach(el => el.addEventListener('click', () => goTo('client')));
+    host.querySelectorAll('[data-wl-open-alert]').forEach(el => el.addEventListener('click', () => {
+      const companyId = el.dataset.wlAlertCompany, clientId = el.dataset.wlAlertClient, projectId = el.dataset.wlAlertProject;
+      if (projectId) goTo('project', { projectId });
+      else if (clientId) goTo('client', { companyId, clientId });
+      else goTo('company', { companyId, companyTab:'overview' });
+    }));
     host.querySelectorAll('[data-wl-action="new-project"]').forEach(el => el.addEventListener('click', openNewProjectModal));
     host.querySelectorAll('[data-wl-action="edit-project"]').forEach(el => el.addEventListener('click', openEditProjectModal));
+    host.querySelectorAll('[data-wl-action="delete-project"]').forEach(el => el.addEventListener('click', deleteProject));
     host.querySelectorAll('[data-wl-action="edit-billing"]').forEach(el => el.addEventListener('click', openEditBillingModal));
     host.querySelectorAll('[data-wl-action="new-note"]').forEach(el => el.addEventListener('click', () => openNewNoteModal(JSON.parse(el.dataset.wlCtx))));
     host.querySelectorAll('[data-wl-action="new-file"]').forEach(el => el.addEventListener('click', () => openNewFileModal(JSON.parse(el.dataset.wlCtx))));
+    host.querySelectorAll('[data-wl-action="toggle-pin-note"]').forEach(el => el.addEventListener('click', () => togglePinNote(JSON.parse(el.dataset.wlCtx), el.dataset.wlNoteId)));
+    host.querySelectorAll('[data-wl-action="delete-note"]').forEach(el => el.addEventListener('click', () => deleteNote(JSON.parse(el.dataset.wlCtx), el.dataset.wlNoteId)));
+    host.querySelectorAll('[data-wl-action="delete-file"]').forEach(el => el.addEventListener('click', () => deleteFile(JSON.parse(el.dataset.wlCtx), el.dataset.wlFileId)));
+    const noteSearchInput = $('wlNoteSearch');
+    if (noteSearchInput) { let t=null; noteSearchInput.addEventListener('input', () => { noteSearch = noteSearchInput.value; clearTimeout(t); t = setTimeout(render, 200); }); }
 
     host.querySelectorAll('[data-wl-company-tab]').forEach(el => el.addEventListener('click', () => goTo('company', { companyTab: el.dataset.wlCompanyTab })));
 
@@ -13929,6 +14194,15 @@ setupRail('rail2','pill2');
 
     const statusSel = $('wlProjectStatus');
     if (statusSel) statusSel.addEventListener('change', () => { const f = findProjectAnywhere(activeProjectId); if (f) { f.project.status = statusSel.value; render(); } });
+
+    const clientTeamAddSel = $('wlClientTeamAdd');
+    if (clientTeamAddSel) clientTeamAddSel.addEventListener('change', () => { const cl = findClient(activeCompanyId, activeClientId); if (cl && clientTeamAddSel.value) { cl.team = cl.team || []; cl.team.push(clientTeamAddSel.value); render(); } });
+    host.querySelectorAll('[data-wl-action="remove-client-team"]').forEach(el => el.addEventListener('click', () => { const cl = findClient(activeCompanyId, activeClientId); if (cl) { cl.team = (cl.team||[]).filter(n => n !== el.dataset.wlName); render(); } }));
+    host.querySelectorAll('[data-wl-action="delete-client"]').forEach(el => el.addEventListener('click', deleteClient));
+
+    const teamAddSel = $('wlProjectTeamAdd');
+    if (teamAddSel) teamAddSel.addEventListener('change', () => { const f = findProjectAnywhere(activeProjectId); if (f && teamAddSel.value) { f.project.team = f.project.team || []; f.project.team.push(teamAddSel.value); render(); } });
+    host.querySelectorAll('[data-wl-action="remove-project-team"]').forEach(el => el.addEventListener('click', () => { const f = findProjectAnywhere(activeProjectId); if (f) { f.project.team = (f.project.team||[]).filter(n => n !== el.dataset.wlName); render(); } }));
 
     // Milestones
     const addMsBtn = $('wlAddMilestoneBtn');
