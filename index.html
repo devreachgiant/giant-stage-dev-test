@@ -13257,8 +13257,8 @@ setupRail('rail2','pill2');
   let view = 'dashboard'; // dashboard | companies | company | client | project
   let activeCompanyId = null, activeClientId = null, activeProjectId = null, activeCompanyTab = 'clients', activeProjectTab = 'milestones';
   let companySearch = '', showArchived = false;
-  let dashFilters = { company:'all', pm:'all', status:'all', paymentStatus:'all', type:'all' };
-  let dashQuickFilter = null; // 'active'|'waiting'|'upcoming'|'outstanding'|'completed'|null
+  let dashSearch = '';
+  let dashStatusFilter = 'all';
   let dashBehindOpen = false;
   let recentlyViewed = []; // project ids, most-recent-first, deduped, max 5
   let milestoneLinkEditing = null; // milestone id currently showing the inline link editor
@@ -13421,7 +13421,14 @@ setupRail('rail2','pill2');
 
   // ---- Dashboard ----
   function renderDashboard() {
-    const rows = allProjectRows();
+    const allRows = allProjectRows();
+    const q = dashSearch.trim().toLowerCase();
+    const rows = allRows.filter(r => {
+      if (dashStatusFilter !== 'all' && r.project.status !== dashStatusFilter) return false;
+      if (q && ![r.project.name, r.client.name, r.company.name].join(' ').toLowerCase().includes(q)) return false;
+      return true;
+    });
+
     const activeCompanies = companies.filter(c => !c.archived).length;
     const activeProjects = rows.filter(r => !['completed','cancelled'].includes(r.project.status)).length;
     const waitingClient = rows.filter(r => r.project.status === 'waiting_client').length;
@@ -13433,49 +13440,39 @@ setupRail('rail2','pill2');
     const notes = allNotes().sort((a,b)=> new Date(b.date)-new Date(a.date)).slice(0,6);
     const allNotesCount = allNotes().length;
 
-    const statCard = (label, value, color, quickKey, extraAttr) => {
-      const active = quickKey && dashQuickFilter === quickKey;
-      const clickable = !!quickKey || !!extraAttr;
-      return `<div ${quickKey?`data-wl-quick-filter="${quickKey}"`:''} ${extraAttr||''} style="background:${active?'var(--red)':'var(--surface-2)'};border:1px solid ${active?'var(--red)':'var(--line)'};border-radius:10px;padding:15px 16px;${clickable?'cursor:pointer;':''}">
-        <div style="font-size:11.5px;color:${active?'rgba(255,255,255,.75)':'var(--text-3)'};font-weight:600;text-transform:uppercase;letter-spacing:.03em;">${esc(label)}</div>
-        <div style="font-size:24px;font-weight:800;margin-top:6px;color:${active?'#fff':color};">${esc(String(value))}</div>
+    const statCard = (label, value, color, extraAttr) => {
+      const clickable = !!extraAttr;
+      return `<div ${extraAttr||''} style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:15px 16px;${clickable?'cursor:pointer;':''}">
+        <div style="font-size:11.5px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.03em;">${esc(label)}</div>
+        <div style="font-size:24px;font-weight:800;margin-top:6px;color:${color};">${esc(String(value))}</div>
       </div>`;
     };
 
-    const pmOptions = Array.from(new Set(rows.map(r=>r.project.pm).filter(Boolean))).sort();
-    const quickMatch = (r) => {
-      if (!dashQuickFilter) return true;
-      if (dashQuickFilter === 'active') return !['completed','cancelled'].includes(r.project.status);
-      if (dashQuickFilter === 'waiting') return r.project.status === 'waiting_client';
-      if (dashQuickFilter === 'upcoming') return (r.project.milestones||[]).some(m => m.status !== 'completed');
-      if (dashQuickFilter === 'outstanding') return projectOutstanding(r.project) > 0;
-      if (dashQuickFilter === 'completed') return r.project.status === 'completed';
-      return true;
-    };
-    const filtered = rows.filter(r => {
-      if (dashFilters.company!=='all' && r.company.id!==dashFilters.company) return false;
-      if (dashFilters.pm!=='all' && r.project.pm!==dashFilters.pm) return false;
-      if (dashFilters.status!=='all' && r.project.status!==dashFilters.status) return false;
-      if (dashFilters.paymentStatus!=='all' && (r.project.billing||{}).paymentStatus!==dashFilters.paymentStatus) return false;
-      if (dashFilters.type!=='all' && r.project.type!==dashFilters.type) return false;
-      if (!quickMatch(r)) return false;
-      return true;
-    });
-
     const recentChips = recentlyViewed.map(id => findProjectAnywhere(id)).filter(Boolean);
 
+    const upcomingDeadlines = rows
+      .map(r => ({ r, m: (r.project.milestones||[]).filter(m => m.status !== 'completed').sort((a,b)=> new Date(a.due||'2100-01-01') - new Date(b.due||'2100-01-01'))[0] }))
+      .filter(x => x.m)
+      .sort((a,b) => new Date(a.m.due||'2100-01-01') - new Date(b.m.due||'2100-01-01'))
+      .slice(0, 6);
+    const outstandingRows = rows.filter(r => projectOutstanding(r.project) > 0).sort((a,b) => projectOutstanding(b.project) - projectOutstanding(a.project)).slice(0, 6);
+
     return `
+      <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+        <input id="wlDashSearch" value="${esc(dashSearch)}" placeholder="Search projects, clients, companies..." style="flex:1;min-width:260px;background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:9px 12px;font-size:13px;">
+        ${selectHtml('wlDashStatus', [{value:'all',label:'All statuses'}, ...Object.keys(STATUS_INFO).map(k=>({value:k,label:STATUS_INFO[k].label}))], dashStatusFilter)}
+      </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;">
         ${statCard('Active companies', activeCompanies, 'var(--text)')}
-        ${statCard('Active projects', activeProjects, 'var(--text)', 'active')}
-        ${statCard('Waiting for client', waitingClient, waitingClient?'#e8a83e':'#3ecf8e', 'waiting')}
-        ${statCard('Behind schedule', behindRows.length, behindRows.length?'#ff6b5c':'#3ecf8e', null, `data-wl-behind-toggle`)}
+        ${statCard('Active projects', activeProjects, 'var(--text)')}
+        ${statCard('Waiting for client', waitingClient, waitingClient?'#e8a83e':'#3ecf8e')}
+        ${statCard('Behind schedule', behindRows.length, behindRows.length?'#ff6b5c':'#3ecf8e', `data-wl-behind-toggle`)}
       </div>
       <div style="display:grid;grid-template-columns:repeat(${isOwnerView()?4:3},1fr);gap:12px;margin-bottom:12px;">
-        ${statCard('Upcoming milestones', upcomingMilestoneCount, 'var(--text)', 'upcoming')}
-        ${statCard('Outstanding payments', fmtMoney(outstanding), outstanding?'#e8a83e':'#3ecf8e', 'outstanding')}
+        ${statCard('Upcoming milestones', upcomingMilestoneCount, 'var(--text)')}
+        ${statCard('Outstanding payments', fmtMoney(outstanding), outstanding?'#e8a83e':'#3ecf8e')}
         ${isOwnerView() ? statCard('Total profit', fmtMoney(totalProfit), '#3ecf8e') : ''}
-        ${statCard('Recently completed', recentlyCompleted.length, 'var(--text)', 'completed')}
+        ${statCard('Recently completed', recentlyCompleted.length, 'var(--text)')}
       </div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;">
         ${statCard('Recent notes', allNotesCount, 'var(--text)')}
@@ -13500,25 +13497,33 @@ setupRail('rail2','pill2');
             </span>`).join('')}
           </div>
         </div>` : ''}
-      ${dashQuickFilter ? `<div style="margin-bottom:14px;"><span data-wl-quick-filter-clear style="background:var(--surface-2);border:1px solid var(--line);color:var(--text-2);font-size:12px;font-weight:600;padding:6px 12px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">Showing: ${esc({active:'Active projects',waiting:'Waiting for client',upcoming:'Upcoming milestones',outstanding:'Outstanding payments',completed:'Recently completed'}[dashQuickFilter])} <span style="font-weight:800;">×</span></span></div>` : ''}
 
-      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
-        ${selectHtml('wlFilterCompany', [{value:'all',label:'All companies'}, ...companies.map(c=>({value:c.id,label:c.name}))], dashFilters.company)}
-        ${selectHtml('wlFilterPm', [{value:'all',label:'All PMs'}, ...pmOptions.map(p=>({value:p,label:p}))], dashFilters.pm)}
-        ${selectHtml('wlFilterStatus', [{value:'all',label:'All statuses'}, ...Object.keys(STATUS_INFO).map(k=>({value:k,label:STATUS_INFO[k].label}))], dashFilters.status)}
-        ${selectHtml('wlFilterPayment', [{value:'all',label:'All payment statuses'}, ...Object.keys(PAYMENT_STATUS_INFO).map(k=>({value:k,label:PAYMENT_STATUS_INFO[k].label}))], dashFilters.paymentStatus)}
-        ${selectHtml('wlFilterType', [{value:'all',label:'All types'}, ...PROJECT_TYPES.map(t=>({value:t,label:t}))], dashFilters.type)}
-      </div>
-
-      <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:18px;align-items:start;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start;">
         <div>
-          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Projects (${filtered.length})</div>
+          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Upcoming Deadlines</div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:22px;">
+            ${upcomingDeadlines.length ? upcomingDeadlines.map(({r,m}) => `<div data-wl-open-project="${esc(r.project.id)}" style="cursor:pointer;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:13px 16px;">
+              <div style="display:flex;justify-content:space-between;gap:10px;"><span style="font-size:13.5px;font-weight:700;">${esc(r.project.name)} — ${esc(m.name)}</span><span style="font-size:12px;color:#e8a83e;font-weight:700;white-space:nowrap;">${esc(fmtDate(m.due))}</span></div>
+              <div style="font-size:12px;color:var(--text-3);margin-top:3px;">${esc(r.company.name)} · ${esc(r.client.name)}</div>
+            </div>`).join('') : `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:20px;text-align:center;">No upcoming deadlines.</div>`}
+          </div>
+          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Recently Completed</div>
           <div style="display:flex;flex-direction:column;gap:8px;">
-            ${filtered.length ? filtered.map(r => renderProjectRow(r.company, r.client, r.project)).join('') : `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:20px;text-align:center;">No projects match these filters.</div>`}
+            ${recentlyCompleted.length ? recentlyCompleted.map(r => `<div data-wl-open-project="${esc(r.project.id)}" style="cursor:pointer;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:13px 16px;">
+              <span style="font-size:13.5px;font-weight:700;">${esc(r.project.name)}</span>
+              <div style="font-size:12px;color:var(--text-3);margin-top:3px;">${esc(r.company.name)} · ${esc(r.client.name)}</div>
+            </div>`).join('') : `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:20px;text-align:center;">Nothing completed yet.</div>`}
           </div>
         </div>
         <div>
-          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Recent notes</div>
+          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Outstanding Payments</div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:22px;">
+            ${outstandingRows.length ? outstandingRows.map(r => `<div data-wl-open-project="${esc(r.project.id)}" style="cursor:pointer;background:var(--surface-2);border-left:3px solid #ff5b46;border:1px solid var(--line);border-radius:10px;padding:13px 16px;">
+              <div style="display:flex;justify-content:space-between;gap:10px;"><span style="font-size:13.5px;font-weight:700;">${esc(r.project.name)}</span><span style="font-size:12px;color:#ff6b5c;font-weight:700;">${esc(fmtMoney(projectOutstanding(r.project)))}</span></div>
+              <div style="font-size:12px;color:var(--text-3);margin-top:3px;">${esc(r.company.name)} · ${esc((PAYMENT_STATUS_INFO[(r.project.billing||{}).paymentStatus]||{}).label||'')}</div>
+            </div>`).join('') : `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:20px;text-align:center;">Nothing outstanding.</div>`}
+          </div>
+          <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Recent Notes</div>
           <div style="display:flex;flex-direction:column;gap:8px;">
             ${notes.length ? notes.map(n => `<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;">
               <div style="font-size:12px;color:var(--text-3);">${esc(n.scope)} · ${esc(fmtDate(n.date))}</div>
@@ -14260,19 +14265,15 @@ setupRail('rail2','pill2');
     const archivedToggle = $('wlShowArchived');
     if (archivedToggle) archivedToggle.addEventListener('change', () => { showArchived = archivedToggle.checked; render(); });
 
-    host.querySelectorAll('[data-wl-quick-filter]').forEach(el => el.addEventListener('click', () => { const k = el.dataset.wlQuickFilter; dashQuickFilter = (dashQuickFilter === k) ? null : k; render(); }));
-    const quickClear = host.querySelector('[data-wl-quick-filter-clear]');
-    if (quickClear) quickClear.addEventListener('click', () => { dashQuickFilter = null; render(); });
     const behindToggle = host.querySelector('[data-wl-behind-toggle]');
     if (behindToggle) behindToggle.addEventListener('click', () => { dashBehindOpen = !dashBehindOpen; render(); });
     const behindClose = host.querySelector('[data-wl-behind-close]');
     if (behindClose) behindClose.addEventListener('click', (e) => { e.stopPropagation(); dashBehindOpen = false; render(); });
 
-    ['wlFilterCompany','wlFilterPm','wlFilterStatus','wlFilterPayment','wlFilterType'].forEach(id => {
-      const el = $(id); if (!el) return;
-      const key = { wlFilterCompany:'company', wlFilterPm:'pm', wlFilterStatus:'status', wlFilterPayment:'paymentStatus', wlFilterType:'type' }[id];
-      el.addEventListener('change', () => { dashFilters[key] = el.value; render(); });
-    });
+    const dashSearchInput = $('wlDashSearch');
+    if (dashSearchInput) { let t=null; dashSearchInput.addEventListener('input', () => { dashSearch = dashSearchInput.value; clearTimeout(t); t = setTimeout(render, 200); }); }
+    const dashStatusSel = $('wlDashStatus');
+    if (dashStatusSel) dashStatusSel.addEventListener('change', () => { dashStatusFilter = dashStatusSel.value; render(); });
 
     const statusSel = $('wlProjectStatus');
     if (statusSel) statusSel.addEventListener('change', () => { const f = findProjectAnywhere(activeProjectId); if (f) { f.project.status = statusSel.value; render(); } });
