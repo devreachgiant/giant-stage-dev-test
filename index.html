@@ -5221,8 +5221,8 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
   </div>
 </div>
 <!-- New SOP / Workflow modal — body-level so it opens from anywhere -->
-<div class="modal-overlay" id="sopNewModal">
-  <div class="modal" style="width:640px;max-width:94vw;max-height:88vh;">
+<div class="modal-overlay" id="sopNewModal" style="justify-content:flex-end;align-items:stretch;background:rgba(0,0,0,.55);">
+  <div class="modal" style="width:640px;max-width:94vw;height:100vh;max-height:none;border-radius:0;box-shadow:-24px 0 60px -20px rgba(0,0,0,.7);overflow-y:auto;">
     <div class="modal-head">
       <div><h3 id="sopModalHeading">New SOP</h3><div class="m-sub">Document how this gets done so the whole team can follow it</div></div>
       <div class="m-close" data-close="sopNewModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
@@ -5366,6 +5366,11 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       <div class="m-close" data-close="sopRecordModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
     </div>
     <div class="modal-body">
+      <div id="sopRecModeRow" style="display:none;justify-content:center;gap:6px;margin-bottom:10px;">
+        <div class="sop-rec-mode-pill" data-rec-mode="camera" style="padding:6px 13px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--text-2);border:1px solid var(--line);">Camera</div>
+        <div class="sop-rec-mode-pill" data-rec-mode="screen" style="padding:6px 13px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--text-2);border:1px solid var(--line);">Screen</div>
+        <div class="sop-rec-mode-pill" data-rec-mode="screen-camera" style="padding:6px 13px;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;background:transparent;color:var(--text-2);border:1px solid var(--line);">Screen + Camera</div>
+      </div>
       <div style="position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:16/9;">
         <video id="sopRecLiveVideo" autoplay muted playsinline style="width:100%;height:100%;object-fit:cover;display:block;"></video>
         <video id="sopRecPreviewVideo" controls style="width:100%;height:100%;object-fit:cover;display:none;"></video>
@@ -5487,7 +5492,6 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       <div data-wf-step="2" style="display:none;">
         <div style="font-size:12.5px;color:var(--text-3);margin-bottom:12px;">Add stages in order. Include who owns it, what triggers the next stage, and any SOP to link.</div>
         <div id="wfBuilderStagesList"></div>
-        <div id="wfAddStageBtn" style="text-align:center;padding:10px;border-radius:8px;border:1.5px dashed var(--line-2);font-size:12.5px;font-weight:700;color:var(--text-2);cursor:pointer;">+ Add stage</div>
       </div>
 
       <div data-wf-step="3" style="display:none;">
@@ -8541,20 +8545,36 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
               <div>
                 <div style="font-size:20px;font-weight:800;letter-spacing:-0.01em;">SOPs &amp; Workflows</div>
-                <div style="font-size:12.5px;color:var(--text-3);margin-top:2px;">How each department gets things done, and how work moves end-to-end</div>
+                <div id="sopsPageSubtitle" style="font-size:12.5px;color:var(--text-3);margin-top:2px;">Everything the team needs to know what happens, who owns it, and how to do it.</div>
               </div>
               <div style="display:flex;gap:8px;">
-                <button class="btn-red" id="sopOpenModalBtn" data-sops-sub-btn="sops">+ New SOP</button>
+                <button class="btn-red" id="sopOpenModalBtn" data-sops-sub-btn="sops" style="display:none;">+ New SOP</button>
                 <button class="btn-red" id="wfOpenBuilderBtn" data-sops-sub-btn="workflows" style="display:none;">+ New Workflow</button>
               </div>
             </div>
             <div style="display:flex;gap:4px;margin-bottom:20px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:4px;width:fit-content;">
-              <div class="sops-sub-tab on" data-sops-sub-tab="sops" style="padding:8px 16px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;">SOPs</div>
+              <div class="sops-sub-tab on" data-sops-sub-tab="overview" style="padding:8px 16px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;">Overview</div>
               <div class="sops-sub-tab" data-sops-sub-tab="workflows" style="padding:8px 16px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;">Workflows</div>
+              <div class="sops-sub-tab" data-sops-sub-tab="sops" style="padding:8px 16px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;">SOPs</div>
             </div>
           </div>
 
-          <div data-sops-sub="sops" style="max-width:920px;margin:0 auto;">
+          <div data-sops-sub="overview" style="max-width:1100px;margin:0 auto;">
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;" id="ovwStatsRow1"></div>
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:26px;" id="ovwStatsRow2"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start;">
+              <div>
+                <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Continue where you left off</div>
+                <div id="ovwContinueList"></div>
+              </div>
+              <div>
+                <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Needs attention</div>
+                <div id="ovwAttentionList"></div>
+              </div>
+            </div>
+          </div>
+
+          <div data-sops-sub="sops" style="max-width:1100px;margin:0 auto;display:none;">
             <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:10px;margin-bottom:16px;">
               <div id="sopDeptTabs" style="display:flex;gap:6px;flex-wrap:wrap;flex:1;"></div>
               <button id="sopManageDeptsBtn" style="flex-shrink:0;background:transparent;border:1px solid var(--line);color:var(--text-2);border-radius:8px;padding:7px 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;">
@@ -8562,14 +8582,28 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                 Manage
               </button>
             </div>
+            <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+              <input id="sopSearchInput" placeholder="Search SOPs..." style="background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:8px 12px;font-size:12.5px;width:220px;font-family:inherit;">
+              <select id="sopFilterOwner" style="background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;font-weight:600;font-family:inherit;"><option value="all">All owners</option></select>
+              <select id="sopFilterStatus" style="background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;font-weight:600;font-family:inherit;">
+                <option value="all">All statuses</option>
+                <option value="draft">Draft</option>
+                <option value="published">Published</option>
+                <option value="needs_update">Needs update</option>
+                <option value="archived">Archived</option>
+              </select>
+              <div style="font-size:12px;color:var(--text-3);margin-left:auto;">Sorted by recently updated</div>
+            </div>
             <div class="report-list" id="sopList"></div>
             <div id="sopEmptyState" style="display:none;text-align:center;padding:48px 0;color:var(--text-3);font-size:13px;">No SOPs in this department yet — add the first one.</div>
+            <div id="sopNoMatchState" style="display:none;text-align:center;padding:48px 0;color:var(--text-3);font-size:13px;">No SOPs match these filters.</div>
           </div>
 
           <div data-sops-sub="workflows" style="max-width:1100px;margin:0 auto;display:none;">
             <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
               <input id="wfSearchInput" placeholder="Search workflows..." style="background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:8px 12px;font-size:12.5px;width:220px;font-family:inherit;">
               <select id="wfFilterDept" style="background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;font-weight:600;font-family:inherit;"></select>
+              <select id="wfFilterOwner" style="background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;font-weight:600;font-family:inherit;"></select>
               <select id="wfFilterStatus" style="background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;font-weight:600;font-family:inherit;">
                 <option value="all">All statuses</option>
                 <option value="draft">Draft</option>
@@ -8579,6 +8613,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                 <option value="complete">Complete</option>
                 <option value="archived">Archived</option>
               </select>
+              <select id="wfFilterType" style="background:var(--surface-2);color:var(--text);border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;font-weight:600;font-family:inherit;"></select>
             </div>
             <div id="wfListView">
               <div id="wfList" style="display:flex;flex-direction:column;gap:10px;"></div>
@@ -11052,7 +11087,9 @@ setupRail('rail2','pill2');
   let sopsCache = [];
   let wfLinkCache = [];
   let activeDeptId = null;
+  const sopFilters = { search: '', status: 'all', owner: 'all' };
   let editingSopId = null;
+  let editingSopSnapshot = null; // full pre-edit row, for version history — sopsCache only holds list columns
   let sopSelectedFile = null;
   let sopFormSteps = [];
   let detailSop = null;
@@ -11107,14 +11144,21 @@ setupRail('rail2','pill2');
   function renderDeptTabs() {
     const wrap = $('sopDeptTabs');
     if (!wrap) return;
+    const addTab = `<div id="sopAddDeptTabBtn" title="Add department" style="width:30px;height:30px;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;background:transparent;color:var(--text-3);border:1px dashed var(--line);display:flex;align-items:center;justify-content:center;flex-shrink:0;">+</div>`;
+    const allTab = (() => {
+      const active = activeDeptId === 'all';
+      return `<div class="sop-dept-tab" data-dept-id="all" style="padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;background:${active ? 'var(--red)' : 'transparent'};color:${active ? '#fff' : 'var(--text-2)'};border:1px solid ${active ? 'var(--red)' : 'var(--line)'};">All</div>`;
+    })();
     if (!deptsCache.length) {
-      wrap.innerHTML = `<div style="font-size:12px;color:var(--text-3);">No departments yet — click "Manage" to add the first one.</div>`;
+      wrap.innerHTML = `<div style="font-size:12px;color:var(--text-3);display:flex;align-items:center;gap:8px;">No departments yet ${addTab}</div>`;
+      const btn = $('sopAddDeptTabBtn');
+      if (btn) btn.addEventListener('click', createDepartment);
       return;
     }
-    wrap.innerHTML = deptsCache.map(d => {
+    wrap.innerHTML = allTab + deptsCache.map(d => {
       const active = d.id === activeDeptId;
       return `<div class="sop-dept-tab" data-dept-id="${sEsc(d.id)}" style="padding:7px 14px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;background:${active ? 'var(--red)' : 'transparent'};color:${active ? '#fff' : 'var(--text-2)'};border:1px solid ${active ? 'var(--red)' : 'var(--line)'};">${sEsc(d.name)}</div>`;
-    }).join('');
+    }).join('') + addTab;
     wrap.querySelectorAll('.sop-dept-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         activeDeptId = tab.dataset.deptId;
@@ -11122,6 +11166,8 @@ setupRail('rail2','pill2');
         loadSops();
       });
     });
+    const addTabBtn = $('sopAddDeptTabBtn');
+    if (addTabBtn) addTabBtn.addEventListener('click', createDepartment);
   }
 
   function populateDeptSelect() {
@@ -11134,8 +11180,8 @@ setupRail('rail2','pill2');
     const { data, error } = await sb().from('sop_departments').select('id, name, created_at, sort_order').order('sort_order', { ascending: true }).order('created_at', { ascending: true });
     if (error) { if (typeof toast==='function') toast({type:'error', message:'Failed to load departments'}); return; }
     deptsCache = data || [];
-    if (!activeDeptId || !deptsCache.find(d => d.id === activeDeptId)) {
-      activeDeptId = deptsCache.length ? deptsCache[0].id : null;
+    if (!activeDeptId || (activeDeptId !== 'all' && !deptsCache.find(d => d.id === activeDeptId))) {
+      activeDeptId = deptsCache.length ? 'all' : null;
     }
     renderDeptTabs();
     populateDeptSelect();
@@ -11151,42 +11197,76 @@ setupRail('rail2','pill2');
       if (emptyEl) { emptyEl.style.display = 'block'; emptyEl.textContent = 'No departments yet — click "Manage" to add one.'; }
       return;
     }
+    let sopQuery = sb().from('sops').select('id, title, category, purpose, video_url, department_id, status, updated_at, owner_id, est_time').order('updated_at', { ascending: false });
+    if (activeDeptId !== 'all') sopQuery = sopQuery.eq('department_id', activeDeptId);
     const [{ data, error }, { data: wfRows }] = await Promise.all([
-      sb().from('sops').select('id, title, category, purpose, video_url, department_id, status, updated_at').eq('department_id', activeDeptId).order('updated_at', { ascending: false }),
+      sopQuery,
       sb().from('workflows').select('id, name, stages'),
     ]);
     if (error) { if (typeof toast==='function') toast({type:'error', message:'Failed to load SOPs'}); return; }
     sopsCache = data || [];
     wfLinkCache = wfRows || [];
+    refreshSopOwnerFilter();
     if (!sopsCache.length) {
       listEl.innerHTML = '';
+      const noMatchEl = $('sopNoMatchState');
+      if (noMatchEl) noMatchEl.style.display = 'none';
       if (emptyEl) { emptyEl.style.display = 'block'; emptyEl.textContent = 'No SOPs in this department yet — add the first one.'; }
       return;
     }
     if (emptyEl) emptyEl.style.display = 'none';
+    const q = sopFilters.search.trim().toLowerCase();
+    const visibleSops = sopsCache.filter(s => {
+      if (sopFilters.status !== 'all' && s.status !== sopFilters.status) return false;
+      if (sopFilters.owner !== 'all' && (s.owner_id || '') !== sopFilters.owner) return false;
+      if (q && !(s.title || '').toLowerCase().includes(q) && !(s.purpose || '').toLowerCase().includes(q)) return false;
+      return true;
+    });
+    const noMatchEl = $('sopNoMatchState');
+    if (!visibleSops.length) {
+      listEl.innerHTML = '';
+      if (noMatchEl) noMatchEl.style.display = 'block';
+      return;
+    }
+    if (noMatchEl) noMatchEl.style.display = 'none';
     const plainSnippet = html => {
       const text = String(html || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
       return text.length > 120 ? text.slice(0, 120) + '…' : text;
     };
-    const completionCounts = await fetchCompletionCounts(sopsCache.map(s => s.id));
-    listEl.innerHTML = sopsCache.map(s => {
+    const ownerIds = Array.from(new Set(visibleSops.map(s => s.owner_id).filter(Boolean)));
+    const [completionCounts, ownerNames] = await Promise.all([
+      fetchCompletionCounts(visibleSops.map(s => s.id)),
+      fetchProfileNames(ownerIds),
+    ]);
+    listEl.innerHTML = visibleSops.map(s => {
       const st = SOP_STATUS_INFO[s.status] || SOP_STATUS_INFO.draft;
       const cc = completionCounts[s.id] || { approved: 0, total: 0 };
       const rate = cc.total ? Math.round((cc.approved / cc.total) * 100) : 0;
       const rateColor = rate >= 80 ? '#3ecf8e' : rate >= 40 ? '#e8a83e' : 'var(--red)';
-      return `<div class="report-row" data-sop-id="${sEsc(s.id)}" style="cursor:pointer;">
-        <span class="report-row-badge" style="background:${st.bg};color:${st.fg};">${st.label}</span>
-        <div class="report-row-main">
-          <div class="report-row-title">${sEsc(s.title)}</div>
-          <div class="report-row-meta">${sEsc(plainSnippet(s.purpose))}</div>
+      const rateBg = rate >= 80 ? 'rgba(62,207,142,.15)' : rate >= 40 ? 'rgba(232,168,62,.15)' : 'rgba(208,4,0,.15)';
+      const linkedWfCount = wfLinkCache.filter(wf => (wf.stages || []).some(st2 => st2.sop_id === s.id)).length;
+      return `<div class="report-row" data-sop-id="${sEsc(s.id)}" style="cursor:pointer;flex-direction:column;align-items:stretch;">
+        <div style="display:flex;align-items:flex-start;gap:14px;width:100%;">
+          <span class="report-row-badge" style="background:${st.bg};color:${st.fg};flex-shrink:0;">${st.label}</span>
+          <div class="report-row-main">
+            <div class="report-row-title">${sEsc(s.title)}</div>
+            <div class="report-row-meta">${sEsc(plainSnippet(s.purpose))}</div>
+            <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;font-size:11.5px;color:var(--text-3);">
+              <span>${sEsc(deptLabelSops(s.department_id))}</span>
+              <span>Owner: ${sEsc(ownerNames[s.owner_id] || 'Unassigned')}</span>
+              <span>${sEsc(s.est_time || '—')}</span>
+              <span>Updated ${sEsc(fmtDate((s.updated_at||'').slice(0,10)))}</span>
+              <span>${linkedWfCount ? `Used in ${linkedWfCount} workflow${linkedWfCount>1?'s':''}` : 'Not linked yet'}</span>
+            </div>
+          </div>
+          <span title="${cc.approved} of ${cc.total} approved" style="flex-shrink:0;font-size:11.5px;font-weight:700;color:${rateColor};background:${rateBg};padding:5px 10px;border-radius:6px;">${cc.approved} of ${cc.total} approved</span>
+          ${s.video_url ? `<span title="Has attached video/screenshot" style="flex-shrink:0;color:var(--text-3);"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3.5" width="9" height="9" rx="1.6" stroke="currentColor" stroke-width="1.2"/><path d="M11 6.5l3-1.8v6.6l-3-1.8z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></span>` : ''}
+          <span data-stop-row-click style="display:flex;gap:2px;flex-shrink:0;">
+            <span class="report-row-icon-btn" data-action="share-sop" data-sop-id="${sEsc(s.id)}" title="Copy share link"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M7 9.5L9 11.5a2.5 2.5 0 003.5 0L14 10a2.5 2.5 0 000-3.5L12.5 5M9 6.5L7 4.5a2.5 2.5 0 00-3.5 0L2 6a2.5 2.5 0 000 3.5L3.5 11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
+            <span class="report-row-icon-btn" data-action="edit-sop" data-sop-id="${sEsc(s.id)}" title="Edit"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
+            <span class="report-row-icon-btn" data-action="delete-sop" data-sop-id="${sEsc(s.id)}" title="Delete" style="color:var(--red);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M6 4.5V3a1 1 0 011-1h2a1 1 0 011 1v1.5M4.5 4.5l.6 8a1 1 0 001 .9h3.8a1 1 0 001-.9l.6-8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          </span>
         </div>
-        <span title="${cc.approved} of ${cc.total} approved" style="flex-shrink:0;font-size:11.5px;font-weight:700;color:${rateColor};">${cc.approved}/${cc.total}</span>
-        ${s.video_url ? `<span title="Has attached video/screenshot" style="flex-shrink:0;color:var(--text-3);"><svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3.5" width="9" height="9" rx="1.6" stroke="currentColor" stroke-width="1.2"/><path d="M11 6.5l3-1.8v6.6l-3-1.8z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg></span>` : ''}
-        <span data-stop-row-click style="display:flex;gap:2px;flex-shrink:0;">
-          <span class="report-row-icon-btn" data-action="share-sop" data-sop-id="${sEsc(s.id)}" title="Copy share link"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M7 9.5L9 11.5a2.5 2.5 0 003.5 0L14 10a2.5 2.5 0 000-3.5L12.5 5M9 6.5L7 4.5a2.5 2.5 0 00-3.5 0L2 6a2.5 2.5 0 000 3.5L3.5 11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>
-          <span class="report-row-icon-btn" data-action="edit-sop" data-sop-id="${sEsc(s.id)}" title="Edit"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
-          <span class="report-row-icon-btn" data-action="delete-sop" data-sop-id="${sEsc(s.id)}" title="Delete" style="color:var(--red);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M6 4.5V3a1 1 0 011-1h2a1 1 0 011 1v1.5M4.5 4.5l.6 8a1 1 0 001 .9h3.8a1 1 0 001-.9l.6-8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        </span>
       </div>`;
     }).join('');
     listEl.querySelectorAll('[data-action="share-sop"]').forEach(btn => btn.addEventListener('click', () => shareSop(btn.dataset.sopId)));
@@ -11214,6 +11294,32 @@ setupRail('rail2','pill2');
     return out;
   }
 
+  function deptLabelSops(id) { const d = deptsCache.find(x => x.id === id); return d ? d.name : '—'; }
+  function fmtDate(iso) { if (!iso) return '—'; try { return new Date(iso + 'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}); } catch(e) { return iso; } }
+
+  async function fetchProfileNames(ids) {
+    if (!ids.length) return {};
+    const { data } = await sb().from('profiles').select('id, full_name, email').in('id', ids);
+    const out = {};
+    (data || []).forEach(p => { out[p.id] = p.full_name || p.email || 'Someone'; });
+    return out;
+  }
+
+  // Owner options are derived from whoever actually owns a loaded SOP — there's no
+  // fixed team roster surfaced to this module — refreshed each time the list reloads.
+  function refreshSopOwnerFilter() {
+    const sel = $('sopFilterOwner');
+    if (!sel) return;
+    const ownerIds = Array.from(new Set(sopsCache.map(s => s.owner_id).filter(Boolean)));
+    const prev = sopFilters.owner;
+    fetchProfileNames(ownerIds).then(names => {
+      const opts = ownerIds.map(id => ({ id, name: names[id] || 'Someone' })).sort((a,b) => a.name.localeCompare(b.name));
+      sel.innerHTML = `<option value="all">All owners</option>` + opts.map(o => `<option value="${sEsc(o.id)}">${sEsc(o.name)}</option>`).join('');
+      sel.value = ownerIds.includes(prev) ? prev : 'all';
+      sopFilters.owner = sel.value;
+    });
+  }
+
   async function shareSop(id) {
     const url = `${window.location.origin}/app?sop=${id}`;
     try {
@@ -11236,43 +11342,54 @@ setupRail('rail2','pill2');
   }
 
   async function openSopEditModal(id) {
-    const { data: s, error } = await sb().from('sops').select('*').eq('id', id).single();
-    if (error || !s) { if (typeof toast==='function') toast({type:'error', message:'Failed to load SOP'}); return; }
-    editingSopId = id;
-    populateDeptSelect();
-    if ($('sopDeptSelect')) $('sopDeptSelect').value = s.department_id;
-    if ($('sopStatusSelect')) $('sopStatusSelect').value = s.status || 'published';
-    if ($('sopTitle')) $('sopTitle').value = s.title || '';
-    if ($('sopCategory')) $('sopCategory').value = s.category || '';
-    if ($('sopEstTime')) $('sopEstTime').value = s.est_time || '';
-    if ($('sopToolsInput')) $('sopToolsInput').value = (s.tools || []).join(', ');
-    if ($('sopExamplesInput')) $('sopExamplesInput').value = (s.examples || []).join(', ');
-    if ($('sopChecklistInput')) $('sopChecklistInput').value = (s.checklist || []).join('\n');
-    if ($('sopMistakesInput')) $('sopMistakesInput').value = (s.mistakes || []).join('\n');
-    setSopDetails(s.purpose || '');
-    sopFormSteps = (s.steps || []).map(st => ({ text: st.text || '', note: st.note || '' }));
-    if (!sopFormSteps.length) sopFormSteps = [{ text: '', note: '' }];
-    renderSopFormSteps();
-    sopSelectedFile = null;
-    const prompt = $('sopMediaPrompt'), preview = $('sopMediaPreview'), drop = $('sopMediaDrop');
-    if (s.video_url) {
-      const isVideo = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(s.video_url);
-      if (preview) {
-        preview.innerHTML = isVideo
-          ? `<video src="${sEsc(s.video_url)}" controls muted style="max-width:100%;max-height:180px;border-radius:8px;"></video>`
-          : `<img src="${sEsc(s.video_url)}" style="max-width:100%;max-height:180px;border-radius:8px;">`;
-        preview.style.display = 'block';
+    // Wrapped end-to-end: this previously had no error handling, so any exception while
+    // populating the form (bad data on an older SOP row, a missing element, etc.) aborted
+    // silently — clicking Edit just did nothing with no feedback at all. Now it always either
+    // opens or tells you why it didn't.
+    try {
+      const { data: s, error } = await sb().from('sops').select('*').eq('id', id).single();
+      if (error || !s) { if (typeof toast==='function') toast({type:'error', message:'Failed to load SOP: ' + (error && error.message || 'not found')}); return; }
+      editingSopId = id;
+      editingSopSnapshot = s;
+      populateDeptSelect();
+      if ($('sopDeptSelect')) $('sopDeptSelect').value = s.department_id;
+      if ($('sopStatusSelect')) $('sopStatusSelect').value = s.status || 'published';
+      if ($('sopTitle')) $('sopTitle').value = s.title || '';
+      if ($('sopCategory')) $('sopCategory').value = s.category || '';
+      if ($('sopEstTime')) $('sopEstTime').value = s.est_time || '';
+      if ($('sopToolsInput')) $('sopToolsInput').value = (s.tools || []).join(', ');
+      if ($('sopExamplesInput')) $('sopExamplesInput').value = (s.examples || []).join(', ');
+      if ($('sopChecklistInput')) $('sopChecklistInput').value = (s.checklist || []).join('\n');
+      if ($('sopMistakesInput')) $('sopMistakesInput').value = (s.mistakes || []).join('\n');
+      setSopDetails(s.purpose || '');
+      const rawSteps = Array.isArray(s.steps) ? s.steps : [];
+      sopFormSteps = rawSteps.map(st => ({ text: (st && st.text) || '', note: (st && st.note) || '' }));
+      if (!sopFormSteps.length) sopFormSteps = [{ text: '', note: '' }];
+      renderSopFormSteps();
+      sopSelectedFile = null;
+      const prompt = $('sopMediaPrompt'), preview = $('sopMediaPreview'), drop = $('sopMediaDrop');
+      if (s.video_url) {
+        const isVideo = /\.(mp4|webm|mov|m4v)(\?|$)/i.test(s.video_url);
+        if (preview) {
+          preview.innerHTML = isVideo
+            ? `<video src="${sEsc(s.video_url)}" controls muted style="max-width:100%;max-height:180px;border-radius:8px;"></video>`
+            : `<img src="${sEsc(s.video_url)}" style="max-width:100%;max-height:180px;border-radius:8px;">`;
+          preview.style.display = 'block';
+        }
+        if (prompt) prompt.style.display = 'none';
+        if (drop) drop.classList.add('has-file');
+      } else {
+        if (preview) { preview.innerHTML = ''; preview.style.display = 'none'; }
+        if (prompt) prompt.style.display = 'block';
+        if (drop) drop.classList.remove('has-file');
       }
-      if (prompt) prompt.style.display = 'none';
-      if (drop) drop.classList.add('has-file');
-    } else {
-      if (preview) { preview.innerHTML = ''; preview.style.display = 'none'; }
-      if (prompt) prompt.style.display = 'block';
-      if (drop) drop.classList.remove('has-file');
+      if ($('sopModalHeading')) $('sopModalHeading').textContent = 'Edit SOP';
+      if ($('sopSubmitBtn')) $('sopSubmitBtn').textContent = 'Save changes';
+      openModal('sopNewModal');
+    } catch (e) {
+      console.error('[sop] openSopEditModal failed:', e);
+      if (typeof toast==='function') toast({type:'error', message:'Couldn\'t open editor: ' + (e.message || 'unknown error')});
     }
-    if ($('sopModalHeading')) $('sopModalHeading').textContent = 'Edit SOP';
-    if ($('sopSubmitBtn')) $('sopSubmitBtn').textContent = 'Save changes';
-    openModal('sopNewModal');
   }
 
   // ── Steps builder — repeatable text + optional caution-note rows.
@@ -11421,6 +11538,7 @@ setupRail('rail2','pill2');
 
   function resetSopForm() {
     editingSopId = null;
+    editingSopSnapshot = null;
     if ($('sopTitle')) $('sopTitle').value = '';
     if ($('sopCategory')) $('sopCategory').value = '';
     if ($('sopEstTime')) $('sopEstTime').value = '';
@@ -11502,8 +11620,24 @@ setupRail('rail2','pill2');
       };
       if (editingSopId) {
         if (video_url !== undefined) payload.video_url = video_url;
-        payload.version = ((sopsCache.find(s=>s.id===editingSopId)||{}).version || 1) + 1;
+        const prevSop = (editingSopSnapshot && editingSopSnapshot.id === editingSopId) ? editingSopSnapshot : (sopsCache.find(s=>s.id===editingSopId) || {});
+        payload.version = (prevSop.version || 1) + 1;
         payload.updated_at = new Date().toISOString();
+        // Snapshot the PRE-edit state before it's overwritten — this is what makes version
+        // history real instead of a bare counter with a "Revision" label and no content.
+        try {
+          await sb().from('sop_versions').insert({
+            sop_id: editingSopId,
+            version: prevSop.version || 1,
+            snapshot: {
+              title: prevSop.title, category: prevSop.category, purpose: prevSop.purpose,
+              status: prevSop.status, est_time: prevSop.est_time, steps: prevSop.steps,
+              tools: prevSop.tools, checklist: prevSop.checklist, examples: prevSop.examples,
+              mistakes: prevSop.mistakes, video_url: prevSop.video_url,
+            },
+            updated_by: myId(),
+          });
+        } catch(_) { /* history is best-effort — never block the actual save on it */ }
         const { error } = await sb().from('sops').update(payload).eq('id', editingSopId);
         if (error) throw new Error(error.message);
         if (typeof toast==='function') toast({type:'success', message: `Saved "${title}"`});
@@ -11554,7 +11688,7 @@ setupRail('rail2','pill2');
     if (error || !s) { if (typeof toast==='function') toast({type:'error', message:'Failed to load SOP'}); return; }
     detailSop = s;
     detailViaWorkflow = viaWorkflow;
-    renderSopDetailHeader();
+    await renderSopDetailHeader();
     renderSopDetailSections();
     openModal('sopDetailPanelOverlay');
     await loadDetailCompletions(s.id);
@@ -11563,7 +11697,7 @@ setupRail('rail2','pill2');
   }
   function closeSopDetail() { detailSop = null; detailViaWorkflow = null; }
 
-  function renderSopDetailHeader() {
+  async function renderSopDetailHeader() {
     const s = detailSop;
     const st = SOP_STATUS_INFO[s.status] || SOP_STATUS_INFO.draft;
     const dept = deptsCache.find(d => d.id === s.department_id);
@@ -11572,7 +11706,9 @@ setupRail('rail2','pill2');
     statusBadge.textContent = st.label;
     statusBadge.style.background = st.bg; statusBadge.style.color = st.fg;
     $('sopDetailTitle').textContent = s.title;
-    $('sopDetailMetaLine').textContent = `v${s.version} · Updated ${fmtDateTime(s.updated_at)}${s.est_time ? ' · Est. ' + s.est_time : ''}`;
+    const ownerNames = s.owner_id ? await fetchProfileNames([s.owner_id]) : {};
+    const ownerName = s.owner_id ? (ownerNames[s.owner_id] || 'Someone') : 'Unassigned';
+    $('sopDetailMetaLine').textContent = `Owner: ${ownerName} · v${s.version} · Updated ${fmtDateTime(s.updated_at)}${s.est_time ? ' · Est. ' + s.est_time : ''}`;
     const banner = $('sopDetailViaBanner');
     if (detailViaWorkflow) {
       banner.style.display = 'block';
@@ -11595,19 +11731,19 @@ setupRail('rail2','pill2');
     renderSopDetailMedia();
 
     const steps = s.steps || [];
-    $('sopDetailStepsSection').innerHTML = steps.length ? `<div class="sop-detail-kicker">3. Written steps</div><div id="sopDetailStepsRows"></div>` : '';
+    $('sopDetailStepsSection').innerHTML = `<div class="sop-detail-kicker">3. Written steps</div>` + (steps.length ? `<div id="sopDetailStepsRows"></div>` : `<div style="font-size:13px;color:var(--text-3);">No steps added yet.</div>`);
 
     const tools = s.tools || [];
-    $('sopDetailToolsSection').innerHTML = tools.length ? `<div class="sop-detail-kicker">4. Tools &amp; access required</div><div style="display:flex;gap:6px;flex-wrap:wrap;">${tools.map(t => `<span style="background:var(--surface-2);color:var(--text-2);font-size:12px;font-weight:600;padding:5px 10px;border-radius:6px;">${sEsc(t)}</span>`).join('')}</div>` : '';
+    $('sopDetailToolsSection').innerHTML = `<div class="sop-detail-kicker">4. Tools &amp; access required</div>` + (tools.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;">${tools.map(t => `<span style="background:var(--surface-2);color:var(--text-2);font-size:12px;font-weight:600;padding:5px 10px;border-radius:6px;">${sEsc(t)}</span>`).join('')}</div>` : `<div style="font-size:13px;color:var(--text-3);">No tools listed yet.</div>`);
 
     const checklist = s.checklist || [];
-    $('sopDetailChecklistSection').innerHTML = checklist.length ? `<div class="sop-detail-kicker">5. Quality checklist</div><div id="sopDetailChecklistRows"></div>` : '';
+    $('sopDetailChecklistSection').innerHTML = `<div class="sop-detail-kicker">5. Quality checklist</div>` + (checklist.length ? `<div id="sopDetailChecklistRows"></div>` : `<div style="font-size:13px;color:var(--text-3);">No checklist items yet.</div>`);
 
     const examples = s.examples || [];
-    $('sopDetailExamplesSection').innerHTML = examples.length ? `<div class="sop-detail-kicker">6. Examples</div><div style="display:flex;gap:6px;flex-wrap:wrap;">${examples.map(ex => `<span style="background:var(--surface-2);color:var(--text-2);font-size:12px;font-weight:600;padding:6px 11px;border-radius:6px;">📎 ${sEsc(ex)}</span>`).join('')}</div>` : '';
+    $('sopDetailExamplesSection').innerHTML = `<div class="sop-detail-kicker">6. Examples</div>` + (examples.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;">${examples.map(ex => `<span style="background:var(--surface-2);color:var(--text-2);font-size:12px;font-weight:600;padding:6px 11px;border-radius:6px;">📎 ${sEsc(ex)}</span>`).join('')}</div>` : `<div style="font-size:13px;color:var(--text-3);">No examples added yet.</div>`);
 
     const mistakes = s.mistakes || [];
-    $('sopDetailMistakesSection').innerHTML = mistakes.length ? `<div class="sop-detail-kicker">7. Common mistakes</div>${mistakes.map(m => `<div style="font-size:13px;color:#e8a83e;margin-bottom:6px;">⚠ ${sEsc(m)}</div>`).join('')}` : '';
+    $('sopDetailMistakesSection').innerHTML = `<div class="sop-detail-kicker">7. Common mistakes</div>` + (mistakes.length ? mistakes.map(m => `<div style="font-size:13px;color:#e8a83e;margin-bottom:6px;">⚠ ${sEsc(m)}</div>`).join('') : `<div style="font-size:13px;color:var(--text-3);">No common mistakes documented yet.</div>`);
 
     const linkedWfs = wfLinkCache.filter(wf => (wf.stages||[]).some(st => st.sop_id === s.id));
     $('sopDetailWorkflowsSection').innerHTML = `<div class="sop-detail-kicker">8. Related content</div><div style="font-size:12.5px;color:var(--text-3);margin-bottom:8px;">${linkedWfs.length ? `Used in ${linkedWfs.length} workflow${linkedWfs.length>1?'s':''}` : 'Not linked to any workflow yet.'}</div><div style="display:flex;gap:6px;flex-wrap:wrap;">${linkedWfs.map(wf => `<span class="sop-linked-wf-chip" data-wf-id="${sEsc(wf.id)}" style="background:rgba(208,4,0,.12);color:var(--red);font-size:12px;font-weight:700;padding:6px 11px;border-radius:6px;cursor:pointer;">${sEsc(wf.name)}</span>`).join('')}</div>`;
@@ -11643,9 +11779,17 @@ setupRail('rail2','pill2');
     const s = detailSop;
     const host = $('sopDetailMedia');
     if (s.video_url && isVideoUrl(s.video_url)) {
-      host.innerHTML = `<video src="${sEsc(s.video_url)}" controls style="width:100%;border-radius:10px;display:block;background:#000;max-height:280px;"></video>`;
+      host.innerHTML = `<video src="${sEsc(s.video_url)}" controls style="width:100%;border-radius:10px;display:block;background:#000;max-height:280px;"></video>
+        <div style="display:flex;gap:14px;margin-top:8px;">
+          <span id="sopDetailReRecordBtn" style="font-size:11.5px;font-weight:700;color:var(--text-2);cursor:pointer;">Record new video</span>
+          <span id="sopDetailRemoveVideoBtn" style="font-size:11.5px;font-weight:700;color:var(--red);cursor:pointer;">Remove video</span>
+        </div>`;
     } else if (s.video_url) {
-      host.innerHTML = `<img src="${sEsc(s.video_url)}" style="width:100%;border-radius:10px;display:block;max-height:280px;object-fit:cover;">`;
+      host.innerHTML = `<img src="${sEsc(s.video_url)}" style="width:100%;border-radius:10px;display:block;max-height:280px;object-fit:cover;">
+        <div style="display:flex;gap:14px;margin-top:8px;">
+          <span id="sopDetailReRecordBtn" style="font-size:11.5px;font-weight:700;color:var(--text-2);cursor:pointer;">Record new video</span>
+          <span id="sopDetailRemoveVideoBtn" style="font-size:11.5px;font-weight:700;color:var(--red);cursor:pointer;">Remove video</span>
+        </div>`;
     } else {
       host.innerHTML = `<div id="sopDetailRecordMainBtn" style="width:100%;aspect-ratio:16/9;border-radius:10px;background:var(--surface-2);border:1px dashed var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--text-3);font-size:12.5px;cursor:pointer;">
         <span style="width:36px;height:36px;border-radius:50%;background:var(--red);display:flex;align-items:center;justify-content:center;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5" fill="#fff"/></svg></span>
@@ -11654,6 +11798,23 @@ setupRail('rail2','pill2');
       const btn = $('sopDetailRecordMainBtn');
       if (btn) btn.addEventListener('click', () => openSopRecordModal('quick-main'));
     }
+    const reRecordBtn = $('sopDetailReRecordBtn');
+    if (reRecordBtn) reRecordBtn.addEventListener('click', () => openSopRecordModal('quick-main'));
+    const removeBtn = $('sopDetailRemoveVideoBtn');
+    if (removeBtn) removeBtn.addEventListener('click', removeSopMainVideo);
+  }
+
+  async function removeSopMainVideo() {
+    const s = detailSop;
+    if (!s) return;
+    const confirmed = await window.giantConfirmWarn('Remove this video?', "This SOP's main training video will be removed. You can record or upload a new one anytime.", 'Remove', 'warning');
+    if (!confirmed) return;
+    const { error } = await sb().from('sops').update({ video_url: null, updated_at: new Date().toISOString() }).eq('id', s.id);
+    if (error) { if (typeof toast==='function') toast({type:'error', message: error.message || 'Failed to remove video'}); return; }
+    s.video_url = null;
+    if (typeof toast==='function') toast({type:'success', message:'Video removed'});
+    renderSopDetailMedia();
+    await loadSops();
   }
 
   async function onStepReviewToggle(e) {
@@ -11780,17 +11941,74 @@ setupRail('rail2','pill2');
     openSopDetail(s.id, detailViaWorkflow);
   }
 
-  function renderSopHistory() {
+  async function renderSopHistory() {
     const s = detailSop;
-    const rows = Array.from({ length: s.version }, (_, i) => ({ v: s.version - i, date: i === 0 ? fmtDateTime(s.updated_at) : '—', note: i === 0 ? 'Current version' : 'Revision' }));
-    $('sopHistoryRows').innerHTML = rows.map(r => `<div style="display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid var(--line);font-size:13px;"><span style="font-weight:700;">v${r.v}</span><span style="color:var(--text-3);">${sEsc(r.note)}</span><span style="color:var(--text-3);">${sEsc(r.date)}</span></div>`).join('');
+    $('sopHistoryRows').innerHTML = `<div style="padding:14px 0;color:var(--text-3);font-size:12.5px;">Loading…</div>`;
+    const { data: versions, error } = await sb().from('sop_versions').select('*').eq('sop_id', s.id).order('version', { ascending: false });
+    if (error) {
+      $('sopHistoryRows').innerHTML = `<div style="padding:14px 0;color:var(--text-3);font-size:12.5px;">${error.message.includes('does not exist') ? 'Run the sop_versions migration to enable version history.' : 'Failed to load history.'}</div>`;
+      return;
+    }
+    const updaterIds = [...new Set((versions || []).map(v => v.updated_by).filter(Boolean))];
+    let updaters = {};
+    if (updaterIds.length) {
+      const { data: profiles } = await sb().from('profiles').select('id, full_name, email').in('id', updaterIds);
+      (profiles || []).forEach(p => { updaters[p.id] = p.full_name || p.email || 'Someone'; });
+    }
+    const currentRow = `<div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid var(--line);font-size:13px;">
+      <span style="font-weight:700;">v${s.version} <span style="color:#3ecf8e;font-weight:600;font-size:11.5px;">· Current</span></span>
+      <span style="color:var(--text-3);">${sEsc(fmtDateTime(s.updated_at))}</span>
+    </div>`;
+    const oldRows = (versions || []).map(v => `
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-top:1px solid var(--line);font-size:13px;">
+        <span style="font-weight:700;">v${v.version} <span style="color:var(--text-3);font-weight:600;font-size:11.5px;">· ${sEsc(updaters[v.updated_by] || 'Someone')}</span></span>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="color:var(--text-3);">${sEsc(fmtDateTime(v.created_at))}</span>
+          <span data-restore-version="${sEsc(v.id)}" style="color:var(--red);font-weight:700;font-size:12px;cursor:pointer;">Restore</span>
+        </div>
+      </div>`).join('');
+    $('sopHistoryRows').innerHTML = currentRow + (oldRows || `<div style="padding:14px 0;color:var(--text-3);font-size:12.5px;font-style:italic;">No earlier versions yet — history starts recording from your next edit.</div>`);
+    $('sopHistoryRows').querySelectorAll('[data-restore-version]').forEach(btn => {
+      btn.addEventListener('click', () => restoreSopVersion(btn.dataset.restoreVersion));
+    });
   }
 
-  // ══════════ In-app recorder — webcam (my training video) or screen (main SOP / form video) ══════════
+  async function restoreSopVersion(versionRowId) {
+    const s = detailSop;
+    if (!s) return;
+    const confirmed = await window.giantConfirmWarn(`Restore this version?`, `This replaces the current content with that version. The current version is saved to history first, so you can undo this too.`, 'Restore', 'warning');
+    if (!confirmed) return;
+    const { data: versionRow, error: vErr } = await sb().from('sop_versions').select('*').eq('id', versionRowId).single();
+    if (vErr || !versionRow) { if (typeof toast==='function') toast({type:'error', message:'Could not load that version'}); return; }
+    // Snapshot the current (about-to-be-overwritten) state first, same as a normal edit would.
+    try {
+      await sb().from('sop_versions').insert({
+        sop_id: s.id, version: s.version, updated_by: myId(),
+        snapshot: {
+          title: s.title, category: s.category, purpose: s.purpose, status: s.status,
+          est_time: s.est_time, steps: s.steps, tools: s.tools, checklist: s.checklist,
+          examples: s.examples, mistakes: s.mistakes, video_url: s.video_url,
+        },
+      });
+    } catch(_) {}
+    const snap = versionRow.snapshot || {};
+    const { error } = await sb().from('sops').update({
+      ...snap, version: (s.version || 1) + 1, updated_at: new Date().toISOString(),
+    }).eq('id', s.id);
+    if (error) { if (typeof toast==='function') toast({type:'error', message: error.message || 'Restore failed'}); return; }
+    if (typeof toast==='function') toast({type:'success', message: `Restored v${versionRow.version}`});
+    closeModal('sopHistoryModal');
+    await openSopDetail(s.id);
+  }
+
+  // ══════════ In-app recorder — webcam (my training video) or screen/camera/both (main SOP / form video) ══════════
   let recStream = null, recorder = null, recChunks = [], recBlob = null, recTimerInterval = null, recSeconds = 0;
-  let recTarget = 'completion'; // 'completion' (webcam) | 'quick-main' (screen, patches sops.video_url) | 'form' (screen, feeds the create/edit form)
-  function recCaptureMode() { return recTarget === 'completion' ? 'webcam' : 'screen'; }
+  let recTarget = 'completion'; // 'completion' (always webcam) | 'quick-main' (patches sops.video_url) | 'form' (feeds the create/edit form)
+  let recMode = 'screen'; // 'camera' | 'screen' | 'screen-camera' — only relevant when recTarget !== 'completion'
+  let recScreenStream = null, recCamStream = null, recCompositeRAF = null;
+  function recCaptureMode() { return recTarget === 'completion' ? 'webcam' : recMode; }
   function recSetTimer(sec) { const m = String(Math.floor(sec/60)).padStart(2,'0'), s = String(sec%60).padStart(2,'0'); if ($('sopRecTimer')) $('sopRecTimer').textContent = `${m}:${s}`; }
+  function recModeLabel(mode) { return mode === 'camera' ? 'turn on your camera' : mode === 'screen-camera' ? 'share your screen and turn on your camera' : 'share your screen'; }
 
   function recResetUI() {
     recBlob = null; recChunks = []; recSeconds = 0; recSetTimer(0);
@@ -11798,36 +12016,130 @@ setupRail('rail2','pill2');
     if ($('sopRecPreviewVideo')) { $('sopRecPreviewVideo').style.display = 'none'; $('sopRecPreviewVideo').src = ''; }
     if ($('sopRecIdleMsg')) {
       $('sopRecIdleMsg').style.display = recStream ? 'none' : 'flex';
-      $('sopRecIdleMsg').textContent = recCaptureMode() === 'screen' ? 'Click "Start recording" to share your screen' : 'Click "Start recording" to turn on your camera';
+      $('sopRecIdleMsg').textContent = `Click "Start recording" to ${recModeLabel(recCaptureMode())}`;
+    }
+    if ($('sopRecModeRow')) {
+      $('sopRecModeRow').style.display = recTarget === 'completion' ? 'none' : 'flex';
+      $('sopRecModeRow').querySelectorAll('.sop-rec-mode-pill').forEach(p => {
+        const active = p.dataset.recMode === recMode;
+        p.style.background = active ? 'var(--red)' : 'transparent';
+        p.style.color = active ? '#fff' : 'var(--text-2)';
+        p.style.borderColor = active ? 'var(--red)' : 'var(--line)';
+      });
     }
     if ($('sopRecBadge')) $('sopRecBadge').style.display = 'none';
-    if ($('sopRecStartBtn')) $('sopRecStartBtn').style.display = recStream ? 'none' : 'inline-flex';
+    if ($('sopRecStartBtn')) $('sopRecStartBtn').style.display = recStream ? 'inline-flex' : 'none';
     if ($('sopRecStopBtn')) $('sopRecStopBtn').style.display = 'none';
     if ($('sopRecRetakeBtn')) $('sopRecRetakeBtn').style.display = 'none';
     if ($('sopRecSubmitBtn')) $('sopRecSubmitBtn').style.display = 'none';
     if ($('sopRecHint')) $('sopRecHint').textContent = '';
   }
-  function stopRecStream() { if (recStream) { recStream.getTracks().forEach(t => t.stop()); recStream = null; } if (recTimerInterval) { clearInterval(recTimerInterval); recTimerInterval = null; } }
+  function stopRecStream() {
+    if (recStream) { recStream.getTracks().forEach(t => t.stop()); recStream = null; }
+    if (recScreenStream) { recScreenStream.getTracks().forEach(t => t.stop()); recScreenStream = null; }
+    if (recCamStream) { recCamStream.getTracks().forEach(t => t.stop()); recCamStream = null; }
+    if (recCompositeRAF) { cancelAnimationFrame(recCompositeRAF); recCompositeRAF = null; }
+    if (recTimerInterval) { clearInterval(recTimerInterval); recTimerInterval = null; }
+  }
   async function acquireRecStream() {
-    return recCaptureMode() === 'screen'
-      ? navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
-      : navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    const mode = recCaptureMode();
+    if (mode === 'webcam' || mode === 'camera') {
+      return navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    }
+    if (mode === 'screen') {
+      recScreenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      return recScreenStream;
+    }
+    // screen-camera: composite the screen share (full frame) with the webcam (small circular
+    // overlay, bottom-left, Loom-style) onto a canvas, then capture the canvas as the recorded stream.
+    recScreenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    try { recCamStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }); }
+    catch (_) { recCamStream = null; } // camera denied — still record the screen alone rather than fail outright
+    const screenTrack = recScreenStream.getVideoTracks()[0];
+    const settings = (screenTrack.getSettings && screenTrack.getSettings()) || {};
+    const canvas = document.createElement('canvas');
+    canvas.width = settings.width || 1280; canvas.height = settings.height || 720;
+    const ctx = canvas.getContext('2d');
+    const screenVideoEl = document.createElement('video');
+    screenVideoEl.srcObject = recScreenStream; screenVideoEl.muted = true; screenVideoEl.playsInline = true; screenVideoEl.play().catch(() => {});
+    let camVideoEl = null;
+    if (recCamStream) {
+      camVideoEl = document.createElement('video');
+      camVideoEl.srcObject = recCamStream; camVideoEl.muted = true; camVideoEl.playsInline = true; camVideoEl.play().catch(() => {});
+    }
+    const draw = () => {
+      if (screenVideoEl.readyState >= 2) ctx.drawImage(screenVideoEl, 0, 0, canvas.width, canvas.height);
+      if (camVideoEl && camVideoEl.readyState >= 2) {
+        const camSize = Math.round(canvas.height * 0.22);
+        const cx = 16, cy = canvas.height - camSize - 16;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(cx + camSize / 2, cy + camSize / 2, camSize / 2, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.drawImage(camVideoEl, cx, cy, camSize, camSize);
+        ctx.restore();
+      }
+      recCompositeRAF = requestAnimationFrame(draw);
+    };
+    recCompositeRAF = requestAnimationFrame(draw);
+    const compositeStream = canvas.captureStream(30);
+    // Mic audio (from the camera stream) tends to be more reliably captured across platforms
+    // than tab/system audio from the screen share, so it's preferred when both are available.
+    const audioTrack = (recCamStream && recCamStream.getAudioTracks()[0]) || recScreenStream.getAudioTracks()[0];
+    if (audioTrack) compositeStream.addTrack(audioTrack);
+    return compositeStream;
+  }
+  // The video track that actually ends when the user stops sharing/camera access — for
+  // composite mode this is the underlying screen track, not the canvas's own (which never ends).
+  function recAutoStopSourceTrack() {
+    if (recScreenStream) return recScreenStream.getVideoTracks()[0];
+    if (recStream) return recStream.getVideoTracks()[0];
+    return null;
   }
 
   async function openSopRecordModal(target) {
     recTarget = target || 'completion';
-    if ($('sopRecTitle')) $('sopRecTitle').textContent = recTarget === 'completion' ? 'Record your video' : 'Record your screen';
+    if (recTarget === 'completion') recMode = 'camera'; // personal training proof is always webcam-only
+    else if (recMode === 'camera') recMode = 'screen'; // default main-SOP recordings to screen, Loom-style
+    if ($('sopRecTitle')) $('sopRecTitle').textContent = recTarget === 'completion' ? 'Record your video' : 'Record your walkthrough';
     if ($('sopRecSub')) $('sopRecSub').textContent = recTarget === 'completion' ? "Show you've watched and completed this SOP" : recTarget === 'quick-main' ? 'This becomes the main walkthrough video for this SOP' : "Attached as this SOP's walkthrough video when you save";
     openModal('sopRecordModal');
+    await startCaptureForCurrentMode();
+  }
+
+  async function startCaptureForCurrentMode() {
+    stopRecStream();
     recResetUI();
     try {
       recStream = await acquireRecStream();
       recResetUI();
-      recStream.getVideoTracks().forEach(t => { t.onended = () => { if (recorder && recorder.state !== 'inactive') stopRecording(); }; });
+      const track = recAutoStopSourceTrack();
+      if (track) track.onended = () => {
+        if (recorder && recorder.state !== 'inactive') {
+          // Was actively recording — finalize it exactly like clicking our own "Stop recording"
+          // would, so using the browser's native "Stop sharing" control still produces a
+          // submittable preview instead of silently discarding the recording.
+          stopRecording();
+        } else {
+          // Sharing/camera access ended before "Start recording" was ever clicked — the stream
+          // is now dead (black frame). Reset cleanly and offer a one-click way back in, rather
+          // than leaving a frozen preview with only "Cancel" (which discards and closes).
+          stopRecStream();
+          recResetUI();
+          if ($('sopRecHint')) $('sopRecHint').textContent = 'Sharing stopped before recording started.';
+          if ($('sopRecRetakeBtn')) $('sopRecRetakeBtn').style.display = 'inline-flex';
+        }
+      };
     } catch (e) {
-      if ($('sopRecHint')) $('sopRecHint').textContent = recCaptureMode() === 'screen' ? "Couldn't start screen recording — check permissions and try again." : "Couldn't access your camera/mic — check permissions and try again.";
+      if ($('sopRecHint')) $('sopRecHint').textContent = `Couldn't ${recModeLabel(recCaptureMode())} — check permissions and try again.`;
       if ($('sopRecStartBtn')) $('sopRecStartBtn').style.display = 'none';
     }
+  }
+
+  function switchRecMode(mode) {
+    if (mode === recMode || (recorder && recorder.state === 'recording')) return;
+    recMode = mode;
+    startCaptureForCurrentMode();
   }
 
   function startRecording() {
@@ -11854,9 +12166,7 @@ setupRail('rail2','pill2');
   }
   function stopRecording() { if (recorder && recorder.state !== 'inactive') recorder.stop(); if (recTimerInterval) { clearInterval(recTimerInterval); recTimerInterval = null; } }
   async function retakeRecording() {
-    stopRecStream();
-    try { recStream = await acquireRecStream(); recResetUI(); recStream.getVideoTracks().forEach(t => { t.onended = () => { if (recorder && recorder.state !== 'inactive') stopRecording(); }; }); }
-    catch (e) { if ($('sopRecHint')) $('sopRecHint').textContent = "Couldn't access your camera/mic — check permissions and try again."; }
+    await startCaptureForCurrentMode();
   }
 
   function reopenSourcePanel() {
@@ -11866,6 +12176,13 @@ setupRail('rail2','pill2');
 
   async function submitSopRecording() {
     if (!recBlob) return;
+    if (!recBlob.size) {
+      // A composite (screen+camera) or screen-only recording can end up with zero bytes if the
+      // share was stopped/denied before any frames were captured — surface that instead of
+      // silently uploading nothing and looking like a save that "did nothing."
+      if (typeof toast==='function') toast({type:'error', message:'That recording captured no video — try again.'});
+      return;
+    }
     const btn = $('sopRecSubmitBtn');
     if (recTarget === 'form') {
       sopSelectedFile = new File([recBlob], `screen-recording-${Date.now()}.webm`, { type: recBlob.type || 'video/webm' });
@@ -11915,6 +12232,19 @@ setupRail('rail2','pill2');
   if (submitBtn) submitBtn.addEventListener('click', submitSop);
   const manageDeptsBtn = $('sopManageDeptsBtn');
   if (manageDeptsBtn) manageDeptsBtn.addEventListener('click', () => { renderManageDeptsList(); openModal('sopManageDeptsModal'); });
+  const sopSearchInput = $('sopSearchInput');
+  if (sopSearchInput) {
+    let sopSearchDebounce = null;
+    sopSearchInput.addEventListener('input', () => {
+      sopFilters.search = sopSearchInput.value;
+      clearTimeout(sopSearchDebounce);
+      sopSearchDebounce = setTimeout(loadSops, 250);
+    });
+  }
+  const sopFilterStatus = $('sopFilterStatus');
+  if (sopFilterStatus) sopFilterStatus.addEventListener('change', () => { sopFilters.status = sopFilterStatus.value; loadSops(); });
+  const sopFilterOwner = $('sopFilterOwner');
+  if (sopFilterOwner) sopFilterOwner.addEventListener('change', () => { sopFilters.owner = sopFilterOwner.value; loadSops(); });
   const addDeptBtn = $('sopAddDeptBtn');
   if (addDeptBtn) addDeptBtn.addEventListener('click', async () => { await createDepartment(); renderManageDeptsList(); });
   const addStepBtn = $('sopAddStepBtn');
@@ -11932,6 +12262,7 @@ setupRail('rail2','pill2');
   const recStopBtn = $('sopRecStopBtn'); if (recStopBtn) recStopBtn.addEventListener('click', stopRecording);
   const recRetakeBtn = $('sopRecRetakeBtn'); if (recRetakeBtn) recRetakeBtn.addEventListener('click', retakeRecording);
   const recSubmitBtn = $('sopRecSubmitBtn'); if (recSubmitBtn) recSubmitBtn.addEventListener('click', submitSopRecording);
+  document.querySelectorAll('#sopRecModeRow .sop-rec-mode-pill').forEach(p => p.addEventListener('click', () => switchRecMode(p.dataset.recMode)));
   const recCancelBtn = $('sopRecCancelBtn'); if (recCancelBtn) recCancelBtn.addEventListener('click', () => { stopRecStream(); reopenSourcePanel(); });
   const recCloseX = document.querySelector('#sopRecordModal .m-close'); if (recCloseX) recCloseX.addEventListener('click', () => { stopRecStream(); setTimeout(reopenSourcePanel, 150); });
 
@@ -11949,7 +12280,7 @@ setupRail('rail2','pill2');
   let deptsCache = [];
   let sopsCache = [];
   let wfCache = [];
-  let filters = { search: '', dept: 'all', status: 'all' };
+  let filters = { search: '', dept: 'all', owner: 'all', status: 'all', type: 'all' };
   let activeWfId = null;
   let activeStageIdx = null;
   let editingWfId = null;
@@ -11970,16 +12301,32 @@ setupRail('rail2','pill2');
   function sopTitle(id) { const s = sopsCache.find(x => x.id === id); return s ? s.title : ''; }
   function todayISO() { return new Date().toISOString().slice(0,10); }
   function fmtDate(iso) { if (!iso) return '—'; try { return new Date(iso + 'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}); } catch(e) { return iso; } }
+  function fmtDateTime(iso) { if (!iso) return '—'; try { return new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric'}) + ' at ' + new Date(iso).toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); } catch(e) { return '—'; } }
   function isOverdue(due, status) { if (!due || status === 'complete') return false; return due < todayISO(); }
   function stageProgressPct(stages) { if (!stages.length) return 0; return Math.round((stages.filter(s=>s.status==='complete').length / stages.length) * 100); }
   function currentStage(stages) {
     return stages.find(s => ['in_progress','blocked','waiting'].includes(s.status)) || stages.find(s => s.status === 'not_started') || stages[stages.length-1];
   }
+  // A linked SOP is "stale" relative to a workflow once it's been edited more recently than the
+  // workflow itself last changed — the workflow was built against an older version of that SOP,
+  // so whoever's running the stage should double-check the SOP hasn't moved out from under them.
+  function isStaleSop(sopId, wf) {
+    if (!sopId || !wf) return false;
+    const sop = sopsCache.find(s => s.id === sopId);
+    if (!sop || !sop.updated_at || !wf.updated_at) return false;
+    return sop.updated_at > wf.updated_at;
+  }
+  function workflowHasOverdueStage(wf) {
+    return (wf.stages || []).some(st => isOverdue(st.due, st.status));
+  }
+  function workflowHasStaleSop(wf) {
+    return (wf.stages || []).some(st => st.sop_id && isStaleSop(st.sop_id, wf));
+  }
 
   async function loadRefData() {
     const [{ data: depts }, { data: sops }] = await Promise.all([
       sb().from('sop_departments').select('id, name').order('sort_order', { ascending: true }),
-      sb().from('sops').select('id, title'),
+      sb().from('sops').select('id, title, updated_at'),
     ]);
     deptsCache = depts || [];
     sopsCache = sops || [];
@@ -11992,13 +12339,36 @@ setupRail('rail2','pill2');
     const { data, error } = await sb().from('workflows').select('*').order('updated_at', { ascending: false });
     if (error) { if (typeof toast==='function') toast({type:'error', message:'Failed to load workflows'}); return; }
     wfCache = data || [];
+    refreshWfOwnerTypeFilters();
     renderWfList();
+  }
+
+  // Owner and type are free-text fields on the workflow row (no lookup table), so the
+  // filter options are derived from what's actually in use rather than a fixed list.
+  function refreshWfOwnerTypeFilters() {
+    const ownerSel = $('wfFilterOwner'), typeSel = $('wfFilterType');
+    if (ownerSel) {
+      const owners = Array.from(new Set(wfCache.map(wf => wf.owner_name || 'Unassigned'))).sort();
+      const prev = filters.owner;
+      ownerSel.innerHTML = `<option value="all">All owners</option>` + owners.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+      ownerSel.value = owners.includes(prev) ? prev : 'all';
+      filters.owner = ownerSel.value;
+    }
+    if (typeSel) {
+      const types = Array.from(new Set(wfCache.map(wf => wf.type || 'General'))).sort();
+      const prev = filters.type;
+      typeSel.innerHTML = `<option value="all">All types</option>` + types.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+      typeSel.value = types.includes(prev) ? prev : 'all';
+      filters.type = typeSel.value;
+    }
   }
 
   function applyFilters() {
     return wfCache.filter(wf => {
       if (filters.dept !== 'all' && wf.department_id !== filters.dept) return false;
+      if (filters.owner !== 'all' && (wf.owner_name || 'Unassigned') !== filters.owner) return false;
       if (filters.status !== 'all' && wf.status !== filters.status) return false;
+      if (filters.type !== 'all' && (wf.type || 'General') !== filters.type) return false;
       if (filters.search.trim() && !wf.name.toLowerCase().includes(filters.search.trim().toLowerCase())) return false;
       return true;
     });
@@ -12018,6 +12388,8 @@ setupRail('rail2','pill2');
       const stages = wf.stages || [];
       const cur = currentStage(stages);
       const blocked = stages.find(s => s.status === 'blocked');
+      const overdue = workflowHasOverdueStage(wf);
+      const staleSop = workflowHasStaleSop(wf);
       const pct = stageProgressPct(stages);
       const linkedSopCount = new Set(stages.filter(s=>s.sop_id).map(s=>s.sop_id)).size;
       return `<div class="report-row" data-wf-id="${esc(wf.id)}" style="flex-direction:column;align-items:stretch;cursor:pointer;">
@@ -12027,6 +12399,8 @@ setupRail('rail2','pill2');
               <span class="report-row-title">${esc(wf.name)}</span>
               <span style="background:${WF_STATUS_COLOR[wf.status]}22;color:${WF_STATUS_COLOR[wf.status]};font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;">${WF_STATUS_LABEL[wf.status]}</span>
               ${blocked ? `<span style="background:rgba(208,4,0,.15);color:var(--red);font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;">Blocked: ${esc(blocked.blocked_reason||'')}</span>` : ''}
+              ${overdue ? `<span style="background:rgba(208,4,0,.15);color:var(--red);font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;">Overdue</span>` : ''}
+              ${staleSop ? `<span style="background:rgba(232,168,62,.15);color:#e8a83e;font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;" title="A linked SOP has been updated since this workflow last changed">Stale SOP</span>` : ''}
             </div>
             <div class="report-row-meta" style="margin-top:4px;">${esc(wf.description||'')}</div>
             <div style="display:flex;gap:14px;margin-top:10px;flex-wrap:wrap;font-size:12px;color:var(--text-3);">
@@ -12036,6 +12410,7 @@ setupRail('rail2','pill2');
               <span>Stage: ${esc(cur ? cur.name : '—')}</span>
               <span>${esc(wf.expected_time||'—')}</span>
               <span>${linkedSopCount ? `${linkedSopCount} linked SOP${linkedSopCount>1?'s':''}` : 'No SOPs linked'}</span>
+              <span>Updated ${esc(fmtDate((wf.updated_at||'').slice(0,10)))}</span>
             </div>
           </div>
           <div style="text-align:right;flex-shrink:0;width:110px;">
@@ -12102,7 +12477,7 @@ setupRail('rail2','pill2');
         </div>
       </div>
       <div style="margin-top:22px;">
-        <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:12px;">Process Flow</div>
+        <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:12px;">Process Flow — next up: ${esc((stages.find(s => s.status !== 'complete') || {}).name || 'All stages complete')}</div>
         <div style="display:flex;align-items:stretch;overflow-x:auto;padding-bottom:10px;" id="wfFlowRow"></div>
       </div>
     `;
@@ -12133,7 +12508,7 @@ setupRail('rail2','pill2');
           ${st.notes ? `<div style="font-size:11px;color:var(--text-3);margin-top:4px;line-height:1.4;">${esc(st.notes.length>70?st.notes.slice(0,70)+'…':st.notes)}</div>` : ''}
           <div style="font-size:11.5px;color:var(--text-3);margin-top:6px;">${esc(st.responsible||'Unassigned')} · due ${esc(fmtDate(st.due))}</div>
           ${st.status==='blocked' && st.blocked_reason ? `<div style="font-size:11px;color:var(--red);margin-top:8px;font-weight:600;">Blocked: ${esc(st.blocked_reason)}</div>` : ''}
-          ${st.sop_id ? `<div style="font-size:11px;color:var(--red);margin-top:8px;font-weight:600;">1 SOP linked</div>` : ''}
+          ${st.sop_id ? (isStaleSop(st.sop_id, wf) ? `<div style="font-size:11px;color:#e8a83e;margin-top:8px;font-weight:600;" title="This SOP has been updated since this workflow last changed">1 SOP · updated</div>` : `<div style="font-size:11px;color:var(--red);margin-top:8px;font-weight:600;">1 SOP</div>`) : ''}
         </div>
         ${i < stages.length - 1 ? `<div style="width:26px;text-align:center;color:var(--text-3);font-size:18px;flex-shrink:0;">→</div>` : ''}
       </div>`;
@@ -12222,8 +12597,19 @@ setupRail('rail2','pill2');
       <div class="m-field"><label>Linked SOP</label>
         <select id="wfStageSopInput" style="width:100%;background:var(--surface-2);border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;font-size:13px;color:var(--text);font-family:inherit;">${sopOptions}</select>
         ${st.sop_id ? `<div id="wfStageOpenSopLink" style="margin-top:8px;font-size:12.5px;font-weight:700;color:var(--red);cursor:pointer;">Open SOP →</div>` : ''}
+        ${st.sop_id && isStaleSop(st.sop_id, wf) ? `<div style="margin-top:6px;font-size:11.5px;font-weight:600;color:#e8a83e;">⚠ This SOP was updated after this workflow last changed — worth a re-check.</div>` : ''}
       </div>
       <button class="m-submit" id="wfStageSaveBtn" style="width:100%;margin-top:6px;">Save changes</button>
+      <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--line);">
+        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Activity</div>
+        <div style="display:flex;flex-direction:column;gap:10px;max-height:220px;overflow-y:auto;">
+          ${(st.activity && st.activity.length) ? st.activity.slice().reverse().map(a => `
+            <div style="font-size:12px;line-height:1.4;">
+              <div style="color:var(--text);">${esc(a.text)}</div>
+              <div style="color:var(--text-3);font-size:11px;margin-top:2px;">${esc(a.actor || 'Someone')} · ${esc(fmtDateTime(a.ts))}</div>
+            </div>`).join('') : `<div style="font-size:12px;color:var(--text-3);font-style:italic;">No activity yet — changes to this stage will show up here.</div>`}
+        </div>
+      </div>
     `;
     const statusSel = $('wfStageStatusInput');
     statusSel.addEventListener('change', () => { $('wfStageBlockedField').style.display = statusSel.value === 'blocked' ? 'block' : 'none'; });
@@ -12233,13 +12619,39 @@ setupRail('rail2','pill2');
     openModal('wfStagePanelOverlay');
   }
 
+  // Builds human-readable "what changed" entries between the stage's prior state and the form
+  // values about to be saved — the activity log shown in the stage panel is derived from these,
+  // not a separate table, since stages already live as jsonb on the workflow row.
+  function buildStageActivityEntries(oldSt, newFields, actor) {
+    const entries = [];
+    const push = (text) => entries.push({ ts: new Date().toISOString(), actor, text });
+    if (oldSt.status !== newFields.status) {
+      const from = (STAGE_INFO[oldSt.status] || {}).label || oldSt.status;
+      const to = (STAGE_INFO[newFields.status] || {}).label || newFields.status;
+      push(`Status changed from "${from}" to "${to}"`);
+    }
+    if ((oldSt.responsible || '') !== (newFields.responsible || '')) {
+      push(`Responsible changed to "${newFields.responsible || 'Unassigned'}"`);
+    }
+    if ((oldSt.due || '') !== (newFields.due || '')) {
+      push(`Due date set to ${newFields.due ? fmtDate(newFields.due) : 'none'}`);
+    }
+    if (newFields.status === 'blocked' && (oldSt.blocked_reason || '') !== (newFields.blocked_reason || '') && newFields.blocked_reason) {
+      push(`Blocked: "${newFields.blocked_reason}"`);
+    }
+    if ((oldSt.sop_id || '') !== (newFields.sop_id || '')) {
+      push(newFields.sop_id ? `Linked SOP "${sopTitle(newFields.sop_id)}"` : 'Unlinked SOP');
+    }
+    return entries;
+  }
+
   async function saveStagePanel() {
     const wf = wfCache.find(w => w.id === activeWfId);
     if (!wf || activeStageIdx === null) return;
     const stages = wf.stages.slice();
+    const oldSt = stages[activeStageIdx];
     const status = $('wfStageStatusInput').value;
-    stages[activeStageIdx] = {
-      ...stages[activeStageIdx],
+    const newFields = {
       status,
       responsible: $('wfStageResponsibleInput').value.trim(),
       due: $('wfStageDueInput').value || null,
@@ -12249,6 +12661,10 @@ setupRail('rail2','pill2');
       notes: $('wfStageNotesInput').value.trim(),
       sop_id: $('wfStageSopInput').value || null,
     };
+    const actor = (window.giantCurrentProfile && window.giantCurrentProfile.full_name) || 'Someone';
+    const newEntries = buildStageActivityEntries(oldSt, newFields, actor);
+    const activity = [...(oldSt.activity || []), ...newEntries];
+    stages[activeStageIdx] = { ...oldSt, ...newFields, activity };
     // Workflow-level status tracks a blocked stage automatically — clearing the
     // last blocked stage falls back to active rather than staying stuck as Blocked.
     const stillBlocked = stages.some(s => s.status === 'blocked');
@@ -12406,19 +12822,136 @@ setupRail('rail2','pill2');
       el.style.color = active ? '#fff' : 'var(--text-2)';
     });
     document.querySelectorAll('[data-sops-sub-btn]').forEach(el => { el.style.display = el.dataset.sopsSubBtn === name ? 'inline-flex' : 'none'; });
+    const subtitleEl = $('sopsPageSubtitle');
+    if (subtitleEl) {
+      subtitleEl.textContent = name === 'sops' ? 'How to complete each task correctly.'
+        : name === 'workflows' ? 'How work moves through the business, start to finish.'
+        : 'Everything the team needs to know what happens, who owns it, and how to do it.';
+    }
     if (name === 'workflows' && !wfCache.length) loadWorkflows();
+    if (name === 'overview') loadOverview();
   }
 
-  document.querySelectorAll('.nav-item[data-screen="sops"]').forEach(n => n.addEventListener('click', loadRefData));
+  // ── Overview tab — cross-cutting dashboard over both SOPs and workflows.
+  // Fetches its own fresh minimal data rather than reusing either module's
+  // partial cache (the SOPs module only caches the active department's SOPs;
+  // the workflows module's own sopsCache is id/title only).
+  async function loadOverview() {
+    if (!sb()) return;
+    const [{ data: allSops }, { data: allWf }, { data: completions }, { count: teamSize }] = await Promise.all([
+      sb().from('sops').select('id, title, department_id, status, updated_at'),
+      sb().from('workflows').select('id, name, status, department_id, stages'),
+      sb().from('sop_completions').select('sop_id, profile_id, status'),
+      sb().from('profiles').select('id', { count: 'exact', head: true }).is('deactivated_at', null),
+    ]);
+    const sops = allSops || [];
+    const wfs = allWf || [];
+    const comps = completions || [];
+    const team = teamSize || 0;
+    const myUid = myId();
+    const myNm = (window.giantCurrentProfile && window.giantCurrentProfile.full_name) || '';
+    const reviewer = ['owner','manager','inhouse_dev'].includes((window.giantCurrentProfile && window.giantCurrentProfile.role) || '');
+
+    const activeSopsCount = sops.filter(s => s.status !== 'archived').length;
+    const activeWfCount = wfs.filter(w => ['active','blocked','paused'].includes(w.status)).length;
+    const approvedCount = comps.filter(c => c.status === 'approved').length;
+    const trainingRate = (sops.length && team) ? Math.round((approvedCount / (sops.length * team)) * 100) : 0;
+    const wfInProgressCount = wfs.filter(w => (w.stages||[]).some(st => st.status === 'in_progress')).length;
+    const blockedWfs = wfs.filter(w => (w.stages||[]).some(st => st.status === 'blocked'));
+    const needsUpdateSops = sops.filter(s => s.status === 'needs_update');
+    const waitingApprovalCount = reviewer ? comps.filter(c => c.status === 'submitted').length : 0;
+
+    const statCard = (label, value, color) => `<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:15px 16px;"><div style="font-size:11.5px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.03em;">${esc(label)}</div><div style="font-size:24px;font-weight:800;margin-top:6px;color:${color};">${esc(String(value))}</div></div>`;
+    if ($('ovwStatsRow1')) $('ovwStatsRow1').innerHTML = [
+      statCard('Active SOPs', activeSopsCount, 'var(--text)'),
+      statCard('Active workflows', activeWfCount, 'var(--text)'),
+      statCard('Training completion', trainingRate + '%', trainingRate >= 70 ? '#3ecf8e' : '#e8a83e'),
+      statCard('Workflows in progress', wfInProgressCount, 'var(--text)'),
+    ].join('');
+    if ($('ovwStatsRow2')) $('ovwStatsRow2').innerHTML = [
+      statCard('Blocked workflows', blockedWfs.length, blockedWfs.length ? 'var(--red)' : '#3ecf8e'),
+      statCard('SOPs needing update', needsUpdateSops.length, needsUpdateSops.length ? '#e8a83e' : '#3ecf8e'),
+      statCard('Waiting on your approval', waitingApprovalCount, waitingApprovalCount ? '#e8a83e' : '#3ecf8e'),
+    ].join('');
+
+    const openItem = (el) => {
+      if (el.dataset.wfId) { switchSopsSubTab('workflows'); (async () => { if (!wfCache.length) await loadWorkflows(); openWorkflowDetail(el.dataset.wfId); })(); }
+      else if (el.dataset.sopId) { switchSopsSubTab('sops'); if (window.__sopOpenDetail) window.__sopOpenDetail(el.dataset.sopId); }
+    };
+
+    // Continue where you left off: my in-progress workflow stages + my in-progress/ready SOP training.
+    const continueItems = [];
+    wfs.forEach(w => {
+      const st = (w.stages||[]).find(s => s.status === 'in_progress' && s.responsible === myNm);
+      if (st) continueItems.push({ kind:'Workflow stage', title:`${w.name} — ${st.name}`, subtitle:`Due ${fmtDate(st.due)}`, wfId: w.id });
+    });
+    const myCompBySop = {};
+    comps.forEach(c => { if (c.profile_id === myUid) myCompBySop[c.sop_id] = c.status; });
+    sops.forEach(s => {
+      const st = myCompBySop[s.id];
+      if (st === 'in_progress' || st === 'ready') continueItems.push({ kind:'SOP training', title: s.title, subtitle: deptLabel(s.department_id), sopId: s.id });
+    });
+    const continueEl = $('ovwContinueList');
+    if (continueEl) {
+      continueEl.innerHTML = continueItems.length ? continueItems.map(it => `
+        <div class="ovw-item" data-wf-id="${it.wfId?esc(it.wfId):''}" data-sop-id="${it.sopId?esc(it.sopId):''}" style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:10px;cursor:pointer;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;">${esc(it.kind)}</span>
+            <span style="background:rgba(232,168,62,.15);color:#e8a83e;font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;">In progress</span>
+          </div>
+          <div style="font-size:14px;font-weight:700;margin-top:6px;">${esc(it.title)}</div>
+          <div style="font-size:12.5px;color:var(--text-3);margin-top:4px;">${esc(it.subtitle)}</div>
+        </div>`).join('') : `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:20px;text-align:center;">Nothing assigned to you right now.</div>`;
+      continueEl.querySelectorAll('.ovw-item').forEach(el => el.addEventListener('click', () => openItem(el)));
+    }
+
+    // Needs attention: blocked workflows, outdated SOPs, submissions waiting on reviewers.
+    const attentionItems = [];
+    blockedWfs.forEach(w => {
+      const st = (w.stages||[]).find(s => s.status === 'blocked');
+      attentionItems.push({ kind:'Blocked workflow', title: w.name, subtitle: st ? (st.blocked_reason || 'Blocked') : 'Blocked', wfId: w.id });
+    });
+    needsUpdateSops.forEach(s => attentionItems.push({ kind:'Outdated SOP', title: s.title, subtitle:`Last updated ${fmtDate((s.updated_at||'').slice(0,10))}`, sopId: s.id }));
+    if (reviewer) {
+      const waitingBySop = {};
+      comps.forEach(c => { if (c.status === 'submitted') waitingBySop[c.sop_id] = (waitingBySop[c.sop_id]||0) + 1; });
+      Object.keys(waitingBySop).forEach(sopId => {
+        const s = sops.find(x => x.id === sopId);
+        if (s) attentionItems.push({ kind:'Waiting for approval', title: s.title, subtitle:`${waitingBySop[sopId]} submission${waitingBySop[sopId]>1?'s':''} waiting on you`, sopId: s.id });
+      });
+    }
+    const attentionEl = $('ovwAttentionList');
+    if (attentionEl) {
+      attentionEl.innerHTML = attentionItems.length ? attentionItems.map(it => `
+        <div class="ovw-item" data-wf-id="${it.wfId?esc(it.wfId):''}" data-sop-id="${it.sopId?esc(it.sopId):''}" style="background:var(--surface-2);border:1px solid rgba(208,4,0,.25);border-left:3px solid var(--red);border-radius:10px;padding:14px 16px;margin-bottom:10px;cursor:pointer;">
+          <span style="font-size:11px;font-weight:700;color:var(--red);text-transform:uppercase;">${esc(it.kind)}</span>
+          <div style="font-size:14px;font-weight:700;margin-top:6px;">${esc(it.title)}</div>
+          <div style="font-size:12.5px;color:var(--text-3);margin-top:4px;">${esc(it.subtitle)}</div>
+        </div>`).join('') : `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:20px;text-align:center;">Nothing needs attention. Nice.</div>`;
+      attentionEl.querySelectorAll('.ovw-item').forEach(el => el.addEventListener('click', () => openItem(el)));
+    }
+  }
+
+  document.querySelectorAll('.nav-item[data-screen="sops"]').forEach(n => n.addEventListener('click', () => {
+    loadRefData();
+    // Overview only auto-loads the first time its tab becomes active — refresh it on every
+    // revisit to the screen too, since blocked/waiting counts are meant to reflect right now.
+    const overviewTab = document.querySelector('[data-sops-sub-tab="overview"]');
+    if (overviewTab && overviewTab.classList.contains('on')) loadOverview();
+  }));
   document.querySelectorAll('[data-sops-sub-tab]').forEach(tab => tab.addEventListener('click', () => switchSopsSubTab(tab.dataset.sopsSubTab)));
-  switchSopsSubTab('sops');
+  switchSopsSubTab('overview');
 
   const wfSearchInput = $('wfSearchInput');
   if (wfSearchInput) wfSearchInput.addEventListener('input', () => { filters.search = wfSearchInput.value; renderWfList(); });
   const wfFilterDept = $('wfFilterDept');
   if (wfFilterDept) wfFilterDept.addEventListener('change', () => { filters.dept = wfFilterDept.value; renderWfList(); });
+  const wfFilterOwner = $('wfFilterOwner');
+  if (wfFilterOwner) wfFilterOwner.addEventListener('change', () => { filters.owner = wfFilterOwner.value; renderWfList(); });
   const wfFilterStatus = $('wfFilterStatus');
   if (wfFilterStatus) wfFilterStatus.addEventListener('change', () => { filters.status = wfFilterStatus.value; renderWfList(); });
+  const wfFilterType = $('wfFilterType');
+  if (wfFilterType) wfFilterType.addEventListener('change', () => { filters.type = wfFilterType.value; renderWfList(); });
 
   const openBuilderBtn = $('wfOpenBuilderBtn');
   if (openBuilderBtn) openBuilderBtn.addEventListener('click', () => openWfBuilder(null));
