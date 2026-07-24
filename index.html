@@ -6516,6 +6516,53 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                   <button class="crew-cta" data-crew-start="vulcan">Start session<svg class="crew-cta-arrow" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
                 </div>
 
+                <!-- SCRIPTOR — SEO Content Writer (Blog Content Agent) -->
+                <div class="crew-card crew-card-specialist" data-emp="scriptor" data-name="Scriptor" data-role="SEO Content Writer">
+                  <div class="crew-ava-wrap">
+                    <div class="crew-ava-glow"></div>
+                    <svg class="crew-ava-svg" viewBox="0 0 160 160" fill="none">
+                      <defs>
+                        <radialGradient id="scriptorCore" cx="50%" cy="50%" r="50%">
+                          <stop offset="0%" stop-color="#FBBF24" stop-opacity=".9"/>
+                          <stop offset="60%" stop-color="#EAB308" stop-opacity=".4"/>
+                          <stop offset="100%" stop-color="#92400E" stop-opacity="0"/>
+                        </radialGradient>
+                      </defs>
+                      <circle cx="80" cy="80" r="65" fill="url(#scriptorCore)" opacity=".5"/>
+                      <!-- Document with writing lines -->
+                      <g transform="translate(80 80)">
+                        <rect x="-30" y="-40" width="60" height="80" rx="6" stroke="#EAB308" stroke-width="2" fill="rgba(234,179,8,.10)"/>
+                        <line x1="-20" y1="-22" x2="20" y2="-22" stroke="#FBBF24" stroke-width="2.5" stroke-linecap="round"><animate attributeName="x2" values="-20;20;20" dur="3s" repeatCount="indefinite"/></line>
+                        <line x1="-20" y1="-8" x2="14" y2="-8" stroke="#FEF3C7" stroke-width="2" stroke-linecap="round" opacity=".8"/>
+                        <line x1="-20" y1="6" x2="18" y2="6" stroke="#FEF3C7" stroke-width="2" stroke-linecap="round" opacity=".6"/>
+                        <line x1="-20" y1="20" x2="8" y2="20" stroke="#FEF3C7" stroke-width="2" stroke-linecap="round" opacity=".4"/>
+                      </g>
+                      <!-- Quill nib -->
+                      <g transform="translate(96 96) rotate(35)">
+                        <path d="M0 -22 L5 12 L0 20 L-5 12 Z" fill="#FBBF24"/>
+                        <circle cx="0" cy="16" r="2.5" fill="#FFF"/>
+                      </g>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 class="crew-name">Scriptor</h3>
+                    <div class="crew-role">SEO Content Writer</div>
+                    <div class="crew-tagline">"Turns a topic into a ranked article"</div>
+                  </div>
+                  <div class="crew-caps">
+                    <div class="crew-caps-title">Capabilities</div>
+                    <div class="crew-cap"><span class="crew-cap-tick"><svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Blog posts</div>
+                    <div class="crew-cap"><span class="crew-cap-tick"><svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Location &amp; service pages</div>
+                    <div class="crew-cap"><span class="crew-cap-tick"><svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Semantic SEO briefs</div>
+                    <div class="crew-cap"><span class="crew-cap-tick"><svg width="8" height="8" viewBox="0 0 8 8" fill="none"><path d="M1 4l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>On-brand, per client</div>
+                  </div>
+                  <div class="crew-stats">
+                    <div><div class="crew-stat-label">Words written</div><div class="crew-stat-value"><span class="num" data-count-to="0">0</span></div></div>
+                    <div><div class="crew-stat-label">Avg time</div><div class="crew-stat-value"><span class="num" data-count-to="90">0</span>s</div></div>
+                  </div>
+                  <button class="crew-cta" data-blog-start="1">Start session<svg class="crew-cta-arrow" width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8h10m-4-4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+                </div>
+
                 <!-- ATHENA — Executive Assistant -->
                 <div class="crew-card crew-card-specialist" data-emp="athena" data-name="Athena" data-role="Executive Assistant">
                   <div class="crew-ava-wrap">
@@ -53776,6 +53823,253 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     ov.querySelector('#vxoDownload').onclick=()=>{ try{ const a=document.createElement('a'); a.href=canvas.toDataURL('image/png'); a.download='vulcan-creative.png'; a.click(); }catch(err){ alert('Export failed: the AI background is cross-origin. Regenerate the creative (it will be stored), then try again.'); } };
     const applyBtn=ov.querySelector('#vxoApply'); if(applyBtn) applyBtn.onclick=()=>{ try{ const d=canvas.toDataURL('image/png'); if(state.onApply) state.onApply(d); ov.remove(); }catch(err){ alert('Export failed (cross-origin background).'); } };
   };
+})();
+</script>
+<script>
+/* ============================================================================
+   BLOG CONTENT AGENT — "Scriptor" wizard (Track A)
+   Self-contained: own overlay, own styles (bcw-*), own state. fetch() to the
+   blog-* functions is auto-authed by the app's fetch patch. Persists to blog_posts.
+============================================================================ */
+(function(){
+  'use strict';
+  function sb(){ return window.giantSupabase || window.__giantSb || window.supabaseClient || null; }
+  function toastMsg(m){ try{ if(typeof toast==='function'){ toast(m); return; } }catch(_){} console.log('[blog]', m); }
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  function mdToHtml(md){
+    if(!md) return '';
+    const lines=String(md).replace(/\r/g,'').split('\n'); let html='',inUl=false,inOl=false;
+    const inline=(t)=>esc(t)
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>')
+      .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+      .replace(/(^|[^*])\*([^*]+)\*/g,'$1<em>$2</em>')
+      .replace(/`([^`]+)`/g,'<code>$1</code>');
+    const closeLists=()=>{ if(inUl){html+='</ul>';inUl=false;} if(inOl){html+='</ol>';inOl=false;} };
+    lines.forEach(raw=>{ const line=raw.trimEnd(); let m;
+      if(/^###\s+/.test(line)){ closeLists(); html+='<h3>'+inline(line.replace(/^###\s+/,''))+'</h3>'; }
+      else if(/^##\s+/.test(line)){ closeLists(); html+='<h2>'+inline(line.replace(/^##\s+/,''))+'</h2>'; }
+      else if(/^#\s+/.test(line)){ closeLists(); html+='<h1>'+inline(line.replace(/^#\s+/,''))+'</h1>'; }
+      else if((m=line.match(/^\s*[-*]\s+(.*)/))){ if(!inUl){closeLists();html+='<ul>';inUl=true;} html+='<li>'+inline(m[1])+'</li>'; }
+      else if((m=line.match(/^\s*\d+\.\s+(.*)/))){ if(!inOl){closeLists();html+='<ol>';inOl=true;} html+='<li>'+inline(m[1])+'</li>'; }
+      else if(line===''){ closeLists(); }
+      else { closeLists(); html+='<p>'+inline(line)+'</p>'; } });
+    closeLists(); return html;
+  }
+
+  async function callFn(name,payload){
+    const res=await fetch('/.netlify/functions/'+name,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload||{})});
+    const txt=await res.text(); let data=null; try{ data=JSON.parse(txt); }catch(_){}
+    if(!res.ok){ throw new Error((data&&data.error)||('Request failed ('+res.status+')')); }
+    return data||{};
+  }
+
+  const STEPS=['Client','Topic','Brief','Draft','Images','Review'];
+  function defState(){ return { step:0,busy:false,err:'',clients:null,clientId:'',client:null,kits:[],kitId:'',kit:null,
+    topic:'',contentType:'blog',target:'',notes:'',guidelines:'',brief:null,title:'',metaTitle:'',metaDesc:'',
+    articleMd:'',drafting:false,draftProgress:'',images:[],imaging:false,postId:null,status:'brief' }; }
+  let st=null;
+
+  async function loadClients(){ const c=sb(); if(!c) throw new Error('Not signed in'); const {data,error}=await c.from('clients').select('id, name, industry, company_website, services, content_guidelines, custom_fields').order('name'); if(error) throw error; return data||[]; }
+  async function loadKits(clientId){ const c=sb(); if(!c) return []; const {data,error}=await c.from('brand_kits').select('id, client_id, name, tone, voice_notes, color_primary, color_secondary, color_accent, color_background, color_text, font_headline, font_body, logo_data_url').eq('client_id',clientId).order('updated_at',{ascending:false}); if(error){ console.warn('[blog] loadKits',error); return []; } return data||[]; }
+  async function saveGuidelines(){ if(!st.clientId) return; try{ const c=sb(); await c.from('clients').update({content_guidelines:st.guidelines||null}).eq('id',st.clientId); if(st.client) st.client.content_guidelines=st.guidelines; }catch(e){ console.warn('[blog] saveGuidelines',e); } }
+  function clientPayload(){ const c=st.client||{}; return { name:c.name, industry:c.industry, company_website:c.company_website, services:c.services }; }
+  function keywordsObj(){ const b=st.brief||{}; return { primary:b.primary_keyword||'', secondary:b.secondary_keywords||[], semantic:b.semantic_keywords||[] }; }
+  function linksObj(){ const b=st.brief||{}; return { internal:b.internal_links||[], external:b.external_links||[] }; }
+
+  async function savePost(extra){
+    const c=sb(); if(!c) throw new Error('Not signed in');
+    const {data:sess}=await c.auth.getSession();
+    const row=Object.assign({ client_id:st.clientId, brand_kit_id:st.kitId||null, content_type:st.contentType, status:st.status, topic:st.topic||null, title:st.title||null, meta_title:st.metaTitle||null, meta_description:st.metaDesc||null }, extra||{});
+    if(!st.postId){ row.created_by=sess?.session?.user?.id||null; const {data,error}=await c.from('blog_posts').insert(row).select('id').single(); if(error) throw error; st.postId=data.id; }
+    else { row.updated_at=new Date().toISOString(); const {error}=await c.from('blog_posts').update(row).eq('id',st.postId); if(error) throw error; }
+  }
+
+  function ov(){ return document.getElementById('bcWizard'); }
+  function build(){ const d=document.createElement('div'); d.id='bcWizard'; d.className='bcw';
+    d.innerHTML='<div class="bcw-panel"><div class="bcw-top"><div class="bcw-steps" id="bcwSteps"></div><button class="bcw-x" id="bcwX">Close</button></div><div class="bcw-body" id="bcwBody"></div><div class="bcw-foot" id="bcwFoot"></div></div>';
+    document.body.appendChild(d); d.querySelector('#bcwX').addEventListener('click',close); d.addEventListener('click',e=>{ if(e.target===d) close(); }); return d; }
+  function close(){ const d=ov(); if(d) d.classList.remove('on'); }
+  window.openBlogWizard=function(){ if(!ov()) build(); if(!st) st=defState(); ov().classList.add('on'); render(); };
+  document.addEventListener('click',e=>{ const b=e.target.closest&&e.target.closest('[data-blog-start]'); if(b){ e.preventDefault(); window.openBlogWizard(); } });
+
+  function go(n){ st.step=Math.max(0,Math.min(STEPS.length-1,n)); st.err=''; render(); }
+  function render(){ renderSteps(); renderBody(); }
+  function renderSteps(){ const box=document.getElementById('bcwSteps'); if(!box) return; box.innerHTML=STEPS.map((s,i)=>'<span class="bcw-step '+(i===st.step?'on':(i<st.step?'done':''))+'">'+(i+1)+'. '+esc(s)+'</span>').join(''); }
+  function foot(html){ const f=document.getElementById('bcwFoot'); if(f) f.innerHTML=html; return f; }
+  function body(html){ const b=document.getElementById('bcwBody'); if(b) b.innerHTML=html; return b; }
+  function errBar(){ return st.err?'<div class="bcw-err">'+esc(st.err)+'</div>':''; }
+  function renderBody(){ switch(st.step){ case 0:return screenClient(); case 1:return screenTopic(); case 2:return screenBrief(); case 3:return screenDraft(); case 4:return screenImages(); case 5:return screenReview(); } }
+
+  async function screenClient(){
+    body('<div class="bcw-h">Who is this content for?</div><div class="bcw-sub">Pick the client. Scriptor writes in their voice.</div><div class="bcw-loading">Loading clients…</div>'); foot('');
+    if(!st.clients){ try{ st.clients=await loadClients(); }catch(e){ st.err=e.message; body(errBar()); return; } }
+    const opts=['<option value="">Select a client…</option>'].concat(st.clients.map(c=>'<option value="'+c.id+'"'+(c.id===st.clientId?' selected':'')+'>'+esc(c.name)+'</option>')).join('');
+    const kitOpts=['<option value="">General (no specific brand kit)</option>'].concat((st.kits||[]).map(k=>'<option value="'+k.id+'"'+(k.id===st.kitId?' selected':'')+'>'+esc(k.name||'Untitled kit')+'</option>')).join('');
+    body(errBar()+'<div class="bcw-h">Who is this content for?</div><div class="bcw-sub">Pick the client. Scriptor writes in their voice using their brand kit and saved guidelines.</div><label class="bcw-lab">Client</label><select class="bcw-in" id="bcClient">'+opts+'</select><label class="bcw-lab">Brand kit <span class="bcw-opt">(optional)</span></label><select class="bcw-in" id="bcKit"'+(st.clientId?'':' disabled')+'>'+kitOpts+'</select>'+((st.client&&st.client.content_guidelines)?'<div class="bcw-note">✓ This client has saved content guidelines — applied automatically.</div>':''));
+    document.getElementById('bcClient').addEventListener('change',async e=>{ st.clientId=e.target.value; st.client=st.clients.find(c=>c.id===st.clientId)||null; st.kitId=''; st.kit=null; st.guidelines=(st.client&&st.client.content_guidelines)||''; st.kits=st.clientId?await loadKits(st.clientId):[]; screenClient(); });
+    const ks=document.getElementById('bcKit'); if(ks) ks.addEventListener('change',e=>{ st.kitId=e.target.value; st.kit=(st.kits||[]).find(k=>k.id===st.kitId)||null; });
+    foot('<button class="bcw-btn ghost" id="bcCancel">Cancel</button><button class="bcw-btn primary" id="bcNext"'+(st.clientId?'':' disabled')+'>Next: Topic →</button>');
+    document.getElementById('bcCancel').addEventListener('click',close);
+    const nb=document.getElementById('bcNext'); if(nb) nb.addEventListener('click',()=>{ if(st.clientId) go(1); });
+  }
+
+  function screenTopic(){
+    const showTarget=st.contentType!=='blog';
+    body(errBar()+'<div class="bcw-h">What are we writing?</div><div class="bcw-sub">For '+esc(st.client?st.client.name:'this client')+'.</div><label class="bcw-lab">Content type</label><div class="bcw-seg" id="bcType"><button data-t="blog" class="'+(st.contentType==='blog'?'on':'')+'">Blog post</button><button data-t="location_page" class="'+(st.contentType==='location_page'?'on':'')+'">Location page</button><button data-t="service_page" class="'+(st.contentType==='service_page'?'on':'')+'">Service page</button></div><label class="bcw-lab">Topic</label><input class="bcw-in" id="bcTopic" placeholder="e.g. How often should you service your HVAC system?" value="'+esc(st.topic)+'">'+(showTarget?'<label class="bcw-lab">Target (service + location)</label><input class="bcw-in" id="bcTarget" placeholder="e.g. AC repair in Austin, TX" value="'+esc(st.target)+'">':'')+'<label class="bcw-lab">Notes for the strategist <span class="bcw-opt">(optional)</span></label><textarea class="bcw-in" id="bcNotes" rows="2" placeholder="Angle, must-mention points, audience nuance…">'+esc(st.notes)+'</textarea><label class="bcw-lab">Client content guidelines <span class="bcw-opt">(saved for this client, applied every time)</span></label><textarea class="bcw-in" id="bcGuide" rows="4" placeholder="Tone, audience, internal pages to link, approved sources, do/don’t rules…">'+esc(st.guidelines)+'</textarea>');
+    document.querySelectorAll('#bcType button').forEach(b=>b.addEventListener('click',()=>{ st.contentType=b.dataset.t; screenTopic(); }));
+    document.getElementById('bcTopic').addEventListener('input',e=>{ st.topic=e.target.value; });
+    const tg=document.getElementById('bcTarget'); if(tg) tg.addEventListener('input',e=>{ st.target=e.target.value; });
+    document.getElementById('bcNotes').addEventListener('input',e=>{ st.notes=e.target.value; });
+    const g=document.getElementById('bcGuide'); g.addEventListener('input',e=>{ st.guidelines=e.target.value; }); g.addEventListener('blur',saveGuidelines);
+    foot('<button class="bcw-btn ghost" id="bcBack">← Back</button><button class="bcw-btn primary" id="bcGen">Generate brief →</button>');
+    document.getElementById('bcBack').addEventListener('click',()=>go(0));
+    document.getElementById('bcGen').addEventListener('click',runResearch);
+  }
+
+  async function runResearch(){
+    st.topic=(st.topic||'').trim(); if(!st.topic){ st.err='Add a topic first.'; screenTopic(); return; }
+    st.err=''; st.step=2; renderSteps(); body('<div class="bcw-h">Researching…</div><div class="bcw-sub">Search intent, keywords, FAQs and an outline for “'+esc(st.topic)+'”.</div><div class="bcw-loading">Building the content brief…</div>'); foot('');
+    try{ await saveGuidelines();
+      const data=await callFn('blog-research',{ topic:st.topic, content_type:st.contentType, target:st.target, notes:st.notes, brand_kit:st.kit, client:clientPayload(), guidelines:st.guidelines });
+      st.brief=data.brief||{}; st.metaTitle=st.brief.meta_title||''; st.metaDesc=st.brief.meta_description||''; st.title=st.title||st.brief.meta_title||st.topic; go(2);
+    }catch(e){ st.err='Research failed: '+e.message; st.step=1; render(); }
+  }
+
+  function screenBrief(){
+    if(!st.brief){ body('<div class="bcw-loading">No brief yet.</div>'); foot('<button class="bcw-btn ghost" id="bcBack">← Back</button>'); document.getElementById('bcBack').addEventListener('click',()=>go(1)); return; }
+    const b=st.brief; const chips=(arr)=>(arr||[]).map(k=>'<span class="bcw-chip">'+esc(k)+'</span>').join('');
+    const outline=(b.outline||[]).map(o=>'<li><strong>'+esc(o.h2)+'</strong>'+((o.h3&&o.h3.length)?'<div class="bcw-h3s">'+o.h3.map(esc).join(' · ')+'</div>':'')+'</li>').join('');
+    const faqs=(b.faqs||[]).map(f=>'<li>'+esc(f.q)+'</li>').join('');
+    body(errBar()+'<div class="bcw-h">Content brief</div><div class="bcw-sub"><strong>Intent:</strong> '+esc(b.search_intent||'')+'</div><label class="bcw-lab">Working title</label><input class="bcw-in" id="bcTitle" value="'+esc(st.title)+'"><div class="bcw-grid2"><div><label class="bcw-lab">Primary keyword</label><div class="bcw-chips">'+(b.primary_keyword?'<span class="bcw-chip strong">'+esc(b.primary_keyword)+'</span>':'—')+'</div><label class="bcw-lab">Secondary</label><div class="bcw-chips">'+chips(b.secondary_keywords)+'</div><label class="bcw-lab">Semantic</label><div class="bcw-chips">'+chips(b.semantic_keywords)+'</div></div><div><label class="bcw-lab">Outline</label><ol class="bcw-ol">'+outline+'</ol></div></div><label class="bcw-lab">FAQs</label><ul class="bcw-ul">'+faqs+'</ul><div class="bcw-grid2"><div><label class="bcw-lab">Meta title</label><input class="bcw-in" id="bcMT" value="'+esc(st.metaTitle)+'"></div><div><label class="bcw-lab">Meta description</label><input class="bcw-in" id="bcMD" value="'+esc(st.metaDesc)+'"></div></div>');
+    document.getElementById('bcTitle').addEventListener('input',e=>{st.title=e.target.value;});
+    document.getElementById('bcMT').addEventListener('input',e=>{st.metaTitle=e.target.value;});
+    document.getElementById('bcMD').addEventListener('input',e=>{st.metaDesc=e.target.value;});
+    foot('<button class="bcw-btn ghost" id="bcBack">← Back</button><button class="bcw-btn ghost" id="bcRegen">↻ Regenerate</button><button class="bcw-btn primary" id="bcApprove">Approve → Write draft</button>');
+    document.getElementById('bcBack').addEventListener('click',()=>go(1));
+    document.getElementById('bcRegen').addEventListener('click',runResearch);
+    document.getElementById('bcApprove').addEventListener('click',approveBrief);
+  }
+  async function approveBrief(){ st.err=''; st.status='brief_approved';
+    try{ await savePost({ brief:st.brief, outline:st.brief.outline||[], keywords:keywordsObj(), faqs:st.brief.faqs||[], links:linksObj() }); }
+    catch(e){ st.err='Save failed: '+e.message; screenBrief(); return; }
+    st.articleMd=''; go(3);
+  }
+
+  async function screenDraft(){
+    if(st.articleMd && !st.drafting) return renderDraft();
+    if(st.drafting){ body('<div class="bcw-h">Writing…</div><div class="bcw-sub">'+esc(st.draftProgress||'')+'</div><div class="bcw-loading">Scriptor is drafting, section by section…</div>'); foot(''); return; }
+    st.drafting=true; st.draftProgress='Intro'; body('<div class="bcw-h">Writing…</div><div class="bcw-sub">Intro</div><div class="bcw-loading">Scriptor is drafting, section by section…</div>'); foot('');
+    try{
+      const base={ brief:st.brief, brand_kit:st.kit, client:clientPayload(), guidelines:st.guidelines, title:st.title, topic:st.topic };
+      const parts=[]; const intro=await callFn('blog-draft',Object.assign({mode:'intro'},base)); parts.push(intro.markdown||'');
+      const outline=st.brief.outline||[]; const done=[];
+      for(let i=0;i<outline.length;i++){ st.draftProgress='Section '+(i+1)+' of '+outline.length+': '+(outline[i].h2||''); if(st.step===3) setSub(st.draftProgress);
+        const sec=await callFn('blog-draft',Object.assign({mode:'section',section:outline[i],prior_sections_summary:done.join('; ')},base)); parts.push(sec.markdown||''); done.push(outline[i].h2||''); }
+      if((st.brief.faqs||[]).length){ st.draftProgress='FAQ'; if(st.step===3) setSub(st.draftProgress); const faq=await callFn('blog-draft',Object.assign({mode:'faq'},base)); parts.push(faq.markdown||''); }
+      st.articleMd='# '+(st.title||st.topic)+'\n\n'+parts.filter(Boolean).join('\n\n'); st.drafting=false; st.status='draft';
+      try{ await savePost({ content_md:st.articleMd }); }catch(_){}
+      renderDraft();
+    }catch(e){ st.drafting=false; st.err='Draft failed: '+e.message; renderDraft(); }
+  }
+  function setSub(t){ const b=document.getElementById('bcwBody'); const s=b&&b.querySelector('.bcw-sub'); if(s) s.textContent=t; }
+  function renderDraft(){
+    body(errBar()+'<div class="bcw-h">Draft</div><div class="bcw-sub">'+(st.articleMd?Math.round(st.articleMd.split(/\s+/).length)+' words — edit here, or rewrite.':'')+'</div><textarea class="bcw-in bcw-draft" id="bcDraft" rows="16">'+esc(st.articleMd)+'</textarea>');
+    const ta=document.getElementById('bcDraft'); if(ta) ta.addEventListener('input',e=>{ st.articleMd=e.target.value; });
+    foot('<button class="bcw-btn ghost" id="bcBack">← Back</button><button class="bcw-btn ghost" id="bcRe">↻ Rewrite</button><button class="bcw-btn primary" id="bcNext">Next: Images →</button>');
+    document.getElementById('bcBack').addEventListener('click',()=>go(2));
+    document.getElementById('bcRe').addEventListener('click',()=>{ st.articleMd=''; screenDraft(); });
+    document.getElementById('bcNext').addEventListener('click',async()=>{ try{ await savePost({content_md:st.articleMd}); }catch(_){} go(4); });
+  }
+
+  async function screenImages(){
+    if(st.images&&st.images.length&&!st.imaging) return renderImages();
+    if(st.imaging){ body('<div class="bcw-h">Generating images…</div><div class="bcw-loading">1 feature + body images…</div>'); foot(''); return; }
+    st.imaging=true; body('<div class="bcw-h">Generating images…</div><div class="bcw-loading">Scriptor is art-directing 1 feature + body images…</div>'); foot('');
+    try{ const data=await callFn('blog-images',{ article:st.articleMd, brand_kit:st.kit, spot_count:3, feature:true });
+      st.images=data.images||[]; st.imaging=false; st.status='images';
+      try{ await savePost({ images:st.images.map(im=>({role:im.role,alt:im.alt,url:im.image_url,after_heading:im.after_heading})) }); }catch(_){}
+      renderImages();
+    }catch(e){ st.imaging=false; st.err='Image generation failed: '+e.message; renderImages(); }
+  }
+  function renderImages(){
+    const cards=(st.images||[]).map(im=>{ const src=im.image_url||(im.image_base64?('data:'+(im.image_mime||'image/png')+';base64,'+im.image_base64):'');
+      return '<div class="bcw-img">'+(src?'<img src="'+src+'">':'<div class="bcw-img-err">'+esc(im.image_error||'no image')+'</div>')+'<div class="bcw-img-meta"><span class="bcw-badge">'+esc(im.role||'body')+'</span> '+esc(im.alt||'')+'</div></div>'; }).join('');
+    body(errBar()+'<div class="bcw-h">Images</div><div class="bcw-sub">Feature + body images with SEO alt text. Regenerate if needed; add screenshots manually after export.</div><div class="bcw-imgs">'+(cards||'<div class="bcw-sub">No images.</div>')+'</div>');
+    foot('<button class="bcw-btn ghost" id="bcBack">← Back</button><button class="bcw-btn ghost" id="bcRe">↻ Regenerate</button><button class="bcw-btn ghost" id="bcSkip">Skip</button><button class="bcw-btn primary" id="bcNext">Next: Review →</button>');
+    document.getElementById('bcBack').addEventListener('click',()=>go(3));
+    document.getElementById('bcRe').addEventListener('click',()=>{ st.images=[]; screenImages(); });
+    document.getElementById('bcSkip').addEventListener('click',()=>go(5));
+    document.getElementById('bcNext').addEventListener('click',()=>go(5));
+  }
+
+  function fullHtml(){
+    const imgs=(st.images||[]).filter(im=>im.image_url||im.image_base64); const feature=imgs.find(im=>im.role==='feature');
+    const featSrc=feature?(feature.image_url||('data:'+(feature.image_mime||'image/png')+';base64,'+feature.image_base64)):'';
+    return '<!doctype html><html><head><meta charset="utf-8"><title>'+esc(st.metaTitle||st.title)+'</title><meta name="description" content="'+esc(st.metaDesc)+'"></head><body>'+(featSrc?'<img src="'+featSrc+'" alt="'+esc(feature.alt||'')+'" style="max-width:100%">':'')+mdToHtml(st.articleMd)+'</body></html>';
+  }
+  function screenReview(){
+    const imgs=(st.images||[]).filter(im=>im.image_url||im.image_base64); const feature=imgs.find(im=>im.role==='feature');
+    const featSrc=feature?(feature.image_url||('data:'+(feature.image_mime||'image/png')+';base64,'+feature.image_base64)):'';
+    body(errBar()+'<div class="bcw-h">Review &amp; export</div><div class="bcw-sub">'+esc(st.client?st.client.name:'')+' · '+esc(st.contentType.replace('_',' '))+' · '+Math.round((st.articleMd||'').split(/\s+/).length)+' words</div><div class="bcw-preview">'+(featSrc?'<img class="bcw-feature" src="'+featSrc+'">':'')+mdToHtml(st.articleMd)+'</div><div class="bcw-meta-line"><strong>Meta title:</strong> '+esc(st.metaTitle)+'<br><strong>Meta description:</strong> '+esc(st.metaDesc)+'</div><div class="bcw-note">Publishing is manual — export below, add any screenshots, then publish in your CMS.</div>');
+    foot('<button class="bcw-btn ghost" id="bcBack">← Back</button><button class="bcw-btn ghost" id="bcCopyMd">Copy Markdown</button><button class="bcw-btn ghost" id="bcHtml">Download HTML</button><button class="bcw-btn primary" id="bcSave">Save &amp; close</button>');
+    document.getElementById('bcBack').addEventListener('click',()=>go(4));
+    document.getElementById('bcCopyMd').addEventListener('click',()=>{ try{ navigator.clipboard.writeText(st.articleMd||''); toastMsg('Markdown copied'); }catch(_){} });
+    document.getElementById('bcHtml').addEventListener('click',()=>{ const blob=new Blob([fullHtml()],{type:'text/html'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(st.title||'article').replace(/[^a-z0-9]+/gi,'-').toLowerCase()+'.html'; a.click(); });
+    document.getElementById('bcSave').addEventListener('click',async()=>{ st.status='review'; try{ await savePost({ content_md:st.articleMd, content_html:fullHtml() }); toastMsg('Saved to '+(st.client?st.client.name:'client')); close(); st=null; }catch(e){ st.err='Save failed: '+e.message; screenReview(); } });
+  }
+
+  const style=document.createElement('style'); style.textContent=`
+  .bcw{position:fixed;inset:0;z-index:9600;display:none;align-items:center;justify-content:center;background:rgba(8,10,14,.72);backdrop-filter:blur(4px);}
+  .bcw.on{display:flex;}
+  .bcw-panel{width:min(920px,94vw);max-height:92vh;display:flex;flex-direction:column;background:#0f1420;border:1px solid #223;border-radius:16px;box-shadow:0 24px 80px rgba(0,0,0,.5);overflow:hidden;color:#e8eef7;font-family:inherit;}
+  .bcw-top{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #1b2536;background:#0c111b;}
+  .bcw-steps{display:flex;gap:6px;flex-wrap:wrap;flex:1;}
+  .bcw-step{font-size:12px;padding:4px 9px;border-radius:20px;background:#141c2b;color:#7c8aa3;border:1px solid #1e2942;}
+  .bcw-step.on{background:#EAB308;color:#1a1400;border-color:#EAB308;font-weight:600;}
+  .bcw-step.done{color:#a8ffcf;border-color:#1f5d3f;}
+  .bcw-x{background:transparent;border:1px solid #2a3752;color:#9fb0c9;border-radius:8px;padding:6px 12px;cursor:pointer;}
+  .bcw-x:hover{background:#182234;}
+  .bcw-body{padding:20px 22px;overflow:auto;}
+  .bcw-foot{display:flex;gap:10px;justify-content:flex-end;padding:14px 18px;border-top:1px solid #1b2536;background:#0c111b;flex-wrap:wrap;}
+  .bcw-h{font-size:20px;font-weight:700;margin:0 0 4px;}
+  .bcw-sub{color:#8fa0ba;font-size:13.5px;margin-bottom:14px;}
+  .bcw-lab{display:block;font-size:12px;font-weight:600;color:#9fb0c9;margin:14px 0 5px;}
+  .bcw-opt{color:#63728c;font-weight:400;}
+  .bcw-in{width:100%;background:#0b101a;border:1px solid #26344e;border-radius:9px;color:#eaf1fb;padding:10px 12px;font-size:14px;font-family:inherit;box-sizing:border-box;}
+  .bcw-in:focus{outline:none;border-color:#EAB308;}
+  textarea.bcw-in{resize:vertical;line-height:1.5;}
+  .bcw-draft{font-family:ui-monospace,Menlo,monospace;font-size:13px;}
+  .bcw-btn{border-radius:9px;padding:9px 16px;font-size:13.5px;font-weight:600;cursor:pointer;border:1px solid transparent;font-family:inherit;}
+  .bcw-btn.primary{background:#EAB308;color:#1a1400;}
+  .bcw-btn.primary:hover{background:#f5c518;}
+  .bcw-btn.ghost{background:#141c2b;color:#c3d0e4;border-color:#26344e;}
+  .bcw-btn.ghost:hover{background:#1b2637;}
+  .bcw-btn:disabled{opacity:.45;cursor:not-allowed;}
+  .bcw-seg{display:flex;gap:8px;}
+  .bcw-seg button{flex:1;background:#0b101a;border:1px solid #26344e;color:#9fb0c9;border-radius:9px;padding:10px;cursor:pointer;font-size:13px;font-family:inherit;}
+  .bcw-seg button.on{background:#EAB308;color:#1a1400;border-color:#EAB308;font-weight:600;}
+  .bcw-loading{color:#8fa0ba;padding:24px 0;font-size:14px;}
+  .bcw-loading:before{content:'';display:inline-block;width:14px;height:14px;border:2px solid #EAB308;border-top-color:transparent;border-radius:50%;margin-right:9px;vertical-align:-2px;animation:bcwspin .7s linear infinite;}
+  @keyframes bcwspin{to{transform:rotate(360deg);}}
+  .bcw-err{background:#3a1520;border:1px solid #7a2438;color:#ffc4d0;padding:10px 12px;border-radius:9px;margin-bottom:12px;font-size:13px;}
+  .bcw-note{background:#12261c;border:1px solid #1f5d3f;color:#a8ffcf;padding:9px 12px;border-radius:9px;margin-top:12px;font-size:12.5px;}
+  .bcw-grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media(max-width:640px){.bcw-grid2{grid-template-columns:1fr;}}
+  .bcw-chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .bcw-chip{background:#141c2b;border:1px solid #26344e;color:#b9c7dc;border-radius:20px;padding:3px 10px;font-size:12px;}
+  .bcw-chip.strong{background:#EAB308;color:#1a1400;border-color:#EAB308;font-weight:600;}
+  .bcw-ol,.bcw-ul{margin:4px 0;padding-left:20px;color:#cdd8e8;font-size:13.5px;line-height:1.7;}
+  .bcw-h3s{color:#7c8aa3;font-size:12px;margin-top:2px;}
+  .bcw-preview{background:#0b101a;border:1px solid #1e2942;border-radius:10px;padding:20px 24px;max-height:44vh;overflow:auto;line-height:1.65;}
+  .bcw-preview h1{font-size:22px;margin:.2em 0 .5em;} .bcw-preview h2{font-size:18px;margin:1.1em 0 .4em;color:#EAB308;} .bcw-preview h3{font-size:15px;margin:1em 0 .3em;}
+  .bcw-preview p{margin:.6em 0;color:#d5deec;} .bcw-preview a{color:#7db6ff;} .bcw-preview ul,.bcw-preview ol{padding-left:22px;}
+  .bcw-feature{width:100%;border-radius:8px;margin-bottom:14px;}
+  .bcw-meta-line{margin-top:14px;font-size:12.5px;color:#9fb0c9;background:#0b101a;border:1px solid #1e2942;border-radius:8px;padding:10px 12px;}
+  .bcw-imgs{display:grid;grid-template-columns:1fr 1fr;gap:14px;} @media(max-width:640px){.bcw-imgs{grid-template-columns:1fr;}}
+  .bcw-img{background:#0b101a;border:1px solid #1e2942;border-radius:10px;overflow:hidden;} .bcw-img img{width:100%;display:block;}
+  .bcw-img-err{padding:20px;color:#ffb4b4;font-size:12px;} .bcw-img-meta{padding:8px 10px;font-size:12px;color:#9fb0c9;} .bcw-badge{background:#EAB308;color:#1a1400;border-radius:5px;padding:1px 6px;font-size:10px;font-weight:700;text-transform:uppercase;}
+  `; document.head.appendChild(style);
 })();
 </script>
 </body>
