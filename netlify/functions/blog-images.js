@@ -5,7 +5,11 @@
 // Two-stage (like Vulcan): Claude art-directs → image model renders in parallel.
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
-const PLANNER_MODEL = 'claude-sonnet-4-6'; // art director — Sonnet 4.6 for sharper shot selection + prompts (reads the article as text, so no vision needed). If the account key lacks 4.6, fall back to 'claude-sonnet-4-5-20250929' or 'claude-haiku-4-5-20251001'.
+// Art director — reads the article as text (no vision) and writes image prompts + alt JSON.
+// MUST be a fast model: this planning call runs BEFORE the parallel image render, so a slow
+// planner eats the whole 26s function budget. claude-sonnet-4-6 measured 17-23s here and was
+// the cause of the step-5 502 timeouts; claude-haiku-4-5 does the same job in ~7s.
+const PLANNER_MODEL = 'claude-haiku-4-5';
 
 const { allowOrigin } = require('./_cors');
 const { requireUser } = require('./_auth');
