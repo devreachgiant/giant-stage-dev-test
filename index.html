@@ -4753,6 +4753,12 @@ body:has(.screen[data-screen="chat"].on) .gai-fab{display:none;}
 <script src="/config.js?_t=20260611u17"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+// Bootstrap's routing logic normalizes the URL to a bare path (e.g. history.replaceState('', '/app'))
+// as soon as auth resolves, which strips query params like ?task=<id> or ?sop=<id> before the
+// deep-link handlers (which run on a delay, after their screen exists) get a chance to read them.
+// Captured here, as early as physically possible, so those handlers have a stable source of truth.
+window.__giantInitialSearch = window.location.search;
+
 // ── Security batch 2: authenticated function calls ─────────────────────────
 // Netlify functions now require `Authorization: Bearer <supabase access token>`
 // (see netlify/functions/_auth.js). Rather than touching every call site, this
@@ -9083,6 +9089,9 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style="display:none;"><path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <input id="tdpName" type="text" placeholder="Task name" style="flex:1;background:transparent;border:none;font-size:16px;font-weight:700;color:var(--text);outline:none;font-family:inherit;padding:4px 0;">
+          <button id="tdpCopyLink" style="background:transparent;border:none;color:var(--text-3);cursor:pointer;padding:6px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:.14s;" title="Copy link to this task">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6.5 9.5a2.5 2.5 0 010-3.54l2-2a2.5 2.5 0 013.54 3.54l-1 1M9.5 6.5a2.5 2.5 0 010 3.54l-2 2a2.5 2.5 0 01-3.54-3.54l1-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
           <button id="tdpClose" style="background:transparent;border:none;color:var(--text-3);cursor:pointer;padding:6px;border-radius:6px;display:flex;align-items:center;justify-content:center;transition:.14s;" title="Close (Esc)">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
           </button>
@@ -9152,7 +9161,13 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         <!-- Footer: save status -->
         <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 18px;border-top:1px solid var(--line);flex-shrink:0;font-size:11px;color:var(--text-3);">
           <span id="tdpSaveStatus">Changes saved automatically</span>
-          <button id="tdpDelete" style="background:transparent;border:1px solid var(--line);color:var(--red);border-radius:7px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">Delete task</button>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button id="tdpCopyLinkFooter" style="background:transparent;border:1px solid var(--line);color:var(--text-2);border-radius:7px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:6px;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6.5 9.5a2.5 2.5 0 010-3.54l2-2a2.5 2.5 0 013.54 3.54l-1 1M9.5 6.5a2.5 2.5 0 010 3.54l-2 2a2.5 2.5 0 01-3.54-3.54l1-1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Copy link
+            </button>
+            <button id="tdpDelete" style="background:transparent;border:1px solid var(--line);color:var(--red);border-radius:7px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">Delete task</button>
+          </div>
         </div>
       </aside>
 
@@ -11514,7 +11529,7 @@ setupRail('rail2','pill2');
 
   // ── Open a shared SOP link (?sop=<id>) directly into its department, highlighted.
   async function openSharedSopFromUrl() {
-    const sopId = new URLSearchParams(window.location.search).get('sop');
+    const sopId = new URLSearchParams(window.__giantInitialSearch || window.location.search).get('sop');
     if (!sopId) return;
     const { data } = await sb().from('sops').select('department_id').eq('id', sopId).maybeSingle();
     if (!data) return;
@@ -49723,6 +49738,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     setTimeout(() => document.getElementById('tdpName')?.focus(), 200);
   }
 
+  // ── Open a shared task link (?task=<id>) directly into its detail panel.
+  async function openSharedTaskFromUrl() {
+    const taskId = new URLSearchParams(window.__giantInitialSearch || window.location.search).get('task');
+    if (!taskId) return;
+    const navBtn = document.querySelector('.nav-item[data-screen="tasks"]');
+    if (navBtn) navBtn.click();
+    setTimeout(() => openTaskDetailPanel(taskId), 400);
+  }
+  setTimeout(openSharedTaskFromUrl, 1500);
+
   function closeTaskDetailPanel() {
     const overlay = document.getElementById('taskDetailPanelOverlay');
     const panel = document.getElementById('taskDetailPanel');
@@ -49855,6 +49880,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   // Wire panel close + esc
   document.getElementById('tdpClose')?.addEventListener('click', closeTaskDetailPanel);
+  async function _tdpCopyLink() {
+    if (!_tdpTaskId) return;
+    const url = `${window.location.origin}/app?task=${_tdpTaskId}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      if (typeof toast === 'function') toast({type:'success', message:'Link copied — anyone on the team can open it directly.'});
+    } catch (_) {
+      await window.giantPrompt('Copy this link:', url);
+    }
+  }
+  document.getElementById('tdpCopyLink')?.addEventListener('click', _tdpCopyLink);
+  document.getElementById('tdpCopyLinkFooter')?.addEventListener('click', _tdpCopyLink);
   document.getElementById('taskDetailPanelOverlay')?.addEventListener('click', closeTaskDetailPanel);
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && _tdpTaskId) closeTaskDetailPanel();
