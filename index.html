@@ -13377,7 +13377,6 @@ setupRail('rail2','pill2');
         <div style="display:flex;gap:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:4px;width:fit-content;">
           <div class="wl-tab ${view==='dashboard'?'on':''}" data-wl-crumb="dashboard" style="padding:7px 14px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${view==='dashboard'?'background:var(--red);color:#fff;':'color:var(--text-2);'}">Dashboard</div>
           <div class="wl-tab ${view!=='dashboard'&&view!=='alerts'?'on':''}" data-wl-crumb="companies" style="padding:7px 14px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${view!=='dashboard'&&view!=='alerts'?'background:var(--red);color:#fff;':'color:var(--text-2);'}">Companies</div>
-          <div class="wl-tab ${view==='alerts'?'on':''}" data-wl-crumb="alerts" style="padding:7px 14px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${view==='alerts'?'background:var(--red);color:#fff;':'color:var(--text-2);'}position:relative;">Alerts${(function(){ const n=computeAlerts().length; return n?` <span style="background:${view==='alerts'?'#fff':'var(--red)'};color:${view==='alerts'?'var(--red)':'#fff'};font-size:10px;font-weight:800;padding:1px 5px;border-radius:8px;margin-left:2px;">${n}</span>`:''; })()}</div>
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
           <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.03em;">
@@ -13427,11 +13426,12 @@ setupRail('rail2','pill2');
     const activeProjects = rows.filter(r => !['completed','cancelled'].includes(r.project.status)).length;
     const waitingClient = rows.filter(r => r.project.status === 'waiting_client').length;
     const behindRows = rows.filter(r => isBehindSchedule(r.project));
-    const upcoming = rows.filter(r => isUpcomingDeadline(r.project)).sort((a,b)=> new Date(a.project.targetDate) - new Date(b.project.targetDate));
+    const upcomingMilestoneCount = rows.reduce((a,r) => a + (r.project.milestones||[]).filter(m => m.status !== 'completed').length, 0);
     const outstanding = rows.reduce((a,r)=>a+projectOutstanding(r.project),0);
     const recentlyCompleted = rows.filter(r => r.project.status === 'completed');
     const totalProfit = rows.reduce((a,r)=>a+projectProfit(r.project),0);
     const notes = allNotes().sort((a,b)=> new Date(b.date)-new Date(a.date)).slice(0,6);
+    const allNotesCount = allNotes().length;
 
     const statCard = (label, value, color, quickKey, extraAttr) => {
       const active = quickKey && dashQuickFilter === quickKey;
@@ -13447,7 +13447,7 @@ setupRail('rail2','pill2');
       if (!dashQuickFilter) return true;
       if (dashQuickFilter === 'active') return !['completed','cancelled'].includes(r.project.status);
       if (dashQuickFilter === 'waiting') return r.project.status === 'waiting_client';
-      if (dashQuickFilter === 'upcoming') return isUpcomingDeadline(r.project);
+      if (dashQuickFilter === 'upcoming') return (r.project.milestones||[]).some(m => m.status !== 'completed');
       if (dashQuickFilter === 'outstanding') return projectOutstanding(r.project) > 0;
       if (dashQuickFilter === 'completed') return r.project.status === 'completed';
       return true;
@@ -13471,11 +13471,14 @@ setupRail('rail2','pill2');
         ${statCard('Waiting for client', waitingClient, waitingClient?'#e8a83e':'#3ecf8e', 'waiting')}
         ${statCard('Behind schedule', behindRows.length, behindRows.length?'#ff6b5c':'#3ecf8e', null, `data-wl-behind-toggle`)}
       </div>
-      <div style="display:grid;grid-template-columns:repeat(${isOwnerView()?4:3},1fr);gap:12px;margin-bottom:18px;">
-        ${statCard('Upcoming deadlines (14d)', upcoming.length, 'var(--text)', 'upcoming')}
+      <div style="display:grid;grid-template-columns:repeat(${isOwnerView()?4:3},1fr);gap:12px;margin-bottom:12px;">
+        ${statCard('Upcoming milestones', upcomingMilestoneCount, 'var(--text)', 'upcoming')}
         ${statCard('Outstanding payments', fmtMoney(outstanding), outstanding?'#e8a83e':'#3ecf8e', 'outstanding')}
-        ${statCard('Recently completed', recentlyCompleted.length, 'var(--text)', 'completed')}
         ${isOwnerView() ? statCard('Total profit', fmtMoney(totalProfit), '#3ecf8e') : ''}
+        ${statCard('Recently completed', recentlyCompleted.length, 'var(--text)', 'completed')}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px;">
+        ${statCard('Recent notes', allNotesCount, 'var(--text)')}
       </div>
       ${dashBehindOpen ? `
         <div style="background:var(--surface-2);border:1px solid #4a2622;border-radius:10px;padding:14px 16px;margin-bottom:18px;">
@@ -13497,7 +13500,7 @@ setupRail('rail2','pill2');
             </span>`).join('')}
           </div>
         </div>` : ''}
-      ${dashQuickFilter ? `<div style="margin-bottom:14px;"><span data-wl-quick-filter-clear style="background:var(--surface-2);border:1px solid var(--line);color:var(--text-2);font-size:12px;font-weight:600;padding:6px 12px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">Showing: ${esc({active:'Active projects',waiting:'Waiting for client',upcoming:'Upcoming deadlines',outstanding:'Outstanding payments',completed:'Recently completed'}[dashQuickFilter])} <span style="font-weight:800;">×</span></span></div>` : ''}
+      ${dashQuickFilter ? `<div style="margin-bottom:14px;"><span data-wl-quick-filter-clear style="background:var(--surface-2);border:1px solid var(--line);color:var(--text-2);font-size:12px;font-weight:600;padding:6px 12px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">Showing: ${esc({active:'Active projects',waiting:'Waiting for client',upcoming:'Upcoming milestones',outstanding:'Outstanding payments',completed:'Recently completed'}[dashQuickFilter])} <span style="font-weight:800;">×</span></span></div>` : ''}
 
       <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
         ${selectHtml('wlFilterCompany', [{value:'all',label:'All companies'}, ...companies.map(c=>({value:c.id,label:c.name}))], dashFilters.company)}
