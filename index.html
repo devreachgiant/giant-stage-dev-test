@@ -13359,6 +13359,10 @@ setupRail('rail2','pill2');
     else if (view === 'company') {
       const c = findCompany(activeCompanyId);
       crumbs += ` <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="companies">Companies</span> <span style="color:var(--text-3);">/</span> ${esc(c?c.name:'')}`;
+      if (isNotPartnerView()) {
+        if (activeCompanyTab === 'clients') action = `<button class="btn-red" data-wl-action="new-client" data-wl-id="${esc(activeCompanyId)}">+ New Client</button>`;
+        else action = `<button class="btn-red" data-wl-action="new-project">+ New Project</button>`;
+      }
     } else if (view === 'client') {
       const c = findCompany(activeCompanyId), cl = findClient(activeCompanyId, activeClientId);
       crumbs += ` <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="companies">Companies</span> <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="company">${esc(c?c.name:'')}</span> <span style="color:var(--text-3);">/</span> ${esc(cl?cl.name:'')}`;
@@ -13397,6 +13401,10 @@ setupRail('rail2','pill2');
     }));
     const newCompanyBtn = host.querySelector('[data-wl-action="new-company"]');
     if (newCompanyBtn) newCompanyBtn.addEventListener('click', openNewCompanyModal);
+    const newClientBtn = host.querySelector('[data-wl-action="new-client"]');
+    if (newClientBtn) newClientBtn.addEventListener('click', () => openNewClientModal(newClientBtn.dataset.wlId));
+    const newProjectBtn = host.querySelector('[data-wl-action="new-project"]');
+    if (newProjectBtn) newProjectBtn.addEventListener('click', openNewProjectModal);
     const viewAsSel = $('wlViewAsSelect');
     if (viewAsSel) viewAsSel.addEventListener('change', () => { viewAs = viewAsSel.value; render(); });
   }
@@ -13658,7 +13666,6 @@ setupRail('rail2','pill2');
   }
   function renderCompanyClientsTab(c) {
     return `
-      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">${isNotPartnerView() ? `<button class="btn-red" data-wl-action="new-client" data-wl-id="${esc(c.id)}">+ Add Client</button>` : ''}</div>
       <div style="display:flex;flex-direction:column;gap:10px;">
         ${c.clients.length ? c.clients.map(cl => renderClientRow(c, cl)).join('') : `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:32px;text-align:center;">No clients yet — add the first one.</div>`}
       </div>
@@ -14073,8 +14080,12 @@ setupRail('rail2','pill2');
 
   function openNewProjectModal() {
     if (!isNotPartnerView()) return;
-    const cl = findClient(activeCompanyId, activeClientId); if (!cl) return;
+    const c = findCompany(activeCompanyId); if (!c) return;
+    const clientOptions = (c.clients||[]).map(cl => ({value:cl.id, label:cl.name}));
+    if (!clientOptions.length) { if (typeof toast==='function') toast({type:'error', message:'Add a client first, then a project.'}); return; }
+    const defaultClientId = (activeClientId && c.clients.some(cl=>cl.id===activeClientId)) ? activeClientId : clientOptions[0].value;
     openWlModal('Add Project', [
+      { key:'clientId', label:'Client', type:'select', value: defaultClientId, options: clientOptions },
       { key:'name', label:'Project name', value:'' },
       { key:'type', label:'Project type', type:'select', value:'New Website', options: PROJECT_TYPES.map(t=>({value:t,label:t})) },
       { key:'price', label:'Project price', type:'number', value:0 },
@@ -14083,6 +14094,7 @@ setupRail('rail2','pill2');
       { key:'pm', label:'Assigned project manager', value:'' },
     ], (v) => {
       if (!v.name.trim()) return;
+      const cl = findClient(activeCompanyId, v.clientId); if (!cl) return;
       const p = emptyProject(cl.id);
       Object.assign(p, { name:v.name.trim(), type:v.type, price:v.price, startDate:v.startDate, targetDate:v.targetDate, pm:v.pm });
       p.billing.partnerPayout = Math.round((Number(v.price)||0) * 0.35);
