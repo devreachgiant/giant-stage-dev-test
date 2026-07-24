@@ -13771,7 +13771,7 @@ setupRail('rail2','pill2');
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             ${isNotPartnerView() ? `<div class="btn-outline" data-wl-action="edit-client" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Edit</div>
-            <div class="btn-outline" data-wl-action="send-onboarding" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Send form</div>` : ''}
+            <div class="btn-outline" data-wl-action="send-onboarding" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">${cl.onboardingToken?'Copy link':'Send form'}</div>` : ''}
             <div class="btn-outline" data-wl-action="open-onboarding" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">View responses</div>
             ${isNotPartnerView() ? `<div class="btn-outline" data-wl-action="delete-client" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--red);font-size:12.5px;font-weight:700;cursor:pointer;">Delete</div>` : ''}
           </div>
@@ -13782,6 +13782,18 @@ setupRail('rail2','pill2');
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Website</div><div style="font-size:13.5px;font-weight:600;margin-top:4px;">${esc(cl.website||'—')}</div></div>
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Onboarding</div><div style="margin-top:4px;">${badge(ob)}</div></div>
         </div>
+        ${cl.onboardingToken ? `
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);">
+          <div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">Onboarding link</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <input readonly value="${esc(window.location.origin + '/onboard/' + cl.onboardingToken)}" onclick="this.select()" style="flex:1;min-width:260px;background:var(--surface);color:var(--text-2);border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;font-family:inherit;">
+            <div class="btn-outline" data-wl-action="send-onboarding" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Copy</div>
+            <a href="${esc(window.location.origin + '/onboard/' + cl.onboardingToken)}" target="_blank" rel="noopener" class="btn-outline" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;text-decoration:none;">Open</a>
+          </div>
+        </div>` : (isNotPartnerView() ? `
+        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);">
+          <div style="font-size:12.5px;color:var(--text-3);">No onboarding link yet — click "Send form" above to generate a real, shareable link for this client.</div>
+        </div>` : '')}
         <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);">
           <div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">Main contact</div>
           <div style="font-size:13.5px;">${esc(cl.mainContact||'—')}</div>
