@@ -13233,6 +13233,7 @@ setupRail('rail2','pill2');
   let activeCompanyId = null, activeClientId = null, activeProjectId = null, activeCompanyTab = 'overview';
   let companySearch = '', showArchived = false;
   let dashFilters = { company:'all', pm:'all', status:'all', paymentStatus:'all', type:'all' };
+  let dashQuickFilter = null; // 'active'|'waiting'|'behind'|'upcoming'|'outstanding'|'completed'|null
 
   function findCompany(id) { return companies.find(c => c.id === id); }
   function findClient(companyId, clientId) { const c = findCompany(companyId); return c && c.clients.find(cl => cl.id === clientId); }
@@ -13388,30 +13389,49 @@ setupRail('rail2','pill2');
     const recentlyCompleted = rows.filter(r => r.project.status === 'completed');
     const notes = allNotes().sort((a,b)=> new Date(b.date)-new Date(a.date)).slice(0,6);
 
-    const statCard = (label, value, color) => `<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:15px 16px;"><div style="font-size:11.5px;color:var(--text-3);font-weight:600;text-transform:uppercase;letter-spacing:.03em;">${esc(label)}</div><div style="font-size:24px;font-weight:800;margin-top:6px;color:${color};">${esc(String(value))}</div></div>`;
+    const statCard = (label, value, color, quickKey) => {
+      const active = quickKey && dashQuickFilter === quickKey;
+      const clickable = !!quickKey;
+      return `<div ${clickable?`data-wl-quick-filter="${quickKey}"`:''} style="background:${active?'var(--red)':'var(--surface-2)'};border:1px solid ${active?'var(--red)':'var(--line)'};border-radius:10px;padding:15px 16px;${clickable?'cursor:pointer;':''}">
+        <div style="font-size:11.5px;color:${active?'rgba(255,255,255,.75)':'var(--text-3)'};font-weight:600;text-transform:uppercase;letter-spacing:.03em;">${esc(label)}</div>
+        <div style="font-size:24px;font-weight:800;margin-top:6px;color:${active?'#fff':color};">${esc(String(value))}</div>
+      </div>`;
+    };
 
     const pmOptions = Array.from(new Set(rows.map(r=>r.project.pm).filter(Boolean))).sort();
+    const quickMatch = (r) => {
+      if (!dashQuickFilter) return true;
+      if (dashQuickFilter === 'active') return !['completed','cancelled'].includes(r.project.status);
+      if (dashQuickFilter === 'waiting') return r.project.status === 'waiting_client';
+      if (dashQuickFilter === 'behind') return isBehindSchedule(r.project);
+      if (dashQuickFilter === 'upcoming') return isUpcomingDeadline(r.project);
+      if (dashQuickFilter === 'outstanding') return projectOutstanding(r.project) > 0;
+      if (dashQuickFilter === 'completed') return r.project.status === 'completed';
+      return true;
+    };
     const filtered = rows.filter(r => {
       if (dashFilters.company!=='all' && r.company.id!==dashFilters.company) return false;
       if (dashFilters.pm!=='all' && r.project.pm!==dashFilters.pm) return false;
       if (dashFilters.status!=='all' && r.project.status!==dashFilters.status) return false;
       if (dashFilters.paymentStatus!=='all' && (r.project.billing||{}).paymentStatus!==dashFilters.paymentStatus) return false;
       if (dashFilters.type!=='all' && r.project.type!==dashFilters.type) return false;
+      if (!quickMatch(r)) return false;
       return true;
     });
 
     return `
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px;">
         ${statCard('Active companies', activeCompanies, 'var(--text)')}
-        ${statCard('Active projects', activeProjects, 'var(--text)')}
-        ${statCard('Waiting for client', waitingClient, waitingClient?'#e8a83e':'#3ecf8e')}
-        ${statCard('Behind schedule', behind, behind?'#ff6b5c':'#3ecf8e')}
+        ${statCard('Active projects', activeProjects, 'var(--text)', 'active')}
+        ${statCard('Waiting for client', waitingClient, waitingClient?'#e8a83e':'#3ecf8e', 'waiting')}
+        ${statCard('Behind schedule', behind, behind?'#ff6b5c':'#3ecf8e', 'behind')}
       </div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:26px;">
-        ${statCard('Upcoming deadlines (14d)', upcoming.length, 'var(--text)')}
-        ${statCard('Outstanding payments', fmtMoney(outstanding), outstanding?'#e8a83e':'#3ecf8e')}
-        ${statCard('Recently completed', recentlyCompleted.length, 'var(--text)')}
+        ${statCard('Upcoming deadlines (14d)', upcoming.length, 'var(--text)', 'upcoming')}
+        ${statCard('Outstanding payments', fmtMoney(outstanding), outstanding?'#e8a83e':'#3ecf8e', 'outstanding')}
+        ${statCard('Recently completed', recentlyCompleted.length, 'var(--text)', 'completed')}
       </div>
+      ${dashQuickFilter ? `<div style="margin-bottom:14px;"><span data-wl-quick-filter-clear style="background:var(--surface-2);border:1px solid var(--line);color:var(--text-2);font-size:12px;font-weight:600;padding:6px 12px;border-radius:7px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;">Showing: ${esc({active:'Active projects',waiting:'Waiting for client',behind:'Behind schedule',upcoming:'Upcoming deadlines',outstanding:'Outstanding payments',completed:'Recently completed'}[dashQuickFilter])} <span style="font-weight:800;">×</span></span></div>` : ''}
 
       <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
         ${selectHtml('wlFilterCompany', [{value:'all',label:'All companies'}, ...companies.map(c=>({value:c.id,label:c.name}))], dashFilters.company)}
@@ -14185,6 +14205,10 @@ setupRail('rail2','pill2');
     if (searchInput) { let t=null; searchInput.addEventListener('input', () => { companySearch = searchInput.value; clearTimeout(t); t = setTimeout(() => { host.innerHTML = renderCompaniesList(); wireContent(); }, 200); }); }
     const archivedToggle = $('wlShowArchived');
     if (archivedToggle) archivedToggle.addEventListener('change', () => { showArchived = archivedToggle.checked; render(); });
+
+    host.querySelectorAll('[data-wl-quick-filter]').forEach(el => el.addEventListener('click', () => { const k = el.dataset.wlQuickFilter; dashQuickFilter = (dashQuickFilter === k) ? null : k; render(); }));
+    const quickClear = host.querySelector('[data-wl-quick-filter-clear]');
+    if (quickClear) quickClear.addEventListener('click', () => { dashQuickFilter = null; render(); });
 
     ['wlFilterCompany','wlFilterPm','wlFilterStatus','wlFilterPayment','wlFilterType'].forEach(id => {
       const el = $(id); if (!el) return;
