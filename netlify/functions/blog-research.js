@@ -15,19 +15,26 @@ const { allowOrigin } = require('./_cors');
 const { requireUser } = require('./_auth');
 const { brandVoiceContext, extractJson } = require('./_brand');
 
-const SYSTEM_PROMPT = `You are an elite SEO content strategist who builds content briefs a specialist writer can execute without guesswork. You apply SEMANTIC SEO: you cover a topic's full entity/subtopic space, match the searcher's intent, and target terms worth ranking for — not keyword stuffing.
+// Keep the requested brief COMPACT. A full unbounded brief runs ~3200 output
+// tokens and ~34s to generate on sonnet-5 — that both overruns max_tokens and
+// blows Netlify's 26s function limit, truncating the JSON mid-structure. The
+// size caps below hold a complete brief to ~1700 tokens / ~18-19s (well inside
+// both budgets) while keeping the exact same JSON schema the rest of the
+// pipeline consumes. Don't loosen the caps without re-checking generation time.
+const SYSTEM_PROMPT = `You are an elite SEO content strategist who builds tight, executable content briefs. You apply SEMANTIC SEO: cover the topic's core entity/subtopic space, match the searcher's intent, and target terms worth ranking for — never keyword stuffing.
 
-Given a topic, a content type, and a specific client's brand context, produce a brief that:
-1. Classifies SEARCH INTENT (informational / commercial / transactional / navigational) and states, in one line, what the searcher actually wants — then commit the whole brief to serving that.
-2. Picks ONE primary keyword (the head term), a set of SECONDARY keywords (close variants / subtopics), and SEMANTIC keywords (entities and related terms Google expects to see for topical authority).
-3. Builds an FAQ set from the kind of real questions people ask on Google autosuggest, Reddit, and Quora for this topic — phrased the way a real person would ask, with a concise correct answer.
-4. Produces a logical H2/H3 OUTLINE that fully covers the intent, with 2-4 key points per section so the writer knows what to say.
-5. Suggests INTERNAL links (to the client's own key pages/services — infer sensible ones from their site/services) and EXTERNAL links (to the TYPE of authoritative, non-competitor source to cite).
-6. Writes a meta_title (<= 60 chars) and meta_description (<= 155 chars) that earn the click and include the primary keyword naturally.
+Given a topic, a content type, and a client's brand context, produce a COMPACT brief. A specialist writer needs clear direction, not an essay — keep every field lean and obey the size caps below.
+
+1. SEARCH INTENT: classify (informational / commercial / transactional / navigational) and state, in one line, what the searcher actually wants.
+2. KEYWORDS: ONE primary_keyword (head term); up to 8 secondary_keywords (close variants / subtopics); up to 10 semantic_keywords (entities / related terms Google expects for topical authority).
+3. FAQS: up to 5 real questions people ask (Google autosuggest / Reddit / Quora style), each with a correct answer of 1-2 sentences.
+4. OUTLINE: up to 5 H2 sections. Each section: up to 3 H3s and up to 3 key_points. Keep each key point a short phrase (<= 10 words).
+5. LINKS: up to 4 internal_links (to the client's own key pages/services — infer sensible ones) and up to 3 external_links (the TYPE of authoritative, non-competitor source to cite).
+6. META: meta_title (<= 60 chars) and meta_description (<= 155 chars) that earn the click and include the primary keyword naturally.
 
 For a location_page: center it on {service} in {location} — local intent, proximity, local proof. For a service_page: center on the service, its outcomes, and commercial intent.
 
-OUTPUT — STRICT JSON only, no prose, no code fences:
+OUTPUT — STRICT, COMPLETE JSON only. No prose, no code fences, no text before or after the JSON. Use exactly this shape:
 {
   "search_intent": "informational|commercial|transactional|navigational — one-line explanation",
   "primary_keyword": "string",
@@ -41,7 +48,7 @@ OUTPUT — STRICT JSON only, no prose, no code fences:
   "meta_description": "<= 155 chars",
   "recommended_word_count": 1200
 }
-Escape all quotes and newlines so the JSON parses.`;
+Keep all strings concise so the entire JSON is complete and self-contained. Escape all quotes and newlines so the JSON parses.`;
 
 // Seam for real keyword data (Ahrefs volume/difficulty, SERP FAQs). v1: no-op.
 // When wired, look up brief.primary_keyword + secondary_keywords, attach
@@ -87,8 +94,11 @@ exports.handler = async (event) => {
       headers: { 'x-api-key': API_KEY, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: BLOG_MODEL,
-        max_tokens: 2600,
-        thinking: { type: 'disabled' }, // sonnet-5 rejects `temperature`; keep this a plain, all-output-token completion so the JSON brief isn't truncated by adaptive thinking
+        // Backstop ceiling: a compact brief lands ~1700 tokens (see SYSTEM_PROMPT
+        // caps). 2048 leaves ~20% headroom yet bounds worst-case generation to
+        // ~24s, keeping the whole call inside Netlify's 26s function limit.
+        max_tokens: 2048,
+        thinking: { type: 'disabled' }, // sonnet-5 rejects `temperature`; disabled keeps every token for output (no adaptive-thinking spend eating into the JSON)
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: userMsg }]
       })
@@ -98,6 +108,11 @@ exports.handler = async (event) => {
       return { statusCode: res.status, headers, body: JSON.stringify({ error: data.error?.message || `Claude API ${res.status}`, type: data.error?.type }) };
     }
     const text = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text).join('\n');
+    // If Claude hit the token ceiling the JSON is cut off mid-structure and won't
+    // parse — surface an actionable message instead of the cryptic parse error.
+    if (data.stop_reason === 'max_tokens') {
+      return { statusCode: 502, headers, body: JSON.stringify({ error: 'The brief ran long and was cut off before finishing — please try Generate brief again, or shorten the topic/notes.', detail: 'stop_reason=max_tokens' }) };
+    }
     let brief;
     try { brief = extractJson(text); }
     catch (e) { return { statusCode: 502, headers, body: JSON.stringify({ error: 'Could not parse brief JSON', detail: e.message }) }; }
