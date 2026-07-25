@@ -101,9 +101,10 @@ exports.handler = async (event) => {
       let out = { role: job.role, after_heading: job.after_heading, alt: job.alt, image_prompt: job.image_prompt, image_base64: null, image_mime: null, image_url: null, image_error: null };
       const img = await generateImage(job.image_prompt, job.aspect, GEMINI_KEY);
       if (img.error) { out.image_error = img.error; return out; }
-      out.image_base64 = img.base64;
-      out.image_mime = img.mime;
-      if (canStore) out.image_url = await uploadImageToStorage(img.base64, img.mime, SUPABASE_URL, SUPABASE_SERVICE_KEY, 'blog');
+      out.image_url = canStore ? await uploadImageToStorage(img.base64, img.mime, SUPABASE_URL, SUPABASE_SERVICE_KEY, 'blog') : null;
+      // Only ship base64 when there's no hosted URL (upload failed / Supabase off). A full set of
+      // base64 images blows Netlify's ~6MB function response limit → 502. Frontend uses image_url.
+      if (!out.image_url) { out.image_base64 = img.base64; out.image_mime = img.mime; }
       return out;
     }));
 
