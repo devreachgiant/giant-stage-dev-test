@@ -17326,7 +17326,7 @@ setupRail('rail2','pill2');
   // Belt-and-suspenders: same allowlist as the nav-item hide in initApp(), checked
   // again here in case this screen is ever reached directly (bookmarked URL, a
   // future nav change, etc.) rather than only via the hidden nav item.
-  const CHAT2_BETA_ALLOWLIST = ['77d91385-243b-484b-85e9-abef0998280e', '17ecf182-94a4-4725-9204-28cf4bfa1153'];
+  const CHAT2_BETA_ALLOWLIST = ['77d91385-243b-484b-85e9-abef0998280e', '17ecf182-94a4-4725-9204-28cf4bfa1153', 'cee32408-d00a-4bb4-8cb3-1439ccd30397']; // Luke Griffin, Matthew, Nishchay
   window.chat2Init = async function() {
     if (!CHAT2_BETA_ALLOWLIST.includes(myId())) {
       const host = root();
@@ -26692,11 +26692,11 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     // now that role-based visibility above is in effect.
     if (typeof window.giantRestorePulseTab === 'function') window.giantRestorePulseTab();
 
-    // Chat 2.0 is in private review — visible only to these two accounts, on top
+    // Chat 2.0 is in private review — visible only to these accounts, on top
     // of (not instead of) the existing data-role-min="manager" gate. Deliberately
     // narrower than "all managers/owners" while it's being reviewed; remove this
     // block to reopen it to everyone at data-role-min="manager" once approved.
-    const CHAT2_BETA_ALLOWLIST = ['77d91385-243b-484b-85e9-abef0998280e', '17ecf182-94a4-4725-9204-28cf4bfa1153']; // Luke Griffin, Matthew
+    const CHAT2_BETA_ALLOWLIST = ['77d91385-243b-484b-85e9-abef0998280e', '17ecf182-94a4-4725-9204-28cf4bfa1153', 'cee32408-d00a-4bb4-8cb3-1439ccd30397']; // Luke Griffin, Matthew, Nishchay
     if (!CHAT2_BETA_ALLOWLIST.includes(profile.id)) {
       document.querySelectorAll('[data-screen="chat2"]').forEach(el => { el.style.display = 'none'; });
     }
