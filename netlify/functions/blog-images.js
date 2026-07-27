@@ -5,7 +5,11 @@
 // Two-stage (like Vulcan): Claude art-directs → image model renders in parallel.
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
-const PLANNER_MODEL = 'claude-sonnet-4-6'; // art director — Sonnet 4.6 for sharper shot selection + prompts (reads the article as text, so no vision needed). If the account key lacks 4.6, fall back to 'claude-sonnet-4-5-20250929' or 'claude-haiku-4-5-20251001'.
+// Art director — reads the article as text (no vision) and writes image prompts + alt JSON.
+// MUST be a fast model: this planning call runs BEFORE the parallel image render, so a slow
+// planner eats the whole 26s function budget. claude-sonnet-4-6 measured 17-23s here and was
+// the cause of the step-5 502 timeouts; claude-haiku-4-5 does the same job in ~7s.
+const PLANNER_MODEL = 'claude-haiku-4-5';
 
 const { allowOrigin } = require('./_cors');
 const { requireUser } = require('./_auth');
@@ -97,9 +101,10 @@ exports.handler = async (event) => {
       let out = { role: job.role, after_heading: job.after_heading, alt: job.alt, image_prompt: job.image_prompt, image_base64: null, image_mime: null, image_url: null, image_error: null };
       const img = await generateImage(job.image_prompt, job.aspect, GEMINI_KEY);
       if (img.error) { out.image_error = img.error; return out; }
-      out.image_base64 = img.base64;
-      out.image_mime = img.mime;
-      if (canStore) out.image_url = await uploadImageToStorage(img.base64, img.mime, SUPABASE_URL, SUPABASE_SERVICE_KEY, 'blog');
+      out.image_url = canStore ? await uploadImageToStorage(img.base64, img.mime, SUPABASE_URL, SUPABASE_SERVICE_KEY, 'blog') : null;
+      // Only ship base64 when there's no hosted URL (upload failed / Supabase off). A full set of
+      // base64 images blows Netlify's ~6MB function response limit → 502. Frontend uses image_url.
+      if (!out.image_url) { out.image_base64 = img.base64; out.image_mime = img.mime; }
       return out;
     }));
 

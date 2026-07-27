@@ -1,0 +1,37 @@
+name: Trigger Netlify deploy
+
+# Netlify's own GitHub-push auto-deploy is gated on this site (the "untrusted author"
+# review control, active because no Netlify team member has a linked GitHub account),
+# so pushes to main don't start a build on their own. This workflow closes that gap by
+# calling a Netlify build hook on every push to main — an explicit, always-trusted
+# trigger. To retire it: delete this file and the build hook in Netlify site settings.
+
+on:
+  push:
+    branches: [main]
+
+# One deploy at a time; a newer push supersedes an in-flight one.
+concurrency:
+  group: netlify-deploy
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Netlify build hook
+        env:
+          HOOK: ${{ secrets.NETLIFY_BUILD_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "NETLIFY_BUILD_HOOK_URL secret is not set" >&2
+            exit 1
+          fi
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$HOOK" \
+            -d "trigger=github-actions&sha=${GITHUB_SHA}")
+          echo "Netlify build hook responded HTTP $code"
+          # Netlify returns 200/201 on success
+          case "$code" in
+            200|201) echo "Deploy triggered." ;;
+            *) echo "Unexpected response $code" >&2; exit 1 ;;
+          esac

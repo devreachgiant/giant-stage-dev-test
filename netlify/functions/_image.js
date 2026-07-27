@@ -14,7 +14,11 @@ async function generateImage(imagePrompt, aspectRatio, apiKey) {
   const composedPrompt = `Generate a single high-end editorial photograph for a blog article.\n\n‼️ ABSOLUTE RULES — the image MUST contain:\n- ZERO text: no words, letters, headlines, captions, numbers, or watermarks anywhere.\n- ZERO logos or brand marks.\nThis is a pure photograph. Any text or logo in the output is a failure.\n\n═══ VISUAL DIRECTION ═══\n${imagePrompt}`;
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 17000);
+  // 14s per-image cap. The render runs after the ~7s art-direction planning call, so the
+  // image budget must leave room for planning + upload inside the 26s function limit. Typical
+  // renders are 7-11s; a slower one aborts gracefully (marked image_error, regenerable) rather
+  // than pushing the whole function past the wall into a platform 502.
+  const timer = setTimeout(() => controller.abort(), 14000);
   let res;
   try {
     res = await fetch(GEMINI_URL, {
