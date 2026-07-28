@@ -13309,10 +13309,19 @@ setupRail('rail2','pill2');
 
   async function loadWlData() {
     wlLoading = true; render();
+    // Real external partners (see initApp's white_label_company_members check) are forced into
+    // the existing 'partner' view mode and read from a redacted view for projects — RLS already
+    // scopes companies/clients to just their own company, but the raw projects table's `billing`
+    // jsonb also carries ReachGiant's internal cost/profit figures, which need a column-level
+    // redaction (RLS alone can't do that — see white_label_projects_partner_safe in migration
+    // 20260728160000).
+    const partnerMode = !!window._wlPartnerMode;
+    if (partnerMode) viewAs = 'partner';
+    const projectsTable = partnerMode ? 'white_label_projects_partner_safe' : 'white_label_projects';
     const [companiesRes, clientsRes, projectsRes] = await Promise.all([
       sb().from('white_label_companies').select('*').order('created_at', { ascending: true }),
       sb().from('white_label_clients').select('*').order('created_at', { ascending: true }),
-      sb().from('white_label_projects').select('*').order('created_at', { ascending: true }),
+      sb().from(projectsTable).select('*').order('created_at', { ascending: true }),
     ]);
     const clientsByCompany = {};
     (clientsRes.data || []).forEach(row => {
@@ -13385,6 +13394,67 @@ setupRail('rail2','pill2');
   function persistProjectDebounced(p) { clearTimeout(wlProjectSaveTimer); wlProjectSaveTimer = setTimeout(() => persistProject(p), 800); }
   async function deleteClientRemote(id) { if (!isTempId(id)) await sb().from('white_label_clients').delete().eq('id', id); }
   async function deleteProjectRemote(id) { if (!isTempId(id)) await sb().from('white_label_projects').delete().eq('id', id); }
+
+  // -- Company access (who can see this company as a scoped partner) --
+  // Luke: "How do I add Samuel to the white label company so he can see it?" — real,
+  // in-app answer instead of a one-off SQL insert: staff pick any existing Giant app
+  // account here and it grants exactly that one company (see white_label_company_members +
+  // the RLS/redacted-view migration 20260728160000 for the access-control side of this).
+  let wlAccessCache = {}; // companyId -> { loading, members: [{profileId, addedAt, profile}] }
+  async function loadCompanyAccess(companyId) {
+    wlAccessCache[companyId] = { loading: true };
+    const [membersRes, profilesRes] = await Promise.all([
+      sb().from('white_label_company_members').select('profile_id, added_at').eq('company_id', companyId),
+      sb().from('profiles').select('id, full_name, email, role').neq('role', 'client').order('full_name', { ascending: true }),
+    ]);
+    const profileMap = {};
+    (profilesRes.data || []).forEach(p => { profileMap[p.id] = p; });
+    const members = (membersRes.data || []).map(m => ({ profileId: m.profile_id, addedAt: m.added_at, profile: profileMap[m.profile_id] || null }));
+    wlAccessCache[companyId] = { loading: false, members, allProfiles: profilesRes.data || [] };
+    render();
+  }
+  function openAddCompanyMemberModal(companyId) {
+    const v = wlAccessCache[companyId];
+    if (!v || v.loading) return;
+    const memberIds = new Set(v.members.map(m => m.profileId));
+    const eligible = v.allProfiles.filter(p => !memberIds.has(p.id));
+    if (!eligible.length) { if (typeof toast==='function') toast({type:'info', message:'Everyone eligible already has access, or add a Giant app account for them first.'}); return; }
+    openWlModal('Give someone access to this company', [
+      { key:'profileId', label:'Person', type:'select', value: eligible[0].id, options: eligible.map(p => ({ value:p.id, label:(p.full_name||p.email)+' ('+p.role+')' })) },
+    ], async (v2) => {
+      const { error } = await sb().from('white_label_company_members').insert({ company_id: companyId, profile_id: v2.profileId, added_by: myId() });
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not add: '+error.message}); return; }
+      if (typeof toast==='function') toast({type:'success', message:'Access granted'});
+      await loadCompanyAccess(companyId);
+    });
+  }
+  async function removeCompanyMember(companyId, profileId) {
+    const { error } = await sb().from('white_label_company_members').delete().eq('company_id', companyId).eq('profile_id', profileId);
+    if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not remove: '+error.message}); return; }
+    if (typeof toast==='function') toast({type:'info', message:'Access removed'});
+    await loadCompanyAccess(companyId);
+  }
+  function renderCompanyAccessTab(c) {
+    const v = wlAccessCache[c.id];
+    if (!v) { loadCompanyAccess(c.id); }
+    if (!v || v.loading) return `<div style="padding:40px;text-align:center;color:var(--text-3);font-size:13px;">Loading…</div>`;
+    return `
+      <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:20px 22px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:10px;flex-wrap:wrap;">
+          <div style="font-size:14px;font-weight:800;">Who can see this company</div>
+          <button class="btn-red" data-wl-action="add-company-member" style="padding:7px 13px;font-size:12px;">+ Add person</button>
+        </div>
+        <div style="font-size:12px;color:var(--text-3);margin-bottom:16px;">People added here get a read-only, scoped view of ONLY this company — no ReachGiant internal cost/profit figures, and they can't see any other White Label company. Owners/managers can always see everything regardless of this list.</div>
+        ${v.members.length ? v.members.map(m => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);">
+            <div>
+              <div style="font-size:13px;font-weight:700;">${esc(m.profile ? (m.profile.full_name || m.profile.email) : 'Unknown user')}</div>
+              <div style="font-size:11.5px;color:var(--text-3);">${esc(m.profile ? m.profile.email : '')}</div>
+            </div>
+            <div class="btn-outline" data-wl-action="remove-company-member" data-wl-id="${esc(m.profileId)}" style="padding:6px 12px;border-radius:7px;border:1px solid var(--line-2);color:var(--red);font-size:11.5px;font-weight:700;cursor:pointer;">Remove</div>
+          </div>`).join('') : `<div style="font-size:12.5px;color:var(--text-3);padding:14px 0;">No one has scoped access yet — only owners/managers can see this.</div>`}
+      </div>`;
+  }
 
   let view = 'dashboard'; // dashboard | companies | company | client | project
   let activeCompanyId = null, activeClientId = null, activeProjectId = null, activeCompanyTab = 'clients', activeProjectTab = 'milestones';
@@ -13516,10 +13586,10 @@ setupRail('rail2','pill2');
           <div class="wl-tab ${view!=='dashboard'&&view!=='alerts'?'on':''}" data-wl-crumb="companies" style="padding:7px 14px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${view!=='dashboard'&&view!=='alerts'?'background:var(--red);color:#fff;':'color:var(--text-2);'}">Companies</div>
         </div>
         <div style="display:flex;gap:10px;align-items:center;">
-          <label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.03em;">
+          ${window._wlPartnerMode ? '' : `<label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.03em;">
             View as
             ${selectHtml('wlViewAsSelect', [{value:'owner',label:'Owner'},{value:'team',label:'Team'},{value:'partner',label:'Partner'}], viewAs)}
-          </label>
+          </label>`}
           ${action}
         </div>
       </div>`;
@@ -13767,9 +13837,13 @@ setupRail('rail2','pill2');
     if (!c) return `<div style="padding:40px;text-align:center;color:var(--text-3);">Company not found.</div>`;
     const totals = companyTotals(c);
     const st = STATUS_INFO[c.status] || STATUS_INFO.not_started;
-    const tabsHtml = COMPANY_TABS.map(([key,label]) => `<div class="wl-ctab" data-wl-company-tab="${key}" style="padding:8px 15px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${activeCompanyTab===key?'background:var(--red);color:#fff;':'color:var(--text-2);'}">${esc(label)}</div>`).join('');
+    // Access tab manages real per-company grants — staff only, hidden from the partners
+    // being managed there (an external partner has no business seeing who else has access).
+    const companyTabs = isNotPartnerView() ? [...COMPANY_TABS, ['access','Access']] : COMPANY_TABS;
+    const tabsHtml = companyTabs.map(([key,label]) => `<div class="wl-ctab" data-wl-company-tab="${key}" style="padding:8px 15px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${activeCompanyTab===key?'background:var(--red);color:#fff;':'color:var(--text-2);'}">${esc(label)}</div>`).join('');
     let body = '';
     if (activeCompanyTab === 'clients') body = renderCompanyClientsTab(c);
+    else if (activeCompanyTab === 'access' && isNotPartnerView()) body = renderCompanyAccessTab(c);
     else body = renderCompanyProjectsTab(c);
 
     const statCols = isOwnerView() ? 5 : 4;
@@ -14474,6 +14548,8 @@ setupRail('rail2','pill2');
 
     host.querySelectorAll('[data-wl-action="edit-company"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); openEditCompanyModal(el.dataset.wlId || activeCompanyId); }));
     host.querySelectorAll('[data-wl-action="archive-company"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); if (!isNotPartnerView()) return; const c = findCompany(el.dataset.wlId || activeCompanyId); if (c) { c.archived = !c.archived; persistCompany(c); if (typeof toast==='function') toast({type:'success', message: c.archived?'Company archived':'Company unarchived'}); render(); } }));
+    host.querySelectorAll('[data-wl-action="add-company-member"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); if (!isNotPartnerView()) return; openAddCompanyMemberModal(activeCompanyId); }));
+    host.querySelectorAll('[data-wl-action="remove-company-member"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); if (!isNotPartnerView()) return; removeCompanyMember(activeCompanyId, el.dataset.wlId); }));
     host.querySelectorAll('[data-wl-action="new-client"]').forEach(el => el.addEventListener('click', () => openNewClientModal(el.dataset.wlId)));
     host.querySelectorAll('[data-wl-action="edit-client"]').forEach(el => el.addEventListener('click', openEditClientModal));
     host.querySelectorAll('[data-wl-action="send-onboarding"]').forEach(el => el.addEventListener('click', copyOnboardingLink));
@@ -26827,6 +26903,21 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       if (CHAT2_BETA_ALLOWLIST.includes(profile.id)) el.removeAttribute('data-role-min');
       else el.style.display = 'none';
     });
+
+    // White Label: normally manager+ only, but external partners (real accounts explicitly
+    // added to one company via white_label_company_members) get scoped, read-only access to
+    // just that company — see wlInit/loadWlData in the White Label module for the matching
+    // partner-view data loading. Async since it needs a DB round-trip; the nav item starts
+    // hidden by the module's own data-role-min="manager" and only gets unhidden once we know
+    // this account actually has at least one company membership.
+    if (!['owner', 'manager', 'inhouse_dev'].includes(profile.role) && window.giantSupabase) {
+      window.giantSupabase.from('white_label_company_members').select('company_id').eq('profile_id', profile.id).then(({ data }) => {
+        if (data && data.length) {
+          document.querySelectorAll('[data-screen="whitelabel"]').forEach(el => el.removeAttribute('data-role-min'));
+          window._wlPartnerMode = true;
+        }
+      });
+    }
 
     // === CLIENT ROLE: hide forbidden nav items, restrict access ===
     if (profile.role === 'client') {
