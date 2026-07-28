@@ -36769,6 +36769,10 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     }
 
     async function openThread(parentMessageId) {
+      if (String(parentMessageId).startsWith('tmp_')) {
+        if (typeof toast === 'function') toast({ type: 'info', message: 'Still sending — try again in a moment.' });
+        return;
+      }
       const { data: parent, error: parentError } = await queryWithRetry(() => supabase.from('messages')
         .select('*').eq('id', parentMessageId).single());
       if (!parent) {
@@ -37011,7 +37015,15 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         replyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 9V6a2 2 0 012-2h7l-2-2m2 2l-2 2M13 9v1a2 2 0 01-2 2H4l2 2m-2-2l2-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
         replyBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          openThread(messageId);
+          // Read the id live off the DOM node rather than the closed-over
+          // `messageId` param — for a message sent moments ago, that param is
+          // still the optimistic tmp_... placeholder even after the real UUID
+          // has landed, because the tempId→realID swap only ever updates
+          // el.dataset.msgId, not this already-created closure. Clicking Reply
+          // before a full page reload passed the stale tmp_ id straight to
+          // openThread(), which then failed with an "invalid input syntax for
+          // type uuid" error since the messages table only accepts real UUIDs.
+          openThread(msgEl.dataset.msgId || messageId);
         });
         // Insert at the start
         bar.insertBefore(replyBtn, bar.firstChild);
@@ -37092,7 +37104,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       `;
       cta.addEventListener('click', (e) => {
         e.stopPropagation();
-        openThread(m.id);
+        openThread(msgEl.dataset.msgId || m.id);
       });
       body.appendChild(cta);
     }
