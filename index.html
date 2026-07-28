@@ -1869,6 +1869,12 @@ html[data-theme="light"] .invite-banner .ib-ava{background:#DCE7F5;color:#2C5C9E
 .eod-textarea:focus{border-color:var(--red);}
 .eod-textarea[contenteditable="true"]:empty::before{content:attr(data-placeholder);color:var(--text-3);font-style:italic;}
 
+/* White Label breadcrumb — these spans were always clickable (wired in renderHeader), but
+   had zero visual styling, so nobody could tell the trail was navigable at all ("this nav bar
+   is terrible" / "I don't like this paper trail" — Luke). */
+.wl-crumb{cursor:pointer;text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--line-2);transition:color .12s,text-decoration-color .12s;}
+.wl-crumb:hover{color:var(--text);text-decoration-color:var(--text-2);}
+
 /* ============== REACH AI ============== */
 .nav-item-ai{position:relative;}
 .nav-tag-new{margin-left:auto;font-size:9px;font-weight:800;background:linear-gradient(90deg,var(--red),#F0312E);color:#fff;padding:1px 6px;border-radius:5px;text-transform:uppercase;letter-spacing:.06em;line-height:1.4;}
@@ -13473,7 +13479,15 @@ setupRail('rail2','pill2');
   function allProjectRows() { const out = []; companies.forEach(c => c.clients.forEach(cl => cl.projects.forEach(p => out.push({ company:c, client:cl, project:p })))); return out; }
   function allNotes() { const out = []; companies.forEach(c => c.clients.forEach(cl => cl.projects.forEach(p => (p.notes||[]).forEach(n => out.push({ ...n, scope:`${c.name} · ${p.name}` }))))); return out; }
   function companyActiveProjectCount(c) { let n=0; c.clients.forEach(cl => cl.projects.forEach(p => { if (!['completed','cancelled'].includes(p.status)) n++; })); return n; }
-  function companyTotals(c) { let value=0, paid=0, profit=0; c.clients.forEach(cl => cl.projects.forEach(p => { value += Number(p.price)||0; paid += Number(p.paid)||0; profit += projectProfit(p); })); return { value, paid, outstanding: Math.max(0,value-paid), profit }; }
+  function companyTotals(c) {
+    let value=0, paid=0, profit=0, partnerPayout=0, partnerPaid=0;
+    c.clients.forEach(cl => cl.projects.forEach(p => {
+      value += Number(p.price)||0; paid += Number(p.paid)||0; profit += projectProfit(p);
+      const b = p.billing||{};
+      partnerPayout += Number(b.partnerPayout)||0; partnerPaid += Number(b.partnerPaidTotal)||0;
+    }));
+    return { value, paid, outstanding: Math.max(0,value-paid), profit, partnerPayout, partnerPaid, partnerOutstanding: Math.max(0, partnerPayout-partnerPaid) };
+  }
   function clientAssignedTeam(cl) { const names = new Set(); (cl.projects||[]).forEach(p => (p.team||[]).forEach(n => names.add(n))); return Array.from(names); }
 
   function computeAlerts() {
@@ -13809,11 +13823,13 @@ setupRail('rail2','pill2');
           <span class="report-row-icon-btn" data-wl-action="archive-company" data-wl-id="${esc(c.id)}" title="${c.archived?'Unarchive':'Archive'}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3.5" width="12" height="3" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 6.5V12a1 1 0 001 1h8a1 1 0 001-1V6.5M6.5 9h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>
         </span>` : ''}
       </div>
-      <div style="display:grid;grid-template-columns:repeat(${isNotPartnerView()?5:2},1fr);gap:12px;margin-top:14px;">
+      <div style="display:grid;grid-template-columns:repeat(${isOwnerView()?7:(isNotPartnerView()?5:2)},1fr);gap:12px;margin-top:14px;">
         ${stat('Active projects', companyActiveProjectCount(c))}
-        ${stat('Total value', fmtMoney(totals.value))}
-        ${isNotPartnerView() ? stat('Paid', fmtMoney(totals.paid), '#3ecf8e') : ''}
-        ${isNotPartnerView() ? stat('Outstanding', fmtMoney(totals.outstanding), totals.outstanding?'#e8a83e':undefined) : ''}
+        ${stat(isOwnerView()?'Client billed':'Total value', fmtMoney(totals.value))}
+        ${isNotPartnerView() ? stat('Client paid', fmtMoney(totals.paid), '#3ecf8e') : ''}
+        ${isNotPartnerView() ? stat('Client outstanding', fmtMoney(totals.outstanding), totals.outstanding?'#e8a83e':undefined) : ''}
+        ${isOwnerView() ? stat('Partner owed', fmtMoney(totals.partnerPayout)) : ''}
+        ${isOwnerView() ? stat('Partner outstanding', fmtMoney(totals.partnerOutstanding), totals.partnerOutstanding?'#e8a83e':undefined) : ''}
         ${stat('Clients', clientCount)}
       </div>
     </div>`;
@@ -14371,7 +14387,9 @@ setupRail('rail2','pill2');
       const cl = findClient(activeCompanyId, v.clientId); if (!cl) return;
       const p = emptyProject(cl.id);
       Object.assign(p, { name:v.name.trim(), type:v.type, price:v.price, startDate:v.startDate, targetDate:v.targetDate, pm:v.pm });
-      p.billing.partnerPayout = Math.round((Number(v.price)||0) * 0.35);
+      // Full pass-through by default — Luke: he expected the partner to get the whole
+      // price unless he manually sets a cut in Edit Billing, not an automatic 35%.
+      p.billing.partnerPayout = Number(v.price) || 0;
       cl.projects.push(p);
       await persistProject(p);
       if (typeof toast==='function') toast({type:'success', message:'Project added'});
