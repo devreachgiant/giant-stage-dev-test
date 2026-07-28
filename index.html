@@ -13316,52 +13316,95 @@ setupRail('rail2','pill2');
   }
   function projectProfit(p) { const b = p.billing||{}; return (Number(p.price)||0) - (Number(b.internalCost)||0) - (Number(b.partnerPayout)||0); }
 
-  function seed() {
-    const acme = emptyCompany();
-    Object.assign(acme, { name:'Acme Digital Partners', mainContact:'Jordan Miles', email:'jordan@acmedigital.com', phone:'(555) 010-2200', status:'in_progress' });
 
-    const client1 = emptyClient(acme.id);
-    // onboardingStatus:'not_sent' — seeded demo clients have no real linked Supabase
-    // row/token, so claiming a further-along status here would be misleading now that
-    // "View responses" reflects the real backend instead of fake local answers.
-    Object.assign(client1, { name:'Rebecca Hall', businessName:'Hall & Co. Law', email:'rebecca@hallandco.com', phone:'(555) 220-9911', website:'hallandcolaw.com', mainContact:'Rebecca Hall', summary:'Rebrand + new marketing website for a boutique law firm.', onboardingStatus:'not_sent' });
-    const p1 = emptyProject(client1.id);
-    Object.assign(p1, { name:'Hall & Co. Website Redesign', type:'Website Redesign', price:8500, paid:5000, startDate:'2026-06-01', targetDate:'2026-08-15', status:'in_progress', pm:'Luke Griffin', team:['Priya Nair','Sam Okafor'] });
-    p1.milestones.forEach((m,i) => { if (i < 7) { m.status='completed'; m.pct=100; } else if (i===7) { m.status='in_progress'; m.pct=40; } });
-    p1.milestones[0].paymentAmount = 2000; p1.milestones[6].paymentAmount = 3000; p1.milestones[12].paymentAmount = 3500;
-    p1.milestones[0].link = 'https://drive.google.com/hallco-onboarding';
-    p1.notes.push({ id:uid(), author:'Luke Griffin', date:'2026-07-20', content:'Client approved full design, moving into dev.', visibility:'internal', pinned:true });
-    p1.scope = { included:['Custom law-firm website design','Mobile-responsive design','2 rounds of revisions','Basic on-page SEO setup','Launch support'], excluded:['Ongoing content updates after launch','Paid ad management','Copywriting beyond provided brief','Third-party integrations not listed in proposal'] };
-    p1.billing = { internalCost:3200, partnerPayout:2975, partnerPaidTotal:1200, paymentStatus:'partially_paid', dueDate:'2026-08-01' };
-    client1.projects.push(p1);
+  // Real persistence — companies/clients/projects live in white_label_* tables;
+  // milestones/notes/files/scope/billing stay as jsonb on the project row (see
+  // migration 20260728100000). `companies` is reconstructed into the same nested
+  // shape the rest of this module already expects, so none of the render code
+  // below needed to change — only the mutation call sites gained a persist call.
+  let companies = [];
+  let wlLoading = false;
+  let wlLoaded = false;
 
-    const client2 = emptyClient(acme.id);
-    Object.assign(client2, { name:'Marcus Webb', businessName:'Webb Fitness Studio', email:'marcus@webbfitness.com', phone:'(555) 442-1180', website:'webbfitness.com', mainContact:'Marcus Webb', summary:'New booking-enabled website for a boutique gym.', onboardingStatus:'not_sent' });
-    const p2 = emptyProject(client2.id);
-    Object.assign(p2, { name:'Webb Fitness Website', type:'New Website', price:6000, paid:1500, startDate:'2026-07-10', targetDate:'2026-09-01', status:'onboarding', pm:'Priya Nair', team:['Sam Okafor'] });
-    p2.scope = { included: DEFAULT_SCOPE_INCLUDED.map(s=>s.replace('Custom design & build','Custom fitness studio website')), excluded: DEFAULT_SCOPE_EXCLUDED.slice() };
-    p2.billing = { internalCost:2100, partnerPayout:2100, partnerPaidTotal:0, paymentStatus:'invoice_sent', dueDate:'2026-07-25' };
-    client2.projects.push(p2);
-
-    acme.clients.push(client1, client2);
-    acme.team = [ { id:uid(), name:'Luke Griffin', role:'Project Manager', email:'luke@reachgiant.com', permission:'Manager' }, { id:uid(), name:'Priya Nair', role:'Designer', email:'priya@reachgiant.com', permission:'Team member' }, { id:uid(), name:'Sam Okafor', role:'Developer', email:'sam@reachgiant.com', permission:'Team member' } ];
-
-    const bright = emptyCompany();
-    Object.assign(bright, { name:'BrightPath Marketing', mainContact:'Alicia Chen', email:'alicia@brightpathmkt.com', phone:'(555) 774-3300', status:'waiting_client' });
-    const client3 = emptyClient(bright.id);
-    Object.assign(client3, { name:'Devon Price', businessName:'Price Home Renovations', email:'devon@pricehome.com', phone:'(555) 660-2245', website:'', mainContact:'Devon Price', summary:'Local contractor site with quote request form.', onboardingStatus:'not_sent' });
-    const p3 = emptyProject(client3.id);
-    Object.assign(p3, { name:'Price Home Renovations Site', type:'New Website', price:4500, paid:0, startDate:'2026-07-05', targetDate:'2026-07-30', status:'waiting_client', pm:'Sam Okafor', team:[] });
-    p3.milestones[0].status='completed'; p3.milestones[0].pct=100;
-    p3.billing = { internalCost:1600, partnerPayout:1575, partnerPaidTotal:0, paymentStatus:'not_invoiced', dueDate:'' };
-    client3.projects.push(p3);
-    bright.clients.push(client3);
-    bright.team = [ { id:uid(), name:'Sam Okafor', role:'Developer', email:'sam@reachgiant.com', permission:'Team member' } ];
-
-    return [acme, bright];
+  async function loadWlData() {
+    wlLoading = true; render();
+    const [companiesRes, clientsRes, projectsRes] = await Promise.all([
+      sb().from('white_label_companies').select('*').order('created_at', { ascending: true }),
+      sb().from('white_label_clients').select('*').order('created_at', { ascending: true }),
+      sb().from('white_label_projects').select('*').order('created_at', { ascending: true }),
+    ]);
+    const clientsByCompany = {};
+    (clientsRes.data || []).forEach(row => {
+      (clientsByCompany[row.company_id] = clientsByCompany[row.company_id] || []).push({
+        id: row.id, companyId: row.company_id, name: row.name, businessName: row.business_name || '',
+        email: row.email || '', phone: row.phone || '', website: row.website || '', mainContact: row.main_contact || '',
+        summary: row.summary || '', onboardingStatus: row.onboarding_status, supabaseClientId: row.real_client_id,
+        onboardingToken: row.onboarding_token, projects: [],
+      });
+    });
+    const projectsByClient = {};
+    (projectsRes.data || []).forEach(row => {
+      (projectsByClient[row.client_id] = projectsByClient[row.client_id] || []).push({
+        id: row.id, clientId: row.client_id, name: row.name, type: row.type || '', price: Number(row.price) || 0,
+        paid: Number(row.paid) || 0, startDate: row.start_date || '', targetDate: row.target_date || '', status: row.status,
+        pm: row.pm || '', team: row.team || [], milestones: row.milestones || [], notes: row.notes || [], files: row.files || [],
+        scope: row.scope && Object.keys(row.scope).length ? row.scope : { included: DEFAULT_SCOPE_INCLUDED.slice(), excluded: DEFAULT_SCOPE_EXCLUDED.slice() },
+        billing: row.billing && Object.keys(row.billing).length ? row.billing : { internalCost:0, partnerPayout:0, partnerPaidTotal:0, paymentStatus:'not_invoiced', dueDate:'' },
+      });
+    });
+    Object.keys(clientsByCompany).forEach(companyId => {
+      clientsByCompany[companyId].forEach(cl => { cl.projects = projectsByClient[cl.id] || []; });
+    });
+    companies = (companiesRes.data || []).map(row => ({
+      id: row.id, name: row.name, mainContact: row.main_contact || '', email: row.email || '', phone: row.phone || '',
+      status: row.status, archived: row.archived, team: row.team || [], clients: clientsByCompany[row.id] || [],
+    }));
+    wlLoading = false; wlLoaded = true;
+    render();
   }
 
-  let companies = seed();
+  // Insert if the id is still a local temp id (uid() below, never persisted), else update.
+  // Swaps the temp id for the real UUID in place so every existing lookup (findCompany,
+  // findProjectAnywhere, data-wl-id attributes) keeps working unchanged.
+  function isTempId(id) { return String(id).startsWith('wl_'); }
+  async function persistCompany(c) {
+    const payload = { name: c.name, main_contact: c.mainContact || null, email: c.email || null, phone: c.phone || null, status: c.status, archived: !!c.archived, team: c.team || [] };
+    if (isTempId(c.id)) {
+      const { data, error } = await sb().from('white_label_companies').insert({ ...payload, created_by: myId() }).select('id').single();
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not save company: '+error.message}); return; }
+      if (data) c.id = data.id;
+    } else {
+      const { error } = await sb().from('white_label_companies').update(payload).eq('id', c.id);
+      if (error && typeof toast==='function') toast({type:'error', message:'Could not save company: '+error.message});
+    }
+  }
+  async function persistClient(cl) {
+    const payload = { company_id: cl.companyId, name: cl.name, business_name: cl.businessName || null, email: cl.email || null, phone: cl.phone || null, website: cl.website || null, main_contact: cl.mainContact || null, summary: cl.summary || null, onboarding_status: cl.onboardingStatus, real_client_id: cl.supabaseClientId || null, onboarding_token: cl.onboardingToken || null };
+    if (isTempId(cl.id)) {
+      const { data, error } = await sb().from('white_label_clients').insert(payload).select('id').single();
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not save client: '+error.message}); return; }
+      if (data) cl.id = data.id;
+    } else {
+      const { error } = await sb().from('white_label_clients').update(payload).eq('id', cl.id);
+      if (error && typeof toast==='function') toast({type:'error', message:'Could not save client: '+error.message});
+    }
+  }
+  async function persistProject(p) {
+    const payload = { client_id: p.clientId, name: p.name, type: p.type || null, price: Number(p.price)||0, paid: Number(p.paid)||0, start_date: p.startDate || null, target_date: p.targetDate || null, status: p.status, pm: p.pm || null, team: p.team || [], milestones: p.milestones || [], notes: p.notes || [], files: p.files || [], scope: p.scope || {}, billing: p.billing || {} };
+    if (isTempId(p.id)) {
+      const { data, error } = await sb().from('white_label_projects').insert(payload).select('id').single();
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not save project: '+error.message}); return; }
+      if (data) p.id = data.id;
+    } else {
+      const { error } = await sb().from('white_label_projects').update(payload).eq('id', p.id);
+      if (error && typeof toast==='function') toast({type:'error', message:'Could not save project: '+error.message});
+    }
+  }
+  let wlProjectSaveTimer = null;
+  function persistProjectDebounced(p) { clearTimeout(wlProjectSaveTimer); wlProjectSaveTimer = setTimeout(() => persistProject(p), 800); }
+  async function deleteClientRemote(id) { if (!isTempId(id)) await sb().from('white_label_clients').delete().eq('id', id); }
+  async function deleteProjectRemote(id) { if (!isTempId(id)) await sb().from('white_label_projects').delete().eq('id', id); }
+
   let view = 'dashboard'; // dashboard | companies | company | client | project
   let activeCompanyId = null, activeClientId = null, activeProjectId = null, activeCompanyTab = 'clients', activeProjectTab = 'milestones';
   let companySearch = '', showArchived = false;
@@ -13526,11 +13569,12 @@ setupRail('rail2','pill2');
       { key:'email', label:'Email', type:'email', value:'' },
       { key:'phone', label:'Phone', value:'' },
       { key:'status', label:'Overall status', type:'select', value:'onboarding', options: Object.keys(STATUS_INFO).map(k=>({value:k,label:STATUS_INFO[k].label})) },
-    ], (v) => {
+    ], async (v) => {
       if (!v.name.trim()) return;
       const c = emptyCompany();
       Object.assign(c, { name:v.name.trim(), mainContact:v.mainContact, email:v.email, phone:v.phone, status:v.status });
       companies.push(c);
+      await persistCompany(c);
       if (typeof toast==='function') toast({type:'success', message:'Company added'});
       goTo('company', { companyId: c.id, companyTab:'clients' });
     });
@@ -13732,7 +13776,7 @@ setupRail('rail2','pill2');
       { key:'email', label:'Email', type:'email', value:c.email },
       { key:'phone', label:'Phone', value:c.phone },
       { key:'status', label:'Overall status', type:'select', value:c.status, options: Object.keys(STATUS_INFO).map(k=>({value:k,label:STATUS_INFO[k].label})) },
-    ], (v) => { Object.assign(c, { name:v.name.trim()||c.name, mainContact:v.mainContact, email:v.email, phone:v.phone, status:v.status }); if (typeof toast==='function') toast({type:'success', message:'Company updated'}); });
+    ], async (v) => { Object.assign(c, { name:v.name.trim()||c.name, mainContact:v.mainContact, email:v.email, phone:v.phone, status:v.status }); await persistCompany(c); if (typeof toast==='function') toast({type:'success', message:'Company updated'}); });
   }
 
   // ---- Company detail (lightweight: header rollup + Clients / Projects tabs only) ----
@@ -13821,17 +13865,18 @@ setupRail('rail2','pill2');
       { key:'phone', label:'Phone', value:'' },
       { key:'website', label:'Website', value:'' },
       { key:'summary', label:'Project summary', type:'textarea', value:'' },
-    ], (v) => {
+    ], async (v) => {
       if (!v.name.trim()) return;
       const c = findCompany(companyId); if (!c) return;
       const cl = emptyClient(companyId);
       Object.assign(cl, { name:v.name.trim(), businessName:v.businessName, email:v.email, phone:v.phone, website:v.website, mainContact:v.name.trim(), summary:v.summary });
       c.clients.push(cl);
+      await persistClient(cl);
       if (typeof toast==='function') toast({type:'success', message:'Client added'});
       goTo('client', { companyId, clientId: cl.id });
       // Same process as "Send form" on the client page — generate the real onboarding
       // link right away so it's ready the moment the client detail page loads.
-      ensureOnboardingLink(cl).then(result => { render(); if (result && typeof toast==='function') toast({type:'success', message:'Onboarding link ready — copy it from the client page.'}); });
+      ensureOnboardingLink(cl).then(async result => { await persistClient(cl); render(); if (result && typeof toast==='function') toast({type:'success', message:'Onboarding link ready — copy it from the client page.'}); });
     });
   }
 
@@ -13902,13 +13947,12 @@ setupRail('rail2','pill2');
       { key:'website', label:'Website', value:cl.website },
       { key:'summary', label:'Project summary', type:'textarea', value:cl.summary },
       { key:'onboardingStatus', label:'Onboarding status', type:'select', value:cl.onboardingStatus, options: Object.keys(ONBOARD_STATUS_INFO).map(k=>({value:k,label:ONBOARD_STATUS_INFO[k].label})) },
-    ], (v) => { Object.assign(cl, { name:v.name.trim()||cl.name, businessName:v.businessName, email:v.email, phone:v.phone, website:v.website, summary:v.summary, onboardingStatus:v.onboardingStatus }); if (typeof toast==='function') toast({type:'success', message:'Client updated'}); });
+    ], async (v) => { Object.assign(cl, { name:v.name.trim()||cl.name, businessName:v.businessName, email:v.email, phone:v.phone, website:v.website, summary:v.summary, onboardingStatus:v.onboardingStatus }); await persistClient(cl); if (typeof toast==='function') toast({type:'success', message:'Client updated'}); });
   }
-  // WL company/client/project data is in-memory only, so a page reload forgets which
-  // Supabase clients.id a WL client is linked to — even though the real row (and any
-  // submitted answers) still exists. Best-effort re-associate by exact name match
-  // against rows we tagged source:'white_label', so a refresh doesn't look "blank"
-  // when a real link/submission actually exists.
+  // white_label_clients.real_client_id is the source of truth now — this stays as a
+  // defensive fallback for the rare case it's somehow still unset (e.g. a row written
+  // before this link existed), re-associating by exact name match against rows
+  // tagged source:'white_label' rather than leaving the client looking unlinked.
   async function findLinkedSupabaseClient(cl) {
     if (!sb() || !cl.name) return null;
     const { data } = await sb().from('clients')
@@ -13961,6 +14005,7 @@ setupRail('rail2','pill2');
     const confirmed = await window.giantConfirmWarn(`Delete ${cl.name}?`, `This removes the client and all ${cl.projects.length} linked project${cl.projects.length===1?'':'s'}. This can't be undone.`, 'Delete', 'warning');
     if (!confirmed) return;
     c.clients = c.clients.filter(x => x.id !== cl.id);
+    await deleteClientRemote(cl.id);
     if (typeof toast==='function') toast({type:'success', message:'Client deleted'});
     goTo('company', { companyTab:'clients' });
   }
@@ -14054,6 +14099,7 @@ setupRail('rail2','pill2');
     const confirmed = await window.giantConfirmWarn(`Delete ${project.name}?`, `This removes the project and all its milestones, notes, and files. This can't be undone.`, 'Delete', 'warning');
     if (!confirmed) return;
     client.projects = client.projects.filter(p => p.id !== project.id);
+    await deleteProjectRemote(project.id);
     if (typeof toast==='function') toast({type:'success', message:'Project deleted'});
     goTo('client', { companyId: activeCompanyId, clientId: client.id });
   }
@@ -14265,13 +14311,14 @@ setupRail('rail2','pill2');
       { key:'startDate', label:'Start date', type:'date', value:'' },
       { key:'targetDate', label:'Target completion date', type:'date', value:'' },
       { key:'pm', label:'Assigned project manager', value:'' },
-    ], (v) => {
+    ], async (v) => {
       if (!v.name.trim()) return;
       const cl = findClient(activeCompanyId, v.clientId); if (!cl) return;
       const p = emptyProject(cl.id);
       Object.assign(p, { name:v.name.trim(), type:v.type, price:v.price, startDate:v.startDate, targetDate:v.targetDate, pm:v.pm });
       p.billing.partnerPayout = Math.round((Number(v.price)||0) * 0.35);
       cl.projects.push(p);
+      await persistProject(p);
       if (typeof toast==='function') toast({type:'success', message:'Project added'});
       goTo('project', { projectId: p.id });
     });
@@ -14288,8 +14335,9 @@ setupRail('rail2','pill2');
       { key:'startDate', label:'Start date', type:'date', value:p.startDate },
       { key:'targetDate', label:'Target completion date', type:'date', value:p.targetDate },
       { key:'pm', label:'Assigned project manager', value:p.pm },
-    ], (v) => {
+    ], async (v) => {
       Object.assign(p, { name:v.name.trim()||p.name, type:v.type, price:v.price, paid:v.paid, startDate:v.startDate, targetDate:v.targetDate, pm:v.pm });
+      await persistProject(p);
       if (typeof toast==='function') toast({type:'success', message:'Project updated'});
     });
   }
@@ -14303,7 +14351,7 @@ setupRail('rail2','pill2');
       { key:'partnerPaidTotal', label:'Paid to partner so far', type:'number', value:b.partnerPaidTotal },
       { key:'paymentStatus', label:'Client payment status', type:'select', value:b.paymentStatus, options: Object.keys(PAYMENT_STATUS_INFO).map(k=>({value:k,label:PAYMENT_STATUS_INFO[k].label})) },
       { key:'dueDate', label:'Payment due date', type:'date', value:b.dueDate },
-    ], (v) => { Object.assign(b, v); if (typeof toast==='function') toast({type:'success', message:'Billing updated'}); });
+    ], async (v) => { Object.assign(b, v); await persistProject(found.project); if (typeof toast==='function') toast({type:'success', message:'Billing updated'}); });
   }
 
   // ---- shared Notes / Files sections (used by project only) ----
@@ -14356,11 +14404,12 @@ setupRail('rail2','pill2');
       { key:'content', label:'Note', type:'textarea', value:'' },
       { key:'visibility', label:'Visibility', type:'select', value:'internal', options:[{value:'internal',label:'Internal only'},{value:'partner',label:'Partner visible'}] },
       { key:'pinned', label:'Pin this note', type:'checkbox', value:false },
-    ], (v) => {
+    ], async (v) => {
       if (!v.content.trim()) return;
       const target = resolveNoteTarget(ctx); if (!target) return;
       target.notes = target.notes || [];
       target.notes.push({ id:uid(), author:(window.giantCurrentProfile&&window.giantCurrentProfile.full_name)||'You', date:new Date().toISOString().slice(0,10), content:v.content.trim(), visibility:v.visibility, pinned:v.pinned });
+      await persistProject(target);
       if (typeof toast==='function') toast({type:'success', message:'Note added'});
     });
   }
@@ -14369,6 +14418,7 @@ setupRail('rail2','pill2');
     const target = resolveNoteTarget(ctx); if (!target) return;
     const n = (target.notes||[]).find(x => x.id === noteId); if (!n) return;
     n.pinned = !n.pinned;
+    persistProject(target);
     render();
   }
   async function deleteNote(ctx, noteId) {
@@ -14377,6 +14427,7 @@ setupRail('rail2','pill2');
     const confirmed = await window.giantConfirmWarn('Delete this note?', "This can't be undone.", 'Delete', 'warning');
     if (!confirmed) return;
     target.notes = (target.notes||[]).filter(x => x.id !== noteId);
+    await persistProject(target);
     if (typeof toast==='function') toast({type:'success', message:'Note deleted'});
     render();
   }
@@ -14390,12 +14441,13 @@ setupRail('rail2','pill2');
       { key:'category', label:'Category', type:'select', value:FILE_CATEGORIES[0], options: FILE_CATEGORIES.map(c=>({value:c,label:c})) },
     ];
     if (milestoneOpts) fields.push({ key:'milestoneId', label:'Linked milestone (optional)', type:'select', value:'', options: milestoneOpts });
-    openWlModal('Add File', fields, (v) => {
+    openWlModal('Add File', fields, async (v) => {
       if (!v.name.trim()) return;
       if (!target) return;
       target.files = target.files || [];
       const ms = v.milestoneId ? (target.milestones||[]).find(m=>m.id===v.milestoneId) : null;
       target.files.push({ id:uid(), name:v.name.trim(), category:v.category, milestoneId: v.milestoneId||null, milestoneName: ms?ms.name:null });
+      await persistProject(target);
       if (typeof toast==='function') toast({type:'success', message:'File added'});
     });
   }
@@ -14405,15 +14457,22 @@ setupRail('rail2','pill2');
     const confirmed = await window.giantConfirmWarn('Delete this file?', "This can't be undone.", 'Delete', 'warning');
     if (!confirmed) return;
     target.files = (target.files||[]).filter(x => x.id !== fileId);
+    await persistProject(target);
     if (typeof toast==='function') toast({type:'success', message:'File deleted'});
     render();
   }
 
   // ---- render orchestration + event wiring ----
   function render() {
-    renderHeader();
     const host = $('wlContent');
     if (!host) return;
+    if (wlLoading) {
+      const headerHost = $('wlHeader');
+      if (headerHost) headerHost.innerHTML = '';
+      host.innerHTML = `<div style="padding:60px;text-align:center;color:var(--text-3);">Loading…</div>`;
+      return;
+    }
+    renderHeader();
     if (view === 'dashboard') host.innerHTML = renderDashboard();
     else if (view === 'companies') host.innerHTML = renderCompaniesList();
     else if (view === 'company') host.innerHTML = renderCompanyDetail();
@@ -14433,7 +14492,7 @@ setupRail('rail2','pill2');
     host.querySelectorAll('[data-wl-open-project]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('[data-stop-row-click]')) return; goTo('project', { projectId: el.dataset.wlOpenProject }); }));
 
     host.querySelectorAll('[data-wl-action="edit-company"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); openEditCompanyModal(el.dataset.wlId || activeCompanyId); }));
-    host.querySelectorAll('[data-wl-action="archive-company"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); if (!isNotPartnerView()) return; const c = findCompany(el.dataset.wlId || activeCompanyId); if (c) { c.archived = !c.archived; if (typeof toast==='function') toast({type:'success', message: c.archived?'Company archived':'Company unarchived'}); render(); } }));
+    host.querySelectorAll('[data-wl-action="archive-company"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); if (!isNotPartnerView()) return; const c = findCompany(el.dataset.wlId || activeCompanyId); if (c) { c.archived = !c.archived; persistCompany(c); if (typeof toast==='function') toast({type:'success', message: c.archived?'Company archived':'Company unarchived'}); render(); } }));
     host.querySelectorAll('[data-wl-action="new-client"]').forEach(el => el.addEventListener('click', () => openNewClientModal(el.dataset.wlId)));
     host.querySelectorAll('[data-wl-action="edit-client"]').forEach(el => el.addEventListener('click', openEditClientModal));
     host.querySelectorAll('[data-wl-action="send-onboarding"]').forEach(el => el.addEventListener('click', copyOnboardingLink));
@@ -14477,13 +14536,13 @@ setupRail('rail2','pill2');
     if (dashStatusSel) dashStatusSel.addEventListener('change', () => { dashStatusFilter = dashStatusSel.value; render(); });
 
     const statusSel = $('wlProjectStatus');
-    if (statusSel) statusSel.addEventListener('change', () => { const f = findProjectAnywhere(activeProjectId); if (f) { f.project.status = statusSel.value; render(); } });
+    if (statusSel) statusSel.addEventListener('change', () => { const f = findProjectAnywhere(activeProjectId); if (f) { f.project.status = statusSel.value; persistProject(f.project); render(); } });
 
     host.querySelectorAll('[data-wl-action="delete-client"]').forEach(el => el.addEventListener('click', deleteClient));
 
     const teamAddSel = $('wlProjectTeamAdd');
-    if (teamAddSel) teamAddSel.addEventListener('change', () => { const f = findProjectAnywhere(activeProjectId); if (f && teamAddSel.value) { f.project.team = f.project.team || []; f.project.team.push(teamAddSel.value); render(); } });
-    host.querySelectorAll('[data-wl-action="remove-project-team"]').forEach(el => el.addEventListener('click', () => { const f = findProjectAnywhere(activeProjectId); if (f) { f.project.team = (f.project.team||[]).filter(n => n !== el.dataset.wlName); render(); } }));
+    if (teamAddSel) teamAddSel.addEventListener('change', () => { const f = findProjectAnywhere(activeProjectId); if (f && teamAddSel.value) { f.project.team = f.project.team || []; f.project.team.push(teamAddSel.value); persistProject(f.project); render(); } });
+    host.querySelectorAll('[data-wl-action="remove-project-team"]').forEach(el => el.addEventListener('click', () => { const f = findProjectAnywhere(activeProjectId); if (f) { f.project.team = (f.project.team||[]).filter(n => n !== el.dataset.wlName); persistProject(f.project); render(); } }));
 
     // Scope tab
     host.querySelectorAll('[data-wl-action="scope-add"]').forEach(el => el.addEventListener('click', () => {
@@ -14494,22 +14553,24 @@ setupRail('rail2','pill2');
       f.project.scope = f.project.scope || { included:[], excluded:[] };
       f.project.scope[key] = f.project.scope[key] || [];
       f.project.scope[key].push(val);
+      persistProject(f.project);
       render();
     }));
     host.querySelectorAll('[data-wl-action="scope-remove"]').forEach(el => el.addEventListener('click', () => {
       const f = findProjectAnywhere(activeProjectId); if (!f) return;
       const key = el.dataset.wlScopeKey, idx = Number(el.dataset.wlScopeIdx);
-      if (f.project.scope && f.project.scope[key]) { f.project.scope[key].splice(idx, 1); render(); }
+      if (f.project.scope && f.project.scope[key]) { f.project.scope[key].splice(idx, 1); persistProject(f.project); render(); }
     }));
 
     // Milestones
     const addMsBtn = $('wlAddMilestoneBtn');
-    if (addMsBtn) addMsBtn.addEventListener('click', () => { const f = findProjectAnywhere(activeProjectId); if (f) { f.project.milestones.push(emptyMilestone('New milestone')); render(); } });
+    if (addMsBtn) addMsBtn.addEventListener('click', () => { const f = findProjectAnywhere(activeProjectId); if (f) { f.project.milestones.push(emptyMilestone('New milestone')); persistProject(f.project); render(); } });
     const addDefaultsBtn = $('wlAddDefaultMilestonesBtn');
     if (addDefaultsBtn) addDefaultsBtn.addEventListener('click', () => {
       const f = findProjectAnywhere(activeProjectId); if (!f) return;
       const existing = new Set(f.project.milestones.map(m => m.name));
       DEFAULT_MILESTONE_NAMES.forEach(n => { if (!existing.has(n)) f.project.milestones.push(emptyMilestone(n)); });
+      persistProject(f.project);
       render();
     });
     host.querySelectorAll('[data-wl-action="ms-toggle-done"]').forEach(el => el.addEventListener('click', () => {
@@ -14518,6 +14579,7 @@ setupRail('rail2','pill2');
       const done = m.status === 'completed';
       m.status = done ? 'not_started' : 'completed';
       m.pct = done ? 0 : 100;
+      persistProject(f.project);
       render();
     }));
     host.querySelectorAll('[data-wl-action="ms-link-edit"]').forEach(el => el.addEventListener('click', () => { milestoneLinkEditing = el.dataset.wlId; render(); }));
@@ -14527,6 +14589,7 @@ setupRail('rail2','pill2');
       const input = host.querySelector(`[data-wl-link-input="${el.dataset.wlId}"]`);
       m.link = input ? input.value.trim() : m.link;
       milestoneLinkEditing = null;
+      persistProject(f.project);
       render();
     }));
     host.querySelectorAll('[data-wl-ms-field]').forEach(el => {
@@ -14549,16 +14612,18 @@ setupRail('rail2','pill2');
         } else if (!isContinuousInput) {
           render();
         }
-        // Other continuous-input fields (assignee, notes, payment amount) update the data
-        // model silently — no visible dependency elsewhere in this view needs a live refresh.
+        // Continuous-input fields (assignee, notes, payment amount, pct) persist on a
+        // debounce so typing doesn't fire a write per keystroke; discrete fields
+        // (checkboxes/selects/dates) persist right away since there's no "typing" to debounce.
+        if (isContinuousInput) persistProjectDebounced(f.project); else persistProject(f.project);
       });
     });
-    host.querySelectorAll('[data-wl-action="ms-up"]').forEach(el => el.addEventListener('click', () => { const f = findProjectAnywhere(activeProjectId); if (!f) return; const ms = f.project.milestones; const i = ms.findIndex(m=>m.id===el.dataset.wlId); if (i>0) { [ms[i-1],ms[i]] = [ms[i],ms[i-1]]; render(); } }));
-    host.querySelectorAll('[data-wl-action="ms-down"]').forEach(el => el.addEventListener('click', () => { const f = findProjectAnywhere(activeProjectId); if (!f) return; const ms = f.project.milestones; const i = ms.findIndex(m=>m.id===el.dataset.wlId); if (i>=0 && i<ms.length-1) { [ms[i+1],ms[i]] = [ms[i],ms[i+1]]; render(); } }));
-    host.querySelectorAll('[data-wl-action="ms-delete"]').forEach(el => el.addEventListener('click', async () => { const f = findProjectAnywhere(activeProjectId); if (!f) return; const confirmed = await window.giantConfirmWarn('Delete this milestone?', "This can't be undone.", 'Delete', 'warning'); if (!confirmed) return; f.project.milestones = f.project.milestones.filter(m=>m.id!==el.dataset.wlId); render(); }));
+    host.querySelectorAll('[data-wl-action="ms-up"]').forEach(el => el.addEventListener('click', () => { const f = findProjectAnywhere(activeProjectId); if (!f) return; const ms = f.project.milestones; const i = ms.findIndex(m=>m.id===el.dataset.wlId); if (i>0) { [ms[i-1],ms[i]] = [ms[i],ms[i-1]]; persistProject(f.project); render(); } }));
+    host.querySelectorAll('[data-wl-action="ms-down"]').forEach(el => el.addEventListener('click', () => { const f = findProjectAnywhere(activeProjectId); if (!f) return; const ms = f.project.milestones; const i = ms.findIndex(m=>m.id===el.dataset.wlId); if (i>=0 && i<ms.length-1) { [ms[i+1],ms[i]] = [ms[i],ms[i+1]]; persistProject(f.project); render(); } }));
+    host.querySelectorAll('[data-wl-action="ms-delete"]').forEach(el => el.addEventListener('click', async () => { const f = findProjectAnywhere(activeProjectId); if (!f) return; const confirmed = await window.giantConfirmWarn('Delete this milestone?', "This can't be undone.", 'Delete', 'warning'); if (!confirmed) return; f.project.milestones = f.project.milestones.filter(m=>m.id!==el.dataset.wlId); persistProject(f.project); render(); }));
   }
 
-  window.wlInit = function() { render(); };
+  window.wlInit = function() { if (!wlLoaded && !wlLoading) loadWlData(); else render(); };
 })();
 
 /* ===== CHAT 2.0 =====
