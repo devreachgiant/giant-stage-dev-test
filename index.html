@@ -54151,9 +54151,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       rowsEl.querySelectorAll('[data-action="remove-member"]').forEach(el => {
         el.addEventListener('click', async () => {
           const name = el.dataset.name;
-          const typed = await window.giantPrompt(`This permanently deletes ${name}'s login AND all their messages, tasks, and other data — this can't be undone. Type their name to confirm:`);
-          if (typed !== name) {
-            if (typed !== null && typeof toast==='function') toast({type:'info', message:'Name didn\'t match — nothing removed', duration:2200});
+          const typed = await window.giantPrompt(`This permanently deletes ${name}'s login AND all their messages, tasks, and other data — this can't be undone. Type DELETE to confirm:`);
+          if (typed !== 'DELETE') {
+            if (typed !== null && typeof toast==='function') toast({type:'info', message:'Didn\'t match — nothing removed', duration:2200});
             return;
           }
           try {
