@@ -156,8 +156,14 @@ exports.handler = async (event) => {
       try {
         await deleteAuthUser(profile_id);
       } catch (e) {
+        // Report the actual blocking table/record when Postgres names one, instead of always
+        // guessing "a project" — that guess was wrong often enough to be actively misleading
+        // (e.g. a NOT NULL/ON DELETE SET NULL contradiction on message_attachments or
+        // workspace_files produced this same 409 with nothing to do with projects at all).
+        const relMatch = /relation "(\w+)"/.exec(e.message || '');
+        const cause = relMatch ? `something in "${relMatch[1]}" that still references them` : 'a project or other record that still references them';
         return { statusCode: 409, headers, body: JSON.stringify({
-          error: `Couldn't remove ${target.full_name || target.email} — they likely created a project that still references them. Reassign or delete that project first, or use Deactivate instead. (${e.message})`
+          error: `Couldn't remove ${target.full_name || target.email} — ${cause}. Reassign or delete that first, or use Deactivate instead. (${e.message})`
         }) };
       }
     }
