@@ -6985,7 +6985,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               .canvas-tool:hover{background:var(--surface-2);color:var(--text);}
               .canvas-editor{flex:1;overflow-y:auto;padding:24px 28px;font-size:14px;line-height:1.65;color:var(--text);outline:none;}
               .canvas-editor:empty:before{content:attr(data-placeholder);color:var(--text-3);}
-              .canvas-editor a{color:var(--red);text-decoration:underline;}
+              .canvas-editor a{color:var(--red);text-decoration:underline;cursor:pointer;}
               .canvas-editor h1{font-size:24px;font-weight:800;line-height:1.25;margin:16px 0 8px;}
               .canvas-editor h2{font-size:19px;font-weight:700;line-height:1.3;margin:14px 0 7px;}
               .canvas-editor h3{font-size:16px;font-weight:700;line-height:1.35;margin:12px 0 6px;}
@@ -57307,6 +57307,37 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   // ── Canvas ──
+  // Matthew (Help Us Improve): "links in a canvas have to be manually copied and pasted
+  // into a browser to open them." Two separate causes: (1) plain-text URLs (typed, or pasted
+  // as plain text) were never wrapped in <a> at all, and (2) even a real <a> inside a
+  // contenteditable doesn't navigate on a plain click by default — the browser treats the
+  // click as placing the text cursor, and only follows the link on Cmd/Ctrl+click. Fixed by
+  // auto-linkifying plain-text URLs (on load/paste) and intercepting clicks on <a> below.
+  function linkifyCanvasNode(ed){
+    const urlRe=/(https?:\/\/[^\s<>"']+)/g;
+    const nodes=[];
+    const walker=document.createTreeWalker(ed, NodeFilter.SHOW_TEXT, null);
+    let n; while((n=walker.nextNode())){
+      if(!n.nodeValue || !/https?:\/\//.test(n.nodeValue)) continue;
+      if(n.parentElement && n.parentElement.closest('a')) continue;
+      nodes.push(n);
+    }
+    nodes.forEach(node=>{
+      const text=node.nodeValue; urlRe.lastIndex=0;
+      if(!urlRe.test(text)) return;
+      urlRe.lastIndex=0;
+      const frag=document.createDocumentFragment();
+      let lastIdx=0, m;
+      while((m=urlRe.exec(text))){
+        if(m.index>lastIdx) frag.appendChild(document.createTextNode(text.slice(lastIdx,m.index)));
+        const a=document.createElement('a'); a.href=m[0]; a.target='_blank'; a.rel='noopener'; a.textContent=m[0];
+        frag.appendChild(a);
+        lastIdx=m.index+m[0].length;
+      }
+      if(lastIdx<text.length) frag.appendChild(document.createTextNode(text.slice(lastIdx)));
+      node.parentNode.replaceChild(frag, node);
+    });
+  }
   async function loadCanvas(){
     const ed=document.getElementById('chatCanvasEditor'), st=document.getElementById('chatCanvasStatus'); if(!ed) return;
     const cid=chId(); _canvasCid=cid; _canvasLoading=true; ed.innerHTML=''; if(st) st.textContent='Loading…';
@@ -57314,6 +57345,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const { data } = await sb().from('channel_canvas').select('content, updated_at, updated_by').eq('channel_id', cid).maybeSingle();
       if(_canvasCid!==cid){ _canvasLoading=false; return; }
       ed.innerHTML=(data&&data.content)||'';
+      linkifyCanvasNode(ed);
       if(typeof window._upgradeCanvasCards==='function') window._upgradeCanvasCards();
       if(st) st.textContent=(data&&data.updated_at)?('Last edited '+timeAgo(data.updated_at)):'Empty canvas — start typing…';
     } catch(e){ if(st) st.textContent='Canvas unavailable — run the channel_canvas migration.'; }
@@ -57339,7 +57371,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           const myId=window.giantSession&&window.giantSession.user&&window.giantSession.user.id;
           if(payload.new.updated_by===myId) return;          // ignore my own echo
           if(document.activeElement===ed) return;            // don't clobber while typing
-          ed.innerHTML=payload.new.content||''; if(st) st.textContent='Updated '+timeAgo(payload.new.updated_at);
+          ed.innerHTML=payload.new.content||''; linkifyCanvasNode(ed); if(st) st.textContent='Updated '+timeAgo(payload.new.updated_at);
         }).subscribe();
     } catch(_){}
   }
@@ -57389,6 +57421,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     });
     // Delete card + toggle checklist items + collapse cards
     ed.addEventListener('click', (e)=>{
+      const link=e.target.closest('a');
+      if(link && link.href){ e.preventDefault(); window.open(link.href, link.target||'_blank', 'noopener'); return; }
       const col=e.target.closest('.cv-card-collapse');
       if(col){ const card=col.closest('.cv-card'); if(card){ card.classList.toggle('collapsed'); saveCanvas(); } return; }
       const del=e.target.closest('.cv-card-del');
@@ -57414,7 +57448,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         tmp.querySelectorAll('img').forEach(img=>{ const src=(img.getAttribute('src')||'').trim().toLowerCase(); if(!/^(https?:|data:)/.test(src)) img.remove(); });
         document.execCommand('insertHTML',false,tmp.innerHTML);
       } else {
-        document.execCommand('insertText',false,text||'');
+        const raw=text||''; const urlRe=/(https?:\/\/[^\s<>"']+)/g;
+        let out='', lastIdx=0, m;
+        while((m=urlRe.exec(raw))){
+          out+=esc(raw.slice(lastIdx,m.index))+`<a href="${esc(m[0])}" target="_blank" rel="noopener">${esc(m[0])}</a>`;
+          lastIdx=m.index+m[0].length;
+        }
+        out+=esc(raw.slice(lastIdx));
+        document.execCommand('insertHTML',false,out.replace(/\n/g,'<br>'));
       }
       saveCanvas();
     });
