@@ -13862,7 +13862,7 @@ setupRail('rail2','pill2');
     else if (activeCompanyTab === 'access' && isNotPartnerView()) body = renderCompanyAccessTab(c);
     else body = renderCompanyProjectsTab(c);
 
-    const statCols = isOwnerView() ? 5 : 4;
+    const statCols = isOwnerView() ? 7 : (isNotPartnerView() ? 4 : 2);
     return `
       <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin-bottom:20px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;">
@@ -13878,10 +13878,12 @@ setupRail('rail2','pill2');
         </div>
         <div style="display:grid;grid-template-columns:repeat(${statCols},1fr);gap:14px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line);">
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Active projects</div><div style="font-size:16px;font-weight:700;margin-top:4px;">${companyActiveProjectCount(c)}</div></div>
-          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Total value</div><div style="font-size:16px;font-weight:700;margin-top:4px;">${esc(fmtMoney(totals.value))}</div></div>
-          ${isNotPartnerView() ? `<div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Amount paid</div><div style="font-size:16px;font-weight:700;margin-top:4px;">${esc(fmtMoney(totals.paid))}</div></div>
-          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Outstanding</div><div style="font-size:16px;font-weight:700;margin-top:4px;color:${totals.outstanding?'#e8a83e':'var(--text)'};">${esc(fmtMoney(totals.outstanding))}</div></div>` : ''}
-          ${isOwnerView() ? `<div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Profit</div><div style="font-size:16px;font-weight:700;margin-top:4px;color:#3ecf8e;">${esc(fmtMoney(totals.profit))}</div></div>` : ''}
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">${isOwnerView()?'Client billed':'Total value'}</div><div style="font-size:16px;font-weight:700;margin-top:4px;">${esc(fmtMoney(totals.value))}</div></div>
+          ${isNotPartnerView() ? `<div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">${isOwnerView()?'Client paid':'Amount paid'}</div><div style="font-size:16px;font-weight:700;margin-top:4px;">${esc(fmtMoney(totals.paid))}</div></div>
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">${isOwnerView()?'Client outstanding':'Outstanding'}</div><div style="font-size:16px;font-weight:700;margin-top:4px;color:${totals.outstanding?'#e8a83e':'var(--text)'};">${esc(fmtMoney(totals.outstanding))}</div></div>` : ''}
+          ${isOwnerView() ? `<div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Partner owed</div><div style="font-size:16px;font-weight:700;margin-top:4px;">${esc(fmtMoney(totals.partnerPayout))}</div></div>
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Partner outstanding</div><div style="font-size:16px;font-weight:700;margin-top:4px;color:${totals.partnerOutstanding?'#e8a83e':'var(--text)'};">${esc(fmtMoney(totals.partnerOutstanding))}</div></div>
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Profit</div><div style="font-size:16px;font-weight:700;margin-top:4px;color:#3ecf8e;">${esc(fmtMoney(totals.profit))}</div></div>` : ''}
         </div>
       </div>
       <div style="display:flex;gap:4px;margin-bottom:18px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:4px;width:fit-content;flex-wrap:wrap;">${tabsHtml}</div>
