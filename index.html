@@ -5803,6 +5803,9 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       <div class="sidebar-foot">
         <div class="avatar-sm" id="userAvatar" style="background:#1A1A1A;color:#5C5C5F;">·<span class="presence-dot presence-online" id="userPresence"></span></div>
         <div class="who"><b id="userFullName">&nbsp;</b><span id="userStatusLabel">Online</span></div>
+        <!-- Lives in the persistent sidebar (not the Daily Focus screen) so notifications stay reachable
+             from every screen, not just whichever screen happens to be the default landing. -->
+        <div class="icon-btn" id="focusBellBtn" style="width:30px;height:30px;flex:none;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 2a4 4 0 014 4v3l1.5 2.5H2.5L4 9V6a4 4 0 014-4Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6.5 11.5a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.4"/></svg><span class="dot" id="focusBellDot" style="display:none;"></span></div>
         <div class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
           <svg class="sun" width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M8 1v2M8 13v2M15 8h-2M3 8H1M12.7 3.3l-1.4 1.4M4.7 11.3l-1.4 1.4M12.7 12.7l-1.4-1.4M4.7 4.7L3.3 3.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
           <svg class="moon" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M13.5 9.5A5.5 5.5 0 016.5 2.5a5.5 5.5 0 107 7Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
@@ -5838,7 +5841,6 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
           <div><h1 id="focusGreet">Welcome back</h1><div class="greet-sub" id="focusGreetSub">&nbsp;</div></div>
           <div class="topbar-right">
             <div class="search-box" id="focusSearchBox"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><input type="text" class="bare-input" id="focusSearchInput" placeholder="Search everything"><kbd>⌘K</kbd></div>
-            <div class="icon-btn" id="focusBellBtn" style="position:relative;"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 2a4 4 0 014 4v3l1.5 2.5H2.5L4 9V6a4 4 0 014-4Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6.5 11.5a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.4"/></svg><span class="dot" id="focusBellDot" style="display:none;"></span></div>
           </div>
         </div>
         <div class="content">
@@ -57061,11 +57063,40 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     } catch(e){ /* table not migrated yet */ }
   }
 
+  // Navigates to the old Chat & Huddles screen, switches to the mentioned channel, then
+  // waits for its messages to render (channel switch + message fetch are both async) before
+  // scrolling to and briefly highlighting the specific message — same "wait then scroll"
+  // shape as the mention itself, since the message list doesn't exist in the DOM yet at click time.
+  function jumpToChatMessage(channelId, messageId){
+    const navItem = document.querySelector('.nav-item[data-screen="chat"]');
+    if (navItem) navItem.click();
+    if (typeof window.switchChannel === 'function') window.switchChannel(channelId);
+    if (!messageId) return;
+    let tries = 0;
+    const poll = setInterval(() => {
+      tries++;
+      const msgEl = document.querySelector(`[data-msg-id="${messageId}"]`);
+      if (msgEl) {
+        clearInterval(poll);
+        msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const prevBg = msgEl.style.background, prevTransition = msgEl.style.transition;
+        msgEl.style.transition = 'background .3s';
+        msgEl.style.background = 'rgba(208,4,0,.16)';
+        setTimeout(() => {
+          msgEl.style.background = prevBg;
+          setTimeout(() => { msgEl.style.transition = prevTransition; }, 320);
+        }, 1400);
+      } else if (tries > 40) {
+        clearInterval(poll);
+      }
+    }, 150);
+  }
+
   function renderList(){
     const list = _panel.querySelector('#giantNotifList');
     if (!_notifs.length){ list.innerHTML = '<div style="padding:26px 16px;text-align:center;color:var(--text-3);font-size:12px;">No notifications yet</div>'; return; }
     list.innerHTML = _notifs.map(n => `
-      <div class="giant-notif-item" data-nid="${esc(n.id)}" data-task="${esc(n.task_id||'')}" style="padding:11px 14px;border-bottom:1px solid var(--line);cursor:${n.task_id?'pointer':'default'};${n.read_at?'':'background:rgba(208,4,0,.06);'}transition:.12s;">
+      <div class="giant-notif-item" data-nid="${esc(n.id)}" data-task="${esc(n.task_id||'')}" data-channel="${esc(n.channel_id||'')}" data-message="${esc(n.message_id||'')}" style="padding:11px 14px;border-bottom:1px solid var(--line);cursor:${(n.task_id||n.message_id)?'pointer':'default'};${n.read_at?'':'background:rgba(208,4,0,.06);'}transition:.12s;">
         <div style="font-size:12.5px;color:var(--text);line-height:1.45;">${esc(n.body||n.title||'Notification')}</div>
         <div style="font-size:10.5px;color:var(--text-3);margin-top:3px;">${timeAgo(n.created_at)}</div>
       </div>`).join('');
@@ -57082,7 +57113,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const item = e.target.closest('.giant-notif-item'); if (!item) return;
       markOne(item.dataset.nid);
       const tid = item.dataset.task;
-      if (tid && typeof window.openTaskDetailPanel === 'function'){ window.openTaskDetailPanel(tid); close(); }
+      if (tid && typeof window.openTaskDetailPanel === 'function'){ window.openTaskDetailPanel(tid); close(); return; }
+      const chId = item.dataset.channel, msgId = item.dataset.message;
+      if (chId) { jumpToChatMessage(chId, msgId); close(); }
     });
   }
   function open(){
