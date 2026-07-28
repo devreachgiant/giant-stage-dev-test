@@ -33456,8 +33456,12 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           // (the wireEditMessage's msgsRef.find() will find it)
           const id = bodyEl.dataset.msgId;
           if (!id) return;
-          // Synthesize a temp msg ref from the DOM text — wireEditMessage falls back to textContent if msg not in ref
-          const fakeRef = [{ id, body: bodyEl.textContent }];
+          // Synthesize a temp msg ref from the DOM text — wireEditMessage falls back to this if msg not in ref.
+          // Must be innerText, not textContent: line breaks are rendered as literal <br> tags (see
+          // .replace(/\n/g,'<br>') in the message renderer), and textContent silently drops <br>
+          // entirely (it has no text content), collapsing every line break. innerText walks the
+          // rendered layout and turns <br> back into '\n', which is exactly what's needed here.
+          const fakeRef = [{ id, body: bodyEl.innerText }];
           // Reuse wireEditMessage's internal edit-mode logic by calling it once with this element
           // (it's idempotent — second call just adds another dblclick handler, but we skip via wired flag)
           if (!bodyEl.dataset.editWired) {
@@ -33666,7 +33670,8 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         e.stopPropagation();
         const id = textEl.dataset.msgId;
         const msg = msgsRef ? msgsRef.find(m => m.id === id) : null;
-        const currentBody = msg ? msg.body : textEl.textContent;
+        // Same textContent-drops-<br> issue as the fakeRef fallback above — innerText preserves line breaks.
+        const currentBody = msg ? msg.body : textEl.innerText;
         const msgEl = textEl.closest('.msg');
         if (msgEl) msgEl.classList.add('editing');
         const input = document.createElement('textarea');
@@ -33766,7 +33771,12 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           // Update only the body text element
           const bodyEl = msgEl.querySelector('[data-msg-body]') || msgEl.querySelector('.msg-body');
           if (bodyEl && typeof parseMentions === 'function') {
-            bodyEl.innerHTML = parseMentions(m.body || '');
+            // Every other render path (renderMessages, appendMessage) does
+            // parseMentions(body).replace(/\n/g, '<br>') — this targeted live-patch path
+            // was missing the <br> conversion, so an edited message with line breaks saved
+            // correctly to the DB but rendered as one space-joined line (raw \n collapses
+            // under normal CSS white-space rules when it's not an actual <br>).
+            bodyEl.innerHTML = parseMentions(m.body || '').replace(/\n/g, '<br>');
             // Re-attach the dblclick edit handler since we replaced the innerHTML
             if (typeof wireEditMessage === 'function') wireEditMessage(bodyEl, [m]);
           }
