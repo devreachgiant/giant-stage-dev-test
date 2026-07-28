@@ -33700,8 +33700,18 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
               edited_at: new Date().toISOString()
             }).eq('id', id);
           }
-          // Reload current channel
-          if (activeChannelId) loadMessages(activeChannelId);
+          // Reload current channel — but ONLY when this edit happened in the main message list.
+          // loadMessages() rebuilds the whole main list from scratch (which is what swaps this
+          // textarea back to text there), but it doesn't touch the thread panel at all — inside
+          // a thread this left the textarea stuck on screen forever. Swap it back to a text
+          // element ourselves so both places always end up in a consistent, non-editing state.
+          if (textEl.closest('#chatMsgsList')) {
+            if (activeChannelId) loadMessages(activeChannelId);
+          } else {
+            const finalBody = (save && val) ? val : currentBody;
+            textEl.innerHTML = parseMentions(finalBody).replace(/\n/g, '<br>');
+            input.replaceWith(textEl);
+          }
         };
         input.addEventListener('keydown', (ev) => {
           if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); finish(true); }
@@ -36825,13 +36835,14 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         ? `background-image:url(${chatEsc(p.avatar_url)});background-size:cover;`
         : `background:${chatEsc(p.avatar_bg||'#4A2424')};color:${chatEsc(p.avatar_fg||'#F0A0A0')};`;
       const avaInner = p.avatar_url ? '' : chatEsc(initial);
+      const isMine = m.author_id === session.user.id;
       const div = document.createElement('div');
       div.className = 'msg';
       div.dataset.msgId = m.id;
       div.innerHTML = `<div class="ava ${(window.giantOnlineProfiles && window.giantOnlineProfiles.has(m.author_id)) ? 'online' : ''}" data-presence-for="${chatEsc(m.author_id)}" style="${avaStyle}">${avaInner}</div>
         <div class="body">
           <div class="head"><span class="name">${chatEsc(p.full_name || p.email)}</span><span class="time">${chatEsc(formatChatTime(m.created_at))}${m.edited_at?' <span style="color:var(--text-3);font-size:9.5px;">(edited)</span>':''}</span></div>
-          <div class="text">${parseMentions(m.body).replace(/\n/g,'<br>')}</div>
+          <div class="text" data-msg-body data-msg-id="${chatEsc(m.id)}" data-msg-mine="${isMine ? '1' : '0'}">${parseMentions(m.body).replace(/\n/g,'<br>')}</div>
         </div>`;
       container.appendChild(div);
       // Render attachments if any
@@ -36841,8 +36852,16 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       // Thread replies previously never got the hover reaction bar or existing reactions —
       // this was the whole "can't react in thread messages" bug (worked in the main channel
       // because that path calls attachReactBarToMsg, this one never did).
-      attachReactBarToMsg(div, m.id, m.author_id === session.user.id);
+      attachReactBarToMsg(div, m.id, isMine);
       if (chatReactionsCache[m.id]) renderReactionsForMsg(div, m.id);
+      // Same story for edit: the [data-msg-body] the react bar's Edit button dblclick-dispatches
+      // to didn't exist here, and even with it added, the delegated dblclick-to-edit listener is
+      // scoped to chatMsgsList (the main list), which the thread panel isn't nested inside — so it
+      // never fired. Wire it directly for own messages instead of relying on that delegation.
+      if (isMine) {
+        const bodyEl = div.querySelector('[data-msg-body]');
+        if (bodyEl) wireEditMessage(bodyEl, [m]);
+      }
     }
 
     async function openThread(parentMessageId) {
@@ -36904,6 +36923,16 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           await hydrateProfiles([m.author_id]);
           renderMessageForThread(m, threadReplies);
           threadReplies.scrollTop = threadReplies.scrollHeight;
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `parent_id=eq.${parentId}` }, (payload) => {
+          const m = payload.new;
+          const bodyEl = threadReplies.querySelector(`[data-msg-body][data-msg-id="${m.id}"]`);
+          if (bodyEl && document.activeElement !== bodyEl) bodyEl.innerHTML = parseMentions(m.body || '').replace(/\n/g, '<br>');
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `id=eq.${parentId}` }, (payload) => {
+          const m = payload.new;
+          const bodyEl = threadParent.querySelector(`[data-msg-body][data-msg-id="${m.id}"]`);
+          if (bodyEl && document.activeElement !== bodyEl) bodyEl.innerHTML = parseMentions(m.body || '').replace(/\n/g, '<br>');
         })
         .subscribe((status) => {
           console.log('[thread realtime]', parentId, status);
