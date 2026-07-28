@@ -5899,6 +5899,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               <button class="tp-vt-btn" data-tpmode="schedule" id="tpScheduleTabBtn"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M2 6.5h12M5.5 1.5V4M10.5 1.5V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Schedule</button>
             </div>
             <button class="btn-ghost" id="tpHistoryBtn" style="margin-right:8px;display:inline-flex;align-items:center;gap:6px;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3.5l2 1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Time history</button>
+            <button class="btn-ghost" id="tpClockInBtn" style="margin-right:6px;display:inline-flex;align-items:center;gap:6px;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5v4l3 1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="tpClockInBtnLabel">Clock In</span></button>
             <button class="btn-ghost" id="tpLunchBtn" style="margin-right:6px;display:inline-flex;align-items:center;gap:6px;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2v6c0 1 1 2 2 2v4M3 2l-.5 4a1 1 0 001 1m4-5v6c0 1-1 2-2 2M11 2c1.5 0 2.5 1.5 2.5 3.5S12.5 9 11 9v5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="tpLunchBtnLabel">Lunch</span></button>
             <button class="btn-ghost" id="tpBreakBtn" style="margin-right:8px;display:inline-flex;align-items:center;gap:6px;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 7h7a2 2 0 010 4H3V7z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M10 7h2a1.5 1.5 0 010 3h-2M4 5v-2M7 5v-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span id="tpBreakBtnLabel">Break</span></button>
             <button class="btn-red" id="tpEndDayBtn"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" id="tpEndDayIcon"><path d="M3 8l3 3 7-7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg><span id="tpEndDayLabel">End my day</span></button>
@@ -6180,42 +6181,20 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         <div class="modal" style="width:560px;max-width:96%;">
           <div class="modal-head">
             <div>
-              <h3>End of day summary</h3>
-              <div class="m-sub">Review the AI-generated recap before posting to <b>#general</b></div>
+              <h3>End of day report</h3>
+              <div class="m-sub">Posts to <b>#daily-checkout</b></div>
             </div>
             <div class="m-close" data-close="endOfDayModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
           </div>
           <div class="modal-body">
-            <div class="eod-skel" id="eodSkel">
-              <div class="ai-skel" style="width:60%;margin-bottom:8px;height:11px;"></div>
-              <div class="ai-skel" style="width:92%;margin-bottom:6px;"></div>
-              <div class="ai-skel" style="width:78%;margin-bottom:18px;"></div>
-              <div class="ai-skel" style="width:50%;margin-bottom:8px;height:11px;"></div>
-              <div class="ai-skel" style="width:88%;margin-bottom:6px;"></div>
-              <div class="ai-skel" style="width:70%;"></div>
-            </div>
-            <div class="eod-content" id="eodContent" style="display:none;">
-              <div class="eod-banner">
-                <span><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.6 4.3 4.4 1.7-4.4 1.7L8 13.5 6.4 9.2 2 7.5l4.4-1.7L8 1.5Z" fill="currentColor"/></svg></span>
-                Draft generated from your timer logs and completed tasks
+            <div class="eod-content" id="eodContent">
+              <div class="eod-section">
+                <label>Completed</label>
+                <div class="eod-textarea" contenteditable="true" data-placeholder="What did you get done today?" id="eodCompleted"></div>
               </div>
               <div class="eod-section">
-                <label>What I worked on</label>
-                <div class="eod-textarea" contenteditable="true" id="eodWorkedOn">Reviewed Q4 ad budget proposal with the team and aligned on the final numbers. Spent the morning unblocking Noor on the Kaminos SEO audit, and finalized the Vaultik onboarding flow with Nish.</div>
-              </div>
-              <div class="eod-section">
-                <label>What was completed</label>
-                <div class="eod-textarea" contenteditable="true" id="eodCompleted">• Q4 ad budget approved
-• Kaminos audit unblocked
-• Vaultik kickoff materials sent
-• Accelerate onboarding doc reviewed
-• Noor's overdue task on CAMO.ag triaged</div>
-              </div>
-              <div class="eod-section">
-                <label>What's still pending</label>
-                <div class="eod-textarea" contenteditable="true" id="eodPending">• North Haven Gardens payment plan needs final sign-off tomorrow
-• Boston Best Rate invoice — waiting on client response
-• Q1 hiring plan to draft</div>
+                <label>In Progress</label>
+                <div class="eod-textarea" contenteditable="true" data-placeholder="What's still in progress?" id="eodInProgress"></div>
               </div>
               <div class="eod-section">
                 <label>Blockers <span class="eod-optional">optional</span></label>
@@ -21230,8 +21209,9 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
 
   /* ---- End of Day modal ---- */
   const endDayBtn=document.getElementById('tpEndDayBtn');
-  const eodSkel=document.getElementById('eodSkel');
-  const eodContent=document.getElementById('eodContent');
+  const eodCompletedEl=document.getElementById('eodCompleted');
+  const eodInProgressEl=document.getElementById('eodInProgress');
+  const eodBlockersEl=document.getElementById('eodBlockers');
   if(endDayBtn)endDayBtn.addEventListener('click',async ()=>{
     if (_tpDayState.day === 'off') {
       // Currently OFF → start the day
@@ -21265,17 +21245,18 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
       toast({type:'success', message:'<b>Day started.</b> Welcome back ☀️', duration:3000});
       return;
     }
-    // ON → show end-of-day modal
-    eodSkel.style.display='block';
-    eodContent.style.display='none';
+    // ON → show end-of-day modal (real, blank fields — nothing generated, the user types it)
+    if (eodCompletedEl) eodCompletedEl.textContent = '';
+    if (eodInProgressEl) eodInProgressEl.textContent = '';
+    if (eodBlockersEl) eodBlockersEl.textContent = '';
     openModal('endOfDayModal');
-    setTimeout(()=>{
-      eodSkel.style.display='none';
-      eodContent.style.display='block';
-    },900);
+    setTimeout(() => { if (eodCompletedEl) eodCompletedEl.focus(); }, 150);
   });
   const eodSubmit=document.getElementById('eodSubmit');
   if(eodSubmit)eodSubmit.addEventListener('click',async ()=>{
+    const completed = (eodCompletedEl ? eodCompletedEl.innerText : '').trim();
+    const inProgress = (eodInProgressEl ? eodInProgressEl.innerText : '').trim();
+    const blockers = (eodBlockersEl ? eodBlockersEl.innerText : '').trim();
     closeModal('endOfDayModal');
     // Mark day as OFF
     _tpDayState.day = 'off';
@@ -21312,16 +21293,62 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
     if(timerInterval)stopTimer();
     /* Refresh team today */
     if(typeof refreshTeamToday==='function')refreshTeamToday();
-    toast({type:'success',message:'<b>Day wrapped.</b> Summary posted to <b>#general</b>. See you tomorrow.',duration:5000});
+    // Post the real EOD report to #daily-checkout
+    try {
+      const sb = window.giantSupabase;
+      const sess = window.giantSession;
+      if (sb && sess) {
+        const chId = await getDailyCheckoutChannelId();
+        if (chId) {
+          const name = (window.giantCurrentProfile && (window.giantCurrentProfile.full_name || window.giantCurrentProfile.email)) || 'Someone';
+          const d = new Date();
+          const dateStr = String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' + d.getFullYear();
+          const body = `**${name} — EOD Report (${dateStr})**\n+++++++++++++++++++++++++++++\n**Completed:**\n\n${completed || '—'}\n\n**In Progress:**\n\n${inProgress || '—'}\n\n**Blockers:**\n\n${blockers || 'None'}`;
+          await sb.from('messages').insert({ channel_id: chId, author_id: sess.user.id, body });
+          toast({type:'success',message:'<b>Day wrapped.</b> Report posted to <b>#daily-checkout</b>. See you tomorrow.',duration:5000});
+        } else {
+          toast({type:'error',message:"Day wrapped, but couldn't find #daily-checkout to post the report.",duration:5000});
+        }
+      }
+    } catch(e) {
+      console.warn('[eod] post failed:', e.message);
+      toast({type:'error',message:'Day wrapped, but the report failed to post: ' + e.message, duration:5000});
+    }
   });
+
+  /* ---- Channel lookups (cached) — used for the lunch status pings + EOD report below ---- */
+  let _tpHomeChannelId = null;
+  async function getHomeChannelId() {
+    if (_tpHomeChannelId) return _tpHomeChannelId;
+    try {
+      const sb = window.giantSupabase;
+      if (!sb) return null;
+      const { data } = await sb.from('channels').select('id')
+        .or('name.eq.reachgiant-home,slug.ilike.reachgiant-home*').limit(1);
+      if (data && data[0]) _tpHomeChannelId = data[0].id;
+    } catch(e) {}
+    return _tpHomeChannelId;
+  }
+  let _tpDailyCheckoutChannelId = null;
+  async function getDailyCheckoutChannelId() {
+    if (_tpDailyCheckoutChannelId) return _tpDailyCheckoutChannelId;
+    try {
+      const sb = window.giantSupabase;
+      if (!sb) return null;
+      const { data } = await sb.from('channels').select('id').eq('slug', 'daily-checkout').limit(1);
+      if (data && data[0]) _tpDailyCheckoutChannelId = data[0].id;
+    } catch(e) {}
+    return _tpDailyCheckoutChannelId;
+  }
 
   /* ---- Lunch button ---- */
   const lunchBtn = document.getElementById('tpLunchBtn');
-  if (lunchBtn) lunchBtn.addEventListener('click', () => {
+  if (lunchBtn) lunchBtn.addEventListener('click', async () => {
     if (_tpDayState.lunch.active) {
       // End lunch
       const elapsedMs = Date.now() - _tpDayState.lunch.startedAt;
       const elapsedMin = Math.floor(elapsedMs / 60000);
+      const lunchMsgId = _tpDayState.lunch.messageId;
       _tpDayState.lunch = { active: false, startedAt: null };
       saveTpDayState();
       updateLunchBreakUI();
@@ -21339,6 +21366,18 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
           notes: 'Lunch break'
         }).then(() => {});
       }
+      // Reply "back from lunch" in the same thread as the "taking lunch" message, if we posted one
+      if (lunchMsgId && window.giantSupabase && window.giantSession) {
+        const homeId = await getHomeChannelId();
+        if (homeId) {
+          window.giantSupabase.from('messages').insert({
+            channel_id: homeId,
+            author_id: window.giantSession.user.id,
+            parent_id: lunchMsgId,
+            body: '✅ back from lunch'
+          }).then(() => {});
+        }
+      }
       toast({type:'info', message:'Lunch logged · ' + elapsedMin + ' min', duration:2500});
     } else {
       // Start lunch
@@ -21346,10 +21385,27 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
         toast({type:'error', message:'You\'re already on a break. End it first.', duration:2500});
         return;
       }
-      _tpDayState.lunch = { active: true, startedAt: Date.now() };
+      _tpDayState.lunch = { active: true, startedAt: Date.now(), messageId: null };
       saveTpDayState();
       updateLunchBreakUI();
       toast({type:'success', message:'Lunch started 🍽️', duration:2000});
+      // Post to ReachGiant Home so the team sees it, and remember the message id so
+      // "back from lunch" (above) can reply in the same thread instead of a new post.
+      if (window.giantSupabase && window.giantSession) {
+        const homeId = await getHomeChannelId();
+        if (homeId) {
+          const name = (window.giantCurrentProfile && (window.giantCurrentProfile.full_name || window.giantCurrentProfile.email)) || 'Someone';
+          const { data } = await window.giantSupabase.from('messages').insert({
+            channel_id: homeId,
+            author_id: window.giantSession.user.id,
+            body: '🍽️ ' + name + ' is taking lunch'
+          }).select().single();
+          if (data) {
+            _tpDayState.lunch.messageId = data.id;
+            saveTpDayState();
+          }
+        }
+      }
     }
   });
 
@@ -30988,6 +31044,12 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         tpTimerPause.disabled = true;
         tpTimerComplete.disabled = false;
       }
+      const clockInLbl = document.getElementById('tpClockInBtnLabel');
+      if (clockInLbl) {
+        clockInLbl.textContent = !currentSession ? 'Clock In'
+          : currentSession.status === 'running' ? 'Pause'
+          : 'Resume';
+      }
     }
 
     // Retry helper for critical Supabase ops against an unstable NANO compute tier.
@@ -31137,6 +31199,50 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           startTimerInterval();
           if (typeof toast==='function') toast({type:'success', message:'Timer started · ' + escProj(taskLabel), duration:1500});
         }
+      });
+    }
+
+    // ── Clock In — one click, no client/task picker required. Once a session is running
+    // (whether started here or via the client/task Start button), this same button doubles
+    // as Pause/Resume so there's always an obvious way to stop the clock without hunting for
+    // the picker row below — it just delegates to the existing Pause/Start button logic so
+    // the pause/resume DB handling only lives in one place.
+    const tpClockInBtn = document.getElementById('tpClockInBtn');
+    if (tpClockInBtn) {
+      tpClockInBtn.addEventListener('click', async () => {
+        if (currentSession) {
+          if (currentSession.status === 'running') { tpTimerPause.click(); return; }
+          if (currentSession.status === 'paused') { tpTimerStart.click(); return; }
+          return;
+        }
+        const payload = {
+          profile_id: session.user.id,
+          client_id: null,
+          task_label: 'Working',
+          task_id: null,
+          status: 'running',
+          notes: null
+        };
+        const { data, error } = await supabaseRetry(
+          () => supabase.from('time_sessions').insert(payload).select().single(),
+          'time_sessions:clockin'
+        );
+        if (error) {
+          if (error.code === '23505' || (error.message || '').includes('duplicate')) {
+            await loadMySession();
+            if (typeof toast==='function') toast({type:'info', message:'Recovered your existing session', duration:1800});
+            return;
+          }
+          if (typeof toast==='function') toast({type:'error', message:error.message});
+          return;
+        }
+        currentSession = data;
+        if (tpTaskTypeLabel) tpTaskTypeLabel.textContent = 'Working';
+        tpTaskTypeDot.style.background = 'var(--red)';
+        updateTimerButtons();
+        tickTimer();
+        startTimerInterval();
+        if (typeof toast==='function') toast({type:'success', message:'Clocked in · tracking time', duration:1800});
       });
     }
 
