@@ -13222,12 +13222,14 @@ setupRail('rail2','pill2');
     paid: { label:'Paid', color:'#3ecf8e' },
     overdue: { label:'Overdue', color:'#ff6b5c' },
   };
+  // Labels are prefixed with "Onboarding" — a bare "Sent" badge on a client row didn't say
+  // what was sent (an invoice? a project update?). This is specifically the intake-form status.
   const ONBOARD_STATUS_INFO = {
-    not_sent: { label:'Not sent', color:'#8a8a8d' },
-    sent: { label:'Sent', color:'#5b9dff' },
-    started: { label:'Started', color:'#e8a83e' },
-    submitted: { label:'Submitted', color:'#9a8ac8' },
-    reviewed: { label:'Reviewed', color:'#3ecf8e' },
+    not_sent: { label:'Onboarding: not sent', color:'#8a8a8d' },
+    sent: { label:'Onboarding: form sent', color:'#5b9dff' },
+    started: { label:'Onboarding: in progress', color:'#e8a83e' },
+    submitted: { label:'Onboarding: submitted', color:'#9a8ac8' },
+    reviewed: { label:'Onboarding: reviewed', color:'#3ecf8e' },
   };
   // White Label reuses the real public /onboard/:token onboarding form + the `clients`
   // table (same one the general Clients CRM module uses) instead of a second in-app-only
@@ -13279,6 +13281,13 @@ setupRail('rail2','pill2');
   let viewAs = 'owner'; // 'owner' | 'team' | 'partner'
   function isNotPartnerView() { return viewAs !== 'partner'; }
   function isOwnerView() { return viewAs === 'owner'; }
+  // Content-level edit gate (Milestones/Scope/Team/Notes/Files) — staff always pass, and a real
+  // partner account passes too if their company membership has access_level='can_edit'. Deliberately
+  // NOT used for company/client/project structural actions (create/delete/archive) or pricing —
+  // those stay staff-only regardless of this setting; the DB enforces that boundary too (see
+  // migration 20260729100000), this is just the matching UI-level gate so mutate controls don't
+  // render for someone who'd have the write rejected anyway.
+  function canEditContent() { return isNotPartnerView() || (viewAs === 'partner' && !!window._wlPartnerCanEdit); }
 
   function emptyMilestone(name) { return { id: uid(), name: name||'', description:'', due:'', assignee:'', status:'not_started', pct:0, paymentAmount:0, clientApproval:false, notes:'', link:'' }; }
   function emptyProject(clientId) {
@@ -13407,32 +13416,99 @@ setupRail('rail2','pill2');
   // account here and it grants exactly that one company (see white_label_company_members +
   // the RLS/redacted-view migration 20260728160000 for the access-control side of this).
   let wlAccessCache = {}; // companyId -> { loading, members: [{profileId, addedAt, profile}] }
+  const WL_ACCESS_LEVEL_INFO = {
+    read_only: { label: 'Read only', desc: 'Can view their company\'s content but not change anything.' },
+    can_edit: { label: 'Can edit', desc: 'Can update milestones, notes, files, team & scope. Never pricing, and never structural changes (can\'t create/delete clients or projects, edit company info, or manage who else has access).' },
+  };
   async function loadCompanyAccess(companyId) {
     wlAccessCache[companyId] = { loading: true };
     const [membersRes, profilesRes] = await Promise.all([
-      sb().from('white_label_company_members').select('profile_id, added_at').eq('company_id', companyId),
+      sb().from('white_label_company_members').select('profile_id, added_at, access_level').eq('company_id', companyId),
       sb().from('profiles').select('id, full_name, email, role').neq('role', 'client').order('full_name', { ascending: true }),
     ]);
     const profileMap = {};
     (profilesRes.data || []).forEach(p => { profileMap[p.id] = p; });
-    const members = (membersRes.data || []).map(m => ({ profileId: m.profile_id, addedAt: m.added_at, profile: profileMap[m.profile_id] || null }));
+    const members = (membersRes.data || []).map(m => ({ profileId: m.profile_id, addedAt: m.added_at, accessLevel: m.access_level || 'read_only', profile: profileMap[m.profile_id] || null }));
     wlAccessCache[companyId] = { loading: false, members, allProfiles: profilesRes.data || [] };
     render();
   }
+  const WL_INVITE_NEW_SENTINEL = '__invite_new__';
+  // Luke: "what if partner is not on giant app yet" — sends a real invitation (same
+  // invitations table + email as the Admin team invite flow), tagged with this company
+  // + permission so the moment they accept and their account is created, they're
+  // automatically granted access here too — no separate step needed afterward.
+  async function sendWlPartnerInvite(companyId, email, fullName, accessLevel) {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { if (typeof toast==='function') toast({type:'error', message:'Enter a valid email address'}); return false; }
+    const { data: existingProfile } = await sb().from('profiles').select('id').eq('email', email).maybeSingle();
+    if (existingProfile) { if (typeof toast==='function') toast({type:'error', message:'This person already has a Giant account — pick them from the list instead.'}); return false; }
+    const { data: pendingInv } = await sb().from('invitations').select('id').eq('email', email).is('accepted_at', null).is('revoked_at', null).maybeSingle();
+    if (pendingInv) { if (typeof toast==='function') toast({type:'error', message:'An invitation was already sent to this email.'}); return false; }
+    const token = Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2,'0')).join('');
+    const { data: inserted, error } = await sb().from('invitations').insert({
+      email, full_name: fullName || null, role: 'member', token, invited_by: myId(),
+      white_label_company_id: companyId, white_label_access_level: accessLevel,
+    }).select().single();
+    if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not send invite: '+error.message}); return false; }
+    try {
+      const emailRes = await fetch('/.netlify/functions/send-invitation', {
+        method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ invitation_id: inserted.id }),
+      });
+      const emailData = await emailRes.json().catch(()=>({}));
+      if (!emailRes.ok || emailData.error) throw new Error(emailData.error || `HTTP ${emailRes.status}`);
+      if (typeof toast==='function') toast({type:'success', message:`Invite sent to <b>${esc(email)}</b> — they'll get this company's access as soon as they accept`, duration:4000});
+    } catch(e) {
+      if (typeof toast==='function') toast({type:'warning', message:`Invite saved but the email failed to send: ${e.message}`, duration:6000});
+    }
+    return true;
+  }
+  // One button, one decision: pick an existing person, or pick "invite someone new" right at the
+  // top of the same list — and the Email/Full name fields appear inline the moment that's
+  // selected, in the SAME modal, instead of silently opening a second modal nobody could see
+  // was coming (that was the actual complaint: "how will I invite by email here?").
   function openAddCompanyMemberModal(companyId) {
     const v = wlAccessCache[companyId];
     if (!v || v.loading) return;
     const memberIds = new Set(v.members.map(m => m.profileId));
     const eligible = v.allProfiles.filter(p => !memberIds.has(p.id));
-    if (!eligible.length) { if (typeof toast==='function') toast({type:'info', message:'Everyone eligible already has access, or add a Giant app account for them first.'}); return; }
-    openWlModal('Give someone access to this company', [
-      { key:'profileId', label:'Person', type:'select', value: eligible[0].id, options: eligible.map(p => ({ value:p.id, label:(p.full_name||p.email)+' ('+p.role+')' })) },
-    ], async (v2) => {
-      const { error } = await sb().from('white_label_company_members').insert({ company_id: companyId, profile_id: v2.profileId, added_by: myId() });
+    const personOptions = [
+      { value: WL_INVITE_NEW_SENTINEL, label: '✉️ Invite someone new by email…' },
+      ...eligible.map(p => ({ value:p.id, label:(p.full_name||p.email)+' ('+p.role+')' })),
+    ];
+    $('wlModalTitle').textContent = 'Give someone access to this company';
+    $('wlModalBody').innerHTML = `
+      <div class="m-field"><label>Person</label>${selectHtml('wlAddPersonSelect', personOptions, WL_INVITE_NEW_SENTINEL)}</div>
+      <div id="wlInviteFieldsWrap">
+        <div class="m-field"><label>Email</label><input type="email" id="wlInviteEmail" placeholder="name@company.com" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+        <div class="m-field"><label>Full name <span style="text-transform:none;font-weight:600;color:var(--text-3);">(optional)</span></label><input type="text" id="wlInviteFullName" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      </div>
+      <div class="m-field"><label>Permission</label>${selectHtml('wlAddPersonAccessLevel', Object.keys(WL_ACCESS_LEVEL_INFO).map(k=>({value:k,label:WL_ACCESS_LEVEL_INFO[k].label})), 'read_only')}</div>
+    `;
+    const personSel = $('wlAddPersonSelect');
+    const inviteWrap = $('wlInviteFieldsWrap');
+    const syncInviteFieldsVisible = () => { inviteWrap.style.display = personSel.value === WL_INVITE_NEW_SENTINEL ? 'block' : 'none'; };
+    syncInviteFieldsVisible();
+    personSel.addEventListener('change', syncInviteFieldsVisible);
+    wlModalOnSave = async () => {
+      const personVal = personSel.value;
+      const accessLevel = $('wlAddPersonAccessLevel').value;
+      if (personVal === WL_INVITE_NEW_SENTINEL) {
+        const email = ($('wlInviteEmail').value||'').trim().toLowerCase();
+        const fullName = ($('wlInviteFullName').value||'').trim();
+        await sendWlPartnerInvite(companyId, email, fullName, accessLevel);
+        return;
+      }
+      const { error } = await sb().from('white_label_company_members').insert({ company_id: companyId, profile_id: personVal, access_level: accessLevel, added_by: myId() });
       if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not add: '+error.message}); return; }
       if (typeof toast==='function') toast({type:'success', message:'Access granted'});
       await loadCompanyAccess(companyId);
-    });
+    };
+    openModal('wlModalOverlay');
+  }
+  async function setCompanyMemberAccessLevel(companyId, profileId, accessLevel) {
+    const { error } = await sb().from('white_label_company_members').update({ access_level: accessLevel }).eq('company_id', companyId).eq('profile_id', profileId);
+    if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not update permission: '+error.message}); return; }
+    if (typeof toast==='function') toast({type:'success', message:'Permission updated'});
+    await loadCompanyAccess(companyId);
   }
   async function removeCompanyMember(companyId, profileId) {
     const { error } = await sb().from('white_label_company_members').delete().eq('company_id', companyId).eq('profile_id', profileId);
@@ -13450,14 +13526,19 @@ setupRail('rail2','pill2');
           <div style="font-size:14px;font-weight:800;">Who can see this company</div>
           <button class="btn-red" data-wl-action="add-company-member" style="padding:7px 13px;font-size:12px;">+ Add person</button>
         </div>
-        <div style="font-size:12px;color:var(--text-3);margin-bottom:16px;">People added here get a read-only, scoped view of ONLY this company — no ReachGiant internal cost/profit figures, and they can't see any other White Label company. Owners/managers can always see everything regardless of this list.</div>
+        <div style="font-size:12px;color:var(--text-3);margin-bottom:16px;">People added here get a scoped view of ONLY this company — no ReachGiant internal cost/profit figures, and they can't see any other White Label company. "Can edit" still never allows pricing changes. Owners/managers can always see and edit everything regardless of this list.</div>
         ${v.members.length ? v.members.map(m => `
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);">
-            <div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);gap:12px;">
+            <div style="min-width:0;">
               <div style="font-size:13px;font-weight:700;">${esc(m.profile ? (m.profile.full_name || m.profile.email) : 'Unknown user')}</div>
               <div style="font-size:11.5px;color:var(--text-3);">${esc(m.profile ? m.profile.email : '')}</div>
             </div>
-            <div class="btn-outline" data-wl-action="remove-company-member" data-wl-id="${esc(m.profileId)}" style="padding:6px 12px;border-radius:7px;border:1px solid var(--line-2);color:var(--red);font-size:11.5px;font-weight:700;cursor:pointer;">Remove</div>
+            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+              <label style="display:flex;flex-direction:column;gap:2px;" title="${esc(WL_ACCESS_LEVEL_INFO[m.accessLevel].desc)}">
+                ${selectHtml(`wlMemberAccess_${m.profileId}`, Object.keys(WL_ACCESS_LEVEL_INFO).map(k=>({value:k,label:WL_ACCESS_LEVEL_INFO[k].label})), m.accessLevel, `data-wl-member-access="${esc(m.profileId)}"`)}
+              </label>
+              <div class="btn-outline" data-wl-action="remove-company-member" data-wl-id="${esc(m.profileId)}" style="padding:6px 12px;border-radius:7px;border:1px solid var(--line-2);color:var(--red);font-size:11.5px;font-weight:700;cursor:pointer;">Remove</div>
+            </div>
           </div>`).join('') : `<div style="font-size:12.5px;color:var(--text-3);padding:14px 0;">No one has scoped access yet — only owners/managers can see this.</div>`}
       </div>`;
   }
@@ -13537,10 +13618,30 @@ setupRail('rail2','pill2');
     recentlyViewed = [projectId, ...recentlyViewed.filter(id => id !== projectId)].slice(0,5);
   }
 
+  // Persist where the user is in White Label across a page refresh — previously a reload
+  // always dumped you back on the Dashboard no matter how deep you'd navigated, which was
+  // real, reported bad UX (Luke: "if I'm on companies and I refresh... it's going back to
+  // main dashboard"). Saved on every navigation, restored once before the first render.
+  function saveWlNavState() {
+    try { localStorage.setItem('giant_wl_nav', JSON.stringify({ view, activeCompanyId, activeClientId, activeProjectId, activeCompanyTab, activeProjectTab })); } catch(e) {}
+  }
+  function restoreWlNavState() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('giant_wl_nav') || 'null');
+      if (!saved) return;
+      view = saved.view || 'dashboard';
+      activeCompanyId = saved.activeCompanyId || null;
+      activeClientId = saved.activeClientId || null;
+      activeProjectId = saved.activeProjectId || null;
+      activeCompanyTab = saved.activeCompanyTab || 'clients';
+      activeProjectTab = saved.activeProjectTab || 'milestones';
+    } catch(e) {}
+  }
   function goTo(v, opts) {
     view = v;
     if (opts) { ['companyId','clientId','projectId','companyTab'].forEach(k => { if (k in opts) { if (k==='companyId') activeCompanyId = opts[k]; if (k==='clientId') activeClientId = opts[k]; if (k==='projectId') activeProjectId = opts[k]; if (k==='companyTab') activeCompanyTab = opts[k]; } }); }
     if (v === 'project' && activeProjectId) { pushRecentlyViewed(activeProjectId); activeProjectTab = 'milestones'; }
+    saveWlNavState();
     render();
   }
 
@@ -13569,36 +13670,41 @@ setupRail('rail2','pill2');
   function renderHeader() {
     const host = $('wlHeader');
     if (!host) return;
-    let crumbs = `<span class="wl-crumb" data-wl-crumb="dashboard">White Label</span>`;
     let action = '';
-    if (view === 'dashboard') { action = isNotPartnerView() ? `<button class="btn-red" data-wl-action="new-company">+ New Company</button>` : ''; }
-    else if (view === 'companies') { crumbs += ` <span style="color:var(--text-3);">/</span> Companies`; action = isNotPartnerView() ? `<button class="btn-red" data-wl-action="new-company">+ New Company</button>` : ''; }
-    else if (view === 'company') {
+    if (view === 'dashboard' || view === 'companies') {
+      action = isNotPartnerView() ? `<button class="btn-red" data-wl-action="new-company">+ New Company</button>` : '';
+    } else if (view === 'company' && isNotPartnerView()) {
+      action = activeCompanyTab === 'clients'
+        ? `<button class="btn-red" data-wl-action="new-client" data-wl-id="${esc(activeCompanyId)}">+ New Client</button>`
+        : `<button class="btn-red" data-wl-action="new-project">+ New Project</button>`;
+    }
+
+    // Nav row IS the breadcrumb — no separate trail text anymore. Two pills (Dashboard,
+    // Companies) at the top level; drilling into a company/client/project appends more pills
+    // to the same row instead of a second line of plain text nobody could tell was clickable.
+    // Every pill except the current one navigates back to that level on click.
+    const pill = (key, label, active, clickable) => `<div class="wl-tab" ${clickable?`data-wl-crumb="${key}"`:''} style="padding:7px 14px;font-size:12.5px;font-weight:700;border-radius:6px;white-space:nowrap;${clickable?'cursor:pointer;':'cursor:default;'}${active?'background:var(--red);color:#fff;':'color:var(--text-2);'}">${esc(label)}</div>`;
+    let pills = pill('dashboard', 'Dashboard', view==='dashboard', view!=='dashboard')
+              + pill('companies', 'Companies', view==='companies', view!=='companies');
+    if (view === 'company' || view === 'client' || view === 'project' || view === 'onboarding') {
       const c = findCompany(activeCompanyId);
-      crumbs += ` <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="companies">Companies</span> <span style="color:var(--text-3);">/</span> ${esc(c?c.name:'')}`;
-      if (isNotPartnerView()) {
-        if (activeCompanyTab === 'clients') action = `<button class="btn-red" data-wl-action="new-client" data-wl-id="${esc(activeCompanyId)}">+ New Client</button>`;
-        else action = `<button class="btn-red" data-wl-action="new-project">+ New Project</button>`;
-      }
-    } else if (view === 'client') {
-      const c = findCompany(activeCompanyId), cl = findClient(activeCompanyId, activeClientId);
-      crumbs += ` <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="companies">Companies</span> <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="company">${esc(c?c.name:'')}</span> <span style="color:var(--text-3);">/</span> ${esc(cl?cl.name:'')}`;
-    } else if (view === 'project') {
+      if (c) pills += pill('company', c.name, view==='company', view!=='company');
+    }
+    if (view === 'client' || view === 'project' || view === 'onboarding') {
+      const cl = findClient(activeCompanyId, activeClientId);
+      if (cl) pills += pill('client', cl.name, view==='client', view!=='client');
+    }
+    if (view === 'project') {
       const found = findProjectAnywhere(activeProjectId);
-      if (found) crumbs += ` <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="companies">Companies</span> <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="company">${esc(found.company.name)}</span> <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="client">${esc(found.client.name)}</span> <span style="color:var(--text-3);">/</span> ${esc(found.project.name)}`;
-    } else if (view === 'alerts') {
-      crumbs += ` <span style="color:var(--text-3);">/</span> Alerts`;
+      if (found) pills += pill('project', found.project.name, true, false);
     } else if (view === 'onboarding') {
-      const c = findCompany(activeCompanyId), cl = findClient(activeCompanyId, activeClientId);
-      crumbs += ` <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="companies">Companies</span> <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="company">${esc(c?c.name:'')}</span> <span style="color:var(--text-3);">/</span> <span class="wl-crumb" data-wl-crumb="client">${esc(cl?cl.name:'')}</span> <span style="color:var(--text-3);">/</span> Onboarding form`;
+      pills += pill('onboarding', 'Onboarding form', true, false);
+    } else if (view === 'alerts') {
+      pills += pill('alerts', 'Alerts', true, false);
     }
     host.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px;">
-        <div style="font-size:13px;color:var(--text-2);font-weight:600;">${crumbs}</div>
-        <div style="display:flex;gap:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:4px;width:fit-content;">
-          <div class="wl-tab ${view==='dashboard'?'on':''}" data-wl-crumb="dashboard" style="padding:7px 14px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${view==='dashboard'?'background:var(--red);color:#fff;':'color:var(--text-2);'}">Dashboard</div>
-          <div class="wl-tab ${view!=='dashboard'&&view!=='alerts'?'on':''}" data-wl-crumb="companies" style="padding:7px 14px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${view!=='dashboard'&&view!=='alerts'?'background:var(--red);color:#fff;':'color:var(--text-2);'}">Companies</div>
-        </div>
+        <div style="display:flex;gap:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:4px;width:fit-content;flex-wrap:wrap;">${pills}</div>
         <div style="display:flex;gap:10px;align-items:center;">
           ${window._wlPartnerMode ? '' : `<label style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.03em;">
             View as
@@ -13609,10 +13715,7 @@ setupRail('rail2','pill2');
       </div>`;
     host.querySelectorAll('[data-wl-crumb]').forEach(el => el.addEventListener('click', () => {
       const target = el.dataset.wlCrumb;
-      if (target === 'companies' && (view === 'client' || view === 'project' || view === 'onboarding')) {
-        // "Companies" crumb while deep in a client/project still means "back to the list", not the company we came from
-        goTo('companies');
-      } else if (target === 'company') goTo('company', { companyTab: 'clients' });
+      if (target === 'company') goTo('company', { companyTab: 'clients' });
       else if (target === 'client') goTo('client');
       else goTo(target);
     }));
@@ -13640,8 +13743,12 @@ setupRail('rail2','pill2');
       Object.assign(c, { name:v.name.trim(), mainContact:v.mainContact, email:v.email, phone:v.phone, status:v.status });
       companies.push(c);
       await persistCompany(c);
-      if (typeof toast==='function') toast({type:'success', message:'Company added'});
+      if (typeof toast==='function') toast({type:'success', message:'Company added — let’s add their first client'});
       goTo('company', { companyId: c.id, companyTab:'clients' });
+      // Guided flow: company -> client -> project, one screen at a time, instead of making
+      // someone hunt for the "+ New Client" button themselves right after creating a company.
+      // Cancel at any point in the chain just stops here — nothing forces them through it.
+      setTimeout(() => openNewClientModal(c.id, true), 200);
     });
   }
 
@@ -13804,34 +13911,23 @@ setupRail('rail2','pill2');
     `;
   }
   function renderCompanyRow(c) {
-    const totals = companyTotals(c);
     const st = STATUS_INFO[c.status] || STATUS_INFO.not_started;
     const clientCount = (c.clients||[]).length;
-    const stat = (label, value, color) => `<div><div style="font-size:10.5px;color:var(--text-3);text-transform:uppercase;font-weight:700;letter-spacing:.03em;">${esc(label)}</div><div style="font-size:15px;font-weight:700;margin-top:3px;${color?`color:${color};`:''}">${esc(String(value))}</div></div>`;
-    return `<div class="report-row" data-wl-open-company="${esc(c.id)}" style="cursor:pointer;flex-direction:column;align-items:stretch;${c.archived?'opacity:.55;':''}">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;width:100%;">
-        <div style="flex:1;min-width:0;">
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            <span class="report-row-title">${esc(c.name)}</span>
-            ${badge(st)}
-            ${c.archived ? `<span style="background:var(--surface);color:var(--text-3);font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;">Archived</span>` : ''}
-          </div>
-          <div class="report-row-meta" style="margin-top:4px;">${esc(c.mainContact||'No main contact')} ${c.email?'· '+esc(c.email):''}</div>
+    return `<div class="report-row" data-wl-open-company="${esc(c.id)}" style="cursor:pointer;${c.archived?'opacity:.55;':''}">
+      <div class="report-row-main" style="min-width:0;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span class="report-row-title">${esc(c.name)}</span>
+          ${badge(st)}
+          ${c.archived ? `<span style="background:var(--surface);color:var(--text-3);font-size:11px;font-weight:700;padding:4px 9px;border-radius:6px;">Archived</span>` : ''}
         </div>
-        ${isNotPartnerView() ? `<span data-stop-row-click style="display:flex;gap:2px;flex-shrink:0;">
-          <span class="report-row-icon-btn" data-wl-action="edit-company" data-wl-id="${esc(c.id)}" title="Edit"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
-          <span class="report-row-icon-btn" data-wl-action="archive-company" data-wl-id="${esc(c.id)}" title="${c.archived?'Unarchive':'Archive'}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3.5" width="12" height="3" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 6.5V12a1 1 0 001 1h8a1 1 0 001-1V6.5M6.5 9h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>
-        </span>` : ''}
+        <div class="report-row-meta" style="margin-top:4px;">${esc(c.mainContact||'No main contact')} ${c.email?'· '+esc(c.email):''}</div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(${isOwnerView()?7:(isNotPartnerView()?5:2)},1fr);gap:12px;margin-top:14px;">
-        ${stat('Active projects', companyActiveProjectCount(c))}
-        ${stat(isOwnerView()?'Client billed':'Total value', fmtMoney(totals.value))}
-        ${isNotPartnerView() ? stat('Client paid', fmtMoney(totals.paid), '#3ecf8e') : ''}
-        ${isNotPartnerView() ? stat('Client outstanding', fmtMoney(totals.outstanding), totals.outstanding?'#e8a83e':undefined) : ''}
-        ${isOwnerView() ? stat('Partner owed', fmtMoney(totals.partnerPayout)) : ''}
-        ${isOwnerView() ? stat('Partner outstanding', fmtMoney(totals.partnerOutstanding), totals.partnerOutstanding?'#e8a83e':undefined) : ''}
-        ${stat('Clients', clientCount)}
-      </div>
+      <span style="flex-shrink:0;font-size:12.5px;color:var(--text-2);">${companyActiveProjectCount(c)} active project${companyActiveProjectCount(c)===1?'':'s'}</span>
+      <span style="flex-shrink:0;font-size:12.5px;color:var(--text-2);">${clientCount} client${clientCount===1?'':'s'}</span>
+      ${isNotPartnerView() ? `<span data-stop-row-click style="display:flex;gap:2px;flex-shrink:0;">
+        <span class="report-row-icon-btn" data-wl-action="edit-company" data-wl-id="${esc(c.id)}" title="Edit"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
+        <span class="report-row-icon-btn" data-wl-action="archive-company" data-wl-id="${esc(c.id)}" title="${c.archived?'Unarchive':'Archive'}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3.5" width="12" height="3" rx="1" stroke="currentColor" stroke-width="1.3"/><path d="M3 6.5V12a1 1 0 001 1h8a1 1 0 001-1V6.5M6.5 9h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>
+      </span>` : ''}
     </div>`;
   }
   function openEditCompanyModal(id) {
@@ -13862,7 +13958,7 @@ setupRail('rail2','pill2');
     else if (activeCompanyTab === 'access' && isNotPartnerView()) body = renderCompanyAccessTab(c);
     else body = renderCompanyProjectsTab(c);
 
-    const statCols = isOwnerView() ? 7 : (isNotPartnerView() ? 4 : 2);
+    const statCols = isOwnerView() ? 6 : (isNotPartnerView() ? 4 : 2);
     return `
       <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin-bottom:20px;">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:14px;">
@@ -13881,8 +13977,7 @@ setupRail('rail2','pill2');
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">${isOwnerView()?'Client billed':'Total value'}</div><div style="font-size:16px;font-weight:700;margin-top:4px;">${esc(fmtMoney(totals.value))}</div></div>
           ${isNotPartnerView() ? `<div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">${isOwnerView()?'Client paid':'Amount paid'}</div><div style="font-size:16px;font-weight:700;margin-top:4px;">${esc(fmtMoney(totals.paid))}</div></div>
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">${isOwnerView()?'Client outstanding':'Outstanding'}</div><div style="font-size:16px;font-weight:700;margin-top:4px;color:${totals.outstanding?'#e8a83e':'var(--text)'};">${esc(fmtMoney(totals.outstanding))}</div></div>` : ''}
-          ${isOwnerView() ? `<div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Partner owed</div><div style="font-size:16px;font-weight:700;margin-top:4px;">${esc(fmtMoney(totals.partnerPayout))}</div></div>
-          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Partner outstanding</div><div style="font-size:16px;font-weight:700;margin-top:4px;color:${totals.partnerOutstanding?'#e8a83e':'var(--text)'};">${esc(fmtMoney(totals.partnerOutstanding))}</div></div>
+          ${isOwnerView() ? `<div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Pay to partner</div><div style="font-size:16px;font-weight:700;margin-top:4px;color:${totals.partnerOutstanding?'#e8a83e':'var(--text)'};">${esc(fmtMoney(totals.partnerOutstanding))}</div></div>
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Profit</div><div style="font-size:16px;font-weight:700;margin-top:4px;color:#3ecf8e;">${esc(fmtMoney(totals.profit))}</div></div>` : ''}
         </div>
       </div>
@@ -13899,13 +13994,41 @@ setupRail('rail2','pill2');
   }
   function renderClientRow(c, cl) {
     const ob = ONBOARD_STATUS_INFO[cl.onboardingStatus] || ONBOARD_STATUS_INFO.not_sent;
-    return `<div class="report-row" data-wl-open-client="${esc(c.id)}::${esc(cl.id)}" style="cursor:pointer;">
-      <div class="report-row-main">
-        <div class="report-row-title">${esc(cl.name)}${cl.businessName?' — '+esc(cl.businessName):''}</div>
-        <div class="report-row-meta">${esc(cl.email||'No email')} ${cl.phone?'· '+esc(cl.phone):''}</div>
+    // Projects nested right under their client instead of only living in a separate tab —
+    // "where do I add what" was the whole complaint, so a client card should show its own
+    // projects and a way to add one, without hunting through a different tab to find them.
+    // Total amount / Pay to partner editable right here — Luke wanted these editable with
+    // fewer clicks than going project -> Billing tab -> Edit billing every time.
+    const projectsHtml = cl.projects.length ? cl.projects.map(p => {
+      const st = STATUS_INFO[p.status] || STATUS_INFO.not_started;
+      const editable = isNotPartnerView();
+      const payout = (p.billing||{}).partnerPayout || 0;
+      return `<div data-wl-open-project="${esc(p.id)}" style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:8px 12px;border-radius:7px;background:var(--surface);margin-top:6px;cursor:pointer;">
+        <span style="font-size:12.5px;color:var(--text);flex:1;min-width:0;">${esc(p.name)}</span>
+        ${editable ? `<span data-stop-row-click style="display:flex;align-items:center;gap:12px;flex-shrink:0;">
+          <label style="display:flex;flex-direction:column;gap:2px;">
+            <span style="font-size:9.5px;color:var(--text-3);text-transform:uppercase;font-weight:700;">Total amount</span>
+            <input type="number" data-wl-inline-price data-wl-id="${esc(p.id)}" value="${esc(p.price)}" style="width:88px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:6px;padding:5px 7px;color:var(--text);font-size:12px;">
+          </label>
+          <label style="display:flex;flex-direction:column;gap:2px;">
+            <span style="font-size:9.5px;color:var(--text-3);text-transform:uppercase;font-weight:700;">Pay to partner</span>
+            <input type="number" data-wl-inline-payout data-wl-id="${esc(p.id)}" value="${esc(payout)}" style="width:88px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:6px;padding:5px 7px;color:var(--text);font-size:12px;">
+          </label>
+        </span>` : `<span style="flex-shrink:0;font-size:12.5px;color:#3ecf8e;font-weight:700;">${esc(fmtMoney(payout))}</span>`}
+        ${badge(st)}
+      </div>`;
+    }).join('') : '';
+    return `<div class="report-row" data-wl-open-client="${esc(c.id)}::${esc(cl.id)}" style="cursor:pointer;flex-direction:column;align-items:stretch;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div class="report-row-main" style="flex:1;min-width:0;">
+          <div class="report-row-title">${esc(cl.name)}${cl.businessName?' — '+esc(cl.businessName):''}</div>
+          <div class="report-row-meta">${esc(cl.email||'No email')} ${cl.phone?'· '+esc(cl.phone):''}</div>
+        </div>
+        ${(!isNotPartnerView() && cl.projects.length > 1) ? `<span style="flex-shrink:0;font-size:11.5px;color:#3ecf8e;font-weight:700;">${esc(fmtMoney(cl.projects.reduce((s,p)=>s+(Number((p.billing||{}).partnerPayout)||0),0)))} total</span>` : ''}
+        <span style="flex-shrink:0;">${badge(ob)}</span>
+        ${isNotPartnerView() ? `<span data-stop-row-click data-wl-action="add-project-for-client" data-wl-id="${esc(cl.id)}" style="flex-shrink:0;font-size:11.5px;font-weight:700;color:var(--red);cursor:pointer;">+ Add project</span>` : ''}
       </div>
-      <span style="flex-shrink:0;font-size:11.5px;color:var(--text-3);">${cl.projects.length} project${cl.projects.length===1?'':'s'}</span>
-      <span style="flex-shrink:0;">${badge(ob)}</span>
+      ${projectsHtml ? `<div style="margin-top:8px;">${projectsHtml}</div>` : (isNotPartnerView() ? `<div style="margin-top:8px;font-size:12px;color:var(--text-3);">No projects yet.</div>` : '')}
     </div>`;
   }
   function renderCompanyProjectsTab(c) {
@@ -13929,9 +14052,9 @@ setupRail('rail2','pill2');
       </div>
     `;
   }
-  function openNewClientModal(companyId) {
+  function openNewClientModal(companyId, wizard) {
     if (!isNotPartnerView()) return;
-    openWlModal('Add Client', [
+    openWlModal(wizard ? 'Add their first client (optional — Cancel to skip)' : 'Add Client', [
       { key:'name', label:'Client name', value:'' },
       { key:'businessName', label:'Business name', value:'' },
       { key:'email', label:'Email', type:'email', value:'' },
@@ -13945,11 +14068,12 @@ setupRail('rail2','pill2');
       Object.assign(cl, { name:v.name.trim(), businessName:v.businessName, email:v.email, phone:v.phone, website:v.website, mainContact:v.name.trim(), summary:v.summary });
       c.clients.push(cl);
       await persistClient(cl);
-      if (typeof toast==='function') toast({type:'success', message:'Client added'});
+      if (typeof toast==='function') toast({type:'success', message: wizard ? 'Client added — let’s add their first project' : 'Client added'});
       goTo('client', { companyId, clientId: cl.id });
       // Same process as "Send form" on the client page — generate the real onboarding
       // link right away so it's ready the moment the client detail page loads.
       ensureOnboardingLink(cl).then(async result => { await persistClient(cl); render(); if (result && typeof toast==='function') toast({type:'success', message:'Onboarding link ready — copy it from the client page.'}); });
+      if (wizard) setTimeout(() => openNewProjectModal(true), 200);
     });
   }
 
@@ -14178,7 +14302,9 @@ setupRail('rail2','pill2');
   }
 
   // ---- Project detail (tabbed: Milestones / Scope / Team / Notes / Files / Billing) ----
-  const PROJECT_TABS = [ ['milestones','Milestones'], ['scope','Scope'], ['team','Team'], ['notes','Notes'], ['files','Files'], ['billing','Billing'] ];
+  // Scope + Team merged into one "Details" tab — both are set-once-and-rarely-touched info,
+  // and 6 separate tabs for one project was exactly the "too much, too confusing" complaint.
+  const PROJECT_TABS = [ ['milestones','Milestones'], ['details','Details'], ['notes','Notes'], ['files','Files'], ['billing','Billing'] ];
   function renderProjectDetail() {
     const found = findProjectAnywhere(activeProjectId);
     if (!found) return `<div style="padding:40px;text-align:center;color:var(--text-3);">Project not found.</div>`;
@@ -14189,8 +14315,7 @@ setupRail('rail2','pill2');
     const tabsHtml = PROJECT_TABS.map(([key,label]) => `<div class="wl-ctab" data-wl-project-tab="${key}" style="padding:8px 15px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${activeProjectTab===key?'background:var(--red);color:#fff;':'color:var(--text-2);'}">${esc(label)}</div>`).join('');
     let body = '';
     if (activeProjectTab === 'milestones') body = renderMilestonesTab(project);
-    else if (activeProjectTab === 'scope') body = renderScopeTab(project);
-    else if (activeProjectTab === 'team') body = renderProjectTeamTab(company, project);
+    else if (activeProjectTab === 'details') body = renderProjectTeamTab(company, project) + '<div style="margin-top:18px;">' + renderScopeTab(project) + '</div>';
     else if (activeProjectTab === 'notes') body = renderNotesSection(project.notes, { scope:'project', projectId:project.id });
     else if (activeProjectTab === 'files') body = renderFilesSection(project.files, { scope:'project', projectId:project.id });
     else if (activeProjectTab === 'billing') body = renderProjectBillingTab(project);
@@ -14229,7 +14354,7 @@ setupRail('rail2','pill2');
   function renderMilestonesTab(project) {
     return `
       <div style="display:flex;justify-content:flex-end;margin-bottom:12px;gap:8px;">
-        ${isNotPartnerView() ? `<button class="btn-outline" id="wlAddDefaultMilestonesBtn" style="padding:7px 13px;border-radius:7px;border:1px solid var(--line-2);color:var(--text-2);font-size:12px;font-weight:700;cursor:pointer;background:transparent;">+ Insert missing defaults</button>
+        ${canEditContent() ? `<button class="btn-outline" id="wlAddDefaultMilestonesBtn" style="padding:7px 13px;border-radius:7px;border:1px solid var(--line-2);color:var(--text-2);font-size:12px;font-weight:700;cursor:pointer;background:transparent;">+ Insert missing defaults</button>
         <button class="btn-red" id="wlAddMilestoneBtn" style="padding:7px 13px;font-size:12px;">+ Add Milestone</button>` : ''}
       </div>
       <div id="wlMilestonesList" style="display:flex;flex-direction:column;gap:8px;">${renderMilestonesList(project)}</div>
@@ -14240,7 +14365,7 @@ setupRail('rail2','pill2');
     // A milestone's current assignee might not be on the project team (e.g. removed since), so
     // it still needs an option in its own dropdown or the value would silently reset on render.
     const withCustomAssignee = (m) => assigneeOptions.some(o=>o.value===m.assignee) || !m.assignee ? assigneeOptions : [...assigneeOptions, {value:m.assignee,label:m.assignee+' (not on project team)'}];
-    const editable = isNotPartnerView();
+    const editable = canEditContent();
     return (project.milestones||[]).map((m, i) => {
       const done = m.status === 'completed';
       const circle = `<span ${editable?`data-wl-action="ms-toggle-done" data-wl-id="${esc(m.id)}"`:''} style="width:24px;height:24px;border-radius:50%;border:2px solid ${done?'#3ecf8e':'#4a4a4d'};background:${done?'#3ecf8e':'transparent'};display:flex;align-items:center;justify-content:center;flex-shrink:0;${editable?'cursor:pointer;':''}">${done?'<span style="color:#fff;font-size:13px;font-weight:800;line-height:1;">✓</span>':''}</span>`;
@@ -14281,26 +14406,30 @@ setupRail('rail2','pill2');
 
   // -- Scope tab --
   function renderScopeTab(project) {
-    const editable = isNotPartnerView();
-    const line = (text, idx, key) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px;">
-      <span>${esc(text)}</span>
-      ${editable ? `<span data-wl-action="scope-remove" data-wl-scope-key="${key}" data-wl-scope-idx="${idx}" style="cursor:pointer;color:var(--text-3);font-weight:800;">×</span>` : ''}
+    const editable = canEditContent();
+    const line = (text, idx, key, total) => `<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--line);font-size:13px;gap:8px;">
+      <span style="flex:1;min-width:0;">${esc(text)}</span>
+      ${editable ? `<span style="display:flex;gap:6px;align-items:center;flex-shrink:0;">
+        <span data-wl-action="scope-up" data-wl-scope-key="${key}" data-wl-scope-idx="${idx}" style="cursor:${idx===0?'default':'pointer'};color:${idx===0?'var(--line-2)':'var(--text-3)'};font-weight:700;font-size:12px;">↑</span>
+        <span data-wl-action="scope-down" data-wl-scope-key="${key}" data-wl-scope-idx="${idx}" style="cursor:${idx===total-1?'default':'pointer'};color:${idx===total-1?'var(--line-2)':'var(--text-3)'};font-weight:700;font-size:12px;">↓</span>
+        <span data-wl-action="scope-remove" data-wl-scope-key="${key}" data-wl-scope-idx="${idx}" style="cursor:pointer;color:var(--text-3);font-weight:800;">×</span>
+      </span>` : ''}
     </div>`;
     const scope = project.scope || (project.scope = { included:[], excluded:[] });
     return `
-      <div style="margin-bottom:18px;">
+      ${editable ? `<div style="margin-bottom:18px;">
         <div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Project price</div>
         <div style="font-size:24px;font-weight:800;margin-top:4px;">${esc(fmtMoney(project.price))}</div>
-      </div>
+      </div>` : ''}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
         <div style="background:#2a4a3a22;border:1px solid #2a4a3a;border-radius:10px;padding:16px 18px;">
           <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#3ecf8e;margin-bottom:10px;">Included in this project</div>
-          ${(scope.included||[]).length ? scope.included.map((t,i)=>line(t,i,'included')).join('') : `<div style="font-size:12.5px;color:var(--text-3);">Nothing added yet.</div>`}
+          ${(scope.included||[]).length ? scope.included.map((t,i,arr)=>line(t,i,'included',arr.length)).join('') : `<div style="font-size:12.5px;color:var(--text-3);">Nothing added yet.</div>`}
           ${editable ? `<div style="display:flex;gap:6px;margin-top:10px;"><input type="text" placeholder="+ Add..." data-wl-scope-input="included" style="flex:1;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 9px;color:var(--text);font-size:12.5px;"><span data-wl-action="scope-add" data-wl-scope-key="included" style="cursor:pointer;background:#3ecf8e;color:#0e1f16;font-size:11.5px;font-weight:700;padding:7px 12px;border-radius:6px;">Add</span></div>` : ''}
         </div>
         <div style="background:#4a262222;border:1px solid #4a2622;border-radius:10px;padding:16px 18px;">
           <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:#ff6b5c;margin-bottom:10px;">Not included / out of scope</div>
-          ${(scope.excluded||[]).length ? scope.excluded.map((t,i)=>line(t,i,'excluded')).join('') : `<div style="font-size:12.5px;color:var(--text-3);">Nothing added yet.</div>`}
+          ${(scope.excluded||[]).length ? scope.excluded.map((t,i,arr)=>line(t,i,'excluded',arr.length)).join('') : `<div style="font-size:12.5px;color:var(--text-3);">Nothing added yet.</div>`}
           ${editable ? `<div style="display:flex;gap:6px;margin-top:10px;"><input type="text" placeholder="+ Add..." data-wl-scope-input="excluded" style="flex:1;background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:7px 9px;color:var(--text);font-size:12.5px;"><span data-wl-action="scope-add" data-wl-scope-key="excluded" style="cursor:pointer;background:#ff6b5c;color:#2b0e0a;font-size:11.5px;font-weight:700;padding:7px 12px;border-radius:6px;">Add</span></div>` : ''}
         </div>
       </div>
@@ -14309,7 +14438,7 @@ setupRail('rail2','pill2');
 
   // -- Team tab --
   function renderProjectTeamTab(company, project) {
-    const editable = isNotPartnerView();
+    const editable = canEditContent();
     return `
       <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:16px 18px;">
         <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Assigned team members</div>
@@ -14370,13 +14499,13 @@ setupRail('rail2','pill2');
     `;
   }
 
-  function openNewProjectModal() {
+  function openNewProjectModal(wizard) {
     if (!isNotPartnerView()) return;
     const c = findCompany(activeCompanyId); if (!c) return;
     const clientOptions = (c.clients||[]).map(cl => ({value:cl.id, label:cl.name}));
     if (!clientOptions.length) { if (typeof toast==='function') toast({type:'error', message:'Add a client first, then a project.'}); return; }
     const defaultClientId = (activeClientId && c.clients.some(cl=>cl.id===activeClientId)) ? activeClientId : clientOptions[0].value;
-    openWlModal('Add Project', [
+    openWlModal(wizard ? 'Add their first project (optional — Cancel to skip)' : 'Add Project', [
       { key:'clientId', label:'Client', type:'select', value: defaultClientId, options: clientOptions },
       { key:'name', label:'Project name', value:'' },
       { key:'type', label:'Project type', type:'select', value:'New Website', options: PROJECT_TYPES.map(t=>({value:t,label:t})) },
@@ -14394,7 +14523,7 @@ setupRail('rail2','pill2');
       p.billing.partnerPayout = Number(v.price) || 0;
       cl.projects.push(p);
       await persistProject(p);
-      if (typeof toast==='function') toast({type:'success', message:'Project added'});
+      if (typeof toast==='function') toast({type:'success', message: wizard ? 'All set — company, client, and first project are ready' : 'Project added'});
       goTo('project', { projectId: p.id });
     });
   }
@@ -14442,14 +14571,14 @@ setupRail('rail2','pill2');
           <div style="display:flex;justify-content:space-between;align-items:center;">
             <div style="font-size:11.5px;color:var(--text-3);">${esc(n.author)} · ${esc(fmtDate(n.date))}</div>
             <div style="display:flex;gap:8px;align-items:center;">
-              ${isNotPartnerView() ? `<span data-wl-action="toggle-pin-note" data-wl-ctx='${esc(JSON.stringify(ctx))}' data-wl-note-id="${esc(n.id)}" title="${n.pinned?'Unpin':'Pin'}" style="cursor:pointer;color:${n.pinned?'var(--red)':'var(--text-3)'};font-size:12px;">📌</span>` : ''}
+              ${canEditContent() ? `<span data-wl-action="toggle-pin-note" data-wl-ctx='${esc(JSON.stringify(ctx))}' data-wl-note-id="${esc(n.id)}" title="${n.pinned?'Unpin':'Pin'}" style="cursor:pointer;color:${n.pinned?'var(--red)':'var(--text-3)'};font-size:12px;">📌</span>` : ''}
               <span style="background:${n.visibility==='partner'?'rgba(94,158,255,.15)':'var(--surface)'};color:${n.visibility==='partner'?'#5b9dff':'var(--text-3)'};font-size:10.5px;font-weight:700;padding:3px 7px;border-radius:5px;">${n.visibility==='partner'?'Partner visible':'Internal'}</span>
-              ${isNotPartnerView() ? `<span data-wl-action="delete-note" data-wl-ctx='${esc(JSON.stringify(ctx))}' data-wl-note-id="${esc(n.id)}" title="Delete" style="cursor:pointer;color:var(--red);font-size:11px;font-weight:700;">✕</span>` : ''}
+              ${canEditContent() ? `<span data-wl-action="delete-note" data-wl-ctx='${esc(JSON.stringify(ctx))}' data-wl-note-id="${esc(n.id)}" title="Delete" style="cursor:pointer;color:var(--red);font-size:11px;font-weight:700;">✕</span>` : ''}
             </div>
           </div>
           <div style="font-size:13px;color:var(--text-2);margin-top:6px;">${esc(n.content)}</div>
         </div>`).join('') : `<div style="font-size:12.5px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:16px;text-align:center;">${q?'No notes match your search.':'No notes yet.'}</div>`}
-        ${isNotPartnerView() ? `<button data-wl-action="new-note" data-wl-ctx='${esc(JSON.stringify(ctx))}' style="text-align:center;padding:9px;border-radius:8px;border:1.5px dashed var(--line-2);font-size:12.5px;font-weight:700;color:var(--text-2);cursor:pointer;background:transparent;">+ Add note</button>` : ''}
+        ${canEditContent() ? `<button data-wl-action="new-note" data-wl-ctx='${esc(JSON.stringify(ctx))}' style="text-align:center;padding:9px;border-radius:8px;border:1.5px dashed var(--line-2);font-size:12.5px;font-weight:700;color:var(--text-2);cursor:pointer;background:transparent;">+ Add note</button>` : ''}
       </div>
     `;
   }
@@ -14461,10 +14590,10 @@ setupRail('rail2','pill2');
           <span style="font-weight:600;">${esc(f.name)}</span>
           <span style="display:flex;align-items:center;gap:8px;">
             <span style="color:var(--text-3);font-size:11px;">${esc(f.category)}${f.milestoneName?' · '+esc(f.milestoneName):''}</span>
-            ${isNotPartnerView() ? `<span data-wl-action="delete-file" data-wl-ctx='${esc(JSON.stringify(ctx))}' data-wl-file-id="${esc(f.id)}" title="Delete" style="cursor:pointer;color:var(--red);font-weight:700;">✕</span>` : ''}
+            ${canEditContent() ? `<span data-wl-action="delete-file" data-wl-ctx='${esc(JSON.stringify(ctx))}' data-wl-file-id="${esc(f.id)}" title="Delete" style="cursor:pointer;color:var(--red);font-weight:700;">✕</span>` : ''}
           </span>
         </div>`).join('') : `<div style="font-size:12.5px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:16px;text-align:center;">No files yet.</div>`}
-        ${isNotPartnerView() ? `<button data-wl-action="new-file" data-wl-ctx='${esc(JSON.stringify(ctx))}' style="text-align:center;padding:9px;border-radius:8px;border:1.5px dashed var(--line-2);font-size:12.5px;font-weight:700;color:var(--text-2);cursor:pointer;background:transparent;">+ Add file</button>` : ''}
+        ${canEditContent() ? `<button data-wl-action="new-file" data-wl-ctx='${esc(JSON.stringify(ctx))}' style="text-align:center;padding:9px;border-radius:8px;border:1.5px dashed var(--line-2);font-size:12.5px;font-weight:700;color:var(--text-2);cursor:pointer;background:transparent;">+ Add file</button>` : ''}
       </div>
     `;
   }
@@ -14474,7 +14603,7 @@ setupRail('rail2','pill2');
     return null;
   }
   function openNewNoteModal(ctx) {
-    if (!isNotPartnerView()) return;
+    if (!canEditContent()) return;
     openWlModal('Add Note', [
       { key:'content', label:'Note', type:'textarea', value:'' },
       { key:'visibility', label:'Visibility', type:'select', value:'internal', options:[{value:'internal',label:'Internal only'},{value:'partner',label:'Partner visible'}] },
@@ -14489,7 +14618,7 @@ setupRail('rail2','pill2');
     });
   }
   function togglePinNote(ctx, noteId) {
-    if (!isNotPartnerView()) return;
+    if (!canEditContent()) return;
     const target = resolveNoteTarget(ctx); if (!target) return;
     const n = (target.notes||[]).find(x => x.id === noteId); if (!n) return;
     n.pinned = !n.pinned;
@@ -14497,7 +14626,7 @@ setupRail('rail2','pill2');
     render();
   }
   async function deleteNote(ctx, noteId) {
-    if (!isNotPartnerView()) return;
+    if (!canEditContent()) return;
     const target = resolveNoteTarget(ctx); if (!target) return;
     const confirmed = await window.giantConfirmWarn('Delete this note?', "This can't be undone.", 'Delete', 'warning');
     if (!confirmed) return;
@@ -14507,7 +14636,7 @@ setupRail('rail2','pill2');
     render();
   }
   function openNewFileModal(ctx) {
-    if (!isNotPartnerView()) return;
+    if (!canEditContent()) return;
     const target = resolveNoteTarget(ctx);
     const milestoneOpts = (ctx.scope === 'project' && target && target.milestones && target.milestones.length)
       ? [{value:'',label:'General (not milestone-specific)'}, ...target.milestones.map(m=>({value:m.id,label:m.name}))] : null;
@@ -14527,7 +14656,7 @@ setupRail('rail2','pill2');
     });
   }
   async function deleteFile(ctx, fileId) {
-    if (!isNotPartnerView()) return;
+    if (!canEditContent()) return;
     const target = resolveNoteTarget(ctx); if (!target) return;
     const confirmed = await window.giantConfirmWarn('Delete this file?', "This can't be undone.", 'Delete', 'warning');
     if (!confirmed) return;
@@ -14563,14 +14692,37 @@ setupRail('rail2','pill2');
     if (!host) return;
 
     host.querySelectorAll('[data-wl-open-company]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('[data-stop-row-click]')) return; goTo('company', { companyId: el.dataset.wlOpenCompany, companyTab:'clients' }); }));
-    host.querySelectorAll('[data-wl-open-client]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('[data-stop-row-click]')) return; const [companyId, clientId] = el.dataset.wlOpenClient.split('::'); goTo('client', { companyId, clientId }); }));
-    host.querySelectorAll('[data-wl-open-project]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('[data-stop-row-click]')) return; goTo('project', { projectId: el.dataset.wlOpenProject }); }));
+    host.querySelectorAll('[data-wl-open-client]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('[data-stop-row-click]') || e.target.closest('[data-wl-open-project]')) return; const [companyId, clientId] = el.dataset.wlOpenClient.split('::'); goTo('client', { companyId, clientId }); }));
+    host.querySelectorAll('[data-wl-open-project]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('[data-stop-row-click]')) return; e.stopPropagation(); goTo('project', { projectId: el.dataset.wlOpenProject }); }));
 
     host.querySelectorAll('[data-wl-action="edit-company"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); openEditCompanyModal(el.dataset.wlId || activeCompanyId); }));
     host.querySelectorAll('[data-wl-action="archive-company"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); if (!isNotPartnerView()) return; const c = findCompany(el.dataset.wlId || activeCompanyId); if (c) { c.archived = !c.archived; persistCompany(c); if (typeof toast==='function') toast({type:'success', message: c.archived?'Company archived':'Company unarchived'}); render(); } }));
     host.querySelectorAll('[data-wl-action="add-company-member"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); if (!isNotPartnerView()) return; openAddCompanyMemberModal(activeCompanyId); }));
     host.querySelectorAll('[data-wl-action="remove-company-member"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); if (!isNotPartnerView()) return; removeCompanyMember(activeCompanyId, el.dataset.wlId); }));
+    host.querySelectorAll('[data-wl-member-access]').forEach(el => el.addEventListener('change', (e) => { e.stopPropagation(); if (!isNotPartnerView()) return; setCompanyMemberAccessLevel(activeCompanyId, el.dataset.wlMemberAccess, el.value); }));
     host.querySelectorAll('[data-wl-action="new-client"]').forEach(el => el.addEventListener('click', () => openNewClientModal(el.dataset.wlId)));
+    host.querySelectorAll('[data-wl-action="add-project-for-client"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); if (!isNotPartnerView()) return; activeClientId = el.dataset.wlId; openNewProjectModal(); }));
+    host.querySelectorAll('[data-wl-inline-price]').forEach(el => {
+      el.addEventListener('click', e => e.stopPropagation());
+      el.addEventListener('change', () => {
+        if (!isNotPartnerView()) return;
+        const found = findProjectAnywhere(el.dataset.wlId); if (!found) return;
+        found.project.price = Number(el.value) || 0;
+        persistProject(found.project);
+        render();
+      });
+    });
+    host.querySelectorAll('[data-wl-inline-payout]').forEach(el => {
+      el.addEventListener('click', e => e.stopPropagation());
+      el.addEventListener('change', () => {
+        if (!isNotPartnerView()) return;
+        const found = findProjectAnywhere(el.dataset.wlId); if (!found) return;
+        found.project.billing = found.project.billing || {};
+        found.project.billing.partnerPayout = Number(el.value) || 0;
+        persistProject(found.project);
+        render();
+      });
+    });
     host.querySelectorAll('[data-wl-action="edit-client"]').forEach(el => el.addEventListener('click', openEditClientModal));
     host.querySelectorAll('[data-wl-action="send-onboarding"]').forEach(el => el.addEventListener('click', copyOnboardingLink));
     host.querySelectorAll('[data-wl-action="open-onboarding"]').forEach(el => el.addEventListener('click', openOnboardingForm));
@@ -14595,7 +14747,7 @@ setupRail('rail2','pill2');
     if (noteSearchInput) { let t=null; noteSearchInput.addEventListener('input', () => { noteSearch = noteSearchInput.value; clearTimeout(t); t = setTimeout(render, 200); }); }
 
     host.querySelectorAll('[data-wl-company-tab]').forEach(el => el.addEventListener('click', () => goTo('company', { companyTab: el.dataset.wlCompanyTab })));
-    host.querySelectorAll('[data-wl-project-tab]').forEach(el => el.addEventListener('click', () => { activeProjectTab = el.dataset.wlProjectTab; milestoneLinkEditing = null; render(); }));
+    host.querySelectorAll('[data-wl-project-tab]').forEach(el => el.addEventListener('click', () => { activeProjectTab = el.dataset.wlProjectTab; milestoneLinkEditing = null; saveWlNavState(); render(); }));
 
     const searchInput = $('wlCompanySearch');
     if (searchInput) { let t=null; searchInput.addEventListener('input', () => { companySearch = searchInput.value; clearTimeout(t); t = setTimeout(() => { host.innerHTML = renderCompaniesList(); wireContent(); }, 200); }); }
@@ -14637,6 +14789,18 @@ setupRail('rail2','pill2');
       const f = findProjectAnywhere(activeProjectId); if (!f) return;
       const key = el.dataset.wlScopeKey, idx = Number(el.dataset.wlScopeIdx);
       if (f.project.scope && f.project.scope[key]) { f.project.scope[key].splice(idx, 1); persistProject(f.project); render(); }
+    }));
+    host.querySelectorAll('[data-wl-action="scope-up"]').forEach(el => el.addEventListener('click', () => {
+      const f = findProjectAnywhere(activeProjectId); if (!f) return;
+      const key = el.dataset.wlScopeKey, idx = Number(el.dataset.wlScopeIdx);
+      const list = f.project.scope && f.project.scope[key];
+      if (list && idx > 0) { [list[idx-1], list[idx]] = [list[idx], list[idx-1]]; persistProject(f.project); render(); }
+    }));
+    host.querySelectorAll('[data-wl-action="scope-down"]').forEach(el => el.addEventListener('click', () => {
+      const f = findProjectAnywhere(activeProjectId); if (!f) return;
+      const key = el.dataset.wlScopeKey, idx = Number(el.dataset.wlScopeIdx);
+      const list = f.project.scope && f.project.scope[key];
+      if (list && idx < list.length - 1) { [list[idx+1], list[idx]] = [list[idx], list[idx+1]]; persistProject(f.project); render(); }
     }));
 
     // Milestones
@@ -14700,7 +14864,7 @@ setupRail('rail2','pill2');
     host.querySelectorAll('[data-wl-action="ms-delete"]').forEach(el => el.addEventListener('click', async () => { const f = findProjectAnywhere(activeProjectId); if (!f) return; const confirmed = await window.giantConfirmWarn('Delete this milestone?', "This can't be undone.", 'Delete', 'warning'); if (!confirmed) return; f.project.milestones = f.project.milestones.filter(m=>m.id!==el.dataset.wlId); persistProject(f.project); render(); }));
   }
 
-  window.wlInit = function() { if (!wlLoaded && !wlLoading) loadWlData(); else render(); };
+  window.wlInit = function() { if (!wlLoaded && !wlLoading) { restoreWlNavState(); loadWlData(); } else render(); };
 })();
 
 /* ===== CHAT 2.0 =====
@@ -26906,10 +27070,14 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     // hidden by the module's own data-role-min="manager" and only gets unhidden once we know
     // this account actually has at least one company membership.
     if (!['owner', 'manager', 'inhouse_dev'].includes(profile.role) && window.giantSupabase) {
-      window.giantSupabase.from('white_label_company_members').select('company_id').eq('profile_id', profile.id).then(({ data }) => {
+      window.giantSupabase.from('white_label_company_members').select('company_id, access_level').eq('profile_id', profile.id).then(({ data }) => {
         if (data && data.length) {
           document.querySelectorAll('[data-screen="whitelabel"]').forEach(el => el.removeAttribute('data-role-min'));
           window._wlPartnerMode = true;
+          // A partner is only ever added to one company in practice, but if they somehow had
+          // write access to any of their companies, let content edits through — the DB still
+          // enforces this per-company regardless of what the UI decides to show.
+          window._wlPartnerCanEdit = data.some(r => r.access_level === 'can_edit');
         }
       });
     }
