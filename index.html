@@ -21440,11 +21440,15 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
   /* ---- Lunch button ---- */
   const lunchBtn = document.getElementById('tpLunchBtn');
   if (lunchBtn) lunchBtn.addEventListener('click', async () => {
+    // NOTE: this used to also post "taking lunch" / "back from lunch" messages to ReachGiant
+    // Home — disabled for now (wasn't working reliably); time tracking + the lunch button's own
+    // state still work as before. Only the End of Day report should auto-post a message, to
+    // #daily-checkout, nothing else. See getHomeChannelId() below (now unused, kept in case this
+    // gets re-enabled).
     if (_tpDayState.lunch.active) {
       // End lunch
       const elapsedMs = Date.now() - _tpDayState.lunch.startedAt;
       const elapsedMin = Math.floor(elapsedMs / 60000);
-      const lunchMsgId = _tpDayState.lunch.messageId;
       _tpDayState.lunch = { active: false, startedAt: null };
       saveTpDayState();
       updateLunchBreakUI();
@@ -21462,18 +21466,6 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
           notes: 'Lunch break'
         }).then(() => {});
       }
-      // Reply "back from lunch" in the same thread as the "taking lunch" message, if we posted one
-      if (lunchMsgId && window.giantSupabase && window.giantSession) {
-        const homeId = await getHomeChannelId();
-        if (homeId) {
-          window.giantSupabase.from('messages').insert({
-            channel_id: homeId,
-            author_id: window.giantSession.user.id,
-            parent_id: lunchMsgId,
-            body: '✅ back from lunch'
-          }).then(() => {});
-        }
-      }
       toast({type:'info', message:'Lunch logged · ' + elapsedMin + ' min', duration:2500});
     } else {
       // Start lunch
@@ -21485,23 +21477,6 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
       saveTpDayState();
       updateLunchBreakUI();
       toast({type:'success', message:'Lunch started 🍽️', duration:2000});
-      // Post to ReachGiant Home so the team sees it, and remember the message id so
-      // "back from lunch" (above) can reply in the same thread instead of a new post.
-      if (window.giantSupabase && window.giantSession) {
-        const homeId = await getHomeChannelId();
-        if (homeId) {
-          const name = (window.giantCurrentProfile && (window.giantCurrentProfile.full_name || window.giantCurrentProfile.email)) || 'Someone';
-          const { data } = await window.giantSupabase.from('messages').insert({
-            channel_id: homeId,
-            author_id: window.giantSession.user.id,
-            body: '🍽️ ' + name + ' is taking lunch'
-          }).select().single();
-          if (data) {
-            _tpDayState.lunch.messageId = data.id;
-            saveTpDayState();
-          }
-        }
-      }
     }
   });
 
