@@ -10319,6 +10319,10 @@ function enterApp(){
 })();
 
 /* app nav */
+// Set to true right before programmatically clicking a nav item (restoring on load, or
+// responding to a browser back/forward popstate) so that click doesn't push ANOTHER history
+// entry on top of the one the browser just navigated to / the one we're restoring into.
+let _giantSkipNextHistoryPush = false;
 function setupRail(railId,pillId){
   const rail=document.getElementById(railId);
   const pill=document.getElementById(pillId);
@@ -10342,6 +10346,14 @@ function setupRail(railId,pillId){
     if(scr==='chat2' && window.chat2Init) window.chat2Init();
     // Persist active screen for refresh
     try { localStorage.setItem('giant_active_screen', scr); } catch(e) {}
+    // Push a browser history entry per screen switch so the back/forward buttons move
+    // between in-app screens instead of leaving the app. Skipped when this click was itself
+    // triggered by a popstate (back/forward) or by the on-load restore, to avoid double-pushing.
+    if (_giantSkipNextHistoryPush) {
+      _giantSkipNextHistoryPush = false;
+    } else {
+      try { history.pushState({ giantScreen: scr }, '', location.pathname + location.search); } catch(e) {}
+    }
   }));
 }
 setupRail('rail','pill');
@@ -10350,6 +10362,14 @@ setupRail('railComms','pillComms');
 setupRail('railBusiness','pillBusiness');
 setupRail('railTools','pillTools');
 setupRail('rail2','pill2');
+
+// Browser back/forward → switch in-app screen instead of navigating away from the SPA.
+window.addEventListener('popstate', (e) => {
+  const scr = e.state && e.state.giantScreen;
+  if (!scr) return;
+  const navItem = document.querySelector('.nav-item[data-screen="' + scr + '"]');
+  if (navItem) { _giantSkipNextHistoryPush = true; navItem.click(); }
+});
 
 /* Collapsible nav groups (Overview / Work / Comms / Business / Tools / System) */
 (function navGroups(){
@@ -28755,15 +28775,28 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       // (timezones, integrations, etc. can stay; just hide team management bits)
     }
 
-    // Restore the previously active screen (or default to Daily Focus)
+    // Restore the previously active screen on refresh (or default to Daily Focus).
+    // Retries instead of a single blind setTimeout — the nav item we're looking for may not
+    // exist yet (role-based nav rendering, rail wiring) at the 100ms mark, which was silently
+    // dropping the restore and leaving the user on the default screen after every reload.
     try {
       const savedScreen = localStorage.getItem('giant_active_screen');
       if (savedScreen) {
-        // Defer until DOM nav is wired up
-        setTimeout(() => {
+        const tryRestore = (attempt) => {
           const navItem = document.querySelector('.nav-item[data-screen="' + savedScreen + '"]');
-          if (navItem) navItem.click();
-        }, 100);
+          if (navItem) {
+            _giantSkipNextHistoryPush = true;
+            navItem.click();
+            try { history.replaceState({ giantScreen: savedScreen }, '', location.pathname + location.search); } catch(e) {}
+          } else if (attempt < 30) {
+            setTimeout(() => tryRestore(attempt + 1), 100);
+          }
+        };
+        tryRestore(0);
+      } else {
+        // No saved screen (first-ever load) — the default screen baked into the HTML
+        // (Team Pulse) still needs a history entry so back/forward has something to work with.
+        history.replaceState({ giantScreen: 'pulse' }, '', location.pathname + location.search);
       }
     } catch(e) {}
 
@@ -34773,6 +34806,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--pane);border:1px solid var(--line-2);border-radius:9px;box-shadow:0 14px 36px -10px rgba(0,0,0,.55);padding:5px;z-index:9999;min-width:180px;font-family:inherit;`;
       const muteIcon = isMuted ? '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 6.5v3h2.5L8 12V4L4.5 6.5H2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M11 6c.7.6 1 1.3 1 2s-.3 1.4-1 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>' : '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 6.5v3h2.5L8 12V4L4.5 6.5H2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M11 5.5L14 8.5M14 5.5L11 8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
       menu.innerHTML = `
+        <div class="channel-ctx-item" data-action="mark_unread" style="display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--text);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3.2" fill="currentColor"/></svg>Mark as unread</div>
         <div class="channel-ctx-item" data-action="mute" style="display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--text);">${muteIcon}${isMuted ? 'Unmute channel' : 'Mute channel'}</div>
         <div class="channel-ctx-item" data-action="invite" style="display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--text);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M1.5 14c.6-2.5 2.4-3.5 4.5-3.5M11 6.5v4M13 8.5h-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Invite people</div>
         <div class="channel-ctx-item" data-action="rename" style="display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--text);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 3l2 2-8 8H3v-2l8-8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Rename channel</div>
@@ -34792,7 +34826,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         it.addEventListener('click', async () => {
           const act = it.dataset.action;
           menu.remove();
-          if (act === 'mute') {
+          if (act === 'mark_unread') {
+            await markChannelAsUnread(channelId);
+          } else if (act === 'mute') {
             const cur = getMutedChannels();
             if (cur.has(channelId)) cur.delete(channelId); else cur.add(channelId);
             setMutedChannels(cur);
@@ -35031,6 +35067,10 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
 
     // Per-channel message cache
     const chatMsgsCache = {}; // channelId → { msgs, renderedAt }
+    // tempIds the user deleted before the background DB insert for them had finished —
+    // sendChatMessage() checks this once the insert resolves and deletes the real row
+    // immediately instead of upgrading it, so the message can't silently reappear on refresh.
+    const pendingDeletedOptimisticIds = new Set();
 
     // ============================================
     // CHAT SCROLL: bulletproof snap-to-bottom system
@@ -35164,7 +35204,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         if (!renderedFromCache) {
           chatMsgsList.innerHTML = `<div style="padding:20px;color:#FF6B66;font-size:12px;">Failed to load messages: ${chatEsc(error.message)} <a href="#" data-chat-retry-load style="color:#FF6B66;text-decoration:underline;">Retry</a></div>`;
           const retryLink = chatMsgsList.querySelector('[data-chat-retry-load]');
-          if (retryLink) retryLink.addEventListener('click', (e) => { e.preventDefault(); loadMessages(channelId); });
+          if (retryLink) retryLink.addEventListener('click', (e) => { e.preventDefault(); loadMessages(channelId).then(() => reattachReactBarsForChannel(channelId)); });
         }
         return;
       }
@@ -35700,7 +35740,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           // a thread this left the textarea stuck on screen forever. Swap it back to a text
           // element ourselves so both places always end up in a consistent, non-editing state.
           if (textEl.closest('#chatMsgsList')) {
-            if (activeChannelId) loadMessages(activeChannelId);
+            if (activeChannelId) loadMessages(activeChannelId).then(() => reattachReactBarsForChannel(activeChannelId));
           } else {
             const finalBody = (save && val) ? val : currentBody;
             textEl.innerHTML = parseMentions(finalBody).replace(/\n/g, '<br>');
@@ -35802,6 +35842,11 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, (payload) => {
           const row = document.querySelector(`[data-msg-id="${payload.old.id}"]`);
           if (row) row.remove();
+          // Also purge from every channel's message cache, not just the DOM — otherwise
+          // loadMessages()'s 10s "fresh cache" fast-path can resurrect a just-deleted message.
+          Object.values(chatMsgsCache).forEach(c => {
+            if (c && Array.isArray(c.msgs)) c.msgs = c.msgs.filter(mm => mm.id !== payload.old.id);
+          });
         })
         .subscribe();
     }
@@ -36051,6 +36096,13 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           pendingAttachments = attachmentsBackup;
           renderComposerAttachList();
           if (typeof toast==='function') toast({type:'error', message:'Send failed: ' + error.message});
+          return;
+        }
+        // User clicked delete on this message while the insert above was still in flight —
+        // honor that now instead of upgrading/resurrecting it.
+        if (pendingDeletedOptimisticIds.has(tempId)) {
+          pendingDeletedOptimisticIds.delete(tempId);
+          if (inserted) await supabase.from('messages').delete().eq('id', inserted.id);
           return;
         }
         // ── UPGRADE: rewrite tempId → real ID on the existing DOM node ──
@@ -36901,6 +36953,13 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
 
     function attachReactBarToMsg(msgEl, messageId, isMine) {
       if (msgEl.querySelector('.msg-react-bar')) return;
+      // messageId is captured once here, but the bar is only built ONCE per DOM node
+      // (guard above) and reused for the message's whole lifetime — including the moment
+      // a just-sent optimistic message ("tmp_...") gets upgraded to its real DB id (only
+      // msgEl.dataset.msgId is rewritten then, not this closure). Reading the id live off
+      // the element at click time keeps delete/react/pin/AI-reply working immediately after
+      // sending, instead of only after a refresh.
+      const liveId = () => msgEl.dataset.msgId || messageId;
       const bar = document.createElement('div');
       bar.className = 'msg-react-bar';
       const emojisHtml = QUICK_EMOJIS.map(e => `<div class="msg-react-bar-emoji" data-emoji="${chatEsc(e)}">${chatEsc(e)}</div>`).join('');
@@ -36913,22 +36972,25 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       // Pin button — only owner/manager OR author can pin
       const canPin = (currentProfile.role === 'owner' || currentProfile.role === 'manager' || currentProfile.role === 'inhouse_dev' || isMine);
       const pinHtml = canPin ? `<div class="msg-pin-btn" data-action="pin" title="Pin message"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M9 1.5L14.5 7l-2 2-1-1-3.5 3.5v3l-1.5-1.5-2 2-1.5-1.5 2-2L3.5 10h3L10 6.5l-1-1 2-2-2-2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></div>` : '';
+      // Mark unread from here — visible on EVERY message, resets your read cursor to just
+      // before this one so the channel shows unread again starting from this point.
+      const markUnreadHtml = `<div class="msg-react-bar-more" data-action="mark-unread-here" title="Mark unread from here"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3.2" fill="currentColor"/></svg></div>`;
       // Delete button — only the author can delete their own message
       const deleteHtml = isMine ? `<div class="msg-react-bar-more" data-action="delete" title="Delete message" style="color:var(--red);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3.5 4.5h9M6 4.5v-1a1 1 0 011-1h2a1 1 0 011 1v1M5 4.5l.5 8a1 1 0 001 .9h3a1 1 0 001-.9l.5-8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>` : '';
       const editHtml = isMine ? `<div class="msg-react-bar-more" data-action="edit" title="Edit message"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 2.2l2.6 2.6M3 12.5l8.2-8.2 2.6 2.6-8.2 8.2H3v-2.6z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></div>` : '';
-      bar.innerHTML = emojisHtml + moreEmojiHtml + sepHtml + aiHtml + createTaskHtml + pinHtml + editHtml + deleteHtml;
+      bar.innerHTML = emojisHtml + moreEmojiHtml + sepHtml + aiHtml + createTaskHtml + pinHtml + markUnreadHtml + editHtml + deleteHtml;
       msgEl.appendChild(bar);
       bar.querySelectorAll('.msg-react-bar-emoji').forEach(el => {
         el.addEventListener('click', (e) => {
           e.stopPropagation();
-          toggleReaction(messageId, el.dataset.emoji);
+          toggleReaction(liveId(), el.dataset.emoji);
         });
       });
       // "Find another reaction" — full emoji picker, same list used for composing messages
       const moreEmojiBtn = bar.querySelector('[data-action="more-emoji"]');
       if (moreEmojiBtn) moreEmojiBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        openReactionEmojiPicker(moreEmojiBtn, (emoji) => toggleReaction(messageId, emoji));
+        openReactionEmojiPicker(moreEmojiBtn, (emoji) => toggleReaction(liveId(), emoji));
       });
       // Create task button (in react bar) — wires through to the global create-task flow
       const createTaskBtnRB = bar.querySelector('[data-action="create-task-rb"]');
@@ -36995,33 +37057,47 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const pinBtn = bar.querySelector('[data-action="pin"]');
       if (pinBtn) pinBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        togglePin(messageId);
+        togglePin(liveId());
+      });
+      const markUnreadBtn = bar.querySelector('[data-action="mark-unread-here"]');
+      if (markUnreadBtn) markUnreadBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const ts = parseInt(msgEl.dataset.ts, 10);
+        if (ts && activeChannelId) markUnreadFromMessage(activeChannelId, ts);
       });
       const aiBtn = bar.querySelector('[data-action="ai-reply"]');
       if (aiBtn) aiBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        openAiSuggestReply(messageId, msgEl);
+        openAiSuggestReply(liveId(), msgEl);
       });
       const deleteBtn = bar.querySelector('[data-action="delete"]');
       if (deleteBtn) deleteBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (!confirm('Delete this message?')) return;
-        // just remove it from DOM without hitting DB (the real row hasn't been created yet).
-        if (String(messageId).startsWith('tmp_')) {
-          const row = document.querySelector(`.msg[data-msg-id="${messageId}"]`);
-          if (row) row.remove();
+        const idNow = liveId();
+        // The background DB insert for this message may still be in flight (real id not
+        // assigned yet). Remove it from view now, but also flag it so sendChatMessage()
+        // deletes the real row the instant the insert resolves — otherwise it finishes
+        // saving right after we remove it from the DOM and silently reappears on refresh.
+        if (String(idNow).startsWith('tmp_')) {
+          pendingDeletedOptimisticIds.add(idNow);
+          msgEl.remove();
           return;
         }
-        const { data: delRows, error } = await supabase.from('messages').delete().eq('id', messageId).select('id');
+        const { data: delRows, error } = await supabase.from('messages').delete().eq('id', idNow).select('id');
         if (error) {
           if (typeof toast === 'function') toast({type:'error', message:'Failed to delete: ' + error.message});
         } else if (!delRows || delRows.length === 0) {
           // RLS accepted the request but removed 0 rows → no DELETE policy lets this user delete.
           if (typeof toast === 'function') toast({type:'error', message:"Couldn't delete — missing permission (run the messages delete policy)."});
         } else {
-          // Remove from DOM optimistically
-          const row = document.querySelector(`.msg[data-msg-id="${messageId}"]`);
-          if (row) row.remove();
+          // Remove from DOM (use the element we already have — no need to re-query by id)
+          msgEl.remove();
+          // Keep the 10s "fresh cache" fast-path in loadMessages() from resurrecting this
+          // message if the user switches away and back to this channel right after deleting.
+          if (chatMsgsCache[activeChannelId]) {
+            chatMsgsCache[activeChannelId].msgs = chatMsgsCache[activeChannelId].msgs.filter(mm => mm.id !== idNow);
+          }
         }
       });
       const editBtnRB = bar.querySelector('[data-action="edit"]');
@@ -37233,6 +37309,47 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         await supabase.from('channel_members').update({ last_read_at: new Date().toISOString() })
           .eq('channel_id', channelId).eq('profile_id', session.user.id);
       } catch(e) { console.warn('[chat] markChannelAsRead persist failed', e); }
+    }
+
+    // ── Mark a channel as unread again (Slack-style) — rewinds last_read_at to just before
+    // its most recent message, so the channel shows unread (bold + badge) until reopened. ──
+    async function markChannelAsUnread(channelId) {
+      if (!channelId) return;
+      try {
+        const { data: lastMsg } = await supabase.from('messages').select('created_at')
+          .eq('channel_id', channelId).order('created_at', { ascending: false }).limit(1).maybeSingle();
+        if (!lastMsg) { if (typeof toast === 'function') toast({type:'info', message:'No messages to mark unread yet'}); return; }
+        const before = new Date(new Date(lastMsg.created_at).getTime() - 1).toISOString();
+        // Optimistic: show at least 1 unread instantly, then loadUnreadCounts() below corrects it.
+        chatUnreadCounts[channelId] = Math.max(1, chatUnreadCounts[channelId] || 0);
+        updateUnreadBadges();
+        const { error } = await supabase.from('channel_members').update({ last_read_at: before })
+          .eq('channel_id', channelId).eq('profile_id', session.user.id);
+        if (error) throw error;
+        if (typeof loadUnreadCounts === 'function') loadUnreadCounts();
+        if (typeof toast === 'function') toast({type:'success', message:'Marked as unread', duration:1500});
+      } catch(e) {
+        if (typeof toast === 'function') toast({type:'error', message:'Could not mark as unread: ' + e.message});
+      }
+    }
+    window.markChannelAsUnread = markChannelAsUnread;
+
+    // Mark unread starting from a specific message (react-bar action) — sets last_read_at to
+    // just before that message's timestamp, so everything from there onward re-shows as unread.
+    async function markUnreadFromMessage(channelId, msgTs) {
+      if (!channelId || !msgTs) return;
+      const before = new Date(msgTs - 1).toISOString();
+      try {
+        chatUnreadCounts[channelId] = Math.max(1, chatUnreadCounts[channelId] || 0);
+        updateUnreadBadges();
+        const { error } = await supabase.from('channel_members').update({ last_read_at: before })
+          .eq('channel_id', channelId).eq('profile_id', session.user.id);
+        if (error) throw error;
+        if (typeof loadUnreadCounts === 'function') loadUnreadCounts();
+        if (typeof toast === 'function') toast({type:'success', message:'Marked unread from here', duration:1800});
+      } catch(e) {
+        if (typeof toast === 'function') toast({type:'error', message:'Could not mark unread: ' + e.message});
+      }
     }
 
     // ── Mark ALL channels as read (clears the stuck favicon/nav badge) ──
@@ -37513,24 +37630,32 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       });
     }
 
+    // Re-attaches reactions + the hover react/edit/delete bar to every currently-rendered
+    // message in a channel. Needed after ANY full re-render of #chatMsgsList — not just the
+    // initial switchChannel load — because renderMessages() rebuilds the DOM with empty bars
+    // (they're only ever attached here). Without this, a direct loadMessages() call elsewhere
+    // (e.g. after editing a message) would silently strip delete/edit/react/pin from every
+    // message in the channel until the next real channel switch.
+    function reattachReactBarsForChannel(channelId) {
+      const msgEls = document.querySelectorAll('#chatMsgsList [data-msg-id]');
+      const msgIds = [...msgEls].map(el => el.dataset.msgId).filter(Boolean);
+      if (!msgIds.length) return;
+      loadReactionsForMessages(msgIds, channelId).then(() => {
+        msgEls.forEach(el => renderReactionsForMsg(el, el.dataset.msgId));
+        msgEls.forEach(el => {
+          const isMine = el.querySelector('[data-msg-mine="1"]') !== null;
+          attachReactBarToMsg(el, el.dataset.msgId, isMine);
+        });
+      });
+    }
+
     // ── HOOK INTO EXISTING FUNCTIONS ──────────────────────────────
     // Re-wrap switchChannel to: load reactions, pins, mark as read, setup typing
     const _origSwitchChannel = switchChannel;
     switchChannel = async function(channelId) {
       await _origSwitchChannel(channelId);
       // Now that messages are loaded, load reactions + pins for them (in background, doesn't block render)
-      const msgEls = document.querySelectorAll('#chatMsgsList [data-msg-id]');
-      const msgIds = [...msgEls].map(el => el.dataset.msgId).filter(Boolean);
-      if (msgIds.length) {
-        loadReactionsForMessages(msgIds, channelId).then(() => {
-          msgEls.forEach(el => renderReactionsForMsg(el, el.dataset.msgId));
-          // Attach react bars
-          msgEls.forEach(el => {
-            const isMine = el.querySelector('[data-msg-mine="1"]') !== null;
-            attachReactBarToMsg(el, el.dataset.msgId, isMine);
-          });
-        });
-      }
+      reattachReactBarsForChannel(channelId);
       loadPinnedMessages(channelId);
       markChannelAsRead(channelId);
       startTypingSubscription(channelId);
