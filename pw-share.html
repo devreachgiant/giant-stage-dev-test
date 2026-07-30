@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex" />
+<title>Shared password · ReachGiant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --rg-red: #D00400;
+  --rg-red-dark: #A60300;
+  --ink: #0A0A0A;
+  --paper: #FAFAF8;
+  --paper-soft: #F2F1ED;
+  --line: rgba(10,10,10,.08);
+  --line-strong: rgba(10,10,10,.18);
+  --muted: rgba(10,10,10,.55);
+}
+html, body { background: var(--paper); color: var(--ink); font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 15px; line-height: 1.55; -webkit-font-smoothing: antialiased; min-height: 100vh; }
+button { font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+.hidden { display: none !important; }
+
+.rg-bar { background: var(--rg-red); color: #fff; padding: 14px 22px; display: flex; align-items: center; gap: 11px; font-weight: 800; font-size: 15px; letter-spacing: -.01em; }
+.rg-bar-mark { width: 26px; height: 26px; flex-shrink: 0; }
+.rg-bar-mark svg { width: 100%; height: 100%; display: block; }
+
+.wrap { max-width: 480px; margin: 0 auto; padding: 40px 20px 60px; }
+
+.state-box { background: #fff; border: 1px solid var(--line-strong); border-radius: 14px; padding: 40px 24px; text-align: center; color: var(--muted); font-size: 14px; }
+
+.card { background: #fff; border: 1px solid var(--line-strong); border-radius: 16px; overflow: hidden; }
+.card-head { padding: 24px 24px 18px; display: flex; align-items: center; gap: 14px; }
+.card-icon { width: 44px; height: 44px; border-radius: 12px; background: var(--paper-soft); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.card-title { font-size: 18px; font-weight: 800; letter-spacing: -.01em; word-break: break-word; }
+.card-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+.field { padding: 14px 24px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 12px; }
+.field-icon { color: var(--muted); flex-shrink: 0; }
+.field-body { min-width: 0; flex: 1; }
+.field-label { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.field-value { font-size: 14px; margin-top: 2px; word-break: break-word; }
+.field-value code { font-family: 'SF Mono', 'Menlo', monospace; letter-spacing: 1px; }
+.field-value a { color: var(--rg-red); text-decoration: none; }
+.field-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.icon-btn { width: 30px; height: 30px; border-radius: 8px; background: var(--paper-soft); border: 1px solid var(--line-strong); display: flex; align-items: center; justify-content: center; color: var(--ink); transition: .14s; }
+.icon-btn:hover { background: var(--line-strong); }
+
+.expiry-note { margin-top: 18px; text-align: center; font-size: 12px; color: var(--muted); }
+.warn-note { margin-top: 12px; padding: 12px 14px; background: rgba(208,4,0,.06); border: 1px solid rgba(208,4,0,.25); border-radius: 10px; font-size: 12px; color: var(--rg-red-dark); text-align: center; }
+
+.page-footer { max-width: 480px; margin: 26px auto 0; padding: 0 20px; font-size: 11.5px; color: var(--muted); text-align: center; }
+.page-footer a { color: var(--rg-red); text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div class="rg-bar">
+  <span class="rg-bar-mark"><svg viewBox="0 0 149 149" fill="none"><rect width="149" height="149" rx="33.44" fill="#fff"/><path d="M38.7805 66.2876V36.3261C38.7805 35.0148 40.4427 34.4493 41.2425 35.4885L75.7656 80.3505C76.1131 80.8021 75.7912 81.456 75.2214 81.456H63.3552C62.5967 81.456 61.9817 82.0709 61.9817 82.8295V114.082C61.9817 115.406 60.293 115.963 59.5048 114.9L26.1264 69.8522C25.4548 68.9457 26.1018 67.661 27.2299 67.661H37.4071C38.1656 67.661 38.7805 67.0461 38.7805 66.2876Z" fill="#D00400"/><path d="M67.0258 61.962L54.9468 45.3534C54.2866 44.4456 54.935 43.1721 56.0575 43.1721H94.9091C95.3384 43.1721 95.7431 43.3729 96.0028 43.7148L121.718 77.5674C122.405 78.4717 121.76 79.7716 120.624 79.7716H99.7764C99.211 79.7716 98.8878 80.4165 99.2262 80.8694L120.696 109.601C121.372 110.506 120.726 111.796 119.595 111.796H98.377C97.9514 111.796 97.5498 111.599 97.2897 111.262L74.4234 81.6323C73.7266 80.7294 74.3702 79.4197 75.5107 79.4197H96.3514C96.9131 79.4197 97.2372 78.7822 96.9063 78.3284L85.7964 63.0919C85.5378 62.7373 85.1254 62.5276 84.6866 62.5276H68.1365C67.6971 62.5276 67.2842 62.3174 67.0258 61.962Z" fill="#D00400"/></svg></span>
+  Giant — by ReachGiant
+</div>
+
+<div class="wrap">
+  <div id="loadingState" class="state-box">Loading shared password…</div>
+  <div id="errorState" class="state-box hidden">
+    <div style="font-size:28px;margin-bottom:10px;">🔒</div>
+    <div id="errorMessage" style="font-weight:700;color:var(--ink);margin-bottom:4px;">This link is invalid.</div>
+    <div>It may have expired, been revoked, or never existed.</div>
+  </div>
+  <div id="content" class="hidden"></div>
+</div>
+
+<div class="page-footer">Shared via Giant by ReachGiant · <a href="https://www.reachgiant.com" target="_blank" rel="noopener">reachgiant.com</a></div>
+
+<script>
+const ICONS = {
+  user: '<circle cx="8" cy="5.6" r="2.2" stroke="currentColor" stroke-width="1.3"/><path d="M3.6 13c.6-2.2 2.4-3.4 4.4-3.4s3.8 1.2 4.4 3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+  lock: '<rect x="3" y="7" width="10" height="7" rx="1.6" stroke="currentColor" stroke-width="1.3"/><path d="M5.2 7V4.8a2.8 2.8 0 015.6 0V7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="8" cy="10.3" r="1" fill="currentColor"/>',
+  globe: '<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/><path d="M2 8h12M8 2c1.8 1.8 2.7 3.8 2.7 6S9.8 12.2 8 14c-1.8-1.8-2.7-3.8-2.7-6S6.2 3.8 8 2z" stroke="currentColor" stroke-width="1.2"/>',
+  notes: '<path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>',
+  clock: '<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/><path d="M8 4.8V8l2.4 1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
+  eye: '<path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="8" cy="8" r="1.8" stroke="currentColor" stroke-width="1.3"/>',
+  copy: '<rect x="5.7" y="5.2" width="7.3" height="8.8" rx="1.3" stroke="currentColor" stroke-width="1.3"/><path d="M3.5 10.5V3.7a1.2 1.2 0 011.2-1.2h6.3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+};
+function svg(name, size) { return `<svg width="${size||14}" height="${size||14}" viewBox="0 0 16 16" fill="none">${ICONS[name]}</svg>`; }
+function escapeHtml(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]); }
+function formatDate(iso) { try { return new Date(iso).toLocaleString(undefined, { year:'numeric', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }); } catch(e) { return ''; } }
+
+function getToken() {
+  const m = window.location.pathname.match(/\/pwshare\/([^/?#]+)/);
+  if (m) return m[1];
+  return new URL(window.location.href).searchParams.get('t') || '';
+}
+
+function field(icon, label, valueHtml, actionsHtml) {
+  return `<div class="field">
+    <span class="field-icon">${svg(icon)}</span>
+    <div class="field-body">
+      <div class="field-label">${escapeHtml(label)}</div>
+      <div class="field-value">${valueHtml}</div>
+    </div>
+    ${actionsHtml ? `<span class="field-actions">${actionsHtml}</span>` : ''}
+  </div>`;
+}
+
+async function copyText(text, btn) {
+  try {
+    await navigator.clipboard.writeText(text);
+    const orig = btn.innerHTML;
+    btn.innerHTML = '✓';
+    setTimeout(() => { btn.innerHTML = orig; }, 1200);
+  } catch (e) {}
+}
+
+async function load() {
+  const token = getToken();
+  const loadingEl = document.getElementById('loadingState');
+  const errorEl = document.getElementById('errorState');
+  const contentEl = document.getElementById('content');
+  if (!token) {
+    loadingEl.classList.add('hidden'); errorEl.classList.remove('hidden');
+    document.getElementById('errorMessage').textContent = 'No share link provided.';
+    return;
+  }
+  try {
+    const res = await fetch(`/.netlify/functions/password-share-get?token=${encodeURIComponent(token)}`);
+    if (res.status === 410) {
+      loadingEl.classList.add('hidden'); errorEl.classList.remove('hidden');
+      document.getElementById('errorMessage').textContent = 'This share link has expired or was revoked.';
+      return;
+    }
+    if (!res.ok) {
+      loadingEl.classList.add('hidden'); errorEl.classList.remove('hidden');
+      return;
+    }
+    const data = await res.json();
+    render(data);
+  } catch (e) {
+    loadingEl.classList.add('hidden'); errorEl.classList.remove('hidden');
+    document.getElementById('errorMessage').textContent = 'Could not load this link. ' + (e.message || '');
+  }
+}
+
+function render(entry) {
+  document.getElementById('loadingState').classList.add('hidden');
+  const contentEl = document.getElementById('content');
+  contentEl.classList.remove('hidden');
+
+  let html = `<div class="card">
+    <div class="card-head">
+      <div class="card-icon">${svg('lock', 20)}</div>
+      <div>
+        <div class="card-title">${escapeHtml(entry.title)}</div>
+        <div class="card-sub">Shared password — anyone with this link can view it</div>
+      </div>
+    </div>`;
+
+  if (entry.username) {
+    html += field('user', 'Username', escapeHtml(entry.username), `<button class="icon-btn" data-copy="${escapeHtml(entry.username)}">${svg('copy',13)}</button>`);
+  }
+  html += field('lock', 'Password',
+    `<code data-password-value="${escapeHtml(entry.password)}" data-revealed="0">••••••••••••</code>`,
+    `<button class="icon-btn" data-reveal>${svg('eye',13)}</button><button class="icon-btn" data-copy="${escapeHtml(entry.password)}">${svg('copy',13)}</button>`);
+  if (entry.url) {
+    const href = /^https?:\/\//.test(entry.url) ? entry.url : 'https://' + entry.url;
+    html += field('globe', 'Website', `<a href="${escapeHtml(href)}" target="_blank" rel="noopener">${escapeHtml(entry.url)}</a>`);
+  }
+  if (entry.notes) {
+    html += field('notes', 'Notes', `<span style="white-space:pre-wrap;">${escapeHtml(entry.notes)}</span>`);
+  }
+  html += `</div>`;
+  html += `<div class="expiry-note">${svg('clock',11)} This link stops working on ${escapeHtml(formatDate(entry.expires_at))}</div>`;
+  html += `<div class="warn-note">Only share this link with people you trust — anyone who opens it can see this password.</div>`;
+
+  contentEl.innerHTML = html;
+
+  const codeEl = contentEl.querySelector('code[data-password-value]');
+  const revealBtn = contentEl.querySelector('[data-reveal]');
+  if (revealBtn) revealBtn.addEventListener('click', () => {
+    const revealed = codeEl.dataset.revealed === '1';
+    codeEl.textContent = revealed ? '••••••••••••' : codeEl.dataset.passwordValue;
+    codeEl.dataset.revealed = revealed ? '0' : '1';
+  });
+  contentEl.querySelectorAll('[data-copy]').forEach(btn => btn.addEventListener('click', () => copyText(btn.dataset.copy, btn)));
+}
+
+load();
+</script>
+</body>
+</html>

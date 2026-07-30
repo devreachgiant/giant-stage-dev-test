@@ -4139,6 +4139,20 @@ body:has(.screen[data-screen="chat2"].on) .qr-fab{display:none;}
 .report-status-pill.report-priority-pill-urgent{border-color:var(--red);color:var(--red);background:rgba(208,4,0,.08);}
 .report-row-icon-btn{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--text-3);cursor:pointer;transition:.14s;flex-shrink:0;}
 .report-row-icon-btn:hover{background:var(--surface-2);color:var(--text);}
+/* Password Manager: folder cards + draggable entry rows */
+.pw-folder-card{cursor:pointer;transition:border-color .15s,transform .15s,background .15s;}
+.pw-folder-card:hover{border-color:var(--line-2);background:var(--surface);transform:translateY(-1px);}
+.pw-entry-row{transition:background .12s;}
+.pw-entry-row:hover{background:var(--surface)!important;}
+.pw-entry-row.dragging{opacity:.35;}
+.pw-entry-row.drag-over{box-shadow:inset 0 2px 0 var(--red);}
+.pw-entry-grip{cursor:grab;opacity:0;transition:opacity .12s;}
+.pw-entry-row:hover .pw-entry-grip{opacity:.55;}
+.pw-entry-grip:hover{opacity:1!important;}
+.pw-add-dashed{transition:border-color .14s,color .14s,background .14s;}
+.pw-add-dashed:hover{border-color:var(--red)!important;color:var(--red)!important;background:rgba(208,4,0,.06);}
+.pw-icon-btn{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--text-2);cursor:pointer;flex-shrink:0;background:var(--surface);border:1px solid var(--line-2);transition:.14s;}
+.pw-icon-btn:hover{background:var(--surface-2);border-color:var(--text-3);color:var(--text);}
 /* Channel public/private toggle switch */
 .chat-privacy-toggle{display:flex;align-items:center;gap:8px;cursor:pointer;padding:6px 12px;border-radius:20px;background:var(--surface-2);border:1px solid var(--line-2);flex-shrink:0;transition:.14s;}
 .chat-privacy-toggle:hover{border-color:var(--text-3);}
@@ -5416,6 +5430,21 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
   </div>
 </div>
 
+<!-- Passwords — same generic single-modal-shell pattern as White Label. -->
+<div class="modal-overlay" id="pwModalOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="pwModalTitle">Add</h3>
+      <div class="m-close" data-close="pwModalOverlay"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+    </div>
+    <div class="modal-body" id="pwModalBody" style="max-height:60vh;overflow-y:auto;"></div>
+    <div class="modal-foot">
+      <button class="m-cancel" data-close="pwModalOverlay">Cancel</button>
+      <button class="m-submit" id="pwModalSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Manage SOP departments modal — body-level so it opens from anywhere -->
 <div class="modal-overlay" id="sopManageDeptsModal">
   <div class="modal">
@@ -5789,6 +5818,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       <div class="nav-group-label nav-group-toggle" data-navgroup="tools">Tools<svg class="nav-group-chev" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div class="nav-rail" id="railTools" data-navgroup-body="tools">
         <div class="nav-pill" id="pillTools" style="opacity:0;"></div>
+        <div class="nav-item" data-screen="passwords" data-label="Passwords" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><path d="M5.2 7V4.8a2.8 2.8 0 015.6 0V7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="10.3" r="1" fill="currentColor"/></svg></span>Passwords</div>
         <div class="nav-item nav-item-ai" data-screen="reachai" data-label="Reach AI" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.6 4.3 4.4 1.7-4.4 1.7L8 13.5 6.4 9.2 2 7.5l4.4-1.7L8 1.5Z" fill="currentColor"/></svg></span>Reach AI</div>
         <div class="nav-item nav-item-crew" data-screen="crew" data-label="Magnus" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><circle cx="5" cy="6" r="2" stroke="currentColor" stroke-width="1.4"/><circle cx="11" cy="6" r="2" stroke="currentColor" stroke-width="1.4"/><path d="M2 13c.6-1.8 2-2.5 3-2.5s2.4.7 3 2.5M8 13c.6-1.8 2-2.5 3-2.5s2.4.7 3 2.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>Magnus <span class="badge" style="background:linear-gradient(90deg,#A855F7,#FB923C,#10B981);color:#fff;font-size:8.5px;padding:1px 6px;border-radius:6px;font-weight:800;letter-spacing:.04em;">NEW</span></div>
         <div class="nav-item" data-screen="files" data-label="Files"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4a1 1 0 011-1h3.5l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1V4Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>Files</div>
@@ -8708,6 +8738,14 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         </div>
       </div>
 
+      <!-- ===== PASSWORDS ===== -->
+      <div class="screen" data-screen="passwords">
+        <div style="padding:28px 32px;max-width:1400px;margin:0 auto;">
+          <div id="pwHeader"></div>
+          <div id="pwContent"></div>
+        </div>
+      </div>
+
       <!-- ===== VERSION & CHANGELOG ===== -->
       <div class="screen" data-screen="changelog">
         <div style="max-width:760px;margin:0 auto;padding:28px 24px;">
@@ -10276,6 +10314,7 @@ function setupRail(railId,pillId){
     document.querySelector('.main').scrollTop=0;
     if(scr==='finance')replayFinanceChart();
     if(scr==='whitelabel' && window.wlInit) window.wlInit();
+    if(scr==='passwords' && window.pwInit) window.pwInit();
     if(scr==='chat2' && window.chat2Init) window.chat2Init();
     // Persist active screen for refresh
     try { localStorage.setItem('giant_active_screen', scr); } catch(e) {}
@@ -14865,6 +14904,921 @@ setupRail('rail2','pill2');
   }
 
   window.wlInit = function() { if (!wlLoaded && !wlLoading) { restoreWlNavState(); loadWlData(); } else render(); };
+})();
+
+/* ===== PASSWORD MANAGER =====
+   Client-wise (and personal / workspace-wide) password folders, similar to 1Password.
+   Passwords are never stored in plaintext -- encryption/decryption happens server-side in
+   password-vault-encrypt.js / password-vault-decrypt.js using a secret key that never reaches
+   the browser. RLS on password_entries/password_folders decides WHICH rows a user can reach;
+   the decrypt function separately re-checks that via an RLS-scoped query before it will decrypt
+   anything, so a leaked entry_id alone is useless without real access.
+   Three folder visibilities:
+     private -> only the creator (+ owner/manager oversight)
+     shared  -> creator + explicitly invited teammates (password_folder_members)
+     public  -> any non-client Giant staff member, no invite needed (shared tool/Google logins) */
+(function(){
+  const screen = document.querySelector('.screen[data-screen="passwords"]');
+  if (!screen) return;
+  const sb = () => window.giantSupabase;
+  const myId = () => window.giantSession && window.giantSession.user && window.giantSession.user.id;
+  const $ = id => document.getElementById(id);
+  const esc = (s) => (s==null?'':String(s)).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const fmtDate = (iso) => { if (!iso) return ''; try { return new Date(iso).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}); } catch(e){ return ''; } };
+  const selectHtml = (id, options, value, extra) => `<select id="${id}" ${extra||''} style="width:100%;box-sizing:border-box;background:var(--surface-2);color:var(--text);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;font-size:13px;font-family:inherit;">${options.map(o=>`<option value="${esc(o.value)}" ${o.value===value?'selected':''}>${esc(o.label)}</option>`).join('')}</select>`;
+  const VIS_INFO = {
+    private: { label:'Private', color:'#8a8a8d', desc:'Only you (and owners/managers) can see this folder.' },
+    shared:  { label:'Shared',  color:'#5b9dff', desc:'You + the specific people you invite can see this folder.' },
+    public:  { label:'Public — all Giant members', color:'#3ecf8e', desc:'Every non-client Giant account can see this folder — for shared tool/Google logins the whole team needs.' },
+  };
+  const badge = (info) => `<span style="background:${info.color}22;color:${info.color};font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:6px;">${esc(info.label)}</span>`;
+
+  let folders = [], clientsCache = [], profilesCache = [];
+  let pwLoading = false, pwLoaded = false;
+  let view = 'folders'; // folders | folder
+  let foldersViewMode = (() => { try { return localStorage.getItem('giant_pw_folders_view') || 'grid'; } catch(e) { return 'grid'; } })(); // grid | list
+  let activeFolderId = null;
+  let activeEntryId = null;
+  let entriesCache = {};   // folderId -> array
+  let entriesLoading = {}; // folderId -> bool
+  let searchQuery = '';         // global search box on the folders page
+  let searchFavoritesOnly = false;
+  let allEntriesPrefetched = false; // whether we've loaded every folder's entries for global search
+  let folderSearchQuery = '';   // search box inside a folder's entry list
+  let activeFolderTab = 'entries'; // entries | access
+  let accessCache = {};    // folderId -> { loading, members }
+  let revealTimers = {};   // entryId -> timeout handle, so re-clicking Show resets the auto-hide
+
+  // Persist where the user is in Passwords across a page refresh (same pattern as White
+  // Label's giant_wl_nav — a reload otherwise always dumps you back on the folders list).
+  function savePwNavState() {
+    try { localStorage.setItem('giant_pw_nav', JSON.stringify({ view, activeFolderId, activeEntryId, activeFolderTab })); } catch(e) {}
+  }
+  function restorePwNavState() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('giant_pw_nav') || 'null');
+      if (!saved) return;
+      if (saved.view === 'folder' && saved.activeFolderId && findFolder(saved.activeFolderId)) {
+        view = 'folder';
+        activeFolderId = saved.activeFolderId;
+        activeEntryId = saved.activeEntryId || null;
+        const f = findFolder(activeFolderId);
+        activeFolderTab = (saved.activeFolderTab === 'access' && f.visibility === 'shared') ? 'access' : 'entries';
+        if (!entriesCache[activeFolderId]) loadEntries(activeFolderId);
+      }
+    } catch(e) {}
+  }
+  async function loadPwData(){
+    pwLoading = true; render();
+    const [foldersRes, clientsRes, profilesRes] = await Promise.all([
+      sb().from('password_folders').select('*').order('created_at', { ascending:true }),
+      sb().from('clients').select('id, name').order('name', { ascending:true }),
+      sb().from('profiles').select('id, full_name, email, role').neq('role','client').order('full_name', { ascending:true }),
+    ]);
+    folders = foldersRes.data || [];
+    clientsCache = clientsRes.data || [];
+    profilesCache = profilesRes.data || [];
+    pwLoading = false; pwLoaded = true;
+    restorePwNavState();
+    render();
+  }
+  function findFolder(id){ return folders.find(f => f.id === id); }
+  function clientName(id){ const c = clientsCache.find(c => c.id === id); return c ? c.name : null; }
+  function isOwnerOrCreator(f){ const p = window.giantCurrentProfile; return (p && ['owner','manager','inhouse_dev'].includes(p.role)) || (f && f.created_by === myId()); }
+
+  async function getAccessToken(){
+    const { data } = await sb().auth.getSession();
+    return data && data.session && data.session.access_token;
+  }
+  async function encryptPassword(password){
+    const token = await getAccessToken();
+    const res = await fetch('/.netlify/functions/password-vault-encrypt', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
+      body: JSON.stringify({ password }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if (!res.ok) throw new Error(data.error || 'Encryption failed');
+    return data; // { ciphertext, iv, authTag }
+  }
+  async function decryptPassword(entryId){
+    const token = await getAccessToken();
+    const res = await fetch('/.netlify/functions/password-vault-decrypt', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
+      body: JSON.stringify({ entry_id: entryId }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if (!res.ok) throw new Error(data.error || 'Could not decrypt');
+    return data.password;
+  }
+
+  function goTo(v, folderId){
+    view = v;
+    if (v === 'folders') activeFolderId = null;
+    else if (folderId !== undefined) activeFolderId = folderId;
+    activeFolderTab = 'entries'; activeEntryId = null; folderSearchQuery = '';
+    savePwNavState();
+    render();
+  }
+  function selectEntry(entryId){ activeEntryId = entryId; savePwNavState(); render(); }
+
+  // ---- New / Edit folder ----
+  function openNewFolderModal(){
+    $('pwModalSaveBtn').style.display = '';
+    $('pwModalTitle').textContent = 'New Password Folder';
+    $('pwModalBody').innerHTML = `
+      <div class="m-field"><label>Folder name</label><input type="text" id="pwfName" placeholder="e.g. AXE — Client Logins" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div class="m-field"><label>Link to a client <span style="text-transform:none;font-weight:600;color:var(--text-3);">(optional)</span></label>${selectHtml('pwfClient', [{value:'',label:'— No client —'}, ...clientsCache.map(c=>({value:c.id,label:c.name}))], '')}</div>
+      <div class="m-field"><label>Visibility</label>${selectHtml('pwfVisibility', Object.keys(VIS_INFO).map(k=>({value:k,label:VIS_INFO[k].label})), 'private')}</div>
+      <div id="pwfVisDesc" style="font-size:12px;color:var(--text-3);margin-top:-6px;">${esc(VIS_INFO.private.desc)}</div>
+    `;
+    $('pwfVisibility').addEventListener('change', () => { $('pwfVisDesc').textContent = VIS_INFO[$('pwfVisibility').value].desc; });
+    pwModalOnSave = async () => {
+      const name = ($('pwfName').value||'').trim();
+      if (!name) { if (typeof toast==='function') toast({type:'error', message:'Folder name is required'}); return; }
+      const clientId = $('pwfClient').value || null;
+      const visibility = $('pwfVisibility').value;
+      const { data, error } = await sb().from('password_folders').insert({ name, client_id: clientId, visibility, created_by: myId() }).select().single();
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not create folder: '+error.message}); return; }
+      folders.push(data);
+      if (typeof toast==='function') toast({type:'success', message:'Folder created'});
+      goTo('folder', data.id);
+    };
+    openModal('pwModalOverlay');
+  }
+  function openEditFolderModal(folderId){
+    const f = findFolder(folderId); if (!f) return;
+    $('pwModalSaveBtn').style.display = '';
+    $('pwModalTitle').textContent = 'Edit Folder';
+    $('pwModalBody').innerHTML = `
+      <div class="m-field"><label>Folder name</label><input type="text" id="pwfName" value="${esc(f.name)}" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div class="m-field"><label>Link to a client <span style="text-transform:none;font-weight:600;color:var(--text-3);">(optional)</span></label>${selectHtml('pwfClient', [{value:'',label:'— No client —'}, ...clientsCache.map(c=>({value:c.id,label:c.name}))], f.client_id||'')}</div>
+      <div class="m-field"><label>Visibility</label>${selectHtml('pwfVisibility', Object.keys(VIS_INFO).map(k=>({value:k,label:VIS_INFO[k].label})), f.visibility)}</div>
+      <div id="pwfVisDesc" style="font-size:12px;color:var(--text-3);margin-top:-6px;">${esc(VIS_INFO[f.visibility].desc)}</div>
+    `;
+    $('pwfVisibility').addEventListener('change', () => { $('pwfVisDesc').textContent = VIS_INFO[$('pwfVisibility').value].desc; });
+    pwModalOnSave = async () => {
+      const name = ($('pwfName').value||'').trim();
+      if (!name) { if (typeof toast==='function') toast({type:'error', message:'Folder name is required'}); return; }
+      const clientId = $('pwfClient').value || null;
+      const visibility = $('pwfVisibility').value;
+      const { error } = await sb().from('password_folders').update({ name, client_id: clientId, visibility, updated_at: new Date().toISOString() }).eq('id', folderId);
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not save: '+error.message}); return; }
+      Object.assign(f, { name, client_id: clientId, visibility });
+      if (typeof toast==='function') toast({type:'success', message:'Folder updated'});
+      render();
+    };
+    openModal('pwModalOverlay');
+  }
+  async function deleteFolder(folderId){
+    const f = findFolder(folderId); if (!f) return;
+    const confirmed = await window.giantConfirmWarn(`Delete "${f.name}"?`, 'This permanently deletes the folder and every password inside it. This can\'t be undone.', 'Delete', 'warning');
+    if (!confirmed) return;
+    const { error } = await sb().from('password_folders').delete().eq('id', folderId);
+    if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not delete: '+error.message}); return; }
+    folders = folders.filter(x => x.id !== folderId);
+    if (typeof toast==='function') toast({type:'success', message:'Folder deleted'});
+    goTo('folders');
+  }
+
+  // ---- Entries ----
+  async function loadEntries(folderId){
+    entriesLoading[folderId] = true; render();
+    const { data, error } = await sb().from('password_entries').select('id, title, username, url, notes, created_at, sort_order, favorite, tags').eq('folder_id', folderId).order('sort_order', { ascending:true });
+    if (error && typeof toast==='function') toast({type:'error', message:'Could not load passwords: '+error.message});
+    entriesCache[folderId] = data || [];
+    entriesLoading[folderId] = false;
+    render();
+  }
+  // Loads every accessible folder's entries at once — needed so the global search box can
+  // match entries in folders the user hasn't opened yet. Only runs once per session (or when
+  // a folder is later force-refreshed via loadEntries), fires all requests in parallel.
+  async function prefetchAllEntriesForSearch(){
+    if (allEntriesPrefetched) return;
+    allEntriesPrefetched = true;
+    await Promise.all(folders.filter(f => !entriesCache[f.id]).map(f => loadEntries(f.id)));
+  }
+  function parseTagsInput(raw){
+    return Array.from(new Set((raw||'').split(',').map(t => t.trim()).filter(Boolean)));
+  }
+  async function toggleEntryFavorite(folderId, entryId){
+    const entry = (entriesCache[folderId]||[]).find(e => e.id === entryId); if (!entry) return;
+    const next = !entry.favorite;
+    entry.favorite = next; render(); // optimistic
+    const { error } = await sb().from('password_entries').update({ favorite: next }).eq('id', entryId);
+    if (error) { entry.favorite = !next; render(); if (typeof toast==='function') toast({type:'error', message:'Could not update favorite: '+error.message}); }
+  }
+  async function persistEntryOrder(folderId){
+    const list = entriesCache[folderId] || [];
+    const results = await Promise.all(list.map((e, i) => {
+      if (e.sort_order === i) return Promise.resolve({ error:null });
+      e.sort_order = i;
+      return sb().from('password_entries').update({ sort_order: i }).eq('id', e.id);
+    }));
+    const failed = results.find(r => r.error);
+    if (failed && typeof toast==='function') toast({type:'error', message:'Could not save new order: '+failed.error.message});
+  }
+  function openNewEntryModal(folderId){
+    $('pwModalSaveBtn').style.display = '';
+    $('pwModalTitle').textContent = 'Add Password';
+    $('pwModalBody').innerHTML = `
+      <div class="m-field"><label>Title</label><input type="text" id="pweTitle" placeholder="e.g. Google Ads account" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div class="m-field"><label>Username / Email</label><input type="text" id="pweUsername" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div class="m-field"><label>Password</label><input type="text" id="pwePassword" autocomplete="off" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div class="m-field"><label>Website URL <span style="text-transform:none;font-weight:600;color:var(--text-3);">(optional)</span></label><input type="text" id="pweUrl" placeholder="https://..." style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div class="m-field"><label>Tags <span style="text-transform:none;font-weight:600;color:var(--text-3);">(optional, comma-separated)</span></label><input type="text" id="pweTags" placeholder="e.g. ads, billing" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div class="m-field"><label>Notes <span style="text-transform:none;font-weight:600;color:var(--text-3);">(optional)</span></label><textarea id="pweNotes" style="width:100%;box-sizing:border-box;min-height:60px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;resize:vertical;"></textarea></div>
+    `;
+    pwModalOnSave = async () => {
+      const title = ($('pweTitle').value||'').trim();
+      const password = $('pwePassword').value||'';
+      if (!title) { if (typeof toast==='function') toast({type:'error', message:'Title is required'}); return; }
+      if (!password) { if (typeof toast==='function') toast({type:'error', message:'Password is required'}); return; }
+      let enc;
+      try { enc = await encryptPassword(password); }
+      catch(e) { if (typeof toast==='function') toast({type:'error', message:'Could not encrypt: '+e.message}); return; }
+      const { data, error } = await sb().from('password_entries').insert({
+        folder_id: folderId, title, username: ($('pweUsername').value||'').trim() || null,
+        url: ($('pweUrl').value||'').trim() || null, notes: ($('pweNotes').value||'').trim() || null,
+        tags: parseTagsInput($('pweTags').value),
+        password_ciphertext: enc.ciphertext, password_iv: enc.iv, password_auth_tag: enc.authTag, created_by: myId(),
+        sort_order: (entriesCache[folderId]||[]).length,
+      }).select('id, title, username, url, notes, created_at, sort_order, favorite, tags').single();
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not save: '+error.message}); return; }
+      entriesCache[folderId] = entriesCache[folderId] || [];
+      entriesCache[folderId].push(data);
+      if (typeof toast==='function') toast({type:'success', message:'Password saved'});
+      render();
+    };
+    openModal('pwModalOverlay');
+  }
+  function openEditEntryModal(folderId, entryId){
+    const entry = (entriesCache[folderId]||[]).find(e => e.id === entryId); if (!entry) return;
+    $('pwModalSaveBtn').style.display = '';
+    $('pwModalTitle').textContent = 'Edit Password';
+    $('pwModalBody').innerHTML = `
+      <div class="m-field"><label>Title</label><input type="text" id="pweTitle" value="${esc(entry.title)}" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div class="m-field"><label>Username / Email</label><input type="text" id="pweUsername" value="${esc(entry.username||'')}" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div class="m-field"><label>Password <span style="text-transform:none;font-weight:600;color:var(--text-3);">(leave blank to keep unchanged)</span></label><input type="text" id="pwePassword" autocomplete="off" placeholder="••••••••" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div class="m-field"><label>Website URL <span style="text-transform:none;font-weight:600;color:var(--text-3);">(optional)</span></label><input type="text" id="pweUrl" value="${esc(entry.url||'')}" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div class="m-field"><label>Tags <span style="text-transform:none;font-weight:600;color:var(--text-3);">(optional, comma-separated)</span></label><input type="text" id="pweTags" value="${esc((entry.tags||[]).join(', '))}" placeholder="e.g. ads, billing" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div class="m-field"><label>Notes <span style="text-transform:none;font-weight:600;color:var(--text-3);">(optional)</span></label><textarea id="pweNotes" style="width:100%;box-sizing:border-box;min-height:60px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;resize:vertical;">${esc(entry.notes||'')}</textarea></div>
+    `;
+    pwModalOnSave = async () => {
+      const title = ($('pweTitle').value||'').trim();
+      if (!title) { if (typeof toast==='function') toast({type:'error', message:'Title is required'}); return; }
+      const tags = parseTagsInput($('pweTags').value);
+      const payload = {
+        title, username: ($('pweUsername').value||'').trim() || null,
+        url: ($('pweUrl').value||'').trim() || null, notes: ($('pweNotes').value||'').trim() || null,
+        tags, updated_at: new Date().toISOString(),
+      };
+      const newPassword = $('pwePassword').value||'';
+      if (newPassword) {
+        try { const enc = await encryptPassword(newPassword); payload.password_ciphertext = enc.ciphertext; payload.password_iv = enc.iv; payload.password_auth_tag = enc.authTag; }
+        catch(e) { if (typeof toast==='function') toast({type:'error', message:'Could not encrypt: '+e.message}); return; }
+      }
+      const { error } = await sb().from('password_entries').update(payload).eq('id', entryId);
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not save: '+error.message}); return; }
+      Object.assign(entry, { title: payload.title, username: payload.username, url: payload.url, notes: payload.notes, tags: payload.tags });
+      if (typeof toast==='function') toast({type:'success', message:'Password updated'});
+      render();
+    };
+    openModal('pwModalOverlay');
+  }
+  async function deleteEntry(folderId, entryId){
+    const confirmed = await window.giantConfirmWarn('Delete this password?', "This can't be undone.", 'Delete', 'warning');
+    if (!confirmed) return;
+    const { error } = await sb().from('password_entries').delete().eq('id', entryId);
+    if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not delete: '+error.message}); return; }
+    entriesCache[folderId] = (entriesCache[folderId]||[]).filter(e => e.id !== entryId);
+    if (activeEntryId === entryId) activeEntryId = null;
+    if (typeof toast==='function') toast({type:'success', message:'Password deleted'});
+    render();
+  }
+  async function revealEntry(entryId){
+    const valueEl = document.querySelector(`[data-pw-reveal="${entryId}"]`);
+    if (!valueEl) return;
+    if (revealTimers[entryId]) { clearTimeout(revealTimers[entryId]); }
+    valueEl.textContent = 'Decrypting…';
+    try {
+      const plain = await decryptPassword(entryId);
+      valueEl.textContent = plain;
+      revealTimers[entryId] = setTimeout(() => { if (valueEl.isConnected) valueEl.textContent = '••••••••'; }, 8000);
+    } catch(e) {
+      valueEl.textContent = '••••••••';
+      if (typeof toast==='function') toast({type:'error', message: e.message});
+    }
+  }
+  async function copyEntry(entryId){
+    try {
+      const plain = await decryptPassword(entryId);
+      await navigator.clipboard.writeText(plain);
+      if (typeof toast==='function') toast({type:'success', message:'Password copied to clipboard', duration:2000});
+    } catch(e) {
+      if (typeof toast==='function') toast({type:'error', message: e.message});
+    }
+  }
+  // Deep link, NOT a public share link — it only opens anything for someone who's already
+  // signed into Giant and already has real (RLS-granted) access to this entry. Copying it
+  // doesn't decrypt or expose anything by itself.
+  async function copyEntryLink(entryId){
+    const url = `${window.location.origin}${window.location.pathname}?pwEntry=${encodeURIComponent(entryId)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      if (typeof toast==='function') toast({type:'success', message:'Link copied — only works for people who already have access to this password', duration:3500});
+    } catch(e) {
+      if (typeof toast==='function') toast({type:'error', message:'Could not copy link'});
+    }
+  }
+
+  // ---- External share links (public — no Giant login required, like 1Password Send) ----
+  async function loadShareLinks(entryId){
+    const { data } = await sb().from('password_share_links').select('*').eq('entry_id', entryId)
+      .is('revoked_at', null).gt('expires_at', new Date().toISOString()).order('created_at', { ascending:false });
+    return data || [];
+  }
+  async function createShareLink(entryId, days){
+    const token = await getAccessToken();
+    const res = await fetch('/.netlify/functions/password-share-create', {
+      method:'POST', headers:{ 'Content-Type':'application/json', Authorization:'Bearer '+token },
+      body: JSON.stringify({ entry_id: entryId, expires_in_days: days }),
+    });
+    const data = await res.json().catch(()=>({}));
+    if (!res.ok) throw new Error(data.error || 'Could not create link');
+    return `${window.location.origin}/pwshare/${data.token}`;
+  }
+  async function revokeShareLink(linkId){
+    const { error } = await sb().from('password_share_links').update({ revoked_at: new Date().toISOString() }).eq('id', linkId);
+    if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not revoke: '+error.message}); return false; }
+    if (typeof toast==='function') toast({type:'success', message:'Link revoked'});
+    return true;
+  }
+  function shareOptionRow(icon, title, desc, action){
+    return `<div data-pw-share-option="${action}" style="display:flex;align-items:center;gap:14px;padding:14px;border:1px solid var(--line-2);border-radius:11px;cursor:pointer;margin-bottom:10px;transition:.14s;" onmouseover="this.style.borderColor='var(--red)'" onmouseout="this.style.borderColor='var(--line-2)'">
+      <div style="width:36px;height:36px;border-radius:9px;background:var(--surface);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text-2);">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">${PW_ICON[icon]}</svg>
+      </div>
+      <div style="min-width:0;">
+        <div style="font-size:13.5px;font-weight:700;">${esc(title)}</div>
+        <div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">${esc(desc)}</div>
+      </div>
+    </div>`;
+  }
+  function openShareChooserModal(entryId, editable){
+    $('pwModalTitle').textContent = 'Share';
+    $('pwModalSaveBtn').style.display = 'none';
+    $('pwModalBody').innerHTML =
+      shareOptionRow('link', 'Copy link', 'Copies a link that only works for people who already have access in Giant.', 'link') +
+      (editable ? shareOptionRow('user', 'Share with internal team', 'Give specific teammates access to just this password — not the whole folder.', 'people') : '') +
+      (editable ? shareOptionRow('external', 'Share externally', 'Anyone with the link can view it — no Giant login needed. Expires in 3 days by default.', 'external') : '');
+    $('pwModalBody').querySelector('[data-pw-share-option="link"]').addEventListener('click', () => { copyEntryLink(entryId); closeModal('pwModalOverlay'); });
+    const peopleOpt = $('pwModalBody').querySelector('[data-pw-share-option="people"]');
+    if (peopleOpt) peopleOpt.addEventListener('click', () => openShareWithPeopleModal(entryId));
+    const extOpt = $('pwModalBody').querySelector('[data-pw-share-option="external"]');
+    if (extOpt) extOpt.addEventListener('click', () => openShareExternalModal(entryId));
+    openModal('pwModalOverlay');
+  }
+  async function openShareExternalModal(entryId){
+    $('pwModalTitle').textContent = 'Share externally';
+    $('pwModalSaveBtn').style.display = 'none';
+    $('pwModalBody').innerHTML = `<div style="font-size:12px;color:var(--text-3);margin-bottom:14px;">Anyone with this link can view this password — even people outside Giant. Only share it with people you trust.</div>
+      <div class="m-field"><label>Link expires in</label>${selectHtml('pwShareDays', [{value:'1',label:'1 day'},{value:'3',label:'3 days (default)'},{value:'7',label:'7 days'},{value:'30',label:'30 days'}], '3')}</div>
+      <div id="pwShareCreateRow" style="margin-top:6px;"><button class="btn-red" id="pwShareCreateBtn" style="padding:9px 15px;font-size:12.5px;">Create link</button></div>
+      <div id="pwShareResult" style="margin-top:14px;"></div>
+      <div id="pwShareActiveList" style="margin-top:18px;"></div>`;
+    const renderActive = async () => {
+      const links = await loadShareLinks(entryId);
+      const listEl = $('pwShareActiveList');
+      if (!links.length) { listEl.innerHTML = ''; return; }
+      listEl.innerHTML = `<div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:8px;">Active links</div>` +
+        links.map(l => `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line);">
+          <span style="font-size:12px;color:var(--text-3);">Expires ${esc(fmtDate(l.expires_at))} · ${l.view_count||0} view${l.view_count===1?'':'s'}</span>
+          <span data-pw-revoke-link="${esc(l.id)}" style="font-size:11.5px;font-weight:700;color:var(--red);cursor:pointer;">Revoke</span>
+        </div>`).join('');
+      listEl.querySelectorAll('[data-pw-revoke-link]').forEach(el => el.addEventListener('click', async () => {
+        if (await revokeShareLink(el.dataset.pwRevokeLink)) renderActive();
+      }));
+    };
+    $('pwShareCreateBtn').addEventListener('click', async () => {
+      const days = Number($('pwShareDays').value) || 3;
+      const btn = $('pwShareCreateBtn'); btn.textContent = 'Creating…';
+      try {
+        const url = await createShareLink(entryId, days);
+        $('pwShareResult').innerHTML = `<div style="display:flex;gap:8px;align-items:center;background:var(--surface);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;">
+          <input readonly value="${esc(url)}" style="flex:1;background:transparent;border:none;color:var(--text);font-size:12px;font-family:inherit;" onclick="this.select()">
+          <span class="report-row-icon-btn" id="pwShareCopyBtn" title="Copy link"><svg width="13" height="13" viewBox="0 0 16 16" fill="none">${PW_ICON.copy}</svg></span>
+        </div>`;
+        $('pwShareCopyBtn').addEventListener('click', async () => { await navigator.clipboard.writeText(url); if (typeof toast==='function') toast({type:'success', message:'Link copied', duration:1500}); });
+        renderActive();
+      } catch(e) {
+        if (typeof toast==='function') toast({type:'error', message: e.message});
+      }
+      btn.textContent = 'Create link';
+    });
+    renderActive();
+    openModal('pwModalOverlay');
+  }
+
+  // ?pwEntry=<id> deep link — jumps straight to a specific password if the signed-in user
+  // actually has access (the select below is RLS-checked; no access = no row = clean failure).
+  async function openSharedPasswordFromUrl(){
+    const entryId = new URLSearchParams(window.__giantInitialSearch || window.location.search).get('pwEntry');
+    if (!entryId) return;
+    const { data } = await sb().from('password_entries').select('id, folder_id').eq('id', entryId).maybeSingle();
+    if (!data) { if (typeof toast==='function') toast({type:'error', message:"That password link is invalid, or you don't have access to it.", duration:5000}); return; }
+    const navBtn = document.querySelector('.nav-item[data-screen="passwords"]');
+    if (navBtn) navBtn.click();
+    const openIt = () => {
+      if (!pwLoaded) { setTimeout(openIt, 300); return; }
+      goTo('folder', data.folder_id);
+      const afterEntries = () => {
+        selectEntry(entryId);
+        const panel = document.querySelector('[data-pw-detail-panel]');
+        if (panel) { panel.style.background = 'rgba(208,4,0,.14)'; setTimeout(() => { panel.style.background = ''; }, 2000); }
+      };
+      if (!entriesCache[data.folder_id]) loadEntries(data.folder_id).then(afterEntries); else afterEntries();
+    };
+    openIt();
+  }
+  setTimeout(openSharedPasswordFromUrl, 1500);
+
+  // ---- Access (sharing) ----
+  async function loadFolderAccess(folderId){
+    accessCache[folderId] = { loading:true };
+    const { data } = await sb().from('password_folder_members').select('profile_id, added_at').eq('folder_id', folderId);
+    const profileMap = {}; profilesCache.forEach(p => { profileMap[p.id] = p; });
+    const members = (data||[]).map(m => ({ profileId:m.profile_id, addedAt:m.added_at, profile:profileMap[m.profile_id]||null }));
+    accessCache[folderId] = { loading:false, members };
+    render();
+  }
+  function openAddFolderMemberModal(folderId){
+    const v = accessCache[folderId]; if (!v || v.loading) return;
+    $('pwModalSaveBtn').style.display = '';
+    const memberIds = new Set(v.members.map(m => m.profileId));
+    const eligible = profilesCache.filter(p => p.id !== myId() && !memberIds.has(p.id));
+    if (!eligible.length) { if (typeof toast==='function') toast({type:'info', message:'Everyone eligible already has access'}); return; }
+    $('pwModalTitle').textContent = 'Share this folder';
+    $('pwModalBody').innerHTML = `<div class="m-field"><label>Person</label>${selectHtml('pwfMember', eligible.map(p=>({value:p.id,label:(p.full_name||p.email)+' ('+p.role+')'})), eligible[0].id)}</div>`;
+    pwModalOnSave = async () => {
+      const profileId = $('pwfMember').value;
+      const { error } = await sb().from('password_folder_members').insert({ folder_id: folderId, profile_id: profileId, added_by: myId() });
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not share: '+error.message}); return; }
+      if (typeof toast==='function') toast({type:'success', message:'Access granted'});
+      await loadFolderAccess(folderId);
+    };
+    openModal('pwModalOverlay');
+  }
+  async function removeFolderMember(folderId, profileId){
+    const { error } = await sb().from('password_folder_members').delete().eq('folder_id', folderId).eq('profile_id', profileId);
+    if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not remove: '+error.message}); return; }
+    if (typeof toast==='function') toast({type:'info', message:'Access removed'});
+    await loadFolderAccess(folderId);
+  }
+
+  // ---- Per-password sharing with specific people, independent of folder access ----
+  let entryAccessCache = {}; // entryId -> { loading, members }
+  async function loadEntryAccess(entryId){
+    entryAccessCache[entryId] = { loading:true };
+    const { data } = await sb().from('password_entry_members').select('profile_id, added_at').eq('entry_id', entryId);
+    const profileMap = {}; profilesCache.forEach(p => { profileMap[p.id] = p; });
+    entryAccessCache[entryId] = { loading:false, members: (data||[]).map(m => ({ profileId:m.profile_id, addedAt:m.added_at, profile:profileMap[m.profile_id]||null })) };
+  }
+  function openShareWithPeopleModal(entryId){
+    $('pwModalTitle').textContent = 'Share with internal team';
+    $('pwModalSaveBtn').style.display = 'none';
+    $('pwModalBody').innerHTML = `<div style="font-size:12px;color:var(--text-3);margin-bottom:14px;">Give specific people access to just this password — without sharing the whole folder. They'll also be able to use "Copy link" from Giant once added.</div>
+      <div id="pwEntryMembersList" style="margin-bottom:6px;"></div>
+      <div id="pwEntryAddRow" style="display:flex;gap:8px;align-items:flex-end;margin-top:12px;"></div>`;
+    openModal('pwModalOverlay');
+
+    const renderBody = () => {
+      const v = entryAccessCache[entryId];
+      const listEl = $('pwEntryMembersList');
+      const addRowEl = $('pwEntryAddRow');
+      if (!listEl || !addRowEl) return;
+      if (!v || v.loading) { listEl.innerHTML = `<div style="padding:16px 0;text-align:center;color:var(--text-3);font-size:12.5px;">Loading…</div>`; addRowEl.innerHTML = ''; return; }
+      listEl.innerHTML = v.members.length ? v.members.map(m => `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);">
+          <div><div style="font-size:13px;font-weight:700;">${esc(m.profile?(m.profile.full_name||m.profile.email):'Unknown user')}</div><div style="font-size:11.5px;color:var(--text-3);">${esc(m.profile?m.profile.email:'')}</div></div>
+          <span data-pw-remove-entry-member="${esc(m.profileId)}" style="font-size:11.5px;font-weight:700;color:var(--red);cursor:pointer;">Remove</span>
+        </div>`).join('') : `<div style="font-size:12.5px;color:var(--text-3);padding:6px 0;">No one has individual access yet.</div>`;
+      listEl.querySelectorAll('[data-pw-remove-entry-member]').forEach(el => el.addEventListener('click', async () => {
+        const { error } = await sb().from('password_entry_members').delete().eq('entry_id', entryId).eq('profile_id', el.dataset.pwRemoveEntryMember);
+        if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not remove: '+error.message}); return; }
+        if (typeof toast==='function') toast({type:'info', message:'Access removed'});
+        await loadEntryAccess(entryId); renderBody();
+      }));
+      const memberIds = new Set(v.members.map(m => m.profileId));
+      const eligible = profilesCache.filter(p => p.id !== myId() && !memberIds.has(p.id));
+      if (!eligible.length) { addRowEl.innerHTML = `<div style="font-size:12px;color:var(--text-3);">Everyone eligible already has access.</div>`; return; }
+      addRowEl.innerHTML = `<div style="flex:1;">${selectHtml('pwEntryAddPerson', eligible.map(p=>({value:p.id,label:(p.full_name||p.email)+' ('+p.role+')'})), eligible[0].id)}</div><button class="btn-red" id="pwEntryAddBtn" style="padding:9px 15px;font-size:12.5px;">Add</button>`;
+      $('pwEntryAddBtn').addEventListener('click', async () => {
+        const profileId = $('pwEntryAddPerson').value;
+        const { error } = await sb().from('password_entry_members').insert({ entry_id: entryId, profile_id: profileId, added_by: myId() });
+        if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not share: '+error.message}); return; }
+        if (typeof toast==='function') toast({type:'success', message:'Access granted'});
+        await loadEntryAccess(entryId); renderBody();
+      });
+    };
+    loadEntryAccess(entryId).then(renderBody);
+    renderBody();
+  }
+
+  // ---- Rendering ----
+  const PW_ICON = {
+    link: '<path d="M6.7 9.3l2.6-2.6M6.2 6.2L4.6 7.8a2.1 2.1 0 002.9 3l1.6-1.6M9.8 9.8l1.6-1.6a2.1 2.1 0 00-3-2.9L6.8 6.9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+    edit: '<path d="M11 2.5l2.5 2.5M3 13l8-8 2.5 2.5-8 8H3v-2.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>',
+    trash: '<path d="M3.5 4.5h9M6 4.5v-1a1 1 0 011-1h2a1 1 0 011 1v1M5 4.5l.5 8a1 1 0 001 .9h3a1 1 0 001-.9l.5-8" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
+    eye: '<path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/><circle cx="8" cy="8" r="1.8" stroke="currentColor" stroke-width="1.3"/>',
+    copy: '<rect x="5.7" y="5.2" width="7.3" height="8.8" rx="1.3" stroke="currentColor" stroke-width="1.3"/><path d="M3.5 10.5V3.7a1.2 1.2 0 011.2-1.2h6.3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+    lock: '<rect x="3" y="7" width="10" height="7" rx="1.6" stroke="currentColor" stroke-width="1.3"/><path d="M5.2 7V4.8a2.8 2.8 0 015.6 0V7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><circle cx="8" cy="10.3" r="1" fill="currentColor"/>',
+    user: '<circle cx="8" cy="5.6" r="2.2" stroke="currentColor" stroke-width="1.3"/><path d="M3.6 13c.6-2.2 2.4-3.4 4.4-3.4s3.8 1.2 4.4 3.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>',
+    globe: '<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/><path d="M2 8h12M8 2c1.8 1.8 2.7 3.8 2.7 6S9.8 12.2 8 14c-1.8-1.8-2.7-3.8-2.7-6S6.2 3.8 8 2z" stroke="currentColor" stroke-width="1.2"/>',
+    folder: '<path d="M2 4.8c0-.7.6-1.3 1.3-1.3h2.9l1.2 1.4h5.3c.7 0 1.3.6 1.3 1.3v5.5c0 .7-.6 1.3-1.3 1.3H3.3c-.7 0-1.3-.6-1.3-1.3V4.8Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>',
+    plus: '<path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+    clock: '<circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.3"/><path d="M8 4.8V8l2.4 1.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
+    grip: '<circle cx="6" cy="4" r="1" fill="currentColor"/><circle cx="10" cy="4" r="1" fill="currentColor"/><circle cx="6" cy="8" r="1" fill="currentColor"/><circle cx="10" cy="8" r="1" fill="currentColor"/><circle cx="6" cy="12" r="1" fill="currentColor"/><circle cx="10" cy="12" r="1" fill="currentColor"/>',
+    grid: '<rect x="2" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="2" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="2" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/><rect x="9" y="9" width="5" height="5" rx="1" stroke="currentColor" stroke-width="1.3"/>',
+    list: '<rect x="2" y="3" width="12" height="2.6" rx="1" stroke="currentColor" stroke-width="1.1"/><rect x="2" y="7" width="12" height="2.6" rx="1" stroke="currentColor" stroke-width="1.1"/><rect x="2" y="11" width="12" height="2.6" rx="1" stroke="currentColor" stroke-width="1.1"/>',
+    external: '<path d="M9.5 2.5H13.5V6.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.5 2.5L7 9" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M11.5 9V12.5A1 1 0 0110.5 13.5H3.5A1 1 0 012.5 12.5V5.5A1 1 0 013.5 4.5H7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>',
+    share: '<circle cx="12" cy="3.6" r="1.8" stroke="currentColor" stroke-width="1.2"/><circle cx="4" cy="8" r="1.8" stroke="currentColor" stroke-width="1.2"/><circle cx="12" cy="12.4" r="1.8" stroke="currentColor" stroke-width="1.2"/><path d="M5.6 7.1L10.4 4.5M5.6 8.9L10.4 11.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>',
+    star: '<path d="M8 2.2l1.8 3.6 4 .6-2.9 2.8.7 4L8 11.3l-3.6 1.9.7-4-2.9-2.8 4-.6L8 2.2Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>',
+    search: '<circle cx="6.8" cy="6.8" r="4.3" stroke="currentColor" stroke-width="1.4"/><path d="M10.2 10.2L13.5 13.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+    tag: '<path d="M2.5 2.5h4.8l6.2 6.2-4.8 4.8-6.2-6.2V2.5Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><circle cx="5.1" cy="5.1" r=".9" fill="currentColor"/>',
+    x: '<path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>',
+  };
+  const pwIconBtn = (icon, action, id, title, color) => `<span class="pw-icon-btn" data-pw-action="${action}" data-pw-id="${esc(id)}" title="${esc(title)}" style="${color?`color:${color};border-color:${color}44;`:''}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none">${PW_ICON[icon]}</svg></span>`;
+
+  function renderHeader(){
+    const host = $('pwHeader');
+    if (view === 'folders') {
+      host.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+          <div><div style="font-size:21px;font-weight:800;">Passwords</div><div style="font-size:12.5px;color:var(--text-3);margin-top:2px;">Encrypted credentials — private, shared with specific people, or visible to everyone at Giant</div></div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="display:flex;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:3px;gap:2px;">
+              <span data-pw-view-mode="grid" title="Grid view" style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;${foldersViewMode==='grid'?'background:var(--red);color:#fff;':'color:var(--text-3);'}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none">${PW_ICON.grid}</svg></span>
+              <span data-pw-view-mode="list" title="List view" style="width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;${foldersViewMode==='list'?'background:var(--red);color:#fff;':'color:var(--text-3);'}"><svg width="13" height="13" viewBox="0 0 16 16" fill="none">${PW_ICON.list}</svg></span>
+            </div>
+            <button class="btn-red" id="pwNewFolderBtn" style="padding:9px 16px;font-size:12.5px;">+ New Folder</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+          <div style="position:relative;flex:1;max-width:360px;">
+            <span style="position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-3);pointer-events:none;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none">${PW_ICON.search}</svg></span>
+            <input type="text" id="pwSearchInput" value="${esc(searchQuery)}" placeholder="Search folders, passwords, tags…" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 32px 9px 32px;color:var(--text);font-family:inherit;font-size:12.5px;">
+            ${searchQuery ? `<span id="pwSearchClear" style="position:absolute;right:9px;top:50%;transform:translateY(-50%);color:var(--text-3);cursor:pointer;display:flex;"><svg width="11" height="11" viewBox="0 0 16 16" fill="none">${PW_ICON.x}</svg></span>` : ''}
+          </div>
+          <span id="pwFavoritesToggle" style="display:flex;align-items:center;gap:6px;padding:8px 13px;border-radius:8px;border:1px solid ${searchFavoritesOnly?'var(--red)':'var(--line-2)'};background:${searchFavoritesOnly?'rgba(208,4,0,.1)':'var(--surface-2)'};color:${searchFavoritesOnly?'var(--red)':'var(--text-2)'};font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="${searchFavoritesOnly?'currentColor':'none'}">${PW_ICON.star}</svg> Favorites
+          </span>
+        </div>`;
+      $('pwNewFolderBtn').addEventListener('click', openNewFolderModal);
+      host.querySelectorAll('[data-pw-view-mode]').forEach(el => el.addEventListener('click', () => {
+        foldersViewMode = el.dataset.pwViewMode;
+        try { localStorage.setItem('giant_pw_folders_view', foldersViewMode); } catch(e) {}
+        render();
+      }));
+      const searchInput = $('pwSearchInput');
+      searchInput.addEventListener('input', () => {
+        searchQuery = searchInput.value;
+        if (searchQuery.trim()) prefetchAllEntriesForSearch().then(() => { if (searchQuery.trim()) renderFoldersList(); });
+        renderFoldersList();
+      });
+      const clearBtn = $('pwSearchClear'); if (clearBtn) clearBtn.addEventListener('click', () => { searchQuery = ''; render(); });
+      $('pwFavoritesToggle').addEventListener('click', () => {
+        searchFavoritesOnly = !searchFavoritesOnly;
+        if (searchFavoritesOnly) prefetchAllEntriesForSearch().then(renderFoldersList);
+        render();
+      });
+    } else {
+      const f = findFolder(activeFolderId);
+      host.innerHTML = `
+        <div style="margin-bottom:18px;">
+          <span data-pw-back style="font-size:12.5px;color:var(--text-3);cursor:pointer;text-decoration:underline;text-underline-offset:2px;">← All folders</span>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;flex-wrap:wrap;gap:10px;">
+            <div>
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;"><span style="font-size:20px;font-weight:800;">${esc(f?f.name:'')}</span>${f?badge(VIS_INFO[f.visibility]):''}</div>
+              ${f && f.client_id ? `<div style="font-size:12.5px;color:var(--text-3);margin-top:4px;">Client: ${esc(clientName(f.client_id)||'—')}</div>` : ''}
+            </div>
+            ${f && isOwnerOrCreator(f) ? `<div style="display:flex;gap:8px;">
+              ${f.visibility === 'shared' ? `<div class="btn-red" data-pw-action="share-folder" style="padding:8px 14px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;">+ Share</div>` : ''}
+              <div class="btn-outline" data-pw-action="edit-folder" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Edit</div>
+              <div class="btn-outline" data-pw-action="delete-folder" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--red);font-size:12.5px;font-weight:700;cursor:pointer;">Delete</div>
+            </div>` : ''}
+          </div>
+        </div>`;
+      host.querySelector('[data-pw-back]').addEventListener('click', () => goTo('folders'));
+      const shareBtn = host.querySelector('[data-pw-action="share-folder"]'); if (shareBtn) shareBtn.addEventListener('click', () => { activeFolderTab = 'access'; savePwNavState(); render(); });
+      const editBtn = host.querySelector('[data-pw-action="edit-folder"]'); if (editBtn) editBtn.addEventListener('click', () => openEditFolderModal(activeFolderId));
+      const delBtn = host.querySelector('[data-pw-action="delete-folder"]'); if (delBtn) delBtn.addEventListener('click', () => deleteFolder(activeFolderId));
+    }
+  }
+
+  function renderFolderCard(f){
+    const mine = f.created_by === myId();
+    const entryCount = entriesCache[f.id] ? entriesCache[f.id].length : null;
+    const info = VIS_INFO[f.visibility];
+    return `<div class="pw-folder-card" data-pw-open-folder="${esc(f.id)}" style="background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:18px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div style="width:38px;height:38px;border-radius:10px;background:${info.color}1f;display:flex;align-items:center;justify-content:center;">
+          <svg width="17" height="17" viewBox="0 0 16 16" fill="none" style="color:${info.color};">${PW_ICON.folder}</svg>
+        </div>
+        ${badge(info)}
+      </div>
+      <div style="font-size:14.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(f.name)}</div>
+      <div style="font-size:12px;color:var(--text-3);margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.client_id ? esc(clientName(f.client_id)||'') + ' · ' : ''}${entryCount===null ? 'Open to view' : entryCount+' password'+(entryCount===1?'':'s')}</div>
+      ${mine ? '' : `<div style="font-size:11px;color:var(--text-3);margin-top:10px;padding-top:10px;border-top:1px solid var(--line);">by ${esc((profilesCache.find(p=>p.id===f.created_by)||{}).full_name || '—')}</div>`}
+    </div>`;
+  }
+  function renderFolderRow(f){
+    const mine = f.created_by === myId();
+    const entryCount = entriesCache[f.id] ? entriesCache[f.id].length : null;
+    const info = VIS_INFO[f.visibility];
+    return `<div class="pw-folder-card" data-pw-open-folder="${esc(f.id)}" style="display:flex;align-items:center;gap:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:8px;">
+      <div style="width:32px;height:32px;border-radius:8px;background:${info.color}1f;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="color:${info.color};">${PW_ICON.folder}</svg>
+      </div>
+      <div style="min-width:0;flex:1;">
+        <div style="font-size:13.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(f.name)}</div>
+        <div style="font-size:11.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${f.client_id ? esc(clientName(f.client_id)||'') + ' · ' : ''}${entryCount===null ? 'Open to view' : entryCount+' password'+(entryCount===1?'':'s')}${mine?'':' · by '+esc((profilesCache.find(p=>p.id===f.created_by)||{}).full_name || '—')}</div>
+      </div>
+      <span style="flex-shrink:0;">${badge(info)}</span>
+    </div>`;
+  }
+  function entryMatchesQuery(e, q){
+    if (!q) return true;
+    const hay = [e.title, e.username, e.url, ...(e.tags||[])].filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(q);
+  }
+  function folderMatchesQuery(f, q){
+    if (!q) return true;
+    const hay = [f.name, clientName(f.client_id)].filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(q);
+  }
+  function renderSearchResultEntryRow(e, folderId){
+    const f = findFolder(folderId);
+    return `<div class="pw-entry-row" data-pw-search-entry="${esc(e.id)}" data-pw-search-folder="${esc(folderId)}" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);margin-bottom:8px;">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="color:var(--text-3);flex-shrink:0;">${PW_ICON.lock}</svg>
+      <div style="min-width:0;flex:1;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(e.title)}</span>
+          ${e.favorite ? `<svg width="11" height="11" viewBox="0 0 16 16" fill="var(--red)" style="flex-shrink:0;">${PW_ICON.star}</svg>` : ''}
+        </div>
+        <div style="font-size:11px;color:var(--text-3);margin-top:2px;">${esc(f?f.name:'')}${e.username?' · '+esc(e.username):''}</div>
+      </div>
+    </div>`;
+  }
+  function renderSearchResults(){
+    const host = $('pwContent');
+    const q = searchQuery.trim().toLowerCase();
+    const matchedFolders = folders.filter(f => folderMatchesQuery(f, q));
+    let entryMatches = [];
+    folders.forEach(f => {
+      (entriesCache[f.id] || []).forEach(e => {
+        if (searchFavoritesOnly && !e.favorite) return;
+        if (q && !entryMatchesQuery(e, q)) return;
+        if (!q && !searchFavoritesOnly) return;
+        entryMatches.push({ entry: e, folderId: f.id });
+      });
+    });
+    const folderResults = q ? matchedFolders : [];
+    let html = '';
+    if (folderResults.length) {
+      html += `<div style="margin-bottom:22px;"><div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">Folders</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;">${folderResults.map(renderFolderCard).join('')}</div></div>`;
+    }
+    if (entryMatches.length) {
+      html += `<div><div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">${searchFavoritesOnly && !q ? 'Favorites' : 'Passwords'}</div>
+        ${entryMatches.map(m => renderSearchResultEntryRow(m.entry, m.folderId)).join('')}</div>`;
+    }
+    if (!folderResults.length && !entryMatches.length) {
+      html = `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:40px;text-align:center;">No matches${allEntriesPrefetched ? '' : ' yet — still searching…'}</div>`;
+    }
+    host.innerHTML = html;
+    host.querySelectorAll('[data-pw-open-folder]').forEach(el => el.addEventListener('click', () => {
+      const id = el.dataset.pwOpenFolder;
+      goTo('folder', id);
+      if (!entriesCache[id]) loadEntries(id);
+    }));
+    host.querySelectorAll('[data-pw-search-entry]').forEach(el => el.addEventListener('click', () => {
+      const folderId = el.dataset.pwSearchFolder, entryId = el.dataset.pwSearchEntry;
+      goTo('folder', folderId);
+      selectEntry(entryId);
+    }));
+  }
+  function renderFoldersList(){
+    const host = $('pwContent');
+    if (searchQuery.trim() || searchFavoritesOnly) { renderSearchResults(); return; }
+    if (!folders.length) { host.innerHTML = `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:40px;text-align:center;">No password folders yet — create the first one.</div>`; return; }
+    const mine = folders.filter(f => f.created_by === myId() && f.visibility === 'private');
+    const shared = folders.filter(f => f.visibility === 'shared');
+    const pub = folders.filter(f => f.visibility === 'public');
+    const itemFn = foldersViewMode === 'list' ? renderFolderRow : renderFolderCard;
+    const listWrap = (html) => foldersViewMode === 'list' ? html : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;">${html}</div>`;
+    const section = (title, list) => !list.length ? '' : `
+      <div style="margin-bottom:28px;">
+        <div style="font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:10px;">${esc(title)}</div>
+        ${listWrap(list.map(itemFn).join(''))}
+      </div>`;
+    host.innerHTML = section('Private', mine) + section('Shared', shared) + section('Public — everyone at Giant', pub);
+    host.querySelectorAll('[data-pw-open-folder]').forEach(el => el.addEventListener('click', () => {
+      const id = el.dataset.pwOpenFolder;
+      goTo('folder', id);
+      if (!entriesCache[id]) loadEntries(id);
+    }));
+  }
+
+  function renderEntryListItem(e, index, editable){
+    const active = e.id === activeEntryId;
+    return `<div class="pw-entry-row" data-pw-entry-row="${esc(e.id)}" draggable="${editable?'true':'false'}" style="display:flex;align-items:center;gap:8px;padding:9px 8px 9px 4px;cursor:pointer;border-radius:9px;border-left:2.5px solid ${active?'var(--red)':'transparent'};background:${active?'var(--surface)':'transparent'};margin-bottom:2px;">
+      ${editable ? `<span class="pw-entry-grip" style="flex-shrink:0;display:flex;color:var(--text-3);"><svg width="12" height="12" viewBox="0 0 16 16" fill="none">${PW_ICON.grip}</svg></span>` : `<span style="width:12px;flex-shrink:0;"></span>`}
+      <span style="flex-shrink:0;width:16px;font-size:10.5px;font-weight:700;color:var(--text-3);text-align:right;">${index+1}</span>
+      <div style="min-width:0;flex:1;">
+        <div style="display:flex;align-items:center;gap:5px;">
+          <span style="font-size:13px;font-weight:700;color:${active?'var(--text)':'var(--text-2)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(e.title)}</span>
+        </div>
+        ${e.username ? `<div style="display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--text-3);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><svg width="10" height="10" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;opacity:.8;">${PW_ICON.user}</svg>${esc(e.username)}</div>` : ''}
+        ${(e.tags||[]).length ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">${e.tags.map(t=>`<span style="font-size:9.5px;font-weight:700;color:var(--text-3);background:var(--surface);border:1px solid var(--line-2);border-radius:5px;padding:1px 5px;">${esc(t)}</span>`).join('')}</div>` : ''}
+      </div>
+      <span data-pw-toggle-favorite="${esc(e.id)}" title="${e.favorite?'Remove from favorites':'Add to favorites'}" style="flex-shrink:0;display:flex;padding:3px;color:${e.favorite?'var(--red)':'var(--text-3)'};cursor:pointer;">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="${e.favorite?'currentColor':'none'}">${PW_ICON.star}</svg>
+      </span>
+    </div>`;
+  }
+  function wireEntryDrag(container, folderId){
+    let dragId = null;
+    const rows = () => Array.from(container.querySelectorAll('[data-pw-entry-row]'));
+    rows().forEach(el => {
+      el.addEventListener('dragstart', (ev) => { dragId = el.dataset.pwEntryRow; el.classList.add('dragging'); ev.dataTransfer.effectAllowed = 'move'; });
+      el.addEventListener('dragend', () => { el.classList.remove('dragging'); rows().forEach(r => r.classList.remove('drag-over')); dragId = null; });
+      el.addEventListener('dragover', (ev) => { if (el.draggable) { ev.preventDefault(); el.classList.add('drag-over'); } });
+      el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+      el.addEventListener('drop', (ev) => {
+        ev.preventDefault(); el.classList.remove('drag-over');
+        const targetId = el.dataset.pwEntryRow;
+        if (!dragId || dragId === targetId) return;
+        const list = entriesCache[folderId];
+        const fromIdx = list.findIndex(e => e.id === dragId);
+        const toIdx = list.findIndex(e => e.id === targetId);
+        if (fromIdx === -1 || toIdx === -1) return;
+        const [moved] = list.splice(fromIdx, 1);
+        list.splice(toIdx, 0, moved);
+        persistEntryOrder(folderId);
+        render();
+      });
+    });
+  }
+
+  function renderFolderDetail(){
+    const host = $('pwContent');
+    const f = findFolder(activeFolderId);
+    if (!f) { host.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-3);">Folder not found.</div>`; return; }
+    const tabsHtml = ['entries', f.visibility === 'shared' ? 'access' : null].filter(Boolean).map(key => {
+      const label = key === 'entries' ? 'Passwords' : 'Access';
+      return `<div class="wl-ctab" data-pw-tab="${key}" style="padding:8px 15px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${activeFolderTab===key?'background:var(--red);color:#fff;':'color:var(--text-2);'}">${label}</div>`;
+    }).join('');
+    let body;
+    if (activeFolderTab === 'access' && f.visibility === 'shared') {
+      const v = accessCache[f.id];
+      if (!v) loadFolderAccess(f.id);
+      body = (!v || v.loading) ? `<div style="padding:30px;text-align:center;color:var(--text-3);">Loading…</div>` : `
+        <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:20px 22px;max-width:640px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:10px;flex-wrap:wrap;">
+            <div style="font-size:14px;font-weight:800;">Who can see this folder</div>
+            ${isOwnerOrCreator(f) ? `<button class="btn-red" id="pwAddMemberBtn" style="padding:7px 13px;font-size:12px;">+ Add person</button>` : ''}
+          </div>
+          <div style="font-size:12px;color:var(--text-3);margin-bottom:16px;">Owners/managers can always see every folder regardless of this list.</div>
+          ${v.members.length ? v.members.map(m => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);">
+              <div><div style="font-size:13px;font-weight:700;">${esc(m.profile?(m.profile.full_name||m.profile.email):'Unknown user')}</div><div style="font-size:11.5px;color:var(--text-3);">${esc(m.profile?m.profile.email:'')}</div></div>
+              ${isOwnerOrCreator(f) ? `<div class="btn-outline" data-pw-action="remove-member" data-pw-id="${esc(m.profileId)}" style="padding:6px 12px;border-radius:7px;border:1px solid var(--line-2);color:var(--red);font-size:11.5px;font-weight:700;cursor:pointer;">Remove</div>` : ''}
+            </div>`).join('') : `<div style="font-size:12.5px;color:var(--text-3);padding:14px 0;">No one has been added yet.</div>`}
+        </div>`;
+      host.innerHTML = `<div style="display:flex;gap:4px;margin-bottom:18px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:4px;width:fit-content;">${tabsHtml}</div><div>${body}</div>`;
+    } else {
+      const list = entriesCache[f.id];
+      if (list && list.length && !list.find(e => e.id === activeEntryId)) activeEntryId = list[0].id;
+      const editable = isOwnerOrCreator(f) || f.visibility !== 'private';
+      const fq = folderSearchQuery.trim().toLowerCase();
+      const filteredList = list && fq ? list.filter(e => entryMatchesQuery(e, fq)) : list;
+      const draggableAllowed = editable && !fq;
+      const searchBoxHtml = `<div style="position:relative;margin-bottom:8px;">
+        <span style="position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--text-3);pointer-events:none;"><svg width="11" height="11" viewBox="0 0 16 16" fill="none">${PW_ICON.search}</svg></span>
+        <input type="text" id="pwFolderSearchInput" value="${esc(folderSearchQuery)}" placeholder="Filter this folder…" style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--line-2);border-radius:7px;padding:7px 10px 7px 28px;color:var(--text);font-family:inherit;font-size:12px;">
+      </div>`;
+      const listHtml = entriesLoading[f.id] ? `<div style="padding:30px;text-align:center;color:var(--text-3);">Loading…</div>`
+        : (!list || !list.length ? `<div style="padding:32px 14px;text-align:center;color:var(--text-3);font-size:12px;">No passwords yet.</div>`
+          : (!filteredList.length ? `<div style="padding:22px 14px;text-align:center;color:var(--text-3);font-size:12px;">No matches.</div>` : filteredList.map((e,i)=>renderEntryListItem(e,i,draggableAllowed)).join('')));
+      const addBtn = editable ? `<div id="pwAddEntryBtn" class="pw-add-dashed" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:9px;margin-top:8px;border:1px dashed var(--line-2);border-radius:9px;color:var(--text-2);font-size:12px;font-weight:700;cursor:pointer;"><svg width="11" height="11" viewBox="0 0 16 16" fill="none">${PW_ICON.plus}</svg> Add Password</div>` : '';
+      host.innerHTML = `<div style="display:flex;gap:4px;margin-bottom:18px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:4px;width:fit-content;">${tabsHtml}</div>
+        <div style="display:flex;gap:22px;align-items:flex-start;">
+          <div style="width:320px;flex-shrink:0;">
+            ${list && list.length > 5 ? searchBoxHtml : ''}
+            <div id="pwEntryList" style="background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:10px;">${listHtml}${addBtn}</div>
+          </div>
+          <div id="pwDetail" style="flex:1;min-width:0;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;min-height:360px;"></div>
+        </div>`;
+    }
+    host.querySelectorAll('[data-pw-tab]').forEach(el => el.addEventListener('click', () => { activeFolderTab = el.dataset.pwTab; savePwNavState(); render(); }));
+    const addEntryBtn = $('pwAddEntryBtn'); if (addEntryBtn) addEntryBtn.addEventListener('click', () => openNewEntryModal(f.id));
+    const addMemberBtn = $('pwAddMemberBtn'); if (addMemberBtn) addMemberBtn.addEventListener('click', () => openAddFolderMemberModal(f.id));
+    const folderSearchInput = $('pwFolderSearchInput');
+    if (folderSearchInput) folderSearchInput.addEventListener('input', () => {
+      folderSearchQuery = folderSearchInput.value;
+      const caret = folderSearchInput.selectionStart;
+      renderFolderDetail();
+      const freshInput = $('pwFolderSearchInput');
+      if (freshInput) { freshInput.focus(); freshInput.setSelectionRange(caret, caret); }
+    });
+    host.querySelectorAll('[data-pw-entry-row]').forEach(el => el.addEventListener('click', () => selectEntry(el.dataset.pwEntryRow)));
+    host.querySelectorAll('[data-pw-toggle-favorite]').forEach(el => el.addEventListener('click', (ev) => { ev.stopPropagation(); toggleEntryFavorite(f.id, el.dataset.pwToggleFavorite); }));
+    host.querySelectorAll('[data-pw-action="remove-member"]').forEach(el => el.addEventListener('click', () => removeFolderMember(f.id, el.dataset.pwId)));
+    const entryListEl = $('pwEntryList'); if (entryListEl) wireEntryDrag(entryListEl, f.id);
+    if (activeFolderTab === 'entries') renderDetail();
+  }
+
+  function fieldRow(icon, label, valueHtml, actions){
+    return `<div style="display:flex;align-items:center;gap:11px;padding:13px 0;border-bottom:1px solid var(--line);">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="color:var(--text-3);flex-shrink:0;">${PW_ICON[icon]}</svg>
+      <div style="min-width:0;flex:1;">
+        <div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);">${esc(label)}</div>
+        <div style="font-size:13px;color:var(--text);margin-top:2px;word-break:break-word;">${valueHtml}</div>
+      </div>
+      <span style="display:flex;gap:2px;flex-shrink:0;">${actions||''}</span>
+    </div>`;
+  }
+
+  function renderDetail(){
+    const host = $('pwDetail');
+    if (!activeFolderId || activeFolderTab === 'access') { host.innerHTML = ''; return; }
+    if (!activeEntryId) {
+      host.innerHTML = `<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text-3);gap:10px;">
+        <svg width="34" height="34" viewBox="0 0 16 16" fill="none" style="opacity:.4;">${PW_ICON.lock}</svg>
+        <div style="font-size:12.5px;">Select a password to view its details</div>
+      </div>`;
+      return;
+    }
+    const f = findFolder(activeFolderId);
+    const list = entriesCache[activeFolderId] || [];
+    const e = list.find(x => x.id === activeEntryId);
+    if (!e) { host.innerHTML = ''; return; }
+    const editable = f && (isOwnerOrCreator(f) || f.visibility !== 'private');
+    host.innerHTML = `<div data-pw-detail-panel style="max-width:560px;margin:0 auto;padding:32px 28px;transition:background .3s;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:22px;">
+        <div style="display:flex;align-items:center;gap:14px;min-width:0;">
+          <div style="width:48px;height:48px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+            <svg width="22" height="22" viewBox="0 0 16 16" fill="none" style="color:var(--text-2);">${PW_ICON.lock}</svg>
+          </div>
+          <div style="min-width:0;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="font-size:19px;font-weight:800;word-break:break-word;">${esc(e.title)}</span>
+              <span data-pw-toggle-favorite="${esc(e.id)}" title="${e.favorite?'Remove from favorites':'Add to favorites'}" style="flex-shrink:0;display:flex;cursor:pointer;color:${e.favorite?'var(--red)':'var(--text-3)'};">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="${e.favorite?'currentColor':'none'}">${PW_ICON.star}</svg>
+              </span>
+            </div>
+            <div style="margin-top:3px;">${badge(VIS_INFO[f?f.visibility:'private'])}</div>
+          </div>
+        </div>
+        <span style="display:flex;gap:4px;flex-shrink:0;">
+          ${pwIconBtn('share','share-entry',e.id,'Share')}
+          ${editable ? pwIconBtn('edit','edit-entry',e.id,'Edit') + pwIconBtn('trash','delete-entry',e.id,'Delete','var(--red)') : ''}
+        </span>
+      </div>
+      <div>
+        ${e.username ? fieldRow('user','Username', esc(e.username), `<span class="pw-icon-btn" data-pw-copy-plain="${esc(e.username)}" title="Copy username"><svg width="13" height="13" viewBox="0 0 16 16" fill="none">${PW_ICON.copy}</svg></span>`) : ''}
+        ${fieldRow('lock','Password', `<code data-pw-reveal="${esc(e.id)}" style="font-size:13px;letter-spacing:1.5px;">••••••••</code>`, pwIconBtn('eye','reveal-entry',e.id,'Show password') + pwIconBtn('copy','copy-entry',e.id,'Copy password'))}
+        ${e.url ? fieldRow('globe','Website', `<a href="${esc(/^https?:\/\//.test(e.url)?e.url:'https://'+e.url)}" target="_blank" rel="noopener" style="color:#5b9dff;text-decoration:none;">${esc(e.url)}</a>`, '') : ''}
+        ${(e.tags||[]).length ? fieldRow('tag','Tags', `<div style="display:flex;gap:5px;flex-wrap:wrap;">${e.tags.map(t=>`<span style="font-size:11px;font-weight:700;color:var(--text-2);background:var(--surface);border:1px solid var(--line-2);border-radius:6px;padding:2px 8px;">${esc(t)}</span>`).join('')}</div>`, '') : ''}
+        ${e.notes ? fieldRow('edit','Notes', `<span style="white-space:pre-wrap;">${esc(e.notes)}</span>`, '') : ''}
+        ${e.created_at ? fieldRow('clock','Added', esc(fmtDate(e.created_at)), '') : ''}
+      </div>
+    </div>`;
+    host.querySelectorAll('[data-pw-action="edit-entry"]').forEach(el => el.addEventListener('click', () => openEditEntryModal(activeFolderId, el.dataset.pwId)));
+    host.querySelectorAll('[data-pw-action="delete-entry"]').forEach(el => el.addEventListener('click', () => deleteEntry(activeFolderId, el.dataset.pwId)));
+    host.querySelectorAll('[data-pw-action="reveal-entry"]').forEach(el => el.addEventListener('click', () => revealEntry(el.dataset.pwId)));
+    host.querySelectorAll('[data-pw-action="copy-entry"]').forEach(el => el.addEventListener('click', () => copyEntry(el.dataset.pwId)));
+    host.querySelectorAll('[data-pw-action="share-entry"]').forEach(el => el.addEventListener('click', () => openShareChooserModal(el.dataset.pwId, editable)));
+    host.querySelectorAll('[data-pw-toggle-favorite]').forEach(el => el.addEventListener('click', () => toggleEntryFavorite(activeFolderId, el.dataset.pwToggleFavorite)));
+    host.querySelectorAll('[data-pw-copy-plain]').forEach(el => el.addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(el.dataset.pwCopyPlain); if (typeof toast==='function') toast({type:'success', message:'Copied', duration:1500}); } catch(e){}
+    }));
+  }
+
+  function render(){
+    const host = $('pwContent');
+    if (!host) return;
+    if (pwLoading) { $('pwHeader').innerHTML = ''; host.innerHTML = `<div style="padding:60px;text-align:center;color:var(--text-3);">Loading…</div>`; return; }
+    renderHeader();
+    if (view === 'folders') renderFoldersList();
+    else renderFolderDetail();
+  }
+
+  let pwModalOnSave = null;
+  const modalSaveBtn = $('pwModalSaveBtn');
+  if (modalSaveBtn) modalSaveBtn.addEventListener('click', () => { if (pwModalOnSave) { const fn = pwModalOnSave; pwModalOnSave = null; fn(); closeModal('pwModalOverlay'); render(); } });
+
+  window.pwInit = function(){ if (!pwLoaded && !pwLoading) loadPwData(); else render(); };
 })();
 
 /* ===== CHAT 2.0 =====

@@ -1,5 +1,6 @@
 # SPA fallback — route all unmatched paths to /index.html so the JS bootstrap can handle them
 /share/*        /share.html   200
+/pwshare/*      /pw-share.html   200
 /onboard/*      /index.html   200
 /book/*         /index.html   200
 /oauth/*        /index.html   200

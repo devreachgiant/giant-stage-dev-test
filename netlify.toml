@@ -81,6 +81,11 @@
   status = 200
 
 [[redirects]]
+  from = "/pwshare/*"
+  to = "/pw-share.html"
+  status = 200
+
+[[redirects]]
   from = "/onboard/*"
   to = "/index.html"
   status = 200
