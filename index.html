@@ -15453,11 +15453,15 @@ setupRail('rail2','pill2');
               <div style="font-size:11.5px;color:${rowPaid>0?'#e8a83e':'var(--text-3)'};margin-top:2px;">${esc(paidLabel)}</div>
             </div>
             <span data-stop-row-click style="flex-shrink:0;">${statusHtml}</span>
+            ${partner ? '' : `<span data-wl2-delete-project="${esc(p.id)}" data-stop-row-click title="Delete project" style="flex-shrink:0;display:flex;align-items:center;padding:6px;color:var(--text-3);cursor:pointer;">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M6.5 4.5V3a1 1 0 011-1h1a1 1 0 011 1v1.5M4.5 4.5V13a1 1 0 001 1h5a1 1 0 001-1V4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+            </span>`}
           </div>`;
         }).join('') : `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:32px;text-align:center;">${partner ? 'No projects yet.' : 'No projects match — try "+ New Project" or clear filters.'}</div>`}
       </div>
     `;
     if (!partner) host.querySelectorAll('[data-wl2-open-project]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('[data-stop-row-click]')) return; openEditProjectModal2(el.dataset.wl2OpenProject); }));
+    host.querySelectorAll('[data-wl2-delete-project]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); deleteProject2(el.dataset.wl2DeleteProject); }));
     const manageClientsBtn = $('wl2ManageClientsBtn'); if (manageClientsBtn) manageClientsBtn.addEventListener('click', () => openManageClientsModal2(activeCompanyId2));
     host.querySelectorAll('[data-wl2-inline-status]').forEach(el => el.addEventListener('click', e => e.stopPropagation()));
     host.querySelectorAll('[data-wl2-inline-status]').forEach(el => el.addEventListener('change', async (e) => {
