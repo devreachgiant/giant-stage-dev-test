@@ -15086,6 +15086,59 @@ setupRail('rail2','pill2');
     if (typeof toast==='function') toast({type:'success', message:'Project deleted'});
     render2();
   }
+  async function deleteCompany2(companyId){
+    if (isWl2Partner()) return;
+    const c = findCompany2(companyId); if (!c) return;
+    const clientCount = c.clients.length;
+    const projectCount = c.clients.reduce((s,cl)=>s+cl.projects.length,0);
+    const confirmed = await window.giantConfirmWarn(`Delete "${c.name}"?`, `This removes the company and everyone's access, plus all ${clientCount} client${clientCount===1?'':'s'} and ${projectCount} project${projectCount===1?'':'s'} inside it. This can't be undone.`, 'Delete', 'warning');
+    if (!confirmed) return;
+    if (!isTempId2(companyId)) {
+      const { error } = await sb().from('white_label_companies').delete().eq('id', companyId);
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not delete: '+error.message}); return; }
+    }
+    companies2 = companies2.filter(x => x.id !== companyId);
+    delete accessCache2[companyId];
+    if (activeCompanyId2 === companyId) { activeCompanyId2 = companies2.length ? companies2[0].id : ''; filterClientId2=''; filterStatus2=''; }
+    if (typeof toast==='function') toast({type:'success', message:'Company deleted'});
+    render2();
+  }
+  async function deleteClient2(clientId){
+    if (isWl2Partner()) return;
+    let company=null, client=null;
+    for (const c of companies2) { const cl = c.clients.find(x=>x.id===clientId); if (cl) { company=c; client=cl; break; } }
+    if (!client) return;
+    const confirmed = await window.giantConfirmWarn(`Delete "${client.name}"?`, `This removes the client and all ${client.projects.length} linked project${client.projects.length===1?'':'s'}. This can't be undone.`, 'Delete', 'warning');
+    if (!confirmed) return;
+    if (!isTempId2(clientId)) {
+      const { error } = await sb().from('white_label_clients').delete().eq('id', clientId);
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not delete: '+error.message}); return; }
+    }
+    company.clients = company.clients.filter(x => x.id !== clientId);
+    if (filterClientId2 === clientId) filterClientId2 = '';
+    if (typeof toast==='function') toast({type:'success', message:'Client deleted'});
+    return true;
+  }
+  function openManageClientsModal2(companyId){
+    if (isWl2Partner()) return;
+    const c = findCompany2(companyId); if (!c) return;
+    $('wl2ModalSaveBtn').style.display = 'none';
+    $('wl2ModalTitle').textContent = 'Manage clients — ' + c.name;
+    const renderBody = () => {
+      $('wl2ModalBody').innerHTML = `
+        ${c.clients.length ? c.clients.map(cl => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);">
+            <div><div style="font-size:13px;font-weight:700;">${esc(cl.name)}</div><div style="font-size:11.5px;color:var(--text-3);">${cl.projects.length} project${cl.projects.length===1?'':'s'}</div></div>
+            <span data-wl2-delete-client-row="${esc(cl.id)}" style="font-size:11.5px;font-weight:700;color:var(--red);cursor:pointer;">Delete</span>
+          </div>`).join('') : `<div style="font-size:12.5px;color:var(--text-3);padding:10px 0;">No clients yet — add one from "+ New Project".</div>`}`;
+      $('wl2ModalBody').querySelectorAll('[data-wl2-delete-client-row]').forEach(el => el.addEventListener('click', async () => {
+        const ok = await deleteClient2(el.dataset.wl2DeleteClientRow);
+        if (ok) { renderBody(); render2Content(); }
+      }));
+    };
+    renderBody();
+    openModal('wl2ModalOverlay');
+  }
 
   // ---- Access (reuses white_label_company_members — same table as original module) ----
   async function loadAccess2(companyId){
@@ -15303,7 +15356,12 @@ setupRail('rail2','pill2');
     const host = $('wl2Header');
     if (!host) return;
     const partner = isWl2Partner();
-    const pillsHtml = companies2.map(c => `<div data-wl2-select-company="${esc(c.id)}" style="padding:9px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:background .16s ease,color .16s ease;${c.id===activeCompanyId2?'background:var(--red);color:#fff;':'color:var(--text-3);'}">${esc(c.name)}</div>`).join('');
+    const pillsHtml = companies2.map(c => `<div data-wl2-select-company="${esc(c.id)}" style="display:flex;align-items:center;gap:7px;padding:9px 12px 9px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:background .16s ease,color .16s ease;${c.id===activeCompanyId2?'background:var(--red);color:#fff;':'color:var(--text-3);'}">
+      <span>${esc(c.name)}</span>
+      ${(!partner && c.id===activeCompanyId2) ? `<span data-wl2-delete-company="${esc(c.id)}" data-stop-row-click title="Delete company" style="display:flex;align-items:center;opacity:.8;">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M6.5 4.5V3a1 1 0 011-1h1a1 1 0 011 1v1.5M4.5 4.5V13a1 1 0 001 1h5a1 1 0 001-1V4.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+      </span>` : ''}
+    </div>`).join('');
     host.innerHTML = `
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:10px;">
         <div style="display:flex;align-items:center;gap:2px;flex-wrap:wrap;background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:4px;">
@@ -15322,12 +15380,14 @@ setupRail('rail2','pill2');
           ${partner ? `<span style="font-size:11.5px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 13px;">View only${wl2ViewAsPreviewPartner && !window._wlPartnerMode ? ' — previewing' : ''}</span>` : ''}
         </div>
       </div>`;
-    host.querySelectorAll('[data-wl2-select-company]').forEach(el => el.addEventListener('click', () => {
+    host.querySelectorAll('[data-wl2-select-company]').forEach(el => el.addEventListener('click', (e) => {
+      if (e.target.closest('[data-stop-row-click]')) return;
       if (el.dataset.wl2SelectCompany === activeCompanyId2) return;
       activeCompanyId2 = el.dataset.wl2SelectCompany; filterClientId2=''; filterStatus2='';
       render2Header();
       fadeRender2Content();
     }));
+    host.querySelectorAll('[data-wl2-delete-company]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); deleteCompany2(el.dataset.wl2DeleteCompany); }));
     const addCoBtn = $('wl2AddCompanyBtn'); if (addCoBtn) addCoBtn.addEventListener('click', addCompany2);
     const newProjBtn = $('wl2NewProjectBtn'); if (newProjBtn) newProjBtn.addEventListener('click', openNewProjectModal2);
     const accessBtn = $('wl2ManageAccessBtn'); if (accessBtn) accessBtn.addEventListener('click', () => openManageAccessModal2(activeCompanyId2));
@@ -15367,6 +15427,7 @@ setupRail('rail2','pill2');
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
         <div style="width:160px;">${selectHtml('wl2FilterClient', clientFilterOptions, filterClientId2)}</div>
         <div style="width:150px;">${selectHtml('wl2FilterStatus', statusFilterOptions, filterStatus2)}</div>
+        ${partner ? '' : `<span id="wl2ManageClientsBtn" style="font-size:12px;font-weight:700;color:var(--text-3);cursor:pointer;">Manage clients</span>`}
         <div style="flex:1;text-align:right;font-size:12.5px;color:var(--text-3);">${filtered.length} project${filtered.length===1?'':'s'}</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:10px;">
@@ -15397,6 +15458,7 @@ setupRail('rail2','pill2');
       </div>
     `;
     if (!partner) host.querySelectorAll('[data-wl2-open-project]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('[data-stop-row-click]')) return; openEditProjectModal2(el.dataset.wl2OpenProject); }));
+    const manageClientsBtn = $('wl2ManageClientsBtn'); if (manageClientsBtn) manageClientsBtn.addEventListener('click', () => openManageClientsModal2(activeCompanyId2));
     host.querySelectorAll('[data-wl2-inline-status]').forEach(el => el.addEventListener('click', e => e.stopPropagation()));
     host.querySelectorAll('[data-wl2-inline-status]').forEach(el => el.addEventListener('change', async (e) => {
       e.stopPropagation();
