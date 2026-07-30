@@ -14973,7 +14973,7 @@ setupRail('rail2','pill2');
     const [foldersRes, clientsRes, profilesRes] = await Promise.all([
       sb().from('password_folders').select('*').order('created_at', { ascending:true }),
       sb().from('clients').select('id, name').order('name', { ascending:true }),
-      sb().from('profiles').select('id, full_name, email, role').neq('role','client').order('full_name', { ascending:true }),
+      sb().from('profiles').select('id, full_name, email, role').neq('role','client').neq('email','bot@reachgiant.com').is('deactivated_at', null).order('full_name', { ascending:true }),
     ]);
     folders = foldersRes.data || [];
     clientsCache = clientsRes.data || [];
