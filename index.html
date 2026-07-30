@@ -1117,6 +1117,8 @@ body.chat-scope-clients #chatAddSectionBtn{display:none !important;}
 .msg-voice-track .bar{width:2px;background:var(--text-3);border-radius:1px;flex:1;}
 .msg-voice-track .bar.played{background:var(--red);}
 .msg-voice-time{font-family:ui-monospace,'SF Mono',monospace;font-size:11px;color:var(--text-2);font-weight:600;min-width:32px;text-align:right;}
+.msg-voice-speed{flex-shrink:0;font-family:ui-monospace,'SF Mono',monospace;font-size:10.5px;font-weight:700;color:var(--text-2);background:var(--surface);border:1px solid var(--line-2);border-radius:9px;padding:2px 6px;cursor:pointer;transition:.14s;min-width:30px;text-align:center;}
+.msg-voice-speed:hover{background:var(--red);border-color:var(--red);color:#fff;}
 /* Truncate Task Infos cell so it doesn't push the table */
 .prj-cell[data-col="task_details"]{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
 .prj-cell[data-col="task_details"] > span{display:block;flex:1;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -57937,6 +57939,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
   }, 600);
 
+  // Playback speed for voice notes — remembered across the app (like WhatsApp/Telegram),
+  // so once you pick 1.5x it stays 1.5x for the next notes you play too.
+  const VOICE_SPEEDS = [0.8, 1, 1.2, 1.5, 2];
+  function _getVoiceSpeed() {
+    try { const v = parseFloat(localStorage.getItem('giant_voice_speed')); return VOICE_SPEEDS.includes(v) ? v : 1; } catch(e) { return 1; }
+  }
+  function _setVoiceSpeed(v) { try { localStorage.setItem('giant_voice_speed', String(v)); } catch(e) {} }
+
   // Render voice note player inside any message that has voice_note_url
   function _renderVoicePlayer(url, durationMs) {
     const totalSec = Math.round((durationMs || 0) / 1000);
@@ -57950,6 +57960,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       <button class="msg-voice-play" data-voice-action="play"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M5 3l7 5-7 5V3Z" fill="currentColor"/></svg></button>
       <div class="msg-voice-track" data-voice-action="seek">${barsHtml}</div>
       <span class="msg-voice-time">${_fmtTime((durationMs || 0))}</span>
+      <button class="msg-voice-speed" data-voice-action="speed" title="Playback speed">${_getVoiceSpeed()}x</button>
     </div>`;
   }
   window._renderVoicePlayer = _renderVoicePlayer;
@@ -57996,8 +58007,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           if (timeEl) timeEl.textContent = _fmtTime(a.currentTime * 1000);
         });
       }
+      wrapper._audio.playbackRate = _getVoiceSpeed();
       wrapper._audio.play().catch(err => console.warn('[voice] playback failed:', err));
       playBtn.innerHTML = '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><rect x="4" y="3" width="3" height="10" fill="currentColor"/><rect x="9" y="3" width="3" height="10" fill="currentColor"/></svg>';
+    }
+    const speedBtn = e.target.closest('.msg-voice-speed[data-voice-action="speed"]');
+    if (speedBtn) {
+      e.stopPropagation();
+      const wrapper = speedBtn.closest('.msg-voice');
+      if (!wrapper) return;
+      const next = VOICE_SPEEDS[(VOICE_SPEEDS.indexOf(_getVoiceSpeed()) + 1) % VOICE_SPEEDS.length];
+      _setVoiceSpeed(next);
+      // Apply to every voice player on screen (matches WhatsApp: the speed choice is global,
+      // not per-message), including the one currently playing.
+      document.querySelectorAll('.msg-voice').forEach(w => {
+        const btn = w.querySelector('.msg-voice-speed');
+        if (btn) btn.textContent = next + 'x';
+        if (w._audio) w._audio.playbackRate = next;
+      });
+      return;
     }
     const track = e.target.closest('.msg-voice-track[data-voice-action="seek"]');
     if (track) {
