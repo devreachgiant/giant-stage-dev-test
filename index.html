@@ -5430,6 +5430,20 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
   </div>
 </div>
 
+<div class="modal-overlay" id="wl2ModalOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="wl2ModalTitle">Add</h3>
+      <div class="m-close" data-close="wl2ModalOverlay"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+    </div>
+    <div class="modal-body" id="wl2ModalBody" style="max-height:60vh;overflow-y:auto;"></div>
+    <div class="modal-foot">
+      <button class="m-cancel" data-close="wl2ModalOverlay">Cancel</button>
+      <button class="m-submit" id="wl2ModalSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Passwords — same generic single-modal-shell pattern as White Label. -->
 <div class="modal-overlay" id="pwModalOverlay">
   <div class="modal">
@@ -5814,6 +5828,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         <div class="nav-item" data-screen="teampay" data-label="Team Pay" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5v7M10.3 6.3c0-1-1-1.6-2.3-1.6-1.4 0-2.4.7-2.4 1.7 0 2.3 4.7 1.1 4.7 3.4 0 1-1 1.7-2.4 1.7-1.3 0-2.3-.6-2.3-1.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>Team Pay</div>
         <div class="nav-item" data-screen="clients" data-label="Clients" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="2.6" stroke="currentColor" stroke-width="1.4"/><path d="M2.8 13.2c.6-2.5 2.7-4 5.2-4s4.6 1.5 5.2 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>Clients</div>
         <div class="nav-item" data-screen="whitelabel" data-label="White Label" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><rect x="1.8" y="2.5" width="12.4" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M1.8 6h12.4" stroke="currentColor" stroke-width="1.4"/><circle cx="4.3" cy="4.2" r=".55" fill="currentColor"/><circle cx="6.1" cy="4.2" r=".55" fill="currentColor"/></svg></span>White Label</div>
+        <div class="nav-item" data-screen="whitelabel2" data-label="White Label 2.0" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><rect x="1.8" y="2.5" width="12.4" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M1.8 6h12.4" stroke="currentColor" stroke-width="1.4"/><circle cx="4.3" cy="4.2" r=".55" fill="currentColor"/><circle cx="6.1" cy="4.2" r=".55" fill="currentColor"/></svg></span>White Label 2.0 <span class="badge" style="background:linear-gradient(90deg,#A855F7,#FB923C,#10B981);color:#fff;font-size:8.5px;padding:1px 6px;border-radius:6px;font-weight:800;letter-spacing:.04em;">NEW</span></div>
       </div>
       <div class="nav-group-label nav-group-toggle" data-navgroup="tools">Tools<svg class="nav-group-chev" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div class="nav-rail" id="railTools" data-navgroup-body="tools">
@@ -8738,6 +8753,14 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         </div>
       </div>
 
+      <!-- ===== WHITE LABEL 2.0 ===== -->
+      <div class="screen" data-screen="whitelabel2" data-role-min="manager">
+        <div style="padding:28px 24px;">
+          <div id="wl2Header" style="max-width:1100px;margin:0 auto;"></div>
+          <div id="wl2Content" style="max-width:1100px;margin:0 auto;"></div>
+        </div>
+      </div>
+
       <!-- ===== PASSWORDS ===== -->
       <div class="screen" data-screen="passwords">
         <div style="padding:28px 32px;max-width:1400px;margin:0 auto;">
@@ -10314,6 +10337,7 @@ function setupRail(railId,pillId){
     document.querySelector('.main').scrollTop=0;
     if(scr==='finance')replayFinanceChart();
     if(scr==='whitelabel' && window.wlInit) window.wlInit();
+    if(scr==='whitelabel2' && window.wl2Init) window.wl2Init();
     if(scr==='passwords' && window.pwInit) window.pwInit();
     if(scr==='chat2' && window.chat2Init) window.chat2Init();
     // Persist active screen for refresh
@@ -13583,7 +13607,7 @@ setupRail('rail2','pill2');
   }
 
   let view = 'dashboard'; // dashboard | companies | company | client | project
-  let activeCompanyId = null, activeClientId = null, activeProjectId = null, activeCompanyTab = 'clients', activeProjectTab = 'milestones';
+  let activeCompanyId = null, activeClientId = null, activeProjectId = null, activeCompanyTab = 'projects', activeProjectTab = 'milestones';
   let companySearch = '', showArchived = false;
   let dashSearch = '';
   let dashStatusFilter = 'all';
@@ -13672,7 +13696,7 @@ setupRail('rail2','pill2');
       activeCompanyId = saved.activeCompanyId || null;
       activeClientId = saved.activeClientId || null;
       activeProjectId = saved.activeProjectId || null;
-      activeCompanyTab = saved.activeCompanyTab || 'clients';
+      activeCompanyTab = saved.activeCompanyTab || 'projects';
       activeProjectTab = saved.activeProjectTab || 'milestones';
     } catch(e) {}
   }
@@ -13713,8 +13737,8 @@ setupRail('rail2','pill2');
     if (view === 'dashboard' || view === 'companies') {
       action = isNotPartnerView() ? `<button class="btn-red" data-wl-action="new-company">+ New Company</button>` : '';
     } else if (view === 'company' && isNotPartnerView()) {
-      action = activeCompanyTab === 'clients'
-        ? `<button class="btn-red" data-wl-action="new-client" data-wl-id="${esc(activeCompanyId)}">+ New Client</button>`
+      action = activeCompanyTab === 'access'
+        ? ''
         : `<button class="btn-red" data-wl-action="new-project">+ New Project</button>`;
     }
 
@@ -13754,7 +13778,7 @@ setupRail('rail2','pill2');
       </div>`;
     host.querySelectorAll('[data-wl-crumb]').forEach(el => el.addEventListener('click', () => {
       const target = el.dataset.wlCrumb;
-      if (target === 'company') goTo('company', { companyTab: 'clients' });
+      if (target === 'company') goTo('company', { companyTab: 'projects' });
       else if (target === 'client') goTo('client');
       else goTo(target);
     }));
@@ -13783,7 +13807,7 @@ setupRail('rail2','pill2');
       companies.push(c);
       await persistCompany(c);
       if (typeof toast==='function') toast({type:'success', message:'Company added — let’s add their first client'});
-      goTo('company', { companyId: c.id, companyTab:'clients' });
+      goTo('company', { companyId: c.id, companyTab:'projects' });
       // Guided flow: company -> client -> project, one screen at a time, instead of making
       // someone hunt for the "+ New Client" button themselves right after creating a company.
       // Cancel at any point in the chain just stops here — nothing forces them through it.
@@ -13981,8 +14005,12 @@ setupRail('rail2','pill2');
     ], async (v) => { Object.assign(c, { name:v.name.trim()||c.name, mainContact:v.mainContact, email:v.email, phone:v.phone, status:v.status }); await persistCompany(c); if (typeof toast==='function') toast({type:'success', message:'Company updated'}); });
   }
 
-  // ---- Company detail (lightweight: header rollup + Clients / Projects tabs only) ----
-  const COMPANY_TABS = [ ['clients','Clients'], ['projects','Projects'] ];
+  // ---- Company detail (lightweight: header rollup + a single unified Projects list) ----
+  // Used to be two tabs (Clients / Projects) — Luke: "we have two different views and it's
+  // kind of confusing... otherwise I'm flipping between the two." Projects is now the one
+  // list (client name shown inline per row, clickable through to that client's own page),
+  // and adding a project can create its client inline instead of requiring a separate step.
+  const COMPANY_TABS = [ ['projects','Projects'] ];
   function renderCompanyDetail() {
     const c = findCompany(activeCompanyId);
     if (!c) return `<div style="padding:40px;text-align:center;color:var(--text-3);">Company not found.</div>`;
@@ -13991,10 +14019,9 @@ setupRail('rail2','pill2');
     // Access tab manages real per-company grants — staff only, hidden from the partners
     // being managed there (an external partner has no business seeing who else has access).
     const companyTabs = isNotPartnerView() ? [...COMPANY_TABS, ['access','Access']] : COMPANY_TABS;
-    const tabsHtml = companyTabs.map(([key,label]) => `<div class="wl-ctab" data-wl-company-tab="${key}" style="padding:8px 15px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${activeCompanyTab===key?'background:var(--red);color:#fff;':'color:var(--text-2);'}">${esc(label)}</div>`).join('');
+    const tabsHtml = companyTabs.length > 1 ? companyTabs.map(([key,label]) => `<div class="wl-ctab" data-wl-company-tab="${key}" style="padding:8px 15px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${activeCompanyTab===key?'background:var(--red);color:#fff;':'color:var(--text-2);'}">${esc(label)}</div>`).join('') : '';
     let body = '';
-    if (activeCompanyTab === 'clients') body = renderCompanyClientsTab(c);
-    else if (activeCompanyTab === 'access' && isNotPartnerView()) body = renderCompanyAccessTab(c);
+    if (activeCompanyTab === 'access' && isNotPartnerView()) body = renderCompanyAccessTab(c);
     else body = renderCompanyProjectsTab(c);
 
     const statCols = isOwnerView() ? 6 : (isNotPartnerView() ? 4 : 2);
@@ -14020,7 +14047,7 @@ setupRail('rail2','pill2');
           <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Profit</div><div style="font-size:16px;font-weight:700;margin-top:4px;color:#3ecf8e;">${esc(fmtMoney(totals.profit))}</div></div>` : ''}
         </div>
       </div>
-      <div style="display:flex;gap:4px;margin-bottom:18px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:4px;width:fit-content;flex-wrap:wrap;">${tabsHtml}</div>
+      ${tabsHtml ? `<div style="display:flex;gap:4px;margin-bottom:18px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:4px;width:fit-content;flex-wrap:wrap;">${tabsHtml}</div>` : ''}
       <div>${body}</div>
     `;
   }
@@ -14072,7 +14099,7 @@ setupRail('rail2','pill2');
   }
   function renderCompanyProjectsTab(c) {
     const rows = []; c.clients.forEach(cl => cl.projects.forEach(p => rows.push({client:cl,project:p})));
-    if (!rows.length) return `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:32px;text-align:center;">No projects yet — add a client first, then a project.</div>`;
+    if (!rows.length) return `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:32px;text-align:center;">No projects yet — click "+ New Project" to add one (you can create its client in the same step).</div>`;
     const nextActionText = (p) => { const m = (p.milestones||[]).find(m => m.status !== 'completed'); return m ? `Next: ${m.name}` : 'All milestones complete'; };
     return `
       <div style="border-radius:10px;overflow:hidden;border:1px solid var(--line);">
@@ -14082,7 +14109,7 @@ setupRail('rail2','pill2');
         ${rows.map(r => { const p = r.project; const st = STATUS_INFO[p.status] || STATUS_INFO.not_started; const pay = PAYMENT_STATUS_INFO[(p.billing||{}).paymentStatus] || PAYMENT_STATUS_INFO.not_invoiced; return `
         <div data-wl-open-project="${esc(p.id)}" style="display:grid;grid-template-columns:1.4fr 1fr 0.9fr 0.9fr 0.8fr 130px;padding:14px 16px;border-top:1px solid var(--line);background:var(--surface-2);cursor:pointer;align-items:center;">
           <div><div style="font-size:13.5px;font-weight:700;">${esc(p.name)}</div><div style="font-size:11.5px;color:var(--text-3);margin-top:2px;">${esc(nextActionText(p))}</div></div>
-          <div style="font-size:12.5px;color:var(--text-2);">${esc(r.client.name)}</div>
+          <div style="font-size:12.5px;"><span data-wl-open-client-inline="${esc(c.id)}::${esc(r.client.id)}" style="color:var(--text-2);text-decoration:underline;text-decoration-color:var(--line-2);text-underline-offset:2px;cursor:pointer;">${esc(r.client.name)}</span></div>
           <div>${badge(st)}</div>
           <div>${isNotPartnerView() ? badge(pay) : ''}</div>
           <div style="font-size:12.5px;color:var(--text-2);">${projectProgress(p)}%</div>
@@ -14243,7 +14270,7 @@ setupRail('rail2','pill2');
     c.clients = c.clients.filter(x => x.id !== cl.id);
     await deleteClientRemote(cl.id);
     if (typeof toast==='function') toast({type:'success', message:'Client deleted'});
-    goTo('company', { companyTab:'clients' });
+    goTo('company', { companyTab:'projects' });
   }
 
   async function openOnboardingForm() {
@@ -14541,11 +14568,14 @@ setupRail('rail2','pill2');
   function openNewProjectModal(wizard) {
     if (!isNotPartnerView()) return;
     const c = findCompany(activeCompanyId); if (!c) return;
-    const clientOptions = (c.clients||[]).map(cl => ({value:cl.id, label:cl.name}));
-    if (!clientOptions.length) { if (typeof toast==='function') toast({type:'error', message:'Add a client first, then a project.'}); return; }
-    const defaultClientId = (activeClientId && c.clients.some(cl=>cl.id===activeClientId)) ? activeClientId : clientOptions[0].value;
+    // Client is picked (or created) right here now — no separate "add a client first" step.
+    // Pick "+ New client" and type the name in the field below to create it in the same save.
+    const NEW_CLIENT = '__new__';
+    const clientOptions = [{ value: NEW_CLIENT, label: '+ New client…' }, ...(c.clients||[]).map(cl => ({value:cl.id, label:cl.name}))];
+    const defaultClientId = (activeClientId && c.clients.some(cl=>cl.id===activeClientId)) ? activeClientId : (c.clients.length ? c.clients[0].id : NEW_CLIENT);
     openWlModal(wizard ? 'Add their first project (optional — Cancel to skip)' : 'Add Project', [
       { key:'clientId', label:'Client', type:'select', value: defaultClientId, options: clientOptions },
+      { key:'newClientName', label:'New client name (only if "+ New client…" is selected above)', value:'' },
       { key:'name', label:'Project name', value:'' },
       { key:'type', label:'Project type', type:'select', value:'New Website', options: PROJECT_TYPES.map(t=>({value:t,label:t})) },
       { key:'price', label:'Project price', type:'number', value:0 },
@@ -14554,7 +14584,17 @@ setupRail('rail2','pill2');
       { key:'pm', label:'Assigned project manager', value:'' },
     ], async (v) => {
       if (!v.name.trim()) return;
-      const cl = findClient(activeCompanyId, v.clientId); if (!cl) return;
+      let cl;
+      if (v.clientId === NEW_CLIENT) {
+        if (!v.newClientName.trim()) { if (typeof toast==='function') toast({type:'error', message:'Enter a name for the new client'}); return; }
+        cl = emptyClient(activeCompanyId);
+        Object.assign(cl, { name: v.newClientName.trim(), mainContact: v.newClientName.trim() });
+        c.clients.push(cl);
+        await persistClient(cl);
+        ensureOnboardingLink(cl).then(async result => { await persistClient(cl); render(); if (result && typeof toast==='function') toast({type:'success', message:'Onboarding link ready — find it on the client page.'}); });
+      } else {
+        cl = findClient(activeCompanyId, v.clientId); if (!cl) return;
+      }
       const p = emptyProject(cl.id);
       Object.assign(p, { name:v.name.trim(), type:v.type, price:v.price, startDate:v.startDate, targetDate:v.targetDate, pm:v.pm });
       // Full pass-through by default — Luke: he expected the partner to get the whole
@@ -14730,8 +14770,11 @@ setupRail('rail2','pill2');
     const host = $('wlContent');
     if (!host) return;
 
-    host.querySelectorAll('[data-wl-open-company]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('[data-stop-row-click]')) return; goTo('company', { companyId: el.dataset.wlOpenCompany, companyTab:'clients' }); }));
+    host.querySelectorAll('[data-wl-open-company]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('[data-stop-row-click]')) return; goTo('company', { companyId: el.dataset.wlOpenCompany, companyTab:'projects' }); }));
     host.querySelectorAll('[data-wl-open-client]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('[data-stop-row-click]') || e.target.closest('[data-wl-open-project]')) return; const [companyId, clientId] = el.dataset.wlOpenClient.split('::'); goTo('client', { companyId, clientId }); }));
+    // Client name inline inside a Projects-list row — its own listener + stopPropagation so
+    // clicking it opens the client instead of bubbling up to the row's "open project" handler.
+    host.querySelectorAll('[data-wl-open-client-inline]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); const [companyId, clientId] = el.dataset.wlOpenClientInline.split('::'); goTo('client', { companyId, clientId }); }));
     host.querySelectorAll('[data-wl-open-project]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('[data-stop-row-click]')) return; e.stopPropagation(); goTo('project', { projectId: el.dataset.wlOpenProject }); }));
 
     host.querySelectorAll('[data-wl-action="edit-company"]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); openEditCompanyModal(el.dataset.wlId || activeCompanyId); }));
@@ -14771,7 +14814,7 @@ setupRail('rail2','pill2');
       const companyId = el.dataset.wlAlertCompany, clientId = el.dataset.wlAlertClient, projectId = el.dataset.wlAlertProject;
       if (projectId) goTo('project', { projectId });
       else if (clientId) goTo('client', { companyId, clientId });
-      else goTo('company', { companyId, companyTab:'clients' });
+      else goTo('company', { companyId, companyTab:'projects' });
     }));
     host.querySelectorAll('[data-wl-action="new-project"]').forEach(el => el.addEventListener('click', openNewProjectModal));
     host.querySelectorAll('[data-wl-action="edit-project"]').forEach(el => el.addEventListener('click', openEditProjectModal));
@@ -14904,6 +14947,495 @@ setupRail('rail2','pill2');
   }
 
   window.wlInit = function() { if (!wlLoaded && !wlLoading) { restoreWlNavState(); loadWlData(); } else render(); };
+})();
+
+/* ===== WHITE LABEL 2.0 =====
+   Parallel, deliberately much simpler rebuild of White Label — Luke: "something super simple
+   where we can just add companies, project, total amount, total amount partner will get paid,
+   manage access." No clients tab, no partner-view/redaction mode, no milestones/notes/files —
+   just companies -> a flat list of projects (client shown inline, add-a-client folded into
+   add-a-project). Reads and writes the SAME white_label_companies / white_label_clients /
+   white_label_projects / white_label_company_members tables as the original White Label module,
+   so anything created here shows up there too (and vice versa) — this is a different UI on the
+   same data, not a separate dataset. Old White Label is completely untouched. Staff-only
+   (data-role-min="manager" on the nav item) — no external partner mode in this simple version. */
+(function whiteLabel2Module(){
+  const screen = document.querySelector('.screen[data-screen="whitelabel2"]');
+  if (!screen) return;
+  const sb = () => window.giantSupabase;
+  const myId = () => window.giantSession && window.giantSession.user && window.giantSession.user.id;
+  const $ = id => document.getElementById(id);
+  const esc = (s) => (s==null?'':String(s)).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const fmtMoney = (n) => '$' + Number(n||0).toLocaleString(undefined,{maximumFractionDigits:0});
+  const fmtDate = (iso) => { if (!iso) return null; try { return new Date(iso+'T00:00:00').toLocaleDateString(undefined,{month:'short',day:'numeric'}); } catch(e){ return iso; } };
+  const selectHtml = (id, options, value, extra) => `<select id="${id}" ${extra||''} style="width:100%;box-sizing:border-box;background:var(--surface-2);color:var(--text);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;font-size:13px;font-family:inherit;">${options.map(o=>`<option value="${esc(o.value)}" ${o.value===value?'selected':''}>${esc(o.label)}</option>`).join('')}</select>`;
+  const uid2 = () => 'wl2_' + Math.random().toString(36).slice(2,10);
+  const isTempId2 = (id) => String(id).startsWith('wl2_');
+
+  // Deliberately just 3 states (the mockup's whole point) — existing rows from the original
+  // White Label module may carry a different status value; fall back to "Not started" styling
+  // for anything outside this set rather than erroring.
+  const WL2_STATUS = {
+    not_started: { label: 'Not started', color: '#8a8a8d' },
+    in_progress: { label: 'In progress', color: '#5b9dff' },
+    completed:   { label: 'Complete',    color: '#3ecf8e' },
+  };
+  const wl2StatusInfo = (s) => WL2_STATUS[s] || WL2_STATUS.not_started;
+
+  let companies2 = [];
+  let wl2Loading = false, wl2Loaded = false;
+  let activeCompanyId2 = null;
+  let filterClientId2 = '';
+  let filterStatus2 = '';
+  let accessCache2 = {}; // companyId -> { loading, members, allProfiles }
+
+  // Partner (external) account viewing their own company — same detection the original White
+  // Label module uses (window._wlPartnerMode, set once at boot from white_label_company_members).
+  // Read-only view, and reads billing from the redacted white_label_projects_partner_safe view
+  // instead of the raw table, same as v1 — RLS alone can't strip internalCost/profit per-column,
+  // so a partner-safe VIEW is what actually keeps that data out of their browser.
+  // Staff can flip this to preview exactly what a real partner sees, without needing a second
+  // test account — a real partner (window._wlPartnerMode, set from an actual company membership)
+  // has no toggle at all, they're just always in this mode.
+  let wl2ViewAsPreviewPartner = false;
+  function isWl2Partner(){ return !!window._wlPartnerMode || wl2ViewAsPreviewPartner; }
+  async function loadWl2Data(){
+    wl2Loading = true; render2();
+    const projectsTable = isWl2Partner() ? 'white_label_projects_partner_safe' : 'white_label_projects';
+    const [companiesRes, clientsRes, projectsRes] = await Promise.all([
+      sb().from('white_label_companies').select('*').order('created_at', { ascending:true }),
+      sb().from('white_label_clients').select('*').order('created_at', { ascending:true }),
+      sb().from(projectsTable).select('*').order('created_at', { ascending:true }),
+    ]);
+    const clientsByCompany = {};
+    (clientsRes.data||[]).forEach(row => {
+      (clientsByCompany[row.company_id] = clientsByCompany[row.company_id]||[]).push({ id: row.id, companyId: row.company_id, name: row.name, projects: [] });
+    });
+    const projectsByClient = {};
+    (projectsRes.data||[]).forEach(row => {
+      (projectsByClient[row.client_id] = projectsByClient[row.client_id]||[]).push({
+        id: row.id, clientId: row.client_id, name: row.name, price: Number(row.price)||0, paid: Number(row.paid)||0,
+        targetDate: row.target_date || '', status: row.status,
+        billing: row.billing && Object.keys(row.billing).length ? row.billing : { internalCost:0, partnerPayout:0, partnerPaidTotal:0, paymentStatus:'not_invoiced', dueDate:'' },
+        _type: row.type || null, _startDate: row.start_date || '', _pm: row.pm || null, _milestones: row.milestones||[], _notes: row.notes||[], _files: row.files||[], _scope: row.scope||{}, _team: row.team||[],
+      });
+    });
+    Object.keys(clientsByCompany).forEach(cid => { clientsByCompany[cid].forEach(cl => { cl.projects = projectsByClient[cl.id] || []; }); });
+    companies2 = (companiesRes.data||[]).map(row => ({ id: row.id, name: row.name, clients: clientsByCompany[row.id] || [] }));
+    if (!activeCompanyId2 && companies2.length) activeCompanyId2 = companies2[0].id;
+    wl2Loading = false; wl2Loaded = true;
+    render2();
+  }
+  function findCompany2(id){ return companies2.find(c => c.id === id); }
+  function findClient2(companyId, clientId){ const c = findCompany2(companyId); return c && c.clients.find(cl => cl.id === clientId); }
+  function findProject2(projectId){ for (const c of companies2) for (const cl of c.clients) for (const p of cl.projects) if (p.id === projectId) return { company:c, client:cl, project:p }; return null; }
+
+  // Persist payloads match the original White Label module's shape exactly — a project/client/
+  // company created here is a completely normal row there too, nothing 2.0-specific in the DB.
+  async function persistCompany2(c){
+    const payload = { name: c.name, status: 'in_progress', archived: false };
+    if (isTempId2(c.id)) {
+      const { data, error } = await sb().from('white_label_companies').insert({ ...payload, created_by: myId() }).select('id').single();
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not save company: '+error.message}); return false; }
+      if (data) c.id = data.id;
+    } else {
+      const { error } = await sb().from('white_label_companies').update(payload).eq('id', c.id);
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not save company: '+error.message}); return false; }
+    }
+    return true;
+  }
+  async function persistClient2(cl){
+    const payload = { company_id: cl.companyId, name: cl.name, onboarding_status: 'not_sent' };
+    if (isTempId2(cl.id)) {
+      const { data, error } = await sb().from('white_label_clients').insert(payload).select('id').single();
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not save client: '+error.message}); return false; }
+      if (data) cl.id = data.id;
+    } else {
+      const { error } = await sb().from('white_label_clients').update(payload).eq('id', cl.id);
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not save client: '+error.message}); return false; }
+    }
+    return true;
+  }
+  async function persistProject2(p){
+    const payload = {
+      client_id: p.clientId, name: p.name, price: Number(p.price)||0, paid: Number(p.paid)||0,
+      target_date: p.targetDate || null, status: p.status, billing: p.billing || {},
+      type: p._type || null, start_date: p._startDate || null, pm: p._pm || null,
+      milestones: p._milestones || [], notes: p._notes || [], files: p._files || [], scope: p._scope || {}, team: p._team || [],
+    };
+    if (isTempId2(p.id)) {
+      const { data, error } = await sb().from('white_label_projects').insert(payload).select('id').single();
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not save project: '+error.message}); return false; }
+      if (data) p.id = data.id;
+    } else {
+      const { error } = await sb().from('white_label_projects').update(payload).eq('id', p.id);
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not save project: '+error.message}); return false; }
+    }
+    return true;
+  }
+  async function deleteProject2(projectId){
+    const confirmed = await window.giantConfirmWarn('Delete this project?', "This can't be undone.", 'Delete', 'warning');
+    if (!confirmed) return;
+    if (!isTempId2(projectId)) {
+      const { error } = await sb().from('white_label_projects').delete().eq('id', projectId);
+      if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not delete: '+error.message}); return; }
+    }
+    const c = findCompany2(activeCompanyId2);
+    if (c) c.clients.forEach(cl => { cl.projects = cl.projects.filter(p => p.id !== projectId); });
+    closeModal('wl2ModalOverlay');
+    if (typeof toast==='function') toast({type:'success', message:'Project deleted'});
+    render2();
+  }
+
+  // ---- Access (reuses white_label_company_members — same table as original module) ----
+  async function loadAccess2(companyId){
+    accessCache2[companyId] = { loading:true };
+    const [membersRes, profilesRes] = await Promise.all([
+      sb().from('white_label_company_members').select('profile_id, added_at').eq('company_id', companyId),
+      // Active, real staff only — never list the system Giant Bot account or anyone deactivated.
+      sb().from('profiles').select('id, full_name, email, role').neq('role','client').neq('email','bot@reachgiant.com').is('deactivated_at', null).order('full_name', { ascending:true }),
+    ]);
+    const profileMap = {}; (profilesRes.data||[]).forEach(p => { profileMap[p.id] = p; });
+    const members = (membersRes.data||[]).map(m => ({ profileId:m.profile_id, profile:profileMap[m.profile_id]||null }));
+    accessCache2[companyId] = { loading:false, members, allProfiles: profilesRes.data||[] };
+    render2();
+  }
+  // Same invite-by-email mechanism as the original White Label module (real invitations row,
+  // tagged with this company so access is granted automatically the moment they accept) —
+  // duplicated locally since the two modules don't share internal functions, only tables.
+  const WL2_INVITE_NEW = '__invite_new__';
+  async function sendWl2Invite(companyId, email, fullName){
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { if (typeof toast==='function') toast({type:'error', message:'Enter a valid email address'}); return false; }
+    const { data: existingProfile } = await sb().from('profiles').select('id').eq('email', email).maybeSingle();
+    if (existingProfile) { if (typeof toast==='function') toast({type:'error', message:'This person already has a Giant account — pick them from the list instead.'}); return false; }
+    const { data: pendingInv } = await sb().from('invitations').select('id').eq('email', email).is('accepted_at', null).is('revoked_at', null).maybeSingle();
+    if (pendingInv) { if (typeof toast==='function') toast({type:'error', message:'An invitation was already sent to this email.'}); return false; }
+    const token = Array.from(crypto.getRandomValues(new Uint8Array(24))).map(b => b.toString(16).padStart(2,'0')).join('');
+    const { data: inserted, error } = await sb().from('invitations').insert({
+      email, full_name: fullName || null, role: 'member', token, invited_by: myId(),
+      white_label_company_id: companyId, white_label_access_level: 'read_only',
+    }).select().single();
+    if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not send invite: '+error.message}); return false; }
+    try {
+      const emailRes = await fetch('/.netlify/functions/send-invitation', {
+        method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ invitation_id: inserted.id }),
+      });
+      const emailData = await emailRes.json().catch(()=>({}));
+      if (!emailRes.ok || emailData.error) throw new Error(emailData.error || `HTTP ${emailRes.status}`);
+      if (typeof toast==='function') toast({type:'success', message:`Invite sent to <b>${esc(email)}</b> — access is granted the moment they accept`, duration:4500});
+    } catch(e) {
+      if (typeof toast==='function') toast({type:'warning', message:`Invite saved but the email failed to send: ${e.message}`, duration:6000});
+    }
+    return true;
+  }
+  function openManageAccessModal2(companyId){
+    if (isWl2Partner()) return;
+    const c = findCompany2(companyId); if (!c) return;
+    $('wl2ModalSaveBtn').style.display = 'none';
+    $('wl2ModalTitle').textContent = 'Manage access — ' + c.name;
+    $('wl2ModalBody').innerHTML = `<div id="wl2AccessBody"><div style="padding:20px;text-align:center;color:var(--text-3);">Loading…</div></div>`;
+    openModal('wl2ModalOverlay');
+    const renderAccessBody = () => {
+      const v = accessCache2[companyId];
+      const body = $('wl2AccessBody'); if (!body) return;
+      if (!v || v.loading) { body.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text-3);">Loading…</div>`; return; }
+      const memberIds = new Set(v.members.map(m=>m.profileId));
+      const eligible = v.allProfiles.filter(p => !memberIds.has(p.id));
+      const personOptions = [{ value: WL2_INVITE_NEW, label: '✉️ Invite someone new by email…' }, ...eligible.map(p=>({value:p.id,label:(p.full_name||p.email)+' ('+p.role+')'}))];
+      body.innerHTML = `
+        ${v.members.length ? v.members.map(m => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);">
+            <div><div style="font-size:13px;font-weight:700;">${esc(m.profile?(m.profile.full_name||m.profile.email):'Unknown')}</div><div style="font-size:11.5px;color:var(--text-3);">${esc(m.profile?m.profile.email:'')}</div></div>
+            <span data-wl2-remove-member="${esc(m.profileId)}" style="font-size:11.5px;font-weight:700;color:var(--red);cursor:pointer;">Remove</span>
+          </div>`).join('') : `<div style="font-size:12.5px;color:var(--text-3);padding:10px 0;">No one has access yet.</div>`}
+        <div style="margin-top:14px;">
+          <div class="m-field"><label>Add person</label>${selectHtml('wl2AddPersonSelect', personOptions, WL2_INVITE_NEW)}</div>
+          <div id="wl2InviteFieldsWrap">
+            <div class="m-field"><label>Email</label><input type="email" id="wl2InviteEmail" placeholder="name@company.com" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+            <div class="m-field"><label>Full name <span style="text-transform:none;font-weight:600;color:var(--text-3);">(optional)</span></label><input type="text" id="wl2InviteFullName" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+          </div>
+          <button class="btn-red" id="wl2AddPersonBtn" style="padding:9px 15px;font-size:12.5px;">Add</button>
+        </div>`;
+      const personSel = $('wl2AddPersonSelect');
+      const inviteWrap = $('wl2InviteFieldsWrap');
+      const syncInviteVisible = () => { inviteWrap.style.display = personSel.value === WL2_INVITE_NEW ? 'block' : 'none'; };
+      syncInviteVisible();
+      personSel.addEventListener('change', syncInviteVisible);
+      const addBtn = $('wl2AddPersonBtn');
+      if (addBtn) addBtn.addEventListener('click', async () => {
+        if (personSel.value === WL2_INVITE_NEW) {
+          const email = ($('wl2InviteEmail').value||'').trim().toLowerCase();
+          const fullName = ($('wl2InviteFullName').value||'').trim();
+          const ok = await sendWl2Invite(companyId, email, fullName);
+          if (ok) { $('wl2InviteEmail').value=''; $('wl2InviteFullName').value=''; }
+          return;
+        }
+        const profileId = personSel.value;
+        const { error } = await sb().from('white_label_company_members').insert({ company_id: companyId, profile_id: profileId, access_level: 'read_only', added_by: myId() });
+        if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not add: '+error.message}); return; }
+        if (typeof toast==='function') toast({type:'success', message:'Access granted'});
+        await loadAccess2(companyId); renderAccessBody();
+      });
+      body.querySelectorAll('[data-wl2-remove-member]').forEach(el => el.addEventListener('click', async () => {
+        const { error } = await sb().from('white_label_company_members').delete().eq('company_id', companyId).eq('profile_id', el.dataset.wl2RemoveMember);
+        if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not remove: '+error.message}); return; }
+        if (typeof toast==='function') toast({type:'info', message:'Access removed'});
+        await loadAccess2(companyId); renderAccessBody();
+      }));
+    };
+    loadAccess2(companyId).then(renderAccessBody);
+  }
+
+  // ---- Add company (single field — quick prompt, no need for a whole modal) ----
+  async function addCompany2(){
+    if (isWl2Partner()) return;
+    const name = (await window.giantPrompt('New company name:', '') || '').trim();
+    if (!name) return;
+    const c = { id: uid2(), name, clients: [] };
+    companies2.push(c);
+    const ok = await persistCompany2(c);
+    if (!ok) { companies2 = companies2.filter(x => x !== c); render2(); return; }
+    activeCompanyId2 = c.id;
+    if (typeof toast==='function') toast({type:'success', message:'Company added'});
+    render2();
+  }
+
+  // ---- Add / Edit project (client picked or created inline, same pattern as v1) ----
+  const NEW_CLIENT2 = '__new__';
+  function openNewProjectModal2(){
+    if (isWl2Partner()) return;
+    const c = findCompany2(activeCompanyId2); if (!c) return;
+    const clientOptions = [{ value: NEW_CLIENT2, label: '+ New client…' }, ...c.clients.map(cl => ({value:cl.id, label:cl.name}))];
+    $('wl2ModalSaveBtn').style.display = '';
+    $('wl2ModalTitle').textContent = 'New Project';
+    $('wl2ModalBody').innerHTML = `
+      <div class="m-field"><label>Client</label>${selectHtml('wl2fClient', clientOptions, c.clients.length ? c.clients[0].id : NEW_CLIENT2)}</div>
+      <div class="m-field" id="wl2fNewClientWrap"><label>New client name</label><input type="text" id="wl2fNewClientName" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div class="m-field"><label>Project name</label><input type="text" id="wl2fName" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div class="m-field"><label>Total amount</label><input type="number" id="wl2fPrice" value="0" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div class="m-field"><label>Total amount partner will get paid</label><input type="number" id="wl2fPayout" value="0" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div class="m-field"><label>Due date <span style="text-transform:none;font-weight:600;color:var(--text-3);">(optional)</span></label><input type="date" id="wl2fDue" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+    `;
+    const clientSel = $('wl2fClient');
+    const syncNewClientVisible = () => { $('wl2fNewClientWrap').style.display = clientSel.value === NEW_CLIENT2 ? 'block' : 'none'; };
+    syncNewClientVisible();
+    clientSel.addEventListener('change', syncNewClientVisible);
+    wl2ModalOnSave = async () => {
+      const name = ($('wl2fName').value||'').trim();
+      if (!name) { if (typeof toast==='function') toast({type:'error', message:'Project name is required'}); return; }
+      let cl;
+      if (clientSel.value === NEW_CLIENT2) {
+        const newName = ($('wl2fNewClientName').value||'').trim();
+        if (!newName) { if (typeof toast==='function') toast({type:'error', message:'Enter a name for the new client'}); return; }
+        cl = { id: uid2(), companyId: c.id, name: newName, projects: [] };
+        c.clients.push(cl);
+        const ok = await persistClient2(cl);
+        if (!ok) { c.clients = c.clients.filter(x => x !== cl); return; }
+      } else {
+        cl = findClient2(c.id, clientSel.value); if (!cl) return;
+      }
+      const price = Number($('wl2fPrice').value)||0;
+      const p = {
+        id: uid2(), clientId: cl.id, name, price, paid: 0, targetDate: $('wl2fDue').value||'', status: 'not_started',
+        billing: { internalCost:0, partnerPayout: Number($('wl2fPayout').value)||0, partnerPaidTotal:0, paymentStatus:'not_invoiced', dueDate:'' },
+        _type:null, _startDate:'', _pm:null, _milestones:[], _notes:[], _files:[], _scope:{}, _team:[],
+      };
+      cl.projects.push(p);
+      const ok = await persistProject2(p);
+      if (!ok) { cl.projects = cl.projects.filter(x => x !== p); render2(); return; }
+      if (typeof toast==='function') toast({type:'success', message:'Project added'});
+      render2();
+    };
+    openModal('wl2ModalOverlay');
+  }
+  function openEditProjectModal2(projectId){
+    if (isWl2Partner()) return;
+    const found = findProject2(projectId); if (!found) return;
+    const { company:c, client:cl, project:p } = found;
+    const clientOptions = c.clients.map(x => ({value:x.id, label:x.name}));
+    $('wl2ModalSaveBtn').style.display = '';
+    $('wl2ModalTitle').textContent = 'Edit Project';
+    $('wl2ModalBody').innerHTML = `
+      <div class="m-field"><label>Project name</label><input type="text" id="wl2fName" value="${esc(p.name)}" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="m-field"><label>Agency</label><input type="text" value="${esc(c.name)}" disabled style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text-3);font-family:inherit;font-size:13px;"></div>
+        <div class="m-field"><label>Client</label>${selectHtml('wl2fClient', clientOptions, cl.id)}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="m-field"><label>Amount</label><input type="number" id="wl2fPrice" value="${esc(p.price)}" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+        <div class="m-field"><label>Amount paid</label><input type="number" id="wl2fPaid" value="${esc(p.paid)}" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      </div>
+      <div class="m-field"><label>Total amount partner will get paid</label><input type="number" id="wl2fPayout" value="${esc((p.billing||{}).partnerPayout||0)}" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="m-field"><label>Due date</label><input type="date" id="wl2fDue" value="${esc(p.targetDate||'')}" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 10px;color:var(--text);font-family:inherit;font-size:13px;"></div>
+        <div class="m-field"><label>Status</label>${selectHtml('wl2fStatus', Object.keys(WL2_STATUS).map(k=>({value:k,label:WL2_STATUS[k].label})), WL2_STATUS[p.status]?p.status:'not_started')}</div>
+      </div>
+    `;
+    wl2ModalOnSave = async () => {
+      const name = ($('wl2fName').value||'').trim();
+      if (!name) { if (typeof toast==='function') toast({type:'error', message:'Project name is required'}); return; }
+      const newClientId = $('wl2fClient').value;
+      if (newClientId !== p.clientId) {
+        const oldCl = findClient2(c.id, p.clientId); if (oldCl) oldCl.projects = oldCl.projects.filter(x=>x.id!==p.id);
+        const newCl = findClient2(c.id, newClientId); if (newCl) newCl.projects.push(p);
+        p.clientId = newClientId;
+      }
+      Object.assign(p, {
+        name, price: Number($('wl2fPrice').value)||0, paid: Number($('wl2fPaid').value)||0,
+        targetDate: $('wl2fDue').value||'', status: $('wl2fStatus').value,
+      });
+      p.billing = Object.assign({}, p.billing, { partnerPayout: Number($('wl2fPayout').value)||0 });
+      const ok = await persistProject2(p);
+      if (ok && typeof toast==='function') toast({type:'success', message:'Project updated'});
+      render2();
+    };
+    // Delete link inside the modal body (matches "Edit project" mockup's inline Delete)
+    const delRow = document.createElement('div');
+    delRow.style.cssText = 'margin-top:6px;';
+    delRow.innerHTML = `<span data-wl2-delete-project style="font-size:12.5px;font-weight:700;color:var(--red);cursor:pointer;">Delete project</span>`;
+    $('wl2ModalBody').appendChild(delRow);
+    delRow.querySelector('[data-wl2-delete-project]').addEventListener('click', () => deleteProject2(p.id));
+    openModal('wl2ModalOverlay');
+  }
+
+  // ---- Rendering ----
+  function render2Header(){
+    const host = $('wl2Header');
+    if (!host) return;
+    const partner = isWl2Partner();
+    const pillsHtml = companies2.map(c => `<div data-wl2-select-company="${esc(c.id)}" style="padding:9px 16px;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:background .16s ease,color .16s ease;${c.id===activeCompanyId2?'background:var(--red);color:#fff;':'color:var(--text-3);'}">${esc(c.name)}</div>`).join('');
+    host.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:10px;">
+        <div style="display:flex;align-items:center;gap:2px;flex-wrap:wrap;background:var(--surface-2);border:1px solid var(--line);border-radius:11px;padding:4px;">
+          ${pillsHtml}
+          ${partner ? '' : `<span id="wl2AddCompanyBtn" title="New company" style="width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-3);font-size:16px;">+</span>`}
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;">
+          ${window._wlPartnerMode ? '' : `<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.03em;">
+            View as
+            ${selectHtml('wl2ViewAsSelect', [{value:'owner',label:'Owner'},{value:'partner',label:'Partner'}], wl2ViewAsPreviewPartner ? 'partner' : 'owner')}
+          </label>`}
+          ${activeCompanyId2 && !partner ? `<div style="display:flex;gap:8px;">
+            <div class="btn-outline" id="wl2ManageAccessBtn" style="padding:9px 15px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Manage access</div>
+            <button class="btn-red" id="wl2NewProjectBtn" style="padding:9px 16px;font-size:12.5px;">+ New Project</button>
+          </div>` : ''}
+          ${partner ? `<span style="font-size:11.5px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px 13px;">View only${wl2ViewAsPreviewPartner && !window._wlPartnerMode ? ' — previewing' : ''}</span>` : ''}
+        </div>
+      </div>`;
+    host.querySelectorAll('[data-wl2-select-company]').forEach(el => el.addEventListener('click', () => {
+      if (el.dataset.wl2SelectCompany === activeCompanyId2) return;
+      activeCompanyId2 = el.dataset.wl2SelectCompany; filterClientId2=''; filterStatus2='';
+      render2Header();
+      fadeRender2Content();
+    }));
+    const addCoBtn = $('wl2AddCompanyBtn'); if (addCoBtn) addCoBtn.addEventListener('click', addCompany2);
+    const newProjBtn = $('wl2NewProjectBtn'); if (newProjBtn) newProjBtn.addEventListener('click', openNewProjectModal2);
+    const accessBtn = $('wl2ManageAccessBtn'); if (accessBtn) accessBtn.addEventListener('click', () => openManageAccessModal2(activeCompanyId2));
+    const viewAsSel = $('wl2ViewAsSelect');
+    if (viewAsSel) viewAsSel.addEventListener('change', () => { wl2ViewAsPreviewPartner = viewAsSel.value === 'partner'; render2(); });
+  }
+  function render2Content(){
+    const host = $('wl2Content');
+    if (!host) return;
+    if (wl2Loading) { host.innerHTML = `<div style="padding:60px;text-align:center;color:var(--text-3);">Loading…</div>`; return; }
+    if (!companies2.length) { host.innerHTML = `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:40px;text-align:center;">No companies yet — click "+" above to add one.</div>`; return; }
+    const c = findCompany2(activeCompanyId2);
+    if (!c) { host.innerHTML = ''; return; }
+    const allProjects = [];
+    c.clients.forEach(cl => cl.projects.forEach(p => allProjects.push({ client: cl, project: p })));
+    const activeCount = allProjects.filter(r => r.project.status !== 'completed').length;
+    const partner = isWl2Partner();
+    const totalValue = partner
+      ? allProjects.reduce((s,r)=>s+(Number((r.project.billing||{}).partnerPayout)||0),0)
+      : allProjects.reduce((s,r)=>s+(Number(r.project.price)||0),0);
+    const outstanding = partner
+      ? allProjects.reduce((s,r)=>{ const b=r.project.billing||{}; return s+Math.max(0,(Number(b.partnerPayout)||0)-(Number(b.partnerPaidTotal)||0)); },0)
+      : allProjects.reduce((s,r)=>s+Math.max(0,(Number(r.project.price)||0)-(Number(r.project.paid)||0)),0);
+    const filtered = allProjects.filter(r => (!filterClientId2 || r.client.id===filterClientId2) && (!filterStatus2 || r.project.status===filterStatus2 || (filterStatus2==='not_started' && !WL2_STATUS[r.project.status])));
+    const clientFilterOptions = [{value:'',label:'All clients'}, ...c.clients.map(cl=>({value:cl.id,label:cl.name}))];
+    const statusFilterOptions = [{value:'',label:'Any status'}, ...Object.keys(WL2_STATUS).map(k=>({value:k,label:WL2_STATUS[k].label}))];
+    host.innerHTML = `
+      <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin-bottom:20px;">
+        <div style="font-size:20px;font-weight:800;">${esc(c.name)}</div>
+        <div style="font-size:13px;color:var(--text-3);margin-top:4px;">${c.clients.length} client${c.clients.length===1?'':'s'}</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px;padding-top:14px;border-top:1px solid var(--line);">
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">Active projects</div><div style="font-size:18px;font-weight:800;margin-top:4px;">${activeCount}</div></div>
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">${partner?'Your payout':'Total value'}</div><div style="font-size:18px;font-weight:800;margin-top:4px;">${fmtMoney(totalValue)}</div></div>
+          <div><div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;">${partner?'Outstanding to you':'Outstanding'}</div><div style="font-size:18px;font-weight:800;margin-top:4px;color:${outstanding?'#e8a83e':'var(--text)'};">${fmtMoney(outstanding)}</div></div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
+        <div style="width:160px;">${selectHtml('wl2FilterClient', clientFilterOptions, filterClientId2)}</div>
+        <div style="width:150px;">${selectHtml('wl2FilterStatus', statusFilterOptions, filterStatus2)}</div>
+        <div style="flex:1;text-align:right;font-size:12.5px;color:var(--text-3);">${filtered.length} project${filtered.length===1?'':'s'}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        ${filtered.length ? filtered.map(r => {
+          const p = r.project; const st = wl2StatusInfo(p.status);
+          const dueLabel = fmtDate(p.targetDate);
+          const isOverdue = p.targetDate && p.status !== 'completed' && new Date(p.targetDate+'T00:00:00') < new Date(new Date().toDateString());
+          const rowAmount = partner ? (Number((p.billing||{}).partnerPayout)||0) : (Number(p.price)||0);
+          const rowPaid = partner ? (Number((p.billing||{}).partnerPaidTotal)||0) : (Number(p.paid)||0);
+          const paidLabel = rowPaid >= rowAmount && rowAmount > 0 ? 'Paid in full' : (rowPaid > 0 ? fmtMoney(rowPaid)+' paid' : 'Unpaid');
+          const statusHtml = partner
+            ? `<span style="background:${st.color}22;color:${st.color};border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:700;">${esc(st.label)}</span>`
+            : `<select data-wl2-inline-status="${esc(p.id)}" style="background:${st.color}22;color:${st.color};border:none;border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;">
+                ${Object.keys(WL2_STATUS).map(k=>`<option value="${k}" ${p.status===k?'selected':''} style="background:var(--surface-2);color:var(--text);">${esc(WL2_STATUS[k].label)}</option>`).join('')}
+              </select>`;
+          return `<div ${partner?'':`data-wl2-open-project="${esc(p.id)}"`} style="display:flex;align-items:center;justify-content:space-between;gap:14px;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:16px 18px;${partner?'':'cursor:pointer;'}">
+            <div style="min-width:0;flex:1;">
+              <div style="font-size:14.5px;font-weight:700;">${esc(p.name)}</div>
+              <div style="font-size:12px;color:var(--text-3);margin-top:3px;">${esc(r.client.name)}${dueLabel ? ` · ${isOverdue?`<span style="color:var(--red);font-weight:700;">Overdue · ${esc(dueLabel)}</span>`:`Due ${esc(dueLabel)}`}` : ''}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">
+              <div style="font-size:14px;font-weight:800;color:#3ecf8e;">${fmtMoney(rowAmount)}</div>
+              <div style="font-size:11.5px;color:${rowPaid>0?'#e8a83e':'var(--text-3)'};margin-top:2px;">${esc(paidLabel)}</div>
+            </div>
+            <span data-stop-row-click style="flex-shrink:0;">${statusHtml}</span>
+          </div>`;
+        }).join('') : `<div style="font-size:13px;color:var(--text-3);background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:32px;text-align:center;">${partner ? 'No projects yet.' : 'No projects match — try "+ New Project" or clear filters.'}</div>`}
+      </div>
+    `;
+    if (!partner) host.querySelectorAll('[data-wl2-open-project]').forEach(el => el.addEventListener('click', (e) => { if (e.target.closest('[data-stop-row-click]')) return; openEditProjectModal2(el.dataset.wl2OpenProject); }));
+    host.querySelectorAll('[data-wl2-inline-status]').forEach(el => el.addEventListener('click', e => e.stopPropagation()));
+    host.querySelectorAll('[data-wl2-inline-status]').forEach(el => el.addEventListener('change', async (e) => {
+      e.stopPropagation();
+      const found = findProject2(el.dataset.wl2InlineStatus); if (!found) return;
+      found.project.status = el.value;
+      render2Content();
+      await persistProject2(found.project);
+    }));
+    const filterClientEl = $('wl2FilterClient'); if (filterClientEl) filterClientEl.addEventListener('change', () => { filterClientId2 = filterClientEl.value; fadeRender2Content(); });
+    const filterStatusEl = $('wl2FilterStatus'); if (filterStatusEl) filterStatusEl.addEventListener('change', () => { filterStatus2 = filterStatusEl.value; fadeRender2Content(); });
+  }
+  // Cross-fades #wl2Content out/in around a re-render, so switching companies or filters
+  // doesn't just hard-cut to new numbers — a brief, snappy fade instead.
+  function fadeRender2Content(){
+    const el = $('wl2Content');
+    if (!el) { render2Content(); return; }
+    el.style.transition = 'opacity .11s ease';
+    el.style.opacity = '0';
+    setTimeout(() => {
+      render2Content();
+      const fresh = $('wl2Content');
+      if (fresh) {
+        fresh.style.transition = 'opacity .16s ease';
+        fresh.style.opacity = '0';
+        requestAnimationFrame(() => { requestAnimationFrame(() => { fresh.style.opacity = '1'; }); });
+      }
+    }, 110);
+  }
+  function render2(){
+    if (!$('wl2Header')) return;
+    render2Header();
+    render2Content();
+  }
+
+  let wl2ModalOnSave = null;
+  const wl2ModalSaveBtn = $('wl2ModalSaveBtn');
+  if (wl2ModalSaveBtn) wl2ModalSaveBtn.addEventListener('click', () => { if (wl2ModalOnSave) { const fn = wl2ModalOnSave; wl2ModalOnSave = null; fn(); closeModal('wl2ModalOverlay'); render2(); } });
+
+  window.wl2Init = function(){ if (!wl2Loaded && !wl2Loading) loadWl2Data(); else render2(); };
 })();
 
 /* ===== PASSWORD MANAGER =====
@@ -28108,6 +28640,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       window.giantSupabase.from('white_label_company_members').select('company_id, access_level').eq('profile_id', profile.id).then(({ data }) => {
         if (data && data.length) {
           document.querySelectorAll('[data-screen="whitelabel"]').forEach(el => el.removeAttribute('data-role-min'));
+          document.querySelectorAll('[data-screen="whitelabel2"]').forEach(el => el.removeAttribute('data-role-min'));
           window._wlPartnerMode = true;
           // A partner is only ever added to one company in practice, but if they somehow had
           // write access to any of their companies, let content edits through — the DB still
