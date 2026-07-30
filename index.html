@@ -14965,7 +14965,7 @@ setupRail('rail2','pill2');
         activeFolderId = saved.activeFolderId;
         activeEntryId = saved.activeEntryId || null;
         const f = findFolder(activeFolderId);
-        activeFolderTab = (saved.activeFolderTab === 'access' && f.visibility === 'shared') ? 'access' : 'entries';
+        activeFolderTab = saved.activeFolderTab === 'access' ? 'access' : 'entries';
         if (!entriesCache[activeFolderId]) loadEntries(activeFolderId);
       }
     } catch(e) {}
@@ -15377,6 +15377,27 @@ setupRail('rail2','pill2');
     await loadFolderAccess(folderId);
   }
 
+  // Visibility switcher on the Access tab — lets you move a folder between private/shared/
+  // public in either direction at any time (not just one-way "make public"), so undoing a
+  // switch is just as easy as making it.
+  async function setFolderVisibility(folderId, newVisibility){
+    const f = findFolder(folderId); if (!f || f.visibility === newVisibility) return;
+    const msgs = {
+      public: `"${f.name}" will be visible to every non-client Giant account, no invite needed.`,
+      private: `"${f.name}" will only be visible to you (and owners/managers). Anyone currently shared with will lose access.`,
+      shared: `"${f.name}" will only be visible to people you explicitly add.`,
+    };
+    const confirmed = await window.giantConfirmWarn(
+      `Switch to "${VIS_INFO[newVisibility].label}"?`, msgs[newVisibility], 'Switch', 'warning'
+    );
+    if (!confirmed) return;
+    const { error } = await sb().from('password_folders').update({ visibility: newVisibility, updated_at: new Date().toISOString() }).eq('id', folderId);
+    if (error) { if (typeof toast==='function') toast({type:'error', message:'Could not update: '+error.message}); return; }
+    f.visibility = newVisibility;
+    if (typeof toast==='function') toast({type:'success', message:`Now "${VIS_INFO[newVisibility].label}"`});
+    render();
+  }
+
   // ---- Per-password sharing with specific people, independent of folder access ----
   let entryAccessCache = {}; // entryId -> { loading, members }
   async function loadEntryAccess(entryId){
@@ -15520,14 +15541,12 @@ setupRail('rail2','pill2');
               ${f && f.client_id ? `<div style="font-size:12.5px;color:var(--text-3);margin-top:4px;">Client: ${esc(clientName(f.client_id)||'—')}</div>` : ''}
             </div>
             ${f && isOwnerOrCreator(f) ? `<div style="display:flex;gap:8px;">
-              ${f.visibility === 'shared' ? `<div class="btn-red" data-pw-action="share-folder" style="padding:8px 14px;border-radius:8px;font-size:12.5px;font-weight:700;cursor:pointer;">+ Share</div>` : ''}
               <div class="btn-outline" data-pw-action="edit-folder" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Edit</div>
               <div class="btn-outline" data-pw-action="delete-folder" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--red);font-size:12.5px;font-weight:700;cursor:pointer;">Delete</div>
             </div>` : ''}
           </div>
         </div>`;
       host.querySelector('[data-pw-back]').addEventListener('click', () => goTo('folders'));
-      const shareBtn = host.querySelector('[data-pw-action="share-folder"]'); if (shareBtn) shareBtn.addEventListener('click', () => { activeFolderTab = 'access'; savePwNavState(); render(); });
       const editBtn = host.querySelector('[data-pw-action="edit-folder"]'); if (editBtn) editBtn.addEventListener('click', () => openEditFolderModal(activeFolderId));
       const delBtn = host.querySelector('[data-pw-action="delete-folder"]'); if (delBtn) delBtn.addEventListener('click', () => deleteFolder(activeFolderId));
     }
@@ -15725,27 +15744,37 @@ setupRail('rail2','pill2');
     const host = $('pwContent');
     const f = findFolder(activeFolderId);
     if (!f) { host.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text-3);">Folder not found.</div>`; return; }
-    const tabsHtml = ['entries', f.visibility === 'shared' ? 'access' : null].filter(Boolean).map(key => {
+    const tabsHtml = ['entries', 'access'].map(key => {
       const label = key === 'entries' ? 'Passwords' : 'Access';
       return `<div class="wl-ctab" data-pw-tab="${key}" style="padding:8px 15px;font-size:12.5px;font-weight:700;border-radius:6px;cursor:pointer;${activeFolderTab===key?'background:var(--red);color:#fff;':'color:var(--text-2);'}">${label}</div>`;
     }).join('');
     let body;
-    if (activeFolderTab === 'access' && f.visibility === 'shared') {
-      const v = accessCache[f.id];
-      if (!v) loadFolderAccess(f.id);
-      body = (!v || v.loading) ? `<div style="padding:30px;text-align:center;color:var(--text-3);">Loading…</div>` : `
-        <div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:20px 22px;max-width:640px;">
+    if (activeFolderTab === 'access') {
+      const canManage = isOwnerOrCreator(f);
+      const visPillsHtml = `<div style="display:flex;gap:8px;margin-bottom:16px;">${Object.keys(VIS_INFO).map(key => {
+        const active = f.visibility === key;
+        return `<div ${canManage ? `data-pw-set-visibility="${key}"` : ''} style="flex:1;padding:12px 14px;border-radius:10px;cursor:${canManage?'pointer':'default'};border:1.5px solid ${active?'var(--red)':'var(--line-2)'};background:${active?'rgba(208,4,0,.08)':'var(--surface)'};">
+          <div style="font-size:12.5px;font-weight:800;color:${active?'var(--red)':'var(--text)'};">${esc(VIS_INFO[key].label)}</div>
+          <div style="font-size:11px;color:var(--text-3);margin-top:3px;line-height:1.4;">${esc(VIS_INFO[key].desc)}</div>
+        </div>`;
+      }).join('')}</div>`;
+      let membersHtml = '';
+      if (f.visibility === 'shared') {
+        const v = accessCache[f.id];
+        if (!v) loadFolderAccess(f.id);
+        membersHtml = (!v || v.loading) ? `<div style="padding:30px;text-align:center;color:var(--text-3);">Loading…</div>` : `
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:10px;flex-wrap:wrap;">
             <div style="font-size:14px;font-weight:800;">Who can see this folder</div>
-            ${isOwnerOrCreator(f) ? `<button class="btn-red" id="pwAddMemberBtn" style="padding:7px 13px;font-size:12px;">+ Add person</button>` : ''}
+            ${canManage ? `<button class="btn-red" id="pwAddMemberBtn" style="padding:7px 13px;font-size:12px;">+ Add person</button>` : ''}
           </div>
           <div style="font-size:12px;color:var(--text-3);margin-bottom:16px;">Owners/managers can always see every folder regardless of this list.</div>
           ${v.members.length ? v.members.map(m => `
             <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);">
               <div><div style="font-size:13px;font-weight:700;">${esc(m.profile?(m.profile.full_name||m.profile.email):'Unknown user')}</div><div style="font-size:11.5px;color:var(--text-3);">${esc(m.profile?m.profile.email:'')}</div></div>
-              ${isOwnerOrCreator(f) ? `<div class="btn-outline" data-pw-action="remove-member" data-pw-id="${esc(m.profileId)}" style="padding:6px 12px;border-radius:7px;border:1px solid var(--line-2);color:var(--red);font-size:11.5px;font-weight:700;cursor:pointer;">Remove</div>` : ''}
-            </div>`).join('') : `<div style="font-size:12.5px;color:var(--text-3);padding:14px 0;">No one has been added yet.</div>`}
-        </div>`;
+              ${canManage ? `<div class="btn-outline" data-pw-action="remove-member" data-pw-id="${esc(m.profileId)}" style="padding:6px 12px;border-radius:7px;border:1px solid var(--line-2);color:var(--red);font-size:11.5px;font-weight:700;cursor:pointer;">Remove</div>` : ''}
+            </div>`).join('') : `<div style="font-size:12.5px;color:var(--text-3);padding:14px 0;">No one has been added yet.</div>`}`;
+      }
+      body = `<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:20px 22px;max-width:640px;">${visPillsHtml}${membersHtml}</div>`;
       host.innerHTML = `<div style="display:flex;gap:4px;margin-bottom:18px;background:var(--surface-2);border:1px solid var(--line);border-radius:9px;padding:4px;width:fit-content;">${tabsHtml}</div><div>${body}</div>`;
     } else {
       const list = entriesCache[f.id];
@@ -15785,6 +15814,7 @@ setupRail('rail2','pill2');
     host.querySelectorAll('[data-pw-entry-row]').forEach(el => el.addEventListener('click', () => selectEntry(el.dataset.pwEntryRow)));
     host.querySelectorAll('[data-pw-toggle-favorite]').forEach(el => el.addEventListener('click', (ev) => { ev.stopPropagation(); toggleEntryFavorite(f.id, el.dataset.pwToggleFavorite); }));
     host.querySelectorAll('[data-pw-action="remove-member"]').forEach(el => el.addEventListener('click', () => removeFolderMember(f.id, el.dataset.pwId)));
+    host.querySelectorAll('[data-pw-set-visibility]').forEach(el => el.addEventListener('click', () => setFolderVisibility(f.id, el.dataset.pwSetVisibility)));
     const entryListEl = $('pwEntryList'); if (entryListEl) wireEntryDrag(entryListEl, f.id);
     if (activeFolderTab === 'entries') renderDetail();
   }
