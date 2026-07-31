@@ -4477,7 +4477,7 @@ body:has(.screen[data-screen="chat2"].on) .qr-fab{display:none;}
 .msg .reaction:hover{transform:translateY(-1px);}
 
 /* Reaction picker — Slack-style horizontal bar */
-.msg-react-bar{position:absolute;top:-12px;right:18px;display:none;background:var(--pane);border:1px solid var(--line-2);border-radius:9px;padding:3px;box-shadow:0 12px 32px -8px rgba(0,0,0,.5),0 4px 12px -4px rgba(0,0,0,.3);z-index:5;gap:1px;align-items:center;flex-wrap:nowrap;white-space:nowrap;}
+.msg-react-bar{position:absolute;top:-12px;right:18px;display:none;background:var(--pane);border:1px solid var(--line-2);border-radius:9px;padding:3px;box-shadow:0 12px 32px -8px rgba(0,0,0,.5),0 4px 12px -4px rgba(0,0,0,.3);z-index:5;gap:1px;align-items:center;flex-wrap:nowrap;white-space:nowrap;user-select:none;-webkit-user-select:none;}
 .msg{position:relative;}
 .msg:hover .msg-react-bar{display:inline-flex;}
 .msg-react-bar-emoji{padding:4px 6px;border-radius:6px;font-size:13px;cursor:pointer;transition:.12s;line-height:1;display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;}
