@@ -15892,18 +15892,24 @@ window.addEventListener('popstate', (e) => {
 
     const rows = [];
     if (!error) {
+      // Chat 2.0 grew beyond the original client×department scope (Home, DMs, and team
+      // channels now exist as real thread kinds too) — the inbox should surface activity from
+      // all of them, not just client_dept, or most real activity silently never shows up here.
+      const THREAD_KIND_LABEL = { home:'ReachGiant Home', dm:'Direct message', team_channel:'Team channel' };
       (msgs || []).forEach(m => {
-        if (!m.thread || m.thread.kind !== 'client_dept') return;
+        if (!m.thread) return;
         const isMention = !!firstName && (m.body || '').toLowerCase().includes('@' + firstName);
         const isFlagged = !!m.flagged;
         const lastRead = readByThread[m.thread_id];
         const isUnread = !lastRead || new Date(m.created_at) > new Date(lastRead);
         if (!isMention && !isFlagged && !isUnread) return;
         const action = actionsByMsg[m.id] || {};
-        const client = wsClientsById[m.thread.client_id];
+        const isClientDept = m.thread.kind === 'client_dept';
+        const client = isClientDept ? wsClientsById[m.thread.client_id] : null;
         rows.push({
-          id: m.id, threadId: m.thread_id, clientId: m.thread.client_id,
-          clientName: client ? client.name : 'Client', dept: m.thread.department,
+          id: m.id, threadId: m.thread_id, clientId: isClientDept ? m.thread.client_id : null,
+          clientName: isClientDept ? (client ? client.name : 'Client') : (THREAD_KIND_LABEL[m.thread.kind] || 'Chat'),
+          dept: isClientDept ? m.thread.department : null,
           kind: isMention ? 'mention' : isFlagged ? 'flagged' : 'activity',
           body: m.body, createdAt: m.created_at,
           authorName: m.author ? (m.author.full_name || m.author.email) : 'Someone',
@@ -16072,7 +16078,7 @@ window.addEventListener('popstate', (e) => {
               <div style="font-size:13px;color:var(--text-2,#c8c8c8);margin-top:9px;line-height:1.5;">${esc(r.body)}</div>
               <div data-ws-inbox-goto="${esc(r.clientId)}:${esc(r.dept)}" style="display:flex;align-items:center;gap:6px;margin-top:8px;cursor:pointer;width:fit-content;">
                 <span style="width:7px;height:7px;border-radius:50%;background:${dept.color};flex-shrink:0;"></span>
-                <span style="font-size:11.5px;color:var(--text-3);">${esc(r.clientName)} · ${esc(dept.label)}</span>
+                <span style="font-size:11.5px;color:var(--text-3);">${r.dept ? esc(r.clientName) + ' · ' + esc(dept.label) : esc(r.clientName)}</span>
                 <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style="color:var(--text-3);"><path d="M4 12L12 4M6 4h6v6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
               </div>
               <div style="display:flex;gap:16px;align-items:center;margin-top:11px;padding-top:11px;border-top:1px solid var(--line);">
