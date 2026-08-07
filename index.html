@@ -39535,8 +39535,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
 
     // Initial load: unread counts
     loadUnreadCounts();
-    // Refresh unread every 30s as safety net
-    setInterval(() => loadUnreadCounts(), 30000);
+    // Refresh unread every 30s as safety net (skip while tab is backgrounded — this ran
+    // unconditionally before, so every idle tab across the team was polling the DB forever)
+    setInterval(() => { if (!document.hidden) loadUnreadCounts(); }, 30000);
 
     // ── AI SUGGEST REPLY POPOVER ──────────────────────────────────
     async function generateAiReplies(text) {
@@ -50063,8 +50064,8 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
     }
     // Initial notif count
     setTimeout(buildNotifications, 2000);
-    // Refresh notif badge every 60s
-    setInterval(buildNotifications, 60000);
+    // Refresh notif badge every 60s (skip while tab is backgrounded — see loadUnreadCounts above)
+    setInterval(() => { if (!document.hidden) buildNotifications(); }, 60000);
 
     // CSS for cmdk-item hover
     const cmdkStyle = document.createElement('style');
@@ -57777,8 +57778,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
 
     // Heartbeat: update last_active_at every 60 seconds so the team page shows accurate "last seen"
+    // (skip while tab is backgrounded — a backgrounded tab isn't really "active" anyway, and this
+    // previously ran forever per open tab regardless of visibility, adding a steady stream of
+    // writes across every idle tab company-wide)
     setInterval(async () => {
       if (!session || !session.user) return;
+      if (document.hidden) return;
       try {
         await supabase.from('profiles').update({ last_active_at: new Date().toISOString() }).eq('id', session.user.id);
       } catch(e) {}
