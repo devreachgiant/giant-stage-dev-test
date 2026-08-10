@@ -10570,6 +10570,12 @@ function setupRail(railId,pillId){
     pill.style.transform=`translateY(${it.offsetTop}px)`;
     const scr=it.dataset.screen;
     document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.dataset.screen===scr));
+    // Force a synchronous reflow on the newly-shown screen. Heavy/blurred screens (Magnus,
+    // Reach AI) were reported rendering fully blank until the next mousemove — a display:none
+    // -> block layer that never gets its first paint scheduled until something else invalidates
+    // style nearby. Reading a layout property forces that paint immediately instead of waiting.
+    const activeScreenEl = document.querySelector('.screen.on');
+    if (activeScreenEl) void activeScreenEl.offsetHeight;
     document.querySelector('.main').scrollTop=0;
     renderWsGlobalTabBar(scr);
     if(scr==='finance')replayFinanceChart();
