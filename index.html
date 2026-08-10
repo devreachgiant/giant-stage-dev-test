@@ -5907,10 +5907,14 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
 
       <!-- Persistent Workspace tab bar — shared chrome above Workspace/Clients/Team Pulse/
            Templates/SOPs so switching between them (via nav consolidation) doesn't lose it. -->
-      <!-- width:fit-content (not the default full-width block) — otherwise this div's own
-           background paints a solid rectangle all the way to the right edge, which shows as a
-           visible seam on screens with a non-default background (Magnus, Reach AI). -->
-      <div id="wsGlobalTabBar" style="display:none;width:fit-content;padding:22px 24px 0;position:sticky;top:0;z-index:5;background:var(--bg);"></div>
+      <!-- Transparent, not an opaque background — an opaque full-width background here paints a
+           solid rectangle past the tab pills, which shows as a visible seam on screens with a
+           non-default background (Magnus, Reach AI). The pills themselves already carry their
+           own opaque background (rendered inside), so this container doesn't need one; changing
+           its WIDTH instead (rather than just the background) caused a real bug — a sticky
+           sibling changing size left the crew screen unpainted until the next repaint (e.g. a
+           mousemove), so leave width/layout untouched and only drop the background. -->
+      <div id="wsGlobalTabBar" style="display:none;padding:22px 24px 0;position:sticky;top:0;z-index:5;background:transparent;"></div>
 
       <!-- ===== DAILY FOCUS ===== -->
       <div class="screen" data-screen="focus">
