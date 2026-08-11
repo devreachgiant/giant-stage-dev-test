@@ -10488,14 +10488,15 @@ const TOOLS_GLOBAL_TABS = [
   { key:'record', label:'Record', screen:'record' },
 ];
 const TOOLS_GLOBAL_VISIBLE_SCREENS = ['passwords','reachai','crew','files','notes','record'];
+// minRole on every cluster here (not just on individual tabs) — Clients/Templates/SOPs (ws) and
+// Templates (biz, shared with ws as "Proposals") all stay reachable by everyone via their old
+// individual nav items (unrestricted, same as always), so without a cluster-level gate this tab
+// bar leaks into view for a regular member visiting one of those screens the old way — confirmed
+// live: a role-member account visiting Templates saw the full Inbox/Clients/Tasks/Deliverables/
+// Reports/SOPs bar, even though "Workspace" itself is manager+ only. Same class of bug as Tools.
 const NAV_CLUSTERS = [
-  { id:'ws', tabs: WS_GLOBAL_TABS, visibleScreens: WS_GLOBAL_VISIBLE_SCREENS },
-  { id:'biz', tabs: BIZ_GLOBAL_TABS, visibleScreens: BIZ_GLOBAL_VISIBLE_SCREENS },
-  // minRole here (not just on individual tabs) — Passwords/Reach AI/Magnus/Files/Notes/Record
-  // stay reachable by everyone via their old individual nav items (unrestricted, same as
-  // always), so without a cluster-level gate this tab bar would leak into view for a regular
-  // member visiting one of those screens the old way, even though the "Tools" entry point
-  // itself is manager+ only.
+  { id:'ws', tabs: WS_GLOBAL_TABS, visibleScreens: WS_GLOBAL_VISIBLE_SCREENS, minRole:'manager' },
+  { id:'biz', tabs: BIZ_GLOBAL_TABS, visibleScreens: BIZ_GLOBAL_VISIBLE_SCREENS, minRole:'manager' },
   { id:'tools', tabs: TOOLS_GLOBAL_TABS, visibleScreens: TOOLS_GLOBAL_VISIBLE_SCREENS, minRole:'manager' },
 ];
 // 'templates' is reachable from both clusters (Reports vs Proposals) — this tracks which
