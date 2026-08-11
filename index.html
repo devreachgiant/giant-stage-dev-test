@@ -17987,7 +17987,7 @@ window.addEventListener('popstate', (e) => {
       ${Object.entries(reactionCounts).map(([emoji, count]) => `<div data-c2-home-react="${esc(m.id)}::${esc(emoji)}" style="display:flex;align-items:center;gap:4px;padding:2px 7px;border-radius:11px;background:${myReactionEmojis.has(emoji)?'rgba(217,31,15,0.16)':'#1f1f1f'};border:1px solid ${myReactionEmojis.has(emoji)?'#d91f0f':'#2e2e2e'};cursor:pointer;font-size:12px;">${emoji}<span style="font-size:10.5px;font-weight:700;color:#c8c8c8;">${count}</span></div>`).join('')}
     </div>` : '';
     const readLabel = isTop && mine ? homeReadReceiptLabel(m) : '';
-    return `<div class="msg" style="padding:8px;border-radius:8px;">
+    return `<div class="msg" data-c2-msg-id="${esc(m.id)}" style="padding:8px;border-radius:8px;">
       <div style="width:${avatarSize}px;height:${avatarSize}px;border-radius:50%;background:${esc(author.avatar_bg||'#2a2a2a')};color:${esc(author.avatar_fg||'#fff')};display:flex;align-items:center;justify-content:center;font-size:${isTop?'11.5px':'10.5px'};font-weight:700;flex-shrink:0;">${esc(initialsOf(name))}</div>
       <div style="min-width:0;flex:1;">
         <div style="display:flex;align-items:baseline;gap:8px;">
@@ -49886,6 +49886,21 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       }, 100);
     }
 
+    // Slack-style chat filter chips — in:channel-or-thread-name, from:@person — pulled out of
+    // the raw query, leaving whatever's left as the free-text body search. Chips are chat-only:
+    // when present, the search skips Clients/Tasks/Invoices/Emails/People entirely and only
+    // searches messages, since "in a channel" / "from a person" doesn't mean anything for those.
+    function parseCmdkQuery(raw) {
+      let text = raw;
+      let inFilter = null, fromFilter = null;
+      const inMatch = text.match(/\bin:(\S+)/i);
+      if (inMatch) { inFilter = inMatch[1].toLowerCase(); text = text.replace(inMatch[0], '').trim(); }
+      const fromMatch = text.match(/\bfrom:@?(\S+)/i);
+      if (fromMatch) { fromFilter = fromMatch[1].toLowerCase(); text = text.replace(fromMatch[0], '').trim(); }
+      return { freeText: text.trim(), inFilter, fromFilter, hasChips: !!(inMatch || fromMatch) };
+    }
+    const CMDK_DEPT_LABEL = { googleAds:'Google Ads', metaAds:'Meta Ads', seo:'SEO', web:'Web' };
+
     let cmdkSearchTimeout = null;
     async function cmdkSearch(q) {
       const query = q.trim();
@@ -49897,13 +49912,60 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       }
       cmdkResults.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-3);font-size:12px;">Searching…</div>';
       const safe = async (p) => { try { const r = await p; return r.data || []; } catch(e){ return []; } };
-      const [clients, tasks, invoices, emails, profiles] = await Promise.all([
-        safe(supabase.from('clients').select('id, name, status, mrr_cents').ilike('name', `%${query}%`).limit(5)),
-        safe(supabase.from('tasks').select('id, name, status').ilike('name', `%${query}%`).limit(5)),
-        safe(supabase.from('invoices').select('id, number, amount_cents, currency, status').or(`number.ilike.%${query}%,description.ilike.%${query}%`).limit(5)),
-        window._inboxLoadFailed ? Promise.resolve([]) : safe(supabase.from('emails').select('id, subject, from_email, from_name').ilike('subject', `%${query}%`).limit(5)),
-        safe(supabase.from('profiles').select('id, full_name, email').or(`full_name.ilike.%${query}%,email.ilike.%${query}%`).limit(5))
+      const { freeText, inFilter, fromFilter, hasChips } = parseCmdkQuery(query);
+      const chatLimit = hasChips ? 15 : 5; // fetch more when a chip needs to narrow it down client-side
+      const [clients, tasks, invoices, emails, profiles, chatMsgsRaw, chat2MsgsRaw] = await Promise.all([
+        hasChips ? Promise.resolve([]) : safe(supabase.from('clients').select('id, name, status, mrr_cents').ilike('name', `%${query}%`).limit(5)),
+        hasChips ? Promise.resolve([]) : safe(supabase.from('tasks').select('id, name, status').ilike('name', `%${query}%`).limit(5)),
+        hasChips ? Promise.resolve([]) : safe(supabase.from('invoices').select('id, number, amount_cents, currency, status').or(`number.ilike.%${query}%,description.ilike.%${query}%`).limit(5)),
+        (hasChips || window._inboxLoadFailed) ? Promise.resolve([]) : safe(supabase.from('emails').select('id, subject, from_email, from_name').ilike('subject', `%${query}%`).limit(5)),
+        hasChips ? Promise.resolve([]) : safe(supabase.from('profiles').select('id, full_name, email').or(`full_name.ilike.%${query}%,email.ilike.%${query}%`).limit(5)),
+        safe(supabase.from('messages').select('id, body, channel_id, author_id, created_at').ilike('body', `%${freeText}%`).order('created_at', { ascending:false }).limit(chatLimit)),
+        safe(supabase.from('chat2_messages').select('id, body, thread_id, author_id, created_at, thread:chat2_threads(client_id, department, kind)').ilike('body', `%${freeText}%`).order('created_at', { ascending:false }).limit(chatLimit))
       ]);
+      // Resolve display names for chat results — messages/chat2_messages only carry ids, and
+      // (deliberately, matching how the rest of the app already does this) no embedded-join
+      // guessing at FK constraint names for a table this central.
+      const authorIds = [...new Set([...chatMsgsRaw, ...chat2MsgsRaw].map(m => m.author_id).filter(Boolean))];
+      const channelIds = [...new Set(chatMsgsRaw.map(m => m.channel_id).filter(Boolean))];
+      const cdClientIds = [...new Set(chat2MsgsRaw.filter(m => m.thread && m.thread.kind === 'client_dept').map(m => m.thread.client_id).filter(Boolean))];
+      const [authorsRes, channelsRes, cdClientsRes] = await Promise.all([
+        authorIds.length ? safe(supabase.from('profiles').select('id, full_name, email').in('id', authorIds)) : Promise.resolve([]),
+        channelIds.length ? safe(supabase.from('channels').select('id, name').in('id', channelIds)) : Promise.resolve([]),
+        cdClientIds.length ? safe(supabase.from('clients').select('id, name').in('id', cdClientIds)) : Promise.resolve([])
+      ]);
+      const authorsById = {}; authorsRes.forEach(p => authorsById[p.id] = p);
+      const channelsById = {}; channelsRes.forEach(c => channelsById[c.id] = c);
+      const cdClientsById = {}; cdClientsRes.forEach(c => cdClientsById[c.id] = c);
+      let chatMsgs = chatMsgsRaw.map(m => {
+        const author = authorsById[m.author_id];
+        const channel = channelsById[m.channel_id];
+        return { id: m.id, channelId: m.channel_id, body: m.body,
+          authorName: author ? (author.full_name || author.email) : 'Someone',
+          channelName: channel ? channel.name : 'a channel' };
+      });
+      let chat2Msgs = chat2MsgsRaw.map(m => {
+        const author = authorsById[m.author_id];
+        const t = m.thread || {};
+        let placeName;
+        if (t.kind === 'client_dept') { const c = cdClientsById[t.client_id]; placeName = `${c ? c.name : 'Client'} · ${CMDK_DEPT_LABEL[t.department] || t.department}`; }
+        else if (t.kind === 'home') placeName = 'ReachGiant Home';
+        else if (t.kind === 'dm') placeName = 'Direct message';
+        else if (t.kind === 'team_channel') placeName = 'Team channel';
+        else placeName = 'Chat 2.0';
+        return { id: m.id, threadId: m.thread_id, clientId: t.client_id, dept: t.department, kind: t.kind, body: m.body,
+          authorName: author ? (author.full_name || author.email) : 'Someone', placeName };
+      });
+      if (inFilter) {
+        chatMsgs = chatMsgs.filter(m => m.channelName.toLowerCase().includes(inFilter));
+        chat2Msgs = chat2Msgs.filter(m => m.placeName.toLowerCase().includes(inFilter));
+      }
+      if (fromFilter) {
+        chatMsgs = chatMsgs.filter(m => m.authorName.toLowerCase().includes(fromFilter));
+        chat2Msgs = chat2Msgs.filter(m => m.authorName.toLowerCase().includes(fromFilter));
+      }
+      chatMsgs = chatMsgs.slice(0, 5);
+      chat2Msgs = chat2Msgs.slice(0, 5);
       const sections = [];
       if (clients.length) {
         sections.push({ title: 'Clients', items: clients.map(c => ({
@@ -49941,6 +50003,38 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
           icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="6" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 14c.7-2.5 3-4 5.5-4s4.8 1.5 5.5 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
           label: p.full_name || p.email, sub: p.email || '',
           action: () => { document.querySelector('.nav-item[data-screen="pulse"]')?.click(); cmdkScrollHighlight(`[data-profile-id="${p.id}"]`); }
+        })) });
+      }
+      if (chatMsgs.length) {
+        sections.push({ title: 'Chat & Huddles', items: chatMsgs.map(m => ({
+          icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3" width="12.4" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 15v-2.7h-1a1 1 0 01-1-1V3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+          label: m.body ? m.body.slice(0, 80) : '(empty message)', sub: `${m.authorName} in #${m.channelName}`,
+          action: () => { if (window.jumpToChatMessage) window.jumpToChatMessage(m.channelId, m.id); }
+        })) });
+      }
+      if (chat2Msgs.length) {
+        sections.push({ title: 'Chat 2.0', items: chat2Msgs.map(m => ({
+          icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3" width="12.4" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 15v-2.7h-1a1 1 0 01-1-1V3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
+          label: m.body ? m.body.slice(0, 80) : '(empty message)', sub: `${m.authorName} · ${m.placeName}`,
+          action: () => {
+            const nav = document.querySelector('.nav-item[data-screen="chat2"]');
+            if (nav) nav.click();
+            if (m.kind === 'client_dept' && m.clientId && m.dept) {
+              let tries = 0;
+              const poll = setInterval(() => {
+                tries++;
+                if (typeof window.chat2OpenClientThread === 'function' && document.getElementById('c2SearchInput')) {
+                  clearInterval(poll);
+                  window.chat2OpenClientThread(m.clientId, m.dept);
+                  cmdkScrollHighlight(`[data-c2-msg-id="${m.id}"]`);
+                } else if (tries > 40) clearInterval(poll);
+              }, 100);
+            } else {
+              // Home/DM/team-channel threads have no exposed deep-link opener yet — land on
+              // Chat 2.0's default view and highlight the row if it happens to already be open.
+              cmdkScrollHighlight(`[data-c2-msg-id="${m.id}"]`);
+            }
+          }
         })) });
       }
       if (!sections.length) {
@@ -60851,6 +60945,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     msgEl = await pollForMessage(messageId, 10, 150);
     if (msgEl) highlightChatMessage(msgEl);
   }
+  window.jumpToChatMessage = jumpToChatMessage;
 
   function renderList(){
     const list = _panel.querySelector('#giantNotifList');
