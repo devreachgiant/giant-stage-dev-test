@@ -50009,7 +50009,14 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
         sections.push({ title: 'Chat & Huddles', items: chatMsgs.map(m => ({
           icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3" width="12.4" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 15v-2.7h-1a1 1 0 01-1-1V3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
           label: m.body ? m.body.slice(0, 80) : '(empty message)', sub: `${m.authorName} in #${m.channelName}`,
-          action: () => { if (window.jumpToChatMessage) window.jumpToChatMessage(m.channelId, m.id); }
+          // Older messages aren't loaded up front — jumpToChatMessage pages back through real
+          // history to find them, which can take several seconds with zero visual feedback
+          // otherwise (looks frozen/broken rather than working). Toast bridges that gap.
+          action: () => {
+            if (!window.jumpToChatMessage) return;
+            const t = typeof toast === 'function' ? toast({ type:'info', message:'Jumping to message…', duration:20000 }) : null;
+            window.jumpToChatMessage(m.channelId, m.id).then(() => { if (t) t.dismiss(); });
+          }
         })) });
       }
       if (chat2Msgs.length) {
