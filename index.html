@@ -49900,6 +49900,20 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       return { freeText: text.trim(), inFilter, fromFilter, hasChips: !!(inMatch || fromMatch) };
     }
     const CMDK_DEPT_LABEL = { googleAds:'Google Ads', metaAds:'Meta Ads', seo:'SEO', web:'Web' };
+    // Long messages matched on a phrase buried well past the first 80 characters were showing
+    // a preview from the very start of the body instead — a correct match looked like a wrong
+    // result because nothing in the visible snippet explained why it matched. Center the
+    // preview on wherever the search term actually is.
+    function cmdkSnippet(body, term) {
+      if (!body) return '(empty message)';
+      const flat = body.replace(/\s+/g, ' ');
+      if (!term) return flat.slice(0, 80);
+      const idx = flat.toLowerCase().indexOf(term.toLowerCase());
+      if (idx === -1) return flat.slice(0, 80);
+      const start = Math.max(0, idx - 25);
+      const end = Math.min(flat.length, idx + term.length + 55);
+      return (start > 0 ? '…' : '') + flat.slice(start, end) + (end < flat.length ? '…' : '');
+    }
 
     let cmdkSearchTimeout = null;
     async function cmdkSearch(q) {
@@ -50008,7 +50022,7 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       if (chatMsgs.length) {
         sections.push({ title: 'Chat & Huddles', items: chatMsgs.map(m => ({
           icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3" width="12.4" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 15v-2.7h-1a1 1 0 01-1-1V3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
-          label: m.body ? m.body.slice(0, 80) : '(empty message)', sub: `${m.authorName} in #${m.channelName}`,
+          label: cmdkSnippet(m.body, freeText), sub: `${m.authorName} in #${m.channelName}`,
           // Older messages aren't loaded up front — jumpToChatMessage pages back through real
           // history to find them, which can take several seconds with zero visual feedback
           // otherwise (looks frozen/broken rather than working). Toast bridges that gap.
@@ -50022,7 +50036,7 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       if (chat2Msgs.length) {
         sections.push({ title: 'Chat 2.0', items: chat2Msgs.map(m => ({
           icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3" width="12.4" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 15v-2.7h-1a1 1 0 01-1-1V3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
-          label: m.body ? m.body.slice(0, 80) : '(empty message)', sub: `${m.authorName} · ${m.placeName}`,
+          label: cmdkSnippet(m.body, freeText), sub: `${m.authorName} · ${m.placeName}`,
           action: () => {
             const nav = document.querySelector('.nav-item[data-screen="chat2"]');
             if (nav) nav.click();
