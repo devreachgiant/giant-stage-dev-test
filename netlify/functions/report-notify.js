@@ -109,7 +109,7 @@ exports.handler = async (event) => {
 
     const envFrom = process.env.RESEND_FROM;
     const isValidFrom = envFrom && /<[^@>]+@[^>]+\.[a-z]{2,}>/i.test(envFrom);
-    const from = isValidFrom ? envFrom : 'Giant <noreply@theparallel.studio>';
+    const from = isValidFrom ? envFrom : 'Giant <noreply@reachgiant.com>';
 
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',

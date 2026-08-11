@@ -133,10 +133,10 @@ exports.handler = async (event) => {
     `;
 
     // Force from value to verified domain — bypass RESEND_FROM env var if it's broken/missing
-    // (theparallel.studio is verified in Resend, so emails from this domain work for all recipients)
+    // (reachgiant.com is verified in Resend, so emails from this domain work for all recipients)
     const envFrom = process.env.RESEND_FROM;
     const isValidFrom = envFrom && /<[^@>]+@[^>]+\.[a-z]{2,}>/i.test(envFrom);
-    const from = isValidFrom ? envFrom : 'Giant <noreply@theparallel.studio>';
+    const from = isValidFrom ? envFrom : 'Giant <noreply@reachgiant.com>';
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },

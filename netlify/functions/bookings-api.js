@@ -244,7 +244,7 @@ async function sendBookingEmail(booking, eventType, host, kind, origin, opts) {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        from: process.env.RESEND_FROM || 'Giant <noreply@theparallel.studio>',
+        from: process.env.RESEND_FROM || 'Giant <noreply@reachgiant.com>',
         to: [recipientEmail], subject, html
       })
     });
