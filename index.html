@@ -16661,7 +16661,7 @@ window.addEventListener('popstate', (e) => {
         ${!shown.length ? `<div style="padding:40px;text-align:center;color:var(--text-3);">No tasks here.</div>` :
           shown.map(t => {
             const client = t.client_id ? wsClientsById[t.client_id] : null;
-            return `<div class="grow" style="grid-template-columns:30px 2fr 1fr 1.1fr 1fr 1fr;align-items:center;">
+            return `<div class="grow" data-ws-task-row="${esc(t.id)}" style="grid-template-columns:30px 2fr 1fr 1.1fr 1fr 1fr;align-items:center;">
               <div data-ws-task-check="${esc(t.id)}" style="width:16px;height:16px;border-radius:5px;border:1.5px solid var(--line-2);cursor:pointer;${t.status==='done'?'background:var(--red);border-color:var(--red);':''}"></div>
               <div style="font-size:13px;font-weight:600;${t.status==='done'?'text-decoration:line-through;color:var(--text-3);':''}">${esc(t.name)}</div>
               ${taskPriorityCell(t)}
@@ -16843,6 +16843,22 @@ window.addEventListener('popstate', (e) => {
     } else {
       if (!wsLoaded && !wsLoading) loadDeliverables(); else render();
     }
+  };
+
+  // Global search needs a reliable way to land on the exact task regardless of who it's
+  // assigned to or whether it's done — forces "Whole team" scope and the matching Active/Done
+  // tab so the row is guaranteed visible, rather than silently hidden by whatever filter the
+  // Tasks tab happened to be left on.
+  window.wsJumpToTask = function(taskId, status){
+    window.wsActiveKey = 'tasks';
+    try { localStorage.setItem('giant_ws_active_key', 'tasks'); } catch(e) {}
+    wsTasksScope = 'team';
+    wsSetPersisted('giant_ws_tasks_scope', 'team');
+    wsTasksStatusView = status === 'done' ? 'done' : 'active';
+    wsSetPersisted('giant_ws_tasks_status', wsTasksStatusView);
+    const alreadyOnWorkspace = !!document.querySelector('.screen[data-screen="workspace"].on');
+    if (alreadyOnWorkspace) { if (typeof renderWsGlobalTabBar === 'function') renderWsGlobalTabBar('workspace'); window.workspaceInit(); }
+    else document.querySelector('.nav-item[data-screen="workspace"]')?.click();
   };
 
   const wsAddTaskSubmitBtn = document.getElementById('wsAddTaskSubmit');
@@ -49829,6 +49845,47 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
     }
     function raiEscLocal(s) { return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
+    // Polls for the target row (the screen it lives on is still loading/rendering right after
+    // the nav click), scrolls it into view once found, then flashes a red border for ~1.8s.
+    // Some screens (e.g. Workspace's Tasks tab) fully re-render their table more than once while
+    // data loads in stages — each re-render replaces the row with a brand new DOM node, which
+    // would silently wipe out a highlight applied to the old one. So instead of a single
+    // find-then-set-a-timer, this keeps re-querying and re-applying the outline to whatever
+    // currently matches the selector for the full duration, tracking every node it touched so
+    // all of them get cleaned up at the end, however many times the row got swapped out.
+    function cmdkScrollHighlight(selector) {
+      let findTries = 0;
+      const findPoll = setInterval(() => {
+        findTries++;
+        const el = document.querySelector(selector);
+        if (el) {
+          clearInterval(findPoll);
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const touched = new Set();
+          const flashUntil = Date.now() + 1800;
+          const flashPoll = setInterval(() => {
+            const cur = document.querySelector(selector);
+            if (cur) {
+              cur.style.transition = 'outline-color .2s';
+              cur.style.outline = '2px solid var(--red)';
+              cur.style.outlineOffset = '2px';
+              touched.add(cur);
+            }
+            if (Date.now() > flashUntil) {
+              clearInterval(flashPoll);
+              touched.forEach(node => {
+                node.style.outline = '';
+                node.style.outlineOffset = '';
+                setTimeout(() => { node.style.transition = ''; }, 220);
+              });
+            }
+          }, 150);
+        } else if (findTries > 40) {
+          clearInterval(findPoll);
+        }
+      }, 100);
+    }
+
     let cmdkSearchTimeout = null;
     async function cmdkSearch(q) {
       const query = q.trim();
@@ -49852,35 +49909,38 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
         sections.push({ title: 'Clients', items: clients.map(c => ({
           icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="6" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 14c.7-2.5 3-4 5.5-4s4.8 1.5 5.5 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
           label: c.name, sub: `${c.status}${c.mrr_cents?` · $${(c.mrr_cents/100).toLocaleString()}/mo`:''}`,
-          action: () => { document.querySelector('.nav-item[data-screen="clients"]')?.click(); }
+          action: () => { document.querySelector('.nav-item[data-screen="clients"]')?.click(); cmdkScrollHighlight(`[data-client-id="${c.id}"]`); }
         })) });
       }
       if (tasks.length) {
         sections.push({ title: 'Tasks', items: tasks.map(t => ({
           icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 8.5l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
-          label: t.label || 'Untitled', sub: t.status || '',
-          action: () => { document.querySelector('.nav-item[data-screen="tasks"]')?.click(); }
+          label: t.name || t.label || 'Untitled', sub: t.status || '',
+          // Not the "Projects" nav item (data-screen="tasks") — that only shows tasks with a
+          // project attached. The real flat list of every task, regardless of assignee/status,
+          // is Workspace's own Tasks tab.
+          action: () => { if (window.wsJumpToTask) window.wsJumpToTask(t.id, t.status); cmdkScrollHighlight(`[data-ws-task-row="${t.id}"]`); }
         })) });
       }
       if (invoices.length) {
         sections.push({ title: 'Invoices', items: invoices.map(i => ({
           icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 1.5h7l3 3v10H3V1.5Z" stroke="currentColor" stroke-width="1.4"/></svg>',
           label: i.number || 'Invoice', sub: `${i.status} · ${(i.amount_cents/100||0).toFixed(2)} ${(i.currency||'usd').toUpperCase()}`,
-          action: () => { document.querySelector('.nav-item[data-screen="finance"]')?.click(); }
+          action: () => { document.querySelector('.nav-item[data-screen="finance"]')?.click(); cmdkScrollHighlight(`[data-inv-row="${i.id}"]`); }
         })) });
       }
       if (emails.length) {
         sections.push({ title: 'Emails', items: emails.map(e => ({
           icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 4.5L8 8.5L13.5 4.5" stroke="currentColor" stroke-width="1.4"/></svg>',
           label: e.subject || '(no subject)', sub: e.from_name || e.from_email || '',
-          action: () => { document.querySelector('.nav-item[data-screen="inbox"]')?.click(); }
+          action: () => { document.querySelector('.nav-item[data-screen="inbox"]')?.click(); cmdkScrollHighlight(`[data-mail-id="${e.id}"]`); }
         })) });
       }
       if (profiles.length) {
         sections.push({ title: 'People', items: profiles.map(p => ({
           icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="6" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 14c.7-2.5 3-4 5.5-4s4.8 1.5 5.5 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
           label: p.full_name || p.email, sub: p.email || '',
-          action: () => { document.querySelector('.nav-item[data-screen="pulse"]')?.click(); }
+          action: () => { document.querySelector('.nav-item[data-screen="pulse"]')?.click(); cmdkScrollHighlight(`[data-profile-id="${p.id}"]`); }
         })) });
       }
       if (!sections.length) {
