@@ -5905,17 +5905,27 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
     <!-- MAIN -->
     <main class="main">
 
+      <!-- Persistent global search — visible on every screen, not just specific screens/
+           clusters, so it's always the fastest way to jump to a chat or task. Reuses the
+           existing cmdk palette (cmdkOpen()) rather than building a second search UI. -->
+      <div id="globalHeaderBar" style="display:flex;align-items:center;justify-content:center;padding:13px 24px;position:sticky;top:0;z-index:6;background:var(--bg);border-bottom:1px solid var(--line);">
+        <div class="search-box" id="globalSearchBox" style="width:420px;max-width:100%;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <input type="text" class="bare-input" id="globalSearchInput" placeholder="Search anything...">
+          <kbd>⌘K</kbd>
+        </div>
+      </div>
+
       <!-- Persistent Workspace tab bar — shared chrome above Workspace/Clients/Team Pulse/
            Templates/SOPs so switching between them (via nav consolidation) doesn't lose it. -->
-      <div id="wsGlobalTabBar" style="display:none;padding:22px 24px 0;position:sticky;top:0;z-index:5;background:var(--bg);"></div>
+      <div id="wsGlobalTabBar" style="display:none;padding:22px 24px 0;position:sticky;top:61px;z-index:5;background:var(--bg);"></div>
 
       <!-- ===== DAILY FOCUS ===== -->
       <div class="screen" data-screen="focus">
         <div class="topbar">
           <div><h1 id="focusGreet">Welcome back</h1><div class="greet-sub" id="focusGreetSub">&nbsp;</div></div>
-          <div class="topbar-right">
-            <div class="search-box" id="focusSearchBox"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><input type="text" class="bare-input" id="focusSearchInput" placeholder="Search everything"><kbd>⌘K</kbd></div>
-          </div>
+          <!-- Search box removed — the global header search bar above now covers this on every
+               screen, so a second identical one here was a literal visible duplicate. -->
         </div>
         <div class="content">
           <div class="stat-row">
@@ -49797,8 +49807,8 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
     const cmdkInput = document.getElementById('cmdkInput');
     const cmdkResults = document.getElementById('cmdkResults');
     const cmdkEmpty = document.getElementById('cmdkEmpty');
-    const focusSearchBox = document.getElementById('focusSearchBox');
-    const focusSearchInput = document.getElementById('focusSearchInput');
+    const globalSearchBox = document.getElementById('globalSearchBox');
+    const globalSearchInput = document.getElementById('globalSearchInput');
     const focusBellBtn = document.getElementById('focusBellBtn');
     const focusBellDot = document.getElementById('focusBellDot');
     const notifPanel = document.getElementById('notifPanel');
@@ -49929,9 +49939,9 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
         if (notifPanel && notifPanel.style.display === 'flex') notifPanel.style.display = 'none';
       }
     });
-    // Click search box in Daily Focus → opens palette
-    if (focusSearchBox) focusSearchBox.addEventListener('click', () => cmdkOpen());
-    if (focusSearchInput) focusSearchInput.addEventListener('focus', (e) => { e.target.blur(); cmdkOpen(); });
+    // Click the global header search box → opens palette
+    if (globalSearchBox) globalSearchBox.addEventListener('click', () => cmdkOpen());
+    if (globalSearchInput) globalSearchInput.addEventListener('focus', (e) => { e.target.blur(); cmdkOpen(); });
 
     // ── NOTIFICATIONS PANEL ──────────────────────────────────────
     let notifItems = [];
