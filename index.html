@@ -10491,7 +10491,12 @@ const TOOLS_GLOBAL_VISIBLE_SCREENS = ['passwords','reachai','crew','files','note
 const NAV_CLUSTERS = [
   { id:'ws', tabs: WS_GLOBAL_TABS, visibleScreens: WS_GLOBAL_VISIBLE_SCREENS },
   { id:'biz', tabs: BIZ_GLOBAL_TABS, visibleScreens: BIZ_GLOBAL_VISIBLE_SCREENS },
-  { id:'tools', tabs: TOOLS_GLOBAL_TABS, visibleScreens: TOOLS_GLOBAL_VISIBLE_SCREENS },
+  // minRole here (not just on individual tabs) — Passwords/Reach AI/Magnus/Files/Notes/Record
+  // stay reachable by everyone via their old individual nav items (unrestricted, same as
+  // always), so without a cluster-level gate this tab bar would leak into view for a regular
+  // member visiting one of those screens the old way, even though the "Tools" entry point
+  // itself is manager+ only.
+  { id:'tools', tabs: TOOLS_GLOBAL_TABS, visibleScreens: TOOLS_GLOBAL_VISIBLE_SCREENS, minRole:'manager' },
 ];
 // 'templates' is reachable from both clusters (Reports vs Proposals) — this tracks which
 // tab bar/label set should show while sitting on that screen, set whenever either tab is
@@ -10513,7 +10518,7 @@ window.wsActiveKey = (function(){ try { return localStorage.getItem('giant_ws_ac
 function renderWsGlobalTabBar(activeScreen){
   const host = document.getElementById('wsGlobalTabBar');
   if (!host) return;
-  const candidates = NAV_CLUSTERS.filter(c => c.visibleScreens.includes(activeScreen));
+  const candidates = NAV_CLUSTERS.filter(c => c.visibleScreens.includes(activeScreen) && passesBizRoleGate(c.minRole));
   if (!candidates.length) { host.style.display = 'none'; host.innerHTML = ''; return; }
   const cluster = candidates.find(c => c.id === window.lastNavCluster) || candidates[0];
   host.style.display = 'block';
