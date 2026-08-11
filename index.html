@@ -10480,6 +10480,9 @@ const SYSTEM_GLOBAL_TABS = [
   { key:'admin', label:'Admin', screen:'admin' },
   { key:'report', label:'Help Us Improve', screen:'report' },
   { key:'changelog', label:'Version & Changelog', screen:'changelog' },
+  // Not a screen — opens the real external link directly (same URL as the old sidebar item),
+  // handled as a special case in the tab click handler below rather than a screen switch.
+  { key:'downloadapp', label:'Download App', externalLink:'https://drive.google.com/drive/folders/1_VbrE6kjVCYpglLC5ubkabMRuo78fNHg?usp=sharing' },
 ];
 const SYSTEM_GLOBAL_VISIBLE_SCREENS = ['settings','admin','report','changelog'];
 // minRole on every cluster here (not just on individual tabs) — Clients/Templates/SOPs (ws) and
@@ -10536,6 +10539,7 @@ function renderWsGlobalTabBar(activeScreen){
   host.querySelectorAll('[data-ws-global-tab]').forEach(el => el.addEventListener('click', () => {
     const tab = cluster.tabs.find(t => t.key === el.dataset.wsGlobalTab);
     if (!tab) return;
+    if (tab.externalLink) { window.open(tab.externalLink, '_blank', 'noopener,noreferrer'); return; }
     window.lastNavCluster = cluster.id;
     if (tab.screen === 'workspace') {
       window.wsActiveKey = tab.key;
