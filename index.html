@@ -9514,6 +9514,13 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                     </div>
                     <div style="font-size:10.5px;color:var(--text-3);line-height:1.4;">Marketing / sales page for a service or product</div>
                   </button>
+                  <button type="button" class="tpl-type-btn" data-page-type="match_text" style="background:var(--surface);border:1.5px solid var(--line);border-radius:11px;padding:11px 12px;text-align:left;cursor:pointer;font-family:inherit;transition:.14s;">
+                    <div style="display:flex;align-items:center;gap:7px;margin-bottom:3px;">
+                      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="color:var(--text-2);"><path d="M3 8.5l3 3 7-7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      <div style="font-size:12px;font-weight:700;color:var(--text);">Match Text</div>
+                    </div>
+                    <div style="font-size:10.5px;color:var(--text-3);line-height:1.4;">Uses your exact wording — no AI rewriting, just laid out as a page</div>
+                  </button>
                   <button type="button" class="tpl-type-btn" data-page-type="report" style="background:var(--surface);border:1.5px solid var(--line);border-radius:11px;padding:11px 12px;text-align:left;cursor:pointer;font-family:inherit;transition:.14s;">
                     <div style="display:flex;align-items:center;gap:7px;margin-bottom:3px;">
                       <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="color:var(--text-2);"><path d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M5 8h6M5 11h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
@@ -45571,6 +45578,12 @@ ${JSON.stringify(context, null, 2)}
 
       // Type-specific copy: title + subtitle + textarea placeholder + AI prompt focus.
       const TPL_TYPE_CONFIG = {
+        match_text: {
+          title: 'Lay out your text exactly as written',
+          subtitle: 'Paste text or upload a PDF — Giant lays it out into a clean page without rewriting a single word.',
+          placeholder: 'Paste your exact copy here — Giant will only split it into a title and paragraphs and format it as a page. No rewriting, no rephrasing, no added or removed content…',
+          eyebrowHint: 'Match Text (no rewriting)'
+        },
         landing: {
           title: 'Turn a document into a live page',
           subtitle: 'Paste text or upload a PDF — Giant builds a polished, shareable presentation with your branding.',
@@ -45664,6 +45677,24 @@ Universal rules:
 - "text" sections: full paragraphs with substance — 2-4 sentences minimum
 - Stats: use SPECIFIC numbers from the input when available; otherwise plausible benchmarks
 - Always set hero.eyebrow to identify the document type clearly`;
+
+        if (pageType === 'match_text') {
+          return `You are formatting the user's own text into a clean page layout. Your ONLY job is splitting it into a title and paragraphs — you must NOT rewrite, paraphrase, rephrase, summarize, embellish, correct, shorten, or lengthen a single sentence. The reader must see the exact words the user wrote.
+
+STRICT RULES (override anything below that conflicts):
+- Every section MUST be kind "text". Do not use stats, features, pricing, list, testimonials, faq, timeline, or cta — none of that content exists unless the user's own text already IS structured that way, and even then just preserve it as plain paragraphs.
+- Each section's "content" field must be copied VERBATIM, character-for-character, from the input — same words, same punctuation, same order. No fixing typos, no adding detail, no removing detail.
+- Split into sections at the input's own paragraph breaks or headings — don't invent new breaks.
+- hero.title: if the input's first line reads like a title (short, standalone), use it verbatim. Otherwise use the input's first sentence verbatim, unedited.
+- hero.subtitle: use the input's own second line verbatim if it reads like a tagline; otherwise leave it "" (empty). Never write a new one.
+- hero.eyebrow: a short neutral label like "Document" — don't invent marketing language.
+- Section "title": if the input has its own heading for that paragraph, use it verbatim; otherwise use a neutral label like "Section 1", "Section 2", etc. — never invent a descriptive title.
+- Leave hero.price empty unless a price literally appears verbatim in the input, in which case copy it exactly.
+
+Ignore the JSON shape's field examples below (e.g. "3.2x", "Name, Role at Company") — those are illustrative for OTHER page types only, not instructions to invent content here.
+
+${COMMON_SCHEMA}`;
+        }
 
         if (pageType === 'report') {
           return `You are an expert at producing CLEAN, FACTUAL client performance reports. Given the input data, structure it into a professional monthly/quarterly report that an agency would send to their client.
@@ -46158,6 +46189,20 @@ ${COMMON_SCHEMA}`;
         if (editBtn) editBtn.addEventListener('click', () => tplSetEditMode(true));
         if (saveBtn) saveBtn.addEventListener('click', tplSaveEdits);
         if (cancelBtn) cancelBtn.addEventListener('click', tplCancelEdit);
+        // [data-edit] fields are plain inline spans/headings — pasting rich HTML (copied
+        // from a Google Doc, Notion, etc.) drops block-level markup into an inline element,
+        // which browsers either reject outright or mangle, so paste silently does nothing.
+        // Force plain text on paste instead.
+        const previewBody = document.getElementById('tplPreviewBody');
+        if (previewBody) {
+          previewBody.addEventListener('paste', (e) => {
+            const target = e.target.closest && e.target.closest('[data-edit]');
+            if (!target) return;
+            e.preventDefault();
+            const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+            document.execCommand('insertText', false, text);
+          });
+        }
       })();
 
       // === PDF UPLOAD with pdf.js ===
@@ -46491,8 +46536,8 @@ ${COMMON_SCHEMA}`;
           return;
         }
         const esc = (s) => String(s||'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-        const TYPE_LABEL = { landing: 'Landing', report: 'Report', website_proposal: 'Website', marketing_proposal: 'Marketing' };
-        const TYPE_COLOR = { landing: 'var(--text-3)', report: '#3B82F6', website_proposal: '#8B5CF6', marketing_proposal: '#10B981' };
+        const TYPE_LABEL = { landing: 'Landing', report: 'Report', website_proposal: 'Website', marketing_proposal: 'Marketing', match_text: 'Match Text' };
+        const TYPE_COLOR = { landing: 'var(--text-3)', report: '#3B82F6', website_proposal: '#8B5CF6', marketing_proposal: '#10B981', match_text: '#E8A83E' };
         list.innerHTML = data.map(p => {
           const isCurrent = currentTplPage && currentTplPage.dbId === p.id;
           const date = new Date(p.updated_at);
