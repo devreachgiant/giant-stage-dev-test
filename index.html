@@ -29733,9 +29733,13 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
             });
             html += '</div>';
           } else if (sec.kind === 'list' && Array.isArray(sec.items)) {
+            const numbered = sec.list_style === 'numbered';
             html += '<ul style="margin-top:18px;padding-left:0;list-style:none;">';
-            sec.items.forEach(it => {
-              html += '<li style="font-size:15px;color:rgba(255,255,255,.85);margin-bottom:14px;padding-left:22px;position:relative;line-height:1.55;"><span style="position:absolute;left:0;top:10px;width:8px;height:8px;background:#FF3D38;border-radius:50%;"></span>' + escView(it) + '</li>';
+            sec.items.forEach((it, ii) => {
+              const marker = numbered
+                ? '<span style="position:absolute;left:0;top:0;width:22px;height:22px;background:#FF3D38;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;">' + (ii + 1) + '</span>'
+                : '<span style="position:absolute;left:0;top:10px;width:8px;height:8px;background:#FF3D38;border-radius:50%;"></span>';
+              html += '<li style="font-size:15px;color:rgba(255,255,255,.85);margin-bottom:14px;padding-left:' + (numbered ? '32px' : '22px') + ';position:relative;line-height:1.55;">' + marker + escView(it) + '</li>';
             });
             html += '</ul>';
           } else if (sec.kind === 'pricing' && Array.isArray(sec.pricing)) {
@@ -45659,6 +45663,7 @@ ${JSON.stringify(context, null, 2)}
       "content": "rich paragraph (for text kind — 2-4 sentences)",
       "stats": [{"value": "3.2x", "label": "Target ROAS", "highlight": true}],
       "items": ["detailed item 1 (12-25 words)", "detailed item 2"],
+      "list_style": "bullet" | "numbered" (for list kind only — use \"numbered\" for sequential/ordered steps, \"bullet\" for unordered points; omit or default to \"bullet\" otherwise),
       "pricing": [{"tier": "Starter", "price": "$X/mo", "features": ["spec1","spec2"]}],
       "testimonials": [{"quote": "specific praise", "author": "Name, Role at Company"}],
       "faq": [{"q": "common question", "a": "complete answer 2-3 sentences"}],
@@ -45674,21 +45679,23 @@ Universal rules:
 - Use the input's own brand voice, numbers, and specifics — DON'T sanitize into generic agency-speak
 - Use English unless the input is clearly in another language
 - "list" items: NEVER 3-word bullets. Each item should be 12-25 words explaining WHAT and WHY
+- If the input describes a sequence of steps/stages/touches (step 1, step 2… phase A, phase B… touch 1, touch 2…), use a "list" section with "list_style": "numbered" and one item per step — never flatten a numbered sequence into a single "text" paragraph.
 - "text" sections: full paragraphs with substance — 2-4 sentences minimum
 - Stats: use SPECIFIC numbers from the input when available; otherwise plausible benchmarks
 - Always set hero.eyebrow to identify the document type clearly`;
 
         if (pageType === 'match_text') {
-          return `You are formatting the user's own text into a clean page layout. Your ONLY job is splitting it into a title and paragraphs — you must NOT rewrite, paraphrase, rephrase, summarize, embellish, correct, shorten, or lengthen a single sentence. The reader must see the exact words the user wrote.
+          return `You are formatting the user's own text into a clean page layout. Your ONLY job is splitting it into a title, paragraphs, and lists — you must NOT rewrite, paraphrase, rephrase, summarize, embellish, correct, shorten, or lengthen a single word. The reader must see the exact words the user wrote.
 
 STRICT RULES (override anything below that conflicts):
-- Every section MUST be kind "text". Do not use stats, features, pricing, list, testimonials, faq, timeline, or cta — none of that content exists unless the user's own text already IS structured that way, and even then just preserve it as plain paragraphs.
-- Each section's "content" field must be copied VERBATIM, character-for-character, from the input — same words, same punctuation, same order. No fixing typos, no adding detail, no removing detail.
-- Split into sections at the input's own paragraph breaks or headings — don't invent new breaks.
+- Only "text" and "list" section kinds are allowed. Never use stats, features, pricing, testimonials, faq, timeline, or cta — that content doesn't exist unless the user's own text already reads that way.
+- If a stretch of the input is a sequence of items — numbered steps ("1.", "Touch 1 —", "Step one"…), bulleted points ("-", "•"), or a run-on list of enumerated things — pull that stretch OUT into its own "list" section instead of leaving it inside a "text" paragraph. Set "list_style" to "numbered" if the input numbered/ordered the items itself, otherwise "bullet". Never let a numbered or bulleted sequence get flattened into one dense paragraph — that's the one thing this mode must never do.
+- Every "list" item and every "text" section's "content" must be copied VERBATIM, character-for-character, from the input — same words, same punctuation, same order, just with the list marker/number itself stripped off (the "list_style" and position already convey that). No fixing typos, no adding detail, no removing detail, no merging multiple list items into one.
+- For plain prose (not a list), split into "text" sections at the input's own paragraph breaks or headings — don't invent new breaks.
 - hero.title: if the input's first line reads like a title (short, standalone), use it verbatim. Otherwise use the input's first sentence verbatim, unedited.
 - hero.subtitle: use the input's own second line verbatim if it reads like a tagline; otherwise leave it "" (empty). Never write a new one.
 - hero.eyebrow: a short neutral label like "Document" — don't invent marketing language.
-- Section "title": if the input has its own heading for that paragraph, use it verbatim; otherwise use a neutral label like "Section 1", "Section 2", etc. — never invent a descriptive title.
+- Section "title": if the input has its own heading for that paragraph/list, use it verbatim; otherwise use a neutral label like "Section 1", "Section 2", etc. — never invent a descriptive title.
 - Leave hero.price empty unless a price literally appears verbatim in the input, in which case copy it exactly.
 
 Ignore the JSON shape's field examples below (e.g. "3.2x", "Name, Role at Company") — those are illustrative for OTHER page types only, not instructions to invent content here.
@@ -45980,9 +45987,13 @@ ${COMMON_SCHEMA}`;
             });
             html += `</div>`;
           } else if (sec.kind === 'list' && Array.isArray(sec.items)) {
+            const numbered = sec.list_style === 'numbered';
             html += `<ul style="margin-top:12px;padding-left:0;list-style:none;">`;
             sec.items.forEach((it, ii) => {
-              html += `<li style="font-size:13px;color:rgba(255,255,255,.85);margin-bottom:10px;padding-left:18px;position:relative;line-height:1.55;"><span style="position:absolute;left:0;top:8px;width:6px;height:6px;background:var(--red-bright);border-radius:50%;"></span><span data-edit="sections[${idx}].items[${ii}]">${esc(it)}</span></li>`;
+              const marker = numbered
+                ? `<span style="position:absolute;left:0;top:0;width:18px;height:18px;background:var(--red-bright);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9.5px;font-weight:800;">${ii + 1}</span>`
+                : `<span style="position:absolute;left:0;top:8px;width:6px;height:6px;background:var(--red-bright);border-radius:50%;"></span>`;
+              html += `<li style="font-size:13px;color:rgba(255,255,255,.85);margin-bottom:10px;padding-left:${numbered?'26px':'18px'};position:relative;line-height:1.55;">${marker}<span data-edit="sections[${idx}].items[${ii}]">${esc(it)}</span></li>`;
             });
             html += `</ul>`;
           } else if (sec.kind === 'pricing' && Array.isArray(sec.pricing)) {
@@ -46865,9 +46876,13 @@ ${COMMON_SCHEMA}`;
             });
             html += `</div>`;
           } else if (sec.kind === 'list' && Array.isArray(sec.items)) {
+            const numbered = sec.list_style === 'numbered';
             html += `<ul style="margin-top:18px;padding-left:0;list-style:none;">`;
-            sec.items.forEach(it => {
-              html += `<li style="font-size:15px;color:rgba(255,255,255,.85);margin-bottom:14px;padding-left:22px;position:relative;line-height:1.55;"><span style="position:absolute;left:0;top:10px;width:8px;height:8px;background:#FF3D38;border-radius:50%;"></span>${escView(it)}</li>`;
+            sec.items.forEach((it, ii) => {
+              const marker = numbered
+                ? `<span style="position:absolute;left:0;top:0;width:22px;height:22px;background:#FF3D38;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;">${ii + 1}</span>`
+                : `<span style="position:absolute;left:0;top:10px;width:8px;height:8px;background:#FF3D38;border-radius:50%;"></span>`;
+              html += `<li style="font-size:15px;color:rgba(255,255,255,.85);margin-bottom:14px;padding-left:${numbered?'32px':'22px'};position:relative;line-height:1.55;">${marker}${escView(it)}</li>`;
             });
             html += `</ul>`;
           } else if (sec.kind === 'pricing' && Array.isArray(sec.pricing)) {
