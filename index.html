@@ -20914,8 +20914,14 @@ window.addEventListener('popstate', (e) => {
     dmThreads: [],          // chat2_threads kind='dm' (1:1 + group), with other-member info
     teamChannels: [],       // chat2_threads kind='team_channel'
     profilesById: {},
-    selectedKind: null,     // 'client' | 'dm' | 'team_channel' — which column-3 view, once built
-    selectedId: null,
+    selectedKind: null,     // 'client' | 'dm' | 'team_channel' — which column-3 view
+    selectedId: null,       // clientId for 'client', thread id otherwise
+    selectedDept: null,     // only meaningful when selectedKind === 'client'
+    activeThreadId: null,   // the real chat2_threads.id currently loaded into threadMessages
+    threadLoading: false,
+    threadMessages: [],
+    messageDraft: '',
+    clientDeptThreadIds: {}, // `${clientId}:${dept}` -> chat2_threads.id, avoids re-querying
   };
 
   function isOwner(){ return state.role === 'owner' || state.role === 'inhouse_dev'; }
@@ -20992,9 +20998,65 @@ window.addEventListener('popstate', (e) => {
       thread = { id: threadId, name: null, dm_pair: pair, is_group: false, memberIds: [myId(), profileId], others: [profileId] };
       state.dmThreads.push(thread);
     }
-    state.selectedKind = 'dm';
-    state.selectedId = thread.id;
+    openThread({ kind: 'dm', id: thread.id });
+  }
+
+  // ── Thread opening + messages (Stage 2) ──
+  async function ensureClientDeptThread(clientId, dept){
+    const cacheKey = clientId + ':' + dept;
+    if (state.clientDeptThreadIds[cacheKey]) return state.clientDeptThreadIds[cacheKey];
+    const { data: existing } = await sb().from('chat2_threads').select('id').eq('kind', 'client_dept').eq('client_id', clientId).eq('department', dept).maybeSingle();
+    let threadId = existing && existing.id;
+    if (!threadId) {
+      const { data: created, error } = await sb().from('chat2_threads').insert({ kind: 'client_dept', client_id: clientId, department: dept }).select('id').single();
+      if (error) { if (typeof toast === 'function') toast({ type:'error', message: 'Could not open thread: ' + error.message }); return null; }
+      threadId = created.id;
+    }
+    state.clientDeptThreadIds[cacheKey] = threadId;
+    return threadId;
+  }
+
+  // Unified opener for all 3 kinds — resolves the real chat2_threads.id to load
+  // (client threads are keyed by clientId+dept and created lazily on first open,
+  // same as chat2's own ensureThread) then loads its messages.
+  async function openThread({ kind, id, dept }){
+    state.selectedKind = kind;
+    state.selectedId = id;
+    if (kind === 'client') {
+      state.selectedDept = dept || state.selectedDept || DEPTS[0].key;
+      render();
+      const threadId = await ensureClientDeptThread(id, state.selectedDept);
+      if (threadId) await loadThreadMessages(threadId);
+    } else {
+      state.selectedDept = null;
+      render();
+      await loadThreadMessages(id);
+    }
+  }
+
+  async function loadThreadMessages(threadId){
+    state.activeThreadId = threadId;
+    state.threadLoading = true; render();
+    const { data } = await sb().from('chat2_messages').select('id, author_id, body, attachments, created_at').eq('thread_id', threadId).order('created_at', { ascending: true }).limit(300);
+    if (state.activeThreadId !== threadId) return; // user switched threads while this was in flight
+    state.threadMessages = data || [];
+    state.threadLoading = false;
     render();
+    setTimeout(() => { const list = document.getElementById('c3MsgList'); if (list) list.scrollTop = list.scrollHeight; }, 0);
+  }
+
+  async function sendMessage(){
+    const body = state.messageDraft.trim();
+    if (!body || !state.activeThreadId) return;
+    const threadId = state.activeThreadId;
+    state.messageDraft = '';
+    const { data, error } = await sb().from('chat2_messages').insert({ thread_id: threadId, author_id: myId(), body }).select('id, author_id, body, attachments, created_at').single();
+    if (error) { if (typeof toast === 'function') toast({ type:'error', message: 'Could not send: ' + error.message }); return; }
+    if (state.activeThreadId === threadId) {
+      state.threadMessages.push(data);
+      render();
+      setTimeout(() => { const list = document.getElementById('c3MsgList'); if (list) list.scrollTop = list.scrollHeight; }, 0);
+    }
   }
 
   function pinnedRowHtml(key, icon, label, sub){
@@ -21083,8 +21145,65 @@ window.addEventListener('popstate', (e) => {
     }).join('');
   }
 
-  function contentPlaceholderHtml(){
-    return `<div style="flex:1;display:flex;align-items:center;justify-content:center;color:#5a5a5a;font-size:13px;">Select a conversation on the left.</div>`;
+  function threadHeaderHtml(){
+    if (state.selectedKind === 'dm') {
+      const t = state.dmThreads.find(x => x.id === state.selectedId);
+      const label = t ? dmLabel(t) : 'Direct message';
+      return `<div style="font-size:15.5px;font-weight:800;color:#fff;">${esc(label)}</div><div style="font-size:12px;color:#9a9a9a;margin-top:2px;">Direct message</div>`;
+    }
+    if (state.selectedKind === 'team_channel') {
+      const t = state.teamChannels.find(x => x.id === state.selectedId);
+      return `<div style="font-size:15.5px;font-weight:800;color:#fff;">#${esc(t ? t.name : '')}</div><div style="font-size:12px;color:#9a9a9a;margin-top:2px;">${t && t.is_private ? 'Private channel' : 'Public channel'}</div>`;
+    }
+    if (state.selectedKind === 'client') {
+      const c = state.clients.find(x => x.id === state.selectedId);
+      const deptInfo = DEPTS.find(d => d.key === state.selectedDept);
+      return `
+        <div style="font-size:15.5px;font-weight:800;color:#fff;">${esc(c ? c.name : '')}</div>
+        <div style="display:flex;gap:4px;margin-top:12px;">
+          ${DEPTS.map(d => `<div data-c3-dept="${d.key}" style="display:flex;align-items:center;gap:6px;padding:6px 13px;border-radius:8px 8px 0 0;font-size:12px;font-weight:700;cursor:pointer;${state.selectedDept===d.key?'background:#1c1c1c;color:#fff;':'color:#7a7a7a;'}"><span style="width:6px;height:6px;border-radius:50%;background:${d.color};"></span>${esc(d.label)}</div>`).join('')}
+        </div>`;
+    }
+    return '';
+  }
+
+  function msgRowHtml(m){
+    const author = state.profilesById[m.author_id];
+    const name = author ? (author.display_name || author.full_name || author.email) : 'Someone';
+    const mine = m.author_id === myId();
+    const avaStyle = author && author.avatar_url ? `background-image:url(${esc(author.avatar_url)});background-size:cover;` : `background:${esc((author&&author.avatar_bg)||'#2a2a2a')};color:${esc((author&&author.avatar_fg)||'#fff')};`;
+    const when = new Date(m.created_at).toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+    return `<div style="display:flex;gap:10px;padding:8px 0;">
+      <div style="width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:700;${avaStyle}">${author && author.avatar_url ? '' : esc(initialsOf(name))}</div>
+      <div style="min-width:0;flex:1;">
+        <div style="display:flex;align-items:baseline;gap:8px;">
+          <span style="font-size:13px;font-weight:700;color:#fff;">${esc(mine ? 'You' : name)}</span>
+          <span style="font-size:11px;color:#7a7a7a;">${esc(when)}</span>
+        </div>
+        <div style="font-size:13px;color:#e0e0e0;margin-top:2px;line-height:1.5;white-space:pre-wrap;">${esc(m.body)}</div>
+      </div>
+    </div>`;
+  }
+
+  function threadColumnHtml(){
+    if (!state.selectedKind) {
+      return `<div style="flex:1;display:flex;align-items:center;justify-content:center;color:#5a5a5a;font-size:13px;">Select a conversation on the left.</div>`;
+    }
+    return `
+      <div style="padding:16px 22px;border-bottom:1px solid #2a2a2a;flex-shrink:0;">${threadHeaderHtml()}</div>
+      <div id="c3MsgList" style="flex:1;overflow-y:auto;padding:16px 22px;display:flex;flex-direction:column;">
+        ${state.threadLoading ? `<div style="text-align:center;color:#6a6a6a;font-size:13px;padding:40px 0;">Loading…</div>`
+          : state.threadMessages.length ? state.threadMessages.map(msgRowHtml).join('') : `<div style="text-align:center;color:#5a5a5a;font-size:12.5px;padding:40px 0;">No messages yet — say hello.</div>`}
+      </div>
+      <div style="border-top:1px solid #2a2a2a;padding:14px 22px 18px;flex-shrink:0;">
+        <div style="background:#1c1c1c;border:1px solid #333333;border-radius:12px;padding:10px 12px;">
+          <textarea id="c3Composer" rows="1" placeholder="Write a message…" style="box-sizing:border-box;width:100%;background:transparent;border:none;color:#fff;font-size:13.5px;outline:none;resize:none;font-family:inherit;">${esc(state.messageDraft)}</textarea>
+          <div style="display:flex;justify-content:flex-end;margin-top:8px;">
+            <div id="c3SendBtn" style="padding:8px 16px;border-radius:8px;background:#d91f0f;color:#fff;font-size:12.5px;font-weight:700;cursor:pointer;">Send</div>
+          </div>
+        </div>
+      </div>
+    `;
   }
 
   function render(){
@@ -21104,9 +21223,15 @@ window.addEventListener('popstate', (e) => {
           ${state.mode === 'dms' ? dmsListHtml() : state.mode === 'clients' ? clientsListHtml() : teamsListHtml()}
         </div>
       </div>
-      <div style="flex:1;display:flex;flex-direction:column;min-width:0;">${contentPlaceholderHtml()}</div>
+      <div style="flex:1;display:flex;flex-direction:column;min-width:0;">${threadColumnHtml()}</div>
     `;
     wireContent(host);
+    const composer = host.querySelector('#c3Composer');
+    if (composer) {
+      composer.addEventListener('input', (e) => { state.messageDraft = e.target.value; });
+      composer.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+      if (document.activeElement !== composer) { composer.focus(); composer.selectionStart = composer.selectionEnd = composer.value.length; }
+    }
   }
 
   async function toggleStar(clientId){
@@ -21125,10 +21250,13 @@ window.addEventListener('popstate', (e) => {
     if (searchEl) { searchEl.addEventListener('input', (e) => { state.searchQuery = e.target.value; render(); }); }
     host.querySelectorAll('[data-c3-mode]').forEach(el => el.addEventListener('click', () => { state.mode = el.dataset.c3Mode; render(); }));
     host.querySelectorAll('[data-c3-star]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); toggleStar(el.dataset.c3Star); }));
-    host.querySelectorAll('[data-c3-open-client]').forEach(el => el.addEventListener('click', () => { state.selectedKind = 'client'; state.selectedId = el.dataset.c3OpenClient; render(); }));
-    host.querySelectorAll('[data-c3-open-dm]').forEach(el => el.addEventListener('click', () => { state.selectedKind = 'dm'; state.selectedId = el.dataset.c3OpenDm; render(); }));
+    host.querySelectorAll('[data-c3-open-client]').forEach(el => el.addEventListener('click', () => openThread({ kind: 'client', id: el.dataset.c3OpenClient })));
+    host.querySelectorAll('[data-c3-open-dm]').forEach(el => el.addEventListener('click', () => openThread({ kind: 'dm', id: el.dataset.c3OpenDm })));
     host.querySelectorAll('[data-c3-open-profile]').forEach(el => el.addEventListener('click', () => openDmWithProfile(el.dataset.c3OpenProfile)));
-    host.querySelectorAll('[data-c3-open-team]').forEach(el => el.addEventListener('click', () => { state.selectedKind = 'team_channel'; state.selectedId = el.dataset.c3OpenTeam; render(); }));
+    host.querySelectorAll('[data-c3-open-team]').forEach(el => el.addEventListener('click', () => openThread({ kind: 'team_channel', id: el.dataset.c3OpenTeam })));
+    host.querySelectorAll('[data-c3-dept]').forEach(el => el.addEventListener('click', () => openThread({ kind: 'client', id: state.selectedId, dept: el.dataset.c3Dept })));
+    const sendBtn = host.querySelector('#c3SendBtn');
+    if (sendBtn) sendBtn.addEventListener('click', sendMessage);
   }
 
   window.chat3Init = async function(){
