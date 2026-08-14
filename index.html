@@ -20969,6 +20969,34 @@ window.addEventListener('popstate', (e) => {
   }
   function initialsOf(name){ return String(name||'?').trim().charAt(0).toUpperCase(); }
 
+  // Existing 1:1 DM thread with a given profile, if the two of us already have one.
+  function existingDmThreadWith(profileId){
+    return state.dmThreads.find(t => !t.is_group && t.others.length === 1 && t.others[0] === profileId) || null;
+  }
+  function sortedPair(a, b){ return a < b ? [a, b] : [b, a]; }
+  // Mirrors chat2's own ensureDmThread (index.html ~19365-19379) — same table, same
+  // dm_pair convention, so a DM started here and one started in Chat 2.0 for the
+  // same two people land in the exact same thread.
+  async function openDmWithProfile(profileId){
+    let thread = existingDmThreadWith(profileId);
+    if (!thread) {
+      const pair = sortedPair(myId(), profileId);
+      const { data: existing } = await sb().from('chat2_threads').select('id').eq('kind', 'dm').eq('is_group', false).contains('dm_pair', pair).maybeSingle();
+      let threadId = existing && existing.id;
+      if (!threadId) {
+        const { data: created, error } = await sb().from('chat2_threads').insert({ kind: 'dm', dm_pair: pair, is_group: false }).select('id').single();
+        if (error) { if (typeof toast === 'function') toast({ type:'error', message: 'Could not start DM: ' + error.message }); return; }
+        threadId = created.id;
+        await sb().from('chat2_thread_members').insert([{ thread_id: threadId, profile_id: myId() }, { thread_id: threadId, profile_id: profileId }]);
+      }
+      thread = { id: threadId, name: null, dm_pair: pair, is_group: false, memberIds: [myId(), profileId], others: [profileId] };
+      state.dmThreads.push(thread);
+    }
+    state.selectedKind = 'dm';
+    state.selectedId = thread.id;
+    render();
+  }
+
   function pinnedRowHtml(key, icon, label, sub){
     const active = state.selectedKind === key;
     return `<div data-c3-pin="${key}" style="display:flex;align-items:center;gap:12px;padding:12px 13px;border-radius:12px;cursor:pointer;margin-bottom:8px;background:${active?'rgba(217,31,15,0.12)':'#1a1a1a'};border:1px solid ${active?'rgba(217,31,15,0.55)':'#242424'};">
@@ -20988,15 +21016,38 @@ window.addEventListener('popstate', (e) => {
   }
 
   function dmsListHtml(){
-    if (!state.dmThreads.length) return `<div style="padding:24px 0;text-align:center;color:#5a5a5a;font-size:12.5px;">No conversations yet.</div>`;
-    return state.dmThreads.map(t => {
+    const q = state.searchQuery.trim().toLowerCase();
+    const groupThreads = state.dmThreads.filter(t => t.is_group);
+    const groupRow = (t) => {
       const label = dmLabel(t);
       const active = state.selectedKind === 'dm' && state.selectedId === t.id;
       return `<div data-c3-open-dm="${esc(t.id)}" style="display:flex;align-items:center;gap:11px;padding:10px 11px;border-radius:10px;cursor:pointer;margin-bottom:2px;${active?'background:rgba(217,31,15,0.12);border-left:3px solid #d91f0f;':'border-left:3px solid transparent;'}">
-        <div style="width:28px;height:28px;border-radius:50%;background:#2a2a2a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">${t.is_group ? '👥' : esc(initialsOf(label))}</div>
+        <div style="width:28px;height:28px;border-radius:50%;background:#2a2a2a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;">👥</div>
         <div style="font-size:13px;font-weight:600;color:#e0e0e0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(label)}</div>
       </div>`;
-    }).join('');
+    };
+    // Direct Messages = every teammate (like Chat 2.0's own Team tab and old Chat &
+    // Huddles' New DM picker) — clicking someone with no existing thread yet creates
+    // one lazily via openDmWithProfile, it doesn't need to exist beforehand.
+    const allProfiles = Object.values(state.profilesById)
+      .filter(p => p.id !== myId())
+      .filter(p => !q || (p.display_name || p.full_name || p.email || '').toLowerCase().includes(q))
+      .sort((a, b) => (a.display_name || a.full_name || a.email || '').localeCompare(b.display_name || b.full_name || b.email || ''));
+    const profileRow = (p) => {
+      const name = p.display_name || p.full_name || p.email || 'Someone';
+      const thread = existingDmThreadWith(p.id);
+      const active = state.selectedKind === 'dm' && thread && state.selectedId === thread.id;
+      const avaStyle = p.avatar_url ? `background-image:url(${esc(p.avatar_url)});background-size:cover;` : `background:${esc(p.avatar_bg||'#2a2a2a')};color:${esc(p.avatar_fg||'#fff')};`;
+      return `<div data-c3-open-profile="${esc(p.id)}" style="display:flex;align-items:center;gap:11px;padding:10px 11px;border-radius:10px;cursor:pointer;margin-bottom:2px;${active?'background:rgba(217,31,15,0.12);border-left:3px solid #d91f0f;':'border-left:3px solid transparent;'}">
+        <div style="width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;${avaStyle}">${p.avatar_url?'':esc(initialsOf(name))}</div>
+        <div style="font-size:13px;font-weight:600;color:#e0e0e0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(name)}</div>
+      </div>`;
+    };
+    return `
+      ${groupThreads.length ? `<div style="font-size:10px;font-weight:800;letter-spacing:.06em;color:#7a7a7a;text-transform:uppercase;margin:4px 0 6px;">Groups</div>${groupThreads.map(groupRow).join('')}<div style="height:1px;background:#242424;margin:12px 0;"></div>` : ''}
+      <div style="font-size:10px;font-weight:800;letter-spacing:.06em;color:#7a7a7a;text-transform:uppercase;margin:4px 0 6px;">Direct Messages</div>
+      ${allProfiles.length ? allProfiles.map(profileRow).join('') : `<div style="padding:24px 0;text-align:center;color:#5a5a5a;font-size:12.5px;">No teammates match.</div>`}
+    `;
   }
 
   function clientsListHtml(){
@@ -21076,6 +21127,7 @@ window.addEventListener('popstate', (e) => {
     host.querySelectorAll('[data-c3-star]').forEach(el => el.addEventListener('click', (e) => { e.stopPropagation(); toggleStar(el.dataset.c3Star); }));
     host.querySelectorAll('[data-c3-open-client]').forEach(el => el.addEventListener('click', () => { state.selectedKind = 'client'; state.selectedId = el.dataset.c3OpenClient; render(); }));
     host.querySelectorAll('[data-c3-open-dm]').forEach(el => el.addEventListener('click', () => { state.selectedKind = 'dm'; state.selectedId = el.dataset.c3OpenDm; render(); }));
+    host.querySelectorAll('[data-c3-open-profile]').forEach(el => el.addEventListener('click', () => openDmWithProfile(el.dataset.c3OpenProfile)));
     host.querySelectorAll('[data-c3-open-team]').forEach(el => el.addEventListener('click', () => { state.selectedKind = 'team_channel'; state.selectedId = el.dataset.c3OpenTeam; render(); }));
   }
 
