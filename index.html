@@ -22284,9 +22284,7 @@ window.addEventListener('popstate', (e) => {
       state.selectedSubTab === t.key)).join('');
     return wrap(`${depts}
       <div style="width:1px;height:16px;background:#2a2a2a;flex-shrink:0;"></div>
-      ${tools}`,
-      `<div data-c3-go-client="1" title="Open the full client record" style="display:flex;align-items:center;gap:6px;margin-left:14px;padding:5px 11px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;background:#1a1a1a;border:1px solid #2a2a2a;color:#e0e0e0;">
-        Go to client ${C3_ICON.arrowRight('currentColor', 12)}</div>`);
+      ${tools}`, '');
   }
 
   // ── Header controls: who is here, find-in-thread, and who can see this ──
@@ -23924,10 +23922,10 @@ window.addEventListener('popstate', (e) => {
   // own RLS policy so a toggle there wouldn't do anything real). Writes chat2_threads
   // .is_private, the same column/effect chat2's own channel-privacy edit uses. ──
   function privacyPillHtml(isPrivate){
-    return `<div data-c3-privacy-toggle="1" title="${isPrivate?'Private — only added members can see this':'Public — any staff can see this'}" style="display:flex;align-items:center;gap:7px;padding:7px 12px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap;background:#1a1a1a;border:1px solid #2a2a2a;color:${isPrivate?'#e8a83e':'#7a7a7a'};">
+    return `<div data-c3-privacy-toggle="1" title="${isPrivate?'Private — only added members can see this':'Public — any staff can see this'}" style="display:flex;align-items:center;gap:7px;padding:7px 12px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0;white-space:nowrap;background:#1a1a1a;border:1px solid #2a2a2a;color:${isPrivate?'#d91f0f':'#7a7a7a'};">
       ${isPrivate ? '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><path d="M5.2 7V4.8a2.8 2.8 0 015.6 0V7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>' : '<span style="font-size:13px;line-height:1;">#</span>'}
       ${isPrivate?'Private':'Public'}
-      <span style="width:26px;height:15px;border-radius:8px;background:${isPrivate?'#e8a83e':'#333'};position:relative;display:inline-block;flex-shrink:0;">
+      <span style="width:26px;height:15px;border-radius:8px;background:${isPrivate?'#d91f0f':'#333'};position:relative;display:inline-block;flex-shrink:0;">
         <span style="position:absolute;top:2px;left:${isPrivate?'13px':'2px'};width:11px;height:11px;border-radius:50%;background:#fff;transition:left .15s;"></span>
       </span>
     </div>`;
