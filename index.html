@@ -21054,6 +21054,7 @@ window.addEventListener('popstate', (e) => {
     // drops them and nothing plaintext is ever persisted client-side.
     libRevealed: {},
     libCollapsedSections: {},
+    libMediaUploading: false,
     vaultLoading: false,
     inboxLoading: false,
     inboxLoadedOnce: false,
@@ -23110,8 +23111,85 @@ window.addEventListener('popstate', (e) => {
       <span data-c3-lib-remove="${esc(i.id)}" title="Remove" style="cursor:pointer;display:flex;flex-shrink:0;color:#4a4a4a;">${C3_ICON.close('currentColor', 12)}</span>
     </div>`;
   }
+  // ── Media — the kind='file' items, shown as a grid rather than list rows ──
+  // Files upload straight into the library: picking or dropping one creates the
+  // row immediately. Routing an upload through the Add form would make the most
+  // common action (drop a file) the slowest one.
+  function libMediaIcon(m){
+    const t = String(m.mime_type || '').toLowerCase();
+    if (t.startsWith('image/')) return { icon:'doc', color:'#5aa8d6', kind:'Image' };
+    if (t.startsWith('video/')) return { icon:'video', color:'#a78bfa', kind:'Video' };
+    if (t.startsWith('audio/')) return { icon:'mic', color:'#f472b6', kind:'Audio' };
+    if (t.includes('pdf')) return { icon:'doc', color:'#f0705f', kind:'PDF' };
+    if (t.includes('zip') || t.includes('compressed') || t.includes('archive')) return { icon:'paperclip', color:'#e8a83e', kind:'Archive' };
+    if (t.includes('sheet') || t.includes('excel') || t.includes('csv')) return { icon:'sheet', color:'#3ecf8e', kind:'Sheet' };
+    return { icon:'paperclip', color:'#7a7a7a', kind:'File' };
+  }
+  async function uploadLibMedia(file){
+    if (!file || state.libMediaUploading) return;
+    state.libMediaUploading = true; render();
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+      const path = `library/${state.selectedId}/${Date.now()}_${safeName}`;
+      const { error: upErr } = await sb().storage.from('chat-attachments').upload(path, file, { cacheControl:'3600', upsert:false });
+      if (upErr) throw new Error(upErr.message);
+      const url = sb().storage.from('chat-attachments').getPublicUrl(path).data.publicUrl;
+      const { data, error } = await sb().from('chat2_client_library').insert({
+        client_id: state.selectedId, kind: 'file', title: file.name, section: 'Files',
+        url, file_url: url, file_name: file.name, file_size: file.size,
+        mime_type: file.type || 'application/octet-stream', created_by: myId(),
+      }).select('id, kind, title, section, url, username, body, twofa, secret_ciphertext, file_url, file_name, file_size, mime_type, pinned, created_by, created_at').single();
+      if (error) throw new Error(error.message);
+      state.libraryItems.unshift(data);
+    } catch (e) {
+      if (typeof toast === 'function') toast({ type:'error', message:'Upload failed: ' + e.message });
+    }
+    state.libMediaUploading = false; render();
+  }
+  function libMediaCardHtml(m){
+    const d = libMediaIcon(m);
+    const when = m.created_at ? new Date(m.created_at).toLocaleDateString(undefined, { month:'short', day:'numeric' }) : '';
+    const by = m.created_by ? profileName(m.created_by) : '';
+    const isImage = String(m.mime_type || '').startsWith('image/');
+    return `<div style="position:relative;background:#161616;border:1px solid #242424;border-radius:11px;overflow:hidden;">
+      <a href="${esc(m.file_url || m.url || '#')}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit;">
+        <div style="height:84px;display:flex;align-items:center;justify-content:center;background:${isImage ? '#0f0f0f' : d.color + '14'};">
+          ${isImage && m.file_url
+            ? `<img src="${esc(m.file_url)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">`
+            : C3_ICON[d.icon](d.color, 26)}
+        </div>
+        <div style="padding:9px 11px 11px;">
+          <div style="font-size:9.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:${d.color};">${d.kind}</div>
+          <div style="font-size:12px;color:#e0e0e0;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(m.title || m.file_name || 'Untitled')}</div>
+          <div style="font-size:10.5px;color:#6a6a6a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc([by, when, m.file_size ? fmtBytes(m.file_size) : null].filter(Boolean).join(' · '))}</div>
+        </div>
+      </a>
+      <span data-c3-lib-remove="${esc(m.id)}" title="Remove" style="position:absolute;top:6px;right:6px;width:20px;height:20px;border-radius:6px;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#c8c8c8;">${C3_ICON.close('currentColor', 11)}</span>
+    </div>`;
+  }
+  function libMediaSectionHtml(media){
+    return `<div data-c3-lib-media-drop="1" style="display:flex;flex-direction:column;gap:11px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:12px;color:#7a7a7a;">${media.length} ${media.length === 1 ? 'file' : 'files'} shared in this client</span>
+        <div data-c3-lib-upload="1" style="margin-left:auto;display:flex;align-items:center;gap:6px;padding:7px 13px;border-radius:9px;font-size:12px;font-weight:700;cursor:${state.libMediaUploading ? 'default' : 'pointer'};background:#1a1a1a;border:1px solid #2a2a2a;color:${state.libMediaUploading ? '#6a6a6a' : '#e0e0e0'};white-space:nowrap;">
+          ${state.libMediaUploading ? 'Uploading…' : `${C3_ICON.upload('currentColor', 12)} Upload`}</div>
+        <input type="file" id="c3LibMediaInput" style="display:none;">
+      </div>
+      ${media.length
+        ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:10px;">${media.map(libMediaCardHtml).join('')}</div>`
+        : `<div style="border:1.5px dashed #262626;border-radius:12px;padding:40px 20px;text-align:center;font-size:12.5px;color:#5a5a5a;">No media shared yet — drop files here.</div>`}
+    </div>`;
+  }
+
   function libraryTabHtml(){
-    const items = libFilteredItems();
+    const all = libFilteredItems();
+    // Files live in the media grid, not in a collection list — a thumbnail and a
+    // size tell you more about an upload than a row of text does, and showing the
+    // same file in both places would just be the same thing twice.
+    const media = all.filter(i => i.kind === 'file');
+    const items = all.filter(i => i.kind !== 'file');
+    const showMedia = state.libKind === 'all' || state.libKind === 'file';
+    const showCollections = state.libKind !== 'file';
     // Collections keep their first-seen order (pinned-first from the query), so the
     // shelf a team actually uses stays where they left it.
     const order = [];
@@ -23133,11 +23211,15 @@ window.addEventListener('popstate', (e) => {
       ${state.libAddOpen ? libAddFormHtml() : ''}
       ${state.libraryLoading ? `<div style="text-align:center;color:#6a6a6a;font-size:13px;padding:40px 0;">Loading…</div>`
         : state.libraryError ? `<div style="color:#f0705f;font-size:12.5px;padding:24px 0;">Could not load the library: ${esc(state.libraryError)}</div>`
-        : !state.libraryItems.length ? `<div style="border:1px solid #242424;border-radius:12px;padding:44px 20px;text-align:center;">
+        : `${showMedia ? libMediaSectionHtml(media) : ''}
+        ${!showCollections ? ''
+        : !items.length && !media.length && !state.libSearch.trim() ? `<div style="border:1px solid #242424;border-radius:12px;padding:44px 20px;text-align:center;">
             <div style="font-size:13.5px;font-weight:700;color:#c8c8c8;">Nothing saved yet</div>
             <div style="font-size:12px;color:#6a6a6a;margin-top:4px;">Save a link, doc, sheet, video, login or note and it lands in a collection.</div>
           </div>`
-        : !items.length ? `<div style="text-align:center;color:#5a5a5a;font-size:12.5px;padding:40px 0;">Nothing here matches.</div>`
+        : !items.length ? (state.libSearch.trim()
+            ? `<div style="text-align:center;color:#5a5a5a;font-size:12.5px;padding:40px 0;">Nothing here matches.</div>`
+            : '')
         : order.map(sn => {
             const collapsed = !!state.libCollapsedSections[sn];
             return `<div style="background:#141414;border:1px solid #242424;border-radius:12px;padding:4px 14px 6px;">
@@ -23148,7 +23230,7 @@ window.addEventListener('popstate', (e) => {
               </div>
               ${collapsed ? '' : bySection[sn].map(libItemRowHtml).join('')}
             </div>`;
-          }).join('')}
+          }).join('')}`}
     </div>`;
   }
 
@@ -23898,6 +23980,27 @@ window.addEventListener('popstate', (e) => {
     host.querySelectorAll('[data-c3-lib-section-open]').forEach(el => el.addEventListener('click', () => {
       if (state.libDraft) { state.libDraft.sectionOpen = true; render(); }
     }));
+    // Media: pick or drop straight into the library — no form in between.
+    const libMediaInput = host.querySelector('#c3LibMediaInput');
+    const libUploadBtn = host.querySelector('[data-c3-lib-upload]');
+    if (libUploadBtn && libMediaInput) {
+      libUploadBtn.addEventListener('click', () => { if (!state.libMediaUploading) libMediaInput.click(); });
+      libMediaInput.addEventListener('change', (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (f) uploadLibMedia(f);
+      });
+    }
+    const libMediaDrop = host.querySelector('[data-c3-lib-media-drop]');
+    if (libMediaDrop) {
+      // preventDefault on dragover is what makes the element a valid drop target;
+      // without it the browser navigates to the file instead.
+      libMediaDrop.addEventListener('dragover', (e) => { e.preventDefault(); });
+      libMediaDrop.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) uploadLibMedia(f);
+      });
+    }
     host.querySelectorAll('[data-c3-lib-field]').forEach(el => el.addEventListener('input', (e) => {
       if (state.libDraft) state.libDraft[el.dataset.c3LibField] = e.target.value;
     }));
