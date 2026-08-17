@@ -22059,7 +22059,10 @@ window.addEventListener('popstate', (e) => {
       </div>
       <span style="font-size:10.5px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${open ? '#ffffff' : '#b8b8b8'};flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(card.label)}</span>
       ${card.add ? `<span data-c3-card-add="${card.add}" title="New ${card.add}" style="width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;cursor:pointer;color:${a};background:${a}24;">+</span>` : ''}
-      ${card.pin && !count ? '' : `<span style="font-size:10px;flex-shrink:0;font-variant-numeric:tabular-nums;padding:2px 7px;border-radius:7px;${card.dir
+      <!-- A zero badge is noise on every card, not just the pins: "NEEDS YOU 0" and
+           "GROUP DMS 0" both draw the eye to a number that means nothing is there.
+           Absence already says empty, and the open card says it properly. -->
+      ${!count ? '' : `<span style="font-size:10px;flex-shrink:0;font-variant-numeric:tabular-nums;padding:2px 7px;border-radius:7px;${card.dir
         ? `font-weight:700;color:${open ? '#9a9a9a' : '#6a6a6a'};background:rgba(255,255,255,0.05);`
         : `font-weight:800;color:${open ? '#ffffff' : a};background:${a}${open ? '40' : '1f'};`}">${count}</span>`}
       ${card.pin ? '' : `<span style="font-size:9px;color:${a};opacity:${open ? '1' : '0.55'};width:9px;text-align:center;flex-shrink:0;">${open ? '⌄' : '›'}</span>`}
