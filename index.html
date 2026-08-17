@@ -21028,6 +21028,9 @@ window.addEventListener('popstate', (e) => {
     clientTasksFor: null,     // which client clientTasks belongs to, guards stale loads
     clientTasksError: null,
     clientTaskFilter: 'active', // 'active' | 'done'
+    clientTimeSeconds: 0,     // summed time_sessions.duration_seconds for this client
+    clientRunningCount: 0,    // time_sessions currently status='running'
+    clientProject: null,      // most recent projects row for this client, or null
     clientServices: [],       // chat2_client_services rows for the open client
     clientServicesFor: null,
     clientServicesLoading: false,
@@ -22398,40 +22401,95 @@ window.addEventListener('popstate', (e) => {
   }
 
   // ── Tasks tab — the real `tasks` rows for this client, not a chat-local copy ──
+  // ══ Tasks tab — the real `tasks` rows for this client, plus its time ═════════
+  // Everything here reads existing tables: tasks (department, priority, assigned_to)
+  // and time_sessions (duration_seconds, running status), both already client-keyed.
   async function loadClientTasks(clientId){
     if (state.clientTasksFor === clientId) return;
     state.clientTasksFor = clientId; state.clientTasksLoading = true;
-    state.clientTasks = []; state.clientTasksError = null; render();
-    const { data, error } = await sb().from('tasks')
-      .select('id, name, status, priority, assigned_to, due_at, project_id')
-      .eq('client_id', clientId)
-      .order('due_at', { ascending: true, nullsFirst: false });
+    state.clientTasks = []; state.clientTasksError = null;
+    state.clientTimeSeconds = 0; state.clientRunningCount = 0; state.clientProject = null;
+    render();
+    const [tasksRes, timeRes, projRes] = await Promise.all([
+      sb().from('tasks')
+        .select('id, name, description, status, priority, assigned_to, department, due_at, project_id, completed_at')
+        .eq('client_id', clientId)
+        .order('due_at', { ascending: true, nullsFirst: false }),
+      sb().from('time_sessions').select('duration_seconds, status').eq('client_id', clientId),
+      sb().from('projects').select('id, name').eq('client_id', clientId)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    ]);
     if (state.clientTasksFor !== clientId) return; // a different client won the race
     state.clientTasksLoading = false;
-    state.clientTasks = data || [];
-    state.clientTasksError = error ? error.message : null;
-    if (error) state.clientTasksFor = null; // let the next visit retry
+    state.clientTasks = tasksRes.data || [];
+    state.clientTasksError = tasksRes.error ? tasksRes.error.message : null;
+    if (tasksRes.error) state.clientTasksFor = null; // let the next visit retry
+    const sessions = timeRes.data || [];
+    state.clientTimeSeconds = sessions.reduce((n, x) => n + (x.duration_seconds || 0), 0);
+    state.clientRunningCount = sessions.filter(x => x.status === 'running').length;
+    state.clientProject = projRes && projRes.data ? projRes.data : null;
     render();
   }
+
+  // Matches the task_priority enum exactly (fire | medium | low). Anything outside
+  // it renders no pill rather than a wrong one.
   const C3_PRIO = {
-    urgent: { label:'Urgent', color:'#f87171' },
-    high:   { label:'High',   color:'#e8a83e' },
+    fire:   { label:'Fire',   color:'#f87171' },
     medium: { label:'Medium', color:'#5aa8d6' },
     low:    { label:'Low',    color:'#7a7a7a' },
   };
+  function fmtTimeLogged(totalSeconds){
+    if (!totalSeconds) return '—';
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.round((totalSeconds % 3600) / 60);
+    return h ? `${h}h ${m}m` : `${m}m`;
+  }
+  // tasks.assigned_to is uuid[], not a single uuid — a scalar lookup silently
+  // matches nothing, which is why no assignee ever appeared here before.
+  function taskAssignees(t){
+    const ids = Array.isArray(t.assigned_to) ? t.assigned_to : (t.assigned_to ? [t.assigned_to] : []);
+    return ids.map(id => state.profilesById[id]).filter(Boolean);
+  }
+  function taskDeptLabel(t){
+    if (!t.department) return '';
+    const d = DEPTS.find(x => x.key === t.department || x.label === t.department);
+    return d ? d.label : t.department;
+  }
+  function taskDeptColor(t){
+    const d = DEPTS.find(x => x.key === t.department || x.label === t.department);
+    return d ? d.color : '#6a6a6a';
+  }
+
+  const C3_TASK_COLS = 'minmax(0,2.4fr) 90px 88px 118px minmax(0,1.4fr) 74px';
+  function c3StatCardHtml(value, label, color){
+    return `<div style="flex:1;min-width:0;background:#161616;border:1px solid #242424;border-radius:12px;padding:14px 16px;">
+      <div style="font-size:22px;font-weight:800;letter-spacing:-0.02em;color:${color || '#fff'};line-height:1.1;">${value}</div>
+      <div style="font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:#6a6a6a;margin-top:6px;">${label}</div>
+    </div>`;
+  }
   function c3TaskRowHtml(t){
     const done = t.status === 'done';
     const p = C3_PRIO[String(t.priority || '').toLowerCase()];
-    const who = t.assigned_to ? state.profilesById[t.assigned_to] : null;
+    const who = taskAssignees(t);
+    const dept = taskDeptLabel(t);
     const due = t.due_at ? new Date(t.due_at) : null;
     const overdue = due && !done && due < new Date();
-    return `<div style="display:flex;align-items:center;gap:11px;padding:10px 4px;border-bottom:1px solid #1f1f1f;">
-      <div data-c3-task-toggle="${esc(t.id)}" title="${done ? 'Mark not done' : 'Mark done'}" style="width:18px;height:18px;border-radius:50%;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;border:1.6px solid ${done ? '#3ecf8e' : '#3a3a3a'};background:${done ? 'rgba(62,207,142,0.16)' : 'transparent'};">
-        ${done ? C3_ICON.check('#3ecf8e', 11) : ''}</div>
-      <span style="flex:1;min-width:0;font-size:12.5px;color:${done ? '#6a6a6a' : '#e0e0e0'};${done ? 'text-decoration:line-through;' : ''}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.name || 'Untitled task')}</span>
-      ${due ? `<span style="font-size:11px;font-weight:700;flex-shrink:0;color:${overdue ? '#f0705f' : '#7a7a7a'};">${esc(due.toLocaleDateString(undefined, { month:'short', day:'numeric' }))}</span>` : ''}
-      ${p ? `<span style="font-size:10px;font-weight:800;flex-shrink:0;padding:2px 7px;border-radius:6px;color:${p.color};background:${p.color}1f;">${p.label}</span>` : ''}
-      ${who ? c3ProfileMarkHtml(who, false) : ''}
+    return `<div style="display:grid;grid-template-columns:${C3_TASK_COLS};align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #1f1f1f;">
+      <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+        <div data-c3-task-toggle="${esc(t.id)}" title="${done ? 'Mark not done' : 'Mark done'}" style="width:18px;height:18px;border-radius:50%;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;border:1.6px solid ${done ? '#3ecf8e' : '#3a3a3a'};background:${done ? 'rgba(62,207,142,0.16)' : 'transparent'};">
+          ${done ? C3_ICON.check('#3ecf8e', 11) : ''}</div>
+        <span style="min-width:0;font-size:12.5px;color:${done ? '#6a6a6a' : '#e0e0e0'};${done ? 'text-decoration:line-through;' : ''}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.name || 'Untitled task')}</span>
+      </div>
+      <div>${p ? `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;color:${p.color};background:${p.color}1f;white-space:nowrap;">${p.label}</span>` : ''}</div>
+      <div style="display:flex;align-items:center;">
+        ${who.length
+          ? who.slice(0, 3).map((pr, idx) => `<div style="margin-left:${idx ? '-7px' : '0'};border-radius:50%;box-shadow:0 0 0 2px #141414;">${c3ProfileMarkHtml(pr, false)}</div>`).join('')
+            + (who.length > 3 ? `<div style="margin-left:-7px;width:22px;height:22px;border-radius:50%;background:#242424;box-shadow:0 0 0 2px #141414;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700;color:#9a9a9a;">+${who.length - 3}</div>` : '')
+          : `<span style="font-size:11.5px;color:#4a4a4a;">Unassigned</span>`}
+      </div>
+      <div style="min-width:0;">${dept ? `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:#9a9a9a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;"><span style="width:6px;height:6px;border-radius:50%;background:${taskDeptColor(t)};flex-shrink:0;"></span>${esc(dept)}</span>` : ''}</div>
+      <div style="min-width:0;font-size:11.5px;color:#7a7a7a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.description || '')}</div>
+      <div style="font-size:11.5px;font-weight:700;color:${overdue ? '#f0705f' : '#7a7a7a'};white-space:nowrap;">${due ? esc(due.toLocaleDateString(undefined, { month:'short', day:'numeric' })) : ''}</div>
     </div>`;
   }
   function tasksTabHtml(){
@@ -22439,19 +22497,44 @@ window.addEventListener('popstate', (e) => {
     const activeCount = all.filter(t => t.status !== 'done').length;
     const doneCount = all.length - activeCount;
     const shown = all.filter(t => state.clientTaskFilter === 'done' ? t.status === 'done' : t.status !== 'done');
-    const chip = (k, label, n) => `<div data-c3-task-filter="${k}" style="padding:5px 11px;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;${state.clientTaskFilter === k ? 'background:#242424;color:#fff;' : 'color:#7a7a7a;'}">${label} ${n}</div>`;
-    return `<div style="padding:16px 22px;">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-        ${chip('active', 'Active', activeCount)}
-        ${chip('done', 'Done', doneCount)}
-        <div style="flex:1;"></div>
-        <div data-c3-open-projects="1" style="display:flex;align-items:center;gap:6px;padding:5px 11px;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;background:#1a1a1a;border:1px solid #2a2a2a;color:#e0e0e0;white-space:nowrap;">
-          Open in Projects ${C3_ICON.arrowRight('currentColor', 11)}</div>
+    const proj = state.clientProject;
+    const tab = (k, label, n) => `<div data-c3-task-filter="${k}" style="display:flex;align-items:center;gap:7px;padding:9px 2px;font-size:12.5px;font-weight:700;cursor:pointer;border-bottom:2px solid ${state.clientTaskFilter === k ? '#d91f0f' : 'transparent'};color:${state.clientTaskFilter === k ? '#fff' : '#7a7a7a'};">
+      ${label}<span style="font-size:10px;font-weight:700;color:#6a6a6a;background:rgba(255,255,255,0.05);border-radius:7px;padding:2px 7px;font-variant-numeric:tabular-nums;">${n}</span></div>`;
+    const head = (label) => `<div style="font-size:10px;font-weight:800;letter-spacing:0.07em;text-transform:uppercase;color:rgba(255,255,255,0.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div>`;
+    return `<div style="padding:16px 22px;display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;gap:12px;">
+        ${c3StatCardHtml(activeCount, 'Active')}
+        ${c3StatCardHtml(doneCount, 'Completed', '#3ecf8e')}
+        ${c3StatCardHtml(fmtTimeLogged(state.clientTimeSeconds), 'Time logged')}
+        ${c3StatCardHtml(state.clientRunningCount, 'Running now', state.clientRunningCount ? '#e8a83e' : '#fff')}
       </div>
+
+      <div style="display:flex;align-items:center;gap:12px;background:#161616;border:1px solid #242424;border-radius:12px;padding:12px 16px;">
+        <div style="width:30px;height:30px;border-radius:9px;background:rgba(217,31,15,0.14);display:flex;align-items:center;justify-content:center;flex-shrink:0;">${C3_ICON.check('#d91f0f', 15)}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12.5px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${proj ? esc(proj.name) : 'No linked project'}</div>
+          <div style="font-size:11.5px;color:#7a7a7a;margin-top:2px;">${activeCount} open · ${doneCount} done · ${state.clientTimeSeconds ? esc(fmtTimeLogged(state.clientTimeSeconds)) + ' logged' : 'no time logged'}</div>
+        </div>
+        <div data-c3-open-projects="1" style="display:flex;align-items:center;gap:6px;padding:7px 13px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;background:#1a1a1a;border:1px solid #2a2a2a;color:#e0e0e0;white-space:nowrap;flex-shrink:0;">
+          Open in Projects ${C3_ICON.arrowRight('currentColor', 12)}</div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:20px;border-bottom:1px solid #242424;">
+        ${tab('active', 'Active', activeCount)}
+        ${tab('done', 'Done', doneCount)}
+        <div style="flex:1;"></div>
+        <div data-c3-open-projects="1" style="display:flex;align-items:center;gap:6px;padding:7px 14px;margin-bottom:7px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;background:var(--red);color:#fff;white-space:nowrap;">+ New task</div>
+      </div>
+
       ${state.clientTasksLoading ? `<div style="text-align:center;color:#6a6a6a;font-size:13px;padding:40px 0;">Loading…</div>`
         : state.clientTasksError ? `<div style="color:#f0705f;font-size:12.5px;padding:24px 0;">Could not load tasks: ${esc(state.clientTasksError)}</div>`
-        : shown.length ? shown.map(c3TaskRowHtml).join('')
-        : `<div style="text-align:center;color:#5a5a5a;font-size:12.5px;padding:40px 0;">${state.clientTaskFilter === 'done' ? 'Nothing completed yet.' : 'No active tasks for this client.'}</div>`}
+        : `<div style="border:1px solid #242424;border-radius:12px;overflow:hidden;">
+            <div style="display:grid;grid-template-columns:${C3_TASK_COLS};gap:10px;padding:9px 14px;background:var(--red);">
+              ${head('Task name')}${head('Priority')}${head('Assignee')}${head('Department')}${head('Task infos')}${head('Time')}
+            </div>
+            ${shown.length ? shown.map(c3TaskRowHtml).join('')
+              : `<div style="text-align:center;color:#5a5a5a;font-size:12.5px;padding:44px 0;">${state.clientTaskFilter === 'done' ? 'Nothing completed yet.' : 'No open tasks — add the first one in Projects.'}</div>`}
+          </div>`}
     </div>`;
   }
 
@@ -22464,28 +22547,13 @@ window.addEventListener('popstate', (e) => {
     t.status = was === 'done' ? 'todo' : 'done';
     render();
     const patch = t.status === 'done'
-      ? { status: 'done', completed_at: new Date().toISOString() }
-      : { status: 'todo', completed_at: null };
+      ? { status: 'done', completed_at: new Date().toISOString(), completed_by: myId() }
+      : { status: 'todo', completed_at: null, completed_by: null };
     const { error } = await sb().from('tasks').update(patch).eq('id', taskId);
     if (error) {
       t.status = was; render();
       if (typeof toast === 'function') toast({ type:'error', message:'Could not update task: ' + error.message });
     }
-  }
-
-  // Magnus itself runs in the Crew screen. Forking the orchestration into chat
-  // would mean two agent pipelines to keep in step, so this hands the question
-  // over with the client already in context.
-  function sendToMagnus(){
-    const q = state.magnusDraft.trim();
-    if (!q) { if (typeof toast === 'function') toast({ type:'error', message:'Type a question for Magnus first.' }); return; }
-    const c = state.clients.find(x => x.id === state.selectedId);
-    const d = DEPTS.find(x => x.key === state.selectedDept);
-    try {
-      window.__magnusHandoff = { question: q, clientId: state.selectedId, clientName: c ? c.name : null, department: d ? d.label : null };
-    } catch (_) { /* handoff is a convenience — never block the navigation on it */ }
-    const ok = typeof navigateToScreen === 'function' && navigateToScreen('crew');
-    if (!ok && typeof toast === 'function') toast({ type:'error', message:'Could not open Magnus — the Crew screen is not available.' });
   }
 
   // ── Management tab — services & monthly ad spend, from chat2_client_services ──
@@ -22794,7 +22862,7 @@ window.addEventListener('popstate', (e) => {
 
   function openLibAdd(kind){
     state.libAddOpen = true;
-    state.libDraft = { kind: kind || 'link', title:'', section:'', url:'', username:'', password:'', twofa:'', body:'', file:null, uploading:false };
+    state.libDraft = { kind: kind || 'link', title:'', section:'', url:'', username:'', password:'', twofa:'', body:'', file:null, uploading:false, passOpen:false, sectionOpen:false };
     render();
   }
   async function uploadLibFile(file){
@@ -22901,28 +22969,67 @@ window.addEventListener('popstate', (e) => {
     return `<div style="margin-bottom:11px;">
       <div style="font-size:10.5px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:#6a6a6a;margin-bottom:5px;">${label}</div>${inner}</div>`;
   }
-  const LIB_INPUT = 'width:100%;box-sizing:border-box;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:9px;padding:9px 11px;color:#fff;font-size:12.5px;font-family:inherit;outline:none;';
+  const LIB_INPUT = 'width:100%;box-sizing:border-box;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:9px;padding:10px 12px;color:#fff;font-size:12.5px;font-family:inherit;outline:none;';
+
+  // The kind picker is a labelled list, not bare nouns — "Google Sheet" alone does
+  // not tell you it wants a link rather than an upload.
+  const LIB_KIND_OPTIONS = [
+    { value:'file',  text:'File — upload a document or image' },
+    { value:'login', text:'Login — username, password, 2FA' },
+    { value:'doc',   text:'Google Doc — paste the link' },
+    { value:'sheet', text:'Google Sheet — paste the link' },
+    { value:'video', text:'Video — upload or paste a link' },
+    { value:'link',  text:'Link — any other URL' },
+    { value:'note',  text:'Note — write it down' },
+  ];
+
+  // "Type is detected automatically" — a pasted Google Sheet should file itself as a
+  // Sheet without being told. Only ever reclassifies BETWEEN link-shaped kinds, so an
+  // explicit Login/Note/File choice is never overridden by whatever gets pasted.
+  const LIB_URL_KINDS = ['link','doc','sheet','video'];
+  function detectLibKind(url){
+    const u = String(url || '').toLowerCase();
+    if (!u) return null;
+    if (/docs\.google\.com\/spreadsheets|\.xlsx?($|\?)|airtable\.com/.test(u)) return 'sheet';
+    if (/docs\.google\.com\/(document|presentation)|\.docx?($|\?)|notion\.so|\.pdf($|\?)/.test(u)) return 'doc';
+    if (/youtube\.com|youtu\.be|vimeo\.com|loom\.com|wistia\.|\.mp4($|\?)|\.mov($|\?)/.test(u)) return 'video';
+    return 'link';
+  }
+  function applyLibUrl(value){
+    const d = state.libDraft;
+    if (!d) return;
+    d.url = value;
+    if (!LIB_URL_KINDS.includes(d.kind)) return; // never hijack an explicit choice
+    const detected = detectLibKind(value);
+    if (detected && detected !== d.kind) { d.kind = detected; render(); }
+  }
+
   function libAddFormHtml(){
     const d = state.libDraft;
     if (!d) return '';
-    const k = libKind(d.kind);
     const isFile = d.kind === 'file';
     const isLogin = d.kind === 'login';
     const isNote = d.kind === 'note';
-    const isUrlKind = ['doc','sheet','video','link'].includes(d.kind);
+    const isUrlKind = LIB_URL_KINDS.includes(d.kind);
+    const discloseLink = (attr, label) => `<div ${attr} style="font-size:12px;font-weight:600;color:#5aa8d6;cursor:pointer;margin:-2px 0 11px;">${label}</div>`;
     return `<div style="background:#141414;border:1px solid #2e2e2e;border-radius:13px;padding:16px 18px;flex-shrink:0;margin-bottom:14px;">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:14px;">
-        <div style="width:26px;height:26px;border-radius:8px;background:${k.color}22;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${libIcon(d.kind, 14)}</div>
-        <div style="font-size:13.5px;font-weight:800;color:#fff;">Add ${esc(k.one.toLowerCase())}</div>
-        <span data-c3-lib-cancel="1" style="margin-left:auto;font-size:11.5px;font-weight:600;color:#7a7a7a;cursor:pointer;">Cancel</span>
+        <div style="width:26px;height:26px;border-radius:8px;background:rgba(217,31,15,0.16);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px;font-weight:700;color:#d91f0f;line-height:1;">+</div>
+        <div style="font-size:13.5px;font-weight:800;color:#fff;">Add to the vault</div>
+        <span data-c3-lib-cancel="1" style="margin-left:auto;font-size:12px;font-weight:600;color:#7a7a7a;cursor:pointer;">Cancel</span>
       </div>
-      ${libFieldHtml('What are you adding?', `<div style="display:flex;flex-wrap:wrap;gap:6px;">
-        ${LIB_KINDS.map(x => `<div data-c3-lib-draft-kind="${x.key}" style="display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid ${d.kind === x.key ? x.color : '#262626'};background:${d.kind === x.key ? x.color + '1f' : 'transparent'};color:${d.kind === x.key ? '#fff' : '#8a8a8a'};">${libIcon(x.key, 12)}${x.one}</div>`).join('')}
+
+      ${libFieldHtml('What are you adding?', `<div style="position:relative;">
+        <select id="c3LibKindSelect" style="${LIB_INPUT}appearance:none;cursor:pointer;padding-right:34px;font-weight:600;">
+          ${LIB_KIND_OPTIONS.map(o => `<option value="${o.value}"${d.kind === o.value ? ' selected' : ''}>${esc(o.text)}</option>`).join('')}
+        </select>
+        <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none;color:#7a7a7a;font-size:10px;">⌄</span>
       </div>`)}
-      ${libFieldHtml('Title', `<input data-c3-lib-field="title" value="${esc(d.title)}" placeholder="${esc(isLogin ? 'What is this login for — e.g. Google Ads' : 'Give it a name')}" style="${LIB_INPUT}">`)}
-      ${libFieldHtml('Collection', `<input data-c3-lib-field="section" value="${esc(d.section)}" list="c3LibSections" placeholder="General — or a shelf like Access, Daily flow" style="${LIB_INPUT}">
-        <datalist id="c3LibSections">${[...new Set(state.libraryItems.map(i => i.section).filter(Boolean))].map(sn => `<option value="${esc(sn)}">`).join('')}</datalist>`)}
-      ${isFile ? `<div data-c3-lib-file-pick="1" style="border:1.5px dashed ${d.file ? '#3ecf8e' : '#2e2e2e'};border-radius:11px;padding:20px;text-align:center;margin-bottom:11px;cursor:pointer;">
+      <div style="font-size:12px;color:#6a6a6a;margin:-4px 0 13px;">Save a login, file, doc, sheet, video, link or note to this client.</div>
+
+      ${libFieldHtml('Title', `<input data-c3-lib-field="title" value="${esc(d.title)}" placeholder="Title — what is this?" style="${LIB_INPUT}">`)}
+
+      ${isFile ? `<div data-c3-lib-file-pick="1" style="border:1.5px dashed ${d.file ? '#3ecf8e' : '#2e2e2e'};border-radius:11px;padding:22px;text-align:center;margin-bottom:11px;cursor:pointer;">
         ${d.uploading
           ? `<div style="font-size:12.5px;color:#8a8a8a;">Uploading…</div>`
           : d.file
@@ -22932,6 +23039,14 @@ window.addEventListener('popstate', (e) => {
                <div style="font-size:11px;color:#5a5a5a;margin-top:3px;">Images, video, PDFs and archives</div>`}
         <input type="file" id="c3LibFile" style="display:none;">
       </div>` : ''}
+
+      ${isUrlKind ? `
+        ${libFieldHtml('Link', `<input id="c3LibUrl" value="${esc(d.url)}" placeholder="Paste a link — type is detected automatically" style="${LIB_INPUT}">`)}
+        ${d.passOpen
+          ? libFieldHtml('Password (optional)', `<input data-c3-lib-field="password" type="password" value="${esc(d.password)}" placeholder="If the link is protected" style="${LIB_INPUT}">`)
+          : discloseLink('data-c3-lib-pass-open="1"', '+ Add a password for this link')}
+      ` : ''}
+
       ${isLogin ? `
         ${libFieldHtml('Where you log in', `<input data-c3-lib-field="url" value="${esc(d.url)}" placeholder="Login URL — e.g. ads.google.com" style="${LIB_INPUT}">`)}
         ${libFieldHtml('Credentials', `<div style="display:flex;gap:8px;">
@@ -22941,14 +23056,17 @@ window.addEventListener('popstate', (e) => {
         ${libFieldHtml('Two-factor', `<input data-c3-lib-field="twofa" value="${esc(d.twofa)}" placeholder="Where the code goes — e.g. Authy on Matthew's phone" style="${LIB_INPUT}">`)}
         ${libFieldHtml('Notes (optional)', `<textarea data-c3-lib-field="body" rows="2" placeholder="Account ID or anything else worth knowing…" style="${LIB_INPUT}resize:vertical;">${esc(d.body)}</textarea>`)}
       ` : ''}
-      ${isUrlKind ? `
-        ${libFieldHtml('Link', `<input data-c3-lib-field="url" value="${esc(d.url)}" placeholder="https://…" style="${LIB_INPUT}">`)}
-        ${d.kind === 'link' ? libFieldHtml('Password (optional)', `<input data-c3-lib-field="password" type="password" value="${esc(d.password)}" placeholder="If the link is protected" style="${LIB_INPUT}">`) : ''}
-      ` : ''}
+
       ${isNote ? libFieldHtml('Note', `<textarea data-c3-lib-field="body" rows="4" placeholder="Write it down so it stops living in someone's head…" style="${LIB_INPUT}resize:vertical;">${esc(d.body)}</textarea>`) : ''}
-      <div style="display:flex;align-items:center;gap:10px;margin-top:2px;">
-        <div data-c3-lib-save="1" style="display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:${state.libSaving ? 'default' : 'pointer'};background:${state.libSaving ? '#3a3a3a' : 'var(--red)'};color:#fff;">${state.libSaving ? 'Saving…' : 'Save to library'}</div>
-        ${libKindHasSecret(d.kind) && d.password ? `<span style="font-size:11px;color:#6a6a6a;">Encrypted before it leaves your browser's request — the key stays on the server.</span>` : ''}
+
+      ${d.sectionOpen
+        ? libFieldHtml('Collection', `<input data-c3-lib-field="section" value="${esc(d.section)}" list="c3LibSections" placeholder="General — or a shelf like Access, Daily flow" style="${LIB_INPUT}">
+            <datalist id="c3LibSections">${[...new Set(state.libraryItems.map(i => i.section).filter(Boolean))].map(sn => `<option value="${esc(sn)}">`).join('')}</datalist>`)
+        : discloseLink('data-c3-lib-section-open="1"', '+ Add to a collection')}
+
+      <div style="display:flex;align-items:center;gap:12px;margin-top:4px;">
+        ${libKindHasSecret(d.kind) && d.password ? `<span style="font-size:11px;color:#6a6a6a;">Encrypted server-side — the key never reaches your browser.</span>` : ''}
+        <div data-c3-lib-save="1" style="margin-left:auto;display:inline-flex;align-items:center;justify-content:center;min-width:92px;padding:10px 18px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:${state.libSaving ? 'default' : 'pointer'};background:${state.libSaving ? '#3a3a3a' : 'var(--red)'};color:#fff;">${state.libSaving ? 'Saving…' : 'Save'}</div>
       </div>
     </div>`;
   }
@@ -23759,8 +23877,26 @@ window.addEventListener('popstate', (e) => {
     host.querySelectorAll('[data-c3-lib-kind]').forEach(el => el.addEventListener('click', () => { state.libKind = el.dataset.c3LibKind; render(); }));
     host.querySelectorAll('[data-c3-lib-add]').forEach(el => el.addEventListener('click', () => openLibAdd()));
     host.querySelectorAll('[data-c3-lib-cancel]').forEach(el => el.addEventListener('click', () => closeLibAdd()));
-    host.querySelectorAll('[data-c3-lib-draft-kind]').forEach(el => el.addEventListener('click', () => {
-      if (state.libDraft) { state.libDraft.kind = el.dataset.c3LibDraftKind; render(); }
+    const libKindSel = host.querySelector('#c3LibKindSelect');
+    if (libKindSel) libKindSel.addEventListener('change', (e) => {
+      if (state.libDraft) { state.libDraft.kind = e.target.value; render(); }
+    });
+    const libUrlInput = host.querySelector('#c3LibUrl');
+    if (libUrlInput) {
+      // Detection re-renders (the kind select moves), so restore the caret the way
+      // every other live-filtering input here does.
+      libUrlInput.addEventListener('input', (e) => {
+        const pos = e.target.selectionStart;
+        applyLibUrl(e.target.value);
+        const again = root() && root().querySelector('#c3LibUrl');
+        if (again && document.activeElement !== again) { again.focus(); again.selectionStart = again.selectionEnd = pos; }
+      });
+    }
+    host.querySelectorAll('[data-c3-lib-pass-open]').forEach(el => el.addEventListener('click', () => {
+      if (state.libDraft) { state.libDraft.passOpen = true; render(); }
+    }));
+    host.querySelectorAll('[data-c3-lib-section-open]').forEach(el => el.addEventListener('click', () => {
+      if (state.libDraft) { state.libDraft.sectionOpen = true; render(); }
     }));
     host.querySelectorAll('[data-c3-lib-field]').forEach(el => el.addEventListener('input', (e) => {
       if (state.libDraft) state.libDraft[el.dataset.c3LibField] = e.target.value;
