@@ -21203,6 +21203,60 @@ window.addEventListener('popstate', (e) => {
     openThread({ kind: 'home', id });
   }
 
+  // ── Remembering where you were ─────────────────────────────────────────────
+  // Keyed per user: two people signing in on the same machine must not inherit
+  // each other's last view.
+  const c3ViewKey = () => 'giant.chat3.view.' + (myId() || 'anon');
+  let _lastSavedView = '';
+  function saveC3View(){
+    try {
+      if (!state.selectedKind) return;
+      const json = JSON.stringify({
+        kind: state.selectedKind, id: state.selectedId, dept: state.selectedDept,
+        tab: state.selectedSubTab, card: state.openCard,
+      });
+      if (json === _lastSavedView) return; // render() runs constantly; only write on change
+      _lastSavedView = json;
+      localStorage.setItem(c3ViewKey(), json);
+    } catch (_) { /* private mode or quota — remembering is a nicety, never a blocker */ }
+  }
+  function readC3View(){
+    try { return JSON.parse(localStorage.getItem(c3ViewKey()) || 'null'); } catch (_) { return null; }
+  }
+  // A stored view can point at a client you have since lost access to, a channel
+  // someone deleted, or a DM that no longer exists. Restoring one of those lands
+  // you on a broken thread, so anything that no longer resolves falls back to Home.
+  function c3ViewIsValid(v){
+    if (!v || !v.kind) return false;
+    if (v.kind === 'home' || v.kind === 'inbox') return true;
+    if (v.kind === 'client') return state.clients.some(c => c.id === v.id);
+    if (v.kind === 'team_channel') return state.teamChannels.some(t => t.id === v.id);
+    if (v.kind === 'dm') return state.dmThreads.some(t => t.id === v.id);
+    return false;
+  }
+  async function restoreC3View(v){
+    if (v.kind === 'inbox') {
+      state.selectedKind = 'inbox'; state.selectedId = null;
+      state.openCard = v.card || 'needs'; render();
+      if (!state.inboxLoadedOnce) loadInboxItems();
+      return;
+    }
+    if (v.kind === 'home') { state.openCard = v.card || 'home'; await openHome(); return; }
+    state.openCard = v.card || 'clients';
+    await openThread({ kind: v.kind, id: v.id, dept: v.dept });
+    // openThread always lands on Messages, so the tool tab is restored afterwards
+    // — and given its data, or the panel would paint empty.
+    if (v.tab && v.tab !== 'messages') {
+      state.selectedSubTab = v.tab; render();
+      if (v.tab === 'vault') {
+        if (v.kind === 'client') loadClientLibrary(v.id);
+        else if (state.activeThreadId) loadVaultCards(state.activeThreadId);
+      }
+      if (v.kind === 'client' && v.tab === 'tasks') loadClientTasks(v.id);
+      if (v.kind === 'client' && v.tab === 'management') loadClientServices(v.id);
+    }
+  }
+
   // ── Thread opening + messages (Stage 2) ──
   async function ensureClientDeptThread(clientId, dept){
     const cacheKey = clientId + ':' + dept;
@@ -24002,6 +24056,7 @@ Rules:
       ${c3LightboxHtml()}
     `;
     wireContent(host);
+    saveC3View();
     const composer = host.querySelector('#c3Composer');
     if (composer) {
       composer.addEventListener('input', (e) => { state.messageDraft = e.target.value; broadcastC3Typing(); updateMentionPopover(composer); });
@@ -24851,10 +24906,16 @@ Rules:
     if (state.role === null) {
       state.loading = true; render();
       state.role = await myRole();
-      // Front door is "what needs me", not a client list — loadAll already has the
-      // inbox loaded by this point, so this paints populated rather than empty.
-      if (!state.selectedKind) { state.selectedKind = 'inbox'; state.openCard = 'needs'; }
       await loadAll();
+      // Only decide a landing view on a cold start — navigating away to another
+      // screen and back should return you to whatever you were reading, and that
+      // state is still in memory. Validation happens after loadAll so a saved
+      // selection can be checked against what actually exists.
+      if (!state.selectedKind) {
+        const saved = readC3View();
+        if (c3ViewIsValid(saved)) await restoreC3View(saved);
+        else { state.openCard = 'home'; await openHome(); }
+      }
       return;
     }
     render();
