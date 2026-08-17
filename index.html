@@ -5898,8 +5898,12 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         <div class="nav-item" data-external-link="https://drive.google.com/drive/folders/1_VbrE6kjVCYpglLC5ubkabMRuo78fNHg?usp=sharing" data-label="Download App"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5v8.2M4.7 6.7L8 9.9l3.3-3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11.5v1.3a1.7 1.7 0 001.7 1.7h8.6a1.7 1.7 0 001.7-1.7v-1.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>Download App</div>
       </div>
 
-      <div class="nav-group-label nav-group-toggle" data-navgroup="newnav" data-role-min="manager">New Navigation<svg class="nav-group-chev" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-      <div class="nav-rail" id="railNewNav" data-navgroup-body="newnav" data-role-min="manager">
+      <!-- Hidden per explicit instruction — every item this group pointed at now has its own
+           direct sidebar entry in the groups above (Communication/Work/Intelligence/Business/
+           Settings), so this whole legacy cluster is redundant. Not deleted — a full copy is
+           saved at archive/new-navigation-sidebar.html for reference/restoration. -->
+      <div class="nav-group-label nav-group-toggle" data-navgroup="newnav" data-role-min="manager" style="display:none;">New Navigation<svg class="nav-group-chev" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="nav-rail" id="railNewNav" data-navgroup-body="newnav" data-role-min="manager" style="display:none;">
         <div class="nav-pill" id="pillNewNav" style="opacity:0;"></div>
         <div class="nav-item" data-screen="workspace" data-label="Workspace" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><rect x="1.5" y="1.5" width="5.5" height="5.5" rx="1.5" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="1.5" width="5.5" height="5.5" rx="1.5" stroke="currentColor" stroke-width="1.4"/><rect x="1.5" y="9" width="5.5" height="5.5" rx="1.5" stroke="currentColor" stroke-width="1.4"/><rect x="9" y="9" width="5.5" height="5.5" rx="1.5" stroke="currentColor" stroke-width="1.4"/></svg></span>Workspace <span class="badge" style="background:linear-gradient(90deg,#A855F7,#FB923C,#10B981);color:#fff;font-size:8.5px;padding:1px 6px;border-radius:6px;font-weight:800;letter-spacing:.04em;">NEW</span></div>
         <!-- "Tools" has no screen of its own — single entry point for the Passwords/Reach AI/
@@ -10453,6 +10457,12 @@ function setAuth(key){
 }
 document.querySelectorAll('.auth-switch div').forEach(d=>d.addEventListener('click',()=>setAuth(d.dataset.auth)));
 
+// Nav pill vertical position needs the active item's offset relative to its RAIL
+// specifically — plain el.offsetTop is relative to the item's own offsetParent
+// (nearest position:relative ancestor), which broke once Chat/Chat2/Chat3 got
+// nested one level deeper inside a sub-rail (also position:relative) than the pill
+// itself. getBoundingClientRect() diff is correct regardless of nesting depth, and
+// scroll position cancels out since both rects shift together.
 /* enter app */
 function enterApp(){
   document.getElementById('view-auth').classList.remove('on');
@@ -10494,10 +10504,10 @@ function enterApp(){
 // entry on top of the one the browser just navigated to / the one we're restoring into.
 let _giantSkipNextHistoryPush = false;
 
-// Workspace tab bar — Clients / Team Pulse / Templates / SOPs no longer have their own
-// sidebar entries (moved in-place under Workspace per the nav consolidation), so this bar
-// is the only way to reach them and needs to stay visible across all of them, not just on
-// the Workspace screen itself.
+// Workspace tab bar — trimmed to just Inbox/Tasks/Deliverables, the 3 in-page Workspace
+// modes with no direct sidebar item of their own. Clients/Reports/SOPs used to live here
+// too, but they now have their own direct sidebar entries again (this redesign's WORK
+// group), so listing them here as well was pure duplicate navigation.
 const WS_GLOBAL_TABS = [
   // Inbox is an in-page Workspace mode (like Tasks/Deliverables) so it stays inside this
   // persistent tab bar rather than handing off to Chat 2.0's own separate screen — but its
@@ -10505,13 +10515,14 @@ const WS_GLOBAL_TABS = [
   // second parallel notification system. "Go to thread" jumps into the real chat2 screen
   // via the exposed window.chat2OpenClientThread when you pick a specific conversation.
   { key:'inbox', label:'Inbox', screen:'workspace' },
-  { key:'clients', label:'Clients', screen:'clients' },
   { key:'tasks', label:'Tasks', screen:'workspace' },
   { key:'deliverables', label:'Deliverables', screen:'workspace' },
-  { key:'reports', label:'Reports', screen:'templates' },
-  { key:'sops', label:'SOPs', screen:'sops' },
 ];
-const WS_GLOBAL_VISIBLE_SCREENS = ['workspace','clients','templates','sops'];
+// Clients/Reports/SOPs now have their own direct sidebar items again (this
+// redesign's WORK group) — the tab bar only needs to stay up for 'workspace'
+// itself, where Inbox/Tasks/Deliverables are still in-page modes with no direct
+// sidebar entry of their own.
+const WS_GLOBAL_VISIBLE_SCREENS = ['workspace'];
 // Business tab bar — Finance / Team Pay / White Label / White Label 2.0 no longer have
 // their own sidebar entries either (same consolidation as Workspace, but for the Business
 // nav group), routed through the single "Business" nav item instead.
@@ -10555,11 +10566,15 @@ const SYSTEM_GLOBAL_VISIBLE_SCREENS = ['settings','admin','report','changelog'];
 // Reports/SOPs bar, even though "Workspace" itself is manager+ only. Same class of bug as Tools.
 // Settings/Admin/Help Us Improve/Changelog are open to every non-client role today too, so
 // System gets the same cluster-level gate from the start.
+// Business/Tools/System clusters removed from here — Finance/Team Pay/White Label/
+// Proposals, Passwords/Reach AI/Magnus/Files/Notes/Record, and Settings/Admin/Help Us
+// Improve/Changelog all already have their own direct sidebar items in this redesign,
+// so their tab bars were pure duplicate navigation sitting on top of a full view that
+// didn't need it. BIZ_GLOBAL_TABS/TOOLS_GLOBAL_TABS/SYSTEM_GLOBAL_TABS are left defined
+// above (unused) rather than deleted, in case any of those screens loses its direct
+// sidebar item again later.
 const NAV_CLUSTERS = [
   { id:'ws', tabs: WS_GLOBAL_TABS, visibleScreens: WS_GLOBAL_VISIBLE_SCREENS, minRole:'manager' },
-  { id:'biz', tabs: BIZ_GLOBAL_TABS, visibleScreens: BIZ_GLOBAL_VISIBLE_SCREENS, minRole:'manager' },
-  { id:'tools', tabs: TOOLS_GLOBAL_TABS, visibleScreens: TOOLS_GLOBAL_VISIBLE_SCREENS, minRole:'manager' },
-  { id:'system', tabs: SYSTEM_GLOBAL_TABS, visibleScreens: SYSTEM_GLOBAL_VISIBLE_SCREENS, minRole:'manager' },
 ];
 // 'templates' is reachable from both clusters (Reports vs Proposals) — this tracks which
 // tab bar/label set should show while sitting on that screen, set whenever either tab is
