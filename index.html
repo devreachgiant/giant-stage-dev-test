@@ -22862,8 +22862,13 @@ window.addEventListener('popstate', (e) => {
   }
 
   function openLibAdd(kind){
+    // Default to whatever the kind filter is showing: if you have narrowed to
+    // Logins, the thing you are about to add is almost certainly a login.
+    const fromFilter = state.libKind !== 'all' && state.libKind !== 'file' ? state.libKind : null;
+    const k = kind || fromFilter || 'link';
     state.libAddOpen = true;
-    state.libDraft = { kind: kind || 'link', title:'', section:'', url:'', username:'', password:'', twofa:'', body:'', file:null, uploading:false, passOpen:false, sectionOpen:false };
+    state.libDraft = { kind: k, title:'', section:'', url:'', username:'', password:'', twofa:'', body:'',
+      file:null, uploading:false, passOpen:false, sectionOpen:false, notesOpen:false };
     render();
   }
   async function uploadLibFile(file){
@@ -22881,6 +22886,9 @@ window.addEventListener('popstate', (e) => {
     if (!state.libDraft.title.trim()) state.libDraft.title = file.name;
     render();
   }
+  function libDraftIsEmpty(d){
+    return !['title','url','username','password','twofa','body','section'].some(k => (d[k] || '').trim()) && !d.file;
+  }
   function closeLibAdd(){ state.libAddOpen = false; state.libDraft = null; render(); }
 
   async function saveLibItem(){
@@ -22888,6 +22896,8 @@ window.addEventListener('popstate', (e) => {
     if (!d) return;
     if (!d.title.trim()) { if (typeof toast === 'function') toast({ type:'error', message:'Give it a title first.' }); return; }
     if (d.kind === 'file' && !d.file) { if (typeof toast === 'function') toast({ type:'error', message:'Choose a file to upload first.' }); return; }
+    // A video needs one of the two, not both — a row with neither points at nothing.
+    if (d.kind === 'video' && !d.file && !(d.url || '').trim()) { if (typeof toast === 'function') toast({ type:'error', message:'Paste a video link or upload a file.' }); return; }
     if (d.uploading) { if (typeof toast === 'function') toast({ type:'error', message:'Still uploading — one moment.' }); return; }
     state.libSaving = true; render();
     try {
@@ -22902,7 +22912,9 @@ window.addEventListener('popstate', (e) => {
         twofa: (d.twofa || '').trim() || null,
         created_by: myId(),
       };
-      if (d.kind === 'file') {
+      // Video may be a link OR an upload, so attach whatever file the draft has
+      // rather than keying off the kind.
+      if (d.file) {
         row.file_url = d.file.url; row.file_name = d.file.name;
         row.file_size = d.file.size; row.mime_type = d.file.mime_type;
         if (!row.url) row.url = d.file.url;
@@ -22974,6 +22986,8 @@ window.addEventListener('popstate', (e) => {
 
   // The kind picker is a labelled list, not bare nouns — "Google Sheet" alone does
   // not tell you it wants a link rather than an upload.
+  // The kind picker is a labelled list, not bare nouns — "Google Sheet" alone does
+  // not tell you it wants a link rather than an upload.
   const LIB_KIND_OPTIONS = [
     { value:'file',  text:'File — upload a document or image' },
     { value:'login', text:'Login — username, password, 2FA' },
@@ -22983,6 +22997,51 @@ window.addEventListener('popstate', (e) => {
     { value:'link',  text:'Link — any other URL' },
     { value:'note',  text:'Note — write it down' },
   ];
+
+  // One config per kind rather than one form with branches. Each kind asks only
+  // for what it actually needs, in its own words — a Google Sheet and a password-
+  // protected link are not the same question with a different label.
+  const LIB_FORMS = {
+    file: {
+      title: 'What is this file?',
+      upload: true,
+      notes: { label:'Notes (optional)', placeholder:'Anything worth knowing about this file…', rows:2 },
+    },
+    login: {
+      title: 'What is this login for — e.g. Google Ads',
+      url: { label:'Where you log in', placeholder:'Login URL — e.g. ads.google.com' },
+      credentials: true,
+      twofa: true,
+      notes: { label:'Notes (optional)', placeholder:'Account ID or anything else worth knowing…', rows:2 },
+    },
+    doc: {
+      title: 'What is this doc?',
+      url: { label:'Google Doc link', placeholder:'https://docs.google.com/document/…' },
+      notes: { label:"What's in it? (optional)", placeholder:'A line so the next person knows before opening it…', rows:2 },
+    },
+    sheet: {
+      title: 'What is this sheet?',
+      url: { label:'Google Sheet link', placeholder:'https://docs.google.com/spreadsheets/…' },
+      notes: { label:"What's in it? (optional)", placeholder:'A line so the next person knows before opening it…', rows:2 },
+    },
+    video: {
+      title: 'What is this video?',
+      url: { label:'Video link', placeholder:'YouTube, Vimeo or Loom — or upload below' },
+      upload: true,
+      notes: { label:'Notes (optional)', placeholder:'What it covers, and who it is for…', rows:2 },
+    },
+    link: {
+      title: 'What is this?',
+      url: { label:'Link', placeholder:'Paste a link — type is detected automatically' },
+      password: true,
+      notes: { label:'Notes (optional)', placeholder:'Why this is worth keeping…', rows:2 },
+    },
+    note: {
+      title: 'Give it a name',
+      body: { label:'Note', placeholder:"Write it down so it stops living in someone's head…", rows:5 },
+    },
+  };
+  const libForm = (k) => LIB_FORMS[k] || LIB_FORMS.link;
 
   // "Type is detected automatically" — a pasted Google Sheet should file itself as a
   // Sheet without being told. Only ever reclassifies BETWEEN link-shaped kinds, so an
@@ -23008,10 +23067,7 @@ window.addEventListener('popstate', (e) => {
   function libAddFormHtml(){
     const d = state.libDraft;
     if (!d) return '';
-    const isFile = d.kind === 'file';
-    const isLogin = d.kind === 'login';
-    const isNote = d.kind === 'note';
-    const isUrlKind = LIB_URL_KINDS.includes(d.kind);
+    const f = libForm(d.kind);
     const discloseLink = (attr, label) => `<div ${attr} style="font-size:12px;font-weight:600;color:#5aa8d6;cursor:pointer;margin:-2px 0 11px;">${label}</div>`;
     return `<div style="background:#141414;border:1px solid #2e2e2e;border-radius:13px;padding:16px 18px;flex-shrink:0;margin-bottom:14px;">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:14px;">
@@ -23028,37 +23084,36 @@ window.addEventListener('popstate', (e) => {
       </div>`)}
       <div style="font-size:12px;color:#6a6a6a;margin:-4px 0 13px;">Save a login, file, doc, sheet, video, link or note to this client.</div>
 
-      ${libFieldHtml('Title', `<input data-c3-lib-field="title" value="${esc(d.title)}" placeholder="Title — what is this?" style="${LIB_INPUT}">`)}
+      ${libFieldHtml('Title', `<input data-c3-lib-field="title" value="${esc(d.title)}" placeholder="${esc(f.title)}" style="${LIB_INPUT}">`)}
 
-      ${isFile ? `<div data-c3-lib-file-pick="1" style="border:1.5px dashed ${d.file ? '#3ecf8e' : '#2e2e2e'};border-radius:11px;padding:22px;text-align:center;margin-bottom:11px;cursor:pointer;">
+      ${f.url ? `
+        ${libFieldHtml(esc(f.url.label), `<input id="c3LibUrl" value="${esc(d.url)}" placeholder="${esc(f.url.placeholder)}" style="${LIB_INPUT}">`)}
+        ${f.password ? (d.passOpen
+          ? libFieldHtml('Password (optional)', `<input data-c3-lib-field="password" type="password" value="${esc(d.password)}" placeholder="If the link is protected" style="${LIB_INPUT}">`)
+          : discloseLink('data-c3-lib-pass-open="1"', '+ Add a password for this link')) : ''}
+      ` : ''}
+
+      ${f.upload ? `<div data-c3-lib-file-pick="1" style="border:1.5px dashed ${d.file ? '#3ecf8e' : '#2e2e2e'};border-radius:11px;padding:22px;text-align:center;margin-bottom:11px;cursor:pointer;">
         ${d.uploading
           ? `<div style="font-size:12.5px;color:#8a8a8a;">Uploading…</div>`
           : d.file
             ? `<div style="display:flex;align-items:center;justify-content:center;gap:8px;font-size:12.5px;color:#c8c8c8;">${C3_ICON.check('#3ecf8e', 13)}${esc(d.file.name)}<span style="color:#6a6a6a;">${esc(fmtBytes(d.file.size))}</span></div>
                <div style="font-size:11px;color:#5a5a5a;margin-top:3px;">Click to choose a different file</div>`
-            : `<div style="font-size:12.5px;color:#8a8a8a;">Drop a file here, or click to browse</div>
-               <div style="font-size:11px;color:#5a5a5a;margin-top:3px;">Images, video, PDFs and archives</div>`}
-        <input type="file" id="c3LibFile" style="display:none;">
+            : `<div style="font-size:12.5px;color:#8a8a8a;">${d.kind === 'video' ? 'Or drop a video here, or click to browse' : 'Drop a file here, or click to browse'}</div>
+               <div style="font-size:11px;color:#5a5a5a;margin-top:3px;">${d.kind === 'video' ? 'MP4 and MOV' : 'Images, video, PDFs and archives'}</div>`}
+        <input type="file" id="c3LibFile" style="display:none;"${d.kind === 'video' ? ' accept="video/*"' : ''}>
       </div>` : ''}
 
-      ${isUrlKind ? `
-        ${libFieldHtml('Link', `<input id="c3LibUrl" value="${esc(d.url)}" placeholder="Paste a link — type is detected automatically" style="${LIB_INPUT}">`)}
-        ${d.passOpen
-          ? libFieldHtml('Password (optional)', `<input data-c3-lib-field="password" type="password" value="${esc(d.password)}" placeholder="If the link is protected" style="${LIB_INPUT}">`)
-          : discloseLink('data-c3-lib-pass-open="1"', '+ Add a password for this link')}
-      ` : ''}
+      ${f.credentials ? libFieldHtml('Credentials', `<div style="display:flex;gap:8px;">
+        <input data-c3-lib-field="username" value="${esc(d.username)}" placeholder="Username or email" style="${LIB_INPUT}">
+        <input data-c3-lib-field="password" type="password" value="${esc(d.password)}" placeholder="Password" style="${LIB_INPUT}">
+      </div>`) : ''}
+      ${f.twofa ? libFieldHtml('Two-factor', `<input data-c3-lib-field="twofa" value="${esc(d.twofa)}" placeholder="Where the code goes — e.g. Authy on Matthew's phone" style="${LIB_INPUT}">`) : ''}
 
-      ${isLogin ? `
-        ${libFieldHtml('Where you log in', `<input data-c3-lib-field="url" value="${esc(d.url)}" placeholder="Login URL — e.g. ads.google.com" style="${LIB_INPUT}">`)}
-        ${libFieldHtml('Credentials', `<div style="display:flex;gap:8px;">
-          <input data-c3-lib-field="username" value="${esc(d.username)}" placeholder="Username or email" style="${LIB_INPUT}">
-          <input data-c3-lib-field="password" type="password" value="${esc(d.password)}" placeholder="Password" style="${LIB_INPUT}">
-        </div>`)}
-        ${libFieldHtml('Two-factor', `<input data-c3-lib-field="twofa" value="${esc(d.twofa)}" placeholder="Where the code goes — e.g. Authy on Matthew's phone" style="${LIB_INPUT}">`)}
-        ${libFieldHtml('Notes (optional)', `<textarea data-c3-lib-field="body" rows="2" placeholder="Account ID or anything else worth knowing…" style="${LIB_INPUT}resize:vertical;">${esc(d.body)}</textarea>`)}
-      ` : ''}
-
-      ${isNote ? libFieldHtml('Note', `<textarea data-c3-lib-field="body" rows="4" placeholder="Write it down so it stops living in someone's head…" style="${LIB_INPUT}resize:vertical;">${esc(d.body)}</textarea>`) : ''}
+      ${f.body ? libFieldHtml(esc(f.body.label), `<textarea data-c3-lib-field="body" rows="${f.body.rows}" placeholder="${esc(f.body.placeholder)}" style="${LIB_INPUT}resize:vertical;">${esc(d.body)}</textarea>`) : ''}
+      ${f.notes ? (d.notesOpen
+        ? libFieldHtml(esc(f.notes.label), `<textarea data-c3-lib-field="body" rows="${f.notes.rows}" placeholder="${esc(f.notes.placeholder)}" style="${LIB_INPUT}resize:vertical;">${esc(d.body)}</textarea>`)
+        : discloseLink('data-c3-lib-notes-open="1"', '+ Add a note')) : ''}
 
       ${d.sectionOpen
         ? libFieldHtml('Collection', `<input data-c3-lib-field="section" value="${esc(d.section)}" list="c3LibSections" placeholder="General — or a shelf like Access, Daily flow" style="${LIB_INPUT}">
@@ -23071,6 +23126,7 @@ window.addEventListener('popstate', (e) => {
       </div>
     </div>`;
   }
+
   function libItemRowHtml(i){
     const k = libKind(i.kind);
     const revealed = state.libRevealed[i.id];
@@ -23956,7 +24012,15 @@ window.addEventListener('popstate', (e) => {
     }));
 
     // ── Library (Vault on a client thread) ──
-    host.querySelectorAll('[data-c3-lib-kind]').forEach(el => el.addEventListener('click', () => { state.libKind = el.dataset.c3LibKind; render(); }));
+    host.querySelectorAll('[data-c3-lib-kind]').forEach(el => el.addEventListener('click', () => {
+      state.libKind = el.dataset.c3LibKind;
+      // If the Add form is open and untouched, retarget it to the kind now being
+      // browsed. Only when untouched — silently reshaping a part-filled form would
+      // drop fields the new kind does not have.
+      const d = state.libDraft;
+      if (d && state.libKind !== 'all' && libDraftIsEmpty(d) && d.kind !== state.libKind) d.kind = state.libKind;
+      render();
+    }));
     host.querySelectorAll('[data-c3-lib-add]').forEach(el => el.addEventListener('click', () => openLibAdd()));
     host.querySelectorAll('[data-c3-lib-cancel]').forEach(el => el.addEventListener('click', () => closeLibAdd()));
     const libKindSel = host.querySelector('#c3LibKindSelect');
@@ -23979,6 +24043,9 @@ window.addEventListener('popstate', (e) => {
     }));
     host.querySelectorAll('[data-c3-lib-section-open]').forEach(el => el.addEventListener('click', () => {
       if (state.libDraft) { state.libDraft.sectionOpen = true; render(); }
+    }));
+    host.querySelectorAll('[data-c3-lib-notes-open]').forEach(el => el.addEventListener('click', () => {
+      if (state.libDraft) { state.libDraft.notesOpen = true; render(); }
     }));
     // Media: pick or drop straight into the library — no form in between.
     const libMediaInput = host.querySelector('#c3LibMediaInput');
