@@ -20976,6 +20976,16 @@ window.addEventListener('popstate', (e) => {
       listOrder:  (c = 'currentColor', s = 12) => svg(cc => `<path d="M6 4h8M6 8h8M6 12h8" stroke="${cc}" stroke-width="1.5" stroke-linecap="round"/><text x="1" y="5.6" font-size="4.6" font-weight="700" fill="${cc}" font-family="ui-sans-serif,system-ui">1</text><text x="1" y="9.6" font-size="4.6" font-weight="700" fill="${cc}" font-family="ui-sans-serif,system-ui">2</text><text x="1" y="13.6" font-size="4.6" font-weight="700" fill="${cc}" font-family="ui-sans-serif,system-ui">3</text>`, c, s),
       send:       (c = 'currentColor', s = 12) => svg('M3 8h9M8.5 4.5L12 8l-3.5 3.5', c, s),
       sparkle:    (c = 'currentColor', s = 12) => svg(cc => `<path d="M8 1.6l1.5 3.9 3.9 1.5-3.9 1.5L8 12.4 6.5 8.5 2.6 7l3.9-1.5z" stroke="${cc}" stroke-width="1.4" stroke-linejoin="round"/><path d="M13 11.4l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z" stroke="${cc}" stroke-width="1.1" stroke-linejoin="round"/>`, c, s),
+      key:        (c = 'currentColor', s = 12) => svg(cc => `<circle cx="5" cy="8" r="3.1" stroke="${cc}" stroke-width="1.5"/><path d="M8.1 8H14.5M12.4 8v2.6M10.4 8v2" stroke="${cc}" stroke-width="1.5" stroke-linecap="round"/>`, c, s),
+      doc:        (c = 'currentColor', s = 12) => svg(cc => `<path d="M4 1.8h5l3 3v9.4H4z" stroke="${cc}" stroke-width="1.4" stroke-linejoin="round"/><path d="M9 1.8V5h3M6 8h4M6 10.5h4" stroke="${cc}" stroke-width="1.3" stroke-linecap="round"/>`, c, s),
+      sheet:      (c = 'currentColor', s = 12) => svg(cc => `<rect x="2.2" y="2.6" width="11.6" height="10.8" rx="1.4" stroke="${cc}" stroke-width="1.4"/><path d="M2.2 6.2h11.6M6.2 6.2v7.2M9.8 6.2v7.2" stroke="${cc}" stroke-width="1.2"/>`, c, s),
+      video:      (c = 'currentColor', s = 12) => svg(cc => `<rect x="1.6" y="3.4" width="9.4" height="9.2" rx="1.6" stroke="${cc}" stroke-width="1.4"/><path d="M11 7.4l3.4-2.2v5.6L11 8.6z" stroke="${cc}" stroke-width="1.4" stroke-linejoin="round"/>`, c, s),
+      note:       (c = 'currentColor', s = 12) => svg(cc => `<rect x="2.4" y="2.2" width="11.2" height="11.6" rx="1.6" stroke="${cc}" stroke-width="1.4"/><path d="M5.2 5.6h5.6M5.2 8h5.6M5.2 10.4h3.4" stroke="${cc}" stroke-width="1.3" stroke-linecap="round"/>`, c, s),
+      eye:        (c = 'currentColor', s = 12) => svg(cc => `<path d="M1.4 8S3.8 3.6 8 3.6 14.6 8 14.6 8 12.2 12.4 8 12.4 1.4 8 1.4 8z" stroke="${cc}" stroke-width="1.4"/><circle cx="8" cy="8" r="1.9" stroke="${cc}" stroke-width="1.4"/>`, c, s),
+      eyeOff:     (c = 'currentColor', s = 12) => svg(cc => `<path d="M6.2 4a6.7 6.7 0 011.8-.2c4.2 0 6.6 4.2 6.6 4.2a12 12 0 01-2 2.5M4 5.3A12 12 0 001.4 8s2.4 4.4 6.6 4.4c.9 0 1.7-.2 2.4-.5M2 2l12 12" stroke="${cc}" stroke-width="1.4" stroke-linecap="round"/>`, c, s),
+      copy:       (c = 'currentColor', s = 12) => svg(cc => `<rect x="5.4" y="5.4" width="8.2" height="8.2" rx="1.4" stroke="${cc}" stroke-width="1.4"/><path d="M10.6 5.4V3.8a1.4 1.4 0 00-1.4-1.4H3.8a1.4 1.4 0 00-1.4 1.4v5.4a1.4 1.4 0 001.4 1.4h1.6" stroke="${cc}" stroke-width="1.4"/>`, c, s),
+      upload:     (c = 'currentColor', s = 12) => svg('M8 10.6V2.4M4.8 5.6L8 2.4l3.2 3.2M2.4 11.4v1.2a1.4 1.4 0 001.4 1.4h8.4a1.4 1.4 0 001.4-1.4v-1.2', c, s),
+      pinFilled:  (c = 'currentColor', s = 12) => `<svg width="${s}" height="${s}" viewBox="0 0 16 16" fill="${c}" style="flex-shrink:0;vertical-align:middle;"><path d="M9.5 1.8l4.7 4.7-1.9.6-1 3.4-4.8-4.8 3.4-1z"/><path d="M6.5 9.5L2.5 13.5" stroke="${c}" stroke-width="1.5" stroke-linecap="round"/></svg>`,
     };
   })();
 
@@ -21024,6 +21034,23 @@ window.addEventListener('popstate', (e) => {
     magnusDraft: '',
     vaultThreadId: null,     // which thread's cards are currently loaded, guards stale loads
     vaultCards: [],
+    // ── Per-client Library (the Vault tab on a client thread) ──
+    // Keyed by client, not by thread: chat2_thread_canvas is PK'd on thread_id, so
+    // the old card store gave one client five disconnected vaults, one per dept.
+    libraryItems: [],
+    libraryFor: null,        // which client libraryItems belongs to, guards stale loads
+    libraryLoading: false,
+    libraryError: null,
+    libSearch: '',
+    libKind: 'all',          // all | file | login | doc | sheet | video | link | note
+    libAddOpen: false,
+    libDraft: null,          // { kind, title, section, url, username, password, twofa, body }
+    libSaving: false,
+    // Decrypted secrets live only here, in memory, for the row you explicitly
+    // revealed. Never written back into libraryItems, so a re-render or reload
+    // drops them and nothing plaintext is ever persisted client-side.
+    libRevealed: {},
+    libCollapsedSections: {},
     vaultLoading: false,
     inboxLoading: false,
     inboxLoadedOnce: false,
@@ -21196,6 +21223,7 @@ window.addEventListener('popstate', (e) => {
     state.selectedSubTab = 'messages';
     state.threadSearchOpen = false; state.threadSearchQuery = '';
     state.membersModalOpen = false;
+    state.libSearch = ''; state.libKind = 'all'; state.libAddOpen = false; state.libDraft = null;
     if (kind === 'client') {
       state.selectedDept = dept || state.selectedDept || DEPTS[0].key;
       render();
@@ -22671,6 +22699,338 @@ window.addEventListener('popstate', (e) => {
       `}
     </div>`;
   }
+  // ══ Per-client Library — the Vault tab on a client thread ══════════════════
+  // Seven kinds on one shelf, grouped into free-text collections. Logins carry a
+  // secret encrypted with AES-256-GCM by the same server-only key the password
+  // manager uses; the browser never sees the key and never stores plaintext.
+
+  const LIB_KINDS = [
+    { key:'file',  label:'Files',  one:'File',  color:'#7a7a7a', icon:'paperclip' },
+    { key:'login', label:'Logins', one:'Login', color:'#f0705f', icon:'key' },
+    { key:'doc',   label:'Docs',   one:'Doc',   color:'#5aa8d6', icon:'doc' },
+    { key:'sheet', label:'Sheets', one:'Sheet', color:'#3ecf8e', icon:'sheet' },
+    { key:'video', label:'Video',  one:'Video', color:'#a78bfa', icon:'video' },
+    { key:'link',  label:'Links',  one:'Link',  color:'#e8a83e', icon:'link' },
+    { key:'note',  label:'Notes',  one:'Note',  color:'#c084fc', icon:'note' },
+  ];
+  const libKind = (k) => LIB_KINDS.find(x => x.key === k) || LIB_KINDS[0];
+  const libIcon = (k, size) => { const d = libKind(k); return C3_ICON[d.icon](d.color, size || 13); };
+  // Which kinds carry a secret, and therefore need the encrypt round-trip on save.
+  const libKindHasSecret = (k) => k === 'login' || k === 'link';
+
+  async function loadClientLibrary(clientId){
+    if (state.libraryFor === clientId) return;
+    state.libraryFor = clientId; state.libraryLoading = true;
+    state.libraryItems = []; state.libraryError = null; state.libRevealed = {};
+    render();
+    const { data, error } = await sb().from('chat2_client_library')
+      .select('id, kind, title, section, url, username, body, twofa, secret_ciphertext, file_url, file_name, file_size, mime_type, pinned, created_by, created_at')
+      .eq('client_id', clientId)
+      .order('pinned', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (state.libraryFor !== clientId) return; // a different client won the race
+    state.libraryLoading = false;
+    state.libraryItems = data || [];
+    state.libraryError = error ? error.message : null;
+    render();
+  }
+
+  // Encryption happens server-side (PASSWORD_ENCRYPTION_KEY never reaches the
+  // browser); this only ships the plaintext up and stores what comes back.
+  async function libEncrypt(plaintext){
+    const token = window.giantSession && window.giantSession.access_token;
+    const res = await fetch('/.netlify/functions/password-vault-encrypt', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + token },
+      body: JSON.stringify({ password: plaintext }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not encrypt');
+    return data;
+  }
+  async function libReveal(itemId){
+    const token = window.giantSession && window.giantSession.access_token;
+    const res = await fetch('/.netlify/functions/password-vault-decrypt', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + token },
+      body: JSON.stringify({ entry_id: itemId, source: 'library_item' }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not decrypt');
+    return data.password;
+  }
+
+  async function toggleLibReveal(itemId){
+    if (state.libRevealed[itemId]) { delete state.libRevealed[itemId]; render(); return; }
+    try {
+      state.libRevealed[itemId] = await libReveal(itemId);
+      render();
+    } catch (e) {
+      if (typeof toast === 'function') toast({ type:'error', message: e.message });
+    }
+  }
+  // Copies without revealing on screen — the common case is pasting a password
+  // into another tab, which should not require showing it to the room first.
+  async function copyLibSecret(itemId){
+    try {
+      const plain = state.libRevealed[itemId] || await libReveal(itemId);
+      await navigator.clipboard.writeText(plain);
+      if (typeof toast === 'function') toast({ type:'success', message:'Password copied' });
+    } catch (e) {
+      if (typeof toast === 'function') toast({ type:'error', message: e.message });
+    }
+  }
+  async function copyLibText(text, label){
+    try {
+      await navigator.clipboard.writeText(text);
+      if (typeof toast === 'function') toast({ type:'success', message: (label || 'Copied') });
+    } catch (e) {
+      if (typeof toast === 'function') toast({ type:'error', message:'Could not copy' });
+    }
+  }
+
+  function openLibAdd(kind){
+    state.libAddOpen = true;
+    state.libDraft = { kind: kind || 'link', title:'', section:'', url:'', username:'', password:'', twofa:'', body:'', file:null, uploading:false };
+    render();
+  }
+  async function uploadLibFile(file){
+    if (!state.libDraft) return;
+    state.libDraft.uploading = true; render();
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+    const path = `library/${state.selectedId}/${Date.now()}_${safeName}`;
+    const { error } = await sb().storage.from('chat-attachments').upload(path, file, { cacheControl:'3600', upsert:false });
+    if (!state.libDraft) return;
+    state.libDraft.uploading = false;
+    if (error) { render(); if (typeof toast === 'function') toast({ type:'error', message:'Upload failed: ' + error.message }); return; }
+    const url = sb().storage.from('chat-attachments').getPublicUrl(path).data.publicUrl;
+    state.libDraft.file = { name: file.name, url, mime_type: file.type || 'application/octet-stream', size: file.size };
+    // Save the trouble of retyping what the file is already called.
+    if (!state.libDraft.title.trim()) state.libDraft.title = file.name;
+    render();
+  }
+  function closeLibAdd(){ state.libAddOpen = false; state.libDraft = null; render(); }
+
+  async function saveLibItem(){
+    const d = state.libDraft;
+    if (!d) return;
+    if (!d.title.trim()) { if (typeof toast === 'function') toast({ type:'error', message:'Give it a title first.' }); return; }
+    if (d.kind === 'file' && !d.file) { if (typeof toast === 'function') toast({ type:'error', message:'Choose a file to upload first.' }); return; }
+    if (d.uploading) { if (typeof toast === 'function') toast({ type:'error', message:'Still uploading — one moment.' }); return; }
+    state.libSaving = true; render();
+    try {
+      const row = {
+        client_id: state.selectedId,
+        kind: d.kind,
+        title: d.title.trim(),
+        section: (d.section || '').trim() || 'General',
+        url: (d.url || '').trim() || null,
+        username: (d.username || '').trim() || null,
+        body: (d.body || '').trim() || null,
+        twofa: (d.twofa || '').trim() || null,
+        created_by: myId(),
+      };
+      if (d.kind === 'file') {
+        row.file_url = d.file.url; row.file_name = d.file.name;
+        row.file_size = d.file.size; row.mime_type = d.file.mime_type;
+        if (!row.url) row.url = d.file.url;
+      }
+      if (libKindHasSecret(d.kind) && d.password) {
+        const enc = await libEncrypt(d.password);
+        row.secret_ciphertext = enc.ciphertext;
+        row.secret_iv = enc.iv;
+        row.secret_auth_tag = enc.authTag;
+      }
+      const { data, error } = await sb().from('chat2_client_library').insert(row)
+        .select('id, kind, title, section, url, username, body, twofa, secret_ciphertext, file_url, file_name, file_size, mime_type, pinned, created_by, created_at')
+        .single();
+      if (error) throw new Error(error.message);
+      state.libraryItems.unshift(data);
+      state.libAddOpen = false; state.libDraft = null;
+    } catch (e) {
+      if (typeof toast === 'function') toast({ type:'error', message:'Could not save: ' + e.message });
+    }
+    state.libSaving = false; render();
+  }
+
+  async function toggleLibPin(itemId){
+    const it = state.libraryItems.find(x => x.id === itemId);
+    if (!it) return;
+    const was = it.pinned;
+    it.pinned = !was; render();
+    const { error } = await sb().from('chat2_client_library').update({ pinned: it.pinned }).eq('id', itemId);
+    if (error) { it.pinned = was; render(); if (typeof toast === 'function') toast({ type:'error', message:'Could not pin: ' + error.message }); }
+  }
+  async function removeLibItem(itemId){
+    const it = state.libraryItems.find(x => x.id === itemId);
+    if (!it) return;
+    // Deleting a stored credential is not recoverable, so it asks first.
+    const label = it.kind === 'login' ? `Delete the "${it.title}" login? The saved password cannot be recovered.` : `Delete "${it.title}"?`;
+    if (typeof window.giantConfirmWarn === 'function') {
+      const ok = await window.giantConfirmWarn('Delete from library', label, 'Delete', 'danger');
+      if (!ok) return;
+    } else if (!window.confirm(label)) return;
+    const idx = state.libraryItems.findIndex(x => x.id === itemId);
+    const backup = state.libraryItems[idx];
+    state.libraryItems.splice(idx, 1); delete state.libRevealed[itemId]; render();
+    const { error } = await sb().from('chat2_client_library').delete().eq('id', itemId);
+    if (error) { state.libraryItems.splice(idx, 0, backup); render(); if (typeof toast === 'function') toast({ type:'error', message:'Could not delete: ' + error.message }); }
+  }
+
+  // ── Rendering ──
+  function libFilteredItems(){
+    const q = state.libSearch.trim().toLowerCase();
+    return state.libraryItems
+      .filter(i => state.libKind === 'all' || i.kind === state.libKind)
+      .filter(i => !q || [i.title, i.section, i.url, i.username, i.body].some(v => (v || '').toLowerCase().includes(q)));
+  }
+  function libChipsHtml(){
+    const all = state.libraryItems;
+    const q = state.libSearch.trim().toLowerCase();
+    const matches = (i) => !q || [i.title, i.section, i.url, i.username, i.body].some(v => (v || '').toLowerCase().includes(q));
+    const chip = (key, label, n) => `<div data-c3-lib-kind="${key}" style="display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;white-space:nowrap;${state.libKind === key ? 'background:#242424;color:#fff;' : 'color:#7a7a7a;'}">${label}<span style="opacity:0.5;font-variant-numeric:tabular-nums;">${n}</span></div>`;
+    return `<div style="display:flex;gap:2px;background:#151515;border:1px solid #242424;border-radius:10px;padding:3px;overflow-x:auto;flex-shrink:0;">
+      ${chip('all', 'All', all.filter(matches).length)}
+      ${LIB_KINDS.map(k => chip(k.key, k.label, all.filter(i => i.kind === k.key && matches(i)).length)).join('')}
+    </div>`;
+  }
+  function libFieldHtml(label, inner){
+    return `<div style="margin-bottom:11px;">
+      <div style="font-size:10.5px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:#6a6a6a;margin-bottom:5px;">${label}</div>${inner}</div>`;
+  }
+  const LIB_INPUT = 'width:100%;box-sizing:border-box;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:9px;padding:9px 11px;color:#fff;font-size:12.5px;font-family:inherit;outline:none;';
+  function libAddFormHtml(){
+    const d = state.libDraft;
+    if (!d) return '';
+    const k = libKind(d.kind);
+    const isFile = d.kind === 'file';
+    const isLogin = d.kind === 'login';
+    const isNote = d.kind === 'note';
+    const isUrlKind = ['doc','sheet','video','link'].includes(d.kind);
+    return `<div style="background:#141414;border:1px solid #2e2e2e;border-radius:13px;padding:16px 18px;flex-shrink:0;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:14px;">
+        <div style="width:26px;height:26px;border-radius:8px;background:${k.color}22;display:flex;align-items:center;justify-content:center;flex-shrink:0;">${libIcon(d.kind, 14)}</div>
+        <div style="font-size:13.5px;font-weight:800;color:#fff;">Add ${esc(k.one.toLowerCase())}</div>
+        <span data-c3-lib-cancel="1" style="margin-left:auto;font-size:11.5px;font-weight:600;color:#7a7a7a;cursor:pointer;">Cancel</span>
+      </div>
+      ${libFieldHtml('What are you adding?', `<div style="display:flex;flex-wrap:wrap;gap:6px;">
+        ${LIB_KINDS.map(x => `<div data-c3-lib-draft-kind="${x.key}" style="display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;border:1px solid ${d.kind === x.key ? x.color : '#262626'};background:${d.kind === x.key ? x.color + '1f' : 'transparent'};color:${d.kind === x.key ? '#fff' : '#8a8a8a'};">${libIcon(x.key, 12)}${x.one}</div>`).join('')}
+      </div>`)}
+      ${libFieldHtml('Title', `<input data-c3-lib-field="title" value="${esc(d.title)}" placeholder="${esc(isLogin ? 'What is this login for — e.g. Google Ads' : 'Give it a name')}" style="${LIB_INPUT}">`)}
+      ${libFieldHtml('Collection', `<input data-c3-lib-field="section" value="${esc(d.section)}" list="c3LibSections" placeholder="General — or a shelf like Access, Daily flow" style="${LIB_INPUT}">
+        <datalist id="c3LibSections">${[...new Set(state.libraryItems.map(i => i.section).filter(Boolean))].map(sn => `<option value="${esc(sn)}">`).join('')}</datalist>`)}
+      ${isFile ? `<div data-c3-lib-file-pick="1" style="border:1.5px dashed ${d.file ? '#3ecf8e' : '#2e2e2e'};border-radius:11px;padding:20px;text-align:center;margin-bottom:11px;cursor:pointer;">
+        ${d.uploading
+          ? `<div style="font-size:12.5px;color:#8a8a8a;">Uploading…</div>`
+          : d.file
+            ? `<div style="display:flex;align-items:center;justify-content:center;gap:8px;font-size:12.5px;color:#c8c8c8;">${C3_ICON.check('#3ecf8e', 13)}${esc(d.file.name)}<span style="color:#6a6a6a;">${esc(fmtBytes(d.file.size))}</span></div>
+               <div style="font-size:11px;color:#5a5a5a;margin-top:3px;">Click to choose a different file</div>`
+            : `<div style="font-size:12.5px;color:#8a8a8a;">Drop a file here, or click to browse</div>
+               <div style="font-size:11px;color:#5a5a5a;margin-top:3px;">Images, video, PDFs and archives</div>`}
+        <input type="file" id="c3LibFile" style="display:none;">
+      </div>` : ''}
+      ${isLogin ? `
+        ${libFieldHtml('Where you log in', `<input data-c3-lib-field="url" value="${esc(d.url)}" placeholder="Login URL — e.g. ads.google.com" style="${LIB_INPUT}">`)}
+        ${libFieldHtml('Credentials', `<div style="display:flex;gap:8px;">
+          <input data-c3-lib-field="username" value="${esc(d.username)}" placeholder="Username or email" style="${LIB_INPUT}">
+          <input data-c3-lib-field="password" type="password" value="${esc(d.password)}" placeholder="Password" style="${LIB_INPUT}">
+        </div>`)}
+        ${libFieldHtml('Two-factor', `<input data-c3-lib-field="twofa" value="${esc(d.twofa)}" placeholder="Where the code goes — e.g. Authy on Matthew's phone" style="${LIB_INPUT}">`)}
+        ${libFieldHtml('Notes (optional)', `<textarea data-c3-lib-field="body" rows="2" placeholder="Account ID or anything else worth knowing…" style="${LIB_INPUT}resize:vertical;">${esc(d.body)}</textarea>`)}
+      ` : ''}
+      ${isUrlKind ? `
+        ${libFieldHtml('Link', `<input data-c3-lib-field="url" value="${esc(d.url)}" placeholder="https://…" style="${LIB_INPUT}">`)}
+        ${d.kind === 'link' ? libFieldHtml('Password (optional)', `<input data-c3-lib-field="password" type="password" value="${esc(d.password)}" placeholder="If the link is protected" style="${LIB_INPUT}">`) : ''}
+      ` : ''}
+      ${isNote ? libFieldHtml('Note', `<textarea data-c3-lib-field="body" rows="4" placeholder="Write it down so it stops living in someone's head…" style="${LIB_INPUT}resize:vertical;">${esc(d.body)}</textarea>`) : ''}
+      <div style="display:flex;align-items:center;gap:10px;margin-top:2px;">
+        <div data-c3-lib-save="1" style="display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:${state.libSaving ? 'default' : 'pointer'};background:${state.libSaving ? '#3a3a3a' : 'var(--red)'};color:#fff;">${state.libSaving ? 'Saving…' : 'Save to library'}</div>
+        ${libKindHasSecret(d.kind) && d.password ? `<span style="font-size:11px;color:#6a6a6a;">Encrypted before it leaves your browser's request — the key stays on the server.</span>` : ''}
+      </div>
+    </div>`;
+  }
+  function libItemRowHtml(i){
+    const k = libKind(i.kind);
+    const revealed = state.libRevealed[i.id];
+    const hasSecret = !!i.secret_ciphertext;
+    const meta = [i.username, i.url && i.url.replace(/^https?:\/\//, ''), i.file_size ? fmtBytes(i.file_size) : null]
+      .filter(Boolean).join(' · ');
+    const when = i.created_at ? new Date(i.created_at).toLocaleDateString(undefined, { month:'short', day:'numeric' }) : '';
+    const by = i.created_by ? profileName(i.created_by) : '';
+    return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 4px;border-bottom:1px solid #1f1f1f;">
+      <div style="width:26px;height:26px;border-radius:8px;background:${k.color}1f;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">${libIcon(i.kind, 13)}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:7px;">
+          ${i.url
+            ? `<a href="${esc(i.url)}" target="_blank" rel="noopener" style="font-size:12.5px;font-weight:600;color:#e0e0e0;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(i.title)}</a>`
+            : `<span style="font-size:12.5px;font-weight:600;color:#e0e0e0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(i.title)}</span>`}
+        </div>
+        ${meta || by || when ? `<div style="font-size:11px;color:#6a6a6a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc([meta, by, when].filter(Boolean).join(' · '))}</div>` : ''}
+        ${i.username || hasSecret || i.twofa ? `<div style="display:flex;flex-direction:column;gap:5px;margin-top:7px;background:#121212;border:1px solid #232323;border-radius:9px;padding:8px 10px;">
+          ${i.username ? `<div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:10px;font-weight:800;color:#6a6a6a;width:44px;flex-shrink:0;">USER</span>
+            <span style="flex:1;min-width:0;font-size:12px;color:#c8c8c8;font-family:ui-monospace,'SF Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(i.username)}</span>
+            <span data-c3-lib-copy-text="${esc(i.username)}" title="Copy username" style="cursor:pointer;display:flex;flex-shrink:0;color:#7a7a7a;">${C3_ICON.copy('currentColor', 12)}</span>
+          </div>` : ''}
+          ${hasSecret ? `<div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:10px;font-weight:800;color:#6a6a6a;width:44px;flex-shrink:0;">PASS</span>
+            <span style="flex:1;min-width:0;font-size:12px;color:${revealed ? '#c8c8c8' : '#5a5a5a'};font-family:ui-monospace,'SF Mono',monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${revealed ? esc(revealed) : '••••••••••'}</span>
+            <span data-c3-lib-toggle-reveal="${esc(i.id)}" title="${revealed ? 'Hide' : 'Reveal'}" style="cursor:pointer;display:flex;flex-shrink:0;color:#7a7a7a;">${revealed ? C3_ICON.eyeOff('currentColor', 12) : C3_ICON.eye('currentColor', 12)}</span>
+            <span data-c3-lib-copy-secret="${esc(i.id)}" title="Copy password" style="cursor:pointer;display:flex;flex-shrink:0;color:#7a7a7a;">${C3_ICON.copy('currentColor', 12)}</span>
+          </div>` : ''}
+          ${i.twofa ? `<div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:10px;font-weight:800;color:#6a6a6a;width:44px;flex-shrink:0;">2FA</span>
+            <span style="flex:1;min-width:0;font-size:12px;color:#9a9a9a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(i.twofa)}</span>
+          </div>` : ''}
+        </div>` : ''}
+        ${i.body ? `<div style="font-size:12px;color:#9a9a9a;margin-top:6px;white-space:pre-wrap;line-height:1.5;">${esc(i.body)}</div>` : ''}
+      </div>
+      <span data-c3-lib-pin="${esc(i.id)}" title="${i.pinned ? 'Unpin' : 'Pin to the top'}" style="cursor:pointer;display:flex;flex-shrink:0;color:${i.pinned ? '#e8a83e' : '#4a4a4a'};">${i.pinned ? C3_ICON.pinFilled('#e8a83e', 12) : C3_ICON.pin('currentColor', 12)}</span>
+      <span data-c3-lib-remove="${esc(i.id)}" title="Remove" style="cursor:pointer;display:flex;flex-shrink:0;color:#4a4a4a;">${C3_ICON.close('currentColor', 12)}</span>
+    </div>`;
+  }
+  function libraryTabHtml(){
+    const items = libFilteredItems();
+    // Collections keep their first-seen order (pinned-first from the query), so the
+    // shelf a team actually uses stays where they left it.
+    const order = [];
+    const bySection = {};
+    items.forEach(i => {
+      const sn = i.section || 'General';
+      if (!bySection[sn]) { bySection[sn] = []; order.push(sn); }
+      bySection[sn].push(i);
+    });
+    return `<div style="padding:16px 22px;display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex-shrink:0;">
+        <div style="display:flex;align-items:center;gap:9px;background:#141414;border:1px solid #242424;border-radius:10px;padding:0 13px;height:34px;flex:1;min-width:200px;max-width:340px;">
+          ${C3_ICON.search('#6a6a6a', 13)}
+          <input id="c3LibSearch" value="${esc(state.libSearch)}" placeholder="Search this client's library…" style="flex:1;min-width:0;background:transparent;border:none;outline:none;color:#fff;font-size:12.5px;font-family:inherit;">
+        </div>
+        ${libChipsHtml()}
+        <div data-c3-lib-add="1" style="display:flex;align-items:center;gap:7px;background:var(--red);color:#fff;font-size:12.5px;font-weight:700;height:34px;padding:0 15px;border-radius:9px;cursor:pointer;flex-shrink:0;white-space:nowrap;margin-left:auto;">+ Add item</div>
+      </div>
+      ${state.libAddOpen ? libAddFormHtml() : ''}
+      ${state.libraryLoading ? `<div style="text-align:center;color:#6a6a6a;font-size:13px;padding:40px 0;">Loading…</div>`
+        : state.libraryError ? `<div style="color:#f0705f;font-size:12.5px;padding:24px 0;">Could not load the library: ${esc(state.libraryError)}</div>`
+        : !state.libraryItems.length ? `<div style="border:1px solid #242424;border-radius:12px;padding:44px 20px;text-align:center;">
+            <div style="font-size:13.5px;font-weight:700;color:#c8c8c8;">Nothing saved yet</div>
+            <div style="font-size:12px;color:#6a6a6a;margin-top:4px;">Save a link, doc, sheet, video, login or note and it lands in a collection.</div>
+          </div>`
+        : !items.length ? `<div style="text-align:center;color:#5a5a5a;font-size:12.5px;padding:40px 0;">Nothing here matches.</div>`
+        : order.map(sn => {
+            const collapsed = !!state.libCollapsedSections[sn];
+            return `<div style="background:#141414;border:1px solid #242424;border-radius:12px;padding:4px 14px 6px;">
+              <div data-c3-lib-section="${esc(sn)}" style="display:flex;align-items:center;gap:9px;padding:10px 2px;cursor:pointer;">
+                <span style="font-size:12.5px;font-weight:800;color:#fff;">${esc(sn)}</span>
+                <span style="font-size:10px;font-weight:700;color:#6a6a6a;background:rgba(255,255,255,0.05);border-radius:7px;padding:2px 7px;font-variant-numeric:tabular-nums;">${bySection[sn].length}</span>
+                <span style="margin-left:auto;font-size:9px;color:#6a6a6a;">${collapsed ? '›' : '⌄'}</span>
+              </div>
+              ${collapsed ? '' : bySection[sn].map(libItemRowHtml).join('')}
+            </div>`;
+          }).join('')}
+    </div>`;
+  }
+
   function vaultTabHtml(){
     if (state.vaultLoading) return `<div style="text-align:center;color:#6a6a6a;font-size:13px;padding:40px 0;">Loading…</div>`;
     return `<div style="padding:20px 22px;display:flex;flex-direction:column;gap:12px;">
@@ -23164,7 +23524,8 @@ window.addEventListener('popstate', (e) => {
     }
     const tab = state.selectedSubTab;
     const showMessages = tab === 'messages';
-    const panel = { media: mediaTabHtml, vault: vaultTabHtml, tasks: tasksTabHtml, magnus: magnusTabHtml, management: managementTabHtml }[tab];
+    const vaultPanel = state.selectedKind === 'client' ? libraryTabHtml : vaultTabHtml;
+    const panel = { media: mediaTabHtml, vault: vaultPanel, tasks: tasksTabHtml, magnus: magnusTabHtml, management: managementTabHtml }[tab];
     // In-thread search narrows the loaded window rather than opening a separate
     // results view — you keep the thread you are reading.
     const sq = state.threadSearchOpen ? state.threadSearchQuery.trim().toLowerCase() : '';
@@ -23268,6 +23629,14 @@ window.addEventListener('popstate', (e) => {
         threadSearch.selectionStart = threadSearch.selectionEnd = threadSearch.value.length;
       }
     }
+    const libSearch = host.querySelector('#c3LibSearch');
+    if (libSearch) {
+      libSearch.addEventListener('input', (e) => { state.libSearch = e.target.value; render(); });
+      if (document.activeElement !== libSearch) {
+        libSearch.focus();
+        libSearch.selectionStart = libSearch.selectionEnd = libSearch.value.length;
+      }
+    }
     const replyComposer = host.querySelector('#c3ReplyComposer');
     if (replyComposer) {
       replyComposer.addEventListener('input', (e) => { state.replyDraft = e.target.value; broadcastC3Typing(); });
@@ -23359,7 +23728,10 @@ window.addEventListener('popstate', (e) => {
       render();
       // Each tool tab lazy-loads its own data the first time you land on it, so
       // opening a thread never pays for panels you don't look at.
-      if (state.selectedSubTab === 'vault' && state.vaultThreadId !== state.activeThreadId) loadVaultCards(state.activeThreadId);
+      if (state.selectedSubTab === 'vault') {
+        if (state.selectedKind === 'client') loadClientLibrary(state.selectedId);
+        else if (state.vaultThreadId !== state.activeThreadId) loadVaultCards(state.activeThreadId);
+      }
       if (state.selectedSubTab === 'tasks' && state.selectedKind === 'client') loadClientTasks(state.selectedId);
       if (state.selectedSubTab === 'management' && state.selectedKind === 'client') loadClientServices(state.selectedId);
     }));
@@ -23378,6 +23750,43 @@ window.addEventListener('popstate', (e) => {
     host.querySelectorAll('[data-c3-stop]').forEach(el => el.addEventListener('click', (e) => e.stopPropagation()));
     host.querySelectorAll('[data-c3-go-client]').forEach(el => el.addEventListener('click', () => {
       if (state.selectedKind === 'client' && state.selectedId && typeof openClientHub === 'function') openClientHub(state.selectedId);
+    }));
+
+    // ── Library (Vault on a client thread) ──
+    host.querySelectorAll('[data-c3-lib-kind]').forEach(el => el.addEventListener('click', () => { state.libKind = el.dataset.c3LibKind; render(); }));
+    host.querySelectorAll('[data-c3-lib-add]').forEach(el => el.addEventListener('click', () => openLibAdd()));
+    host.querySelectorAll('[data-c3-lib-cancel]').forEach(el => el.addEventListener('click', () => closeLibAdd()));
+    host.querySelectorAll('[data-c3-lib-draft-kind]').forEach(el => el.addEventListener('click', () => {
+      if (state.libDraft) { state.libDraft.kind = el.dataset.c3LibDraftKind; render(); }
+    }));
+    host.querySelectorAll('[data-c3-lib-field]').forEach(el => el.addEventListener('input', (e) => {
+      if (state.libDraft) state.libDraft[el.dataset.c3LibField] = e.target.value;
+    }));
+    host.querySelectorAll('[data-c3-lib-save]').forEach(el => el.addEventListener('click', () => saveLibItem()));
+    const libFilePick = host.querySelector('[data-c3-lib-file-pick]');
+    const libFileInput = host.querySelector('#c3LibFile');
+    if (libFilePick && libFileInput) {
+      libFilePick.addEventListener('click', () => libFileInput.click());
+      libFilePick.addEventListener('dragover', (e) => { e.preventDefault(); });
+      libFilePick.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) uploadLibFile(f);
+      });
+      libFileInput.addEventListener('change', (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (f) uploadLibFile(f);
+      });
+    }
+    host.querySelectorAll('[data-c3-lib-toggle-reveal]').forEach(el => el.addEventListener('click', () => toggleLibReveal(el.dataset.c3LibToggleReveal)));
+    host.querySelectorAll('[data-c3-lib-copy-secret]').forEach(el => el.addEventListener('click', () => copyLibSecret(el.dataset.c3LibCopySecret)));
+    host.querySelectorAll('[data-c3-lib-copy-text]').forEach(el => el.addEventListener('click', () => copyLibText(el.dataset.c3LibCopyText, 'Username copied')));
+    host.querySelectorAll('[data-c3-lib-pin]').forEach(el => el.addEventListener('click', () => toggleLibPin(el.dataset.c3LibPin)));
+    host.querySelectorAll('[data-c3-lib-remove]').forEach(el => el.addEventListener('click', () => removeLibItem(el.dataset.c3LibRemove)));
+    host.querySelectorAll('[data-c3-lib-section]').forEach(el => el.addEventListener('click', () => {
+      const k = el.dataset.c3LibSection;
+      state.libCollapsedSections[k] = !state.libCollapsedSections[k];
+      render();
     }));
 
     // ── Tasks tab ──
