@@ -22410,6 +22410,7 @@ window.addEventListener('popstate', (e) => {
     state.clientTasksLoading = false;
     state.clientTasks = data || [];
     state.clientTasksError = error ? error.message : null;
+    if (error) state.clientTasksFor = null; // let the next visit retry
     render();
   }
   const C3_PRIO = {
@@ -22491,11 +22492,12 @@ window.addEventListener('popstate', (e) => {
   async function loadClientServices(clientId){
     if (state.clientServicesFor === clientId) return;
     state.clientServicesFor = clientId; state.clientServicesLoading = true; state.clientServices = []; render();
-    const { data } = await sb().from('chat2_client_services')
+    const { data, error } = await sb().from('chat2_client_services')
       .select('dept_key, active, spend_cents').eq('client_id', clientId);
     if (state.clientServicesFor !== clientId) return;
     state.clientServicesLoading = false;
     state.clientServices = data || [];
+    if (error) state.clientServicesFor = null; // let the next visit retry
     render();
   }
   function managementTabHtml(){
@@ -22732,6 +22734,7 @@ window.addEventListener('popstate', (e) => {
     state.libraryLoading = false;
     state.libraryItems = data || [];
     state.libraryError = error ? error.message : null;
+    if (error) state.libraryFor = null; // let the next visit retry
     render();
   }
 
