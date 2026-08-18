@@ -13,16 +13,14 @@
 --   doc/sheet/video a titled external URL
 --   note            free text
 --
--- SECRETS: `login` (and a password-protected `link`) carry a secret. It is stored
--- AES-256-GCM encrypted using the SAME server-only PASSWORD_ENCRYPTION_KEY as
--- password_entries, via the same netlify/functions/password-vault-encrypt. The key
--- never reaches the browser and no plaintext secret is ever written to this table.
---
--- This deliberately duplicates the credential storage that password_entries already
--- provides (that module has its own folder/entry ACLs and share links). It was an
--- explicit product decision to keep the library self-contained. The cost to be aware
--- of: a credential kept in both places has two rows to rotate, and only one of them
--- is reachable from the Passwords screen. Rotating in one does not rotate the other.
+-- SECRETS: superseded by 20260818090000. This migration gave the table its own
+-- secret_ciphertext/iv/auth_tag columns, which meant one credential could exist in
+-- two places — here and in password_entries — with two rotations to remember and
+-- only one of them reachable from the Passwords screen. Those columns are dropped
+-- by 20260818090000; a login now holds a password_entry_id and the credential lives
+-- only in password_entries. The columns are left in the statement below because
+-- this migration has already been applied and must keep replaying identically on a
+-- fresh database; the later migration removes them.
 
 CREATE TABLE IF NOT EXISTS "public"."chat2_client_library" (
     "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL PRIMARY KEY,
@@ -118,3 +116,8 @@ CREATE POLICY "chat2_client_library_delete" ON "public"."chat2_client_library" F
         NOT "public"."is_client_user"()
         AND ("created_by" = "auth"."uid"() OR "public"."is_manager_or_owner"())
     );
+
+-- ROLLBACK (if the Chat 3.0 vault is abandoned before merging). Nothing else
+-- references this table, so dropping it is self-contained. Run 20260818090000's
+-- rollback first if that migration has also been applied.
+--   DROP TABLE IF EXISTS "public"."chat2_client_library";

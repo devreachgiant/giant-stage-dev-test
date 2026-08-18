@@ -22986,7 +22986,7 @@ Rules:
     state.libraryItems = []; state.libraryError = null; state.libRevealed = {};
     render();
     const { data, error } = await sb().from('chat2_client_library')
-      .select('id, kind, title, section, url, username, body, twofa, secret_ciphertext, file_url, file_name, file_size, mime_type, pinned, created_by, created_at')
+      .select('id, kind, title, section, url, username, body, twofa, password_entry_id, file_url, file_name, file_size, mime_type, pinned, created_by, created_at')
       .eq('client_id', clientId)
       .order('pinned', { ascending: false })
       .order('created_at', { ascending: false });
@@ -23011,16 +23011,34 @@ Rules:
     if (!res.ok) throw new Error(data.error || 'Could not encrypt');
     return data;
   }
+  // The secret lives in password_entries, so this decrypts the linked entry —
+  // the same row the Passwords screen shows. There is only ever one of them.
   async function libReveal(itemId){
-    const token = window.giantSession && window.giantSession.access_token;
+    const it = state.libraryItems.find(x => x.id === itemId);
+    if (!it || !it.password_entry_id) throw new Error('This item has no saved password');
     const res = await fetch('/.netlify/functions/password-vault-decrypt', {
       method:'POST',
-      headers:{ 'Content-Type':'application/json', Authorization:'Bearer ' + token },
-      body: JSON.stringify({ entry_id: itemId, source: 'library_item' }),
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ entry_id: it.password_entry_id }),
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Could not decrypt');
     return data.password;
+  }
+
+  // One folder per client, reused. 'shared' rather than 'public': a client
+  // credential should not be handed to every staff member by default.
+  async function ensureClientVaultFolder(clientId){
+    const { data: existing } = await sb().from('password_folders')
+      .select('id').eq('client_id', clientId).eq('name', 'Chat Vault').limit(1).maybeSingle();
+    if (existing && existing.id) return existing.id;
+    const { data, error } = await sb().from('password_folders')
+      .insert({ name: 'Chat Vault', client_id: clientId, visibility: 'shared', created_by: myId() })
+      .select('id').single();
+    if (error) throw new Error(error.message);
+    await sb().from('password_folder_members')
+      .insert({ folder_id: data.id, profile_id: myId(), added_by: myId() });
+    return data.id;
   }
 
   async function toggleLibReveal(itemId){
@@ -23110,14 +23128,21 @@ Rules:
         row.file_size = d.file.size; row.mime_type = d.file.mime_type;
         if (!row.url) row.url = d.file.url;
       }
+      // A secret goes to password_entries — the one credential store — and the
+      // vault row keeps only a reference. Nothing encrypted is written here.
       if (libKindHasSecret(d.kind) && d.password) {
+        const folderId = await ensureClientVaultFolder(state.selectedId);
         const enc = await libEncrypt(d.password);
-        row.secret_ciphertext = enc.ciphertext;
-        row.secret_iv = enc.iv;
-        row.secret_auth_tag = enc.authTag;
+        const { data: entry, error: entryErr } = await sb().from('password_entries').insert({
+          folder_id: folderId, title: row.title, username: row.username, url: row.url,
+          notes: row.body, password_ciphertext: enc.ciphertext, password_iv: enc.iv,
+          password_auth_tag: enc.authTag, created_by: myId(),
+        }).select('id').single();
+        if (entryErr) throw new Error('Could not save the password: ' + entryErr.message);
+        row.password_entry_id = entry.id;
       }
       const { data, error } = await sb().from('chat2_client_library').insert(row)
-        .select('id, kind, title, section, url, username, body, twofa, secret_ciphertext, file_url, file_name, file_size, mime_type, pinned, created_by, created_at')
+        .select('id, kind, title, section, url, username, body, twofa, password_entry_id, file_url, file_name, file_size, mime_type, pinned, created_by, created_at')
         .single();
       if (error) throw new Error(error.message);
       state.libraryItems.unshift(data);
@@ -23140,7 +23165,9 @@ Rules:
     const it = state.libraryItems.find(x => x.id === itemId);
     if (!it) return;
     // Deleting a stored credential is not recoverable, so it asks first.
-    const label = it.kind === 'login' ? `Delete the "${it.title}" login? The saved password cannot be recovered.` : `Delete "${it.title}"?`;
+    const label = it.password_entry_id
+      ? `Remove "${it.title}" from this vault? The password itself stays in Passwords under this client's Chat Vault folder.`
+      : `Delete "${it.title}"?`;
     if (typeof window.giantConfirmWarn === 'function') {
       const ok = await window.giantConfirmWarn('Delete from library', label, 'Delete', 'danger');
       if (!ok) return;
@@ -23321,7 +23348,7 @@ Rules:
   function libItemRowHtml(i){
     const k = libKind(i.kind);
     const revealed = state.libRevealed[i.id];
-    const hasSecret = !!i.secret_ciphertext;
+    const hasSecret = !!i.password_entry_id;
     const meta = [i.username, i.url && i.url.replace(/^https?:\/\//, ''), i.file_size ? fmtBytes(i.file_size) : null]
       .filter(Boolean).join(' · ');
     const when = i.created_at ? new Date(i.created_at).toLocaleDateString(undefined, { month:'short', day:'numeric' }) : '';
@@ -23385,7 +23412,7 @@ Rules:
         client_id: state.selectedId, kind: 'file', title: file.name, section: 'Files',
         url, file_url: url, file_name: file.name, file_size: file.size,
         mime_type: file.type || 'application/octet-stream', created_by: myId(),
-      }).select('id, kind, title, section, url, username, body, twofa, secret_ciphertext, file_url, file_name, file_size, mime_type, pinned, created_by, created_at').single();
+      }).select('id, kind, title, section, url, username, body, twofa, password_entry_id, file_url, file_name, file_size, mime_type, pinned, created_by, created_at').single();
       if (error) throw new Error(error.message);
       state.libraryItems.unshift(data);
     } catch (e) {

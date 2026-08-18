@@ -5,20 +5,19 @@
 // even allowed to see this row. If RLS denies it, the query returns nothing and nothing gets
 // decrypted, regardless of what entry_id was requested. Encryption key never leaves the server.
 //
-// Two tables now store AES-256-GCM secrets under the same key: the password manager, and
-// Chat 3.0's per-client library. Rather than a second copy of this logic (two places to get
-// the RLS re-check wrong, two places to audit), SOURCES is a fixed allowlist. The caller
-// picks a KEY of this map, never a table name -- an unknown source is rejected before any
-// query runs, so this parameter can never be used to read a table it was not meant to.
+// password_entries is the ONLY table that stores secrets. Chat 3.0's client vault briefly
+// had its own copy; that was consolidated away (20260818090000) because one credential in
+// two tables is two rotations to remember and one of them silently goes stale. A vault item
+// now holds a password_entry_id and decrypts through this same path.
+//
+// SOURCES stays a fixed allowlist so the caller picks a KEY of this map, never a table name.
+// An unknown source is rejected before any query runs, so this parameter can never be used
+// to read a table it was not meant to.
 
 const SOURCES = {
   password_entry: {
     table: 'password_entries',
     cipher: 'password_ciphertext', iv: 'password_iv', tag: 'password_auth_tag',
-  },
-  library_item: {
-    table: 'chat2_client_library',
-    cipher: 'secret_ciphertext', iv: 'secret_iv', tag: 'secret_auth_tag',
   },
 };
 
