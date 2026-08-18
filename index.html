@@ -34403,9 +34403,11 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const supa = window.supabase.createClient(window.GIANT_SUPABASE_URL, window.GIANT_SUPABASE_ANON_KEY, {
         auth: { persistSession: false, autoRefreshToken: false, storageKey: 'giant-onboarding-anon' }
       });
-      const { data: clientRow, error } = await supa.from('clients')
-        .select('id, name, contact_name, contact_email, onboarding_answers, onboarding_submitted_at, status')
-        .eq('onboarding_token', token).maybeSingle();
+      // Via RPC, not the table: anon has no read access to clients any more. The
+      // function is scoped to the single row this token matches, so holding a link
+      // gets you that client's form and nothing else.
+      const { data: rpcRows, error } = await supa.rpc('get_onboarding_form', { p_token: token });
+      const clientRow = Array.isArray(rpcRows) ? rpcRows[0] : rpcRows;
       if (error || !clientRow) {
         document.body.innerHTML = `<div style="max-width:540px;margin:120px auto;padding:48px 32px;text-align:center;background:#141414;border-radius:18px;border:1px solid #232323;">
           <div style="font-size:18px;font-weight:700;margin-bottom:8px;color:#fff;">Form not found</div>
@@ -34615,9 +34617,15 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         const submitBtn = document.getElementById('onbSubmit');
         submitBtn.disabled = true;
         submitBtn.textContent = 'Submitting...';
-        const { error } = await supa.from('clients')
-          .update({ onboarding_answers: answers, onboarding_submitted_at: new Date().toISOString() })
-          .eq('onboarding_token', token);
+        // Writes only these two fields, only on the row this token matches.
+        const { data: ok, error } = await supa.rpc('submit_onboarding_form', { p_token: token, p_answers: answers });
+        if (!error && ok === false) {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Submit';
+          const a = document.getElementById('onbAlert');
+          if (a) { a.textContent = 'This link is no longer valid. Ask your contact for a new one.'; a.style.display = 'block'; }
+          return;
+        }
         if (error) {
           submitBtn.disabled = false;
           submitBtn.textContent = 'Submit';
