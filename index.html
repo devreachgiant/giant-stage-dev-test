@@ -21252,6 +21252,7 @@ window.addEventListener('popstate', (e) => {
         if (v.kind === 'client') loadClientLibrary(v.id);
         else if (state.activeThreadId) loadVaultCards(state.activeThreadId);
       }
+      if (v.tab === 'media' && v.kind === 'client') loadClientLibrary(v.id);
       if (v.kind === 'client' && v.tab === 'tasks') loadClientTasks(v.id);
       if (v.kind === 'client' && v.tab === 'management') loadClientServices(v.id);
     }
@@ -22847,31 +22848,71 @@ Rules:
     if (n < 1024*1024) return Math.round(n/1024) + ' KB';
     return (n/(1024*1024)).toFixed(1) + ' MB';
   }
+  // Media is the union of two genuinely different sources: files someone uploaded
+  // here on purpose, and files that happened to be posted in the conversation.
+  // They are kept as separate sections because "I put this here for the team" and
+  // "this went past in a thread three weeks ago" are not the same thing to look for.
+  //
+  // Uploads land in chat2_client_library as kind='file' — the same store the Vault
+  // uses — so there is one place a client's files live, not two. Non-client threads
+  // (DMs, channels, Home) have no per-thread file store, so they show chat files
+  // only rather than a button that would have nowhere to write.
   function mediaTabHtml(){
-    const items = [];
-    state.threadMessages.forEach(m => (m.attachments || []).forEach(a => items.push({ ...a, authorId: m.author_id, createdAt: m.created_at })));
-    items.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    if (!items.length) return `<div style="text-align:center;color:#5a5a5a;font-size:13px;padding:60px 22px;">No files shared here yet.</div>`;
-    const images = items.filter(a => a.mime_type && a.mime_type.startsWith('image/'));
-    const files = items.filter(a => !(a.mime_type && a.mime_type.startsWith('image/')));
-    return `<div style="padding:20px 22px;display:flex;flex-direction:column;gap:20px;">
-      ${images.length ? `<div>
-        <div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:#6a6a6a;margin-bottom:8px;">Images</div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;">
-          ${images.map(a => `<a href="${esc(a.url)}" target="_blank" rel="noopener"><img src="${esc(a.url)}" style="width:100%;height:120px;object-fit:cover;border-radius:8px;display:block;border:1px solid #262626;"></a>`).join('')}
-        </div>
+    const isClient = state.selectedKind === 'client';
+    const uploaded = isClient
+      ? state.libraryItems.filter(i => i.kind === 'file')
+          .slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      : [];
+    const shared = [];
+    state.threadMessages.forEach(m => (m.attachments || []).forEach(a =>
+      shared.push({ ...a, authorId: m.author_id, createdAt: m.created_at })));
+    shared.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    const isImg = (t) => !!t && String(t).startsWith('image/');
+    const tile = (url, alt) => `<a href="${esc(url)}" target="_blank" rel="noopener"><img src="${esc(url)}" alt="${esc(alt || '')}" style="width:100%;height:120px;object-fit:cover;border-radius:8px;display:block;border:1px solid #262626;"></a>`;
+    const fileRow = (url, name, size, who, when) => `<a href="${esc(url)}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #1f1f1f;background:#141414;text-decoration:none;color:inherit;">
+      <span style="display:flex;">${C3_ICON.paperclip('currentColor', 12)}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12.5px;font-weight:600;color:#e0e0e0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(name)}</div>
+        <div style="font-size:11px;color:#6a6a6a;">${esc([size ? fmtBytes(size) : null, who, when].filter(Boolean).join(' · '))}</div>
+      </div>
+    </a>`;
+    const section = (title, count, body) => `<div>
+      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+        <div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:#6a6a6a;">${title}</div>
+        <div style="font-size:11px;color:#4e4e4e;">${count}</div>
+      </div>${body}</div>`;
+    const grid = (inner) => `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;">${inner}</div>`;
+    const list = (inner) => `<div style="border-radius:10px;overflow:hidden;border:1px solid #242424;">${inner}</div>`;
+
+    const upImgs = uploaded.filter(i => isImg(i.mime_type));
+    const upFiles = uploaded.filter(i => !isImg(i.mime_type));
+    const shImgs = shared.filter(a => isImg(a.mime_type));
+    const shFiles = shared.filter(a => !isImg(a.mime_type));
+
+    return `<div data-c3-media-drop="${isClient ? '1' : ''}" style="padding:20px 22px;display:flex;flex-direction:column;gap:20px;">
+      ${isClient ? `<div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:12px;color:#7a7a7a;">${uploaded.length + shared.length} ${uploaded.length + shared.length === 1 ? 'file' : 'files'} here — ${uploaded.length} uploaded, ${shared.length} from chat</span>
+        <div data-c3-media-upload="1" style="margin-left:auto;display:flex;align-items:center;gap:6px;padding:7px 13px;border-radius:9px;font-size:12px;font-weight:700;cursor:${state.libMediaUploading ? 'default' : 'pointer'};background:#1a1a1a;border:1px solid #2a2a2a;color:${state.libMediaUploading ? '#6a6a6a' : '#e0e0e0'};white-space:nowrap;">
+          ${state.libMediaUploading ? 'Uploading…' : `${C3_ICON.upload('currentColor', 12)} Upload`}</div>
+        <input type="file" id="c3MediaInput" style="display:none;">
       </div>` : ''}
-      ${files.length ? `<div>
-        <div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:#6a6a6a;margin-bottom:8px;">Files</div>
-        <div style="border-radius:10px;overflow:hidden;border:1px solid #242424;">
-          ${files.map(a => `<a href="${esc(a.url)}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #1f1f1f;background:#141414;text-decoration:none;color:inherit;">
-            <span style="display:flex;">${C3_ICON.paperclip('currentColor', 12)}</span>
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:12.5px;font-weight:600;color:#e0e0e0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(a.name)}</div>
-              <div style="font-size:11px;color:#6a6a6a;">${fmtBytes(a.size)} · ${esc(profileName(a.authorId))} · ${new Date(a.createdAt).toLocaleDateString()}</div>
-            </div>
-          </a>`).join('')}
-        </div>
+
+      ${uploaded.length ? section('Uploaded', `${uploaded.length} · saved to this client's vault`,
+        `${upImgs.length ? grid(upImgs.map(i => tile(i.file_url || i.url, i.title)).join('')) : ''}
+         ${upFiles.length ? `<div style="${upImgs.length ? 'margin-top:8px;' : ''}">${list(upFiles.map(i =>
+            fileRow(i.file_url || i.url, i.title || i.file_name, i.file_size,
+              i.created_by ? profileName(i.created_by) : '',
+              i.created_at ? new Date(i.created_at).toLocaleDateString() : '')).join(''))}</div>` : ''}`) : ''}
+
+      ${shared.length ? section('Shared in chat', `${shared.length} · posted in this thread`,
+        `${shImgs.length ? grid(shImgs.map(a => tile(a.url, a.name)).join('')) : ''}
+         ${shFiles.length ? `<div style="${shImgs.length ? 'margin-top:8px;' : ''}">${list(shFiles.map(a =>
+            fileRow(a.url, a.name, a.size, profileName(a.authorId),
+              new Date(a.createdAt).toLocaleDateString())).join(''))}</div>` : ''}`) : ''}
+
+      ${!uploaded.length && !shared.length ? `<div style="border:1.5px dashed #262626;border-radius:12px;padding:44px 20px;text-align:center;">
+        <div style="font-size:12.5px;color:#5a5a5a;">${isClient ? 'No files yet — upload one, or drop it here.' : 'No files shared here yet.'}</div>
       </div>` : ''}
     </div>`;
   }
@@ -24221,6 +24262,8 @@ Rules:
         if (state.selectedKind === 'client') loadClientLibrary(state.selectedId);
         else if (state.vaultThreadId !== state.activeThreadId) loadVaultCards(state.activeThreadId);
       }
+      // Media shows the uploaded half from the same library, so it needs it loaded.
+      if (state.selectedSubTab === 'media' && state.selectedKind === 'client') loadClientLibrary(state.selectedId);
       if (state.selectedSubTab === 'tasks' && state.selectedKind === 'client') loadClientTasks(state.selectedId);
       if (state.selectedSubTab === 'management' && state.selectedKind === 'client') loadClientServices(state.selectedId);
     }));
@@ -24284,6 +24327,24 @@ Rules:
       libUploadBtn.addEventListener('click', () => { if (!state.libMediaUploading) libMediaInput.click(); });
       libMediaInput.addEventListener('change', (e) => {
         const f = e.target.files && e.target.files[0];
+        if (f) uploadLibMedia(f);
+      });
+    }
+    const mediaInput = host.querySelector('#c3MediaInput');
+    const mediaBtn = host.querySelector('[data-c3-media-upload]');
+    if (mediaBtn && mediaInput) {
+      mediaBtn.addEventListener('click', () => { if (!state.libMediaUploading) mediaInput.click(); });
+      mediaInput.addEventListener('change', (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (f) uploadLibMedia(f);
+      });
+    }
+    const mediaDrop = host.querySelector('[data-c3-media-drop="1"]');
+    if (mediaDrop) {
+      mediaDrop.addEventListener('dragover', (e) => { e.preventDefault(); });
+      mediaDrop.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
         if (f) uploadLibMedia(f);
       });
     }
