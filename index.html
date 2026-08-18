@@ -21053,6 +21053,9 @@ window.addEventListener('popstate', (e) => {
     mgmtLoading: false,
     mgmtFor: null,
     mgmtShowAnswers: false,
+    mgmtNotesDraft: null,     // null = not editing; a string = unsaved edit
+    mgmtKeywordsDraft: null,
+    mgmtSavingProfile: false,
     magnusDraft: '',
     magnusMessages: [],      // [{role,content,sources?}] — the Magnus exchange
     magnusThinking: false,
@@ -21451,6 +21454,7 @@ window.addEventListener('popstate', (e) => {
     state.magnusMessages = []; state.magnusDraft = ''; state.magnusError = null; state.magnusScope = 'client';
     state.taskAdding = false; state.taskDraft = null;
     state.mgmtTab = 'overview'; state.mgmtShowAnswers = false;
+    state.mgmtNotesDraft = null; state.mgmtKeywordsDraft = null;
     if (kind === 'client') {
       state.selectedDept = dept || state.selectedDept || DEPTS[0].key;
       render();
@@ -23059,7 +23063,7 @@ window.addEventListener('popstate', (e) => {
       sb().from('chat2_client_access').select('service_key, status, updated_at, updated_by').eq('client_id', clientId),
       // client_onboarding, not clients: the view strips EIN and address for
       // non-managers in the projection, so the restriction survives the browser.
-      sb().from('client_onboarding').select('id, name, mrr_cents, status, onboarding_token, onboarding_sent_at, onboarding_submitted_at, onboarding_answers, created_at')
+      sb().from('client_onboarding').select('id, name, status, created_at, started_at, industry, company_website, timezone, working_notes, keywords, mrr_cents, onboarding_sent_at, onboarding_submitted_at, contact_name, contact_email, contact_phone, onboarding_token, onboarding_answers')
         .eq('id', clientId).maybeSingle(),
     ]);
     if (state.mgmtFor !== clientId) return; // a different client won the race
@@ -23108,7 +23112,13 @@ window.addEventListener('popstate', (e) => {
       ${sub ? `<div style="font-size:11.5px;color:#7a7a7a;">${sub}</div>` : ''}
     </div>${body}</div>`;
 
+  const mgmtField = (label, value, muted) => `<div style="display:flex;align-items:baseline;gap:10px;padding:7px 0;border-top:1px solid #1f1f1f;">
+    <span style="font-size:11px;font-weight:700;color:#6a6a6a;width:108px;flex-shrink:0;">${label}</span>
+    <span style="flex:1;min-width:0;font-size:12.5px;color:${muted ? '#5a5a5a' : '#e0e0e0'};word-break:break-word;">${value}</span>
+  </div>`;
+
   function mgmtOverviewHtml(){
+    const c = state.clientRow;
     const svcFor = (key) => state.clientServices.find(s => s.dept_key === key) || { active:false, spend_cents:0 };
     const billable = DEPTS.filter(d => d.key !== 'general');
     const activeSvcs = billable.filter(d => svcFor(d.key).active);
@@ -23116,7 +23126,73 @@ window.addEventListener('popstate', (e) => {
     const money = (cents) => '$' + Math.round((cents || 0) / 100).toLocaleString();
     const accessOf = (k) => (state.clientAccess.find(a => a.service_key === k) || { status:'none' }).status;
     const granted = ACCESS_ITEMS.filter(a => accessOf(a.key) === 'granted').length;
+    const canEdit = isManagerOrOwner();
+    const openTasks = state.clientTasks.filter(t => t.status !== 'done');
+    const kw = c && Array.isArray(c.keywords) ? c.keywords : [];
+    const notes = state.mgmtNotesDraft !== null ? state.mgmtNotesDraft : (c && c.working_notes) || '';
+    const kwDraft = state.mgmtKeywordsDraft !== null ? state.mgmtKeywordsDraft : kw.join(', ');
+    const dirty = state.mgmtNotesDraft !== null || state.mgmtKeywordsDraft !== null;
+    const inputStyle = 'width:100%;box-sizing:border-box;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:9px;padding:9px 11px;color:#fff;font-size:12.5px;font-family:inherit;outline:none;';
+
     return `<div style="display:flex;flex-direction:column;gap:14px;">
+      ${mgmtCard('Profile', c && c.status ? esc(String(c.status).replace('_', ' ')) : '',
+        (c ? mgmtField('Industry', c.industry ? esc(c.industry) : 'Not set', !c.industry)
+           + mgmtField('Website', c.company_website
+               ? `<a href="${esc(/^https?:/.test(c.company_website) ? c.company_website : 'https://' + c.company_website)}" target="_blank" rel="noopener" style="color:#5aa8d6;text-decoration:none;">${esc(c.company_website)}</a>`
+               : 'Not set', !c.company_website)
+           + mgmtField('Time zone', c.timezone ? esc(c.timezone) : 'Not set', !c.timezone)
+           + mgmtField('Client since', c.started_at ? esc(new Date(c.started_at).toLocaleDateString())
+               : c.created_at ? esc(new Date(c.created_at).toLocaleDateString()) : 'Unknown', !c.started_at && !c.created_at)
+         : '<div style="font-size:12.5px;color:#5a5a5a;">No client record loaded.</div>'))}
+
+      ${mgmtCard('Contact', canEdit ? '' : 'Managers and owners only',
+        canEdit
+          ? (c ? mgmtField('Name', c.contact_name ? esc(c.contact_name) : 'Not set', !c.contact_name)
+               + mgmtField('Email', c.contact_email ? `<a href="mailto:${esc(c.contact_email)}" style="color:#5aa8d6;text-decoration:none;">${esc(c.contact_email)}</a>` : 'Not set', !c.contact_email)
+               + mgmtField('Phone', c.contact_phone ? esc(c.contact_phone) : 'Not set', !c.contact_phone)
+             : '')
+          // Withheld by the view, so say so — a blank card reads as "no contact on file".
+          : `<div style="font-size:12.5px;color:#5a5a5a;">Contact details are withheld from your role.</div>`)}
+
+      ${mgmtCard('Working notes', canEdit ? 'What the next person needs to know' : 'Read only for your role',
+        canEdit
+          ? `<textarea id="c3MgmtNotes" rows="3" placeholder="Anything the next person picking this up should know…" style="${inputStyle}resize:vertical;">${esc(notes)}</textarea>`
+          : `<div style="font-size:12.5px;color:${notes ? '#c8c8c8' : '#5a5a5a'};white-space:pre-wrap;line-height:1.6;">${notes ? esc(notes) : 'Nothing noted yet.'}</div>`)}
+
+      ${mgmtCard('Keywords', `${kw.length} tracked`,
+        (kw.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:${canEdit ? '10px' : '0'};">
+            ${kw.map(k => `<span style="font-size:11.5px;color:#c8c8c8;background:#1c1c1c;border:1px solid #262626;border-radius:7px;padding:4px 10px;">${esc(k)}</span>`).join('')}
+          </div>` : (canEdit ? '' : `<div style="font-size:12.5px;color:#5a5a5a;">No keywords tracked.</div>`))
+        + (canEdit ? `<input id="c3MgmtKeywords" value="${esc(kwDraft)}" placeholder="Comma separated — e.g. emergency vet, pet dentistry" style="${inputStyle}">` : ''))}
+
+      ${dirty ? `<div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:11.5px;color:#e8a83e;">Unsaved changes</span>
+        <div style="flex:1;"></div>
+        <div data-c3-mgmt-profile-cancel="1" style="font-size:12px;font-weight:600;color:#7a7a7a;cursor:pointer;padding:8px 10px;">Discard</div>
+        <div data-c3-mgmt-profile-save="1" style="display:inline-flex;align-items:center;padding:9px 15px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:${state.mgmtSavingProfile ? 'default' : 'pointer'};background:${state.mgmtSavingProfile ? '#3a3a3a' : 'var(--red)'};color:#fff;">${state.mgmtSavingProfile ? 'Saving…' : 'Save'}</div>
+      </div>` : ''}
+
+      ${mgmtCard('Active work', `${openTasks.length} open · ${state.clientTasks.length - openTasks.length} done`,
+        (openTasks.length
+          ? openTasks.slice(0, 5).map(t => {
+              const p = C3_PRIO[String(t.priority || '').toLowerCase()];
+              return `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid #1f1f1f;">
+                <span style="flex:1;min-width:0;font-size:12.5px;color:#e0e0e0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.name)}</span>
+                ${p ? `<span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;color:${p.color};background:${p.color}1f;flex-shrink:0;">${p.label}</span>` : ''}
+              </div>`;
+            }).join('') + (openTasks.length > 5 ? `<div style="font-size:11.5px;color:#6a6a6a;margin-top:8px;">+${openTasks.length - 5} more</div>` : '')
+          : `<div style="font-size:12.5px;color:#5a5a5a;">Nothing open right now.</div>`))}
+
+      ${mgmtCard('Conversations', 'Every department for this client',
+        DEPTS.map(d => {
+          const isHere = state.selectedDept === d.key;
+          return `<div data-c3-dept="${d.key}" style="display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid #1f1f1f;cursor:pointer;">
+            <span style="width:7px;height:7px;border-radius:50%;background:${d.color};flex-shrink:0;"></span>
+            <span style="flex:1;min-width:0;font-size:12.5px;color:${isHere ? '#fff' : '#c8c8c8'};font-weight:${isHere ? '700' : '400'};">${esc(d.label)}</span>
+            ${isHere ? `<span style="font-size:10px;font-weight:800;color:#6a6a6a;">YOU ARE HERE</span>` : C3_ICON.arrowRight('#4a4a4a', 12)}
+          </div>`;
+        }).join(''))}
+
       ${mgmtCard('Services &amp; ad spend', `${activeSvcs.length} active · ${money(totalCents)} / mo`,
         billable.map(d => {
           const sv = svcFor(d.key);
@@ -23139,6 +23215,36 @@ window.addEventListener('popstate', (e) => {
           </div>`;
         }).join('') + `<div style="font-size:11px;color:#5a5a5a;margin-top:9px;">This is the thing that blocks work at kickoff, so it is tracked here rather than in someone's head.</div>`)}
     </div>`;
+  }
+
+  // clients_update_mgr limits UPDATE to managers and owners, so a non-manager edit
+  // would be refused server-side. The UI matches the rule rather than being it.
+  async function saveMgmtProfile(){
+    if (state.mgmtSavingProfile || !state.clientRow) return;
+    const patch = {};
+    if (state.mgmtNotesDraft !== null) patch.working_notes = state.mgmtNotesDraft.trim() || null;
+    if (state.mgmtKeywordsDraft !== null) {
+      patch.keywords = state.mgmtKeywordsDraft.split(',').map(k => k.trim()).filter(Boolean);
+    }
+    if (!Object.keys(patch).length) return;
+    state.mgmtSavingProfile = true; render();
+    const { error } = await sb().from('clients').update(patch).eq('id', state.selectedId);
+    state.mgmtSavingProfile = false;
+    if (error) {
+      render();
+      if (typeof toast === 'function') toast({ type:'error', message:'Could not save: ' + error.message });
+      return;
+    }
+    if ('working_notes' in patch) state.clientRow.working_notes = patch.working_notes;
+    if ('keywords' in patch) state.clientRow.keywords = patch.keywords;
+    state.mgmtNotesDraft = null; state.mgmtKeywordsDraft = null;
+    logC3Activity('other', 'updated the client profile',
+      { detail: Object.keys(patch).map(k => k.replace('_', ' ')).join(', '), department: null });
+    render();
+    if (typeof toast === 'function') toast({ type:'success', message:'Saved' });
+  }
+  function discardMgmtProfile(){
+    state.mgmtNotesDraft = null; state.mgmtKeywordsDraft = null; render();
   }
 
   function mgmtMembersHtml(){
@@ -25043,6 +25149,26 @@ Rules:
     }));
     host.querySelectorAll('[data-c3-mgmt-tab]').forEach(el => el.addEventListener('click', () => { state.mgmtTab = el.dataset.c3MgmtTab; render(); }));
     host.querySelectorAll('[data-c3-access-cycle]').forEach(el => el.addEventListener('click', () => cycleClientAccess(el.dataset.c3AccessCycle)));
+    host.querySelectorAll('[data-c3-mgmt-profile-save]').forEach(el => el.addEventListener('click', () => saveMgmtProfile()));
+    host.querySelectorAll('[data-c3-mgmt-profile-cancel]').forEach(el => el.addEventListener('click', () => discardMgmtProfile()));
+    const mgmtNotes = host.querySelector('#c3MgmtNotes');
+    if (mgmtNotes) {
+      // Tracked without re-rendering per keystroke: the Save bar appearing is the
+      // only thing that needs to change, and it appears on the first character.
+      mgmtNotes.addEventListener('input', (e) => {
+        const wasClean = state.mgmtNotesDraft === null;
+        state.mgmtNotesDraft = e.target.value;
+        if (wasClean) render();
+      });
+    }
+    const mgmtKw = host.querySelector('#c3MgmtKeywords');
+    if (mgmtKw) {
+      mgmtKw.addEventListener('input', (e) => {
+        const wasClean = state.mgmtKeywordsDraft === null;
+        state.mgmtKeywordsDraft = e.target.value;
+        if (wasClean) render();
+      });
+    }
     host.querySelectorAll('[data-c3-onboarding-answers]').forEach(el => el.addEventListener('click', () => { state.mgmtShowAnswers = !state.mgmtShowAnswers; render(); }));
     host.querySelectorAll('[data-c3-onboarding-copy]').forEach(el => el.addEventListener('click', () => {
       const url = `${location.origin}/onboarding?t=${encodeURIComponent(el.dataset.c3OnboardingCopy)}`;
