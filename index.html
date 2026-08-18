@@ -22036,7 +22036,9 @@ window.addEventListener('popstate', (e) => {
 
   function c3StarHtml(clientId){
     const on = state.starredClientIds.has(clientId);
-    return `<span data-c3-star="${esc(clientId)}" title="${on ? 'Unstar' : 'Star'}" style="font-size:11px;flex-shrink:0;cursor:pointer;color:${on ? '#e8a83e' : '#4e4e4e'};">${on ? '★' : '☆'}</span>`;
+    // The last text glyph in the sidebar — the icon set already had a star, and
+    // ★/☆ differ enough in weight between platforms to make the row jump.
+    return `<span data-c3-star="${esc(clientId)}" title="${on ? 'Unstar' : 'Star'}" style="display:flex;flex-shrink:0;cursor:pointer;">${C3_ICON.star(on ? '#e8a83e' : '#4e4e4e', 12, on ? '#e8a83e' : null)}</span>`;
   }
 
   function c3ClientMarkHtml(c, active){
@@ -22112,27 +22114,32 @@ window.addEventListener('popstate', (e) => {
       dots: c3DeptDotsHtml(room || { depts: {} }), star: c3StarHtml(c.id),
     });
   }
-  function teamRowHtml(t){
+  // These have no departments to light, so they carry the same signal as a count:
+  // a bold name, the flag if a reply is owed, and how many items are waiting.
+  function teamRowHtml(t, room){
     const active = state.selectedKind === 'team_channel' && state.selectedId === t.id;
     return c3RowHtml({
       attr: `data-c3-room-open="team_channel::${esc(t.id)}::"`,
       mark: c3TeamMarkHtml(t), name: t.name || 'Channel', active,
+      unread: !!room, count: room ? room.count : 0, flagged: room ? room.flagged : 0,
     });
   }
-  function directRowHtml(p){
+  function directRowHtml(p, room){
     const thread = existingDmThreadWith(p.id);
     const active = state.selectedKind === 'dm' && thread && state.selectedId === thread.id;
     const name = p.display_name || p.full_name || p.email || 'Someone';
     return c3RowHtml({
       attr: `data-c3-open-profile="${esc(p.id)}"`,
       mark: c3ProfileMarkHtml(p, active), name, active,
+      unread: !!room, count: room ? room.count : 0, flagged: room ? room.flagged : 0,
     });
   }
-  function groupRowHtml(t){
+  function groupRowHtml(t, room){
     const active = state.selectedKind === 'dm' && state.selectedId === t.id;
     return c3RowHtml({
       attr: `data-c3-room-open="dm::${esc(t.id)}::"`,
       mark: c3GroupMarkHtml(), name: dmLabel(t), active,
+      unread: !!room, count: room ? room.count : 0, flagged: room ? room.flagged : 0,
     });
   }
 
@@ -22193,19 +22200,23 @@ window.addEventListener('popstate', (e) => {
     const rooms = needsRoomsC3();
     const roomByKey = {};
     rooms.forEach(r => { roomByKey[r.key] = r; });
-    const lifted = (kindKey, id) => !!roomByKey[kindKey + ':' + id];
 
     const needsRows = rooms.filter(r => match(r.label));
     const homeRoom = rooms.find(r => r.targetKind === 'home');
 
+    // Directories list EVERYTHING. They used to hide whatever had been lifted into
+    // "Needs you", which made the department dots on a client row dead decoration —
+    // a client only sat here once it had nothing outstanding, so no dot could ever
+    // light. It also meant searching Clients for a busy client found nothing, which
+    // is the opposite of what a directory is for. "Needs you" is still the priority
+    // queue; these are the full lists, and each row now shows its own state.
     const starredClients = state.clients.filter(c => state.starredClientIds.has(c.id) && match(c.name));
-    const clientsRest = state.clients.filter(c => !lifted('client', c.id) && match(c.name));
-    const teamsRest = state.teamChannels.filter(t => !lifted('team', t.id) && match(t.name));
+    const clientsRest = state.clients.filter(c => match(c.name));
+    const teamsRest = state.teamChannels.filter(t => match(t.name));
     const groupThreads = state.dmThreads.filter(t => t.is_group);
-    const groupsRest = groupThreads.filter(t => !lifted('dm', t.id) && match(dmLabel(t)));
+    const groupsRest = groupThreads.filter(t => match(dmLabel(t)));
     const directRest = Object.values(state.profilesById)
       .filter(p => p.id !== myId())
-      .filter(p => { const t = existingDmThreadWith(p.id); return !(t && lifted('dm', t.id)); })
       .filter(p => match(p.display_name || p.full_name || p.email))
       .sort((a, b) => (a.display_name || a.full_name || a.email || '').localeCompare(b.display_name || b.full_name || b.email || ''));
 
@@ -22213,10 +22224,10 @@ window.addEventListener('popstate', (e) => {
       home:    { count: homeRoom ? homeRoom.count : 0, rows: '', empty: '' },
       needs:   { count: needsRows.length, rows: needsRows.length ? needsCardRowsHtml(needsRows) : '', empty: '' },
       starred: { count: starredClients.length, rows: starredClients.map(c => clientRowHtml(c, roomByKey['client:' + c.id])).join(''), empty: 'Star a client to keep it here' },
-      clients: { count: clientsRest.length, rows: clientsRest.map(c => clientRowHtml(c, null)).join(''), empty: q ? 'No clients match' : 'Every client has unread' },
-      teams:   { count: teamsRest.length, rows: teamsRest.map(teamRowHtml).join(''), empty: q ? 'No channels match' : 'Every channel has unread' },
-      direct:  { count: directRest.length, rows: directRest.map(directRowHtml).join(''), empty: q ? 'No people match' : 'Every DM has unread' },
-      groups:  { count: groupsRest.length, rows: groupsRest.map(groupRowHtml).join(''), empty: 'No group chats yet' },
+      clients: { count: clientsRest.length, rows: clientsRest.map(c => clientRowHtml(c, roomByKey['client:' + c.id])).join(''), empty: q ? 'No clients match' : 'No clients yet' },
+      teams:   { count: teamsRest.length, rows: teamsRest.map(t => teamRowHtml(t, roomByKey['team:' + t.id])).join(''), empty: q ? 'No channels match' : 'No channels yet' },
+      direct:  { count: directRest.length, rows: directRest.map(p => { const th = existingDmThreadWith(p.id); return directRowHtml(p, th ? roomByKey['dm:' + th.id] : null); }).join(''), empty: q ? 'No people match' : 'No teammates yet' },
+      groups:  { count: groupsRest.length, rows: groupsRest.map(t => groupRowHtml(t, roomByKey['dm:' + t.id])).join(''), empty: 'No group chats yet' },
     };
 
     return NAV_CARDS.map(card => {
@@ -23703,7 +23714,7 @@ Rules:
             ${!act.done ? `<div style="display:flex;align-items:center;gap:16px;margin-top:13px;padding-top:12px;border-top:1px solid #1f1f1f;flex-wrap:wrap;">
               <span ${jumpAttr} style="font-size:11.5px;font-weight:700;color:#d91f0f;cursor:pointer;">${isTask ? 'Open task' : 'Reply'}</span>
               ${isTask ? '' : `<span data-c3-inbox-make-task="${esc(i.key)}" style="font-size:11.5px;font-weight:700;cursor:pointer;color:${state.inboxTaskMade[i.key]?'#3ecf8e':'#6a6a6a'};">${state.inboxTaskMade[i.key]?'Task added':'Make task'}</span>`}
-              <span data-c3-inbox-save="${esc(i.key)}" style="font-size:11.5px;font-weight:700;cursor:pointer;color:${act.saved?'#d91f0f':'#6a6a6a'};">${act.saved?'★ Saved':'☆ Save'}</span>
+              <span data-c3-inbox-save="${esc(i.key)}" style="font-size:11.5px;font-weight:700;cursor:pointer;color:${act.saved?'#d91f0f':'#6a6a6a'};display:inline-flex;align-items:center;gap:5px;">${C3_ICON.star('currentColor', 12, act.saved ? 'currentColor' : null)}${act.saved?'Saved':'Save'}</span>
             </div>` : `<div style="display:flex;align-items:center;gap:12px;margin-top:13px;padding-top:12px;border-top:1px solid #1f1f1f;">
               <span style="font-size:11.5px;color:#3ecf8e;font-weight:600;">${isTask ? 'Cleared — the task is unaffected' : 'Cleared — the message stays in the thread'}</span>
               <span data-c3-inbox-done="${esc(i.key)}" style="font-size:11.5px;font-weight:700;color:#6a6a6a;cursor:pointer;margin-left:auto;">Undo</span>
