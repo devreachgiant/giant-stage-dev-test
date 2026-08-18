@@ -21023,6 +21023,10 @@ window.addEventListener('popstate', (e) => {
     threadSearchOpen: false,  // in-thread message search, toggled from the header
     threadSearchQuery: '',
     membersModalOpen: false,  // per-department access list for the open client
+    memberAddOpen: false,     // the "+ Add member" form inside that panel
+    memberAddId: '',          // profile being granted access
+    memberAddDepts: [],       // which of that client's departments they get
+    memberAdding: false,
     clientTasks: [],          // real `tasks` rows for the open client (Tasks tab)
     clientTasksLoading: false,
     clientTasksFor: null,     // which client clientTasks belongs to, guards stale loads
@@ -21066,6 +21070,12 @@ window.addEventListener('popstate', (e) => {
     vaultLoading: false,
     inboxLoading: false,
     inboxLoadedOnce: false,
+    markingAllRead: false,
+    // Message search runs against the server, not the loaded window, so it can
+    // reach conversations that are not open. Debounced from the same sidebar box.
+    msgResults: [],
+    msgSearching: false,
+    msgSearchedFor: '',
     inboxItems: [],
     inboxActions: {},        // message_id -> { done, saved, task_id }, from chat2_inbox_actions
     inboxFilter: 'all',      // all | mention | dms | teams | flagged | unread | task | saved | done
@@ -21206,6 +21216,142 @@ window.addEventListener('popstate', (e) => {
     const id = await ensureHomeThreadId();
     if (!id) return;
     openThread({ kind: 'home', id });
+  }
+
+  // Clears plain unread across every thread you belong to, in one write. Mentions
+  // and flags deliberately survive: those are owed replies, and silently wiping
+  // them would lose work rather than tidy a list. The button says "read", and read
+  // is exactly what it does.
+  async function markAllC3Read(){
+    if (state.markingAllRead) return;
+    state.markingAllRead = true; render();
+    const nowIso = new Date().toISOString();
+    const { data: mine, error: readErr } = await sb().from('chat2_thread_members')
+      .select('thread_id').eq('profile_id', myId());
+    if (readErr) {
+      state.markingAllRead = false; render();
+      if (typeof toast === 'function') toast({ type:'error', message:'Could not mark as read: ' + readErr.message });
+      return;
+    }
+    const rows = (mine || []).map(r => ({ thread_id: r.thread_id, profile_id: myId(), last_read_at: nowIso }));
+    if (rows.length) {
+      const { error } = await sb().from('chat2_thread_members')
+        .upsert(rows, { onConflict: 'thread_id,profile_id' });
+      if (error) {
+        state.markingAllRead = false; render();
+        if (typeof toast === 'function') toast({ type:'error', message:'Could not mark as read: ' + error.message });
+        return;
+      }
+      // Keep the in-memory copy in step so the sidebar dots clear without a reload.
+      state.threadMembers.forEach(tm => { if (tm.profile_id === myId()) tm.last_read_at = nowIso; });
+    }
+    state.markingAllRead = false;
+    await loadInboxItems();
+    const left = state.inboxItems.filter(i => !inboxAction(i.key).done).length;
+    if (typeof toast === 'function') {
+      toast({ type:'success', message: left
+        ? `Marked as read. ${left} mention${left === 1 ? '' : 's'}/flag${left === 1 ? '' : 's'} still need a reply.`
+        : 'Marked as read — nothing left waiting.' });
+    }
+  }
+
+  // ── Message search ─────────────────────────────────────────────────────────
+  // The sidebar box searches names locally AND message bodies on the server, so a
+  // half-remembered phrase finds the thread it was said in — not just threads
+  // whose name happens to contain it. RLS decides what comes back, so this can
+  // only ever return messages the user was already allowed to read.
+  let _msgSearchTimer = null;
+  let _msgSearchSeq = 0;
+  function scheduleMessageSearch(){
+    clearTimeout(_msgSearchTimer);
+    const q = state.searchQuery.trim();
+    if (q.length < 2) {
+      state.msgResults = []; state.msgSearching = false; state.msgSearchedFor = '';
+      return;
+    }
+    state.msgSearching = true;
+    _msgSearchTimer = setTimeout(() => runMessageSearch(q), 280);
+  }
+  async function runMessageSearch(q){
+    const seq = ++_msgSearchSeq;
+    // PostgREST ilike: escape the wildcards so a literal % or _ searches for itself.
+    const pattern = '%' + q.replace(/[%_\\]/g, m => '\\' + m) + '%';
+    const { data, error } = await sb().from('chat2_messages')
+      .select('id, body, created_at, author_id, thread_id, thread:chat2_threads(id, name, client_id, department, kind, is_group)')
+      .ilike('body', pattern)
+      .order('created_at', { ascending: false })
+      .limit(40);
+    if (seq !== _msgSearchSeq) return; // a newer keystroke already won
+    state.msgSearching = false;
+    state.msgSearchedFor = q;
+    state.msgResults = (data && !error) ? data : [];
+    render();
+  }
+  // Where a message lives, in the words the sidebar uses for the same room.
+  function msgResultLabel(m){
+    const t = m.thread;
+    if (!t) return { label: 'Conversation', sub: '', open: null };
+    if (t.kind === 'client_dept') {
+      const c = state.clients.find(x => x.id === t.client_id);
+      const d = DEPTS.find(x => x.key === t.department);
+      return { label: c ? c.name : 'Client', sub: d ? d.label : (t.department || ''),
+               open: { kind:'client', id: t.client_id, dept: t.department } };
+    }
+    if (t.kind === 'team_channel') return { label: '#' + (t.name || 'channel'), sub: 'Team channel', open: { kind:'team_channel', id: t.id } };
+    if (t.kind === 'home') return { label: 'ReachGiant Home', sub: 'Announcements', open: { kind:'home', id: t.id } };
+    const dm = state.dmThreads.find(x => x.id === t.id);
+    return { label: dm ? dmLabel(dm) : 'Direct message', sub: t.is_group ? 'Group message' : 'Direct message',
+             open: { kind:'dm', id: t.id } };
+  }
+  // Escape first, then wrap the match — never the other way round, or a message
+  // containing markup would inject it.
+  function highlightMatch(text, q){
+    const safe = esc(String(text || ''));
+    const needle = String(q || '').trim();
+    if (!needle) return safe;
+    const rx = new RegExp('(' + needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
+    return safe.replace(rx, '<mark style="background:rgba(232,168,62,0.28);color:#ffd899;border-radius:3px;padding:0 2px;">$1</mark>');
+  }
+  // A window around the first hit, so the match is visible without reading a wall.
+  function snippetAround(body, q, width){
+    const text = String(body || '').replace(/\s+/g, ' ').trim();
+    const w = width || 130;
+    const i = text.toLowerCase().indexOf(String(q || '').toLowerCase());
+    if (i < 0) return text.slice(0, w) + (text.length > w ? '…' : '');
+    const start = Math.max(0, i - Math.floor(w / 3));
+    const end = Math.min(text.length, start + w);
+    return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
+  }
+  function messageResultsHtml(){
+    const q = state.searchQuery.trim();
+    if (q.length < 2) return '';
+    if (state.msgSearching) {
+      return `<div style="padding:10px 8px;font-size:11.5px;color:#6a6a6a;">Searching messages…</div>`;
+    }
+    if (!state.msgResults.length) {
+      return state.msgSearchedFor === q
+        ? `<div style="padding:10px 8px;font-size:11.5px;color:#5a5a5a;">No messages contain &ldquo;${esc(q)}&rdquo;.</div>`
+        : '';
+    }
+    return `<div style="margin-top:4px;">
+      <div style="display:flex;align-items:center;gap:7px;padding:8px 8px 6px;">
+        <span style="font-size:10px;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;color:#6a6a6a;">In messages</span>
+        <span style="font-size:10px;font-weight:700;color:#6a6a6a;background:rgba(255,255,255,0.05);border-radius:7px;padding:2px 7px;">${state.msgResults.length}${state.msgResults.length === 40 ? '+' : ''}</span>
+      </div>
+      ${state.msgResults.map(m => {
+        const w = msgResultLabel(m);
+        if (!w.open) return '';
+        return `<div data-c3-msg-hit="${esc(m.thread_id)}::${esc(m.id)}::${esc(w.open.kind)}::${esc(w.open.id)}::${esc(w.open.dept || '')}" style="padding:8px 10px;border-radius:9px;cursor:pointer;margin-bottom:2px;background:#141414;border:1px solid #1f1f1f;">
+          <div style="display:flex;align-items:baseline;gap:7px;">
+            <span style="font-size:11.5px;font-weight:700;color:#e0e0e0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(w.label)}</span>
+            ${w.sub ? `<span style="font-size:10.5px;color:#6a6a6a;white-space:nowrap;">${esc(w.sub)}</span>` : ''}
+            <span style="margin-left:auto;font-size:10px;color:#5a5a5a;flex-shrink:0;">${esc(fmtAgeC3(m.created_at))}</span>
+          </div>
+          <div style="font-size:11.5px;color:#9a9a9a;margin-top:3px;line-height:1.45;">${highlightMatch(snippetAround(m.body, q), q)}</div>
+          <div style="font-size:10.5px;color:#5a5a5a;margin-top:3px;">${esc(profileName(m.author_id))}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
   }
 
   // ── Remembering where you were ─────────────────────────────────────────────
@@ -22468,16 +22614,93 @@ window.addEventListener('popstate', (e) => {
         <div style="flex:1;min-height:0;overflow-y:auto;padding:6px 18px 14px;">
           ${members.length ? members.map(row).join('') : `<div style="text-align:center;color:#5a5a5a;font-size:12.5px;padding:34px 0;">No members recorded on this thread yet.</div>`}
         </div>
-        <div style="padding:11px 18px;border-top:1px solid #242424;flex-shrink:0;font-size:11px;color:#6a6a6a;line-height:1.5;">
-          ${isClient
-            ? 'Access is granted per department and enforced on the server. Change it from the client record — this list only reports it.'
-            : 'Private channels are visible to added members only, enforced on the server.'}
+        ${isClient && state.memberAddOpen ? memberAddFormHtml() : ''}
+        <div style="padding:11px 18px;border-top:1px solid #242424;flex-shrink:0;display:flex;align-items:center;gap:10px;">
+          <div style="flex:1;min-width:0;font-size:11px;color:#6a6a6a;line-height:1.5;">
+            ${isClient
+              ? 'Access is granted per department and enforced on the server — this panel only asks for it.'
+              : 'Private channels are visible to added members only, enforced on the server.'}
+          </div>
+          ${isClient && isManagerOrOwner() && !state.memberAddOpen
+            ? `<div data-c3-member-add-open="1" style="display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;background:var(--red);color:#fff;white-space:nowrap;flex-shrink:0;">+ Add member</div>`
+            : ''}
         </div>
       </div>
     </div>`;
   }
 
   // ── Tasks tab — the real `tasks` rows for this client, not a chat-local copy ──
+  // Granting access to a client's departments. Only managers and owners see this,
+  // and only because the server says so — chat2_thread_members writes are gated by
+  // is_manager_or_owner(), so a non-manager who forced this open would simply be
+  // refused. The UI matches the rule rather than being the rule.
+  function memberAddFormHtml(){
+    const existing = new Set(state.threadMembers.map(tm => tm.profile_id));
+    const people = Object.values(state.profilesById)
+      .filter(p => p.id !== myId() && !existing.has(p.id))
+      .sort((a, b) => (a.display_name || a.email || '').localeCompare(b.display_name || b.email || ''));
+    const inputStyle = 'width:100%;box-sizing:border-box;background:#0f0f0f;border:1px solid #2a2a2a;border-radius:9px;padding:9px 11px;color:#fff;font-size:12.5px;font-family:inherit;outline:none;';
+    return `<div style="padding:14px 18px;border-top:1px solid #242424;flex-shrink:0;display:flex;flex-direction:column;gap:10px;background:#131313;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="font-size:12.5px;font-weight:800;color:#fff;">Add member</div>
+        <span data-c3-member-add-close="1" style="margin-left:auto;font-size:11.5px;font-weight:600;color:#7a7a7a;cursor:pointer;">Cancel</span>
+      </div>
+      ${people.length ? `
+        <select id="c3MemberAddWho" style="${inputStyle}cursor:pointer;">
+          <option value=""${state.memberAddId ? '' : ' selected'}>Choose someone…</option>
+          ${people.map(p => `<option value="${esc(p.id)}"${state.memberAddId === p.id ? ' selected' : ''}>${esc(p.display_name || p.full_name || p.email || 'Someone')}</option>`).join('')}
+        </select>
+        <div>
+          <div style="font-size:10.5px;font-weight:800;letter-spacing:0.05em;text-transform:uppercase;color:#6a6a6a;margin-bottom:6px;">Which departments?</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            ${DEPTS.map(d => {
+              const on = state.memberAddDepts.includes(d.key);
+              return `<div data-c3-member-add-dept="${d.key}" style="display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:8px;cursor:pointer;border:1px solid ${on ? d.color : '#262626'};background:${on ? d.color + '1a' : 'transparent'};">
+                <span style="width:6px;height:6px;border-radius:50%;background:${d.color};flex-shrink:0;"></span>
+                <span style="font-size:11.5px;color:${on ? '#fff' : '#8a8a8a'};">${esc(d.label)}</span>
+                ${on ? C3_ICON.check(d.color, 11) : ''}
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:11px;color:#6a6a6a;">They will see every message in the departments you tick.</span>
+          <div data-c3-member-add-save="1" style="margin-left:auto;display:inline-flex;align-items:center;padding:9px 15px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:${state.memberAdding ? 'default' : 'pointer'};background:${state.memberAdding ? '#3a3a3a' : 'var(--red)'};color:#fff;white-space:nowrap;">${state.memberAdding ? 'Adding…' : 'Give access'}</div>
+        </div>`
+      : `<div style="font-size:12px;color:#6a6a6a;">Everyone already has access to this thread.</div>`}
+    </div>`;
+  }
+
+  async function addClientMember(){
+    if (state.memberAdding) return;
+    if (!state.memberAddId) { if (typeof toast === 'function') toast({ type:'error', message:'Choose who to add first.' }); return; }
+    if (!state.memberAddDepts.length) { if (typeof toast === 'function') toast({ type:'error', message:'Tick at least one department.' }); return; }
+    state.memberAdding = true; render();
+    let granted = 0;
+    const failed = [];
+    for (const dept of state.memberAddDepts) {
+      // The thread may not exist yet for a department nobody has posted in.
+      const threadId = await ensureClientDeptThread(state.selectedId, dept);
+      if (!threadId) { failed.push(dept); continue; }
+      const { error } = await sb().from('chat2_thread_members')
+        .upsert({ thread_id: threadId, profile_id: state.memberAddId }, { onConflict: 'thread_id,profile_id' });
+      if (error) failed.push(dept); else granted++;
+      // Keep the open panel honest for the department currently in view.
+      if (!error && threadId === state.activeThreadId && !state.threadMembers.some(tm => tm.profile_id === state.memberAddId)) {
+        state.threadMembers.push({ thread_id: threadId, profile_id: state.memberAddId, last_read_at: null });
+      }
+    }
+    state.memberAdding = false;
+    const who = profileName(state.memberAddId);
+    if (granted) { state.memberAddOpen = false; state.memberAddId = ''; state.memberAddDepts = []; }
+    render();
+    if (typeof toast === 'function') {
+      if (!granted) toast({ type:'error', message: `Could not give ${who} access — you may not have permission.` });
+      else if (failed.length) toast({ type:'error', message: `${who} added to ${granted}, but ${failed.length} failed.` });
+      else toast({ type:'success', message: `${who} can now see ${granted} department${granted === 1 ? '' : 's'}.` });
+    }
+  }
+
   // ══ Tasks tab — the real `tasks` rows for this client, plus its time ═════════
   // Everything here reads existing tables: tasks (department, priority, assigned_to)
   // and time_sessions (duration_seconds, running status), both already client-keyed.
@@ -24049,6 +24272,18 @@ Rules:
   // Reuses the real chat's .msg / .msg-react-bar CSS classes (already globally
   // defined) so the hover-to-reveal action bar matches old Chat & Huddles exactly,
   // instead of inventing a second visual language for it.
+  // Filtering to matching messages tells you which ones; highlighting tells you
+  // where. Applied after renderC3Body so the existing formatting still runs, and
+  // only inside text nodes so a match inside a tag or URL cannot break the markup.
+  function c3BodyWithSearch(body){
+    const html = renderC3Body(body);
+    const q = state.threadSearchOpen ? state.threadSearchQuery.trim() : '';
+    if (!q) return html;
+    const rx = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ')', 'ig');
+    return html.replace(/>([^<]+)</g, (whole, text) =>
+      '>' + text.replace(rx, '<mark style="background:rgba(232,168,62,0.28);color:#ffd899;border-radius:3px;padding:0 2px;">$1</mark>') + '<');
+  }
+
   function msgRowHtml(m, opts){
     opts = opts || {};
     const compact = !!opts.compact;
@@ -24094,7 +24329,7 @@ Rules:
               <div data-c3-edit-save="1" style="font-size:11.5px;font-weight:700;background:#d91f0f;color:#fff;padding:5px 12px;border-radius:7px;cursor:pointer;">Save</div>
             </div>
           </div>
-        ` : (huddleSystemCardHtml(m) || `${m.body ? `<div data-c3-msg-text="${esc(m.id)}" style="font-size:13px;color:#e0e0e0;margin-top:2px;line-height:1.5;white-space:pre-wrap;" title="${mine?'Double-click to edit':''}">${renderC3Body(m.body)}</div>` : ''}${c3LinkPreviewHtml(m.body)}${c3AttachmentsRenderHtml(m.attachments)}`)}
+        ` : (huddleSystemCardHtml(m) || `${m.body ? `<div data-c3-msg-text="${esc(m.id)}" style="font-size:13px;color:#e0e0e0;margin-top:2px;line-height:1.5;white-space:pre-wrap;" title="${mine?'Double-click to edit':''}">${c3BodyWithSearch(m.body)}</div>` : ''}${c3LinkPreviewHtml(m.body)}${c3AttachmentsRenderHtml(m.attachments)}`)}
         ${reactionPills}
         ${showReplyToggle ? `<div data-c3-thread-open="${esc(m.id)}" style="font-size:12px;font-weight:700;color:#c99c6c;margin-top:6px;cursor:pointer;display:inline-block;">${replyCount?`${replyCount} ${replyCount===1?'reply':'replies'}`:'Reply in thread'}</div>` : ''}
         ${readLabel ? `<div style="font-size:10.5px;color:#5a5a5a;margin-top:4px;">✓ ${esc(readLabel)}</div>` : ''}
@@ -24233,11 +24468,23 @@ Rules:
       // inboxAction is keyed on i.key ('msg:<id>' / 'task:<id>'), not i.id — the old
       // i.id lookup here always missed, so this count never dropped as items cleared.
       const openCount = state.inboxItems.filter(i => !inboxAction(i.key).done).length;
+      // Only plain unread can be cleared by marking read. Mentions and flags are
+      // owed, not merely unseen, so the button hides when there is nothing it
+      // would actually change rather than pretending to do something.
+      const unreadCount = state.inboxItems.filter(i => i.notifKind === 'unread' && !inboxAction(i.key).done).length;
       return `
         <div style="flex:1;display:flex;flex-direction:column;min-width:0;height:100%;min-height:0;">
-          <div style="padding:16px 22px;border-bottom:1px solid #2a2a2a;flex-shrink:0;">
-            <div style="font-size:20px;font-weight:800;letter-spacing:-0.02em;color:#fff;">Needs you</div>
-            <div style="font-size:12px;color:#9a9a9a;margin-top:2px;">${state.inboxLoading ? 'Loading…' : openCount ? `${openCount} to do — reply, then tick it off` : "You're all caught up"}</div>
+          <div style="padding:16px 22px;border-bottom:1px solid #2a2a2a;flex-shrink:0;display:flex;align-items:flex-start;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:20px;font-weight:800;letter-spacing:-0.02em;color:#fff;">Needs you</div>
+              <div style="font-size:12px;color:#9a9a9a;margin-top:2px;">${state.inboxLoading ? 'Loading…' : openCount ? `${openCount} to do — reply, then tick it off` : "You're all caught up"}</div>
+              <!-- Ticking an item off is a per-user bookkeeping flag, not a delete.
+                   Saying so is the difference between confidently clearing a queue
+                   and being afraid to touch it. -->
+              <div style="font-size:11px;color:#6a6a6a;margin-top:6px;">Clearing an item only takes it off your list — the message itself is never deleted.</div>
+            </div>
+            ${unreadCount ? `<div data-c3-mark-all-read="1" title="Marks every thread you're in as read" style="display:flex;align-items:center;gap:6px;padding:7px 13px;border-radius:9px;font-size:12px;font-weight:700;cursor:${state.markingAllRead ? 'default' : 'pointer'};background:#1a1a1a;border:1px solid #2a2a2a;color:${state.markingAllRead ? '#6a6a6a' : '#e0e0e0'};white-space:nowrap;flex-shrink:0;">
+              ${state.markingAllRead ? 'Marking…' : `${C3_ICON.check('currentColor', 12)} Mark all as read`}</div>` : ''}
           </div>
           <div style="flex:1;min-height:0;overflow-y:auto;">${inboxTabHtml()}</div>
         </div>
@@ -24319,6 +24566,7 @@ Rules:
           <input id="c3SearchInput" value="${esc(state.searchQuery)}" placeholder="${esc(c3SearchPlaceholder())}" style="flex:1;min-width:0;background:transparent;border:none;outline:none;color:#fff;font-size:12.5px;font-family:inherit;">
         </div>
         ${navSidebarHtml()}
+        ${state.searchQuery.trim().length >= 2 ? `<div style="flex-shrink:0;max-height:46%;overflow-y:auto;margin-top:6px;">${messageResultsHtml()}</div>` : ''}
       </div>
       <div style="flex:1;display:flex;flex-direction:row;min-width:0;height:100%;min-height:0;">${threadColumnHtml()}</div>
       ${newGroupModalHtml()}
@@ -24380,7 +24628,22 @@ Rules:
 
   function wireContent(host){
     const searchEl = host.querySelector('#c3SearchInput');
-    if (searchEl) { searchEl.addEventListener('input', (e) => { state.searchQuery = e.target.value; render(); }); }
+    if (searchEl) {
+      searchEl.addEventListener('input', (e) => { state.searchQuery = e.target.value; scheduleMessageSearch(); render(); });
+      // render() rebuilds the input, so restore focus and caret or typing drops
+      // every character after the first.
+      if (document.activeElement !== searchEl && state.searchQuery) {
+        searchEl.focus(); searchEl.selectionStart = searchEl.selectionEnd = searchEl.value.length;
+      }
+    }
+    // Clicking a hit opens the room it was said in and jumps to the message.
+    // jumpToC3Message opens the room, pages back until the message is actually
+    // loaded, and highlights it — a search hit is worthless if it lands you at the
+    // bottom of a thread from three months ago.
+    host.querySelectorAll('[data-c3-msg-hit]').forEach(el => el.addEventListener('click', () => {
+      const [threadId, msgId, kind, id, dept] = el.dataset.c3MsgHit.split('::');
+      jumpToC3Message(kind, id, dept || null, threadId, msgId);
+    }));
     // Card heads: exactly one open at a time. "Needs you" and Home also drive the
     // content column, because opening either is always a request to look at it.
     host.querySelectorAll('[data-c3-card]').forEach(el => el.addEventListener('click', () => {
@@ -24470,7 +24733,22 @@ Rules:
       if (input) input.focus();
     }));
     host.querySelectorAll('[data-c3-members-open]').forEach(el => el.addEventListener('click', () => { state.membersModalOpen = true; render(); }));
-    host.querySelectorAll('[data-c3-members-close]').forEach(el => el.addEventListener('click', () => { state.membersModalOpen = false; render(); }));
+    host.querySelectorAll('[data-c3-members-close]').forEach(el => el.addEventListener('click', () => {
+      state.membersModalOpen = false; state.memberAddOpen = false; render();
+    }));
+    host.querySelectorAll('[data-c3-member-add-open]').forEach(el => el.addEventListener('click', () => {
+      state.memberAddOpen = true; state.memberAddId = ''; state.memberAddDepts = []; render();
+    }));
+    host.querySelectorAll('[data-c3-member-add-close]').forEach(el => el.addEventListener('click', () => { state.memberAddOpen = false; render(); }));
+    host.querySelectorAll('[data-c3-member-add-dept]').forEach(el => el.addEventListener('click', () => {
+      const k = el.dataset.c3MemberAddDept;
+      state.memberAddDepts = state.memberAddDepts.includes(k)
+        ? state.memberAddDepts.filter(x => x !== k) : state.memberAddDepts.concat(k);
+      render();
+    }));
+    host.querySelectorAll('[data-c3-member-add-save]').forEach(el => el.addEventListener('click', () => addClientMember()));
+    const memberWho = host.querySelector('#c3MemberAddWho');
+    if (memberWho) memberWho.addEventListener('change', (e) => { state.memberAddId = e.target.value; render(); });
     host.querySelectorAll('[data-c3-stop]').forEach(el => el.addEventListener('click', (e) => e.stopPropagation()));
     host.querySelectorAll('[data-c3-go-client]').forEach(el => el.addEventListener('click', () => {
       if (state.selectedKind === 'client' && state.selectedId && typeof openClientHub === 'function') openClientHub(state.selectedId);
@@ -24613,6 +24891,7 @@ Rules:
     }));
 
     // ── Magnus tab ──
+    host.querySelectorAll('[data-c3-mark-all-read]').forEach(el => el.addEventListener('click', () => markAllC3Read()));
     host.querySelectorAll('[data-c3-magnus-scope]').forEach(el => el.addEventListener('click', () => {
       const next = el.dataset.c3MagnusScope;
       if (next === state.magnusScope) return;
