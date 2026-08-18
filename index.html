@@ -21047,7 +21047,9 @@ window.addEventListener('popstate', (e) => {
     mgmtTab: 'overview',        // overview | members | onboarding | billing | activity
     clientAccess: [],           // chat2_client_access rows
     clientRow: null,            // the clients row (mrr, onboarding_*, archived)
-    mgmtActivity: [],           // derived feed, newest first
+    mgmtActivity: [],           // the real audit rows, newest first
+    mgmtActivityInferred: [],   // fallback for clients with no logged history yet
+    mgmtActivityError: null,
     mgmtLoading: false,
     mgmtFor: null,
     mgmtShowAnswers: false,
@@ -21572,6 +21574,7 @@ window.addEventListener('popstate', (e) => {
     stopTypingBroadcast();
     const { data, error } = await sb().from('chat2_messages').insert({ thread_id: threadId, author_id: myId(), body, attachments }).select('id, author_id, body, attachments, created_at, edited_at, pinned, flagged, parent_id').single();
     if (error) { if (typeof toast === 'function') toast({ type:'error', message: 'Could not send: ' + error.message }); return; }
+    logC3Activity('message', `posted in ${deptLabelOf(state.selectedDept) || 'the thread'}`, { detail: body, targetType:'message', targetId: data && data.id });
     data.reactions = [];
     if (state.activeThreadId === threadId) {
       state.threadMessages.push(data);
@@ -22702,7 +22705,12 @@ window.addEventListener('popstate', (e) => {
     }
     state.memberAdding = false;
     const who = profileName(state.memberAddId);
-    if (granted) { state.memberAddOpen = false; state.memberAddId = ''; state.memberAddDepts = []; }
+    if (granted) {
+      logC3Activity('member_added', `gave ${who} access`, {
+        detail: state.memberAddDepts.map(deptLabelOf).join(', '), department: null,
+        targetType:'profile', targetId: state.memberAddId });
+      state.memberAddOpen = false; state.memberAddId = ''; state.memberAddDepts = [];
+    }
     render();
     if (typeof toast === 'function') {
       if (!granted) toast({ type:'error', message: `Could not give ${who} access — you may not have permission.` });
@@ -22916,6 +22924,7 @@ window.addEventListener('popstate', (e) => {
       return;
     }
     state.clientTasks.unshift(data);
+    logC3Activity('task_added', 'added a task', { detail: data.name, targetType:'task', targetId: data.id });
     state.taskAdding = false; state.taskDraft = null;
     render();
   }
@@ -22961,10 +22970,61 @@ window.addEventListener('popstate', (e) => {
       ? { status: 'done', completed_at: new Date().toISOString(), completed_by: myId() }
       : { status: 'todo', completed_at: null, completed_by: null };
     const { error } = await sb().from('tasks').update(patch).eq('id', taskId);
+    if (!error && t.status === 'done') logC3Activity('task_done', 'completed a task', { detail: t.name, targetType:'task', targetId: taskId });
     if (error) {
       t.status = was; render();
       if (typeof toast === 'function') toast({ type:'error', message:'Could not update task: ' + error.message });
     }
+  }
+
+  // ── Audit trail ────────────────────────────────────────────────────────────
+  // Append-only. Every call is fire-and-forget and swallows its own errors: an
+  // audit write must never break, block or roll back the thing it is recording.
+  // A missing audit row is a gap; a failed message send because logging fell over
+  // is a bug the user pays for.
+  //
+  // actor_name is denormalised alongside actor_id so a deleted profile leaves a
+  // readable row instead of an anonymous one.
+  function logC3Activity(kind, summary, opts){
+    const o = opts || {};
+    const clientId = o.clientId || (state.selectedKind === 'client' ? state.selectedId : null);
+    if (!clientId || !kind || !summary) return;
+    try {
+      sb().from('chat2_client_activity').insert({
+        client_id: clientId,
+        actor_id: myId(),
+        actor_name: state.myName || profileName(myId()),
+        kind,
+        summary,
+        detail: o.detail ? String(o.detail).slice(0, 300) : null,
+        department: o.department !== undefined ? o.department : (state.selectedDept || null),
+        target_type: o.targetType || null,
+        target_id: o.targetId ? String(o.targetId) : null,
+      }).then(() => {}, () => {});
+    } catch (_) { /* never let bookkeeping break the action it describes */ }
+  }
+  const deptLabelOf = (k) => { const d = DEPTS.find(x => x.key === k); return d ? d.label : (k || ''); };
+
+  // A view is the one event with no artefact behind it — nothing in the database
+  // changes when someone reads the vault, so if it is not recorded here it is not
+  // recorded anywhere. Deduped per client+panel per session so opening a tab twice
+  // does not fill the trail with noise.
+  const _viewLogged = new Set();
+  function logC3View(panel){
+    if (state.selectedKind !== 'client' || !state.selectedId) return;
+    const key = state.selectedId + ':' + panel;
+    if (_viewLogged.has(key)) return;
+    _viewLogged.add(key);
+    logC3Activity('vault_view', `opened ${panel}`, { targetType: 'panel', targetId: panel });
+  }
+
+  async function loadC3Activity(clientId){
+    const { data, error } = await sb().from('chat2_client_activity')
+      .select('id, actor_id, actor_name, kind, summary, detail, department, created_at')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false })
+      .limit(80);
+    return { rows: data || [], error: error ? error.message : null };
   }
 
   // ══ Management — five sub-tabs over what we already store ═══════════════════
@@ -23005,7 +23065,14 @@ window.addEventListener('popstate', (e) => {
     state.clientAccess = accessRes.data || [];
     state.clientRow = clientRes && clientRes.data ? clientRes.data : null;
     if (accessRes.error) state.mgmtFor = null; // let the next visit retry
-    state.mgmtActivity = buildMgmtActivity();
+    // The inferred set is only ever a fallback for clients whose history predates
+    // the audit table — it is never mixed into the real trail.
+    state.mgmtActivityInferred = buildMgmtActivity();
+    render();
+    const act = await loadC3Activity(clientId);
+    if (state.mgmtFor !== clientId) return;
+    state.mgmtActivity = act.rows;
+    state.mgmtActivityError = act.error;
     render();
   }
 
@@ -23155,20 +23222,46 @@ window.addEventListener('popstate', (e) => {
     </div>`;
   }
 
+  const ACT_COLOR = {
+    message:'#5aa8d6', file_upload:'#e8a83e', vault_add:'#a78bfa', vault_view:'#6a6a6a',
+    vault_reveal:'#f0705f', task_done:'#3ecf8e', task_added:'#3ecf8e',
+    member_added:'#c084fc', access_changed:'#22d3ee', onboarding:'#e8a83e', other:'#7a7a7a',
+  };
+  function actRowHtml(r){
+    const color = ACT_COLOR[r.kind] || ACT_COLOR.other;
+    const when = r.when || r.created_at;
+    const who = r.who || r.actor_name || (r.actor_id ? profileName(r.actor_id) : 'Someone');
+    const what = r.what || r.summary || '';
+    return `<div style="display:flex;gap:10px;padding:9px 0;border-top:1px solid #1f1f1f;">
+      <span style="width:7px;height:7px;border-radius:50%;background:${color};flex-shrink:0;margin-top:5px;"></span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12.5px;color:#e0e0e0;"><span style="font-weight:700;">${esc(who)}</span> ${esc(what)}${r.department ? ` <span style="color:#6a6a6a;">· ${esc(deptLabelOf(r.department))}</span>` : ''}</div>
+        ${r.detail ? `<div style="font-size:11.5px;color:#7a7a7a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.detail)}</div>` : ''}
+      </div>
+      <span style="font-size:10.5px;color:#5a5a5a;flex-shrink:0;white-space:nowrap;">${esc(when ? new Date(when).toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '')}</span>
+    </div>`;
+  }
   function mgmtActivityHtml(){
-    const rows = state.mgmtActivity;
-    if (!rows.length) return `<div style="text-align:center;color:#5a5a5a;font-size:12.5px;padding:40px 0;">Nothing recorded yet.</div>`;
+    if (state.mgmtActivityError) {
+      return `<div style="color:#f0705f;font-size:12.5px;padding:24px 0;">Could not load the audit trail: ${esc(state.mgmtActivityError)}</div>`;
+    }
+    const real = state.mgmtActivity;
+    if (real.length) {
+      return `<div style="display:flex;flex-direction:column;gap:14px;">
+        ${mgmtCard('Audit trail', `${real.length}${real.length === 80 ? '+' : ''} event${real.length === 1 ? '' : 's'}`,
+          real.map(actRowHtml).join('')
+          + `<div style="font-size:11px;color:#5a5a5a;margin-top:10px;">Recorded as it happens and never edited — including who opened the Vault or revealed a password.</div>`)}
+      </div>`;
+    }
+    // Nothing logged for this client yet. Rather than an empty panel, show what can
+    // be inferred — labelled as inference, so it is never mistaken for the trail.
+    const inferred = state.mgmtActivityInferred;
     return `<div style="display:flex;flex-direction:column;gap:14px;">
-      ${mgmtCard('Recent activity', `${rows.length} event${rows.length === 1 ? '' : 's'}`,
-        rows.map(r => `<div style="display:flex;gap:10px;padding:9px 0;border-top:1px solid #1f1f1f;">
-          <span style="width:7px;height:7px;border-radius:50%;background:${r.color};flex-shrink:0;margin-top:5px;"></span>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:12.5px;color:#e0e0e0;"><span style="font-weight:700;">${esc(r.who)}</span> ${esc(r.what)}</div>
-            ${r.detail ? `<div style="font-size:11.5px;color:#7a7a7a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.detail)}</div>` : ''}
-          </div>
-          <span style="font-size:10.5px;color:#5a5a5a;flex-shrink:0;white-space:nowrap;">${esc(new Date(r.when).toLocaleDateString())}</span>
-        </div>`).join('')
-        + `<div style="font-size:11px;color:#5a5a5a;margin-top:10px;">Assembled from this thread, tasks, the vault and onboarding — there is no separate audit log yet, so this is a partial view.</div>`)}
+      ${mgmtCard('Audit trail', 'Nothing recorded yet',
+        `<div style="font-size:12.5px;color:#9a9a9a;line-height:1.6;">The trail starts from the first action taken here. Views, password reveals and access changes are recorded as they happen.</div>`)}
+      ${inferred.length ? mgmtCard('Before that', `${inferred.length} event${inferred.length === 1 ? '' : 's'}, inferred`,
+        inferred.map(actRowHtml).join('')
+        + `<div style="font-size:11px;color:#5a5a5a;margin-top:10px;">Reconstructed from messages, tasks and the vault — not an audit record, and it cannot show who read anything.</div>`) : ''}
     </div>`;
   }
 
@@ -23181,6 +23274,10 @@ window.addEventListener('popstate', (e) => {
     render();
     const { error } = await sb().from('chat2_client_access')
       .upsert({ client_id: state.selectedId, service_key: serviceKey, status: next, updated_by: myId() }, { onConflict: 'client_id,service_key' });
+    if (!error) {
+      const item = ACCESS_ITEMS.find(a => a.key === serviceKey);
+      logC3Activity('access_changed', `marked ${item ? item.label : serviceKey} ${next === 'none' ? 'not set up' : next}`, { department: null, targetType:'access', targetId: serviceKey });
+    }
     if (error) {
       const back = state.clientAccess.find(a => a.service_key === serviceKey);
       if (back) back.status = current;
@@ -23642,6 +23739,8 @@ Rules:
     if (state.libRevealed[itemId]) { delete state.libRevealed[itemId]; render(); return; }
     try {
       state.libRevealed[itemId] = await libReveal(itemId);
+      const it = state.libraryItems.find(x => x.id === itemId);
+      logC3Activity('vault_reveal', 'revealed a saved password', { detail: it ? it.title : '', targetType:'vault_item', targetId: itemId });
       render();
     } catch (e) {
       if (typeof toast === 'function') toast({ type:'error', message: e.message });
@@ -23652,6 +23751,8 @@ Rules:
   async function copyLibSecret(itemId){
     try {
       const plain = state.libRevealed[itemId] || await libReveal(itemId);
+      const it = state.libraryItems.find(x => x.id === itemId);
+      logC3Activity('vault_reveal', 'copied a saved password', { detail: it ? it.title : '', targetType:'vault_item', targetId: itemId });
       await navigator.clipboard.writeText(plain);
       if (typeof toast === 'function') toast({ type:'success', message:'Password copied' });
     } catch (e) {
@@ -23762,6 +23863,7 @@ Rules:
         .single();
       if (error) throw new Error(error.message);
       state.libraryItems.unshift(data);
+      logC3Activity('vault_add', `saved a ${d.kind} to the vault`, { detail: row.title, targetType:'vault_item', targetId: data.id });
       state.libAddOpen = false; state.libDraft = null;
     } catch (e) {
       if (typeof toast === 'function') toast({ type:'error', message:'Could not save: ' + e.message });
@@ -24067,6 +24169,7 @@ Rules:
       }).select('id, kind, title, section, url, username, body, twofa, password_entry_id, file_url, file_name, file_size, mime_type, pinned, created_by, created_at').single();
       if (error) throw new Error(error.message);
       state.libraryItems.unshift(data);
+      logC3Activity('file_upload', 'uploaded a file', { detail: file.name, targetType:'file', targetId: data.id });
     } catch (e) {
       if (typeof toast === 'function') toast({ type:'error', message:'Upload failed: ' + e.message });
     }
@@ -24899,11 +25002,11 @@ Rules:
       // Each tool tab lazy-loads its own data the first time you land on it, so
       // opening a thread never pays for panels you don't look at.
       if (state.selectedSubTab === 'vault') {
-        if (state.selectedKind === 'client') loadClientLibrary(state.selectedId);
+        if (state.selectedKind === 'client') { loadClientLibrary(state.selectedId); logC3View('the Vault'); }
         else if (state.vaultThreadId !== state.activeThreadId) loadVaultCards(state.activeThreadId);
       }
       // Media shows the uploaded half from the same library, so it needs it loaded.
-      if (state.selectedSubTab === 'media' && state.selectedKind === 'client') loadClientLibrary(state.selectedId);
+      if (state.selectedSubTab === 'media' && state.selectedKind === 'client') { loadClientLibrary(state.selectedId); logC3View('Media'); }
       if (state.selectedSubTab === 'tasks' && state.selectedKind === 'client') loadClientTasks(state.selectedId);
       if (state.selectedSubTab === 'management' && state.selectedKind === 'client') {
         loadClientServices(state.selectedId);
