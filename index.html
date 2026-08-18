@@ -21035,9 +21035,10 @@ window.addEventListener('popstate', (e) => {
     clientServicesFor: null,
     clientServicesLoading: false,
     magnusDraft: '',
-    magnusMessages: [],      // [{role,content}] — the Magnus exchange for this client
+    magnusMessages: [],      // [{role,content,sources?}] — the Magnus exchange
     magnusThinking: false,
     magnusError: null,
+    magnusScope: 'client',   // 'client' | 'all' — how wide Magnus is allowed to look
     vaultThreadId: null,     // which thread's cards are currently loaded, guards stale loads
     vaultCards: [],
     // ── Per-client Library (the Vault tab on a client thread) ──
@@ -21286,7 +21287,7 @@ window.addEventListener('popstate', (e) => {
     state.threadSearchOpen = false; state.threadSearchQuery = '';
     state.membersModalOpen = false;
     state.libSearch = ''; state.libKind = 'all'; state.libAddOpen = false; state.libDraft = null;
-    state.magnusMessages = []; state.magnusDraft = ''; state.magnusError = null;
+    state.magnusMessages = []; state.magnusDraft = ''; state.magnusError = null; state.magnusScope = 'client';
     if (kind === 'client') {
       state.selectedDept = dept || state.selectedDept || DEPTS[0].key;
       render();
@@ -22688,36 +22689,43 @@ window.addEventListener('popstate', (e) => {
   // client. "Run this as a mission in Crew" is still one click away when the
   // answer ought to become work.
 
-  const MAGNUS_SYSTEM = `You are Magnus, the operations lead at ReachGiant, a digital marketing agency. You are answering a staff member inside the client's chat thread, so you already have their context — do not ask them to paste it back.
+  const MAGNUS_BLUE = '#38bdf8';
+  const MAGNUS_SYSTEM = `You are Magnus, the operations lead at ReachGiant, a digital marketing agency. You are answering a staff member inside the app, and the CONTEXT below is everything you can see.
 
 Rules:
-- Be direct and short. Lead with the answer, then the reasoning if it is needed. No preamble, no "great question".
-- Ground every claim in the CONTEXT below. If the context does not contain the answer, say exactly what is missing rather than guessing.
-- Never invent metrics, spend figures, dates or names. If a number is not in the context, say you do not have it.
+- Be direct and short. Lead with the answer. No preamble, no "great question".
+- Ground every claim in the CONTEXT. If it is not there, say plainly what is missing instead of guessing.
+- Never invent metrics, spend figures, dates or names.
 - When something is blocked or overdue, say who it is on and what unblocks it.
-- Markdown is supported: **bold**, \`code\`, and short lists. Keep it under ~200 words unless asked for more.
-- You have no access to passwords or credentials, and must never ask for them.`;
+- Markdown is supported: **bold**, \`code\`, short lists. Under ~200 words unless asked for more.
+- You have no access to passwords or credentials, and must never ask for them.
+- End your reply with a single line beginning "SOURCES:" listing the parts of the context you actually used, separated by semicolons (e.g. "SOURCES: #SEO thread; Tasks; Vault"). If the context did not contain the answer, write "SOURCES: none" and say so above.`;
 
-  // What Magnus is allowed to see. Titles and structure only — never a username,
-  // a password, or a 2FA location. Those are encrypted at rest precisely so they
-  // do not travel, and an LLM prompt is travel.
+  // Magnus can look at one client or across the whole book. The wide view is
+  // deliberately shallow — the roster plus what is outstanding everywhere — because
+  // sending every message of every client would be both useless and enormous.
   function magnusContext(){
+    const wide = state.magnusScope === 'all';
+    const L = [];
+    if (wide) {
+      L.push(`SCOPE: all ${state.clients.length} clients`);
+      L.push('CLIENTS: ' + state.clients.map(c => c.name).join(', '));
+      const open = state.inboxItems.filter(i => !inboxAction(i.key).done);
+      L.push(`OUTSTANDING ACROSS EVERYTHING: ${open.length} item${open.length === 1 ? '' : 's'}`);
+      open.slice(0, 40).forEach(i => L.push(`  - [${i.notifKind}] ${i.label}${i.sub ? ' · ' + i.sub : ''}: ${(i.body || '').replace(/\s+/g, ' ').slice(0, 160)}`));
+      return L.join('\n');
+    }
     const c = state.clients.find(x => x.id === state.selectedId);
     const dept = DEPTS.find(x => x.key === state.selectedDept);
-    const L = [];
     L.push(`CLIENT: ${c ? c.name : 'unknown'}`);
     if (dept) L.push(`DEPARTMENT IN VIEW: ${dept.label}`);
-
     const active = state.clientServices.filter(s => s.active);
     if (state.clientServices.length) {
       L.push(`SERVICES: ${active.length
-        ? active.map(s => {
-            const d = DEPTS.find(x => x.key === s.dept_key);
-            return `${d ? d.label : s.dept_key}${s.spend_cents ? ` ($${Math.round(s.spend_cents / 100)}/mo)` : ''}`;
-          }).join(', ')
+        ? active.map(s => { const d = DEPTS.find(x => x.key === s.dept_key);
+            return `${d ? d.label : s.dept_key}${s.spend_cents ? ` ($${Math.round(s.spend_cents / 100)}/mo)` : ''}`; }).join(', ')
         : 'none active'}`);
     }
-
     if (state.clientTasks.length) {
       const open = state.clientTasks.filter(t => t.status !== 'done');
       L.push(`TASKS: ${open.length} open, ${state.clientTasks.length - open.length} done`);
@@ -22727,18 +22735,28 @@ Rules:
       });
     }
     if (state.clientTimeSeconds) L.push(`TIME LOGGED: ${fmtTimeLogged(state.clientTimeSeconds)}${state.clientRunningCount ? ` (${state.clientRunningCount} timer running)` : ''}`);
-
     if (state.libraryItems.length) {
       L.push(`VAULT: ${state.libraryItems.length} saved items (titles only — credentials are not available to you)`);
       state.libraryItems.slice(0, 20).forEach(i => L.push(`  - ${i.kind}: ${i.title}${i.section ? ` · ${i.section}` : ''}`));
     }
-
     const msgs = state.threadMessages.filter(m => !m.parent_id).slice(-30);
     if (msgs.length) {
       L.push('RECENT MESSAGES IN THIS THREAD (oldest first):');
       msgs.forEach(m => L.push(`  ${profileName(m.author_id)}${m.flagged ? ' [FLAGGED, awaiting reply]' : ''}: ${(m.body || '').replace(/\s+/g, ' ').slice(0, 400)}`));
     }
     return L.join('\n');
+  }
+
+  // The model is asked to end with a SOURCES: line. Splitting it off keeps the
+  // provenance out of the prose and lets it render as chips — and when it says
+  // "none", that is the honest "I could not find this" signal, not a citation.
+  function splitMagnusSources(text){
+    const m = String(text || '').match(/\n?\s*SOURCES:\s*(.+)\s*$/i);
+    if (!m) return { body: text, sources: [] };
+    const raw = m[1].trim();
+    const body = text.slice(0, m.index).trim();
+    if (/^none$/i.test(raw)) return { body, sources: [] };
+    return { body, sources: raw.split(';').map(x => x.trim()).filter(Boolean).slice(0, 6) };
   }
 
   async function askMagnus(question){
@@ -22753,20 +22771,17 @@ Rules:
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           system: `${MAGNUS_SYSTEM}\n\n--- CONTEXT ---\n${magnusContext()}`,
-          // The whole exchange goes back each turn so follow-ups ("and the other
-          // one?") resolve against what was already said.
           messages: state.magnusMessages.map(m => ({ role: m.role, content: m.content })),
-          max_tokens: 900,
-          temperature: 0.4,
+          max_tokens: 900, temperature: 0.4,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Magnus is unavailable (${res.status})`);
       const text = (data.text || '').trim();
       if (!text) throw new Error('Magnus returned nothing');
-      state.magnusMessages.push({ role:'assistant', content: text });
+      const { body, sources } = splitMagnusSources(text);
+      state.magnusMessages.push({ role:'assistant', content: body, sources });
     } catch (e) {
-      // Drop the unanswered question back into the box rather than losing it.
       state.magnusError = e.message;
       const last = state.magnusMessages[state.magnusMessages.length - 1];
       if (last && last.role === 'user') { state.magnusDraft = last.content; state.magnusMessages.pop(); }
@@ -22774,13 +22789,8 @@ Rules:
     state.magnusThinking = false;
     render();
   }
-  function resetMagnus(){
-    state.magnusMessages = []; state.magnusError = null; state.magnusDraft = '';
-    render();
-  }
+  function resetMagnus(){ state.magnusMessages = []; state.magnusError = null; state.magnusDraft = ''; render(); }
 
-  // Magnus itself answers here. The Crew screen is where a question becomes a
-  // dispatched mission, so that stays a deliberate handoff rather than the default.
   function sendToMagnus(){
     const c = state.clients.find(x => x.id === state.selectedId);
     const d = DEPTS.find(x => x.key === state.selectedDept);
@@ -22792,62 +22802,83 @@ Rules:
     if (!ok && typeof toast === 'function') toast({ type:'error', message:'Could not open Crew.' });
   }
 
+  // The constellation mark — a lead with spokes out to the specialist agents.
+  function magnusMarkHtml(size){
+    const s = size || 26;
+    return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;">
+      <g stroke="${MAGNUS_BLUE}" stroke-width="0.8" opacity="0.5">
+        <line x1="12" y1="12" x2="5" y2="6.5"/><line x1="12" y1="12" x2="19" y2="6.5"/>
+        <line x1="12" y1="12" x2="3.5" y2="12"/><line x1="12" y1="12" x2="20.5" y2="12"/>
+        <line x1="12" y1="12" x2="5" y2="17.5"/><line x1="12" y1="12" x2="19" y2="17.5"/></g>
+      <circle cx="5" cy="6.5" r="1.5" fill="#a78bfa"/><circle cx="19" cy="6.5" r="1.5" fill="#f0913e"/>
+      <circle cx="3.5" cy="12" r="1.3" fill="${MAGNUS_BLUE}"/><circle cx="20.5" cy="12" r="1.3" fill="${MAGNUS_BLUE}"/>
+      <circle cx="5" cy="17.5" r="1.5" fill="#e8404f"/><circle cx="19" cy="17.5" r="1.5" fill="#eab308"/>
+      <circle cx="12" cy="12" r="3.4" fill="${MAGNUS_BLUE}"/><circle cx="12" cy="12" r="1.6" fill="#eaf7ff"/>
+    </svg>`;
+  }
+
   function magnusTabHtml(){
     const c = state.clients.find(x => x.id === state.selectedId);
-    const d = DEPTS.find(x => x.key === state.selectedDept);
     const name = c ? c.name : 'this client';
-    const prompts = [
-      `What's blocked on ${name} right now?`,
-      `Summarise this thread`,
-      `Draft a ${d ? d.label : 'status'} update for ${name}`,
-      `What should I do next here?`,
-    ];
+    const wide = state.magnusScope === 'all';
+    const nClients = state.clients.length;
+    // The note states what is actually sent, not what would sound impressive.
+    const scopeNote = wide
+      ? `Looking across ${nClients} clients — everything outstanding, never credentials`
+      : `Looking at ${name} — this thread, its tasks, services and vault titles, never credentials`;
+    const prompts = wide
+      ? ['Which clients are at risk?', "What's blocked on us?", 'Where is spend rising?', 'Catch me up']
+      : ['What did we agree on budget?', 'Catch me up', "What's blocked?", 'What access do we have?'];
+    const scopeBtn = (key, label) => `<div data-c3-magnus-scope="${key}" style="display:flex;align-items:center;height:30px;padding:0 15px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;background:${state.magnusScope === key ? MAGNUS_BLUE + '24' : 'transparent'};border:1px solid ${state.magnusScope === key ? MAGNUS_BLUE : '#2a2a2a'};color:${state.magnusScope === key ? '#eaf7ff' : '#8a8a8a'};">${esc(label)}</div>`;
+
     const bubble = (m) => m.role === 'user'
       ? `<div style="display:flex;justify-content:flex-end;"><div style="max-width:78%;background:#1f1f1f;border:1px solid #2a2a2a;border-radius:12px 12px 4px 12px;padding:9px 13px;font-size:12.5px;color:#e0e0e0;white-space:pre-wrap;">${esc(m.content)}</div></div>`
-      : `<div style="display:flex;gap:9px;align-items:flex-start;">
-          <div style="width:24px;height:24px;border-radius:8px;background:rgba(90,168,214,0.16);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">${C3_ICON.sparkle('#5aa8d6', 13)}</div>
-          <div style="flex:1;min-width:0;font-size:12.5px;color:#d8d8d8;line-height:1.6;white-space:pre-wrap;">${renderMd(m.content)}</div>
+      : `<div style="display:flex;gap:10px;align-items:flex-start;">
+          <div style="width:26px;height:26px;flex-shrink:0;margin-top:1px;">${magnusMarkHtml(26)}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12.5px;color:#d8d8d8;line-height:1.6;white-space:pre-wrap;">${renderMd(m.content)}</div>
+            ${(m.sources || []).length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;padding-top:11px;border-top:1px solid #242424;">
+              ${m.sources.map(sc => `<div style="font-size:10.5px;font-weight:600;color:${MAGNUS_BLUE};background:${MAGNUS_BLUE}14;border:1px solid ${MAGNUS_BLUE}33;border-radius:7px;padding:3px 9px;">${esc(sc)}</div>`).join('')}
+            </div>` : ''}
+          </div>
         </div>`;
-    return `<div style="padding:18px 22px;display:flex;flex-direction:column;gap:14px;max-width:760px;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="width:30px;height:30px;border-radius:9px;background:rgba(90,168,214,0.16);display:flex;align-items:center;justify-content:center;flex-shrink:0;">${C3_ICON.sparkle('#5aa8d6', 16)}</div>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:13.5px;font-weight:800;color:#fff;">Ask Magnus about ${esc(name)}</div>
-          <div style="font-size:11.5px;color:#7a7a7a;margin-top:1px;">Sees this thread, its tasks, services and vault titles — never credentials</div>
+
+    return `<div style="height:100%;display:flex;flex-direction:column;min-height:0;">
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 22px;flex-shrink:0;flex-wrap:wrap;">
+        <div style="display:flex;gap:6px;">
+          ${scopeBtn('client', c ? c.name : 'This client')}
+          ${scopeBtn('all', `All ${nClients}`)}
         </div>
-        ${state.magnusMessages.length ? `<span data-c3-magnus-reset="1" style="font-size:11.5px;font-weight:600;color:#7a7a7a;cursor:pointer;flex-shrink:0;">Clear</span>` : ''}
+        <span style="font-size:11.5px;color:#6a6a6a;">${esc(scopeNote)}</span>
+        ${state.magnusMessages.length ? `<span data-c3-magnus-reset="1" style="margin-left:auto;font-size:11.5px;font-weight:600;color:#7a7a7a;cursor:pointer;">Clear</span>` : ''}
       </div>
 
-      ${state.magnusMessages.length ? `<div style="display:flex;flex-direction:column;gap:14px;">
-        ${state.magnusMessages.map(bubble).join('')}
-        ${state.magnusThinking ? `<div style="display:flex;align-items:center;gap:9px;font-size:12.5px;color:#5aa8d6;">
-          <span style="width:6px;height:6px;border-radius:50%;background:#5aa8d6;animation:pulse 1.2s infinite;"></span>Thinking…</div>` : ''}
-      </div>` : ''}
+      <div style="flex:1;min-height:0;overflow-y:auto;padding:0 22px 8px;display:flex;flex-direction:column;gap:16px;">
+        ${!state.magnusMessages.length ? `<div style="margin:auto 0;text-align:center;padding:24px 0;">
+          <div style="display:flex;justify-content:center;margin-bottom:14px;">${magnusMarkHtml(46)}</div>
+          <div style="font-size:10px;font-weight:800;letter-spacing:0.14em;color:#6a6a6a;">OPERATIONS &amp; DELIVERY</div>
+          <div style="font-size:21px;font-weight:800;letter-spacing:-0.02em;color:#fff;margin-top:6px;">Magnus</div>
+          <div style="font-size:12.5px;color:${MAGNUS_BLUE};margin-top:3px;">&ldquo;Makes the machine run&rdquo;</div>
+          <div style="font-size:12px;color:#7a7a7a;margin:10px auto 0;max-width:430px;line-height:1.6;">Reads this client's messages, tasks, services and vault titles &mdash; never credentials. Every answer cites what it used, and says so when it can't find one.</div>
+        </div>` : state.magnusMessages.map(bubble).join('')}
+        ${state.magnusThinking ? `<div style="display:flex;align-items:center;gap:9px;font-size:12.5px;color:${MAGNUS_BLUE};">
+          <span style="width:6px;height:6px;border-radius:50%;background:${MAGNUS_BLUE};animation:pulse 1.2s infinite;"></span>Searching…</div>` : ''}
+        ${state.magnusError ? `<div style="font-size:12px;color:#f0705f;background:rgba(240,112,95,0.08);border:1px solid rgba(240,112,95,0.25);border-radius:9px;padding:9px 12px;">${esc(state.magnusError)}</div>` : ''}
+      </div>
 
-      ${state.magnusError ? `<div style="font-size:12px;color:#f0705f;background:rgba(240,112,95,0.08);border:1px solid rgba(240,112,95,0.25);border-radius:9px;padding:9px 12px;">${esc(state.magnusError)}</div>` : ''}
-
-      <textarea id="c3MagnusDraft" rows="3" placeholder="Ask anything about ${esc(name)}…" style="width:100%;box-sizing:border-box;resize:vertical;background:#161616;border:1px solid #2a2a2a;border-radius:11px;padding:11px 13px;color:#fff;font-size:12.5px;font-family:inherit;outline:none;">${esc(state.magnusDraft)}</textarea>
-
-      ${!state.magnusMessages.length ? `<div style="display:flex;flex-wrap:wrap;gap:7px;">
-        ${prompts.map(p => `<div data-c3-magnus-preset="${esc(p)}" style="font-size:11.5px;color:#9a9a9a;background:#1a1a1a;border:1px solid #262626;border-radius:8px;padding:6px 11px;cursor:pointer;">${esc(p)}</div>`).join('')}
-      </div>` : ''}
-
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div data-c3-magnus-send="1" style="display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:${state.magnusThinking ? 'default' : 'pointer'};background:${state.magnusThinking ? '#3a3a3a' : 'var(--red)'};color:#fff;">
-          ${state.magnusThinking ? 'Asking…' : 'Ask Magnus'} ${state.magnusThinking ? '' : C3_ICON.arrowRight('#fff', 12)}</div>
-        <div data-c3-magnus-crew="1" title="Hand this to the Crew as a dispatched mission" style="display:inline-flex;align-items:center;gap:6px;padding:9px 14px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;background:#1a1a1a;border:1px solid #2a2a2a;color:#e0e0e0;">
-          Run as a mission in Crew ${C3_ICON.arrowRight('currentColor', 12)}</div>
+      <div style="flex-shrink:0;border-top:1px solid #242424;padding:11px 22px 14px;">
+        <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:10px;padding-bottom:2px;">
+          ${prompts.map(p => `<div data-c3-magnus-preset="${esc(p)}" style="font-size:11.5px;font-weight:600;color:#b8b8b8;background:#181818;border:1px solid #2a2a2a;border-radius:9px;padding:7px 12px;cursor:pointer;white-space:nowrap;flex-shrink:0;">${esc(p)}</div>`).join('')}
+          <div data-c3-magnus-crew="1" title="Hand this to the Crew as a dispatched mission" style="font-size:11.5px;font-weight:600;color:#7a7a7a;background:#181818;border:1px solid #2a2a2a;border-radius:9px;padding:7px 12px;cursor:pointer;white-space:nowrap;flex-shrink:0;margin-left:auto;">Run as a mission ↗</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:9px;background:#0b0b0b;border:1px solid #2e2e2e;border-radius:10px;padding:0 12px;height:40px;">
+          <input id="c3MagnusDraft" value="${esc(state.magnusDraft)}" placeholder="${esc(wide ? `Ask Magnus across ${nClients} clients…` : `Ask Magnus about ${name}…`)}" style="flex:1;min-width:0;background:transparent;border:none;outline:none;color:#fff;font-size:13px;font-family:inherit;">
+          <div data-c3-magnus-send="1" style="width:26px;height:26px;border-radius:7px;background:${state.magnusThinking ? '#2a2a2a' : MAGNUS_BLUE};color:#0a0a0a;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;cursor:${state.magnusThinking ? 'default' : 'pointer'};flex-shrink:0;">↑</div>
+        </div>
       </div>
     </div>`;
   }
 
-  // ── Media tab — aggregates attachments already on state.threadMessages, same
-  // no-extra-query approach as chat2's homeAllAttachments (index.html ~19075). ──
-  function fmtBytes(n){
-    if (!n) return '0 KB';
-    if (n < 1024*1024) return Math.round(n/1024) + ' KB';
-    return (n/(1024*1024)).toFixed(1) + ' MB';
-  }
   // Media is the union of two genuinely different sources: files someone uploaded
   // here on purpose, and files that happened to be posted in the conversation.
   // They are kept as separate sections because "I put this here for the team" and
@@ -24463,6 +24494,15 @@ Rules:
     }));
 
     // ── Magnus tab ──
+    host.querySelectorAll('[data-c3-magnus-scope]').forEach(el => el.addEventListener('click', () => {
+      const next = el.dataset.c3MagnusScope;
+      if (next === state.magnusScope) return;
+      state.magnusScope = next;
+      // The context changes entirely, so a running exchange would answer the old
+      // question with the new scope's data. Start clean instead.
+      state.magnusMessages = []; state.magnusError = null;
+      render();
+    }));
     const magnusBox = host.querySelector('#c3MagnusDraft');
     if (magnusBox) {
       magnusBox.addEventListener('input', (e) => { state.magnusDraft = e.target.value; });
