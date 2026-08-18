@@ -23129,7 +23129,11 @@ Rules:
     const k = kind || fromFilter || 'link';
     state.libAddOpen = true;
     state.libDraft = { kind: k, title:'', section:'', url:'', username:'', password:'', twofa:'', body:'',
-      file:null, uploading:false, passOpen:false, sectionOpen:false, notesOpen:false };
+      file:null, uploading:false, passOpen:false, sectionOpen:false, notesOpen:false,
+      // Who can reveal this password. 'chat' = everyone on this thread, which is
+      // what people expect from something saved in a chat vault; 'people' = a
+      // hand-picked subset. Defaults to 'chat' so the simple case needs no thought.
+      share:'chat', shareIds:[] };
     render();
   }
   async function uploadLibFile(file){
@@ -23192,6 +23196,21 @@ Rules:
         }).select('id').single();
         if (entryErr) throw new Error('Could not save the password: ' + entryErr.message);
         row.password_entry_id = entry.id;
+        // Grant per ENTRY, never by widening the folder — sharing one login must
+        // not hand over every other credential this client has.
+        const grantTo = d.share === 'chat'
+          ? state.threadMembers.map(tm => tm.profile_id)
+          : d.shareIds.slice();
+        const uniq = [...new Set(grantTo.filter(id => id && id !== myId()))];
+        if (uniq.length) {
+          const { error: shareErr } = await sb().from('password_entry_members')
+            .insert(uniq.map(pid => ({ entry_id: entry.id, profile_id: pid, added_by: myId() })));
+          // The credential is already saved and yours; a failed grant is worth
+          // saying out loud but must not roll back the save.
+          if (shareErr && typeof toast === 'function') {
+            toast({ type:'error', message:'Saved, but sharing failed: ' + shareErr.message });
+          }
+        }
       }
       const { data, error } = await sb().from('chat2_client_library').insert(row)
         .select('id, kind, title, section, url, username, body, twofa, password_entry_id, file_url, file_name, file_size, mime_type, pinned, created_by, created_at')
@@ -23359,7 +23378,7 @@ Rules:
       ${f.url ? `
         ${libFieldHtml(esc(f.url.label), `<input id="c3LibUrl" value="${esc(d.url)}" placeholder="${esc(f.url.placeholder)}" style="${LIB_INPUT}">`)}
         ${f.password ? (d.passOpen
-          ? libFieldHtml('Password (optional)', `<input data-c3-lib-field="password" type="password" value="${esc(d.password)}" placeholder="If the link is protected" style="${LIB_INPUT}">`)
+          ? libFieldHtml('Password (optional)', `<input data-c3-lib-field="password" type="password" value="${esc(d.password)}" placeholder="If the link is protected" style="${LIB_INPUT}">`) + libShareHtml()
           : discloseLink('data-c3-lib-pass-open="1"', '+ Add a password for this link')) : ''}
       ` : ''}
 
@@ -23379,6 +23398,7 @@ Rules:
         <input data-c3-lib-field="password" type="password" value="${esc(d.password)}" placeholder="Password" style="${LIB_INPUT}">
       </div>`) : ''}
       ${f.twofa ? libFieldHtml('Two-factor', `<input data-c3-lib-field="twofa" value="${esc(d.twofa)}" placeholder="Where the code goes — e.g. Authy on Matthew's phone" style="${LIB_INPUT}">`) : ''}
+      ${f.credentials ? libShareHtml() : ''}
 
       ${f.body ? libFieldHtml(esc(f.body.label), `<textarea data-c3-lib-field="body" rows="${f.body.rows}" placeholder="${esc(f.body.placeholder)}" style="${LIB_INPUT}resize:vertical;">${esc(d.body)}</textarea>`) : ''}
       ${f.notes ? (d.notesOpen
@@ -23395,6 +23415,41 @@ Rules:
         <div data-c3-lib-save="1" style="margin-left:auto;display:inline-flex;align-items:center;justify-content:center;min-width:92px;padding:10px 18px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:${state.libSaving ? 'default' : 'pointer'};background:${state.libSaving ? '#3a3a3a' : 'var(--red)'};color:#fff;">${state.libSaving ? 'Saving…' : 'Save'}</div>
       </div>
     </div>`;
+  }
+
+  // Who can reveal this password. Two choices, because three would need explaining
+  // and the honest options really are "the people in this conversation" or "these
+  // specific people". Access is granted per entry (password_entry_members), so it
+  // never widens the whole folder to share one login.
+  function libShareHtml(){
+    const d = state.libDraft;
+    if (!d) return '';
+    const people = state.threadMembers
+      .map(tm => state.profilesById[tm.profile_id])
+      .filter(p => p && p.id !== myId());
+    const opt = (key, label, sub) => `<div data-c3-lib-share="${key}" style="flex:1;min-width:0;padding:9px 11px;border-radius:9px;cursor:pointer;border:1px solid ${d.share === key ? '#d91f0f' : '#2a2a2a'};background:${d.share === key ? 'rgba(217,31,15,0.10)' : '#0f0f0f'};">
+      <div style="font-size:12px;font-weight:700;color:${d.share === key ? '#fff' : '#c8c8c8'};">${label}</div>
+      <div style="font-size:10.5px;color:#6a6a6a;margin-top:2px;">${sub}</div>
+    </div>`;
+    return libFieldHtml('Who can see this password?', `
+      <div style="display:flex;gap:8px;">
+        ${opt('chat', 'Everyone in this chat', people.length ? `You and ${people.length} other${people.length === 1 ? '' : 's'}` : 'Just you for now')}
+        ${opt('people', 'Only specific people', 'Pick who gets it')}
+      </div>
+      ${d.share === 'people' ? (people.length
+        ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:9px;">
+            ${people.map(p => {
+              const on = d.shareIds.includes(p.id);
+              return `<div data-c3-lib-share-who="${esc(p.id)}" style="display:flex;align-items:center;gap:7px;padding:5px 10px 5px 6px;border-radius:8px;cursor:pointer;border:1px solid ${on ? '#3ecf8e' : '#262626'};background:${on ? 'rgba(62,207,142,0.10)' : 'transparent'};">
+                ${c3ProfileMarkHtml(p, false)}
+                <span style="font-size:11.5px;color:${on ? '#fff' : '#9a9a9a'};">${esc(p.display_name || p.full_name || p.email || 'Someone')}</span>
+                ${on ? C3_ICON.check('#3ecf8e', 11) : ''}
+              </div>`;
+            }).join('')}
+          </div>
+          ${!d.shareIds.length ? `<div style="font-size:11px;color:#e8a83e;margin-top:7px;">Nobody picked yet — only you and managers will be able to reveal it.</div>` : ''}`
+        : `<div style="font-size:11.5px;color:#6a6a6a;margin-top:8px;">Nobody else is on this thread yet.</div>`) : ''}
+      <div style="font-size:10.5px;color:#5a5a5a;margin-top:8px;">Owners and managers can always see it. The password is stored in Passwords under this client's Chat Vault folder.</div>`);
   }
 
   function libItemRowHtml(i){
@@ -24319,6 +24374,17 @@ Rules:
     }));
     host.querySelectorAll('[data-c3-lib-notes-open]').forEach(el => el.addEventListener('click', () => {
       if (state.libDraft) { state.libDraft.notesOpen = true; render(); }
+    }));
+    host.querySelectorAll('[data-c3-lib-share]').forEach(el => el.addEventListener('click', () => {
+      if (!state.libDraft) return;
+      state.libDraft.share = el.dataset.c3LibShare;
+      render();
+    }));
+    host.querySelectorAll('[data-c3-lib-share-who]').forEach(el => el.addEventListener('click', () => {
+      const d = state.libDraft; if (!d) return;
+      const id = el.dataset.c3LibShareWho;
+      d.shareIds = d.shareIds.includes(id) ? d.shareIds.filter(x => x !== id) : d.shareIds.concat(id);
+      render();
     }));
     // Media: pick or drop straight into the library — no form in between.
     const libMediaInput = host.querySelector('#c3LibMediaInput');
