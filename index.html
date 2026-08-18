@@ -21031,6 +21031,10 @@ window.addEventListener('popstate', (e) => {
     clientTimeSeconds: 0,     // summed time_sessions.duration_seconds for this client
     clientRunningCount: 0,    // time_sessions currently status='running'
     clientProject: null,      // most recent projects row for this client, or null
+    taskAdding: false,        // inline "+ New task" form open
+    taskDraft: null,          // { name, priority, assignee }
+    taskSaving: false,
+    taskTimers: {},           // taskId -> running time_sessions row, for the row timer
     clientServices: [],       // chat2_client_services rows for the open client
     clientServicesFor: null,
     clientServicesLoading: false,
@@ -21288,6 +21292,7 @@ window.addEventListener('popstate', (e) => {
     state.membersModalOpen = false;
     state.libSearch = ''; state.libKind = 'all'; state.libAddOpen = false; state.libDraft = null;
     state.magnusMessages = []; state.magnusDraft = ''; state.magnusError = null; state.magnusScope = 'client';
+    state.taskAdding = false; state.taskDraft = null;
     if (kind === 'client') {
       state.selectedDept = dept || state.selectedDept || DEPTS[0].key;
       render();
@@ -22532,7 +22537,9 @@ window.addEventListener('popstate', (e) => {
     return d ? d.color : '#6a6a6a';
   }
 
-  const C3_TASK_COLS = 'minmax(0,2.4fr) 90px 88px 118px minmax(0,1.4fr) 74px';
+  // 7 columns, matching the reference: the checkbox is its own column rather than
+  // riding inside the name, so names line up whatever their length.
+  const C3_TASK_COLS = '26px minmax(0,2.2fr) 88px minmax(0,120px) 112px minmax(0,1.2fr) 96px';
   function c3StatCardHtml(value, label, color){
     return `<div style="flex:1;min-width:0;background:#161616;border:1px solid #242424;border-radius:12px;padding:14px 16px;">
       <div style="font-size:22px;font-weight:800;letter-spacing:-0.02em;color:${color || '#fff'};line-height:1.1;">${value}</div>
@@ -22546,24 +22553,52 @@ window.addEventListener('popstate', (e) => {
     const dept = taskDeptLabel(t);
     const due = t.due_at ? new Date(t.due_at) : null;
     const overdue = due && !done && due < new Date();
+    const running = !!state.taskTimers[t.id];
     return `<div style="display:grid;grid-template-columns:${C3_TASK_COLS};align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #1f1f1f;">
-      <div style="display:flex;align-items:center;gap:10px;min-width:0;">
-        <div data-c3-task-toggle="${esc(t.id)}" title="${done ? 'Mark not done' : 'Mark done'}" style="width:18px;height:18px;border-radius:50%;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;border:1.6px solid ${done ? '#3ecf8e' : '#3a3a3a'};background:${done ? 'rgba(62,207,142,0.16)' : 'transparent'};">
-          ${done ? C3_ICON.check('#3ecf8e', 11) : ''}</div>
-        <span style="min-width:0;font-size:12.5px;color:${done ? '#6a6a6a' : '#e0e0e0'};${done ? 'text-decoration:line-through;' : ''}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.name || 'Untitled task')}</span>
-      </div>
+      <div data-c3-task-toggle="${esc(t.id)}" title="${done ? 'Mark not done' : 'Mark done'}" style="width:18px;height:18px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;border:1.6px solid ${done ? '#3ecf8e' : '#3a3a3a'};background:${done ? 'rgba(62,207,142,0.16)' : 'transparent'};">
+        ${done ? C3_ICON.check('#3ecf8e', 11) : ''}</div>
+      <span style="min-width:0;font-size:12.5px;color:${done ? '#6a6a6a' : '#e0e0e0'};${done ? 'text-decoration:line-through;' : ''}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.name || 'Untitled task')}</span>
       <div>${p ? `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;color:${p.color};background:${p.color}1f;white-space:nowrap;">${p.label}</span>` : ''}</div>
-      <div style="display:flex;align-items:center;">
+      <div style="display:flex;align-items:center;gap:7px;min-width:0;">
         ${who.length
-          ? who.slice(0, 3).map((pr, idx) => `<div style="margin-left:${idx ? '-7px' : '0'};border-radius:50%;box-shadow:0 0 0 2px #141414;">${c3ProfileMarkHtml(pr, false)}</div>`).join('')
-            + (who.length > 3 ? `<div style="margin-left:-7px;width:22px;height:22px;border-radius:50%;background:#242424;box-shadow:0 0 0 2px #141414;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700;color:#9a9a9a;">+${who.length - 3}</div>` : '')
+          ? `${c3ProfileMarkHtml(who[0], false)}<span style="font-size:11.5px;color:#9a9a9a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(who.length > 1 ? `${who[0].display_name || 'Someone'} +${who.length - 1}` : (who[0].display_name || who[0].full_name || 'Someone'))}</span>`
           : `<span style="font-size:11.5px;color:#4a4a4a;">Unassigned</span>`}
       </div>
       <div style="min-width:0;">${dept ? `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:#9a9a9a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;"><span style="width:6px;height:6px;border-radius:50%;background:${taskDeptColor(t)};flex-shrink:0;"></span>${esc(dept)}</span>` : ''}</div>
       <div style="min-width:0;font-size:11.5px;color:#7a7a7a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.description || '')}</div>
-      <div style="font-size:11.5px;font-weight:700;color:${overdue ? '#f0705f' : '#7a7a7a'};white-space:nowrap;">${due ? esc(due.toLocaleDateString(undefined, { month:'short', day:'numeric' })) : ''}</div>
+      <div style="display:flex;align-items:center;gap:7px;justify-content:flex-end;">
+        ${done ? '' : `<div data-c3-task-timer="${esc(t.id)}" title="${running ? 'Stop the timer' : 'Start a timer on this task'}" style="width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;background:${running ? 'rgba(232,168,62,0.18)' : '#1f1f1f'};border:1px solid ${running ? '#e8a83e' : '#2a2a2a'};color:${running ? '#e8a83e' : '#7a7a7a'};">
+          ${running ? `<span style="width:7px;height:7px;border-radius:1.5px;background:currentColor;"></span>` : `<span style="width:0;height:0;border-left:6px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;margin-left:1px;"></span>`}</div>`}
+        <span style="font-size:11.5px;font-weight:700;white-space:nowrap;color:${running ? '#e8a83e' : overdue ? '#f0705f' : '#7a7a7a'};">${running ? 'Running' : due ? esc(due.toLocaleDateString(undefined, { month:'short', day:'numeric' })) : ''}</span>
+      </div>
     </div>`;
   }
+
+  // Creating a task needs a project — tasks.project_id is NOT NULL — so the inline
+  // form only appears when this client has one. Without it there is nothing to
+  // attach to, and the row points at Projects instead of failing on save.
+  function taskAddFormHtml(){
+    const d = state.taskDraft;
+    if (!d) return '';
+    const people = state.threadMembers.map(tm => state.profilesById[tm.profile_id]).filter(Boolean);
+    const sel = 'background:#0f0f0f;border:1px solid #2a2a2a;border-radius:9px;padding:9px 11px;color:#fff;font-size:12.5px;font-family:inherit;outline:none;';
+    return `<div style="background:#161616;border:1px solid #2e2e2e;border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+      <input id="c3TaskName" value="${esc(d.name)}" placeholder="What needs doing for this client?" style="${sel}width:100%;box-sizing:border-box;">
+      <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center;">
+        <select data-c3-task-field="priority" style="${sel}cursor:pointer;">
+          ${Object.entries(C3_PRIO).map(([k, v]) => `<option value="${k}"${d.priority === k ? ' selected' : ''}>${v.label}</option>`).join('')}
+        </select>
+        <select data-c3-task-field="assignee" style="${sel}cursor:pointer;min-width:150px;">
+          <option value=""${d.assignee ? '' : ' selected'}>Unassigned</option>
+          ${people.map(p => `<option value="${esc(p.id)}"${d.assignee === p.id ? ' selected' : ''}>${esc(p.display_name || p.full_name || p.email || 'Someone')}</option>`).join('')}
+        </select>
+        <div style="flex:1;"></div>
+        <div data-c3-task-cancel="1" style="font-size:12px;font-weight:600;color:#7a7a7a;cursor:pointer;padding:8px 10px;">Cancel</div>
+        <div data-c3-task-submit="1" style="display:inline-flex;align-items:center;padding:9px 15px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:${state.taskSaving ? 'default' : 'pointer'};background:${state.taskSaving ? '#3a3a3a' : 'var(--red)'};color:#fff;">${state.taskSaving ? 'Adding…' : 'Add task'}</div>
+      </div>
+    </div>`;
+  }
+
   function tasksTabHtml(){
     const all = state.clientTasks;
     const activeCount = all.filter(t => t.status !== 'done').length;
@@ -22595,19 +22630,90 @@ window.addEventListener('popstate', (e) => {
         ${tab('active', 'Active', activeCount)}
         ${tab('done', 'Done', doneCount)}
         <div style="flex:1;"></div>
-        <div data-c3-open-projects="1" style="display:flex;align-items:center;gap:6px;padding:7px 14px;margin-bottom:7px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;background:var(--red);color:#fff;white-space:nowrap;">+ New task</div>
+        ${proj
+          ? `<div data-c3-task-add="1" style="display:flex;align-items:center;gap:6px;padding:7px 14px;margin-bottom:7px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;background:var(--red);color:#fff;white-space:nowrap;">+ New task</div>`
+          : `<div data-c3-open-projects="1" title="This client has no project yet — tasks need one to live in" style="display:flex;align-items:center;gap:6px;padding:7px 14px;margin-bottom:7px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;background:#1a1a1a;border:1px solid #2a2a2a;color:#e0e0e0;white-space:nowrap;">+ New task in Projects ${C3_ICON.arrowRight('currentColor', 12)}</div>`}
       </div>
+
+      ${state.taskAdding && proj ? taskAddFormHtml() : ''}
 
       ${state.clientTasksLoading ? `<div style="text-align:center;color:#6a6a6a;font-size:13px;padding:40px 0;">Loading…</div>`
         : state.clientTasksError ? `<div style="color:#f0705f;font-size:12.5px;padding:24px 0;">Could not load tasks: ${esc(state.clientTasksError)}</div>`
         : `<div style="border:1px solid #242424;border-radius:12px;overflow:hidden;">
             <div style="display:grid;grid-template-columns:${C3_TASK_COLS};gap:10px;padding:9px 14px;background:var(--red);">
-              ${head('Task name')}${head('Priority')}${head('Assignee')}${head('Department')}${head('Task infos')}${head('Time')}
+              ${head('')}${head('Task name')}${head('Priority')}${head('Assignee')}${head('Department')}${head('Task infos')}${head('Time')}
             </div>
             ${shown.length ? shown.map(c3TaskRowHtml).join('')
               : `<div style="text-align:center;color:#5a5a5a;font-size:12.5px;padding:44px 0;">${state.clientTaskFilter === 'done' ? 'Nothing completed yet.' : 'No open tasks — add the first one in Projects.'}</div>`}
           </div>`}
     </div>`;
+  }
+
+  function openTaskAdd(){
+    state.taskAdding = true;
+    state.taskDraft = { name:'', priority:'medium', assignee:'' };
+    render();
+  }
+  function closeTaskAdd(){ state.taskAdding = false; state.taskDraft = null; render(); }
+
+  async function submitNewTask(){
+    const d = state.taskDraft;
+    if (!d || state.taskSaving) return;
+    if (!d.name.trim()) { if (typeof toast === 'function') toast({ type:'error', message:'Give the task a name first.' }); return; }
+    if (!state.clientProject) { if (typeof toast === 'function') toast({ type:'error', message:'This client has no project to add a task to.' }); return; }
+    state.taskSaving = true; render();
+    const row = {
+      project_id: state.clientProject.id,
+      client_id: state.selectedId,
+      name: d.name.trim(),
+      priority: d.priority || 'medium',
+      status: 'todo',
+      // assigned_to is uuid[], so a single pick still goes in as an array.
+      assigned_to: d.assignee ? [d.assignee] : [],
+      department: state.selectedDept || null,
+      created_by: myId(),
+    };
+    const { data, error } = await sb().from('tasks').insert(row)
+      .select('id, name, description, status, priority, assigned_to, department, due_at, project_id, completed_at')
+      .single();
+    state.taskSaving = false;
+    if (error) {
+      render();
+      if (typeof toast === 'function') toast({ type:'error', message:'Could not add the task: ' + error.message });
+      return;
+    }
+    state.clientTasks.unshift(data);
+    state.taskAdding = false; state.taskDraft = null;
+    render();
+  }
+
+  // Row timer, backed by the real time_sessions table the rest of the app uses —
+  // so time started here shows up in the same places as time started anywhere else.
+  async function toggleTaskTimer(taskId){
+    const t = state.clientTasks.find(x => x.id === taskId);
+    if (!t) return;
+    const running = state.taskTimers[taskId];
+    if (running) {
+      const startedAt = new Date(running.started_at).getTime();
+      const seconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000) - Math.round((running.total_paused_ms || 0) / 1000));
+      delete state.taskTimers[taskId];
+      state.clientTimeSeconds += seconds;
+      state.clientRunningCount = Math.max(0, state.clientRunningCount - 1);
+      render();
+      const { error } = await sb().from('time_sessions')
+        .update({ status: 'completed', ended_at: new Date().toISOString(), duration_seconds: seconds })
+        .eq('id', running.id);
+      if (error && typeof toast === 'function') toast({ type:'error', message:'Could not stop the timer: ' + error.message });
+      return;
+    }
+    const { data, error } = await sb().from('time_sessions').insert({
+      profile_id: myId(), client_id: state.selectedId, task_id: taskId,
+      task_label: t.name, project_id: t.project_id || null, status: 'running',
+    }).select('id, started_at, total_paused_ms').single();
+    if (error) { if (typeof toast === 'function') toast({ type:'error', message:'Could not start the timer: ' + error.message }); return; }
+    state.taskTimers[taskId] = data;
+    state.clientRunningCount += 1;
+    render();
   }
 
   // Optimistic, then reconciled: the row flips immediately and rolls back with a
@@ -24489,6 +24595,19 @@ Rules:
     // ── Tasks tab ──
     host.querySelectorAll('[data-c3-task-filter]').forEach(el => el.addEventListener('click', () => { state.clientTaskFilter = el.dataset.c3TaskFilter; render(); }));
     host.querySelectorAll('[data-c3-task-toggle]').forEach(el => el.addEventListener('click', () => toggleC3ClientTask(el.dataset.c3TaskToggle)));
+    host.querySelectorAll('[data-c3-task-add]').forEach(el => el.addEventListener('click', () => openTaskAdd()));
+    host.querySelectorAll('[data-c3-task-cancel]').forEach(el => el.addEventListener('click', () => closeTaskAdd()));
+    host.querySelectorAll('[data-c3-task-submit]').forEach(el => el.addEventListener('click', () => submitNewTask()));
+    host.querySelectorAll('[data-c3-task-timer]').forEach(el => el.addEventListener('click', () => toggleTaskTimer(el.dataset.c3TaskTimer)));
+    host.querySelectorAll('[data-c3-task-field]').forEach(el => el.addEventListener('change', (e) => {
+      if (state.taskDraft) state.taskDraft[el.dataset.c3TaskField] = e.target.value;
+    }));
+    const taskNameInput = host.querySelector('#c3TaskName');
+    if (taskNameInput) {
+      taskNameInput.addEventListener('input', (e) => { if (state.taskDraft) state.taskDraft.name = e.target.value; });
+      taskNameInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submitNewTask(); } });
+      if (document.activeElement !== taskNameInput) taskNameInput.focus();
+    }
     host.querySelectorAll('[data-c3-open-projects]').forEach(el => el.addEventListener('click', () => {
       if (typeof navigateToScreen === 'function') navigateToScreen('tasks');
     }));
