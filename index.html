@@ -21042,6 +21042,15 @@ window.addEventListener('popstate', (e) => {
     clientServices: [],       // chat2_client_services rows for the open client
     clientServicesFor: null,
     clientServicesLoading: false,
+    // Management sub-tabs. Overview is the landing one because it answers "what
+    // are we doing for this client" without a click.
+    mgmtTab: 'overview',        // overview | members | onboarding | billing | activity
+    clientAccess: [],           // chat2_client_access rows
+    clientRow: null,            // the clients row (mrr, onboarding_*, archived)
+    mgmtActivity: [],           // derived feed, newest first
+    mgmtLoading: false,
+    mgmtFor: null,
+    mgmtShowAnswers: false,
     magnusDraft: '',
     magnusMessages: [],      // [{role,content,sources?}] — the Magnus exchange
     magnusThinking: false,
@@ -21405,7 +21414,7 @@ window.addEventListener('popstate', (e) => {
       }
       if (v.tab === 'media' && v.kind === 'client') loadClientLibrary(v.id);
       if (v.kind === 'client' && v.tab === 'tasks') loadClientTasks(v.id);
-      if (v.kind === 'client' && v.tab === 'management') loadClientServices(v.id);
+      if (v.kind === 'client' && v.tab === 'management') { loadClientServices(v.id); loadClientManagement(v.id); }
     }
   }
 
@@ -21439,6 +21448,7 @@ window.addEventListener('popstate', (e) => {
     state.libSearch = ''; state.libKind = 'all'; state.libAddOpen = false; state.libDraft = null;
     state.magnusMessages = []; state.magnusDraft = ''; state.magnusError = null; state.magnusScope = 'client';
     state.taskAdding = false; state.taskDraft = null;
+    state.mgmtTab = 'overview'; state.mgmtShowAnswers = false;
     if (kind === 'client') {
       state.selectedDept = dept || state.selectedDept || DEPTS[0].key;
       render();
@@ -22957,66 +22967,241 @@ window.addEventListener('popstate', (e) => {
     }
   }
 
-  // ── Management tab — services & monthly ad spend, from chat2_client_services ──
-  async function loadClientServices(clientId){
-    if (state.clientServicesFor === clientId) return;
-    state.clientServicesFor = clientId; state.clientServicesLoading = true; state.clientServices = []; render();
-    const { data, error } = await sb().from('chat2_client_services')
-      .select('dept_key, active, spend_cents').eq('client_id', clientId);
-    if (state.clientServicesFor !== clientId) return;
-    state.clientServicesLoading = false;
-    state.clientServices = data || [];
-    if (error) state.clientServicesFor = null; // let the next visit retry
+  // ══ Management — five sub-tabs over what we already store ═══════════════════
+  // Everything here reads existing tables. Nothing is a placeholder, and where a
+  // thing genuinely is not recorded yet the panel says so rather than inventing it.
+  const MGMT_TABS = [
+    { key:'overview',   label:'Overview' },
+    { key:'members',    label:'Members' },
+    { key:'onboarding', label:'Onboarding' },
+    { key:'billing',    label:'Billing' },
+    { key:'activity',   label:'Activity' },
+  ];
+  const ACCESS_ITEMS = [
+    { key:'googleAds', label:'Google Ads' },
+    { key:'meta',      label:'Meta Business Manager' },
+    { key:'website',   label:'Website admin' },
+    { key:'ga4',       label:'GA4' },
+    { key:'gsc',       label:'Search Console' },
+  ];
+  const ACCESS_STATE = {
+    granted: { label:'Granted',     color:'#3ecf8e' },
+    pending: { label:'Pending',     color:'#e8a83e' },
+    none:    { label:'Not set up',  color:'#6a6a6a' },
+  };
+
+  async function loadClientManagement(clientId){
+    if (state.mgmtFor === clientId) return;
+    state.mgmtFor = clientId; state.mgmtLoading = true;
+    state.clientAccess = []; state.clientRow = null; state.mgmtActivity = [];
+    render();
+    const [accessRes, clientRes] = await Promise.all([
+      sb().from('chat2_client_access').select('service_key, status, updated_at, updated_by').eq('client_id', clientId),
+      sb().from('clients').select('id, name, mrr, archived, onboarding_token, onboarding_sent_at, onboarding_submitted_at, onboarding_answers, created_at')
+        .eq('id', clientId).maybeSingle(),
+    ]);
+    if (state.mgmtFor !== clientId) return; // a different client won the race
+    state.mgmtLoading = false;
+    state.clientAccess = accessRes.data || [];
+    state.clientRow = clientRes && clientRes.data ? clientRes.data : null;
+    if (accessRes.error) state.mgmtFor = null; // let the next visit retry
+    state.mgmtActivity = buildMgmtActivity();
     render();
   }
-  function managementTabHtml(){
-    const c = state.clients.find(x => x.id === state.selectedId);
+
+  // No audit table exists, so the feed is assembled from what we do have: messages
+  // in this thread, tasks completed, files added to the vault, and the onboarding
+  // milestones. It is honest about being a partial view rather than claiming to be
+  // a full audit trail.
+  function buildMgmtActivity(){
+    const out = [];
+    state.threadMessages.filter(m => !m.parent_id).forEach(m => out.push({
+      kind:'message', color:'#5aa8d6', who: profileName(m.author_id),
+      what: 'posted a message', detail: (m.body || '').replace(/\s+/g, ' ').slice(0, 120), when: m.created_at,
+    }));
+    state.clientTasks.filter(t => t.completed_at).forEach(t => out.push({
+      kind:'task', color:'#3ecf8e', who: t.completed_by ? profileName(t.completed_by) : 'Someone',
+      what: 'completed a task', detail: t.name, when: t.completed_at,
+    }));
+    state.libraryItems.forEach(i => out.push({
+      kind:'vault', color:'#a78bfa', who: i.created_by ? profileName(i.created_by) : 'Someone',
+      what: `saved a ${i.kind} to the vault`, detail: i.title, when: i.created_at,
+    }));
+    const c = state.clientRow;
+    if (c && c.onboarding_sent_at) out.push({ kind:'onboarding', color:'#e8a83e', who:'Someone', what:'sent the onboarding form', detail:'', when: c.onboarding_sent_at });
+    if (c && c.onboarding_submitted_at) out.push({ kind:'onboarding', color:'#3ecf8e', who: c.name || 'The client', what:'submitted onboarding', detail:'', when: c.onboarding_submitted_at });
+    return out.filter(x => x.when).sort((a, b) => new Date(b.when) - new Date(a.when)).slice(0, 60);
+  }
+
+  const mgmtCard = (title, sub, body) => `<div style="background:#161616;border:1px solid #242424;border-radius:12px;padding:14px 16px;">
+    <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">
+      <div style="font-size:12.5px;font-weight:800;color:#fff;">${title}</div>
+      ${sub ? `<div style="font-size:11.5px;color:#7a7a7a;">${sub}</div>` : ''}
+    </div>${body}</div>`;
+
+  function mgmtOverviewHtml(){
     const svcFor = (key) => state.clientServices.find(s => s.dept_key === key) || { active:false, spend_cents:0 };
     const billable = DEPTS.filter(d => d.key !== 'general');
     const activeSvcs = billable.filter(d => svcFor(d.key).active);
     const totalCents = activeSvcs.reduce((n, d) => n + (svcFor(d.key).spend_cents || 0), 0);
     const money = (cents) => '$' + Math.round((cents || 0) / 100).toLocaleString();
-    const members = state.threadMembers.map(tm => state.profilesById[tm.profile_id]).filter(Boolean);
-    const card = (title, sub, body) => `<div style="background:#161616;border:1px solid #242424;border-radius:12px;padding:14px 16px;">
-      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">
-        <div style="font-size:12.5px;font-weight:800;color:#fff;">${title}</div>
-        <div style="font-size:11.5px;color:#7a7a7a;">${sub}</div>
-      </div>${body}</div>`;
-    return `<div style="padding:16px 22px;display:flex;flex-direction:column;gap:14px;">
-      ${state.clientServicesLoading ? `<div style="text-align:center;color:#6a6a6a;font-size:13px;padding:30px 0;">Loading…</div>` : card(
-        'Services &amp; ad spend',
-        `${activeSvcs.length} active · ${money(totalCents)} / mo`,
+    const accessOf = (k) => (state.clientAccess.find(a => a.service_key === k) || { status:'none' }).status;
+    const granted = ACCESS_ITEMS.filter(a => accessOf(a.key) === 'granted').length;
+    return `<div style="display:flex;flex-direction:column;gap:14px;">
+      ${mgmtCard('Services &amp; ad spend', `${activeSvcs.length} active · ${money(totalCents)} / mo`,
         billable.map(d => {
-          const s = svcFor(d.key);
-          return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #1f1f1f;opacity:${s.active ? '1' : '0.45'};">
+          const sv = svcFor(d.key);
+          return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #1f1f1f;opacity:${sv.active ? '1' : '0.45'};">
             <span style="width:7px;height:7px;border-radius:50%;background:${d.color};flex-shrink:0;"></span>
             <span style="flex:1;min-width:0;font-size:12.5px;color:#e0e0e0;">${esc(d.label)}</span>
-            ${s.active && s.spend_cents ? `<span style="font-size:12px;font-weight:700;color:#e0e0e0;">${money(s.spend_cents)}<span style="color:#6a6a6a;font-weight:600;"> / mo</span></span>` : ''}
-            <span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;flex-shrink:0;color:${s.active ? '#3ecf8e' : '#6a6a6a'};background:${s.active ? 'rgba(62,207,142,0.14)' : '#1f1f1f'};">${s.active ? 'ACTIVE' : 'NOT ACTIVE'}</span>
+            ${sv.active && sv.spend_cents ? `<span style="font-size:12px;font-weight:700;color:#e0e0e0;">${money(sv.spend_cents)}<span style="color:#6a6a6a;font-weight:600;"> / mo</span></span>` : ''}
+            <span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;flex-shrink:0;color:${sv.active ? '#3ecf8e' : '#6a6a6a'};background:${sv.active ? 'rgba(62,207,142,0.14)' : '#1f1f1f'};">${sv.active ? 'ACTIVE' : 'NOT ACTIVE'}</span>
           </div>`;
-        }).join('')
-      )}
-      ${card('Team on this department', `${members.length} ${members.length === 1 ? 'person' : 'people'}`,
-        members.length
-          ? `<div style="display:flex;flex-wrap:wrap;gap:8px;">${members.map(p => `<div style="display:flex;align-items:center;gap:7px;background:#1c1c1c;border:1px solid #262626;border-radius:8px;padding:5px 10px 5px 6px;">
-              ${c3ProfileMarkHtml(p, false)}<span style="font-size:12px;color:#e0e0e0;">${esc(p.display_name || p.full_name || p.email || 'Someone')}</span></div>`).join('')}</div>`
-          : `<div style="font-size:12.5px;color:#5a5a5a;">Nobody added to this thread yet.</div>`)}
-      ${card('Client record', 'Profile, results, billing and the full audit trail',
-        `<div data-c3-go-client="1" style="display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;background:#1a1a1a;border:1px solid #2a2a2a;color:#e0e0e0;">
-          Open ${esc(c ? c.name : 'client')} ${C3_ICON.arrowRight('currentColor', 12)}</div>`)}
+        }).join(''))}
+
+      ${mgmtCard('Account access', `${granted} of ${ACCESS_ITEMS.length} granted`,
+        ACCESS_ITEMS.map(a => {
+          const st = ACCESS_STATE[accessOf(a.key)] || ACCESS_STATE.none;
+          return `<div data-c3-access-cycle="${a.key}" title="Click to change" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #1f1f1f;cursor:pointer;">
+            <span style="width:14px;height:14px;border-radius:50%;border:1.6px solid ${st.color};background:${accessOf(a.key) === 'granted' ? st.color + '2e' : 'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+              ${accessOf(a.key) === 'granted' ? C3_ICON.check(st.color, 9) : ''}</span>
+            <span style="flex:1;min-width:0;font-size:12.5px;color:#e0e0e0;">${esc(a.label)}</span>
+            <span style="font-size:10px;font-weight:800;color:${st.color};">${st.label.toUpperCase()}</span>
+          </div>`;
+        }).join('') + `<div style="font-size:11px;color:#5a5a5a;margin-top:9px;">This is the thing that blocks work at kickoff, so it is tracked here rather than in someone's head.</div>`)}
     </div>`;
   }
 
-  // ── Magnus tab — a scoped way in, not a second orchestrator. The real Magnus
-  // runs in the Crew screen; duplicating it here would fork the agent logic, so
-  // this composes the question with client context and hands off. ──
-  // ══ Magnus — the real one, scoped to this client ═════════════════════════════
-  // Same backend the Crew's Magnus uses: /.netlify/functions/claude-api, with the
-  // Anthropic key held server-side and the session token attached by the global
-  // fetch wrapper. Not the multi-agent mission orchestrator — that plans and
-  // dispatches work, which is a different job from answering a question about a
-  // client. "Run this as a mission in Crew" is still one click away when the
-  // answer ought to become work.
+  function mgmtMembersHtml(){
+    const members = state.threadMembers.map(tm => state.profilesById[tm.profile_id]).filter(Boolean);
+    const d = DEPTS.find(x => x.key === state.selectedDept);
+    return `<div style="display:flex;flex-direction:column;gap:14px;">
+      ${mgmtCard('Who can see this department', `${members.length} on ${d ? d.label : 'this thread'}`,
+        (members.length
+          ? members.map(p => `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #1f1f1f;">
+              ${c3ProfileMarkHtml(p, false)}
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:12.5px;color:#e0e0e0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(p.display_name || p.full_name || p.email || 'Someone')}</div>
+                ${p.email ? `<div style="font-size:11px;color:#6a6a6a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(p.email)}</div>` : ''}
+              </div>
+              ${p.id === myId() ? `<span style="font-size:10px;font-weight:800;color:#6a6a6a;">YOU</span>` : ''}
+            </div>`).join('')
+          : `<div style="font-size:12.5px;color:#5a5a5a;">Nobody recorded on this thread yet.</div>`)
+        + `<div style="display:flex;align-items:center;gap:10px;margin-top:12px;">
+            <span style="font-size:11px;color:#6a6a6a;flex:1;">Membership is per department and enforced on the server.</span>
+            ${isManagerOrOwner()
+              ? `<div data-c3-members-open="1" style="display:flex;align-items:center;gap:6px;padding:7px 12px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;background:var(--red);color:#fff;white-space:nowrap;">${C3_ICON.users('currentColor', 12)} Manage members</div>`
+              : `<span style="font-size:11px;color:#5a5a5a;">Only managers can change this.</span>`}
+          </div>`)}
+    </div>`;
+  }
+
+  function mgmtOnboardingHtml(){
+    const c = state.clientRow;
+    if (!c) return `<div style="font-size:12.5px;color:#5a5a5a;padding:20px 0;">No client record loaded.</div>`;
+    const sent = c.onboarding_sent_at ? new Date(c.onboarding_sent_at) : null;
+    const done = c.onboarding_submitted_at ? new Date(c.onboarding_submitted_at) : null;
+    const answers = c.onboarding_answers && typeof c.onboarding_answers === 'object' ? c.onboarding_answers : null;
+    const nAnswers = answers ? Object.keys(answers).length : 0;
+    // EIN and business address are manager-only. This hides them; the server is
+    // what enforces it, and non-managers are told the field exists rather than
+    // being shown a form with silent holes in it.
+    const RESTRICTED = /(^|_)(ein|tax_id|business_address|address)($|_)/i;
+    const status = done ? { label:'Submitted', color:'#3ecf8e' } : sent ? { label:'Sent, awaiting reply', color:'#e8a83e' } : { label:'Not sent', color:'#6a6a6a' };
+    return `<div style="display:flex;flex-direction:column;gap:14px;">
+      ${mgmtCard('General intake form', status.label,
+        `<div style="display:flex;align-items:center;gap:10px;padding-top:4px;">
+          <span style="font-size:10px;font-weight:800;padding:3px 9px;border-radius:7px;color:${status.color};background:${status.color}1f;">${status.label.toUpperCase()}</span>
+          ${sent ? `<span style="font-size:11.5px;color:#7a7a7a;">Sent ${esc(sent.toLocaleDateString())}</span>` : ''}
+          ${done ? `<span style="font-size:11.5px;color:#7a7a7a;">· Replied ${esc(done.toLocaleDateString())}</span>` : ''}
+          <div style="flex:1;"></div>
+          ${c.onboarding_token
+            ? `<div data-c3-onboarding-copy="${esc(c.onboarding_token)}" style="display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;font-size:11.5px;font-weight:700;cursor:pointer;background:#1a1a1a;border:1px solid #2a2a2a;color:#e0e0e0;white-space:nowrap;">${C3_ICON.copy('currentColor', 12)} Copy link</div>`
+            : `<span style="font-size:11.5px;color:#6a6a6a;">No link created yet</span>`}
+        </div>
+        ${nAnswers ? `<div style="margin-top:12px;border-top:1px solid #1f1f1f;padding-top:10px;">
+          <div data-c3-onboarding-answers="1" style="font-size:11.5px;font-weight:700;color:#5aa8d6;cursor:pointer;">${state.mgmtShowAnswers ? 'Hide' : 'Show'} responses (${nAnswers})</div>
+          ${state.mgmtShowAnswers ? `<div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+            ${Object.entries(answers).map(([k, v]) => {
+              const hidden = RESTRICTED.test(k) && !isManagerOrOwner();
+              return `<div>
+                <div style="font-size:10.5px;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:#6a6a6a;">${esc(prettifyKey(k))}</div>
+                <div style="font-size:12.5px;color:${hidden ? '#5a5a5a' : '#e0e0e0'};margin-top:2px;white-space:pre-wrap;">${hidden ? 'Hidden — managers and owners only' : esc(typeof v === 'string' ? v : JSON.stringify(v))}</div>
+              </div>`;
+            }).join('')}
+          </div>` : ''}
+        </div>` : ''}`)}
+    </div>`;
+  }
+
+  function mgmtBillingHtml(){
+    const c = state.clientRow;
+    const mrr = c && c.mrr ? Number(c.mrr) : 0;
+    const svcTotal = state.clientServices.filter(s => s.active).reduce((n, s) => n + (s.spend_cents || 0), 0) / 100;
+    return `<div style="display:flex;flex-direction:column;gap:14px;">
+      <div style="display:flex;gap:12px;">
+        ${c3StatCardHtml(mrr ? '$' + mrr.toLocaleString() : '—', 'MRR', mrr ? '#3ecf8e' : '#fff')}
+        ${c3StatCardHtml(svcTotal ? '$' + Math.round(svcTotal).toLocaleString() : '—', 'Ad spend / mo')}
+        ${c3StatCardHtml(c && c.created_at ? new Date(c.created_at).getFullYear() : '—', 'Client since')}
+      </div>
+      ${mgmtCard('Retainer', mrr ? 'Monthly recurring revenue' : 'Not recorded',
+        mrr
+          ? `<div style="font-size:12.5px;color:#9a9a9a;line-height:1.6;">Ad spend is the client's money and is tracked separately from the retainer — the two are never added together.</div>`
+          : `<div style="font-size:12.5px;color:#5a5a5a;">No MRR set for this client. Set it on the client record.</div>`)}
+      ${mgmtCard('Archive', c && c.archived ? 'This client is archived' : 'Hides the client, keeps everything',
+        `<div style="font-size:12.5px;color:#9a9a9a;line-height:1.6;margin-bottom:11px;">Archiving hides ${esc(c ? c.name : 'this client')} from lists, counts and MRR. Every message, file and note is kept.</div>
+         <div data-c3-go-client="1" style="display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;background:#1a1a1a;border:1px solid #2a2a2a;color:#e0e0e0;">
+           ${c && c.archived ? 'Restore on the client record' : 'Archive on the client record'} ${C3_ICON.arrowRight('currentColor', 12)}</div>`)}
+    </div>`;
+  }
+
+  function mgmtActivityHtml(){
+    const rows = state.mgmtActivity;
+    if (!rows.length) return `<div style="text-align:center;color:#5a5a5a;font-size:12.5px;padding:40px 0;">Nothing recorded yet.</div>`;
+    return `<div style="display:flex;flex-direction:column;gap:14px;">
+      ${mgmtCard('Recent activity', `${rows.length} event${rows.length === 1 ? '' : 's'}`,
+        rows.map(r => `<div style="display:flex;gap:10px;padding:9px 0;border-top:1px solid #1f1f1f;">
+          <span style="width:7px;height:7px;border-radius:50%;background:${r.color};flex-shrink:0;margin-top:5px;"></span>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12.5px;color:#e0e0e0;"><span style="font-weight:700;">${esc(r.who)}</span> ${esc(r.what)}</div>
+            ${r.detail ? `<div style="font-size:11.5px;color:#7a7a7a;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(r.detail)}</div>` : ''}
+          </div>
+          <span style="font-size:10.5px;color:#5a5a5a;flex-shrink:0;white-space:nowrap;">${esc(new Date(r.when).toLocaleDateString())}</span>
+        </div>`).join('')
+        + `<div style="font-size:11px;color:#5a5a5a;margin-top:10px;">Assembled from this thread, tasks, the vault and onboarding — there is no separate audit log yet, so this is a partial view.</div>`)}
+    </div>`;
+  }
+
+  async function cycleClientAccess(serviceKey){
+    const order = ['none', 'pending', 'granted'];
+    const row = state.clientAccess.find(a => a.service_key === serviceKey);
+    const current = row ? row.status : 'none';
+    const next = order[(order.indexOf(current) + 1) % order.length];
+    if (row) row.status = next; else state.clientAccess.push({ service_key: serviceKey, status: next });
+    render();
+    const { error } = await sb().from('chat2_client_access')
+      .upsert({ client_id: state.selectedId, service_key: serviceKey, status: next, updated_by: myId() }, { onConflict: 'client_id,service_key' });
+    if (error) {
+      const back = state.clientAccess.find(a => a.service_key === serviceKey);
+      if (back) back.status = current;
+      render();
+      if (typeof toast === 'function') toast({ type:'error', message:'Could not update access: ' + error.message });
+    }
+  }
+
+  function managementTabHtml(){
+    const tab = (t) => `<div data-c3-mgmt-tab="${t.key}" style="padding:8px 2px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;border-bottom:2px solid ${state.mgmtTab === t.key ? '#d91f0f' : 'transparent'};color:${state.mgmtTab === t.key ? '#fff' : '#7a7a7a'};">${t.label}</div>`;
+    const body = state.mgmtLoading
+      ? `<div style="text-align:center;color:#6a6a6a;font-size:13px;padding:40px 0;">Loading…</div>`
+      : ({ overview: mgmtOverviewHtml, members: mgmtMembersHtml, onboarding: mgmtOnboardingHtml,
+           billing: mgmtBillingHtml, activity: mgmtActivityHtml }[state.mgmtTab] || mgmtOverviewHtml)();
+    return `<div style="padding:0 22px 18px;">
+      <div style="display:flex;align-items:center;gap:18px;border-bottom:1px solid #242424;margin-bottom:16px;position:sticky;top:0;background:#141414;z-index:2;">
+        ${MGMT_TABS.map(tab).join('')}
+      </div>
+      ${body}
+    </div>`;
+  }
 
   const MAGNUS_BLUE = '#38bdf8';
   const MAGNUS_SYSTEM = `You are Magnus, the operations lead at ReachGiant, a digital marketing agency. You are answering a staff member inside the app, and the CONTEXT below is everything you can see.
@@ -24720,7 +24905,10 @@ Rules:
       // Media shows the uploaded half from the same library, so it needs it loaded.
       if (state.selectedSubTab === 'media' && state.selectedKind === 'client') loadClientLibrary(state.selectedId);
       if (state.selectedSubTab === 'tasks' && state.selectedKind === 'client') loadClientTasks(state.selectedId);
-      if (state.selectedSubTab === 'management' && state.selectedKind === 'client') loadClientServices(state.selectedId);
+      if (state.selectedSubTab === 'management' && state.selectedKind === 'client') {
+        loadClientServices(state.selectedId);
+        loadClientManagement(state.selectedId);
+      }
     }));
 
     // ── Header controls ──
@@ -24745,6 +24933,13 @@ Rules:
       state.memberAddDepts = state.memberAddDepts.includes(k)
         ? state.memberAddDepts.filter(x => x !== k) : state.memberAddDepts.concat(k);
       render();
+    }));
+    host.querySelectorAll('[data-c3-mgmt-tab]').forEach(el => el.addEventListener('click', () => { state.mgmtTab = el.dataset.c3MgmtTab; render(); }));
+    host.querySelectorAll('[data-c3-access-cycle]').forEach(el => el.addEventListener('click', () => cycleClientAccess(el.dataset.c3AccessCycle)));
+    host.querySelectorAll('[data-c3-onboarding-answers]').forEach(el => el.addEventListener('click', () => { state.mgmtShowAnswers = !state.mgmtShowAnswers; render(); }));
+    host.querySelectorAll('[data-c3-onboarding-copy]').forEach(el => el.addEventListener('click', () => {
+      const url = `${location.origin}/onboarding?t=${encodeURIComponent(el.dataset.c3OnboardingCopy)}`;
+      copyLibText(url, 'Onboarding link copied');
     }));
     host.querySelectorAll('[data-c3-member-add-save]').forEach(el => el.addEventListener('click', () => addClientMember()));
     const memberWho = host.querySelector('#c3MemberAddWho');
