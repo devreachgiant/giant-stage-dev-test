@@ -23057,7 +23057,9 @@ window.addEventListener('popstate', (e) => {
     render();
     const [accessRes, clientRes] = await Promise.all([
       sb().from('chat2_client_access').select('service_key, status, updated_at, updated_by').eq('client_id', clientId),
-      sb().from('clients').select('id, name, mrr, archived, onboarding_token, onboarding_sent_at, onboarding_submitted_at, onboarding_answers, created_at')
+      // client_onboarding, not clients: the view strips EIN and address for
+      // non-managers in the projection, so the restriction survives the browser.
+      sb().from('client_onboarding').select('id, name, mrr_cents, status, onboarding_token, onboarding_sent_at, onboarding_submitted_at, onboarding_answers, created_at')
         .eq('id', clientId).maybeSingle(),
     ]);
     if (state.mgmtFor !== clientId) return; // a different client won the race
@@ -23170,10 +23172,11 @@ window.addEventListener('popstate', (e) => {
     const done = c.onboarding_submitted_at ? new Date(c.onboarding_submitted_at) : null;
     const answers = c.onboarding_answers && typeof c.onboarding_answers === 'object' ? c.onboarding_answers : null;
     const nAnswers = answers ? Object.keys(answers).length : 0;
-    // EIN and business address are manager-only. This hides them; the server is
-    // what enforces it, and non-managers are told the field exists rather than
-    // being shown a form with silent holes in it.
-    const RESTRICTED = /(^|_)(ein|tax_id|business_address|address)($|_)/i;
+    // EIN and address are manager-only, enforced by the client_onboarding view —
+    // a non-manager never receives them, so there is nothing here to hide. This
+    // list exists only to LABEL them as withheld, so the reader knows the field is
+    // restricted rather than reading the gap as "the client never answered".
+    const WITHHELD_KEYS = ['ein', 'address'];
     const status = done ? { label:'Submitted', color:'#3ecf8e' } : sent ? { label:'Sent, awaiting reply', color:'#e8a83e' } : { label:'Not sent', color:'#6a6a6a' };
     return `<div style="display:flex;flex-direction:column;gap:14px;">
       ${mgmtCard('General intake form', status.label,
@@ -23189,13 +23192,14 @@ window.addEventListener('popstate', (e) => {
         ${nAnswers ? `<div style="margin-top:12px;border-top:1px solid #1f1f1f;padding-top:10px;">
           <div data-c3-onboarding-answers="1" style="font-size:11.5px;font-weight:700;color:#5aa8d6;cursor:pointer;">${state.mgmtShowAnswers ? 'Hide' : 'Show'} responses (${nAnswers})</div>
           ${state.mgmtShowAnswers ? `<div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
-            ${Object.entries(answers).map(([k, v]) => {
-              const hidden = RESTRICTED.test(k) && !isManagerOrOwner();
-              return `<div>
+            ${Object.entries(answers).map(([k, v]) => `<div>
                 <div style="font-size:10.5px;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:#6a6a6a;">${esc(prettifyKey(k))}</div>
-                <div style="font-size:12.5px;color:${hidden ? '#5a5a5a' : '#e0e0e0'};margin-top:2px;white-space:pre-wrap;">${hidden ? 'Hidden — managers and owners only' : esc(typeof v === 'string' ? v : JSON.stringify(v))}</div>
-              </div>`;
-            }).join('')}
+                <div style="font-size:12.5px;color:#e0e0e0;margin-top:2px;white-space:pre-wrap;">${esc(typeof v === 'string' ? v : JSON.stringify(v))}</div>
+              </div>`).join('')}
+            ${!isManagerOrOwner() ? WITHHELD_KEYS.filter(k => !(k in answers)).map(k => `<div>
+                <div style="font-size:10.5px;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:#6a6a6a;">${esc(prettifyKey(k))}</div>
+                <div style="font-size:12.5px;color:#5a5a5a;margin-top:2px;">Withheld — managers and owners only</div>
+              </div>`).join('') : ''}
           </div>` : ''}
         </div>` : ''}`)}
     </div>`;
@@ -23203,7 +23207,7 @@ window.addEventListener('popstate', (e) => {
 
   function mgmtBillingHtml(){
     const c = state.clientRow;
-    const mrr = c && c.mrr ? Number(c.mrr) : 0;
+    const mrr = c && c.mrr_cents ? Math.round(Number(c.mrr_cents) / 100) : 0;
     const svcTotal = state.clientServices.filter(s => s.active).reduce((n, s) => n + (s.spend_cents || 0), 0) / 100;
     return `<div style="display:flex;flex-direction:column;gap:14px;">
       <div style="display:flex;gap:12px;">
@@ -23215,10 +23219,10 @@ window.addEventListener('popstate', (e) => {
         mrr
           ? `<div style="font-size:12.5px;color:#9a9a9a;line-height:1.6;">Ad spend is the client's money and is tracked separately from the retainer — the two are never added together.</div>`
           : `<div style="font-size:12.5px;color:#5a5a5a;">No MRR set for this client. Set it on the client record.</div>`)}
-      ${mgmtCard('Archive', c && c.archived ? 'This client is archived' : 'Hides the client, keeps everything',
+      ${mgmtCard('Archive', c && c.status === 'churned' ? 'This client is archived' : 'Hides the client, keeps everything',
         `<div style="font-size:12.5px;color:#9a9a9a;line-height:1.6;margin-bottom:11px;">Archiving hides ${esc(c ? c.name : 'this client')} from lists, counts and MRR. Every message, file and note is kept.</div>
          <div data-c3-go-client="1" style="display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;background:#1a1a1a;border:1px solid #2a2a2a;color:#e0e0e0;">
-           ${c && c.archived ? 'Restore on the client record' : 'Archive on the client record'} ${C3_ICON.arrowRight('currentColor', 12)}</div>`)}
+           ${c && c.status === 'churned' ? 'Restore on the client record' : 'Archive on the client record'} ${C3_ICON.arrowRight('currentColor', 12)}</div>`)}
     </div>`;
   }
 
