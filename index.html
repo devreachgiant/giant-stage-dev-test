@@ -119,6 +119,7 @@ body[data-focus="2"] #navRail3{display:flex;flex-direction:column;align-items:ce
 .rail-tile .ico{display:flex;align-items:center;justify-content:center;}
 .rail-tile .rail-badge{position:absolute;top:-3px;right:-3px;min-width:15px;height:15px;padding:0 4px;border-radius:8px;background:#d91f0f;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--shell);box-sizing:content-box;}
 /* Stage 2 also rails Chat 3.0's own context column. */
+body[data-focus="2"] .screen.on > *:not(.c3-context):not(#c3Root){max-width:1240px;margin-left:auto;margin-right:auto;}
 body[data-focus="2"] #c3Root > .c3-context{width:68px !important;padding:16px 4px !important;box-sizing:border-box;}
 body[data-focus="2"] #c3Root > .c3-context > *:not(#c3Rail){display:none !important;}
 #c3Rail{display:none;}
@@ -10548,8 +10549,7 @@ function enterApp(){
     const v = ((n % STAGES) + STAGES) % STAGES;
     body.dataset.focus = String(v);
     try { localStorage.setItem('giant.focusStage', String(v)); } catch (_) {}
-    const btn = document.getElementById('sidebarCollapseBtn');
-    if (btn) btn.title = ['Collapse panels', 'Collapse inner panel', 'Expand panels · Esc'][v];
+    paintControl();
     buildRail();
     // Widths animate for 180ms; the nav pill measures offsets, so let it settle.
     setTimeout(() => { try { window.dispatchEvent(new Event('resize')); } catch (_) {} }, 200);
@@ -10641,10 +10641,34 @@ function enterApp(){
     }
   }
 
+  // Control lifted from the prototype source: 32px, one glyph per stage, each
+  // telegraphing what the NEXT press does rather than what state you are in —
+  // 0 = panel + left chevron (hide menu), 1 = two panels closing (full screen),
+  // 2 = expand outward. Icon is brand red in every state; only the container
+  // changes, so the button never becomes a different-looking button.
+  const FOCUS_ICON = [
+    'M4 5h5v14H4zM20 5v14M16 9l-2.5 3 2.5 3',
+    'M4 5h4v14H4zM11 5h4v14h-4zM21 5v14',
+    'M14 5l-5 7 5 7M4 5v14M20 5v14',
+  ];
+  const FOCUS_TITLE = ['Hide menu', 'Full screen', 'Show all panels'];
+  function paintControl(){
+    const el = document.getElementById('sidebarCollapseBtn');
+    if (!el) return;
+    const v = stage();
+    el.title = FOCUS_TITLE[v];
+    el.style.cssText = 'display:flex;align-items:center;justify-content:center;width:32px;height:32px;'
+      + 'border-radius:9px;cursor:pointer;flex-shrink:0;position:relative;right:auto;top:auto;opacity:1;box-sizing:border-box;'
+      + `background:${v ? 'rgba(217,31,15,0.14)' : 'rgba(217,31,15,0.06)'};`
+      + `border:1px solid ${v ? 'rgba(217,31,15,0.5)' : 'rgba(217,31,15,0.22)'};`;
+    el.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#d91f0f" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="${FOCUS_ICON[v]}"/></svg>`;
+  }
   const btn = document.getElementById('sidebarCollapseBtn');
   if (btn) {
     // Replaces the old binary collapse so there is one control, not two competing ones.
-    const fresh = btn.cloneNode(true);
+    const fresh = btn.cloneNode(false);
+    fresh.id = 'sidebarCollapseBtn';
+    fresh.className = 'sidebar-collapse';
     btn.parentNode.replaceChild(fresh, btn);
     fresh.addEventListener('click', (e) => { e.stopPropagation(); setStage(stage() + 1); });
   }
