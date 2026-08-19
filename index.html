@@ -163,9 +163,26 @@ body[data-focus="2"] #navRail3{display:flex;flex-direction:column;align-items:ce
 .rail-tile .rail-dot{position:absolute;top:-1px;right:-1px;width:8px;height:8px;border-radius:50%;background:linear-gradient(90deg,#A855F7,#FB923C,#10B981);border:2px solid var(--shell);box-sizing:content-box;}
 .rail-gap{height:12px;flex-shrink:0;}
 .rail-tile .rail-badge{position:absolute;top:-3px;right:-3px;min-width:15px;height:15px;padding:0 4px;border-radius:8px;background:#d91f0f;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--shell);box-sizing:content-box;}
-/* Stage 2 also rails Chat 3.0's own context column. */
-body[data-focus="2"] .screen.on > *:not(.c3-context):not(#c3Root){max-width:1240px;margin-left:auto;margin-right:auto;}
+/* Stage 2 = "both sidebars closed, bigger screen". The readable-width cap below is
+   for TEXT screens only. It used to apply to every screen, which broke the app-layout
+   ones badly: .screen.fullbleed lays its children out with flex, and an auto margin on
+   a flex item eats all the free space BEFORE flex-grow runs — so instead of a 1240px
+   column, Chat's grid collapsed to its min-content width (706px at 1512px viewport)
+   and floated in the middle with 371px of dead space either side. That is the blank
+   band beside the sidebar, and it is also why full screen made the content smaller
+   rather than bigger. Fullbleed screens are excluded now: they are meant to fill. */
+body[data-focus="2"] .screen.on:not(.fullbleed) > *{max-width:1240px;margin-left:auto;margin-right:auto;}
 body[data-focus="2"] #c3Root > .c3-context{width:68px !important;padding:16px 4px !important;box-sizing:border-box;}
+/* "Full screen — both sidebars closed." Stage 1 closes the main sidebar; stage 2 has
+   to close the screen's OWN sidebar too, or it is indistinguishable from stage 1 on
+   every app-layout screen. Chat 3.0 rails its context column to 68px (above) because
+   its design has a rail to fall back on; the older screens have no rail, so theirs
+   close outright — the toggle and Escape both bring them straight back. The resize
+   handle goes with its panel, otherwise a 5px drag target is left stranded against
+   the content. */
+body[data-focus="2"] .screen.on > .fb-grid > .channels,
+body[data-focus="2"] .screen.on > .fb-grid > .maillist,
+body[data-focus="2"] .screen.on > .fb-grid > .col-resize{display:none !important;}
 body[data-focus="2"] #c3Root > .c3-context > *:not(#c3Rail){display:none !important;}
 #c3Rail{display:none;}
 body[data-focus="2"] #c3Rail{display:flex;flex-direction:column;align-items:center;gap:6px;overflow-y:auto;flex:1;min-height:0;scrollbar-width:none;}
