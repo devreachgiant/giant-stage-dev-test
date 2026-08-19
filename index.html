@@ -90,6 +90,48 @@ body::after{content:"";position:fixed;inset:0;z-index:9999;pointer-events:none;o
 
 /* === Collapsed state === */
 .sidebar.collapsed{width:74px;padding:20px 8px;}
+/* ===== THREE-TIER MENU =====
+   focus 0 = everything open · 1 = app-nav rail · 2 = app-nav rail + context rail.
+   One control cycles 0>1>2>0; Escape returns to 0 from anywhere. Nothing is ever
+   hidden — each stage trades a column of labels for content width, and every
+   destination stays reachable as a tile. */
+body[data-focus="1"] .sidebar,
+body[data-focus="2"] .sidebar{width:68px;padding:20px 6px;box-sizing:border-box;}
+body[data-focus="1"] .sidebar .brand-name,
+body[data-focus="2"] .sidebar .brand-name{display:none;}
+body[data-focus="1"] .sidebar .nav-rail,
+body[data-focus="2"] .sidebar .nav-rail,
+body[data-focus="1"] .sidebar .nav-group-label,
+body[data-focus="2"] .sidebar .nav-group-label,
+body[data-focus="1"] .sidebar .sidebar-foot,
+body[data-focus="2"] .sidebar .sidebar-foot{display:none !important;}
+body[data-focus="1"] .sidebar .brand,
+body[data-focus="2"] .sidebar .brand{justify-content:center;padding:2px 0 14px;}
+/* The rail only exists in stages 1-2; in stage 0 it must not take up space. */
+#navRail3{display:none;}
+body[data-focus="1"] #navRail3,
+body[data-focus="2"] #navRail3{display:flex;flex-direction:column;align-items:center;gap:4px;overflow-y:auto;overflow-x:hidden;flex:1;min-height:0;scrollbar-width:none;}
+#navRail3::-webkit-scrollbar{display:none;}
+.rail-tile{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;flex-shrink:0;background:#161616;border:1px solid #242424;color:#8a8a8a;transition:background .14s,border-color .14s,color .14s;}
+.rail-tile:hover{border-color:#3a3a3a;color:#c8c8c8;}
+.rail-tile.on{background:#d91f0f;border-color:#d91f0f;color:#fff;}
+.rail-tile svg{width:19px;height:19px;}
+.rail-tile .ico{display:flex;align-items:center;justify-content:center;}
+.rail-tile .rail-badge{position:absolute;top:-3px;right:-3px;min-width:15px;height:15px;padding:0 4px;border-radius:8px;background:#d91f0f;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--shell);box-sizing:content-box;}
+.rail-sep{width:26px;height:1px;background:#242424;margin:7px 0;flex-shrink:0;}
+/* Stage 2 also rails Chat 3.0's own context column. */
+body[data-focus="2"] #c3Root > .c3-context{width:76px !important;padding:16px 6px !important;}
+body[data-focus="2"] #c3Root > .c3-context > *:not(#c3Rail){display:none !important;}
+#c3Rail{display:none;}
+body[data-focus="2"] #c3Rail{display:flex;flex-direction:column;align-items:center;gap:6px;overflow-y:auto;flex:1;min-height:0;scrollbar-width:none;}
+#c3Rail::-webkit-scrollbar{display:none;}
+.c3-rail-tile{width:44px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;flex-shrink:0;}
+.c3-rail-tile .box{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;position:relative;background:#161616;border:1px solid #242424;transition:border-color .14s;}
+.c3-rail-tile:hover .box{border-color:#3a3a3a;}
+.c3-rail-tile.on .box{background:rgba(217,31,15,0.16);border-color:#d91f0f;}
+.c3-rail-tile .cap{font-size:8.5px;font-weight:700;color:#6a6a6a;text-align:center;line-height:1.15;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.c3-rail-tile.on .cap{color:#e0e0e0;}
+.c3-rail-tile .rail-badge{position:absolute;top:-4px;right:-4px;min-width:15px;height:15px;padding:0 4px;border-radius:8px;background:#d91f0f;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #131313;box-sizing:content-box;}
 .sidebar.collapsed .brand{padding:6px 4px 18px;justify-content:flex-start;gap:6px;}
 .sidebar.collapsed .brand-name{display:none;}
 .sidebar.collapsed .sidebar-collapse{position:relative;right:auto;top:auto;width:20px;height:20px;}
@@ -5823,6 +5865,10 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         </div>
       </div>
       <div class="nav-scroll" id="navScroll">
+      <!-- Three-tier rail. Populated from the real nav in JS rather than duplicated
+           in markup, so a nav change can never leave the rail showing a stale set. -->
+      <div id="navRail3"></div>
+
       <div class="nav-group-label nav-group-toggle" data-navgroup="overview" style="display:none;">Overview<svg class="nav-group-chev" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div class="nav-rail" id="rail" data-navgroup-body="overview" style="display:none;">
         <div class="nav-pill" id="pill"></div>
@@ -10485,7 +10531,147 @@ function enterApp(){
   },20);
 }
 
-/* ============== SIDEBAR COLLAPSE ============== */
+/* ===== THREE-TIER MENU =====
+   Full (0) → app-nav rail (1) → app-nav rail + context rail (2) → back to full.
+   The rail is BUILT FROM THE LIVE NAV, not a hand-kept copy: group tiles come from
+   the real .nav-group-label icons and item tiles from the real .nav-item icons, so
+   adding a nav entry can never leave the rail out of date. Spec §5's rule holds —
+   every destination stays reachable, nothing is hidden. */
+(function threeTierMenu(){
+  const STAGES = 3;
+  const body = document.body;
+  const railHost = document.getElementById('navRail3');
+  const sidebar = document.getElementById('appSidebar');
+  if (!railHost || !sidebar) return;
+
+  const stage = () => Number(body.dataset.focus || 0);
+  function setStage(n){
+    const v = ((n % STAGES) + STAGES) % STAGES;
+    body.dataset.focus = String(v);
+    try { localStorage.setItem('giant.focusStage', String(v)); } catch (_) {}
+    const btn = document.getElementById('sidebarCollapseBtn');
+    if (btn) btn.title = ['Collapse panels', 'Collapse inner panel', 'Expand panels · Esc'][v];
+    buildRail();
+    // Widths animate for 180ms; the nav pill measures offsets, so let it settle.
+    setTimeout(() => { try { window.dispatchEvent(new Event('resize')); } catch (_) {} }, 200);
+  }
+
+  // Which group a screen belongs to, derived from the DOM so it cannot drift.
+  const isHidden = (el) => !el || el.style.display === 'none' || el.hasAttribute('hidden');
+  function groups(){
+    const out = [];
+    sidebar.querySelectorAll('.nav-group-label[data-navgroup]').forEach(lbl => {
+      const key = lbl.dataset.navgroup;
+      if (isHidden(lbl)) return;                 // a hidden group is not a tile
+      const rail = sidebar.querySelector(`[data-navgroup-body="${key}"]`);
+      if (!rail || isHidden(rail)) return;
+      const items = [...rail.querySelectorAll('.nav-item[data-screen]')].filter(el => !isHidden(el));
+      if (!items.length) return;
+      const ico = lbl.querySelector('.ico');
+      out.push({ key, label: (lbl.textContent || key).trim(), ico: ico ? ico.innerHTML : '', items });
+    });
+    return out;
+  }
+  // Anything not under a VISIBLE group is a destination in its own right — Daily
+  // Focus lives inside a group whose label is hidden, so it would otherwise vanish
+  // from the rail entirely and stop being reachable.
+  function loneItems(){
+    const claimed = new Set();
+    groups().forEach(g => g.items.forEach(i => claimed.add(i)));
+    return [...sidebar.querySelectorAll('.nav-item[data-screen]')]
+      .filter(el => !claimed.has(el) && !isHidden(el) && !isHidden(el.closest('[data-navgroup-body]') || el));
+  }
+  const activeScreen = () => {
+    const on = sidebar.querySelector('.nav-item.active[data-screen]');
+    return on ? on.dataset.screen : null;
+  };
+
+  function tile(html, title, on, badge, onClick){
+    const d = document.createElement('div');
+    d.className = 'rail-tile' + (on ? ' on' : '');
+    d.title = title;
+    d.innerHTML = `<span class="ico">${html}</span>` + (badge ? `<span class="rail-badge">${badge}</span>` : '');
+    d.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
+    return d;
+  }
+
+  function buildRail(){
+    if (stage() === 0) { railHost.innerHTML = ''; return; }
+    railHost.innerHTML = '';
+    const cur = activeScreen();
+    const gs = groups();
+    const owning = gs.find(g => g.items.some(i => i.dataset.screen === cur))
+      // No active item yet (first paint): show the group that is open, so the
+      // second cluster is never silently empty.
+      || gs.find(g => {
+        const b = sidebar.querySelector(`[data-navgroup-body="${g.key}"]`);
+        return b && !isHidden(b) && b.getAttribute('aria-hidden') !== 'true';
+      });
+
+    // Cluster 1 — one tile per group, plus any standalone item (Daily Focus).
+    loneItems().forEach(it => {
+      const b = it.querySelector('.badge');
+      railHost.appendChild(tile(
+        (it.querySelector('.ico') || {}).innerHTML || '',
+        it.dataset.label || 'Section',
+        it.dataset.screen === cur,
+        b && b.textContent.trim() !== '0' ? b.textContent.trim() : '',
+        () => it.click()));
+    });
+    gs.forEach(g => {
+      railHost.appendChild(tile(g.ico, g.label, owning && owning.key === g.key, '', () => {
+        // Opening a group from the rail returns to full — you asked to see inside it.
+        setStage(0);
+        const lbl = sidebar.querySelector(`.nav-group-label[data-navgroup="${g.key}"]`);
+        if (lbl && lbl.getAttribute('aria-expanded') === 'false') lbl.click();
+      }));
+    });
+
+    // Cluster 2 — the group you are actually in, so its screens stay one click away.
+    if (owning) {
+      const sep = document.createElement('div');
+      sep.className = 'rail-sep';
+      railHost.appendChild(sep);
+      owning.items.forEach(it => {
+        const b = it.querySelector('.badge');
+        railHost.appendChild(tile(
+          (it.querySelector('.ico') || {}).innerHTML || '',
+          it.dataset.label || it.dataset.screen,
+          it.dataset.screen === cur,
+          b && b.textContent.trim() && b.textContent.trim() !== '0' ? b.textContent.trim() : '',
+          () => it.click()));
+      });
+    }
+  }
+
+  const btn = document.getElementById('sidebarCollapseBtn');
+  if (btn) {
+    // Replaces the old binary collapse so there is one control, not two competing ones.
+    const fresh = btn.cloneNode(true);
+    btn.parentNode.replaceChild(fresh, btn);
+    fresh.addEventListener('click', (e) => { e.stopPropagation(); setStage(stage() + 1); });
+  }
+  // Escape returns to full from anywhere — spec §5. Ignored while typing, or it
+  // would fight every text field in the app.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || stage() === 0) return;
+    const t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    setStage(0);
+  });
+  // Rebuild when the active screen changes, so cluster 2 follows you.
+  document.addEventListener('click', (e) => {
+    if (e.target.closest && e.target.closest('.nav-item[data-screen]')) setTimeout(buildRail, 30);
+  }, true);
+
+  let saved = 0;
+  try { saved = Number(localStorage.getItem('giant.focusStage') || 0); } catch (_) {}
+  setStage(Number.isFinite(saved) ? saved : 0);
+  window.giantFocusStage = { get: stage, set: setStage };
+})();
+
+
+/* ============== SIDEBAR COLLAPSE (legacy binary toggle, superseded above) ============== */
 (function(){
   const btn=document.getElementById('sidebarCollapseBtn');
   const sidebar=document.getElementById('appSidebar');
@@ -10499,13 +10685,11 @@ function enterApp(){
       if(pill&&active)pill.style.transform=`translateY(${active.offsetTop}px)`;
     });
   }
-  btn.addEventListener('click',e=>{
-    e.stopPropagation();
-    sidebar.classList.toggle('collapsed');
-    btn.title=sidebar.classList.contains('collapsed')?'Expand sidebar':'Collapse sidebar';
-    /* recompute pill positions after transition */
-    setTimeout(repositionPills,260);
-  });
+  /* The three-tier controller above owns this button now. Leaving this listener
+     attached would toggle .collapsed on top of the stage change, giving two
+     competing width rules on the same element. repositionPills is still used by
+     the stage change via the resize event it fires. */
+  window.addEventListener('resize',()=>setTimeout(repositionPills,0));
 })();
 
 /* app nav */
@@ -22373,6 +22557,38 @@ window.addEventListener('popstate', (e) => {
     }[state.openCard] || 'Search clients, channels and people…';
   }
 
+  // Stage-2 rail for this column: the same seven destinations as tiles, each with
+  // its live count, so collapsing the column costs reach rather than removing it.
+  // Picking one expands the column back — you asked to look inside it.
+  function c3RailHtml(){
+    const rooms = needsRoomsC3();
+    const roomByKey = {}; rooms.forEach(r => { roomByKey[r.key] = r; });
+    const counts = {
+      home: (rooms.find(r => r.targetKind === 'home') || {}).count || 0,
+      needs: rooms.length,
+      starred: state.clients.filter(c => state.starredClientIds.has(c.id)).length,
+      clients: state.clients.length,
+      teams: state.teamChannels.length,
+      direct: Object.values(state.profilesById).filter(p => p.id !== myId()).length,
+      groups: state.dmThreads.filter(t => t.is_group).length,
+    };
+    return `<div id="c3Rail">
+      ${NAV_CARDS.map(card => {
+        const n = counts[card.key] || 0;
+        const on = (card.key === 'needs' && state.selectedKind === 'inbox')
+                || (card.key === 'home' && state.selectedKind === 'home')
+                || (state.openCard === card.key && state.selectedKind !== 'inbox' && state.selectedKind !== 'home');
+        return `<div data-c3-rail-card="${card.key}" class="c3-rail-tile${on ? ' on' : ''}" title="${esc(card.label)}">
+          <div class="box">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="${card.accent}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="${card.d}"/></svg>
+            ${n ? `<span class="rail-badge">${n}</span>` : ''}
+          </div>
+          <span class="cap">${esc(card.label.split(' ')[0])}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
   function navSidebarHtml(){
     const q = state.searchQuery.trim().toLowerCase();
     const match = (n) => !q || String(n || '').toLowerCase().includes(q);
@@ -25094,7 +25310,8 @@ Rules:
       return;
     }
     host.innerHTML = `
-      <div style="width:300px;flex-shrink:0;height:100%;min-height:0;border-right:1px solid #2a2a2a;padding:16px 14px;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;">
+      <div class="c3-context" style="width:300px;flex-shrink:0;height:100%;min-height:0;border-right:1px solid #2a2a2a;padding:16px 14px;display:flex;flex-direction:column;box-sizing:border-box;overflow:hidden;transition:width .18s ease,padding .18s ease;">
+        ${c3RailHtml()}
         <div style="display:flex;align-items:center;gap:9px;background:#141414;border:1px solid #242424;border-radius:10px;padding:0 12px;height:36px;margin-bottom:12px;flex-shrink:0;">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6a6a6a" stroke-width="2.4" style="flex-shrink:0;"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
           <input id="c3SearchInput" value="${esc(state.searchQuery)}" placeholder="${esc(c3SearchPlaceholder())}" style="flex:1;min-width:0;background:transparent;border:none;outline:none;color:#fff;font-size:12.5px;font-family:inherit;">
@@ -25180,6 +25397,12 @@ Rules:
     }));
     // Card heads: exactly one open at a time. "Needs you" and Home also drive the
     // content column, because opening either is always a request to look at it.
+    host.querySelectorAll('[data-c3-rail-card]').forEach(el => el.addEventListener('click', () => {
+      const key = el.dataset.c3RailCard;
+      if (window.giantFocusStage && window.giantFocusStage.get() === 2) window.giantFocusStage.set(1);
+      const head = host.querySelector(`[data-c3-card="${key}"]`);
+      if (head) head.click();
+    }));
     host.querySelectorAll('[data-c3-card]').forEach(el => el.addEventListener('click', () => {
       const key = el.dataset.c3Card;
       // Home is a pin, not a drawer — it navigates and has nothing to collapse.
