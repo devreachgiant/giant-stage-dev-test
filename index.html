@@ -106,6 +106,32 @@ body::after{content:"";position:fixed;inset:0;z-index:9999;pointer-events:none;o
 #hdrPerson:hover{background:var(--surface-2,#1a1a1a);}
 #hdrRight .theme-toggle{position:relative;top:auto;right:auto;}
 #globalHeaderBar .sidebar-collapse{position:relative;right:auto;top:auto;opacity:1;}
+/* Menu, hairline, then the mark. The rule keeps the toggle and the brand from
+   reading as one control without spending a whole gap on separating them. */
+.hdr-divider{width:1px;height:19px;background:var(--line-2);flex-shrink:0;border-radius:1px;}
+#hdrBrand{opacity:.95;transition:opacity .16s var(--ease),transform .16s var(--ease);}
+#hdrBrand:hover{opacity:1;transform:scale(1.04);}
+
+/* The bar is full width, but the search belongs to the CONTENT, so it is centred on
+   the area right of the sidebar rather than on the window. That is why it is taken
+   out of flow: as a flex middle column it centres between #hdrLeft and #hdrRight,
+   which are different widths, so it sat left of the content's real centre line and
+   drifted again every time the right side changed. --sidebar-w tracks the collapse
+   stages so it re-centres, on the same timing as the sidebar's own width transition.
+   Below 900px there is no room to hold a centre line against #hdrRight, so it goes
+   back in flow and simply takes the space that is left. */
+body{--sidebar-w:236px;}
+body[data-focus="1"],body[data-focus="2"]{--sidebar-w:64px;}
+#hdrSearchWrap{position:absolute;top:50%;transform:translate(-50%,-50%);
+  left:calc(var(--sidebar-w) + (100% - var(--sidebar-w)) / 2);
+  width:min(440px, calc(100% - var(--sidebar-w) - 2 * (var(--hdr-right-w, 260px) + 26px)));
+  transition:left .25s var(--ease),width .25s var(--ease);}
+/* Centred on the content, the box grows BOTH ways, so the room it has is twice the
+   gap to #hdrRight — not the gap itself. --hdr-right-w is published by script since
+   that side's width depends on the person's name and their badges. When even that
+   leaves too little, holding a centre line stops being worth it and the box goes
+   back in flow to take the space that is left. */
+body.hdr-search-inflow #hdrSearchWrap{position:static;transform:none;width:auto;flex:1;min-width:0;margin:0 10px;}
 @media (max-width:1100px){#hdrRight .who,#hdrBrandName{display:none;}}
 /* ===== THREE-TIER MENU =====
    focus 0 = everything open · 1 = app-nav rail · 2 = app-nav rail + context rail.
@@ -6058,16 +6084,17 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
            control live HERE rather than in the sidebar on purpose — the sidebar
            changes width across the three stages, so anything pinned inside it has
            to move with it. Up here they never shift. -->
-      <div id="globalHeaderBar" style="display:flex;align-items:center;gap:16px;padding:9px 22px;min-height:52px;box-sizing:border-box;position:sticky;top:0;z-index:6;background:var(--bg);border-bottom:1px solid var(--line);">
-        <div id="hdrLeft" style="display:flex;align-items:center;gap:32px;flex-shrink:0;">
+      <div id="globalHeaderBar" style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:9px 22px;min-height:52px;box-sizing:border-box;position:sticky;top:0;z-index:6;background:var(--bg);border-bottom:1px solid var(--line);">
+        <div id="hdrLeft" style="display:flex;align-items:center;gap:13px;flex-shrink:0;">
+          <div class="sidebar-collapse" id="sidebarCollapseBtn" title="Hide menu"></div>
+          <span class="hdr-divider" aria-hidden="true"></span>
           <a href="#" id="hdrBrand" title="ReachGiant" style="display:flex;align-items:center;text-decoration:none;flex-shrink:0;">
             <svg class="logo-mark" viewBox="25.85 34.95 96.15 80.51" fill="currentColor" style="height:26px;width:auto;flex-shrink:0;color:var(--red);display:block;"><path d="M38.7805 66.2876V36.3261C38.7805 35.0148 40.4427 34.4493 41.2425 35.4885L75.7656 80.3505C76.1131 80.8021 75.7912 81.456 75.2214 81.456H63.3552C62.5967 81.456 61.9817 82.0709 61.9817 82.8295V114.082C61.9817 115.406 60.293 115.963 59.5048 114.9L26.1264 69.8522C25.4548 68.9457 26.1018 67.661 27.2299 67.661H37.4071C38.1656 67.661 38.7805 67.0461 38.7805 66.2876Z"/><path d="M67.0258 61.962L54.9468 45.3534C54.2866 44.4456 54.935 43.1721 56.0575 43.1721H94.9091C95.3384 43.1721 95.7431 43.3729 96.0028 43.7148L121.718 77.5674C122.405 78.4717 121.76 79.7716 120.624 79.7716H99.7764C99.211 79.7716 98.8878 80.4165 99.2262 80.8694L120.696 109.601C121.372 110.506 120.726 111.796 119.595 111.796H98.377C97.9514 111.796 97.5498 111.599 97.2897 111.262L74.4234 81.6323C73.7266 80.7294 74.3702 79.4197 75.5107 79.4197H96.3514C96.9131 79.4197 97.2372 78.7822 96.9063 78.3284L85.7964 63.0919C85.5378 62.7373 85.1254 62.5276 84.6866 62.5276H68.1365C67.6971 62.5276 67.2842 62.3174 67.0258 61.962Z"/></svg>
           </a>
-          <div class="sidebar-collapse" id="sidebarCollapseBtn" title="Hide menu"></div>
         </div>
 
-        <div style="flex:1;display:flex;justify-content:center;min-width:0;">
-          <div class="search-box" id="globalSearchBox" style="width:420px;max-width:100%;">
+        <div id="hdrSearchWrap">
+          <div class="search-box" id="globalSearchBox" style="width:100%;">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             <input type="text" class="bare-input" id="globalSearchInput" placeholder="Search anything...">
             <kbd>&#8984;K</kbd>
@@ -10605,7 +10632,11 @@ function enterApp(){
   view.parentNode.insertBefore(shell, view);
   shell.appendChild(hdr);    // out of <main>, into the column
   shell.appendChild(view);   // the sidebar + content row, underneath
-  hdr.style.position = 'static';   // sticky only mattered inside a scrolling <main>
+  // relative, not static: the search inside is absolutely positioned so it can centre
+  // on the content rather than between the two side zones, and that needs the bar to be
+  // its containing block. Static left it resolving against the viewport, which put it
+  // horizontally right and vertically halfway down the page.
+  hdr.style.position = 'relative';   // sticky only mattered inside a scrolling <main>
   hdr.style.flexShrink = '0';
 })();
 
@@ -10854,6 +10885,29 @@ function enterApp(){
     if (rec)  right.insertBefore(rec, head);
     if (pill) right.insertBefore(pill, head);
     document.body.classList.add('fabs-docked');
+  })();
+
+  // The search is centred on the CONTENT, so the room it has is bounded by the
+  // distance from that centre line to #hdrRight — and because it grows both ways,
+  // that bound counts twice. CSS cannot measure #hdrRight (its width depends on the
+  // person's name and their badges, and the name arrives after this runs), so it is
+  // published as a custom property and re-published whenever that side changes.
+  (function fitHeaderSearch(){
+    const right = document.getElementById('hdrRight');
+    const wrap  = document.getElementById('hdrSearchWrap');
+    if (!right || !wrap || !wrap.parentElement) return;
+    const apply = () => {
+      const rw = Math.ceil(right.getBoundingClientRect().width);
+      document.body.style.setProperty('--hdr-right-w', rw + 'px');
+      const sbw = parseFloat(getComputedStyle(document.body).getPropertyValue('--sidebar-w')) || 0;
+      const avail = wrap.parentElement.clientWidth - sbw - 2 * (rw + 26);
+      // Below this it is a slot, not a search field.
+      document.body.classList.toggle('hdr-search-inflow', avail < 240);
+    };
+    apply();
+    if (window.ResizeObserver) new ResizeObserver(apply).observe(right);
+    window.addEventListener('resize', apply);
+    setTimeout(apply, 900); setTimeout(apply, 2600);   // the profile name lands late
   })();
 
 
