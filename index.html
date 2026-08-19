@@ -96,7 +96,7 @@ body::after{content:"";position:fixed;inset:0;z-index:9999;pointer-events:none;o
    hidden — each stage trades a column of labels for content width, and every
    destination stays reachable as a tile. */
 body[data-focus="1"] .sidebar,
-body[data-focus="2"] .sidebar{width:68px;padding:20px 6px;box-sizing:border-box;}
+body[data-focus="2"] .sidebar{width:64px;padding:20px 5px;box-sizing:border-box;}
 body[data-focus="1"] .sidebar .brand-name,
 body[data-focus="2"] .sidebar .brand-name{display:none;}
 body[data-focus="1"] .sidebar .nav-rail,
@@ -120,7 +120,7 @@ body[data-focus="2"] #navRail3{display:flex;flex-direction:column;align-items:ce
 .rail-tile .rail-badge{position:absolute;top:-3px;right:-3px;min-width:15px;height:15px;padding:0 4px;border-radius:8px;background:#d91f0f;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--shell);box-sizing:content-box;}
 .rail-sep{width:26px;height:1px;background:#242424;margin:7px 0;flex-shrink:0;}
 /* Stage 2 also rails Chat 3.0's own context column. */
-body[data-focus="2"] #c3Root > .c3-context{width:76px !important;padding:16px 6px !important;}
+body[data-focus="2"] #c3Root > .c3-context{width:68px !important;padding:16px 4px !important;box-sizing:border-box;}
 body[data-focus="2"] #c3Root > .c3-context > *:not(#c3Rail){display:none !important;}
 #c3Rail{display:none;}
 body[data-focus="2"] #c3Rail{display:flex;flex-direction:column;align-items:center;gap:6px;overflow-y:auto;flex:1;min-height:0;scrollbar-width:none;}
