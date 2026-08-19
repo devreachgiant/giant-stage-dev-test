@@ -21645,10 +21645,18 @@ window.addEventListener('popstate', (e) => {
   function isManagerOrOwner(){ return state.role === 'owner' || state.role === 'manager' || state.role === 'inhouse_dev'; }
   function clientTable(){ return isOwner() ? 'clients' : (isManagerOrOwner() ? 'clients_manager' : 'clients_public'); }
 
+  // Returns null when the lookup FAILED, which is not the same as "this person is a
+  // member". The access check below caches whatever comes back, so collapsing a failed
+  // request to 'member' would lock a real manager out of the screen for the rest of the
+  // session with no retry — a transient blip becoming a permanent refusal.
   async function myRole(){
-    const { data } = await sb().from('profiles').select('role, full_name, display_name').eq('id', myId()).maybeSingle();
-    if (data) state.myName = data.display_name || data.full_name || '';
-    return (data && data.role) || 'member';
+    if (!myId()) return null;
+    try {
+      const { data, error } = await sb().from('profiles').select('role, full_name, display_name').eq('id', myId()).maybeSingle();
+      if (error || !data) return null;
+      state.myName = data.display_name || data.full_name || '';
+      return data.role || 'member';
+    } catch (_) { return null; }
   }
 
   async function loadAll(){
@@ -26636,7 +26644,17 @@ Rules:
     // other way (a restored view, a stale saved selection, a future nav change), and
     // it refuses BEFORE startPresenceMirror or loadAll touch any client data.
     // isManagerOrOwner() is the module's own definition and already counts inhouse_dev.
-    if (state.role === null) state.role = await myRole();
+    if (state.role === null) {
+      const r = await myRole();
+      const host = root();
+      if (!r) {
+        // Unknown, not denied. state.role stays null so simply opening the screen
+        // again retries, instead of the first bad request sticking for the session.
+        if (host) host.innerHTML = `<div style="padding:60px;text-align:center;color:var(--text-3);width:100%;">Couldn't check your access just now. Open Chat 3.0 again to retry.</div>`;
+        return;
+      }
+      state.role = r;
+    }
     if (!isManagerOrOwner()) {
       const host = root();
       if (host) host.innerHTML = `<div style="padding:60px;text-align:center;color:var(--text-3);width:100%;">Chat 3.0 is available to managers, owners and in-house devs.</div>`;
