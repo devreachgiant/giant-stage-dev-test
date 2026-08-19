@@ -90,6 +90,16 @@ body::after{content:"";position:fixed;inset:0;z-index:9999;pointer-events:none;o
 
 /* === Collapsed state === */
 .sidebar.collapsed{width:74px;padding:20px 8px;}
+/* Top bar zones. .who is a column in the sidebar foot; up here it reads as a
+   single line beside the avatar, and collapses away on narrow windows so the
+   search never gets squeezed. */
+#hdrRight .who{display:flex;flex-direction:column;line-height:1.15;}
+#hdrRight .who b{font-size:12px;font-weight:700;color:var(--text);}
+#hdrRight .who span{font-size:10.5px;color:var(--text-3);}
+#hdrPerson:hover{background:var(--surface-2,#1a1a1a);}
+#hdrRight .theme-toggle{position:relative;top:auto;right:auto;}
+#globalHeaderBar .sidebar-collapse{position:relative;right:auto;top:auto;opacity:1;}
+@media (max-width:1100px){#hdrRight .who,#hdrBrandName{display:none;}}
 /* ===== THREE-TIER MENU =====
    focus 0 = everything open · 1 = app-nav rail · 2 = app-nav rail + context rail.
    One control cycles 0>1>2>0; Escape returns to 0 from anywhere. Nothing is ever
@@ -5859,13 +5869,9 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
   <div class="app-view">
     <!-- SIDEBAR -->
     <aside class="sidebar" id="appSidebar">
-      <div class="brand">
-        <svg class="logo-mark" viewBox="0 0 149 149" fill="none"><rect width="149" height="149" rx="33.44" fill="#D00400"/><path d="M38.7805 66.2876V36.3261C38.7805 35.0148 40.4427 34.4493 41.2425 35.4885L75.7656 80.3505C76.1131 80.8021 75.7912 81.456 75.2214 81.456H63.3552C62.5967 81.456 61.9817 82.0709 61.9817 82.8295V114.082C61.9817 115.406 60.293 115.963 59.5048 114.9L26.1264 69.8522C25.4548 68.9457 26.1018 67.661 27.2299 67.661H37.4071C38.1656 67.661 38.7805 67.0461 38.7805 66.2876Z" fill="white"/><path d="M67.0258 61.962L54.9468 45.3534C54.2866 44.4456 54.935 43.1721 56.0575 43.1721H94.9091C95.3384 43.1721 95.7431 43.3729 96.0028 43.7148L121.718 77.5674C122.405 78.4717 121.76 79.7716 120.624 79.7716H99.7764C99.211 79.7716 98.8878 80.4165 99.2262 80.8694L120.696 109.601C121.372 110.506 120.726 111.796 119.595 111.796H98.377C97.9514 111.796 97.5498 111.599 97.2897 111.262L74.4234 81.6323C73.7266 80.7294 74.3702 79.4197 75.5107 79.4197H96.3514C96.9131 79.4197 97.2372 78.7822 96.9063 78.3284L85.7964 63.0919C85.5378 62.7373 85.1254 62.5276 84.6866 62.5276H68.1365C67.6971 62.5276 67.2842 62.3174 67.0258 61.962Z" fill="white"/></svg>
-        <div class="brand-name">Giant<sup>®</sup></div>
-        <div class="sidebar-collapse" id="sidebarCollapseBtn" title="Collapse sidebar">
-          <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M9.5 4L5.5 8l4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </div>
-      </div>
+      <!-- brand + collapse control now live in #globalHeaderBar: the sidebar
+           changes width across the three stages, so nothing pinned inside it
+           can stay put. Up in the top bar they never move. -->
       <div class="nav-scroll" id="navScroll">
       <!-- Three-tier rail. Populated from the real nav in JS rather than duplicated
            in markup, so a nav change can never leave the rail showing a stale set. -->
@@ -6013,12 +6019,31 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       <!-- Persistent global search — visible on every screen, not just specific screens/
            clusters, so it's always the fastest way to jump to a chat or task. Reuses the
            existing cmdk palette (cmdkOpen()) rather than building a second search UI. -->
-      <div id="globalHeaderBar" style="display:flex;align-items:center;justify-content:center;padding:13px 24px;position:sticky;top:0;z-index:6;background:var(--bg);border-bottom:1px solid var(--line);">
-        <div class="search-box" id="globalSearchBox" style="width:420px;max-width:100%;">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          <input type="text" class="bare-input" id="globalSearchInput" placeholder="Search anything...">
-          <kbd>⌘K</kbd>
+      <!-- Top bar: brand + menu on the left, one general search in the middle, the
+           person and their notifications on the right. The brand and the collapse
+           control live HERE rather than in the sidebar on purpose — the sidebar
+           changes width across the three stages, so anything pinned inside it has
+           to move with it. Up here they never shift. -->
+      <div id="globalHeaderBar" style="display:flex;align-items:center;gap:16px;padding:11px 18px;position:sticky;top:0;z-index:6;background:var(--bg);border-bottom:1px solid var(--line);">
+        <div id="hdrLeft" style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+          <a href="#" id="hdrBrand" title="ReachGiant" style="display:flex;align-items:center;gap:9px;text-decoration:none;flex-shrink:0;">
+            <svg class="logo-mark" viewBox="0 0 149 149" fill="none" style="width:26px;height:26px;flex-shrink:0;"><rect width="149" height="149" rx="33.44" fill="#D00400"/><path d="M44 106V43h30c11 0 19 7 19 18 0 8-4 14-11 16l14 29H79L67 80h-8v26H44zm15-38h13c5 0 8-3 8-7s-3-7-8-7H59v14z" fill="#fff"/></svg>
+            <span id="hdrBrandName" style="font-size:14.5px;font-weight:800;letter-spacing:-0.02em;color:var(--text);">Giant<sup style="font-size:8px;top:-6px;position:relative;">&reg;</sup></span>
+          </a>
+          <div class="sidebar-collapse" id="sidebarCollapseBtn" title="Hide menu"></div>
         </div>
+
+        <div style="flex:1;display:flex;justify-content:center;min-width:0;">
+          <div class="search-box" id="globalSearchBox" style="width:420px;max-width:100%;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <input type="text" class="bare-input" id="globalSearchInput" placeholder="Search anything...">
+            <kbd>&#8984;K</kbd>
+          </div>
+        </div>
+
+        <!-- Filled at runtime by moving the real controls out of the sidebar foot,
+             so their existing wiring keeps working untouched. -->
+        <div id="hdrRight" style="display:flex;align-items:center;gap:10px;flex-shrink:0;"></div>
       </div>
 
       <!-- Persistent Workspace tab bar — shared chrome above Workspace/Clients/Team Pulse/
@@ -10699,6 +10724,33 @@ function enterApp(){
   document.addEventListener('click', (e) => {
     if (e.target.closest && e.target.closest('.nav-item[data-screen]')) setTimeout(buildRail, 30);
   }, true);
+
+  // The person and their notifications belong top-right, but the controls already
+  // exist in the sidebar foot with all their wiring — status menu, presence, theme,
+  // sign-out. MOVING the real nodes keeps every listener and id intact; rebuilding
+  // them in the header would mean re-wiring all of it and keeping two copies honest.
+  (function relocateFoot(){
+    const foot = document.querySelector('.sidebar-foot');
+    const right = document.getElementById('hdrRight');
+    if (!foot || !right) return;
+    const bell = foot.querySelector('#focusBellBtn');
+    const theme = foot.querySelector('.theme-toggle');
+    const avatar = foot.querySelector('#userAvatar');
+    const who = foot.querySelector('.who');
+    const menu = foot.querySelector('#statusMenu');
+    if (bell) right.appendChild(bell);
+    if (theme) right.appendChild(theme);
+    if (avatar || who) {
+      const person = document.createElement('div');
+      person.id = 'hdrPerson';
+      person.style.cssText = 'display:flex;align-items:center;gap:8px;position:relative;cursor:pointer;padding:3px 6px 3px 3px;border-radius:9px;';
+      if (avatar) person.appendChild(avatar);
+      if (who) person.appendChild(who);
+      if (menu) person.appendChild(menu);   // the popover must stay with its anchor
+      right.appendChild(person);
+    }
+    foot.remove();
+  })();
 
   let saved = 0;
   try { saved = Number(localStorage.getItem('giant.focusStage') || 0); } catch (_) {}
