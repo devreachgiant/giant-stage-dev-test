@@ -117,6 +117,8 @@ body[data-focus="2"] #navRail3{display:flex;flex-direction:column;align-items:ce
 .rail-tile.on{background:#d91f0f;border-color:#d91f0f;color:#fff;}
 .rail-tile svg{width:19px;height:19px;}
 .rail-tile .ico{display:flex;align-items:center;justify-content:center;}
+.rail-tile .rail-dot{position:absolute;top:-1px;right:-1px;width:8px;height:8px;border-radius:50%;background:linear-gradient(90deg,#A855F7,#FB923C,#10B981);border:2px solid var(--shell);box-sizing:content-box;}
+.rail-gap{height:12px;flex-shrink:0;}
 .rail-tile .rail-badge{position:absolute;top:-3px;right:-3px;min-width:15px;height:15px;padding:0 4px;border-radius:8px;background:#d91f0f;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--shell);box-sizing:content-box;}
 /* Stage 2 also rails Chat 3.0's own context column. */
 body[data-focus="2"] .screen.on > *:not(.c3-context):not(#c3Root){max-width:1240px;margin-left:auto;margin-right:auto;}
@@ -10585,11 +10587,20 @@ function enterApp(){
     return on ? on.dataset.screen : null;
   };
 
+  // A rail badge shows a count. Status words (BETA / NEW / WIP) do not fit a 42px
+  // tile and would spill across its neighbours, so they become a dot instead —
+  // the signal survives, the layout does not break.
+  function badgeMarkup(raw){
+    const t = String(raw || '').trim();
+    if (!t || t === '0') return '';
+    if (/^\d+$/.test(t)) return `<span class="rail-badge">${t}</span>`;
+    return `<span class="rail-dot" title="${t}"></span>`;
+  }
   function tile(html, title, on, badge, onClick){
     const d = document.createElement('div');
     d.className = 'rail-tile' + (on ? ' on' : '');
     d.title = title;
-    d.innerHTML = `<span class="ico">${html}</span>` + (badge ? `<span class="rail-badge">${badge}</span>` : '');
+    d.innerHTML = `<span class="ico">${html}</span>` + badgeMarkup(badge);
     d.addEventListener('click', (e) => { e.stopPropagation(); onClick(); });
     return d;
   }
@@ -10614,7 +10625,7 @@ function enterApp(){
         (it.querySelector('.ico') || {}).innerHTML || '',
         it.dataset.label || 'Section',
         it.dataset.screen === cur,
-        b && b.textContent.trim() !== '0' ? b.textContent.trim() : '',
+        b ? b.textContent : '',
         () => it.click()));
     });
     gs.forEach(g => {
@@ -10627,15 +10638,19 @@ function enterApp(){
     });
 
     // Cluster 2 — the group you are actually in, so its screens stay one click away.
-    // No divider: the design is one even column, and a line breaks that rhythm.
+    // Separated by air rather than a line: a rule across a 64px rail is heavier
+    // than the thing it divides, and the design keeps one uninterrupted column.
     if (owning) {
+      const gap = document.createElement('div');
+      gap.className = 'rail-gap';
+      railHost.appendChild(gap);
       owning.items.forEach(it => {
         const b = it.querySelector('.badge');
         railHost.appendChild(tile(
           (it.querySelector('.ico') || {}).innerHTML || '',
           it.dataset.label || it.dataset.screen,
           it.dataset.screen === cur,
-          b && b.textContent.trim() && b.textContent.trim() !== '0' ? b.textContent.trim() : '',
+          b ? b.textContent : '',
           () => it.click()));
       });
     }
@@ -23440,7 +23455,13 @@ window.addEventListener('popstate', (e) => {
     state.mgmtLoading = false;
     state.clientAccess = accessRes.data || [];
     state.clientRow = clientRes && clientRes.data ? clientRes.data : null;
-    if (accessRes.error) state.mgmtFor = null; // let the next visit retry
+    // Any failure has to clear the guard, or the early return above makes the
+    // failure permanent — the panel would keep saying "No client record loaded"
+    // long after the cause was gone.
+    if (accessRes.error || (clientRes && clientRes.error) || !state.clientRow) state.mgmtFor = null;
+    if (clientRes && clientRes.error && typeof toast === 'function') {
+      toast({ type:'error', message:'Could not load the client record: ' + clientRes.error.message });
+    }
     // The inferred set is only ever a fallback for clients whose history predates
     // the audit table — it is never mixed into the real trail.
     state.mgmtActivityInferred = buildMgmtActivity();
