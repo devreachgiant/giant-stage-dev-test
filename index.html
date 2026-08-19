@@ -110,15 +110,14 @@ body[data-focus="2"] .sidebar .brand{justify-content:center;padding:2px 0 14px;}
 /* The rail only exists in stages 1-2; in stage 0 it must not take up space. */
 #navRail3{display:none;}
 body[data-focus="1"] #navRail3,
-body[data-focus="2"] #navRail3{display:flex;flex-direction:column;align-items:center;gap:4px;overflow-y:auto;overflow-x:hidden;flex:1;min-height:0;scrollbar-width:none;}
+body[data-focus="2"] #navRail3{display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:20px;overflow-y:auto;overflow-x:hidden;flex:1;min-height:0;scrollbar-width:none;}
 #navRail3::-webkit-scrollbar{display:none;}
-.rail-tile{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;flex-shrink:0;background:#161616;border:1px solid #242424;color:#8a8a8a;transition:background .14s,border-color .14s,color .14s;}
+.rail-tile{width:42px;height:42px;box-sizing:border-box;border-radius:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;flex-shrink:0;background:#161616;border:1px solid #242424;color:#8a8a8a;transition:background .14s,border-color .14s,color .14s;}
 .rail-tile:hover{border-color:#3a3a3a;color:#c8c8c8;}
 .rail-tile.on{background:#d91f0f;border-color:#d91f0f;color:#fff;}
 .rail-tile svg{width:19px;height:19px;}
 .rail-tile .ico{display:flex;align-items:center;justify-content:center;}
 .rail-tile .rail-badge{position:absolute;top:-3px;right:-3px;min-width:15px;height:15px;padding:0 4px;border-radius:8px;background:#d91f0f;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--shell);box-sizing:content-box;}
-.rail-sep{width:26px;height:1px;background:#242424;margin:7px 0;flex-shrink:0;}
 /* Stage 2 also rails Chat 3.0's own context column. */
 body[data-focus="2"] #c3Root > .c3-context{width:68px !important;padding:16px 4px !important;box-sizing:border-box;}
 body[data-focus="2"] #c3Root > .c3-context > *:not(#c3Rail){display:none !important;}
@@ -10628,10 +10627,8 @@ function enterApp(){
     });
 
     // Cluster 2 — the group you are actually in, so its screens stay one click away.
+    // No divider: the design is one even column, and a line breaks that rhythm.
     if (owning) {
-      const sep = document.createElement('div');
-      sep.className = 'rail-sep';
-      railHost.appendChild(sep);
       owning.items.forEach(it => {
         const b = it.querySelector('.badge');
         railHost.appendChild(tile(
