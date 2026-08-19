@@ -4274,6 +4274,20 @@ body:has(.screen[data-screen="chat2"].on) .qr-fab{display:none;}
 /* Docked, the trigger stays put while its panel is open: it is a toolbar button
    with a panel open, not a FAB the panel grew out of. */
 #hdrRight .gai-fab.has-panel{transform:none;}
+/* Notification rows read as clickable. They are built with inline styles, so the
+   hover has to live in the stylesheet — an inline background would win over a :hover
+   rule otherwise. Left accent on hover marks which row the click will act on. */
+#giantNotifPanel .giant-notif-item,
+#giantNotifPanel .giant-derived-item{position:relative;}
+#giantNotifPanel .giant-notif-item::before,
+#giantNotifPanel .giant-derived-item::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--red);opacity:0;transition:opacity .12s;}
+#giantNotifPanel .giant-notif-item:hover,
+#giantNotifPanel .giant-derived-item:hover{background:rgba(208,4,0,.14) !important;}
+#giantNotifPanel .giant-notif-item:hover::before,
+#giantNotifPanel .giant-derived-item:hover::before{opacity:1;}
+#giantNotifPanel .giant-notif-item:active,
+#giantNotifPanel .giant-derived-item:active{background:rgba(208,4,0,.20) !important;}
+#giantNotifMarkAll:hover{background:rgba(208,4,0,.20) !important;border-color:rgba(208,4,0,.55) !important;}
 #hdrRight .qr-pill{position:static;padding:5px 5px 5px 11px;border-radius:16px;font-size:11.5px;gap:7px;box-shadow:none;}
 #hdrRight .qr-pill-stop{padding:3px 9px;font-size:10.5px;}
 body.fabs-docked .gai-panel{top:60px;bottom:auto;right:16px;transform-origin:top right;max-height:calc(100vh - 76px);}
@@ -56212,7 +56226,7 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       const safe = async (p) => { try { const r = await p; return r.data || []; } catch(e){ return []; } };
       const today = new Date().toISOString().slice(0, 10);
       const [mentions, emails, overdueTasks, overdueInvoices] = await Promise.all([
-        safe(supabase.from('messages').select('id, body, author_id, created_at').ilike('body', `%@${(currentProfile.full_name||'').split(' ')[0]||'_____'}%`).order('created_at', { ascending: false }).limit(5)),
+        safe(supabase.from('messages').select('id, body, channel_id, author_id, created_at').ilike('body', `%@${(currentProfile.full_name||'').split(' ')[0]||'_____'}%`).order('created_at', { ascending: false }).limit(5)),
         // Skip emails query if DB has failed before — avoids spamming timeouts
         window._inboxLoadFailed ? Promise.resolve([]) : safe(supabase.from('emails').select('id, subject, from_email, from_name, received_at, is_unread').eq('is_unread', true).order('received_at', { ascending: false }).limit(5)),
         safe(supabase.from('tasks').select('id, name, due_date').lt('due_date', today).limit(5)),
@@ -56232,7 +56246,11 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
           title: `${p?.full_name || p?.email || 'Someone'} mentioned you`,
           sub: (m.body||'').slice(0,80),
           ts: m.created_at,
-          screen: 'chat'
+          screen: 'chat',
+          // Deep-link target: with these the notification panel can use
+          // jumpToChatMessage and land on the message itself, red-flashed, the way
+          // the Inbox does — instead of dropping you on the chat screen to hunt.
+          channelId: m.channel_id, messageId: m.id
         });
       });
       emails.forEach(e => {
@@ -56251,7 +56269,8 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
           title: `Task overdue: ${t.name}`,
           sub: `Was due ${t.due_date}`,
           ts: t.due_date,
-          screen: 'tasks'
+          screen: 'tasks',
+          taskId: t.id
         });
       });
       overdueInvoices.forEach(i => {
@@ -67095,7 +67114,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     </div>`;
   }
   function derivedHtml(n){
-    return `<div class="giant-derived-item" data-dkey="${esc(derivedKey(n))}" data-screen="${esc(n.screen||'')}" style="padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer;background:rgba(208,4,0,.06);transition:background .12s;" title="${n.screen ? 'Open, and clear this' : 'Click to clear'}">
+    return `<div class="giant-derived-item" data-dkey="${esc(derivedKey(n))}" data-screen="${esc(n.screen||'')}" data-task="${esc(n.taskId||'')}" data-channel="${esc(n.channelId||'')}" data-message="${esc(n.messageId||'')}" style="padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer;background:rgba(208,4,0,.06);transition:background .12s;" title="Open, and clear this">
       <div style="font-size:12.5px;color:var(--text);line-height:1.45;">${esc(n.title||'')}</div>
       <div style="font-size:10.5px;color:var(--text-3);margin-top:3px;">${esc(n.sub||'')}</div>
     </div>`;
@@ -67143,25 +67162,29 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       + '</div><div id="giantNotifList" style="flex:1;overflow-y:auto;"></div>';
     document.body.appendChild(p); _panel = p;
     p.querySelector('#giantNotifMarkAll').addEventListener('click', (e) => { e.stopPropagation(); markAll(); });
+    // One routing path for both row kinds. They used to differ — table rows could
+    // deep-link, derived rows could only switch screens — so a mention notification
+    // dropped you on the chat screen to go hunting for the message.
+    // Order matters: most specific target first.
+    function routeTo(d){
+      if (d.task && typeof window.openTaskDetailPanel === 'function'){ window.openTaskDetailPanel(d.task); return true; }
+      // jumpToChatMessage is the same call the Inbox uses: it switches channel, pages
+      // back through history if the message is older than the loaded window, opens the
+      // thread if it is a reply, then scrolls to it and flashes it red.
+      if (d.channel && typeof window.jumpToChatMessage === 'function'){ window.jumpToChatMessage(d.channel, d.message || null); return true; }
+      if (d.screen){ const nav = document.querySelector(`.nav-item[data-screen="${d.screen}"]`); if (nav){ nav.click(); return true; } }
+      return false;
+    }
     p.querySelector('#giantNotifList').addEventListener('click', (e) => {
-      // Derived items carry a screen, not an id — dismiss by content key.
       const derived = e.target.closest('.giant-derived-item');
-      if (derived) {
-        dismissDerived([derived.dataset.dkey]);
-        paint();
-        const scr = derived.dataset.screen;
-        if (scr) { const nav = document.querySelector(`.nav-item[data-screen="${scr}"]`); if (nav) nav.click(); close(); }
-        return;
-      }
-      const item = e.target.closest('.giant-notif-item'); if (!item) return;
-      // Clear first, and repaint, so the row goes even when the item has nowhere to
-      // navigate to — otherwise clicking a plain notification looked like a dead click.
-      markOne(item.dataset.nid);
+      const item    = derived || e.target.closest('.giant-notif-item');
+      if (!item) return;
+      // Clear first, then repaint, so the row goes even when there is nowhere to
+      // navigate — otherwise clicking such a notification looked like a dead click.
+      if (derived) dismissDerived([derived.dataset.dkey]);
+      else markOne(item.dataset.nid);
       paint();
-      const tid = item.dataset.task;
-      if (tid && typeof window.openTaskDetailPanel === 'function'){ window.openTaskDetailPanel(tid); close(); return; }
-      const chId = item.dataset.channel, msgId = item.dataset.message;
-      if (chId) { jumpToChatMessage(chId, msgId); close(); }
+      if (routeTo(item.dataset)) close();
     });
   }
   function open(){
