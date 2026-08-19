@@ -24,11 +24,20 @@ html[data-theme="dark"]{
   --green:#3DCB7F;--amber:#F2A93B;--blue:#5BA0E8;
   --green-bg:rgba(61,203,127,.12);--amber-bg:rgba(242,169,59,.12);--blue-bg:rgba(91,160,232,.12);--red-bg:rgba(208,4,0,.14);
 }
+/* Light used to give --shell and --surface the same #FFFFFF, so the sidebar and the
+   cards it sits beside were literally one colour and nothing in the app had an edge.
+   Dark separates the same two by 20 points, which is where its structure comes from.
+   These values give light that structure back: chrome furthest back, cards pure white
+   and furthest forward, hover/active stepping away from the card rather than toward it
+   (in light you cannot go brighter than a white card, so those steps go darker).
+   --text-2 and --text-3 are also deepened -- --text-3 alone is used ~1300 times and
+   was #9A9A9D, i.e. 2.8:1 on white, which is below AA for text of any size. Every text
+   and status colour here now clears 4.5:1 on every surface it can land on. */
 html[data-theme="light"]{
-  --bg:#F4F3F1;--shell:#FFFFFF;--surface:#FFFFFF;--surface-2:#F4F3F1;--surface-3:#ECEAE7;
-  --line:#E4E2DE;--line-2:#D6D3CE;--text:#0A0A0A;--text-2:#6B6B6E;--text-3:#9A9A9D;
-  --grain-op:.022;--pane:#FAF9F7;--canvas:#EEEDEA;--row-alt:#FAF9F7;--paper:#FFFFFF;--paper-ink:#0A0A0A;--paper-line:#ECECEC;
-  --green:#1F9E5C;--amber:#B47410;--blue:#2C6FB8;
+  --bg:#F1EFEB;--shell:#E7E4DE;--surface:#FFFFFF;--surface-2:#F4F2EE;--surface-3:#E9E6E1;
+  --line:#D9D5CE;--line-2:#C4BFB6;--text:#0A0A0A;--text-2:#4A4A50;--text-3:#63636B;
+  --grain-op:.022;--pane:#F7F6F3;--canvas:#EAE8E3;--row-alt:#F8F7F4;--paper:#FFFFFF;--paper-ink:#0A0A0A;--paper-line:#ECECEC;
+  --green:#116B3C;--amber:#8F5A00;--blue:#215F9E;
   --green-bg:#E2F3E9;--amber-bg:#FBF0DC;--blue-bg:#E3EEF9;--red-bg:#FBE4E3;
 }
 
@@ -58,9 +67,9 @@ html[data-theme="dark"]{
   --c3-chip:rgba(255,255,255,0.05);--c3-shadow:rgba(0,0,0,.55);--c3-shadow-2:rgba(0,0,0,.4);
 }
 html[data-theme="light"]{
-  --c3-s0:#F1F0ED;--c3-s1:#FFFFFF;--c3-s2:#F8F7F5;--c3-s3:#F3F2EF;
-  --c3-s4:#ECEAE7;--c3-s5:#E3E1DC;--c3-s7:#D1CEC7;
-  --c3-b0:#EBE9E5;--c3-b1:#E4E2DE;--c3-b2:#D9D6D0;--c3-b3:#CBC7C0;--c3-b4:#B6B1A9;--c3-green-line:#BFDCCB;
+  --c3-s0:#F1EFEB;--c3-s1:#FFFFFF;--c3-s2:#F8F7F4;--c3-s3:#F2F0EC;
+  --c3-s4:#E9E6E1;--c3-s5:#DFDCD6;--c3-s7:#CFCBC3;
+  --c3-b0:#E4E1DC;--c3-b1:#D9D5CE;--c3-b2:#C9C4BC;--c3-b3:#B8B2A9;--c3-b4:#A8A199;--c3-green-line:#B3D4C2;
   --c3-t0:#0A0A0A;--c3-t1:#201F1D;--c3-t2:#35342F;--c3-t3:#4A4A44;
   --c3-t4:#55554F;--c3-t5:#5D5D57;--c3-t6:#636359;--c3-t7:#636359;--c3-ink:#0A0A0A;
   /* Stay white: these sit on a saturated fill, never on a surface. avatar-bg and
