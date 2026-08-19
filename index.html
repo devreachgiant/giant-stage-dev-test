@@ -78,7 +78,11 @@ body::after{content:"";position:fixed;inset:0;z-index:9999;pointer-events:none;o
 /* ===== view system ===== */
 .view{display:none;flex:1;min-height:0;height:100%;}
 .view.on{display:flex;flex-direction:column;}
-.app-view{display:flex;flex:1;min-height:0;height:100%;}
+/* The top bar spans the FULL width and the sidebar sits BELOW it, so collapsing
+   the sidebar can never move the brand, the menu control or the search.
+   .app-shell is the column that makes that true; .app-view is the row under it. */
+.app-shell{display:flex;flex-direction:column;flex:1;min-height:0;height:100%;min-width:0;}
+.app-view{display:flex;flex:1;min-height:0;min-width:0;}
 
 /* ===== shared sidebar ===== */
 .sidebar{background:var(--shell);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:20px 15px;transition:width .25s var(--ease),padding .25s var(--ease),background .3s var(--ease),border-color .3s var(--ease);width:236px;flex-shrink:0;}
@@ -5866,7 +5870,33 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
 
 <!-- ==================== APP VIEW ==================== -->
 <div class="view" id="view-app">
-  <div class="app-view">
+  <div class="app-shell">
+      <!-- Top bar: brand + menu on the left, one general search in the middle, the
+           person and their notifications on the right. The brand and the collapse
+           control live HERE rather than in the sidebar on purpose — the sidebar
+           changes width across the three stages, so anything pinned inside it has
+           to move with it. Up here they never shift. -->
+      <div id="globalHeaderBar" style="display:flex;align-items:center;gap:16px;padding:9px 22px;min-height:52px;box-sizing:border-box;flex-shrink:0;z-index:8;background:var(--bg);border-bottom:1px solid var(--line);">
+        <div id="hdrLeft" style="display:flex;align-items:center;gap:32px;flex-shrink:0;">
+          <a href="#" id="hdrBrand" title="ReachGiant" style="display:flex;align-items:center;text-decoration:none;flex-shrink:0;">
+            <svg class="logo-mark" viewBox="0 0 149 149" fill="none" style="width:34px;height:34px;flex-shrink:0;"><rect width="149" height="149" rx="33.44" fill="#D00400"/><path d="M44 106V43h30c11 0 19 7 19 18 0 8-4 14-11 16l14 29H79L67 80h-8v26H44zm15-38h13c5 0 8-3 8-7s-3-7-8-7H59v14z" fill="#fff"/></svg>
+          </a>
+          <div class="sidebar-collapse" id="sidebarCollapseBtn" title="Hide menu"></div>
+        </div>
+
+        <div style="flex:1;display:flex;justify-content:center;min-width:0;">
+          <div class="search-box" id="globalSearchBox" style="width:420px;max-width:100%;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <input type="text" class="bare-input" id="globalSearchInput" placeholder="Search anything...">
+            <kbd>&#8984;K</kbd>
+          </div>
+        </div>
+
+        <!-- Filled at runtime by moving the real controls out of the sidebar foot,
+             so their existing wiring keeps working untouched. -->
+        <div id="hdrRight" style="display:flex;align-items:center;gap:10px;flex-shrink:0;"></div>
+      </div>
+      <div class="app-view">
     <!-- SIDEBAR -->
     <aside class="sidebar" id="appSidebar">
       <!-- brand + collapse control now live in #globalHeaderBar: the sidebar
@@ -6019,31 +6049,6 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       <!-- Persistent global search — visible on every screen, not just specific screens/
            clusters, so it's always the fastest way to jump to a chat or task. Reuses the
            existing cmdk palette (cmdkOpen()) rather than building a second search UI. -->
-      <!-- Top bar: brand + menu on the left, one general search in the middle, the
-           person and their notifications on the right. The brand and the collapse
-           control live HERE rather than in the sidebar on purpose — the sidebar
-           changes width across the three stages, so anything pinned inside it has
-           to move with it. Up here they never shift. -->
-      <div id="globalHeaderBar" style="display:flex;align-items:center;gap:16px;padding:9px 22px;min-height:52px;box-sizing:border-box;position:sticky;top:0;z-index:6;background:var(--bg);border-bottom:1px solid var(--line);">
-        <div id="hdrLeft" style="display:flex;align-items:center;gap:32px;flex-shrink:0;">
-          <a href="#" id="hdrBrand" title="ReachGiant" style="display:flex;align-items:center;text-decoration:none;flex-shrink:0;">
-            <svg class="logo-mark" viewBox="0 0 149 149" fill="none" style="width:34px;height:34px;flex-shrink:0;"><rect width="149" height="149" rx="33.44" fill="#D00400"/><path d="M44 106V43h30c11 0 19 7 19 18 0 8-4 14-11 16l14 29H79L67 80h-8v26H44zm15-38h13c5 0 8-3 8-7s-3-7-8-7H59v14z" fill="#fff"/></svg>
-          </a>
-          <div class="sidebar-collapse" id="sidebarCollapseBtn" title="Hide menu"></div>
-        </div>
-
-        <div style="flex:1;display:flex;justify-content:center;min-width:0;">
-          <div class="search-box" id="globalSearchBox" style="width:420px;max-width:100%;">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            <input type="text" class="bare-input" id="globalSearchInput" placeholder="Search anything...">
-            <kbd>&#8984;K</kbd>
-          </div>
-        </div>
-
-        <!-- Filled at runtime by moving the real controls out of the sidebar foot,
-             so their existing wiring keeps working untouched. -->
-        <div id="hdrRight" style="display:flex;align-items:center;gap:10px;flex-shrink:0;"></div>
-      </div>
 
       <!-- Persistent Workspace tab bar — shared chrome above Workspace/Clients/Team Pulse/
            Templates/SOPs so switching between them (via nav consolidation) doesn't lose it. -->
@@ -7031,6 +7036,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             </div>
           </main>
         </div>
+      </div><!-- /.app-shell -->
       </div>
 
       <!-- ===== CHAT ===== -->
