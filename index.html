@@ -106,7 +106,12 @@ body::after{content:"";position:fixed;inset:0;z-index:9999;pointer-events:none;o
 /* Top bar zones. .who is a column in the sidebar foot; up here it reads as a
    single line beside the avatar, and collapses away on narrow windows so the
    search never gets squeezed. */
-#hdrRight .who{display:flex;flex-direction:column;line-height:1.15;}
+#hdrRight .who{display:flex;flex-direction:column;justify-content:center;line-height:1.25;min-width:0;max-width:150px;gap:1px;}
+/* Both lines clip rather than push: #hdrRight is what the centred search measures its
+   room against, so a long name would otherwise move the search bar every time a
+   different person signed in. 150px holds roughly 18 characters at this size. */
+#hdrRight .who b,
+#hdrRight .who span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;}
 #hdrRight .who b{font-size:12px;font-weight:700;color:var(--text);}
 #hdrRight .who span{font-size:10.5px;color:var(--text-3);}
 #hdrPerson:hover{background:var(--surface-2,#1a1a1a);}
@@ -10863,17 +10868,31 @@ function enterApp(){
     const menu = foot.querySelector('#statusMenu');
     if (bell) right.appendChild(bell);
     if (theme) right.appendChild(theme);
-    // The design's second line is the person's ROLE, not their presence. Status is
-    // still set from the same popover; it just is not what this line reports.
+    // Two lines: who you are, then what you are. The design's second line is the
+    // person's ROLE, not their presence — status is still set from the same popover,
+    // it just is not what this line reports.
+    //
+    // The name was blank because nothing ever wrote to #userFullName. It ships as
+    // `&nbsp;` in the markup and there was no assignment to it anywhere in the file,
+    // so the block rendered as an avatar above a role with an empty line between.
     const roleLine = who && who.querySelector('#userStatusLabel');
-    if (roleLine) {
-      const applyRole = () => {
-        const r = (window.giantCurrentProfile && window.giantCurrentProfile.role) || '';
-        if (r) roleLine.textContent = r.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const nameLine = who && who.querySelector('#userFullName');
+    if (roleLine || nameLine) {
+      const applyWho = () => {
+        const p = window.giantCurrentProfile || {};
+        if (nameLine) {
+          // display_name is what a person chose to be called; fall back to their real
+          // name, then to the local part of the email so the line is never blank.
+          const n = p.display_name || p.full_name || (p.email ? p.email.split('@')[0] : '');
+          if (n) { nameLine.textContent = n; nameLine.title = n; }
+        }
+        if (roleLine && p.role) {
+          roleLine.textContent = String(p.role).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        }
       };
-      applyRole();
+      applyWho();
       // The profile loads after this runs, so re-apply once it lands.
-      setTimeout(applyRole, 800); setTimeout(applyRole, 2500);
+      setTimeout(applyWho, 800); setTimeout(applyWho, 2500);
     }
     if (avatar || who) {
       const person = document.createElement('div');
