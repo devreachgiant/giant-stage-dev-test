@@ -10679,10 +10679,20 @@ function enterApp(){
     });
     gs.forEach(g => {
       railHost.appendChild(tile(g.ico, g.label, owning && owning.key === g.key, '', () => {
-        // Opening a group from the rail returns to full — you asked to see inside it.
-        setStage(0);
-        const lbl = sidebar.querySelector(`.nav-group-label[data-navgroup="${g.key}"]`);
-        if (lbl && lbl.getAttribute('aria-expanded') === 'false') lbl.click();
+        // GO to the section. This previously only widened the sidebar and opened
+        // the accordion, so clicking Settings left you on whatever page you were
+        // already on — the tile looked like navigation and was not. A rail tile
+        // must do what the same icon does when the sidebar is open.
+        const target = g.items.find(i => i.dataset.screen === activeScreen()) || g.items[0];
+        if (target) target.click();
+        // Leave the group unfolded so it is already open whenever the sidebar is
+        // expanded again. The accordion's state is the nav-group-collapsed class —
+        // there is no aria-expanded on these labels, so testing for one silently did
+        // nothing. Only click when collapsed: clicking an open group closes it.
+        const lbl = sidebar.querySelector(`.nav-group-toggle[data-navgroup="${g.key}"]`);
+        if (lbl && lbl.classList.contains('nav-group-collapsed')) lbl.click();
+        // Stay in the rail: collapsing was deliberate, so do not undo it for them.
+        setTimeout(buildRail, 40);
       }));
     });
 
