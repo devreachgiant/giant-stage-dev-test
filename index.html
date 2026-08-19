@@ -67062,59 +67062,102 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
   window.jumpToChatMessage = jumpToChatMessage;
 
-  // The other notifications module computes a live feed — @mentions, unread email,
-  // overdue tasks, overdue invoices — that has no rows in the notifications table. Those
-  // items are appended here rather than merged into _notifs because they have no id and
-  // so nothing to mark read against; their read state is that module's own cutoff.
-  // Rendered async so a slow query never delays the panel opening.
+  // The panel is a list of things still WAITING on you, not a log. Clicking an item
+  // clears it and it leaves the list; "Clear all" empties the list in one go. Read
+  // rows stay in the notifications table with read_at set — nothing is deleted, they
+  // just stop being pending.
+  //
+  // Two sources with different notions of "read":
+  //   - notifications table rows have a real per-row read_at.
+  //   - the derived feed (@mentions, unread email, overdue tasks/invoices) is computed
+  //     fresh on every open and has no id to write back to, so a dismissed one is
+  //     remembered here by a content key. Capped so it cannot grow without bound.
+  const DERIVED_DISMISS_KEY = 'giant_notif_derived_dismissed';
+  let _derived = [];
+  const derivedKey = (n) => [n.screen || '', n.title || '', n.ts || ''].join('|');
+  function dismissedSet(){
+    try { return new Set(JSON.parse(localStorage.getItem(DERIVED_DISMISS_KEY) || '[]')); }
+    catch (_) { return new Set(); }
+  }
+  function dismissDerived(keys){
+    const set = dismissedSet();
+    keys.forEach(k => set.add(k));
+    try { localStorage.setItem(DERIVED_DISMISS_KEY, JSON.stringify([...set].slice(-200))); } catch (_) {}
+  }
+  const pendingNotifs  = () => _notifs.filter(n => !n.read_at);
+  const pendingDerived = () => { const d = dismissedSet(); return _derived.filter(n => !d.has(derivedKey(n))); };
+
+  function rowHtml(n){
+    const clickable = !!(n.task_id || n.message_id);
+    return `<div class="giant-notif-item" data-nid="${esc(n.id)}" data-task="${esc(n.task_id||'')}" data-channel="${esc(n.channel_id||'')}" data-message="${esc(n.message_id||'')}" style="padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer;background:rgba(208,4,0,.06);transition:background .12s;" title="${clickable ? 'Open, and clear this' : 'Click to clear'}">
+      <div style="font-size:12.5px;color:var(--text);line-height:1.45;">${esc(n.body||n.title||'Notification')}</div>
+      <div style="font-size:10.5px;color:var(--text-3);margin-top:3px;">${timeAgo(n.created_at)}</div>
+    </div>`;
+  }
+  function derivedHtml(n){
+    return `<div class="giant-derived-item" data-dkey="${esc(derivedKey(n))}" data-screen="${esc(n.screen||'')}" style="padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer;background:rgba(208,4,0,.06);transition:background .12s;" title="${n.screen ? 'Open, and clear this' : 'Click to clear'}">
+      <div style="font-size:12.5px;color:var(--text);line-height:1.45;">${esc(n.title||'')}</div>
+      <div style="font-size:10.5px;color:var(--text-3);margin-top:3px;">${esc(n.sub||'')}</div>
+    </div>`;
+  }
+
+  // One painter for both sources, so the empty state and the Clear all affordance can
+  // never disagree with what is actually on screen.
+  function paint(){
+    if (!_panel) return;
+    const list = _panel.querySelector('#giantNotifList');
+    if (!list) return;
+    const rows = pendingNotifs().map(rowHtml).concat(pendingDerived().map(derivedHtml));
+    list.innerHTML = rows.length ? rows.join('')
+      : '<div style="padding:30px 16px;text-align:center;color:var(--text-3);font-size:12px;">You\'re all caught up.</div>';
+    const clearBtn = _panel.querySelector('#giantNotifMarkAll');
+    if (clearBtn){
+      clearBtn.style.visibility = rows.length ? 'visible' : 'hidden';
+      clearBtn.textContent = 'Clear all';
+    }
+  }
+  // Kept as the old name so the loader and the realtime subscription below still call
+  // something real.
+  function renderList(){ paint(); }
+
+  // The derived feed is fetched fresh on open. Async so a slow query never holds the
+  // panel closed; it repaints when it lands.
   function renderDerived(){
     if (typeof window.giantDerivedNotifs !== 'function') return;
     const openedFor = _panel;
     window.giantDerivedNotifs().then(items => {
-      // The panel may have been closed (or reopened) while those queries were in flight.
-      if (!items || !items.length || !_panel || _panel !== openedFor || _panel.style.display !== 'flex') return;
-      const list = _panel.querySelector('#giantNotifList');
-      if (!list) return;
-      // renderList() writes an empty-state line when the table has nothing; with derived
-      // items to show, "No notifications yet" would be sitting above a populated list.
-      if (!_notifs.length) list.innerHTML = '';
-      list.insertAdjacentHTML('beforeend', items.map(n => `
-        <div class="giant-derived-item" data-screen="${esc(n.screen||'')}" style="padding:11px 14px;border-bottom:1px solid var(--line);cursor:${n.screen?'pointer':'default'};transition:.12s;">
-          <div style="font-size:12.5px;color:var(--text);line-height:1.45;">${esc(n.title||'')}</div>
-          <div style="font-size:10.5px;color:var(--text-3);margin-top:3px;">${esc(n.sub||'')}</div>
-        </div>`).join(''));
+      // The panel may have been closed, or reopened, while those queries were in flight.
+      if (!_panel || _panel !== openedFor || _panel.style.display !== 'flex') return;
+      _derived = Array.isArray(items) ? items : [];
+      paint();
     }).catch(() => {});
-  }
-
-
-  function renderList(){
-    const list = _panel.querySelector('#giantNotifList');
-    if (!_notifs.length){ list.innerHTML = '<div style="padding:26px 16px;text-align:center;color:var(--text-3);font-size:12px;">No notifications yet</div>'; return; }
-    list.innerHTML = _notifs.map(n => `
-      <div class="giant-notif-item" data-nid="${esc(n.id)}" data-task="${esc(n.task_id||'')}" data-channel="${esc(n.channel_id||'')}" data-message="${esc(n.message_id||'')}" style="padding:11px 14px;border-bottom:1px solid var(--line);cursor:${(n.task_id||n.message_id)?'pointer':'default'};${n.read_at?'':'background:rgba(208,4,0,.06);'}transition:.12s;">
-        <div style="font-size:12.5px;color:var(--text);line-height:1.45;">${esc(n.body||n.title||'Notification')}</div>
-        <div style="font-size:10.5px;color:var(--text-3);margin-top:3px;">${timeAgo(n.created_at)}</div>
-      </div>`).join('');
   }
 
   function build(){
     const p = document.createElement('div');
     p.id = 'giantNotifPanel';
     p.style.cssText = 'position:fixed;z-index:10000;width:340px;max-height:440px;background:var(--pane,#161616);border:1px solid var(--line);border-radius:12px;box-shadow:0 16px 48px rgba(0,0,0,.5);display:none;flex-direction:column;overflow:hidden;font-family:inherit;';
-    p.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--line);"><span style="font-size:13px;font-weight:700;color:var(--text);">Notifications</span><span id="giantNotifMarkAll" style="font-size:11px;color:var(--red);cursor:pointer;">Mark all read</span></div><div id="giantNotifList" style="flex:1;overflow-y:auto;"></div>';
+    p.innerHTML = '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line);flex-shrink:0;">'
+      + '<span style="font-size:13px;font-weight:700;color:var(--text);">Notifications</span>'
+      + '<button id="giantNotifMarkAll" type="button" style="font-size:11px;font-weight:700;color:var(--red);background:rgba(208,4,0,.10);border:1px solid rgba(208,4,0,.30);border-radius:7px;padding:4px 9px;cursor:pointer;font-family:inherit;flex-shrink:0;">Clear all</button>'
+      + '</div><div id="giantNotifList" style="flex:1;overflow-y:auto;"></div>';
     document.body.appendChild(p); _panel = p;
-    p.querySelector('#giantNotifMarkAll').addEventListener('click', markAll);
+    p.querySelector('#giantNotifMarkAll').addEventListener('click', (e) => { e.stopPropagation(); markAll(); });
     p.querySelector('#giantNotifList').addEventListener('click', (e) => {
-      // Derived items carry a screen, not a notification id — they route and close.
+      // Derived items carry a screen, not an id — dismiss by content key.
       const derived = e.target.closest('.giant-derived-item');
       if (derived) {
+        dismissDerived([derived.dataset.dkey]);
+        paint();
         const scr = derived.dataset.screen;
-        if (scr) { const nav = document.querySelector(`.nav-item[data-screen="${scr}"]`); if (nav) nav.click(); }
-        close();
+        if (scr) { const nav = document.querySelector(`.nav-item[data-screen="${scr}"]`); if (nav) nav.click(); close(); }
         return;
       }
       const item = e.target.closest('.giant-notif-item'); if (!item) return;
+      // Clear first, and repaint, so the row goes even when the item has nowhere to
+      // navigate to — otherwise clicking a plain notification looked like a dead click.
       markOne(item.dataset.nid);
+      paint();
       const tid = item.dataset.task;
       if (tid && typeof window.openTaskDetailPanel === 'function'){ window.openTaskDetailPanel(tid); close(); return; }
       const chId = item.dataset.channel, msgId = item.dataset.message;
@@ -67129,16 +67172,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     _panel.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
     _panel.style.left = 'auto';
     _panel.style.display = 'flex';
-    renderList();
+    paint();
     renderDerived();
     setTimeout(() => { const h = (e) => { if (_panel && !_panel.contains(e.target) && !bell.contains(e.target)){ close(); document.removeEventListener('click', h); } }; document.addEventListener('click', h); }, 50);
   }
   function close(){ if (_panel) _panel.style.display = 'none'; }
 
   async function markAll(){
-    const ids = _notifs.filter(n => !n.read_at).map(n => n.id); if (!ids.length) return;
+    // Clears BOTH sources. Clearing only the table rows would leave the derived items
+    // sitting there and the button would look broken.
+    dismissDerived(pendingDerived().map(derivedKey));
+    const ids = pendingNotifs().map(n => n.id);
     const now = new Date().toISOString();
-    _notifs.forEach(n => { if (!n.read_at) n.read_at = now; }); updateDot(); if (_panel) renderList();
+    _notifs.forEach(n => { if (!n.read_at) n.read_at = now; });
+    updateDot(); paint();
+    if (!ids.length) return;
     try { await sb().from('notifications').update({ read_at: now }).in('id', ids); } catch(_){}
   }
   async function markOne(nid){
@@ -67216,7 +67264,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       bell.addEventListener('click', (e) => {
         e.stopPropagation();
         if (_panel && _panel.style.display === 'flex'){ close(); return; }
-        open(); setTimeout(markAll, 1500);
+        // No auto mark-all: opening the panel is not the same as dealing with what is
+        // in it. Items clear when clicked, or all at once from the Clear all button.
+        open();
       });
     }
     load(); subscribe();
