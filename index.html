@@ -56295,15 +56295,19 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
     }
     function renderNotifications() {
       if (!notifList) return;
+      // The bell dot is NOT set here any more. This module no longer owns any visible
+      // notification UI — it only supplies the derived feed to the one panel — and it
+      // cannot see which of those items the user has already dismissed there. It was
+      // switching the dot back on from this line every time that panel opened and
+      // asked for the feed, which is why the bell stayed red while the panel itself
+      // said "You're all caught up". The panel owns the dot now, in updateDot().
       if (!notifItems.length) {
         notifList.innerHTML = '';
         notifList.appendChild(notifEmpty);
         notifEmpty.style.display = 'block';
-        if (focusBellDot) focusBellDot.style.display = 'none';
         return;
       }
       notifEmpty.style.display = 'none';
-      if (focusBellDot) focusBellDot.style.display = '';
       notifList.innerHTML = notifItems.map((n, idx) => `
         <div class="notif-item" data-notif-idx="${idx}" style="display:flex;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer;align-items:flex-start;">
           <div style="width:26px;height:26px;border-radius:7px;background:var(--surface);color:var(--text-2);display:flex;align-items:center;justify-content:center;flex-shrink:0;">${n.icon}</div>
@@ -66990,7 +66994,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     return Math.floor(d/86400)+'d ago';
   }
   const unread = () => _notifs.filter(n => !n.read_at).length;
-  function updateDot(){ const dot = document.getElementById('focusBellDot'); if (dot) dot.style.display = unread() > 0 ? 'block' : 'none'; }
+  // The dot must agree with the panel, so it counts BOTH sources exactly as the panel
+  // filters them — unread table rows plus derived items not yet dismissed. Counting
+  // only the table rows would leave the bell clean while the panel still listed work.
+  function updateDot(){
+    const dot = document.getElementById('focusBellDot');
+    if (!dot) return;
+    let n = 0;
+    try { n = pendingNotifs().length + pendingDerived().length; }
+    catch (_) { n = unread(); }        // before the panel's helpers are defined
+    dot.style.display = n > 0 ? 'block' : 'none';
+  }
 
   async function load(){
     if (!ready()) return;
@@ -66998,6 +67012,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const { data } = await sb().from('notifications').select('*').eq('recipient_id', myId()).order('created_at',{ascending:false}).limit(30);
       _notifs = data || []; updateDot(); if (_panel && _panel.style.display==='flex') renderList();
     } catch(e){ /* table not migrated yet */ }
+    // Pull the derived feed too, so the bell is right BEFORE the panel is first
+    // opened. Without this the dot only ever counted table rows on a fresh load and
+    // under-reported an overdue invoice until you happened to look.
+    refreshDerived();
   }
 
   // Navigates to the old Chat & Huddles screen, switches to the mentioned channel, then
@@ -67141,16 +67159,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   // The derived feed is fetched fresh on open. Async so a slow query never holds the
   // panel closed; it repaints when it lands.
-  function renderDerived(){
-    if (typeof window.giantDerivedNotifs !== 'function') return;
+  function refreshDerived(){
+    if (typeof window.giantDerivedNotifs !== 'function') return Promise.resolve();
     const openedFor = _panel;
-    window.giantDerivedNotifs().then(items => {
-      // The panel may have been closed, or reopened, while those queries were in flight.
-      if (!_panel || _panel !== openedFor || _panel.style.display !== 'flex') return;
+    return window.giantDerivedNotifs().then(items => {
       _derived = Array.isArray(items) ? items : [];
-      paint();
+      updateDot();                       // always: the bell is right even when closed
+      // Only repaint if this is still the same panel and it is still open — those
+      // queries can outlive a close, or a close-and-reopen.
+      if (_panel && _panel === openedFor && _panel.style.display === 'flex') paint();
     }).catch(() => {});
   }
+  const renderDerived = refreshDerived;   // the open() path reads better under this name
 
   function build(){
     const p = document.createElement('div');
