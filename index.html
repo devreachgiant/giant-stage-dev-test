@@ -6061,7 +6061,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       <div id="globalHeaderBar" style="display:flex;align-items:center;gap:16px;padding:9px 22px;min-height:52px;box-sizing:border-box;position:sticky;top:0;z-index:6;background:var(--bg);border-bottom:1px solid var(--line);">
         <div id="hdrLeft" style="display:flex;align-items:center;gap:32px;flex-shrink:0;">
           <a href="#" id="hdrBrand" title="ReachGiant" style="display:flex;align-items:center;text-decoration:none;flex-shrink:0;">
-            <svg class="logo-mark" viewBox="0 0 149 149" fill="none" style="width:34px;height:34px;flex-shrink:0;"><rect width="149" height="149" rx="33.44" fill="#D00400"/><path d="M44 106V43h30c11 0 19 7 19 18 0 8-4 14-11 16l14 29H79L67 80h-8v26H44zm15-38h13c5 0 8-3 8-7s-3-7-8-7H59v14z" fill="#fff"/></svg>
+            <svg class="logo-mark" viewBox="25.85 34.95 96.15 80.51" fill="currentColor" style="height:26px;width:auto;flex-shrink:0;color:var(--red);display:block;"><path d="M38.7805 66.2876V36.3261C38.7805 35.0148 40.4427 34.4493 41.2425 35.4885L75.7656 80.3505C76.1131 80.8021 75.7912 81.456 75.2214 81.456H63.3552C62.5967 81.456 61.9817 82.0709 61.9817 82.8295V114.082C61.9817 115.406 60.293 115.963 59.5048 114.9L26.1264 69.8522C25.4548 68.9457 26.1018 67.661 27.2299 67.661H37.4071C38.1656 67.661 38.7805 67.0461 38.7805 66.2876Z"/><path d="M67.0258 61.962L54.9468 45.3534C54.2866 44.4456 54.935 43.1721 56.0575 43.1721H94.9091C95.3384 43.1721 95.7431 43.3729 96.0028 43.7148L121.718 77.5674C122.405 78.4717 121.76 79.7716 120.624 79.7716H99.7764C99.211 79.7716 98.8878 80.4165 99.2262 80.8694L120.696 109.601C121.372 110.506 120.726 111.796 119.595 111.796H98.377C97.9514 111.796 97.5498 111.599 97.2897 111.262L74.4234 81.6323C73.7266 80.7294 74.3702 79.4197 75.5107 79.4197H96.3514C96.9131 79.4197 97.2372 78.7822 96.9063 78.3284L85.7964 63.0919C85.5378 62.7373 85.1254 62.5276 84.6866 62.5276H68.1365C67.6971 62.5276 67.2842 62.3174 67.0258 61.962Z"/></svg>
           </a>
           <div class="sidebar-collapse" id="sidebarCollapseBtn" title="Hide menu"></div>
         </div>
@@ -56185,17 +56185,23 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
         });
       });
     }
-    if (focusBellBtn) {
-      focusBellBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (notifPanel.style.display === 'flex') {
-          notifPanel.style.display = 'none';
-        } else {
-          notifPanel.style.display = 'flex';
-          buildNotifications();
-        }
-      });
-    }
+    // ONE bell, ONE panel. This module and the notifications-table module further down
+    // both bound a click listener to #focusBellBtn, so a single click opened two panels
+    // stacked on each other. stopPropagation() did not help: it stops the event moving to
+    // ANCESTORS, not other listeners on the same element — that needs
+    // stopImmediatePropagation, and it would only have worked for whichever handler
+    // happened to be registered first.
+    //
+    // The table module owns the panel now; it is the real system, with realtime updates,
+    // per-row read state and deep links into a task or a chat message. What it does NOT
+    // have is this module's derived feed — @mentions, unread email, overdue tasks and
+    // overdue invoices are computed live here and never get rows in the notifications
+    // table — so instead of wiring the bell, this exposes that feed for the one panel to
+    // render. Deleting it would have silently dropped four categories of notification.
+    window.giantDerivedNotifs = async () => {
+      try { await buildNotifications(); return notifItems.slice(); }
+      catch (_) { return []; }
+    };
     document.addEventListener('click', (e) => {
       if (notifPanel.style.display === 'flex' && !notifPanel.contains(e.target) && !e.target.closest('#focusBellBtn')) {
         notifPanel.style.display = 'none';
@@ -66938,6 +66944,31 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
   window.jumpToChatMessage = jumpToChatMessage;
 
+  // The other notifications module computes a live feed — @mentions, unread email,
+  // overdue tasks, overdue invoices — that has no rows in the notifications table. Those
+  // items are appended here rather than merged into _notifs because they have no id and
+  // so nothing to mark read against; their read state is that module's own cutoff.
+  // Rendered async so a slow query never delays the panel opening.
+  function renderDerived(){
+    if (typeof window.giantDerivedNotifs !== 'function') return;
+    const openedFor = _panel;
+    window.giantDerivedNotifs().then(items => {
+      // The panel may have been closed (or reopened) while those queries were in flight.
+      if (!items || !items.length || !_panel || _panel !== openedFor || _panel.style.display !== 'flex') return;
+      const list = _panel.querySelector('#giantNotifList');
+      if (!list) return;
+      // renderList() writes an empty-state line when the table has nothing; with derived
+      // items to show, "No notifications yet" would be sitting above a populated list.
+      if (!_notifs.length) list.innerHTML = '';
+      list.insertAdjacentHTML('beforeend', items.map(n => `
+        <div class="giant-derived-item" data-screen="${esc(n.screen||'')}" style="padding:11px 14px;border-bottom:1px solid var(--line);cursor:${n.screen?'pointer':'default'};transition:.12s;">
+          <div style="font-size:12.5px;color:var(--text);line-height:1.45;">${esc(n.title||'')}</div>
+          <div style="font-size:10.5px;color:var(--text-3);margin-top:3px;">${esc(n.sub||'')}</div>
+        </div>`).join(''));
+    }).catch(() => {});
+  }
+
+
   function renderList(){
     const list = _panel.querySelector('#giantNotifList');
     if (!_notifs.length){ list.innerHTML = '<div style="padding:26px 16px;text-align:center;color:var(--text-3);font-size:12px;">No notifications yet</div>'; return; }
@@ -66956,6 +66987,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     document.body.appendChild(p); _panel = p;
     p.querySelector('#giantNotifMarkAll').addEventListener('click', markAll);
     p.querySelector('#giantNotifList').addEventListener('click', (e) => {
+      // Derived items carry a screen, not a notification id — they route and close.
+      const derived = e.target.closest('.giant-derived-item');
+      if (derived) {
+        const scr = derived.dataset.screen;
+        if (scr) { const nav = document.querySelector(`.nav-item[data-screen="${scr}"]`); if (nav) nav.click(); }
+        close();
+        return;
+      }
       const item = e.target.closest('.giant-notif-item'); if (!item) return;
       markOne(item.dataset.nid);
       const tid = item.dataset.task;
@@ -66973,6 +67012,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     _panel.style.left = 'auto';
     _panel.style.display = 'flex';
     renderList();
+    renderDerived();
     setTimeout(() => { const h = (e) => { if (_panel && !_panel.contains(e.target) && !bell.contains(e.target)){ close(); document.removeEventListener('click', h); } }; document.addEventListener('click', h); }, 50);
   }
   function close(){ if (_panel) _panel.style.display = 'none'; }
