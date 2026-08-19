@@ -211,8 +211,8 @@ body[data-focus="2"] .sidebar .brand{justify-content:center;padding:2px 0 14px;}
 body[data-focus="1"] #navRail3,
 body[data-focus="2"] #navRail3{display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:20px;overflow-y:auto;overflow-x:hidden;flex:1;min-height:0;scrollbar-width:none;}
 #navRail3::-webkit-scrollbar{display:none;}
-.rail-tile{width:42px;height:42px;box-sizing:border-box;border-radius:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;flex-shrink:0;background:#161616;border:1px solid #242424;color:#8a8a8a;transition:background .14s,border-color .14s,color .14s;}
-.rail-tile:hover{border-color:#3a3a3a;color:#c8c8c8;}
+.rail-tile{width:42px;height:42px;box-sizing:border-box;border-radius:11px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;flex-shrink:0;background:var(--surface);border:1px solid var(--line);color:var(--text-2);transition:background .14s,border-color .14s,color .14s;}
+.rail-tile:hover{border-color:var(--line-2);color:var(--text);}
 .rail-tile.on{background:#d91f0f;border-color:#d91f0f;color:#fff;}
 .rail-tile svg{width:19px;height:19px;}
 .rail-tile .ico{display:flex;align-items:center;justify-content:center;}
@@ -244,12 +244,12 @@ body[data-focus="2"] #c3Root > .c3-context > *:not(#c3Rail){display:none !import
 body[data-focus="2"] #c3Rail{display:flex;flex-direction:column;align-items:center;gap:6px;overflow-y:auto;flex:1;min-height:0;scrollbar-width:none;}
 #c3Rail::-webkit-scrollbar{display:none;}
 .c3-rail-tile{width:44px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;flex-shrink:0;}
-.c3-rail-tile .box{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;position:relative;background:#161616;border:1px solid #242424;transition:border-color .14s;}
-.c3-rail-tile:hover .box{border-color:#3a3a3a;}
+.c3-rail-tile .box{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;position:relative;background:var(--surface);border:1px solid var(--line);transition:border-color .14s;}
+.c3-rail-tile:hover .box{border-color:var(--line-2);}
 .c3-rail-tile.on .box{background:rgba(217,31,15,0.16);border-color:#d91f0f;}
-.c3-rail-tile .cap{font-size:8.5px;font-weight:700;color:#6a6a6a;text-align:center;line-height:1.15;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.c3-rail-tile.on .cap{color:#e0e0e0;}
-.c3-rail-tile .rail-badge{position:absolute;top:-4px;right:-4px;min-width:15px;height:15px;padding:0 4px;border-radius:8px;background:#d91f0f;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid #131313;box-sizing:content-box;}
+.c3-rail-tile .cap{font-size:8.5px;font-weight:700;color:var(--text-3);text-align:center;line-height:1.15;max-width:52px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.c3-rail-tile.on .cap{color:var(--text);}
+.c3-rail-tile .rail-badge{position:absolute;top:-4px;right:-4px;min-width:15px;height:15px;padding:0 4px;border-radius:8px;background:#d91f0f;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--shell);box-sizing:content-box;}
 .sidebar.collapsed .brand{padding:6px 4px 18px;justify-content:flex-start;gap:6px;}
 .sidebar.collapsed .brand-name{display:none;}
 .sidebar.collapsed .sidebar-collapse{position:relative;right:auto;top:auto;width:20px;height:20px;}
@@ -299,7 +299,7 @@ body[data-focus="2"] #c3Rail{display:flex;flex-direction:column;align-items:cent
 .nav-pill::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:0 3px 3px 0;background:var(--red);}
 .nav-item{display:flex;align-items:center;gap:11px;padding:9px;border-radius:9px;font-size:13.5px;font-weight:500;color:var(--text-2);cursor:pointer;position:relative;z-index:1;height:36px;transition:color .18s var(--ease);}
 .nav-item:hover{color:var(--text);}
-.nav-item.active{color:#fff;font-weight:700;}
+.nav-item.active{color:var(--text);font-weight:700;}
 .nav-item .ico{width:16px;height:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
 .nav-item .ico svg{width:16px;height:16px;}
 .nav-item .badge{margin-left:auto;font-size:10.5px;font-weight:700;background:var(--surface-3);color:var(--text-2);padding:1px 6px;border-radius:6px;min-width:20px;text-align:center;}
