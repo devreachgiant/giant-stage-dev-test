@@ -22809,7 +22809,7 @@ window.addEventListener('popstate', (e) => {
     return `<div style="width:22px;height:22px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700;${c3AvatarStyle(active ? 'var(--c3-brand)' : p.avatar_bg, active ? 'var(--c3-on-accent)' : p.avatar_fg, p.avatar_url)}">${p.avatar_url ? '' : esc(initialsOf(name))}</div>`;
   }
   function c3TeamMarkHtml(t){
-    return `<div style="width:22px;height:22px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:${esc(t.color || 'var(--c3-indigo)')}33;">
+    return `<div style="width:22px;height:22px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:${c3Alpha(esc(t.color || 'var(--c3-indigo)'), 20)};">
       ${t.is_private
         ? `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" style="color:${esc(t.color || 'var(--c3-indigo)')};"><rect x="3" y="7" width="10" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><path d="M5.2 7V4.8a2.8 2.8 0 015.6 0V7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`
         : `<span style="color:${esc(t.color || 'var(--c3-indigo)')};font-size:12px;font-weight:800;line-height:1;">#</span>`}
@@ -22908,14 +22908,14 @@ window.addEventListener('popstate', (e) => {
     const a = card.accent;
     const open = !card.pin && state.openCard === card.key;
     const cardStyle = open
-      ? `background:linear-gradient(180deg,${a}20,${a}07 46%,var(--c3-s0) 88%);border:1px solid ${a}4d;border-radius:14px;padding:4px 5px 8px;margin-bottom:9px;box-shadow:0 10px 26px rgba(0,0,0,0.45),inset 0 1px 0 ${a}2e;flex:1 1 0%;min-height:0;display:flex;flex-direction:column;overflow:hidden;`
-      : `background:linear-gradient(180deg,${a}0f,var(--c3-s0) 82%);border:1px solid ${a}24;border-radius:11px;padding:0;margin-bottom:5px;flex-shrink:0;`;
+      ? `background:linear-gradient(180deg,${c3Alpha(a,13)},${c3Alpha(a,3)} 46%,var(--c3-s0) 88%);border:1px solid ${c3Alpha(a,30)};border-radius:14px;padding:4px 5px 8px;margin-bottom:9px;box-shadow:0 10px 26px rgba(0,0,0,0.45),inset 0 1px 0 ${c3Alpha(a,18)};flex:1 1 0%;min-height:0;display:flex;flex-direction:column;overflow:hidden;`
+      : `background:linear-gradient(180deg,${c3Alpha(a,6)},var(--c3-s0) 82%);border:1px solid ${c3Alpha(a,14)};border-radius:11px;padding:0;margin-bottom:5px;flex-shrink:0;`;
     const head = `<div data-c3-card="${card.key}" style="display:flex;align-items:center;gap:${open ? '10' : '9'}px;${open ? 'padding:7px 8px 8px;' : 'height:30px;padding:0 8px;'}border-radius:10px;cursor:pointer;flex-shrink:0;">
       <div style="width:${open ? '25' : '18'}px;height:${open ? '25' : '18'}px;border-radius:${open ? '8' : '5'}px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:${a}${open ? '2b' : '22'};">
         <svg width="${open ? '15' : '11'}" height="${open ? '15' : '11'}" viewBox="0 0 24 24" fill="none" stroke="${a}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="${card.d}"/></svg>
       </div>
       <span style="font-size:10.5px;font-weight:800;letter-spacing:0.1em;text-transform:uppercase;color:${open ? 'var(--c3-t0)' : 'var(--c3-t2)'};flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(card.label)}</span>
-      ${card.add ? `<span data-c3-card-add="${card.add}" title="New ${card.add}" style="width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;cursor:pointer;color:${a};background:${a}24;">+</span>` : ''}
+      ${card.add ? `<span data-c3-card-add="${card.add}" title="New ${card.add}" style="width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;cursor:pointer;color:${a};background:${c3Alpha(a,14)};">+</span>` : ''}
       <!-- A zero badge is noise on every card, not just the pins: "NEEDS YOU 0" and
            "GROUP DMS 0" both draw the eye to a number that means nothing is there.
            Absence already says empty, and the open card says it properly. -->
@@ -23294,7 +23294,7 @@ window.addEventListener('popstate', (e) => {
           <div style="display:flex;flex-wrap:wrap;gap:6px;">
             ${DEPTS.map(d => {
               const on = state.memberAddDepts.includes(d.key);
-              return `<div data-c3-member-add-dept="${d.key}" style="display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:8px;cursor:pointer;border:1px solid ${on ? d.color : 'var(--c3-b1)'};background:${on ? d.color + '1a' : 'transparent'};">
+              return `<div data-c3-member-add-dept="${d.key}" style="display:flex;align-items:center;gap:6px;padding:6px 11px;border-radius:8px;cursor:pointer;border:1px solid ${on ? d.color : 'var(--c3-b1)'};background:${on ? c3Alpha(d.color,10) : 'transparent'};">
                 <span style="width:6px;height:6px;border-radius:50%;background:${d.color};flex-shrink:0;"></span>
                 <span style="font-size:11.5px;color:${on ? 'var(--c3-t0)' : 'var(--c3-t3)'};">${esc(d.label)}</span>
                 ${on ? C3_ICON.check(d.color, 11) : ''}
@@ -23425,7 +23425,7 @@ window.addEventListener('popstate', (e) => {
       <div data-c3-task-toggle="${esc(t.id)}" title="${done ? 'Mark not done' : 'Mark done'}" style="width:18px;height:18px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;border:1.6px solid ${done ? 'var(--c3-green)' : 'var(--c3-s7)'};background:${done ? 'rgba(62,207,142,0.16)' : 'transparent'};">
         ${done ? C3_ICON.check('var(--c3-green)', 11) : ''}</div>
       <span style="min-width:0;font-size:12.5px;color:${done ? 'var(--c3-t5)' : 'var(--c3-t1)'};${done ? 'text-decoration:line-through;' : ''}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.name || 'Untitled task')}</span>
-      <div>${p ? `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;color:${p.color};background:${p.color}1f;white-space:nowrap;">${p.label}</span>` : ''}</div>
+      <div>${p ? `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;color:${p.color};background:${c3Alpha(p.color,12)};white-space:nowrap;">${p.label}</span>` : ''}</div>
       <div style="display:flex;align-items:center;gap:7px;min-width:0;">
         ${who.length
           ? `${c3ProfileMarkHtml(who[0], false)}<span style="font-size:11.5px;color:var(--c3-t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(who.length > 1 ? `${who[0].display_name || 'Someone'} +${who.length - 1}` : (who[0].display_name || who[0].full_name || 'Someone'))}</span>`
@@ -23930,7 +23930,7 @@ window.addEventListener('popstate', (e) => {
               const p = C3_PRIO[String(t.priority || '').toLowerCase()];
               return `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--c3-b0);">
                 <span style="flex:1;min-width:0;font-size:12.5px;color:var(--c3-t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(t.name)}</span>
-                ${p ? `<span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;color:${p.color};background:${p.color}1f;flex-shrink:0;">${p.label}</span>` : ''}
+                ${p ? `<span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;color:${p.color};background:${c3Alpha(p.color,12)};flex-shrink:0;">${p.label}</span>` : ''}
               </div>`;
             }).join('') + (openTasks.length > 5 ? `<div style="font-size:11.5px;color:var(--c3-t5);margin-top:8px;">+${openTasks.length - 5} more</div>` : '')
           : `<div style="font-size:12.5px;color:var(--c3-t6);">Nothing open right now.</div>`))}
@@ -23960,7 +23960,7 @@ window.addEventListener('popstate', (e) => {
         ACCESS_ITEMS.map(a => {
           const st = ACCESS_STATE[accessOf(a.key)] || ACCESS_STATE.none;
           return `<div data-c3-access-cycle="${a.key}" title="Click to change" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--c3-b0);cursor:pointer;">
-            <span style="width:14px;height:14px;border-radius:50%;border:1.6px solid ${st.color};background:${accessOf(a.key) === 'granted' ? st.color + '2e' : 'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+            <span style="width:14px;height:14px;border-radius:50%;border:1.6px solid ${st.color};background:${accessOf(a.key) === 'granted' ? c3Alpha(st.color,18) : 'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;">
               ${accessOf(a.key) === 'granted' ? C3_ICON.check(st.color, 9) : ''}</span>
             <span style="flex:1;min-width:0;font-size:12.5px;color:var(--c3-t1);">${esc(a.label)}</span>
             <span style="font-size:10px;font-weight:800;color:${st.color};">${st.label.toUpperCase()}</span>
@@ -24039,7 +24039,7 @@ window.addEventListener('popstate', (e) => {
     return `<div style="display:flex;flex-direction:column;gap:14px;">
       ${mgmtCard('General intake form', status.label,
         `<div style="display:flex;align-items:center;gap:10px;padding-top:4px;">
-          <span style="font-size:10px;font-weight:800;padding:3px 9px;border-radius:7px;color:${status.color};background:${status.color}1f;">${status.label.toUpperCase()}</span>
+          <span style="font-size:10px;font-weight:800;padding:3px 9px;border-radius:7px;color:${status.color};background:${c3Alpha(status.color,12)};">${status.label.toUpperCase()}</span>
           ${sent ? `<span style="font-size:11.5px;color:var(--c3-t4);">Sent ${esc(sent.toLocaleDateString())}</span>` : ''}
           ${done ? `<span style="font-size:11.5px;color:var(--c3-t4);">· Replied ${esc(done.toLocaleDateString())}</span>` : ''}
           <div style="flex:1;"></div>
@@ -24083,6 +24083,15 @@ window.addEventListener('popstate', (e) => {
            ${c && c.status === 'churned' ? 'Restore on the client record' : 'Archive on the client record'} ${C3_ICON.arrowRight('currentColor', 12)}</div>`)}
     </div>`;
   }
+
+  // Appending alpha to a colour -- `${a}20`, `d.color + '2e'` -- worked while these
+  // were hex literals and silently stopped working when they became tokens, because
+  // "var(--c3-brand)20" is not a colour and CSS drops the whole declaration rather
+  // than just the alpha. That is what took the nav cards' fill and border away.
+  // color-mix() accepts a var() and hands back a real colour, so it survives both.
+  // Percentages are the old hex alpha over 255: 07~3%, 0f~6%, 14~8%, 1a~10%,
+  // 1f~12%, 20~13%, 24~14%, 2e~18%, 33~20%, 4d~30%.
+  const c3Alpha = (c, pct) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
 
   const ACT_COLOR = {
     message:'var(--c3-blue)', file_upload:'var(--c3-amber)', vault_add:'var(--c3-purple)', vault_view:'var(--c3-t5)',
@@ -24302,7 +24311,7 @@ Rules:
     const prompts = wide
       ? ['Which clients are at risk?', "What's blocked on us?", 'Where is spend rising?', 'Catch me up']
       : ['What did we agree on budget?', 'Catch me up', "What's blocked?", 'What access do we have?'];
-    const scopeBtn = (key, label) => `<div data-c3-magnus-scope="${key}" style="display:flex;align-items:center;height:30px;padding:0 15px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;background:${state.magnusScope === key ? MAGNUS_BLUE + '24' : 'transparent'};border:1px solid ${state.magnusScope === key ? MAGNUS_BLUE : 'var(--c3-s5)'};color:${state.magnusScope === key ? 'var(--c3-ice)' : 'var(--c3-t3)'};">${esc(label)}</div>`;
+    const scopeBtn = (key, label) => `<div data-c3-magnus-scope="${key}" style="display:flex;align-items:center;height:30px;padding:0 15px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;background:${state.magnusScope === key ? c3Alpha(MAGNUS_BLUE,14) : 'transparent'};border:1px solid ${state.magnusScope === key ? MAGNUS_BLUE : 'var(--c3-s5)'};color:${state.magnusScope === key ? 'var(--c3-ice)' : 'var(--c3-t3)'};">${esc(label)}</div>`;
 
     const bubble = (m) => m.role === 'user'
       ? `<div style="display:flex;justify-content:flex-end;"><div style="max-width:78%;background:var(--c3-s3);border:1px solid var(--c3-b2);border-radius:12px 12px 4px 12px;padding:9px 13px;font-size:12.5px;color:var(--c3-t1);white-space:pre-wrap;">${esc(m.content)}</div></div>`
@@ -24311,7 +24320,7 @@ Rules:
           <div style="flex:1;min-width:0;">
             <div style="font-size:12.5px;color:var(--c3-t1);line-height:1.6;white-space:pre-wrap;">${renderMd(m.content)}</div>
             ${(m.sources || []).length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;padding-top:11px;border-top:1px solid var(--c3-b1);">
-              ${m.sources.map(sc => `<div style="font-size:10.5px;font-weight:600;color:${MAGNUS_BLUE};background:${MAGNUS_BLUE}14;border:1px solid ${MAGNUS_BLUE}33;border-radius:7px;padding:3px 9px;">${esc(sc)}</div>`).join('')}
+              ${m.sources.map(sc => `<div style="font-size:10.5px;font-weight:600;color:${MAGNUS_BLUE};background:${c3Alpha(MAGNUS_BLUE,8)};border:1px solid ${c3Alpha(MAGNUS_BLUE,20)};border-radius:7px;padding:3px 9px;">${esc(sc)}</div>`).join('')}
             </div>` : ''}
           </div>
         </div>`;
@@ -24970,7 +24979,7 @@ Rules:
     const when = i.created_at ? new Date(i.created_at).toLocaleDateString(undefined, { month:'short', day:'numeric' }) : '';
     const by = i.created_by ? profileName(i.created_by) : '';
     return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 4px;border-bottom:1px solid var(--c3-b0);">
-      <div style="width:26px;height:26px;border-radius:8px;background:${k.color}1f;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">${libIcon(i.kind, 13)}</div>
+      <div style="width:26px;height:26px;border-radius:8px;background:${c3Alpha(k.color,12)};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;">${libIcon(i.kind, 13)}</div>
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:7px;">
           ${i.url
@@ -25044,7 +25053,7 @@ Rules:
     const isImage = String(m.mime_type || '').startsWith('image/');
     return `<div style="position:relative;background:var(--c3-s1);border:1px solid var(--c3-b1);border-radius:11px;overflow:hidden;">
       <a href="${esc(m.file_url || m.url || '#')}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit;">
-        <div style="height:84px;display:flex;align-items:center;justify-content:center;background:${isImage ? 'var(--c3-s0)' : d.color + '14'};">
+        <div style="height:84px;display:flex;align-items:center;justify-content:center;background:${isImage ? 'var(--c3-s0)' : c3Alpha(d.color,8)};">
           ${isImage && m.file_url
             ? `<img src="${esc(m.file_url)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">`
             : C3_ICON[d.icon](d.color, 26)}
