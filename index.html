@@ -22011,6 +22011,70 @@ window.addEventListener('popstate', (e) => {
     }
   }
 
+  // ── Desktop notifications ──
+  // The thread subscription above is filtered to the open thread, which is exactly
+  // the thread you do NOT need alerting about. This second, unfiltered one is what
+  // makes Chat 3.0 able to notify at all; RLS already limits the rows realtime will
+  // deliver, so it only ever sees messages this user is allowed to read.
+  let c3NotifyChannel = null;
+  function startC3GlobalMessageNotifications(){
+    if (c3NotifyChannel) return;
+    c3NotifyChannel = sb().channel('chat3-global-msgs')
+      .on('postgres_changes', { event:'INSERT', schema:'public', table:'chat2_messages' }, async (payload) => {
+        const m = payload.new;
+        if (!m || m.author_id === myId()) return;
+        // Reading it right now is not something to interrupt you about.
+        if (m.thread_id === state.activeThreadId && document.hasFocus() && !document.hidden) return;
+
+        const th = await c3ThreadMeta(m.thread_id);
+        if (!th) return;
+        const first = (state.myName || '').trim().split(' ')[0].toLowerCase();
+        const mentioned = !!first && (m.body || '').toLowerCase().includes('@' + first);
+        const kind = mentioned ? 'mention' : th.kind === 'dm' ? 'dm' : 'channel_message';
+        if (window.giantShouldNotify && !window.giantShouldNotify(kind)) return;
+
+        try { window.giantPlayNotifSound && window.giantPlayNotifSound(); } catch(_){}
+        // Only steal focus with a desktop notification when the window does not have it.
+        if (!document.hasFocus() || document.hidden) {
+          try { window.giantPushNotif && window.giantPushNotif(m); } catch(_){}
+        }
+      })
+      .subscribe();
+  }
+
+  // Small cache: a notification needs the thread's kind and name, and the same
+  // threads recur, so this avoids a round trip per incoming message.
+  const c3ThreadMetaCache = {};
+  async function c3ThreadMeta(threadId){
+    if (c3ThreadMetaCache[threadId]) return c3ThreadMetaCache[threadId];
+    const { data } = await sb().from('chat2_threads').select('id, kind, name, client_id, department').eq('id', threadId).maybeSingle();
+    if (data) c3ThreadMetaCache[threadId] = data;
+    return data;
+  }
+
+  // Deep-link target for the notification bell. Chat 3.0 exposed no way in, so a
+  // mention notification had nothing to click through to.
+  window.chat3OpenThread = async function(threadId, messageId){
+    const nav = document.querySelector('.nav-item[data-screen="chat3"]');
+    if (nav) nav.click();
+    const th = await c3ThreadMeta(threadId);
+    if (!th) return;
+    if (th.kind === 'client_dept' && th.client_id) {
+      await openThread({ kind:'client', id: th.client_id, dept: th.department || 'general' });
+    } else if (th.kind === 'home') {
+      await openHome();
+    } else {
+      await openThread({ kind: th.kind === 'dm' ? 'dm' : 'team', id: threadId });
+    }
+    if (!messageId) return;
+    // The list is rendered asynchronously, so wait for the row rather than assuming it.
+    for (let i = 0; i < 24; i++) {
+      const el = document.querySelector(`[data-c3-msg-id="${messageId}"]`);
+      if (el) { el.scrollIntoView({ behavior:'smooth', block:'center' }); return; }
+      await new Promise(r => setTimeout(r, 150));
+    }
+  };
+
   // ── Thread opening + messages (Stage 2) ──
   async function ensureClientDeptThread(clientId, dept){
     const cacheKey = clientId + ':' + dept;
@@ -22505,10 +22569,14 @@ window.addEventListener('popstate', (e) => {
     const val = el.value;
     const selected = val.slice(start, end);
     el.value = val.slice(0, start) + before + selected + after + val.slice(end);
-    el.dispatchEvent(new Event('input'));
+    // Caret first, THEN the event. Assigning .value parks the caret at the end of the
+    // text, so firing 'input' before restoring it made the @ button's mention popover
+    // read a position that was not where the @ had just been typed -- it only opened
+    // when the caret was already at the end.
     el.focus();
     el.selectionStart = start + before.length;
     el.selectionEnd = start + before.length + selected.length;
+    el.dispatchEvent(new Event('input'));
   }
   function insertAtCursor(el, text){
     const start = el.selectionStart, end = el.selectionEnd;
@@ -26745,6 +26813,9 @@ Rules:
       return;
     }
     startPresenceMirror();
+    // Survives leaving the screen: notifications are only useful when you are not
+    // looking at Chat 3.0, so this subscription is deliberately never torn down.
+    startC3GlobalMessageNotifications();
     if (!state.bootstrapped) {
       state.bootstrapped = true;
       state.loading = true; render();
@@ -26762,6 +26833,27 @@ Rules:
     }
     render();
   };
+
+  // Notifications must not depend on having opened the screen -- the point of them is
+  // to reach you while you are somewhere else in the app. chat3Init only runs when you
+  // navigate to Chat 3.0, so this starts the subscription at boot instead, once the
+  // session exists and the role allows it. myRole() also populates state.myName, which
+  // the mention check needs.
+  (function bootC3Notifications(){
+    let tries = 0;
+    const tick = async () => {
+      if (++tries > 40) return;                 // ~60s of retries, then give up quietly
+      if (!sb() || !myId()) { setTimeout(tick, 1500); return; }
+      if (state.role === null) {
+        const r = await myRole();
+        if (!r) { setTimeout(tick, 1500); return; }
+        state.role = r;
+      }
+      if (!isManagerOrOwner()) return;          // no access to Chat 3.0, nothing to hear about
+      startC3GlobalMessageNotifications();
+    };
+    setTimeout(tick, 2500);
+  })();
 })();
 
 /* ===== TEAM PAY ===== */
@@ -67228,7 +67320,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   function rowHtml(n){
     const clickable = !!(n.task_id || n.message_id);
-    return `<div class="giant-notif-item" data-nid="${esc(n.id)}" data-task="${esc(n.task_id||'')}" data-channel="${esc(n.channel_id||'')}" data-message="${esc(n.message_id||'')}" style="padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer;background:rgba(208,4,0,.06);transition:background .12s;" title="${clickable ? 'Open, and clear this' : 'Click to clear'}">
+    return `<div class="giant-notif-item" data-nid="${esc(n.id)}" data-task="${esc(n.task_id||'')}" data-channel="${esc(n.channel_id||'')}" data-message="${esc(n.message_id||'')}" data-c3thread="${esc(n.chat2_thread_id||'')}" data-c3message="${esc(n.chat2_message_id||'')}" style="padding:11px 14px;border-bottom:1px solid var(--line);cursor:pointer;background:rgba(208,4,0,.06);transition:background .12s;" title="${clickable ? 'Open, and clear this' : 'Click to clear'}">
       <div style="font-size:12.5px;color:var(--text);line-height:1.45;">${esc(n.body||n.title||'Notification')}</div>
       <div style="font-size:10.5px;color:var(--text-3);margin-top:3px;">${timeAgo(n.created_at)}</div>
     </div>`;
@@ -67294,6 +67386,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // back through history if the message is older than the loaded window, opens the
       // thread if it is a reply, then scrolls to it and flashes it red.
       if (d.channel && typeof window.jumpToChatMessage === 'function'){ window.jumpToChatMessage(d.channel, d.message || null); return true; }
+      // Chat 3.0 lives in different tables, so its mentions carry chat2_* ids and
+      // jumpToChatMessage -- which only knows about old chat -- cannot route them.
+      if (d.c3thread && typeof window.chat3OpenThread === 'function'){ window.chat3OpenThread(d.c3thread, d.c3message || null); return true; }
       if (d.screen){ const nav = document.querySelector(`.nav-item[data-screen="${d.screen}"]`); if (nav){ nav.click(); return true; } }
       return false;
     }
