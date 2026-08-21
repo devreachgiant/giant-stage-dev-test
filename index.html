@@ -8270,7 +8270,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                 <span style="width:18px;height:18px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb, var(--c3-pink) 18%, transparent);flex-shrink:0;">
                   <span style="width:7px;height:7px;border-radius:50%;background:var(--c3-pink);"></span></span>
                 <span style="flex:1;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--c3-t2);">Group DMs</span>
-                <span class="nc_navcard-count" style="font-size:10px;font-weight:700;color:var(--c3-t5);"></span>
+                <span class="nc_ch-section-add" id="nc_newGroupBtn2" title="New group DM" style="display:inline-flex;color:var(--c3-t5);cursor:pointer;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><span class="nc_navcard-count" style="font-size:10px;font-weight:700;color:var(--c3-t5);"></span>
                 <span class="nc_navcard-chev" style="display:inline-flex;color:var(--c3-t5);"><svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
               </div>
               <div class="nc_navcard-body" id="nc_cardGroupsBody" style="padding:0 4px 6px;"></div>
@@ -70357,6 +70357,32 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       renderNavCards();
     }
     window.nc_computeNeedsYou = computeNeedsYou;
+
+    // The card + buttons forward to the engine's own buttons rather than
+    // duplicating their handlers. Those are attached with a clone-and-replace, so
+    // re-implementing them here would drift the moment either side changed; the
+    // originals still live in the DOM behind the hidden legacy block, and clicking a
+    // hidden element works fine.
+    (function wireCardActions(){
+      const pairs = [['nc_newChannelBtn2','nc_newChannelBtn'],
+                     ['nc_newDmBtn2','nc_newDmBtn'],
+                     ['nc_newGroupBtn2','nc_newDmBtn']];
+      let ready = 0;
+      pairs.forEach(([mine, theirs]) => {
+        const el = document.getElementById(mine);
+        if (!el) return;
+        ready++;
+        if (el._ncWired) return;
+        el._ncWired = true;
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();                       // do not toggle the card open/closed
+          const target = document.getElementById(theirs);
+          if (target) target.click();
+          else if (typeof toast === 'function') toast({ type:'error', message:'That action is not available yet.' });
+        });
+      });
+      if (ready < pairs.length) setTimeout(wireCardActions, 600);
+    })();
 
     function renderNavCards(){
       const bodies = {
