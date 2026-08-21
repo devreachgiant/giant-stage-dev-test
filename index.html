@@ -69886,16 +69886,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     try {
       _boot();
     } catch (err) {
-      // This screen is a lifted copy of code that used to run inline at boot, so the
-      // failure mode worth guarding is "throws on first open and leaves a blank pane
-      // with nothing in the console anyone will look at". Say so on the screen.
-      _inited = false; // let the next open try again once the cause is fixed
+      // _inited deliberately stays true. _boot re-wraps six of the engine's functions
+      // -- loadMessages, appendMessage, switchChannel and others -- and a partial run
+      // may already have done some of them. Running it again stacks a second wrapper,
+      // so every side effect fires twice: that is what put two reply badges under each
+      // message. Retrying is not safe here, so the screen says to reload instead.
+      // The deferred path above, where the session is not ready yet, never reaches
+      // _boot and does still retry.
       console.error('[newchat] init failed:', err);
       const host = document.querySelector('.screen[data-screen="newchat"]');
       if (host) host.innerHTML = '<div style="padding:60px;text-align:center;color:var(--text-2);width:100%;">'
         + '<div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:8px;">New Chat could not start</div>'
         + '<div style="font-size:12.5px;">' + String((err && err.message) || err).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</div>'
-        + '<div style="font-size:11.5px;color:var(--text-3);margin-top:10px;">The original Chat screen is unaffected.</div></div>';
+        + '<div style="font-size:11.5px;color:var(--text-3);margin-top:10px;">Reload the page to try again. The original Chat screen is unaffected.</div></div>';
     }
   };
   function _boot(){
