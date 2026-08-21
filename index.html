@@ -70646,16 +70646,26 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           const cl = ncClients[c.client_id];
           // Render under the client's name, not the channel's -- "#burrus-seo" is an
           // implementation detail of where the messages happen to live.
-          return Object.assign({}, chosen, { name: (cl && cl.name) || chosen.name, _isClientRow: true });
+          return Object.assign({}, chosen, { name: (cl && cl.name) || chosen.name, client_id: c.client_id, _isClientRow: true });
         });
       }
       // Helper to recursively render a channel + its children
       function renderOne(c, depth) {
         const isActive = c.id === activeChannelId ? ' active' : '';
         const isMuted = mutedSet.has(c.id);
-        const hashIcon = c.is_private
-          ? '<span class="nc_hash nc_hash-lock"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.5"/></svg></span>'
-          : (c.emoji ? `<span class="nc_hash" style="font-style:normal;">${chatEsc(c.emoji)}</span>` : '<span class="nc_hash">#</span>');
+        // A client row is a client, not a channel: "#burrus-seo" with a lock told you
+        // where the messages live, which is the thing the Chat 3.0 shape hides. Client
+        // rows get the client's own avatar, the same mark used everywhere else clients
+        // are listed, so the sidebar reads as a client list rather than a channel list.
+        const ncCl = c._isClientRow && c.client_id ? ncClients[c.client_id] : null;
+        const hashIcon = ncCl
+          ? `<span class="nc_hash" style="font-style:normal;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;`
+            + `background:${chatEsc(ncCl.avatar_bg || 'var(--c3-avatar-bg)')};color:${chatEsc(ncCl.avatar_fg || 'var(--c3-avatar-fg)')};`
+            + `font-size:8.5px;font-weight:800;flex-shrink:0;">`
+            + chatEsc((ncCl.name || '?').trim().charAt(0).toUpperCase()) + `</span>`
+          : (c.is_private
+            ? '<span class="nc_hash nc_hash-lock"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.5"/></svg></span>'
+            : (c.emoji ? `<span class="nc_hash" style="font-style:normal;">${chatEsc(c.emoji)}</span>` : '<span class="nc_hash">#</span>'));
         const mutedIcon = isMuted ? '<span style="margin-left:auto;color:var(--text-3);display:inline-flex;align-items:center;" title="Muted"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M2 6.5v3h2.5L8 12V4L4.5 6.5H2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M11 5.5L14 8.5M14 5.5L11 8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>' : '';
         const opacityStyle = isMuted ? 'opacity:.55;' : '';
         // Indentation: 14px per level + a thin vertical bar so the hierarchy is visible
@@ -70948,14 +70958,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           }
         })();
       } else {
-        chatHeadName.textContent = c.name;
+        // For a client channel the header names the client and the department, not the
+        // channel. "#burrus-seo · Public channel" describes the storage; "Burrus
+        // Reseach, Inc. · SEO" describes the conversation, and it matches what the
+        // department strip directly below it is showing.
+        const hdrClient = c.kind === 'client_dept' && c.client_id ? ncClients[c.client_id] : null;
+        const hdrDept = hdrClient ? (NC_DEPTS.find(d => d.key === (c.department || 'general')) || null) : null;
+        chatHeadName.textContent = hdrClient ? hdrClient.name : c.name;
         const headTitle = document.getElementById('nc_chatHeadTitle');
         if (headTitle) {
           const hash = headTitle.querySelector('.nc_hash');
-          if (hash) hash.textContent = '#';
+          // The # is a channel affordance and reads as wrong on a client thread.
+          if (hash) hash.textContent = hdrClient ? '' : '#';
         }
-        chatHeadTopic.textContent = c.description || (c.is_private ? 'Private channel' : 'Public channel');
-        chatInput.placeholder = `Message #${c.name}…`;
+        chatHeadTopic.textContent = hdrClient
+          ? (hdrDept ? hdrDept.label : 'General') + (c.description ? ' · ' + c.description : '')
+          : (c.description || (c.is_private ? 'Private channel' : 'Public channel'));
+        chatInput.placeholder = hdrClient
+          ? `Message ${hdrClient.name}${hdrDept ? ' · ' + hdrDept.label : ''}…`
+          : `Message #${c.name}…`;
         const membersBtn = document.getElementById('nc_chatHeadMembersBtn');
         if (membersBtn) membersBtn.style.display = '';
         const privacyBtn = document.getElementById('nc_chatHeadPrivacyBtn');
