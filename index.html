@@ -70601,6 +70601,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       document.head.appendChild(st);
     })();
 
+    // Maribou has two channels that both mean General -- 61 messages and 12 -- and
+    // merging them properly would mean moving messages between channels, which is the
+    // one thing this branch has refused to do to old chat's data. So the union happens
+    // on read: a client x department reads from every channel that maps to it.
+    function ncChannelScope(id){
+      const c = chatChannels.find(x => x.id === id);
+      if (!c || c.kind !== 'client_dept' || !c.client_id) return [id];
+      const sibs = ncChannelsFor(c.client_id, c.department || 'general').map(x => x.id);
+      return sibs.length > 1 ? sibs : [id];
+    }
+
     function renderDeptStrip(){
       const el = document.getElementById('nc_deptStrip');
       if (!el) return;
@@ -72694,7 +72705,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const { data, error } = await queryWithRetry(() => window.giantSupabase
         .from('messages')
         .select('id, body, created_at, edited_at, author_id, channel_id, parent_id, reply_count, voice_note_url, voice_note_duration_ms, flagged')
-        .eq('channel_id', channelId)
+        .in('channel_id', ncChannelScope(channelId))
         .is('parent_id', null)
         .order('created_at', { ascending: false })
         .limit(50));
@@ -72757,7 +72768,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const { data, error } = await window.giantSupabase
         .from('messages')
         .select('id, body, created_at, edited_at, author_id, channel_id, parent_id, reply_count, voice_note_url, voice_note_duration_ms, flagged')
-        .eq('channel_id', channelId)
+        .in('channel_id', ncChannelScope(channelId))
         .is('parent_id', null)
         .lt('created_at', page.oldestTs)
         .order('created_at', { ascending: false })
@@ -74811,8 +74822,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       updateUnreadBadges();
       // Persist last_read_at in the background (badge already cleared)
       try {
+        // Reading a merged thread reads all of it. Marking only the channel that
+        // happens to be primary would leave the sibling permanently unread and
+        // permanently in Needs you, for messages already on screen.
         await window.giantSupabase.from('channel_members').update({ last_read_at: new Date().toISOString() })
-          .eq('channel_id', channelId).eq('profile_id', window.giantSession.user.id);
+          .in('channel_id', ncChannelScope(channelId)).eq('profile_id', window.giantSession.user.id);
       } catch(e) { console.warn('[chat] markChannelAsRead persist failed', e); }
     }
 
