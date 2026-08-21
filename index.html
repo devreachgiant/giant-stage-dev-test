@@ -70268,6 +70268,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       clientDeptPrivacy: {}, activeThreadId: null,
       selectedId: null, selectedKind: 'client', selectedDept: 'general', myName: '',
     };
+    // A const arrow in Chat 3.0, so the extraction -- which worked from a list of
+    // declaration names -- walked straight past it, and the Onboarding panel threw a
+    // ReferenceError the moment it rendered a link.
+    const onboardingUrl = (token) => `${location.origin}/onboarding?t=${encodeURIComponent(token)}`;
     const NCSB = () => window.giantSupabase;
     const ncMyId = () => (window.giantSession && window.giantSession.user && window.giantSession.user.id) || null;
     const ncIsStaff = () => ['owner','manager','inhouse_dev'].includes(
