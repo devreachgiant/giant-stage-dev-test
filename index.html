@@ -70500,7 +70500,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         mg.mgmtMatrixFor = clientId; mg.mgmtMatrixLoading = true;
         mg.mgmtMatrixThreads = {}; mg.mgmtMatrixMembers = {};
         renderMgmt();
-        const { data: threads, error } = await NCSB().from('chat2_threads')
+        const { data: threads, error } = await NCSB().from('channels')
           .select('id, department, is_private').eq('kind', 'client_dept').eq('client_id', clientId);
         if (mg.mgmtMatrixFor !== clientId) return;
         if (error) {
@@ -70512,10 +70512,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         (threads || []).forEach(t => { mg.mgmtMatrixThreads[t.department] = { id: t.id, is_private: !!t.is_private }; byId[t.id] = t.department; });
         const ids = Object.keys(byId);
         if (ids.length) {
-          const { data: mems } = await NCSB().from('chat2_thread_members').select('thread_id, profile_id').in('thread_id', ids);
+          const { data: mems } = await NCSB().from('channel_members').select('channel_id, profile_id').in('channel_id', ids);
           if (mg.mgmtMatrixFor !== clientId) return;
           (mems || []).forEach(m => {
-            const dept = byId[m.thread_id];
+            const dept = byId[m.channel_id];
             if (!dept) return;
             (mg.mgmtMatrixMembers[dept] = mg.mgmtMatrixMembers[dept] || new Set()).add(m.profile_id);
           });
@@ -70539,8 +70539,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         }
 
         const { error } = had
-          ? await NCSB().from('chat2_thread_members').delete().eq('thread_id', threadId).eq('profile_id', profileId)
-          : await NCSB().from('chat2_thread_members').upsert({ thread_id: threadId, profile_id: profileId }, { onConflict: 'thread_id,profile_id' });
+          ? await NCSB().from('channel_members').delete().eq('channel_id', threadId).eq('profile_id', profileId)
+          : await NCSB().from('channel_members').upsert({ channel_id: threadId, profile_id: profileId }, { onConflict: 'channel_id,profile_id' });
 
         mg.mgmtMatrixBusy = '';
         if (error) {
@@ -70555,7 +70555,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (threadId === mg.activeThreadId) {
           if (had) mg.threadMembers = mg.threadMembers.filter(tm => tm.profile_id !== profileId);
           else if (!mg.threadMembers.some(tm => tm.profile_id === profileId)) {
-            mg.threadMembers.push({ thread_id: threadId, profile_id: profileId, last_read_at: null });
+            mg.threadMembers.push({ channel_id: threadId, profile_id: profileId, last_read_at: null });
           }
         }
         logC3Activity(had ? 'member_removed' : 'member_added',
