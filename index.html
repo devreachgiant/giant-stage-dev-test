@@ -70308,6 +70308,56 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       b.addEventListener('click', (e) => { e.stopPropagation(); toggleStarChannel(id); });
       return b;
     }
+    // ── Needs you ───────────────────────────────────────────────────────────────
+    // Chat 3.0 ranks mention > flagged > unread, because those are three different
+    // levels of "someone is waiting on you". Reading the unread badge alone, as this
+    // did, flattens all three into one and buries a direct mention under twenty
+    // channels that merely have new activity.
+    let ncNeeds = {};   // channel_id -> 'mention' | 'flagged' | 'unread'
+    async function computeNeedsYou(){
+      const me = ncMyId();
+      if (!me) return;
+      const first = String((window.giantCurrentProfile
+        && (window.giantCurrentProfile.full_name || window.giantCurrentProfile.email)) || '')
+        .trim().split(/\s+/)[0].toLowerCase();
+      // Only channels this user actually belongs to: a mention in a public channel
+      // they never opened is not something waiting on them.
+      const { data: mem } = await NCSB().from('channel_members')
+        .select('channel_id, last_read_at').eq('profile_id', me);
+      const readBy = {};
+      (mem || []).forEach(m => { readBy[m.channel_id] = m.last_read_at; });
+      const ids = Object.keys(readBy);
+      if (!ids.length) { ncNeeds = {}; return; }
+      // Recent window only. The point is what needs attention now, and scanning the
+      // whole 10k-message history to answer that would be absurd.
+      const since = new Date(Date.now() - 14 * 864e5).toISOString();
+      const next = {};
+      for (let k = 0; k < ids.length; k += 200) {
+        const { data } = await NCSB().from('messages')
+          .select('channel_id, author_id, body, flagged, created_at')
+          .in('channel_id', ids.slice(k, k + 200))
+          .gte('created_at', since)
+          .order('created_at', { ascending: false })
+          .limit(600);
+        (data || []).forEach(m => {
+          if (m.author_id === me) return;                    // your own message is not waiting on you
+          const lastRead = readBy[m.channel_id];
+          const unread = !lastRead || new Date(m.created_at) > new Date(lastRead);
+          const mention = !!first && !!m.body && m.body.toLowerCase().includes('@' + first);
+          let kind = null;
+          if (mention && unread) kind = 'mention';
+          else if (m.flagged && unread) kind = 'flagged';
+          else if (unread) kind = 'unread';
+          if (!kind) return;
+          const rank = { mention: 0, flagged: 1, unread: 2 };
+          if (!next[m.channel_id] || rank[kind] < rank[next[m.channel_id]]) next[m.channel_id] = kind;
+        });
+      }
+      ncNeeds = next;
+      renderNavCards();
+    }
+    window.nc_computeNeedsYou = computeNeedsYou;
+
     function renderNavCards(){
       const bodies = {
         needs:   document.getElementById('nc_cardNeedsBody'),
@@ -70327,6 +70377,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const dmById = new Map((chatDmChannels || []).map(c => [c.id, c]));
       const starred = getStarredChannels();
 
+      // A dot in the row's own colour says WHY it needs you, which is the
+      // distinction the single red badge was losing.
+      const NEED_COLOR = { mention: 'var(--c3-blue)', flagged: 'var(--c3-amber)', unread: 'var(--c3-t5)' };
+      const NEED_RANK = { mention: 0, flagged: 1, unread: 2 };
+      const tagNeed = (row, kind) => {
+        row.dataset.needKind = kind;
+        const dot = document.createElement('span');
+        dot.style.cssText = 'width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-left:auto;background:' + NEED_COLOR[kind] + ';';
+        dot.title = kind === 'mention' ? 'Mentioned you' : kind === 'flagged' ? 'Flagged for reply' : 'New activity';
+        row.appendChild(dot);
+      };
       // cloneNode does not carry listeners, so each clone gets its own.
       const place = (row, body, id, withStar) => {
         if (!body) return null;
@@ -70343,7 +70404,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (!c) return;
         place(row, c.kind === 'client_dept' ? bodies.clients : bodies.teams, c.id, true);
         if (starred.has(c.id)) place(row, bodies.starred, c.id, true);
-        if (row.querySelector('.nc_ch-unread-badge')) place(row, bodies.needs, c.id, false);
+        const need = ncNeeds[c.id];
+        if (need) {
+          const cl2 = place(row, bodies.needs, c.id, false);
+          if (cl2) tagNeed(cl2, need);
+        }
       });
 
       const dmSrc = document.getElementById('nc_chatDmList');
@@ -70351,10 +70416,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const id = row.dataset.dmChannelId;
         const c = dmById.get(id);
         place(row, c && c.is_group ? bodies.groups : bodies.direct, id, false);
-        if (row.querySelector('.nc_ch-unread-badge')) place(row, bodies.needs, id, false);
+        const needDm = ncNeeds[id];
+        if (needDm) {
+          const cl3 = place(row, bodies.needs, id, false);
+          if (cl3) tagNeed(cl3, needDm);
+        }
       });
 
       const empty = (b, msg) => { if (b && !b.children.length) b.innerHTML = '<div style="padding:7px 9px;font-size:11px;color:var(--c3-t6);font-style:italic;">' + msg + '</div>'; };
+      if (bodies.needs) {
+        const rows = [...bodies.needs.children];
+        rows.sort((a, b) => (NEED_RANK[a.dataset.needKind] ?? 9) - (NEED_RANK[b.dataset.needKind] ?? 9));
+        rows.forEach(r => bodies.needs.appendChild(r));
+      }
       empty(bodies.needs, 'Nothing needs you.');
       empty(bodies.starred, 'Star a channel to pin it here.');
       empty(bodies.clients, 'No client threads.');
@@ -70550,9 +70624,32 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               + (chans.length > 1 ? `<span style="font-size:9.5px;color:var(--c3-t5);">${chans.length}</span>` : '')
               + `</span>`;
           }).join('');
-      el.querySelectorAll('[data-nc-dept]').forEach(t => t.addEventListener('click', () => {
-        const ch = ncPrimaryChannel(t.dataset.ncClient, t.dataset.ncDept);
-        if (ch) switchChannel(ch.id);
+      el.querySelectorAll('[data-nc-dept]').forEach(t => t.addEventListener('click', async () => {
+        const clientId = t.dataset.ncClient, dept = t.dataset.ncDept;
+        const ch = ncPrimaryChannel(clientId, dept);
+        if (ch) { switchChannel(ch.id); return; }
+        // An empty department tab used to do nothing at all, which read as a broken
+        // control rather than an absent conversation. It now opens the department by
+        // creating its channel -- the strip shows the client's shape, so every tab on
+        // it should be reachable.
+        if (!ncIsStaff()) {
+          if (typeof toast === 'function') toast({ type:'error', message:'Only managers can start a department.' });
+          return;
+        }
+        const label = (NC_DEPTS.find(d => d.key === dept) || {}).label || dept;
+        const name = (ncClients[clientId] || {}).name || 'this client';
+        // Creating a channel is visible to the whole team, so it is confirmed rather
+        // than done on a stray click on a greyed-out tab.
+        if (!window.confirm(`Start the ${label} conversation for ${name}?`)) return;
+        t.style.opacity = '.45';
+        const id = await ensureClientDeptThread(clientId, dept);
+        if (!id) { t.style.opacity = ''; return; }
+        // The new channel needs a membership row or its creator cannot see it back:
+        // it is private, and channels_select requires membership for private rows.
+        await NCSB().from('channel_members')
+          .upsert({ channel_id: id, profile_id: ncMyId() }, { onConflict: 'channel_id,profile_id' });
+        await loadChannels();
+        switchChannel(id);
       }));
     }
     window.nc_renderDeptStrip = renderDeptStrip;
@@ -71744,6 +71841,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       renderChannelList();
       renderDmChannelList();
       renderNavCards();
+      // Needs you depends on read state and message content, so it is computed
+      // rather than derived from what is already on screen.
+      computeNeedsYou();
       // Wire the ReachGiant Home card (idempotent — only wire once)
       const rgHomeCard = document.getElementById('nc_rgHomeCard');
       if (rgHomeCard && !rgHomeCard.dataset.wired) {
