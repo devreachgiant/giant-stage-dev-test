@@ -8396,10 +8396,13 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               .nc_cv-search-input{margin-left:auto;background:var(--surface-2);border:1px solid var(--line);border-radius:7px;padding:4px 9px;font-size:12px;color:var(--text);outline:none;width:130px;flex-shrink:0;}
               .nc_cv-search-input:focus{border-color:var(--text-3);width:160px;}
             </style>
+            <!-- Management pane: Chat 3.0's five tabs, over this client's data -->
+            <div id="nc_mgmtPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
             <div class="nc_chat-subtabs" id="nc_chatSubTabs">
               <button class="nc_chat-subtab active" data-subtab="messages"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Messages</button>
               <button class="nc_chat-subtab" data-subtab="media"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="5.5" cy="6.5" r="1.2" stroke="currentColor" stroke-width="1.1"/><path d="M2.5 11l3-3 2.5 2.5L11 7.5l2.5 3" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Media<span class="nc_chat-subtab-count" id="nc_chatMediaCount"></span></button>
               <button class="nc_chat-subtab" data-subtab="canvas"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Canvas</button>
+              <button class="nc_chat-subtab" data-subtab="management" id="nc_mgmtTabBtn" style="display:none;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 8h6M5 5.5h6M5 10.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Management</button>
             </div>
             </div>
             <div class="nc_msgs" id="nc_chatMsgs">
@@ -70196,6 +70199,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                   .sort((x, y) => (y._msgCount || 0) - (x._msgCount || 0));
     const ncPrimaryChannel = (clientId, dept) => (ncChannelsFor(clientId, dept)[0] || null);
 
+    // Management belongs to a client, so the tab appears only on client threads and
+    // the pane joins the same show/hide set as Messages/Media/Canvas.
+    function syncMgmtTab(){
+      const btn = document.getElementById('nc_mgmtTabBtn');
+      const pane = document.getElementById('nc_mgmtPane');
+      const active = chatChannels.find(c => c.id === activeChannelId);
+      const isClient = !!(active && active.kind === 'client_dept' && active.client_id);
+      if (btn) btn.style.display = isClient ? '' : 'none';
+      if (!isClient && pane) {
+        pane.style.display = 'none';
+        // Leaving a client thread while on Management would otherwise strand the user
+        // on a pane that no longer applies.
+        if (typeof window.nc_switchChatSubtab === 'function'
+            && btn && btn.classList.contains('nc_active')) window.nc_switchChatSubtab('messages');
+      }
+    }
+    window.nc_syncMgmtTab = syncMgmtTab;
+
     function renderDeptStrip(){
       const el = document.getElementById('nc_deptStrip');
       if (!el) return;
@@ -70225,6 +70246,763 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       }));
     }
     window.nc_renderDeptStrip = renderDeptStrip;
+
+    // ── Management (ported from Chat 3.0) ───────────────────────────────────────
+    // These panels are pure functions over a state object, which is why they port at
+    // all: every table they touch -- chat2_client_access, client_onboarding, clients,
+    // invoices -- is keyed on client_id, not on a thread, so they work unchanged over
+    // old chat's data once a client_id is supplied. New Chat is imperative and has no
+    // state/render(), so a small one scoped to this pane is provided rather than
+    // rewriting 700 lines of working panel code.
+    const mg = {
+      mgmtTab: 'overview', mgmtFor: null, mgmtLoading: false,
+      clientRow: null, clientAccess: [], clientServices: [], clientServicesFor: null,
+      clientServicesLoading: false, clientTasks: [], libraryItems: [],
+      threadMembers: [], threadMessages: [], profilesById: {},
+      mgmtActivity: [], mgmtActivityInferred: [], mgmtActivityError: null,
+      mgmtNotesDraft: null, mgmtKeywordsDraft: null, mgmtSavingProfile: false,
+      mgmtShowAnswers: false, mgmtLastPayment: null, mgmtPayments: [],
+      mgmtCreatingLink: false, mgmtArchiving: false, leadSaving: '',
+      mgmtMatrixFor: null, mgmtMatrixLoading: false, mgmtMatrixThreads: {},
+      mgmtMatrixMembers: {}, mgmtMatrixBusy: '',
+      clientDeptPrivacy: {}, activeThreadId: null,
+      selectedId: null, selectedKind: 'client', selectedDept: 'general', myName: '',
+    };
+    const NCSB = () => window.giantSupabase;
+    const ncMyId = () => (window.giantSession && window.giantSession.user && window.giantSession.user.id) || null;
+    const ncIsStaff = () => ['owner','manager','inhouse_dev'].includes(
+      String((window.giantCurrentProfile && window.giantCurrentProfile.role) || '').toLowerCase());
+    const initialsOf = (n) => String(n || '?').trim().split(/\s+/).slice(0,2).map(w => w.charAt(0).toUpperCase()).join('') || '?';
+    const c3AvatarStyle = (bg, fg) => `background:${chatEsc(bg || 'var(--c3-avatar-bg)')};color:${chatEsc(fg || 'var(--c3-avatar-fg)')};`;
+    const prettifyKey = (k) => String(k || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const copyLibText = (t, msg) => {
+      try { navigator.clipboard.writeText(t); if (typeof toast === 'function') toast({ type:'success', message: msg || 'Copied' }); }
+      catch(_) { if (typeof toast === 'function') toast({ type:'error', message:'Could not copy' }); }
+    };
+    const ncIcon = {
+      check: (c, s) => `<svg width="${s||12}" height="${s||12}" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 5" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+      arrowRight: (c, s) => `<svg width="${s||12}" height="${s||12}" viewBox="0 0 16 16" fill="none"><path d="M5 3l5 5-5 5" stroke="${c}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+      upload: (c, s) => `<svg width="${s||12}" height="${s||12}" viewBox="0 0 16 16" fill="none"><path d="M8 11V3M5 6l3-3 3 3M3 12.5h10" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    };
+    // Chat 3.0 creates a thread on demand; here the equivalent is a channel for that
+    // client x department, which is what the Members matrix needs to grant access to a
+    // department nobody has posted in yet.
+    async function ensureClientDeptThread(clientId, dept){
+      const existing = ncPrimaryChannel(clientId, dept);
+      if (existing) return existing.id;
+      const cl = ncClients[clientId];
+      const slug = ((cl && cl.name) || 'client').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30) + '-' + dept;
+      const { data, error } = await NCSB().from('channels')
+        .insert({ name: ((cl && cl.name) || 'Client') + ' ' + dept, slug, is_private: true,
+                  kind: 'client_dept', client_id: clientId, department: dept, created_by: ncMyId() })
+        .select('id, name, slug, is_private, is_dm, kind, client_id, department').single();
+      if (error || !data) {
+        if (typeof toast === 'function') toast({ type:'error', message:'Could not create the channel: ' + ((error && error.message) || '?') });
+        return null;
+      }
+      chatChannels.push(data);
+      return data.id;
+    }
+
+      const MGMT_TABS = [
+        { key:'overview',   label:'Overview' },
+        { key:'members',    label:'Members' },
+        { key:'onboarding', label:'Onboarding' },
+        { key:'billing',    label:'Billing' },
+        { key:'activity',   label:'Activity' },
+      ];
+      const ACCESS_ITEMS = [
+        { key:'googleAds', label:'Google Ads' },
+        { key:'meta',      label:'Meta Business Manager' },
+        { key:'website',   label:'Website admin' },
+        { key:'ga4',       label:'GA4' },
+        { key:'gsc',       label:'Search Console' },
+      ];
+      const ACCESS_STATE = {
+        granted: { label:'Granted',     color:'var(--c3-green)' },
+        pending: { label:'Pending',     color:'var(--c3-amber)' },
+        none:    { label:'Not set up',  color:'var(--c3-t5)' },
+      };
+      const CLIENT_STATUS = {
+        active:     { label:'Active',     color:'var(--c3-green)' },
+        onboarding: { label:'Onboarding', color:'var(--c3-blue)' },
+        paused:     { label:'Paused',     color:'var(--c3-amber)' },
+        at_risk:    { label:'At risk',    color:'var(--c3-salmon)' },
+        churned:    { label:'Archived',   color:'var(--c3-t5)' },
+      };
+      const ACT_COLOR = {
+        message:'var(--c3-blue)', file_upload:'var(--c3-amber)', vault_add:'var(--c3-purple)', vault_view:'var(--c3-t5)',
+        vault_reveal:'var(--c3-salmon)', task_done:'var(--c3-green)', task_added:'var(--c3-green)',
+        member_added:'var(--c3-violet)', member_removed:'var(--c3-rose)', access_changed:'var(--c3-cyan)', onboarding:'var(--c3-amber)',
+        payment:'var(--c3-salmon)', other:'var(--c3-t4)',
+      };
+      const c3Alpha = (c, pct) => `color-mix(in srgb, ${c} ${pct}%, transparent)`;
+      const mgmtCard = (title, sub, body) => `<div style="background:var(--c3-s1);border:1px solid var(--c3-b1);border-radius:12px;padding:14px 16px;">
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">
+          <div style="font-size:12.5px;font-weight:800;color:var(--c3-t0);">${title}</div>
+          ${sub ? `<div style="font-size:11.5px;color:var(--c3-t4);">${sub}</div>` : ''}
+        </div>${body}</div>`;
+      const mgmtField = (label, value, muted) => `<div style="display:flex;align-items:baseline;gap:10px;padding:7px 0;border-top:1px solid var(--c3-b0);">
+        <span style="font-size:11px;font-weight:700;color:var(--c3-t5);width:108px;flex-shrink:0;">${label}</span>
+        <span style="flex:1;min-width:0;font-size:12.5px;color:${muted ? 'var(--c3-t6)' : 'var(--c3-t1)'};word-break:break-word;">${value}</span>
+      </div>`;
+      const deptLabelOf = (k) => { const d = NC_DEPTS.find(x => x.key === k); return d ? d.label : (k || ''); };
+      function profileName(id){
+        const p = mg.profilesById[id];
+        return p ? (p.display_name || p.full_name || p.email || 'Someone') : 'Someone';
+      }
+      function c3ProfileMarkHtml(p, active){
+        const name = p.display_name || p.full_name || p.email || 'Someone';
+        return `<div style="width:22px;height:22px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700;${c3AvatarStyle(active ? 'var(--c3-brand)' : p.avatar_bg, active ? 'var(--c3-on-accent)' : p.avatar_fg, p.avatar_url)}">${p.avatar_url ? '' : chatEsc(initialsOf(name))}</div>`;
+      }
+      function c3StatCardHtml(value, label, color){
+        return `<div style="flex:1;min-width:0;background:var(--c3-s1);border:1px solid var(--c3-b1);border-radius:12px;padding:14px 16px;">
+          <div style="font-size:22px;font-weight:800;letter-spacing:-0.02em;color:${color || 'var(--c3-t0)'};line-height:1.1;">${value}</div>
+          <div style="font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);margin-top:6px;">${label}</div>
+        </div>`;
+      }
+      function logC3Activity(kind, summary, opts){
+        const o = opts || {};
+        const clientId = o.clientId || (mg.selectedKind === 'client' ? mg.selectedId : null);
+        if (!clientId || !kind || !summary) return;
+        try {
+          NCSB().from('chat2_client_activity').insert({
+            client_id: clientId,
+            actor_id: ncMyId(),
+            actor_name: mg.myName || profileName(ncMyId()),
+            kind,
+            summary,
+            detail: o.detail ? String(o.detail).slice(0, 300) : null,
+            department: o.department !== undefined ? o.department : (mg.selectedDept || null),
+            target_type: o.targetType || null,
+            target_id: o.targetId ? String(o.targetId) : null,
+          }).then(() => {}, () => {});
+        } catch (_) { /* never let bookkeeping break the action it describes */ }
+      }
+      async function loadC3Activity(clientId){
+        const { data, error } = await NCSB().from('chat2_client_activity')
+          .select('id, actor_id, actor_name, kind, summary, detail, department, created_at')
+          .eq('client_id', clientId)
+          .order('created_at', { ascending: false })
+          .limit(80);
+        return { rows: data || [], error: error ? error.message : null };
+      }
+      function actRowHtml(r){
+        const color = ACT_COLOR[r.kind] || ACT_COLOR.other;
+        const when = r.when || r.created_at;
+        const who = r.who || r.actor_name || (r.actor_id ? profileName(r.actor_id) : 'Someone');
+        const what = r.what || r.summary || '';
+        // System rows have no profile to draw, so they get a labelled mark rather than
+        // an empty circle — the feed reads as "who did this" the whole way down.
+        const actor = r.actor_id ? mg.profilesById[r.actor_id] : null;
+        const mark = actor
+          ? c3ProfileMarkHtml(actor, false)
+          : `<div style="width:22px;height:22px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700;background:var(--c3-s4);color:var(--c3-t3);">${chatEsc(initialsOf(who))}</div>`;
+        return `<div style="display:flex;gap:10px;padding:9px 0;border-top:1px solid var(--c3-b0);align-items:flex-start;">
+          <span style="width:7px;height:7px;border-radius:50%;background:${color};flex-shrink:0;margin-top:12px;"></span>
+          ${mark}
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12.5px;color:var(--c3-t1);"><span style="font-weight:700;">${chatEsc(who)}</span> ${chatEsc(what)}${r.department ? ` <span style="color:var(--c3-t5);">· ${chatEsc(deptLabelOf(r.department))}</span>` : ''}</div>
+            ${r.detail ? `<div style="font-size:11.5px;color:var(--c3-t4);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(r.detail)}</div>` : ''}
+          </div>
+          <span style="font-size:10.5px;color:var(--c3-t6);flex-shrink:0;white-space:nowrap;">${chatEsc(when ? new Date(when).toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '')}</span>
+        </div>`;
+      }
+      function buildMgmtActivity(){
+        const out = [];
+        mg.threadMessages.filter(m => !m.parent_id).forEach(m => out.push({
+          kind:'message', color:'var(--c3-blue)', who: profileName(m.author_id),
+          what: 'posted a message', detail: (m.body || '').replace(/\s+/g, ' ').slice(0, 120), when: m.created_at,
+        }));
+        mg.clientTasks.filter(t => t.completed_at).forEach(t => out.push({
+          kind:'task', color:'var(--c3-green)', who: t.completed_by ? profileName(t.completed_by) : 'Someone',
+          what: 'completed a task', detail: t.name, when: t.completed_at,
+        }));
+        mg.libraryItems.forEach(i => out.push({
+          kind:'vault', color:'var(--c3-purple)', who: i.created_by ? profileName(i.created_by) : 'Someone',
+          what: `saved a ${i.kind} to the vault`, detail: i.title, when: i.created_at,
+        }));
+        const c = mg.clientRow;
+        if (c && c.onboarding_sent_at) out.push({ kind:'onboarding', color:'var(--c3-amber)', who:'Someone', what:'sent the onboarding form', detail:'', when: c.onboarding_sent_at });
+        if (c && c.onboarding_submitted_at) out.push({ kind:'onboarding', color:'var(--c3-green)', who: c.name || 'The client', what:'submitted onboarding', detail:'', when: c.onboarding_submitted_at });
+        // Payments have no actor — nobody in the app performs them — so they are
+        // attributed to System rather than to whoever happens to be reading.
+        mg.mgmtPayments.forEach(inv => out.push({
+          kind:'payment', color:'var(--c3-salmon)', who:'System',
+          what: `recorded payment of $${Math.round((inv.amount_cents || 0) / 100).toLocaleString()}`,
+          detail: inv.number ? `Invoice ${inv.number}` : '', when: inv.paid_at,
+        }));
+        return out.filter(x => x.when).sort((a, b) => new Date(b.when) - new Date(a.when)).slice(0, 60);
+      }
+      async function loadClientServices(clientId){
+        if (mg.clientServicesFor === clientId) return;
+        mg.clientServicesFor = clientId; mg.clientServicesLoading = true;
+        mg.clientServices = [];
+        renderMgmt();
+        const { data, error } = await NCSB().from('chat2_client_services')
+          .select('dept_key, active, spend_cents, lead_profile_id').eq('client_id', clientId);
+        if (mg.clientServicesFor !== clientId) return; // a different client won the race
+        mg.clientServicesLoading = false;
+        mg.clientServices = data || [];
+        if (error) {
+          mg.clientServicesFor = null; // let the next visit retry
+          if (typeof toast === 'function') toast({ type:'error', message:'Could not load services: ' + error.message });
+        }
+        renderMgmt();
+      }
+      async function loadClientManagement(clientId){
+        if (mg.mgmtFor === clientId) return;
+        mg.mgmtFor = clientId; mg.mgmtLoading = true;
+        mg.clientAccess = []; mg.clientRow = null; mg.mgmtActivity = []; mg.mgmtLastPayment = null; mg.mgmtPayments = [];
+        renderMgmt();
+        const [accessRes, clientRes, payRes] = await Promise.all([
+          NCSB().from('chat2_client_access').select('service_key, status, updated_at, updated_by').eq('client_id', clientId),
+          // client_onboarding, not clients: the view strips EIN and address for
+          // non-managers in the projection, so the restriction survives the browser.
+          NCSB().from('client_onboarding').select('id, name, status, created_at, started_at, industry, company_website, timezone, working_notes, keywords, mrr_cents, onboarding_sent_at, onboarding_submitted_at, contact_name, contact_email, contact_phone, onboarding_token, onboarding_answers')
+            .eq('id', clientId).maybeSingle(),
+          // Settled invoices, newest first: row 0 is the LAST PAYMENT card, the rest
+          // become payment rows in the activity feed. Ordered on paid_at and not
+          // created_at -- an invoice raised in March and settled in July is the July
+          // payment, and sorting by creation would report the wrong date.
+          NCSB().from('invoices').select('amount_cents, paid_at, currency, number')
+            .eq('client_id', clientId).not('paid_at', 'is', null)
+            .order('paid_at', { ascending: false }).limit(20),
+        ]);
+        if (mg.mgmtFor !== clientId) return; // a different client won the race
+        mg.mgmtLoading = false;
+        mg.clientAccess = accessRes.data || [];
+        mg.clientRow = clientRes && clientRes.data ? clientRes.data : null;
+        // An empty result is the normal case today, not an error -- no invoice has ever
+        // been written. A genuine query failure is deliberately not fatal either:
+        // billing is one card, and the rest of the tab still loads without it.
+        mg.mgmtPayments = (payRes && payRes.data) || [];
+        mg.mgmtLastPayment = mg.mgmtPayments[0] || null;
+        // Any failure has to clear the guard, or the early return above makes the
+        // failure permanent — the panel would keep saying "No client record loaded"
+        // long after the cause was gone.
+        if (accessRes.error || (clientRes && clientRes.error) || !mg.clientRow) mg.mgmtFor = null;
+        if (clientRes && clientRes.error && typeof toast === 'function') {
+          toast({ type:'error', message:'Could not load the client record: ' + clientRes.error.message });
+        }
+        // The inferred set is only ever a fallback for clients whose history predates
+        // the audit table — it is never mixed into the real trail.
+        mg.mgmtActivityInferred = buildMgmtActivity();
+        renderMgmt();
+        const act = await loadC3Activity(clientId);
+        if (mg.mgmtFor !== clientId) return;
+        mg.mgmtActivity = act.rows;
+        mg.mgmtActivityError = act.error;
+        renderMgmt();
+      }
+      async function loadClientMemberMatrix(clientId){
+        if (mg.mgmtMatrixFor === clientId) return;
+        mg.mgmtMatrixFor = clientId; mg.mgmtMatrixLoading = true;
+        mg.mgmtMatrixThreads = {}; mg.mgmtMatrixMembers = {};
+        renderMgmt();
+        const { data: threads, error } = await NCSB().from('chat2_threads')
+          .select('id, department, is_private').eq('kind', 'client_dept').eq('client_id', clientId);
+        if (mg.mgmtMatrixFor !== clientId) return;
+        if (error) {
+          mg.mgmtMatrixLoading = false; mg.mgmtMatrixFor = null; renderMgmt();
+          if (typeof toast === 'function') toast({ type:'error', message:'Could not load access: ' + error.message });
+          return;
+        }
+        const byId = {};
+        (threads || []).forEach(t => { mg.mgmtMatrixThreads[t.department] = { id: t.id, is_private: !!t.is_private }; byId[t.id] = t.department; });
+        const ids = Object.keys(byId);
+        if (ids.length) {
+          const { data: mems } = await NCSB().from('chat2_thread_members').select('thread_id, profile_id').in('thread_id', ids);
+          if (mg.mgmtMatrixFor !== clientId) return;
+          (mems || []).forEach(m => {
+            const dept = byId[m.thread_id];
+            if (!dept) return;
+            (mg.mgmtMatrixMembers[dept] = mg.mgmtMatrixMembers[dept] || new Set()).add(m.profile_id);
+          });
+        }
+        mg.mgmtMatrixLoading = false;
+        renderMgmt();
+      }
+      async function toggleMemberDept(profileId, dept){
+        const key = profileId + ':' + dept;
+        if (mg.mgmtMatrixBusy || !ncIsStaff()) return;
+        const set = mg.mgmtMatrixMembers[dept] || new Set();
+        const had = set.has(profileId);
+        mg.mgmtMatrixBusy = key; renderMgmt();
+
+        const threadId = mg.mgmtMatrixThreads[dept]
+          ? mg.mgmtMatrixThreads[dept].id
+          : await ensureClientDeptThread(mg.selectedId, dept);
+        if (!threadId) { mg.mgmtMatrixBusy = ''; renderMgmt(); return; }
+        if (!mg.mgmtMatrixThreads[dept]) {
+          mg.mgmtMatrixThreads[dept] = { id: threadId, is_private: !!mg.clientDeptPrivacy[mg.selectedId + ':' + dept] };
+        }
+
+        const { error } = had
+          ? await NCSB().from('chat2_thread_members').delete().eq('thread_id', threadId).eq('profile_id', profileId)
+          : await NCSB().from('chat2_thread_members').upsert({ thread_id: threadId, profile_id: profileId }, { onConflict: 'thread_id,profile_id' });
+
+        mg.mgmtMatrixBusy = '';
+        if (error) {
+          renderMgmt();
+          if (typeof toast === 'function') toast({ type:'error', message:'Could not change access: ' + error.message });
+          return;
+        }
+        if (had) set.delete(profileId); else set.add(profileId);
+        mg.mgmtMatrixMembers[dept] = set;
+        // The open thread's own member list is rendered from separate state, so keep it
+        // in step rather than waiting for a reload to correct it.
+        if (threadId === mg.activeThreadId) {
+          if (had) mg.threadMembers = mg.threadMembers.filter(tm => tm.profile_id !== profileId);
+          else if (!mg.threadMembers.some(tm => tm.profile_id === profileId)) {
+            mg.threadMembers.push({ thread_id: threadId, profile_id: profileId, last_read_at: null });
+          }
+        }
+        logC3Activity(had ? 'member_removed' : 'member_added',
+          `${had ? 'removed' : 'gave'} ${profileName(profileId)} ${had ? 'from' : 'access to'} ${deptLabelOf(dept)}`,
+          { department: dept, targetType:'profile', targetId: profileId });
+        renderMgmt();
+      }
+      async function setServiceLead(dept, profileId){
+        if (mg.leadSaving) return;
+        const row = mg.clientServices.find(x => x.dept_key === dept);
+        const prev = row ? row.lead_profile_id : null;
+        const next = profileId || null;
+        if (prev === next) return;
+        mg.leadSaving = dept;
+        if (row) row.lead_profile_id = next;
+        else mg.clientServices.push({ dept_key: dept, active: false, spend_cents: 0, lead_profile_id: next });
+        renderMgmt();
+        const { error } = await NCSB().from('chat2_client_services').upsert(
+          { client_id: mg.selectedId, dept_key: dept, active: row ? !!row.active : false,
+            spend_cents: row ? (row.spend_cents || 0) : 0, lead_profile_id: next },
+          { onConflict: 'client_id,dept_key' });
+        mg.leadSaving = '';
+        if (error) {
+          const r = mg.clientServices.find(x => x.dept_key === dept);
+          if (r) r.lead_profile_id = prev;
+          renderMgmt();
+          if (typeof toast === 'function') toast({ type:'error', message:'Could not set the lead: ' + error.message });
+          return;
+        }
+        logC3Activity('other', next ? `made ${profileName(next)} lead on ${deptLabelOf(dept)}`
+                                    : `cleared the ${deptLabelOf(dept)} lead`,
+          { department: dept, targetType:'profile', targetId: next });
+        renderMgmt();
+      }
+      async function cycleClientAccess(serviceKey){
+        const order = ['none', 'pending', 'granted'];
+        const row = mg.clientAccess.find(a => a.service_key === serviceKey);
+        const current = row ? row.status : 'none';
+        const next = order[(order.indexOf(current) + 1) % order.length];
+        if (row) row.status = next; else mg.clientAccess.push({ service_key: serviceKey, status: next });
+        renderMgmt();
+        const { error } = await NCSB().from('chat2_client_access')
+          .upsert({ client_id: mg.selectedId, service_key: serviceKey, status: next, updated_by: ncMyId() }, { onConflict: 'client_id,service_key' });
+        if (!error) {
+          const item = ACCESS_ITEMS.find(a => a.key === serviceKey);
+          logC3Activity('access_changed', `marked ${item ? item.label : serviceKey} ${next === 'none' ? 'not set up' : next}`, { department: null, targetType:'access', targetId: serviceKey });
+        }
+        if (error) {
+          const back = mg.clientAccess.find(a => a.service_key === serviceKey);
+          if (back) back.status = current;
+          renderMgmt();
+          if (typeof toast === 'function') toast({ type:'error', message:'Could not update access: ' + error.message });
+        }
+      }
+      async function toggleClientArchive(){
+        const c = mg.clientRow;
+        if (!c || mg.mgmtArchiving) return;
+        const wasArchived = c.status === 'churned';
+        const next = wasArchived ? 'active' : 'churned';
+        if (!wasArchived && typeof window.confirm === 'function'
+            && !window.confirm(`Archive ${c.name}?\n\nThey disappear from lists, counts and MRR. Every message, file and note is kept, and you can restore them here.`)) return;
+        const prev = c.status;
+        c.status = next; mg.mgmtArchiving = true; renderMgmt();
+        const { error } = await NCSB().from('clients').update({ status: next }).eq('id', c.id);
+        mg.mgmtArchiving = false;
+        if (error) {
+          c.status = prev; renderMgmt();
+          if (typeof toast === 'function') toast({ type:'error', message:'Could not update the client: ' + error.message });
+          return;
+        }
+        logC3Activity('other', wasArchived ? 'restored the client' : 'archived the client', { targetType:'client', targetId: c.id });
+        renderMgmt();
+      }
+      async function createOnboardingLink(){
+        const c = mg.clientRow;
+        if (!c || mg.mgmtCreatingLink) return;
+        mg.mgmtCreatingLink = true; renderMgmt();
+        const { data, error } = await NCSB().rpc('generate_onboarding_token', { p_client_id: c.id });
+        if (error || !data) {
+          mg.mgmtCreatingLink = false; renderMgmt();
+          if (typeof toast === 'function') toast({ type:'error', message:'Could not create the link: ' + ((error && error.message) || 'no token returned') });
+          return;
+        }
+        const { data: fresh } = await NCSB().from('client_onboarding')
+          .select('onboarding_token, onboarding_sent_at').eq('id', c.id).maybeSingle();
+        mg.mgmtCreatingLink = false;
+        if (mg.clientRow && mg.clientRow.id === c.id) {
+          mg.clientRow.onboarding_token = (fresh && fresh.onboarding_token) || data;
+          if (fresh && fresh.onboarding_sent_at) mg.clientRow.onboarding_sent_at = fresh.onboarding_sent_at;
+        }
+        logC3Activity('onboarding', 'created the onboarding link', { targetType:'onboarding', targetId: c.id });
+        renderMgmt();
+        copyLibText(onboardingUrl((fresh && fresh.onboarding_token) || data), 'Onboarding link created and copied');
+      }
+      async function saveMgmtProfile(){
+        if (mg.mgmtSavingProfile || !mg.clientRow) return;
+        const patch = {};
+        if (mg.mgmtNotesDraft !== null) patch.working_notes = mg.mgmtNotesDraft.trim() || null;
+        if (mg.mgmtKeywordsDraft !== null) {
+          patch.keywords = mg.mgmtKeywordsDraft.split(',').map(k => k.trim()).filter(Boolean);
+        }
+        if (!Object.keys(patch).length) return;
+        mg.mgmtSavingProfile = true; renderMgmt();
+        const { error } = await NCSB().from('clients').update(patch).eq('id', mg.selectedId);
+        mg.mgmtSavingProfile = false;
+        if (error) {
+          renderMgmt();
+          if (typeof toast === 'function') toast({ type:'error', message:'Could not save: ' + error.message });
+          return;
+        }
+        if ('working_notes' in patch) mg.clientRow.working_notes = patch.working_notes;
+        if ('keywords' in patch) mg.clientRow.keywords = patch.keywords;
+        mg.mgmtNotesDraft = null; mg.mgmtKeywordsDraft = null;
+        logC3Activity('other', 'updated the client profile',
+          { detail: Object.keys(patch).map(k => k.replace('_', ' ')).join(', '), department: null });
+        renderMgmt();
+        if (typeof toast === 'function') toast({ type:'success', message:'Saved' });
+      }
+      function discardMgmtProfile(){
+        mg.mgmtNotesDraft = null; mg.mgmtKeywordsDraft = null; renderMgmt();
+      }
+      function mgmtOverviewHtml(){
+        const c = mg.clientRow;
+        const svcFor = (key) => mg.clientServices.find(s => s.dept_key === key) || { active:false, spend_cents:0 };
+        const billable = NC_DEPTS.filter(d => d.key !== 'general');
+        const activeSvcs = billable.filter(d => svcFor(d.key).active);
+        const totalCents = activeSvcs.reduce((n, d) => n + (svcFor(d.key).spend_cents || 0), 0);
+        const money = (cents) => '$' + Math.round((cents || 0) / 100).toLocaleString();
+        const accessOf = (k) => (mg.clientAccess.find(a => a.service_key === k) || { status:'none' }).status;
+        const granted = ACCESS_ITEMS.filter(a => accessOf(a.key) === 'granted').length;
+        const canEdit = ncIsStaff();
+        const openTasks = mg.clientTasks.filter(t => t.status !== 'done');
+        const kw = c && Array.isArray(c.keywords) ? c.keywords : [];
+        const notes = mg.mgmtNotesDraft !== null ? mg.mgmtNotesDraft : (c && c.working_notes) || '';
+        const kwDraft = mg.mgmtKeywordsDraft !== null ? mg.mgmtKeywordsDraft : kw.join(', ');
+        const dirty = mg.mgmtNotesDraft !== null || mg.mgmtKeywordsDraft !== null;
+        const inputStyle = 'width:100%;box-sizing:border-box;background:var(--c3-s0);border:1px solid var(--c3-b2);border-radius:9px;padding:9px 11px;color:var(--c3-t0);font-size:12.5px;font-family:inherit;outline:none;';
+
+        return `<div style="display:flex;flex-direction:column;gap:14px;">
+          ${mgmtCard('Profile', c && c.status ? chatEsc(String(c.status).replace('_', ' ')) : '',
+            (c ? mgmtField('Industry', c.industry ? chatEsc(c.industry) : 'Not set', !c.industry)
+               + mgmtField('Website', c.company_website
+                   ? `<a href="${chatEsc(/^https?:/.test(c.company_website) ? c.company_website : 'https://' + c.company_website)}" target="_blank" rel="noopener" style="color:var(--c3-blue);text-decoration:none;">${chatEsc(c.company_website)}</a>`
+                   : 'Not set', !c.company_website)
+               + mgmtField('Time zone', c.timezone ? chatEsc(c.timezone) : 'Not set', !c.timezone)
+               + mgmtField('Client since', c.started_at ? chatEsc(new Date(c.started_at).toLocaleDateString())
+                   : c.created_at ? chatEsc(new Date(c.created_at).toLocaleDateString()) : 'Unknown', !c.started_at && !c.created_at)
+             : '<div style="font-size:12.5px;color:var(--c3-t6);">No client record loaded.</div>'))}
+
+          ${mgmtCard('Contact', canEdit ? '' : 'Managers and owners only',
+            canEdit
+              ? (c ? mgmtField('Name', c.contact_name ? chatEsc(c.contact_name) : 'Not set', !c.contact_name)
+                   + mgmtField('Email', c.contact_email ? `<a href="mailto:${chatEsc(c.contact_email)}" style="color:var(--c3-blue);text-decoration:none;">${chatEsc(c.contact_email)}</a>` : 'Not set', !c.contact_email)
+                   + mgmtField('Phone', c.contact_phone ? chatEsc(c.contact_phone) : 'Not set', !c.contact_phone)
+                 : '')
+              // Withheld by the view, so say so — a blank card reads as "no contact on file".
+              : `<div style="font-size:12.5px;color:var(--c3-t6);">Contact details are withheld from your role.</div>`)}
+
+          ${mgmtCard('Working notes', canEdit ? 'What the next person needs to know' : 'Read only for your role',
+            canEdit
+              ? `<textarea id="c3MgmtNotes" rows="3" placeholder="Anything the next person picking this up should know…" style="${inputStyle}resize:vertical;">${chatEsc(notes)}</textarea>`
+              : `<div style="font-size:12.5px;color:${notes ? 'var(--c3-t2)' : 'var(--c3-t6)'};white-space:pre-wrap;line-height:1.6;">${notes ? chatEsc(notes) : 'Nothing noted yet.'}</div>`)}
+
+          ${mgmtCard('Keywords', `${kw.length} tracked`,
+            (kw.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:${canEdit ? '10px' : '0'};">
+                ${kw.map(k => `<span style="font-size:11.5px;color:var(--c3-t2);background:var(--c3-s3);border:1px solid var(--c3-b1);border-radius:7px;padding:4px 10px;">${chatEsc(k)}</span>`).join('')}
+              </div>` : (canEdit ? '' : `<div style="font-size:12.5px;color:var(--c3-t6);">No keywords tracked.</div>`))
+            + (canEdit ? `<input id="c3MgmtKeywords" value="${chatEsc(kwDraft)}" placeholder="Comma separated — e.g. emergency vet, pet dentistry" style="${inputStyle}">` : ''))}
+
+          ${dirty ? `<div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:11.5px;color:var(--c3-amber);">Unsaved changes</span>
+            <div style="flex:1;"></div>
+            <div data-c3-mgmt-profile-cancel="1" style="font-size:12px;font-weight:600;color:var(--c3-t4);cursor:pointer;padding:8px 10px;">Discard</div>
+            <div data-c3-mgmt-profile-save="1" style="display:inline-flex;align-items:center;padding:9px 15px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:${mg.mgmtSavingProfile ? 'default' : 'pointer'};background:${mg.mgmtSavingProfile ? 'var(--c3-btn-off)' : 'var(--red)'};color:var(--c3-on-accent);">${mg.mgmtSavingProfile ? 'Saving…' : 'Save'}</div>
+          </div>` : ''}
+
+          ${mgmtCard('Active work', `${openTasks.length} open · ${mg.clientTasks.length - openTasks.length} done`,
+            (openTasks.length
+              ? openTasks.slice(0, 5).map(t => {
+                  const p = C3_PRIO[String(t.priority || '').toLowerCase()];
+                  return `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--c3-b0);">
+                    <span style="flex:1;min-width:0;font-size:12.5px;color:var(--c3-t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(t.name)}</span>
+                    ${p ? `<span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;color:${p.color};background:${c3Alpha(p.color,12)};flex-shrink:0;">${p.label}</span>` : ''}
+                  </div>`;
+                }).join('') + (openTasks.length > 5 ? `<div style="font-size:11.5px;color:var(--c3-t5);margin-top:8px;">+${openTasks.length - 5} more</div>` : '')
+              : `<div style="font-size:12.5px;color:var(--c3-t6);">Nothing open right now.</div>`))}
+
+          ${mgmtCard('Conversations', 'Every department for this client',
+            NC_DEPTS.map(d => {
+              const isHere = mg.selectedDept === d.key;
+              return `<div data-c3-dept="${d.key}" style="display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid var(--c3-b0);cursor:pointer;">
+                <span style="width:7px;height:7px;border-radius:50%;background:${d.color};flex-shrink:0;"></span>
+                <span style="flex:1;min-width:0;font-size:12.5px;color:${isHere ? 'var(--c3-t0)' : 'var(--c3-t2)'};font-weight:${isHere ? '700' : '400'};">${chatEsc(d.label)}</span>
+                ${isHere ? `<span style="font-size:10px;font-weight:800;color:var(--c3-t5);">YOU ARE HERE</span>` : ncIcon.arrowRight('var(--c3-t6)', 12)}
+              </div>`;
+            }).join(''))}
+
+          ${mgmtCard('Services &amp; ad spend', `${activeSvcs.length} active · ${money(totalCents)} / mo`,
+            billable.map(d => {
+              const sv = svcFor(d.key);
+              return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--c3-b0);opacity:${sv.active ? '1' : '0.45'};">
+                <span style="width:7px;height:7px;border-radius:50%;background:${d.color};flex-shrink:0;"></span>
+                <span style="flex:1;min-width:0;font-size:12.5px;color:var(--c3-t1);">${chatEsc(d.label)}</span>
+                ${sv.active && sv.spend_cents ? `<span style="font-size:12px;font-weight:700;color:var(--c3-t1);">${money(sv.spend_cents)}<span style="color:var(--c3-t5);font-weight:600;"> / mo</span></span>` : ''}
+                <span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;flex-shrink:0;color:${sv.active ? 'var(--c3-green)' : 'var(--c3-t5)'};background:${sv.active ? 'rgba(62,207,142,0.14)' : 'var(--c3-s3)'};">${sv.active ? 'ACTIVE' : 'NOT ACTIVE'}</span>
+              </div>`;
+            }).join(''))}
+
+          ${mgmtCard('Service leads', `${billable.filter(d => svcFor(d.key).lead_profile_id).length} of ${billable.length} assigned`,
+            billable.map(d => {
+              const sv = svcFor(d.key);
+              const lead = sv.lead_profile_id ? mg.profilesById[sv.lead_profile_id] : null;
+              const people = Object.values(mg.profilesById)
+                .sort((a, b) => (a.display_name || a.full_name || a.email || '').localeCompare(b.display_name || b.full_name || b.email || ''));
+              return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--c3-b0);">
+                <span style="width:7px;height:7px;border-radius:50%;background:${d.color};flex-shrink:0;"></span>
+                <span style="flex:1;min-width:0;font-size:12.5px;color:var(--c3-t1);">${chatEsc(d.label)}</span>
+                ${canEdit
+                  ? `<select data-c3-lead-set="${d.key}" ${mg.leadSaving === d.key ? 'disabled' : ''} style="background:var(--c3-s0);border:1px solid var(--c3-b2);border-radius:8px;padding:5px 8px;color:${lead ? 'var(--c3-t1)' : 'var(--c3-t5)'};font-size:11.5px;font-family:inherit;cursor:pointer;max-width:190px;">
+                      <option value=""${lead ? '' : ' selected'}>Unassigned</option>
+                      ${people.map(pr => `<option value="${chatEsc(pr.id)}"${lead && lead.id === pr.id ? ' selected' : ''}>${chatEsc(pr.display_name || pr.full_name || pr.email || 'Someone')}</option>`).join('')}
+                    </select>`
+                  : lead
+                    ? `<span style="display:flex;align-items:center;gap:7px;flex-shrink:0;">${c3ProfileMarkHtml(lead, false)}<span style="font-size:12px;color:var(--c3-t1);">${chatEsc(lead.display_name || lead.full_name || lead.email || 'Someone')}</span></span>`
+                    : `<span style="font-size:11.5px;color:var(--c3-t6);">Unassigned</span>`}
+              </div>`;
+            }).join('') + `<div style="font-size:11px;color:var(--c3-t6);margin-top:9px;">Who to chase when this department goes quiet. Assigning a lead does not grant access — that is the Members tab.</div>`)}
+
+          ${mgmtCard('Account access', `${granted} of ${ACCESS_ITEMS.length} granted`,
+            ACCESS_ITEMS.map(a => {
+              const st = ACCESS_STATE[accessOf(a.key)] || ACCESS_STATE.none;
+              return `<div data-c3-access-cycle="${a.key}" title="Click to change" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--c3-b0);cursor:pointer;">
+                <span style="width:14px;height:14px;border-radius:50%;border:1.6px solid ${st.color};background:${accessOf(a.key) === 'granted' ? c3Alpha(st.color,18) : 'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+                  ${accessOf(a.key) === 'granted' ? ncIcon.check(st.color, 9) : ''}</span>
+                <span style="flex:1;min-width:0;font-size:12.5px;color:var(--c3-t1);">${chatEsc(a.label)}</span>
+                <span style="font-size:10px;font-weight:800;color:${st.color};">${st.label.toUpperCase()}</span>
+              </div>`;
+            }).join('') + `<div style="font-size:11px;color:var(--c3-t6);margin-top:9px;">This is the thing that blocks work at kickoff, so it is tracked here rather than in someone's head.</div>`)}
+        </div>`;
+      }
+      function mgmtMembersHtml(){
+        const canEdit = ncIsStaff();
+        const people = Object.values(mg.profilesById)
+          .sort((a, b) => (a.display_name || a.full_name || a.email || '').localeCompare(b.display_name || b.full_name || b.email || ''));
+        const has = (pid, dept) => !!(mg.mgmtMatrixMembers[dept] && mg.mgmtMatrixMembers[dept].has(pid));
+        // A public client_dept thread is readable by any signed-in staff member through
+        // chat2_threads_select_public_channel, whatever this matrix says. Ticks only
+        // restrict private departments, so the ones that grant nothing are named rather
+        // than left to imply a control that is not there.
+        const openDepts = NC_DEPTS.filter(d => mg.mgmtMatrixThreads[d.key] && !mg.mgmtMatrixThreads[d.key].is_private);
+
+        if (mg.mgmtMatrixLoading) {
+          return `<div style="font-size:12.5px;color:var(--c3-t5);padding:24px 0;">Loading access…</div>`;
+        }
+
+        const head = `<div style="display:flex;align-items:center;gap:8px;padding:0 0 10px;border-bottom:1px solid var(--c3-b1);">
+          <div style="flex:1;min-width:0;font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);">Team member</div>
+          ${NC_DEPTS.map(d => `<div title="${chatEsc(d.label)}" style="width:64px;flex-shrink:0;text-align:center;">
+            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${d.color};"></span>
+            <div style="font-size:9.5px;font-weight:700;color:var(--c3-t5);margin-top:3px;line-height:1.1;">${chatEsc(d.label)}</div>
+          </div>`).join('')}
+        </div>`;
+
+        const rows = people.map(pr => {
+          const isMe = pr.id === ncMyId();
+          return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--c3-b0);">
+            <div style="flex:1;min-width:0;display:flex;align-items:center;gap:9px;">
+              ${c3ProfileMarkHtml(pr, false)}
+              <div style="min-width:0;">
+                <div style="font-size:12.5px;color:var(--c3-t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(pr.display_name || pr.full_name || pr.email || 'Someone')}${isMe ? ' <span style="font-size:9.5px;font-weight:800;color:var(--c3-t5);">YOU</span>' : ''}</div>
+                ${pr.email ? `<div style="font-size:10.5px;color:var(--c3-t5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(pr.email)}</div>` : ''}
+              </div>
+            </div>
+            ${NC_DEPTS.map(d => {
+              const on = has(pr.id, d.key);
+              const busy = mg.mgmtMatrixBusy === pr.id + ':' + d.key;
+              return `<div ${canEdit ? `data-c3-matrix-cell="${chatEsc(pr.id)}::${d.key}"` : ''} title="${on ? 'Can open' : 'Hidden'} — ${chatEsc(d.label)}"
+                style="width:64px;flex-shrink:0;display:flex;align-items:center;justify-content:center;${canEdit ? 'cursor:pointer;' : ''}opacity:${busy ? '0.45' : '1'};">
+                <span style="width:17px;height:17px;border-radius:5px;display:flex;align-items:center;justify-content:center;border:1.6px solid ${on ? d.color : 'var(--c3-b3)'};background:${on ? c3Alpha(d.color,18) : 'transparent'};">
+                  ${on ? ncIcon.check(d.color, 10) : ''}</span>
+              </div>`;
+            }).join('')}
+          </div>`;
+        }).join('');
+
+        return `<div style="display:flex;flex-direction:column;gap:14px;">
+          ${mgmtCard('Who can open what', `${people.length} on the team`,
+            `<div style="font-size:12px;color:var(--c3-t5);margin:-2px 0 10px;">Tick what each member can open for this client. Unticked departments are hidden from them entirely.</div>`
+            + `<div style="overflow-x:auto;">${head}${rows}</div>`
+            + (canEdit
+                ? `<div style="font-size:11px;color:var(--c3-t6);margin-top:12px;">Enforced on the server: chat2_threads and chat2_messages both require a membership row, and only managers can write one.</div>`
+                : `<div style="font-size:11px;color:var(--c3-t6);margin-top:12px;">Only managers and owners can change this.</div>`))}
+
+          ${openDepts.length ? mgmtCard('These departments are public', `${openDepts.length} of ${NC_DEPTS.length}`,
+            `<div style="font-size:12.5px;color:var(--c3-t2);line-height:1.6;">`
+            + `${openDepts.map(d => `<span style="color:${d.color};font-weight:700;">${chatEsc(d.label)}</span>`).join(', ')} `
+            + `${openDepts.length === 1 ? 'is' : 'are'} set to public, so any signed-in teammate can open ${openDepts.length === 1 ? 'it' : 'them'} whether or not they are ticked above.`
+            + `</div><div style="font-size:11px;color:var(--c3-t6);margin-top:9px;">Turn on Private in the thread header to make the ticks actually restrict access.</div>`) : ''}
+        </div>`;
+      }
+      function mgmtOnboardingHtml(){
+        const c = mg.clientRow;
+        if (!c) return `<div style="font-size:12.5px;color:var(--c3-t6);padding:20px 0;">No client record loaded.</div>`;
+        const sent = c.onboarding_sent_at ? new Date(c.onboarding_sent_at) : null;
+        const done = c.onboarding_submitted_at ? new Date(c.onboarding_submitted_at) : null;
+        const answers = c.onboarding_answers && typeof c.onboarding_answers === 'object' ? c.onboarding_answers : null;
+        const nAnswers = answers ? Object.keys(answers).length : 0;
+        // EIN and address are manager-only, enforced by the client_onboarding view —
+        // a non-manager never receives them, so there is nothing here to hide. This
+        // list exists only to LABEL them as withheld, so the reader knows the field is
+        // restricted rather than reading the gap as "the client never answered".
+        const WITHHELD_KEYS = ['ein', 'address'];
+        const status = done ? { label:'Submitted', color:'var(--c3-green)' } : sent ? { label:'Sent, awaiting reply', color:'var(--c3-amber)' } : { label:'Not sent', color:'var(--c3-t5)' };
+        return `<div style="display:flex;flex-direction:column;gap:14px;">
+          ${mgmtCard('General intake form', status.label,
+            `<div style="display:flex;align-items:center;gap:10px;padding-top:4px;">
+              <span style="font-size:10px;font-weight:800;padding:3px 9px;border-radius:7px;color:${status.color};background:${c3Alpha(status.color,12)};">${status.label.toUpperCase()}</span>
+              ${sent ? `<span style="font-size:11.5px;color:var(--c3-t4);">Sent ${chatEsc(sent.toLocaleDateString())}</span>` : ''}
+              ${done ? `<span style="font-size:11.5px;color:var(--c3-t4);">· Replied ${chatEsc(done.toLocaleDateString())}</span>` : ''}
+              <div style="flex:1;"></div>
+              ${c.onboarding_token ? '' : `<div data-c3-onboarding-create="1" style="display:inline-flex;align-items:center;padding:7px 14px;border-radius:8px;font-size:11.5px;font-weight:700;white-space:nowrap;cursor:${mg.mgmtCreatingLink ? 'default' : 'pointer'};background:${mg.mgmtCreatingLink ? 'var(--c3-btn-off)' : 'var(--red)'};color:var(--c3-on-accent);">${mg.mgmtCreatingLink ? 'Creating…' : 'Create link'}</div>`}
+            </div>
+            ${c.onboarding_token ? `<div style="display:flex;align-items:center;gap:8px;margin-top:12px;background:var(--c3-s0);border:1px solid var(--c3-b1);border-radius:9px;padding:8px 10px 8px 12px;">
+              <span style="flex:1;min-width:0;font-size:12px;color:var(--c3-t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(onboardingUrl(c.onboarding_token))}</span>
+              <div data-c3-onboarding-copy="${chatEsc(c.onboarding_token)}" style="flex-shrink:0;display:inline-flex;align-items:center;padding:5px 12px;border-radius:7px;font-size:11.5px;font-weight:700;cursor:pointer;background:var(--c3-s3);border:1px solid var(--c3-b2);color:var(--c3-t1);">Copy</div>
+              <div data-c3-onboarding-open="${chatEsc(c.onboarding_token)}" style="flex-shrink:0;display:inline-flex;align-items:center;padding:5px 12px;border-radius:7px;font-size:11.5px;font-weight:700;cursor:pointer;background:var(--c3-s3);border:1px solid var(--c3-b2);color:var(--c3-t1);">Open</div>
+            </div>` : ''}
+            ${nAnswers ? `<div style="margin-top:12px;border-top:1px solid var(--c3-b0);padding-top:10px;">
+              <div data-c3-onboarding-answers="1" style="font-size:11.5px;font-weight:700;color:var(--c3-blue);cursor:pointer;">${mg.mgmtShowAnswers ? 'Hide' : 'Show'} responses (${nAnswers})</div>
+              ${mg.mgmtShowAnswers ? `<div style="margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+                ${Object.entries(answers).map(([k, v]) => `<div>
+                    <div style="font-size:10.5px;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:var(--c3-t5);">${chatEsc(prettifyKey(k))}</div>
+                    <div style="font-size:12.5px;color:var(--c3-t1);margin-top:2px;white-space:pre-wrap;">${chatEsc(typeof v === 'string' ? v : JSON.stringify(v))}</div>
+                  </div>`).join('')}
+                ${!ncIsStaff() ? WITHHELD_KEYS.filter(k => !(k in answers)).map(k => `<div>
+                    <div style="font-size:10.5px;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;color:var(--c3-t5);">${chatEsc(prettifyKey(k))}</div>
+                    <div style="font-size:12.5px;color:var(--c3-t6);margin-top:2px;">Withheld — managers and owners only</div>
+                  </div>`).join('') : ''}
+              </div>` : ''}
+            </div>` : ''}`)}
+        </div>`;
+      }
+      function mgmtBillingHtml(){
+        const c = mg.clientRow;
+        if (!c) return `<div style="font-size:12.5px;color:var(--c3-t6);padding:20px 0;">No client record loaded.</div>`;
+        const mrr = c.mrr_cents ? Math.round(Number(c.mrr_cents) / 100) : 0;
+        const pay = mg.mgmtLastPayment;
+        const st = CLIENT_STATUS[c.status] || { label: String(c.status || 'Unknown').replace('_', ' '), color:'var(--c3-t5)' };
+        const archived = c.status === 'churned';
+        const statusPill = `<span style="display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:${st.color};">
+          <span style="width:7px;height:7px;border-radius:50%;background:${st.color};flex-shrink:0;"></span>${chatEsc(st.label)}</span>`;
+        return `<div style="display:flex;flex-direction:column;gap:14px;">
+          <div style="display:flex;gap:12px;">
+            ${c3StatCardHtml(mrr ? '$' + mrr.toLocaleString() : '—', 'Monthly', mrr ? 'var(--c3-green)' : 'var(--c3-t6)')}
+            ${c3StatCardHtml(pay ? chatEsc(new Date(pay.paid_at).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' })) : '—', 'Last payment', pay ? 'var(--c3-t0)' : 'var(--c3-t6)')}
+            ${c3StatCardHtml(statusPill, 'Status')}
+          </div>
+          ${!pay ? `<div style="font-size:11.5px;color:var(--c3-t6);margin-top:-4px;">No settled invoice on record for ${chatEsc(c.name)}. Last payment fills in from Invoices once one is marked paid.</div>` : ''}
+          ${mgmtCard(archived ? 'Restore client' : 'Archive client', '',
+            `<div style="display:flex;align-items:center;gap:14px;">
+              <div style="flex:1;min-width:0;font-size:12.5px;color:var(--c3-t3);line-height:1.6;">
+                ${archived
+                  ? `${chatEsc(c.name)} is archived — hidden from lists, counts and revenue. Everything is still here.`
+                  : 'Hides this client from lists, counts and revenue. Nothing is deleted — all history stays.'}
+              </div>
+              <div data-c3-archive-client="1" style="flex-shrink:0;display:inline-flex;align-items:center;padding:8px 15px;border-radius:9px;font-size:12px;font-weight:700;white-space:nowrap;cursor:${mg.mgmtArchiving ? 'default' : 'pointer'};background:transparent;border:1px solid ${archived ? 'var(--c3-green)' : 'rgba(240,112,95,0.5)'};color:${archived ? 'var(--c3-green)' : 'var(--c3-salmon)'};opacity:${mg.mgmtArchiving ? '0.5' : '1'};">
+                ${mg.mgmtArchiving ? 'Saving…' : archived ? 'Restore client' : 'Archive client'}</div>
+            </div>`)}
+        </div>`;
+      }
+      function mgmtActivityHtml(){
+        if (mg.mgmtActivityError) {
+          return `<div style="color:var(--c3-salmon);font-size:12.5px;padding:24px 0;">Could not load the audit trail: ${chatEsc(mg.mgmtActivityError)}</div>`;
+        }
+        const caption = `<div style="font-size:12px;color:var(--c3-t4);margin-bottom:6px;">Full history for this client — messages, uploads, views, tasks, onboarding and billing.</div>`;
+        const real = mg.mgmtActivity;
+        if (real.length) {
+          return `<div style="display:flex;flex-direction:column;">
+            ${caption}
+            ${real.map(actRowHtml).join('')}
+            <div style="font-size:11px;color:var(--c3-t6);margin-top:12px;">Recorded as it happens and never edited — including who opened the Vault or revealed a password.</div>
+          </div>`;
+        }
+        // Nothing logged for this client yet. Rather than an empty panel, show what can
+        // be inferred — labelled as inference, so it is never mistaken for the trail.
+        const inferred = mg.mgmtActivityInferred;
+        return `<div style="display:flex;flex-direction:column;">
+          ${caption}
+          <div style="font-size:12.5px;color:var(--c3-t3);line-height:1.6;padding:10px 0;">The trail starts from the first action taken here. Views, password reveals and access changes are recorded as they happen.</div>
+          ${inferred.length ? `<div style="font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);margin-top:10px;">Before that · ${inferred.length} inferred</div>
+            ${inferred.map(actRowHtml).join('')}
+            <div style="font-size:11px;color:var(--c3-t6);margin-top:12px;">Reconstructed from messages, tasks, payments and the vault — not an audit record, and it cannot show who read anything.</div>` : ''}
+        </div>`;
+      }
+      function managementTabHtml(){
+        const tab = (t) => `<div data-c3-mgmt-tab="${t.key}" style="padding:8px 2px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;border-bottom:2px solid ${mg.mgmtTab === t.key ? 'var(--c3-brand)' : 'transparent'};color:${mg.mgmtTab === t.key ? 'var(--c3-t0)' : 'var(--c3-t4)'};">${t.label}</div>`;
+        const body = mg.mgmtLoading
+          ? `<div style="text-align:center;color:var(--c3-t5);font-size:13px;padding:40px 0;">Loading…</div>`
+          : ({ overview: mgmtOverviewHtml, members: mgmtMembersHtml, onboarding: mgmtOnboardingHtml,
+               billing: mgmtBillingHtml, activity: mgmtActivityHtml }[mg.mgmtTab] || mgmtOverviewHtml)();
+        return `<div style="padding:0 22px 18px;">
+          <div style="display:flex;align-items:center;gap:18px;border-bottom:1px solid var(--c3-b1);margin-bottom:16px;position:sticky;top:0;background:var(--c3-s1);z-index:2;">
+            ${MGMT_TABS.map(tab).join('')}
+          </div>
+          ${body}
+        </div>`;
+      }
+    // Renders into the Management pane and rewires its handlers. Chat 3.0 re-renders
+    // its whole module; here the blast radius is one pane, which is also why losing
+    // focus on every keystroke is not a problem the way it would be in the composer.
+    function renderMgmt(){
+      const host = document.getElementById('nc_mgmtPane');
+      if (!host || host.style.display === 'none') return;
+      host.innerHTML = managementTabHtml();
+      host.querySelectorAll('[data-c3-mgmt-tab]').forEach(el => el.addEventListener('click', () => {
+        mg.mgmtTab = el.dataset.c3MgmtTab; renderMgmt();
+      }));
+      host.querySelectorAll('[data-c3-access-cycle]').forEach(el => el.addEventListener('click', () => cycleClientAccess(el.dataset.c3AccessCycle)));
+      host.querySelectorAll('[data-c3-archive-client]').forEach(el => el.addEventListener('click', () => toggleClientArchive()));
+      host.querySelectorAll('[data-c3-matrix-cell]').forEach(el => el.addEventListener('click', () => {
+        const [pid, dept] = el.dataset.c3MatrixCell.split('::'); toggleMemberDept(pid, dept);
+      }));
+      host.querySelectorAll('[data-c3-lead-set]').forEach(el => el.addEventListener('change', () => setServiceLead(el.dataset.c3LeadSet, el.value)));
+      host.querySelectorAll('[data-c3-onboarding-create]').forEach(el => el.addEventListener('click', () => createOnboardingLink()));
+      host.querySelectorAll('[data-c3-mgmt-profile-save]').forEach(el => el.addEventListener('click', () => saveMgmtProfile()));
+      host.querySelectorAll('[data-c3-mgmt-profile-cancel]').forEach(el => el.addEventListener('click', () => discardMgmtProfile()));
+      const notes = host.querySelector('#c3MgmtNotes');
+      if (notes) notes.addEventListener('input', (e) => { mg.mgmtNotesDraft = e.target.value; });
+      const kw = host.querySelector('#c3MgmtKeywords');
+      if (kw) kw.addEventListener('input', (e) => { mg.mgmtKeywordsDraft = e.target.value; });
+    }
+
+    // Opening Management for the channel currently on screen.
+    async function openMgmtForChannel(){
+      const c = chatChannels.find(x => x.id === activeChannelId);
+      if (!c || c.kind !== 'client_dept' || !c.client_id) return;
+      mg.selectedId = c.client_id;
+      mg.selectedDept = c.department || 'general';
+      mg.activeThreadId = c.id;
+      mg.myName = (window.giantCurrentProfile && (window.giantCurrentProfile.full_name || window.giantCurrentProfile.email)) || '';
+      mg.profilesById = chatProfilesCache || {};
+      renderMgmt();
+      await loadClientServices(c.client_id);
+      await loadClientManagement(c.client_id);
+      await loadClientMemberMatrix(c.client_id);
+    }
+    window.nc_openMgmtForChannel = openMgmtForChannel;
 
     // ── Load all channels + select first ─────────────────────────
     async function loadChannels() {
@@ -70887,7 +71665,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     async function switchChannel(channelId) {
       // The strip belongs to whichever client the newly-opened channel is under, so
       // it has to be redrawn on every switch, not only when the client changes.
-      setTimeout(() => { try { renderDeptStrip(); } catch(_){} }, 0);
+      setTimeout(() => { try { renderDeptStrip(); syncMgmtTab(); } catch(_){} }, 0);
       activeChannelId = channelId;
       window.nc_activeChannelId = channelId; // expose for voice note + other features
       try { localStorage.setItem('giant_nc_active_channel', channelId); } catch(_) {}
@@ -75456,11 +76234,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if(typing && !showMsg) typing.style.display='none';
         if(media) media.style.display = tab==='media'?'flex':'none';
         if(canvas) canvas.style.display = tab==='canvas'?'flex':'none';
+        // Management joins the same set. It is loaded on open rather than up front
+        // because it costs four queries and most visits to a client thread are to read.
+        const mgmt=document.getElementById('nc_mgmtPane');
+        if(mgmt) mgmt.style.display = tab==='management'?'block':'none';
         window.nc__chatSubtab = tab;
         if(tab==='media') loadMedia();
         if(tab==='canvas') loadCanvas();
+        if(tab==='management' && typeof window.nc_openMgmtForChannel === 'function') window.nc_openMgmtForChannel();
       };
       window.nc__resetChatSubtab = function(){ if(window.nc_switchChatSubtab) window.nc_switchChatSubtab('messages'); updateMediaCount(); };
+      // The bar is wired once on a fixed set of buttons; Management is rendered into
+      // it later, so it needs its own listener or the tab would look inert.
+      (function wireMgmtTabBtn(){
+        const btn=document.getElementById('nc_mgmtTabBtn');
+        if(btn && !btn._ncWired){ btn._ncWired=true;
+          btn.addEventListener('click',()=>window.nc_switchChatSubtab('management')); }
+        else if(!btn) setTimeout(wireMgmtTabBtn,600);
+      })();
 
       function pubUrl(path){ try { return sb().storage.from('chat-attachments').getPublicUrl(path).data.publicUrl; } catch(_){ return ''; } }
       async function fetchAttachments(cid){
