@@ -71613,7 +71613,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       };
 
       chatRealtimeChannel = window.giantSupabase
-        .channel(`messages-${channelId}`)
+        .channel(`nc_messages-${channelId}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `channel_id=eq.${channelId}` }, async (payload) => {
           const m = payload.new;
           // Skip thread replies — they belong only to their thread panel, not to the main channel
@@ -73390,7 +73390,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       }
       typingByChannel[channelId] = {};
       renderTypingIndicator();
-      typingBroadcastChannel = window.giantSupabase.channel(`typing-${channelId}`, {
+      typingBroadcastChannel = window.giantSupabase.channel(`nc_typing-${channelId}`, {
         config: { broadcast: { self: false } }
       });
       typingBroadcastChannel
@@ -73510,7 +73510,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     };
 
     // Global realtime subscription for unread counts (any message in any channel)
-    window.giantSupabase.channel('messages-global-unread')
+    window.giantSupabase.channel('nc_messages-global-unread')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
         const m = payload.new;
         if (!m || m.author_id === window.giantSession.user.id) return;
@@ -73612,7 +73612,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       .subscribe();
 
     // ── GIANT MEET: host notification when a guest joins their meeting ──
-    window.giantSupabase.channel('meetings-host-notif')
+    window.giantSupabase.channel('nc_meetings-host-notif')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'meetings' }, async (payload) => {
         const m = payload.new;
         const old = payload.old;
@@ -73815,7 +73815,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
 
     // Realtime: read receipts
-    window.giantSupabase.channel('message-reads')
+    window.giantSupabase.channel('nc_message-reads')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'message_reads' }, (payload) => {
         const r = payload.new;
         if (!r) return;
@@ -73872,7 +73872,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     setTimeout(() => updateTabTitleAndFavicon(), 100);
 
     // Realtime: reactions changes
-    window.giantSupabase.channel('reactions-changes')
+    window.giantSupabase.channel('nc_reactions-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reactions' }, async (payload) => {
         const r = payload.new || payload.old;
         if (!r) return;
@@ -73884,7 +73884,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       .subscribe();
 
     // Realtime: pins (messages.pinned_at UPDATE) — only react when pinned_at actually changed
-    window.giantSupabase.channel('pins-changes')
+    window.giantSupabase.channel('nc_pins-changes')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, async (payload) => {
         const m = payload.new;
         const old = payload.old;
@@ -73897,7 +73897,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       .subscribe();
 
     // Realtime: channel_members (for refreshing member list)
-    window.giantSupabase.channel('channel-members-changes')
+    window.giantSupabase.channel('nc_channel-members-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'channel_members' }, () => {
         // Refresh unread counts (membership change may add/remove channels)
         loadUnreadCounts();
@@ -74860,7 +74860,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         window.giantSupabase.removeChannel(threadRealtimeChannel);
         threadRealtimeChannel = null;
       }
-      threadRealtimeChannel = window.giantSupabase.channel(`thread-${parentId}-${Date.now()}`)
+      threadRealtimeChannel = window.giantSupabase.channel(`nc_thread-${parentId}-${Date.now()}`)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `parent_id=eq.${parentId}` }, async (payload) => {
           const m = payload.new;
           // Dedup: if it's our own message we already rendered optimistically, skip
@@ -75223,7 +75223,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     };
 
     // Realtime: new attachments → re-render messages
-    window.giantSupabase.channel('attachments-changes')
+    window.giantSupabase.channel('nc_attachments-changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'message_attachments' }, async (payload) => {
         const a = payload.new;
         if (!a) return;
@@ -75234,7 +75234,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       .subscribe();
 
     // Realtime: parent message reply_count UPDATE → refresh CTA
-    window.giantSupabase.channel('messages-reply-counts')
+    window.giantSupabase.channel('nc_messages-reply-counts')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages' }, async (payload) => {
         const m = payload.new;
         const old = payload.old;
@@ -75424,7 +75424,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       function subscribeCanvas(cid){
         try { if(_canvasSub){ sb().removeChannel(_canvasSub); _canvasSub=null; } } catch(_){}
         try {
-          _canvasSub=sb().channel('canvas-'+cid)
+          _canvasSub=sb().channel('nc_canvas-'+cid)
             .on('postgres_changes',{event:'*',schema:'public',table:'channel_canvas',filter:'channel_id=eq.'+cid},(payload)=>{
               const ed=document.getElementById('nc_chatCanvasEditor'), st=document.getElementById('nc_chatCanvasStatus');
               if(!ed||_canvasCid!==cid||!payload.new) return;
