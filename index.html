@@ -70177,7 +70177,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // Fetch all channels (RLS handles visibility)
       const { data, error } = await window.giantSupabase
         .from('channels')
-        .select('id, name, slug, description, is_private, is_dm, dm_pair, emoji, position, section_id')
+        .select('id, name, slug, description, is_private, is_dm, dm_pair, emoji, position, section_id, kind, client_id, department')
         .order('position', { ascending: true })
         .order('name', { ascending: true });
       if (error) {
@@ -70225,17 +70225,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             stats.set(m.channel_id, s);
           });
           chatChannels.forEach(c => {
-            const s = stats.get(c.id);
-            if (!s) {
-              // No members at all → newly created or empty channel → goes into Team
-              c._scope = 'team';
-            } else if (s.nonClient > 0) {
-              // Has at least one non-client → Team channel (even if clients are also invited)
-              c._scope = 'team';
-            } else {
-              // 100% of members are clients → Clients-only channel
-              c._scope = 'client';
-            }
+            // The triage put kind/client_id on the row, so a client channel is now a
+            // stated fact rather than something inferred from who happens to be in it.
+            // The old heuristic -- "every member has role=client" -- tagged burrus-seo
+            // and maribou as Team, because staff are in them, which is why the Clients
+            // tab looked empty even before the mismatch below.
+            c._scope = (c.kind === 'client_dept' || c.client_id) ? 'clients' : 'team';
           });
         } else {
           chatChannels.forEach(c => { c._scope = 'team'; });
@@ -70260,7 +70255,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           if (!home && sb) {
             try {
               const { data: rows } = await sb.from('channels')
-                .select('id, name, slug')
+                .select('id, name, slug, kind, client_id, department')
                 .or('name.eq.reachgiant-home,slug.ilike.reachgiant-home*')
                 .limit(1);
               if (rows && rows.length) home = rows[0];
@@ -70286,7 +70281,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           if (error) {
             // It may have been created concurrently, or exists but was hidden — one last lookup
             try {
-              const { data: rows } = await sb.from('channels').select('id').or('name.eq.reachgiant-home,slug.ilike.reachgiant-home*').limit(1);
+              const { data: rows } = await sb.from('channels').select('id, kind, client_id, department').or('name.eq.reachgiant-home,slug.ilike.reachgiant-home*').limit(1);
               if (rows && rows.length) {
                 if (typeof switchChannel === 'function') await switchChannel(rows[0].id);
                 return;
@@ -70502,7 +70497,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // Show a more informative empty state with diagnostic + refresh
         const dbCount = chatChannels.length;
         const teamCount = chatChannels.filter(c => (c._scope||'team')==='team').length;
-        const clientCount = chatChannels.filter(c => (c._scope||'team')==='client').length;
+        const clientCount = chatChannels.filter(c => (c._scope||'team')==='clients').length;
         let emptyMsg;
         if (scope === 'clients') {
           emptyMsg = `No client-only channels yet. (${teamCount} team channels available — switch to "Team" tab above.)`;
