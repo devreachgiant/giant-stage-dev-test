@@ -70314,46 +70314,41 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         groups:  document.getElementById('nc_cardGroupsBody'),
       };
       if (!bodies.teams) return;
+      // CLONE, never move. Moving emptied the source lists, so the next run found
+      // nothing to distribute and cleared every card -- which is why re-rendering
+      // blanked the sidebar. Cloning leaves the engine's lists intact, so this is
+      // idempotent and can run as often as the observer fires.
       Object.values(bodies).forEach(b => { if (b) b.innerHTML = ''; });
       const byId = new Map(chatChannels.map(c => [c.id, c]));
       const dmById = new Map((chatDmChannels || []).map(c => [c.id, c]));
       const starred = getStarredChannels();
 
+      // cloneNode does not carry listeners, so each clone gets its own.
+      const place = (row, body, id, withStar) => {
+        if (!body) return null;
+        const cl = row.cloneNode(true);
+        cl.addEventListener('click', () => switchChannel(id));
+        if (withStar) cl.appendChild(starButton(id));
+        body.appendChild(cl);
+        return cl;
+      };
+
       const src = document.getElementById('nc_chatChannelList');
-      const rows = src ? [...src.querySelectorAll('.nc_ch-item[data-channel-id]')] : [];
-      rows.forEach(row => {
+      (src ? [...src.querySelectorAll('.nc_ch-item[data-channel-id]')] : []).forEach(row => {
         const c = byId.get(row.dataset.channelId);
         if (!c) return;
-        const target = c.kind === 'client_dept' ? bodies.clients : bodies.teams;
-        row.appendChild(starButton(c.id));
-        target.appendChild(row);
+        place(row, c.kind === 'client_dept' ? bodies.clients : bodies.teams, c.id, true);
+        if (starred.has(c.id)) place(row, bodies.starred, c.id, true);
+        if (row.querySelector('.nc_ch-unread-badge')) place(row, bodies.needs, c.id, false);
       });
 
       const dmSrc = document.getElementById('nc_chatDmList');
-      const dmRows = dmSrc ? [...dmSrc.querySelectorAll('.nc_ch-item[data-dm-channel-id]')] : [];
-      dmRows.forEach(row => {
-        const c = dmById.get(row.dataset.dmChannelId);
-        (c && c.is_group ? bodies.groups : bodies.direct).appendChild(row);
+      (dmSrc ? [...dmSrc.querySelectorAll('.nc_ch-item[data-dm-channel-id]')] : []).forEach(row => {
+        const id = row.dataset.dmChannelId;
+        const c = dmById.get(id);
+        place(row, c && c.is_group ? bodies.groups : bodies.direct, id, false);
+        if (row.querySelector('.nc_ch-unread-badge')) place(row, bodies.needs, id, false);
       });
-
-      // Starred and Needs you are views over the same rows, so they are clones with
-      // their own click handler -- cloneNode does not carry listeners.
-      const cloneInto = (row, body, id) => {
-        const cl = row.cloneNode(true);
-        cl.addEventListener('click', () => switchChannel(id));
-        body.appendChild(cl);
-      };
-      [...bodies.clients.children, ...bodies.teams.children].forEach(row => {
-        const id = row.dataset.channelId;
-        if (id && starred.has(id)) cloneInto(row, bodies.starred, id);
-      });
-      // "Needs you" is anything carrying an unread badge -- the engine already computes
-      // that, so this reads its output rather than recomputing unread from scratch.
-      [...bodies.clients.children, ...bodies.teams.children, ...bodies.direct.children, ...bodies.groups.children]
-        .forEach(row => {
-          const id = row.dataset.channelId || row.dataset.dmChannelId;
-          if (id && row.querySelector('.nc_ch-unread-badge, .nc_unread')) cloneInto(row, bodies.needs, id);
-        });
 
       const empty = (b, msg) => { if (b && !b.children.length) b.innerHTML = '<div style="padding:7px 9px;font-size:11px;color:var(--c3-t6);font-style:italic;">' + msg + '</div>'; };
       empty(bodies.needs, 'Nothing needs you.');
@@ -70382,7 +70377,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       clearTimeout(_navTimer);
       _navTimer = setTimeout(() => {
         _navBusy = true;
-        try { renderNavCards(); } finally { setTimeout(() => { _navBusy = false; }, 0); }
+        // Bodies are cleared before they are refilled, so an exception halfway leaves
+        // an empty sidebar with nothing said about why. Surface it instead.
+        try { renderNavCards(); }
+        catch (err) { console.error('[newchat] renderNavCards failed:', err); }
+        finally { setTimeout(() => { _navBusy = false; }, 0); }
       }, 60);
     }
     (function watchSourceLists(){
