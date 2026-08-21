@@ -70361,12 +70361,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       empty(bodies.teams, 'No team channels.');
       empty(bodies.direct, 'No direct messages.');
       empty(bodies.groups, 'No group DMs.');
+      let shown = 0;
       document.querySelectorAll('.nc_navcard').forEach(card => {
         const body = card.querySelector('.nc_navcard-body');
         const cnt = card.querySelector('.nc_navcard-count');
         const n = body ? body.querySelectorAll('.nc_ch-item').length : 0;
+        shown += n;
         if (cnt) cnt.textContent = n ? String(n) : '';
       });
+      // "Channels exist but none are on screen" is the exact shape of the two bugs
+      // this sidebar has already had -- rows destroyed by a re-render, and rows
+      // filtered out upstream. It should report itself rather than look like an
+      // empty workspace.
+      if (!shown && (chatChannels.length || (chatDmChannels || []).length)) {
+        console.warn('[newchat] nav cards empty but %d channels / %d DMs are loaded — '
+          + 'the engine list rendered %d rows',
+          chatChannels.length, (chatDmChannels || []).length,
+          (document.getElementById('nc_chatChannelList') || { querySelectorAll: () => [] })
+            .querySelectorAll('.nc_ch-item').length);
+      }
     }
     window.nc_renderNavCards = renderNavCards;
 
@@ -71655,8 +71668,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // those section cards are hidden on the Clients tab -- so the channels vanished
       // twice over. Client grouping is by client and department now, which is what
       // sections were being used to approximate, so on this tab sections are ignored.
-      const inMyCard = (c) => scope !== 'clients' && c.section_id
-        && window._chatMySectionIds && window._chatMySectionIds.has(c.section_id);
+      // Custom sidebar sections are gone with the Team/Clients toggle -- Clients,
+      // Teams, Direct and Group DMs are cards now, which is the grouping sections were
+      // being used to approximate. This still keyed off `scope`, which no longer has a
+      // control driving it, so it sat at whatever localStorage last held: with 'team'
+      // it excluded every sectioned channel, and 12 of the 14 client channels are
+      // sectioned. That is why the chats vanished.
+      const inMyCard = () => false;
       let topLevel = visibleChannels.filter(c => (!c.parent_id || !byId.has(c.parent_id)) && !inMyCard(c));
       if (scope === 'clients') {
         // One entry per client. The channel kept is the client's General if it has
