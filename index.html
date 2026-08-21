@@ -70297,7 +70297,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     function starButton(id){
       const on = getStarredChannels().has(id);
       const b = document.createElement('span');
-      b.style.cssText = 'margin-left:auto;display:inline-flex;cursor:pointer;flex-shrink:0;opacity:' + (on ? '1' : '.35') + ';';
+      // Unset stars stay out of the way until the row is hovered, so a list of 11
+      // clients does not read as a column of eleven stars.
+      b.className = 'nc_star' + (on ? ' nc_star-on' : '');
+      b.style.cssText = 'margin-left:auto;display:inline-flex;cursor:pointer;flex-shrink:0;'
+        + 'opacity:' + (on ? '1' : '0') + ';transition:opacity .12s ease;';
       b.title = on ? 'Unstar' : 'Star';
       b.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="' + (on ? 'var(--c3-amber)' : 'none')
         + '"><path d="M8 2.4l1.7 3.6 3.9.5-2.9 2.8.7 3.9L8 11.3 4.6 13.2l.7-3.9L2.4 6.5l3.9-.5z" stroke="var(--c3-amber)" stroke-width="1.3" stroke-linejoin="round"/></svg>';
@@ -70425,6 +70429,28 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '.nc_navcard .nc_ch-item{transition:background .13s ease,color .13s ease;}',
         '.nc_navcard-chev{transition:transform .15s ease;}',
         '.nc_dept-tab{transition:background .13s ease,border-color .13s ease,color .13s ease;}',
+        // Rows in these cards are clones, so the affordances the originals carry are
+        // all inert here: drag-to-reorder, and the per-row "..." menu whose handler
+        // was attached to the original node. Showing a grab cursor and a menu that
+        // does nothing is worse than not showing them.
+        '.nc_navcard .nc_ch-item{cursor:pointer;padding:6px 8px;font-size:12.5px;margin-bottom:0;}',
+        '.nc_navcard .nc_ch-item .ch-item-menu-trigger{display:none !important;}',
+        // The badge reserved 26px on the right for that menu. With the menu gone the
+        // gap just looks like a mistake, and the star needs the space instead.
+        '.nc_navcard .nc_ch-unread-badge{margin-right:6px;}',
+        // Chat 3.0 marks the open thread with a tinted row, not a solid red pill --
+        // a full-bleed red row per card reads as six competing selections.
+        '.nc_navcard .nc_ch-item.active{background:color-mix(in srgb, var(--c3-brand) 16%, transparent);color:var(--c3-t0);box-shadow:none;font-weight:700;}',
+        '.nc_navcard .nc_ch-item.active .nc_hash{opacity:.9;}',
+        '.nc_navcard .nc_ch-item.active .unread{background:var(--c3-brand);}',
+        // The star sits last and only asserts itself on hover or when set.
+        '.nc_navcard .nc_ch-item > span:last-child{flex-shrink:0;}',
+        '.nc_navcard .nc_ch-item:hover{background:var(--c3-s3);}',
+        '.nc_navcard-body{padding:2px 5px 6px;}',
+        '.nc_navcard-head:hover{background:var(--c3-s3);}',
+        '.nc_navcard .nc_ch-item:hover .nc_star{opacity:.55 !important;}',
+        '.nc_navcard .nc_ch-item .nc_star:hover{opacity:1 !important;}',
+        '.nc_navcard .nc_ch-item .nc_star-on{opacity:1 !important;}',
       ].join('\n');
       document.head.appendChild(st);
     })();
