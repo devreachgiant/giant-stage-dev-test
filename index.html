@@ -8188,7 +8188,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       </div>
 
       <!-- ===== CHAT 2.0 ===== -->
-            <div class="screen fullbleed" data-screen="newchat">
+            <div class="screen fullbleed" data-screen="newchat" data-role-min="manager" data-client-hidden>
         <div class="nc_fb-grid">
           <!-- channel list -->
           <aside class="nc_channels" id="nc_chatChannels">
@@ -8204,7 +8204,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             </div>
 
             <!-- ReachGiant Home — prominent card at top of channel list -->
-            <div id="nc_rgHomeCard" style="margin:2px 4px 14px;background:linear-gradient(135deg,rgba(208,4,0,.22),rgba(208,4,0,.06));border:1px solid rgba(208,4,0,.45);border-radius:11px;padding:11px 12px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:.16s;">
+            <div id="nc_rgHomeCard" style="margin:2px 4px 12px;padding:9px 10px;display:flex;align-items:center;gap:10px;cursor:pointer;background:linear-gradient(180deg,color-mix(in srgb, var(--c3-brand) 6%, transparent),var(--c3-s0) 82%);border:1px solid color-mix(in srgb, var(--c3-brand) 14%, transparent);border-radius:11px;">
               <div style="width:30px;height:30px;border-radius:9px;background:var(--red);color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px -3px rgba(208,4,0,.5);">
                 <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M2 8L8 2l6 6v6a1 1 0 01-1 1h-3v-4H6v4H3a1 1 0 01-1-1V8Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
               </div>
@@ -8232,7 +8232,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               Mark all as read
             </div>
 
-            <div class="nc_ch-section nc_open" data-chsec="channels" style="background:linear-gradient(180deg,rgba(208,4,0,.04),rgba(208,4,0,0));border:1px solid var(--line);border-radius:11px;padding:6px 8px;margin-bottom:10px;">
+            <div class="nc_ch-section nc_open" data-chsec="channels" style="background:linear-gradient(180deg,color-mix(in srgb, var(--c3-indigo) 13%, transparent),color-mix(in srgb, var(--c3-indigo) 3%, transparent) 46%,var(--c3-s0) 88%);border:1px solid color-mix(in srgb, var(--c3-indigo) 30%, transparent);border-radius:14px;padding:4px 5px 8px;margin-bottom:9px;box-shadow:0 10px 26px rgba(0,0,0,0.45),inset 0 1px 0 color-mix(in srgb, var(--c3-indigo) 18%, transparent);">
               <div class="nc_ch-section-head" style="padding:6px 4px;">
                 <span class="nc_ch-section-icon" style="display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;color:var(--red);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 5h10M3 11h10M6.5 2L5 14M11 2L9.5 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>
                 <span class="nc_ch-section-name" style="flex:1;">Channels</span>
@@ -8244,7 +8244,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               </div>
             </div>
 
-            <div class="nc_ch-section nc_open" data-chsec="dms" style="background:linear-gradient(180deg,rgba(14,165,233,.05),rgba(14,165,233,0));border:1px solid var(--line);border-radius:11px;padding:6px 8px;margin-bottom:10px;">
+            <div class="nc_ch-section nc_open" data-chsec="dms" style="background:linear-gradient(180deg,color-mix(in srgb, var(--c3-violet) 13%, transparent),color-mix(in srgb, var(--c3-violet) 3%, transparent) 46%,var(--c3-s0) 88%);border:1px solid color-mix(in srgb, var(--c3-violet) 30%, transparent);border-radius:14px;padding:4px 5px 8px;margin-bottom:9px;box-shadow:0 10px 26px rgba(0,0,0,0.45),inset 0 1px 0 color-mix(in srgb, var(--c3-violet) 18%, transparent);">
               <div class="nc_ch-section-head" style="padding:6px 4px;">
                 <span class="nc_ch-section-icon" style="display:inline-flex;width:18px;height:18px;align-items:center;justify-content:center;color:#0EA5E9;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 4a1.5 1.5 0 011.5-1.5h9A1.5 1.5 0 0114 4v6a1.5 1.5 0 01-1.5 1.5H7l-3 2.5V11.5h-.5A1.5 1.5 0 012 10V4Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>
                 <span class="nc_ch-section-name" style="flex:1;">Direct messages</span>
@@ -69755,8 +69755,29 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   let _inited = false;
   window.newChatInit = function(){
     if (_inited) return;
-    if (!window.giantSupabase || !window.giantSession || !window.giantCurrentProfile) return;
+    // Not ready yet is not a failure -- the nav can reach this before auth resolves,
+    // and the next open retries because _inited is still false.
+    if (!window.giantSupabase || !window.giantSession || !window.giantCurrentProfile) {
+      console.warn('[newchat] deferred: session not ready yet');
+      return;
+    }
     _inited = true;
+    try {
+      _boot();
+    } catch (err) {
+      // This screen is a lifted copy of code that used to run inline at boot, so the
+      // failure mode worth guarding is "throws on first open and leaves a blank pane
+      // with nothing in the console anyone will look at". Say so on the screen.
+      _inited = false; // let the next open try again once the cause is fixed
+      console.error('[newchat] init failed:', err);
+      const host = document.querySelector('.screen[data-screen="newchat"]');
+      if (host) host.innerHTML = '<div style="padding:60px;text-align:center;color:var(--text-2);width:100%;">'
+        + '<div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:8px;">New Chat could not start</div>'
+        + '<div style="font-size:12.5px;">' + String((err && err.message) || err).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])) + '</div>'
+        + '<div style="font-size:11.5px;color:var(--text-3);margin-top:10px;">The original Chat screen is unaffected.</div></div>';
+    }
+  };
+  function _boot(){
 
     // ── CHAT WIRING ──────────────────────────────────────────────
     // Scope this session: channels + messages + realtime.
@@ -75614,7 +75635,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       init();
     })();
     })();
-  };
+  }
 })();
 </script>
 </body>
