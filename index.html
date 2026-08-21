@@ -70555,6 +70555,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       mgmtMatrixMembers: {}, mgmtMatrixBusy: '',
       clientDeptPrivacy: {}, activeThreadId: null,
       vaultCards: [], vaultChannelId: null, vaultLoading: false,
+      libMediaUploading: false, mediaChannelId: null,
       selectedId: null, selectedKind: 'client', selectedDept: 'general', myName: '',
     };
     // A const arrow in Chat 3.0, so the extraction -- which worked from a list of
@@ -71440,6 +71441,183 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       renderVault();
     }
     window.nc_openVaultForChannel = openVaultForChannel;
+
+
+    // ── Media gallery (ported from Chat 3.0) ────────────────────────────────────
+    // The one port needing a real adapter rather than a repoint. Chat 3.0 reads an
+    // `attachments` jsonb array hanging off each message; old chat keeps attachments
+    // in their own table with a storage_path that has to be resolved to a URL. So the
+    // rows are reshaped into the {url,name,size,mime_type} form the renderer expects
+    // and hung off synthetic messages, which lets mediaTabHtml run unchanged.
+      function libMediaIcon(m){
+        const t = String(m.mime_type || '').toLowerCase();
+        if (t.startsWith('image/')) return { icon:'doc', color:'var(--c3-blue)', kind:'Image' };
+        if (t.startsWith('video/')) return { icon:'video', color:'var(--c3-purple)', kind:'Video' };
+        if (t.startsWith('audio/')) return { icon:'mic', color:'var(--c3-pink)', kind:'Audio' };
+        if (t.includes('pdf')) return { icon:'doc', color:'var(--c3-salmon)', kind:'PDF' };
+        if (t.includes('zip') || t.includes('compressed') || t.includes('archive')) return { icon:'paperclip', color:'var(--c3-amber)', kind:'Archive' };
+        if (t.includes('sheet') || t.includes('excel') || t.includes('csv')) return { icon:'sheet', color:'var(--c3-green)', kind:'Sheet' };
+        return { icon:'paperclip', color:'var(--c3-t4)', kind:'File' };
+      }
+      function libMediaCardHtml(m){
+        const d = libMediaIcon(m);
+        const when = m.created_at ? new Date(m.created_at).toLocaleDateString(undefined, { month:'short', day:'numeric' }) : '';
+        const by = m.created_by ? profileName(m.created_by) : '';
+        const isImage = String(m.mime_type || '').startsWith('image/');
+        return `<div style="position:relative;background:var(--c3-s1);border:1px solid var(--c3-b1);border-radius:11px;overflow:hidden;">
+          <a href="${chatEsc(m.file_url || m.url || '#')}" target="_blank" rel="noopener" style="display:block;text-decoration:none;color:inherit;">
+            <div style="height:84px;display:flex;align-items:center;justify-content:center;background:${isImage ? 'var(--c3-s0)' : c3Alpha(d.color,8)};">
+              ${isImage && m.file_url
+                ? `<img src="${chatEsc(m.file_url)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">`
+                : C3_ICON[d.icon](d.color, 26)}
+            </div>
+            <div style="padding:9px 11px 11px;">
+              <div style="font-size:9.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:${d.color};">${d.kind}</div>
+              <div style="font-size:12px;color:var(--c3-t1);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(m.title || m.file_name || 'Untitled')}</div>
+              <div style="font-size:10.5px;color:var(--c3-t5);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc([by, when, m.file_size ? fmtBytes(m.file_size) : null].filter(Boolean).join(' · '))}</div>
+            </div>
+          </a>
+          <span data-c3-lib-remove="${chatEsc(m.id)}" title="Remove" style="position:absolute;top:6px;right:6px;width:20px;height:20px;border-radius:6px;background:rgba(0,0,0,0.55);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--c3-t2);">${ncIcon.close('currentColor', 11)}</span>
+        </div>`;
+      }
+      function libMediaSectionHtml(media){
+        return `<div data-c3-lib-media-drop="1" style="display:flex;flex-direction:column;gap:11px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:12px;color:var(--c3-t4);">${media.length} ${media.length === 1 ? 'file' : 'files'} shared in this client</span>
+            <div data-c3-lib-upload="1" style="margin-left:auto;display:flex;align-items:center;gap:6px;padding:7px 13px;border-radius:9px;font-size:12px;font-weight:700;cursor:${mg.libMediaUploading ? 'default' : 'pointer'};background:var(--c3-s2);border:1px solid var(--c3-b2);color:${mg.libMediaUploading ? 'var(--c3-t5)' : 'var(--c3-t1)'};white-space:nowrap;">
+              ${mg.libMediaUploading ? 'Uploading…' : `${ncIcon.upload('currentColor', 12)} Upload`}</div>
+            <input type="file" id="c3LibMediaInput" style="display:none;">
+          </div>
+          ${media.length
+            ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:10px;">${media.map(libMediaCardHtml).join('')}</div>`
+            : `<div style="border:1.5px dashed var(--c3-b1);border-radius:12px;padding:40px 20px;text-align:center;font-size:12.5px;color:var(--c3-t6);">No media shared yet — drop files here.</div>`}
+        </div>`;
+      }
+      function mediaTabHtml(){
+        const isClient = mg.selectedKind === 'client';
+        const uploaded = isClient
+          ? mg.libraryItems.filter(i => i.kind === 'file')
+              .slice().sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+          : [];
+        const shared = [];
+        mg.threadMessages.forEach(m => (m.attachments || []).forEach(a =>
+          shared.push({ ...a, authorId: m.author_id, createdAt: m.created_at })));
+        shared.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+        const isImg = (t) => !!t && String(t).startsWith('image/');
+        const tile = (url, alt) => `<a href="${chatEsc(url)}" target="_blank" rel="noopener"><img src="${chatEsc(url)}" alt="${chatEsc(alt || '')}" style="width:100%;height:120px;object-fit:cover;border-radius:8px;display:block;border:1px solid var(--c3-b1);"></a>`;
+        const fileRow = (url, name, size, who, when) => `<a href="${chatEsc(url)}" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--c3-b0);background:var(--c3-s1);text-decoration:none;color:inherit;">
+          <span style="display:flex;">${ncIcon.paperclip('currentColor', 12)}</span>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12.5px;font-weight:600;color:var(--c3-t1);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${chatEsc(name)}</div>
+            <div style="font-size:11px;color:var(--c3-t5);">${chatEsc([size ? fmtBytes(size) : null, who, when].filter(Boolean).join(' · '))}</div>
+          </div>
+        </a>`;
+        const section = (title, count, body) => `<div>
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+            <div style="font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:0.05em;color:var(--c3-t5);">${title}</div>
+            <div style="font-size:11px;color:var(--c3-t6);">${count}</div>
+          </div>${body}</div>`;
+        const grid = (inner) => `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;">${inner}</div>`;
+        const list = (inner) => `<div style="border-radius:10px;overflow:hidden;border:1px solid var(--c3-b1);">${inner}</div>`;
+
+        const upImgs = uploaded.filter(i => isImg(i.mime_type));
+        const upFiles = uploaded.filter(i => !isImg(i.mime_type));
+        const shImgs = shared.filter(a => isImg(a.mime_type));
+        const shFiles = shared.filter(a => !isImg(a.mime_type));
+
+        return `<div data-c3-media-drop="${isClient ? '1' : ''}" style="padding:20px 22px;display:flex;flex-direction:column;gap:20px;">
+          ${isClient ? `<div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:12px;color:var(--c3-t4);">${uploaded.length + shared.length} ${uploaded.length + shared.length === 1 ? 'file' : 'files'} here — ${uploaded.length} uploaded, ${shared.length} from chat</span>
+            <div data-c3-media-upload="1" style="margin-left:auto;display:flex;align-items:center;gap:6px;padding:7px 13px;border-radius:9px;font-size:12px;font-weight:700;cursor:${mg.libMediaUploading ? 'default' : 'pointer'};background:var(--c3-s2);border:1px solid var(--c3-b2);color:${mg.libMediaUploading ? 'var(--c3-t5)' : 'var(--c3-t1)'};white-space:nowrap;">
+              ${mg.libMediaUploading ? 'Uploading…' : `${ncIcon.upload('currentColor', 12)} Upload`}</div>
+            <input type="file" id="c3MediaInput" style="display:none;">
+          </div>` : ''}
+
+          ${uploaded.length ? section('Uploaded', `${uploaded.length} · saved to this client's vault`,
+            `${upImgs.length ? grid(upImgs.map(i => tile(i.file_url || i.url, i.title)).join('')) : ''}
+             ${upFiles.length ? `<div style="${upImgs.length ? 'margin-top:8px;' : ''}">${list(upFiles.map(i =>
+                fileRow(i.file_url || i.url, i.title || i.file_name, i.file_size,
+                  i.created_by ? profileName(i.created_by) : '',
+                  i.created_at ? new Date(i.created_at).toLocaleDateString() : '')).join(''))}</div>` : ''}`) : ''}
+
+          ${shared.length ? section('Shared in chat', `${shared.length} · posted in this thread`,
+            `${shImgs.length ? grid(shImgs.map(a => tile(a.url, a.name)).join('')) : ''}
+             ${shFiles.length ? `<div style="${shImgs.length ? 'margin-top:8px;' : ''}">${list(shFiles.map(a =>
+                fileRow(a.url, a.name, a.size, profileName(a.authorId),
+                  new Date(a.createdAt).toLocaleDateString())).join(''))}</div>` : ''}`) : ''}
+
+          ${!uploaded.length && !shared.length ? `<div style="border:1.5px dashed var(--c3-b1);border-radius:12px;padding:44px 20px;text-align:center;">
+            <div style="font-size:12.5px;color:var(--c3-t6);">${isClient ? 'No files yet — upload one, or drop it here.' : 'No files shared here yet.'}</div>
+          </div>` : ''}
+        </div>`;
+      }
+
+      // ── Vault — card-based canvas, client_dept threads only (chat2_thread_canvas.cards
+      // jsonb, migration 20260814100400). Each card: {id, title, collapsed, items:[{id,text,done}], images:[{url,name}]}. ──
+      async function uploadLibMedia(file){
+        if (!file || mg.libMediaUploading) return;
+        mg.libMediaUploading = true; renderMgmt();
+        try {
+          const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+          const path = `library/${mg.selectedId}/${Date.now()}_${safeName}`;
+          const { error: upErr } = await NCSB().storage.from('chat-attachments').upload(path, file, { cacheControl:'3600', upsert:false });
+          if (upErr) throw new Error(upErr.message);
+          const url = NCSB().storage.from('chat-attachments').getPublicUrl(path).data.publicUrl;
+          const { data, error } = await NCSB().from('chat2_client_library').insert({
+            client_id: mg.selectedId, kind: 'file', title: file.name, section: 'Files',
+            url, file_url: url, file_name: file.name, file_size: file.size,
+            mime_type: file.type || 'application/octet-stream', created_by: ncMyId(),
+          }).select('id, kind, title, section, url, username, body, twofa, password_entry_id, file_url, file_name, file_size, mime_type, pinned, created_by, created_at').single();
+          if (error) throw new Error(error.message);
+          mg.libraryItems.unshift(data);
+          logC3Activity('file_upload', 'uploaded a file', { detail: file.name, targetType:'file', targetId: data.id });
+        } catch (e) {
+          if (typeof toast === 'function') toast({ type:'error', message:'Upload failed: ' + e.message });
+        }
+        mg.libMediaUploading = false; renderMgmt();
+      }
+
+    async function loadNcMedia(channelId){
+      const atts = await fetchAttachments(channelId);
+      mg.threadMessages = (atts || []).map(a => ({
+        author_id: a.uploader_id || null,
+        created_at: a._ts,
+        attachments: [{
+          url: pubUrl(a.storage_path),
+          name: a.file_name,
+          size: a.file_size,
+          mime_type: a.mime_type,
+        }],
+      }));
+      mg.mediaChannelId = channelId;
+    }
+
+    function renderNcMedia(){
+      const pane = document.getElementById('nc_chatMediaPane');
+      if (!pane || pane.style.display === 'none') return;
+      let host = document.getElementById('nc_mediaHost');
+      if (!host) {
+        host = document.createElement('div');
+        host.id = 'nc_mediaHost';
+        host.style.cssText = 'flex:1;overflow-y:auto;min-height:0;';
+        // Old chat's own media grid stays in the DOM but hidden, so its loader is
+        // never disturbed and the count in the tab keeps working.
+        [...pane.children].forEach(ch => { ch.style.display = 'none'; });
+        pane.appendChild(host);
+      }
+      const c = chatChannels.find(x => x.id === activeChannelId);
+      mg.selectedKind = c && c.kind === 'client_dept' ? 'client' : 'channel';
+      mg.selectedId = c ? (c.client_id || c.id) : null;
+      host.innerHTML = mediaTabHtml();
+    }
+
+    async function openMediaForChannel(){
+      if (!activeChannelId) return;
+      if (mg.mediaChannelId !== activeChannelId) await loadNcMedia(activeChannelId);
+      renderNcMedia();
+    }
+    window.nc_openMediaForChannel = openMediaForChannel;
 
     // ── Load all channels + select first ─────────────────────────
     async function loadChannels() {
@@ -76684,7 +76862,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const mgmt=document.getElementById('nc_mgmtPane');
         if(mgmt) mgmt.style.display = tab==='management'?'block':'none';
         window.nc__chatSubtab = tab;
-        if(tab==='media') loadMedia();
+        if(tab==='media') { loadMedia(); if (typeof window.nc_openMediaForChannel === 'function') window.nc_openMediaForChannel(); }
         if(tab==='canvas' && typeof window.nc_openVaultForChannel === 'function') window.nc_openVaultForChannel();
         if(tab==='management' && typeof window.nc_openMgmtForChannel === 'function') window.nc_openMgmtForChannel();
       };
