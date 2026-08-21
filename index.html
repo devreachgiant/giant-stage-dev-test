@@ -69753,6 +69753,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
    ========================================================================== */
 (function newChatModule(){
   let _inited = false;
+  let _retrying = false;
 
   // The engine loads its data through async calls fired at the end of boot, so a
   // failure there rejects a promise rather than throwing into _boot's try/catch --
@@ -69784,7 +69785,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // Not ready yet is not a failure -- the nav can reach this before auth resolves,
     // and the next open retries because _inited is still false.
     if (!window.giantSupabase || !window.giantSession || !window.giantCurrentProfile) {
-      console.warn('[newchat] deferred: session not ready yet');
+      // On a reload that lands straight on this screen, auth has not resolved yet.
+      // Returning without arranging a retry left the screen loading forever, and only
+      // navigating away and back ran init again -- which is exactly what was happening.
+      if (!_retrying) {
+        _retrying = true;
+        let tries = 0;
+        const again = () => {
+          if (++tries > 40) { _retrying = false; return; }   // ~30s, then stop quietly
+          if (window.giantSupabase && window.giantSession && window.giantCurrentProfile) {
+            _retrying = false;
+            window.newChatInit();
+          } else setTimeout(again, 750);
+        };
+        setTimeout(again, 750);
+      }
       return;
     }
     _inited = true;
@@ -70542,7 +70557,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       visibleChannels.forEach(c => byId.set(c.id, c));
       // A channel with a section_id only belongs in a card if that card is one of MINE (chat_sections are per-user).
       // If it points to someone else's card, show it in the main list so it never disappears for other users.
-      const inMyCard = (c) => c.section_id && window._chatMySectionIds && window._chatMySectionIds.has(c.section_id);
+      // 12 of the 14 client channels sit in someone's custom sidebar section, and
+      // those section cards are hidden on the Clients tab -- so the channels vanished
+      // twice over. Client grouping is by client and department now, which is what
+      // sections were being used to approximate, so on this tab sections are ignored.
+      const inMyCard = (c) => scope !== 'clients' && c.section_id
+        && window._chatMySectionIds && window._chatMySectionIds.has(c.section_id);
       const topLevel = visibleChannels.filter(c => (!c.parent_id || !byId.has(c.parent_id)) && !inMyCard(c));
       // Helper to recursively render a channel + its children
       function renderOne(c, depth) {
