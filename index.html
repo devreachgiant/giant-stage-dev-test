@@ -8321,7 +8321,15 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               <div class="nc_pinned-banner-text"><b>Pinned</b> · <span id="nc_pinnedBannerSummary">—</span></div>
               <span class="nc_pinned-banner-count" id="nc_pinnedBannerCount"></span>
             </div>
+            <!-- Department strip: only rendered for client channels (kind=client_dept) -->
+            <div class="nc_dept-strip" id="nc_deptStrip" style="display:none;"></div>
             <style>
+              .nc_dept-strip{display:flex;align-items:center;gap:4px;padding:8px 18px 0;background:var(--bg);flex-shrink:0;flex-wrap:wrap;}
+              .nc_dept-tab{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid transparent;border-radius:8px;color:var(--c3-t4);font-family:inherit;font-size:12px;font-weight:600;padding:5px 10px;cursor:pointer;transition:.15s;}
+              .nc_dept-tab:hover{color:var(--c3-t1);background:var(--c3-s3);}
+              .nc_dept-tab.nc_on{color:var(--c3-t0);font-weight:700;}
+              .nc_dept-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+              .nc_dept-tab.nc_empty{opacity:.45;}
               .nc_chat-subtabs{display:flex;gap:2px;padding:0 18px;border-bottom:1px solid var(--line);background:var(--bg);flex-shrink:0;}
               .nc_chat-subtab{display:inline-flex;align-items:center;gap:6px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--text-3);font-family:inherit;font-size:12.5px;font-weight:600;padding:11px 13px;cursor:pointer;transition:.15s;margin-bottom:-1px;}
               .nc_chat-subtab:hover{color:var(--text);}
@@ -70156,6 +70164,62 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
     }
 
+    // ── Clients and departments (Chat 3.0 shape over old chat's data) ──
+    // The triage put kind/client_id/department on channels, so a client's thread is
+    // the set of its channels and the department strip is how you move between them.
+    const NC_DEPTS = [
+      { key:'general',   label:'General',      color:'var(--c3-t4)' },
+      { key:'googleAds', label:'Google Ads',   color:'var(--c3-blue)' },
+      { key:'metaAds',   label:'Meta Ads',     color:'var(--c3-purple)' },
+      { key:'seo',       label:'SEO',          color:'var(--c3-green)' },
+      { key:'web',       label:'Web Projects', color:'var(--c3-amber)' },
+    ];
+    let ncClients = {};   // client_id -> { id, name, avatar_bg, avatar_fg }
+    async function loadNcClients(){
+      const ids = [...new Set(chatChannels.filter(c => c.client_id).map(c => c.client_id))];
+      if (!ids.length) return;
+      const { data } = await window.giantSupabase.from('clients')
+        .select('id, name, avatar_bg, avatar_fg').in('id', ids);
+      (data || []).forEach(c => { ncClients[c.id] = c; });
+    }
+    // Channels for one client x department. Plural on purpose: Maribou has two
+    // channels that both mean General, and merging them would mean moving messages
+    // between channels, which this branch does not do to old chat's data.
+    const ncChannelsFor = (clientId, dept) =>
+      chatChannels.filter(c => c.client_id === clientId && (c.department || 'general') === dept)
+                  .sort((x, y) => (y._msgCount || 0) - (x._msgCount || 0));
+    const ncPrimaryChannel = (clientId, dept) => (ncChannelsFor(clientId, dept)[0] || null);
+
+    function renderDeptStrip(){
+      const el = document.getElementById('nc_deptStrip');
+      if (!el) return;
+      const active = chatChannels.find(c => c.id === activeChannelId);
+      if (!active || active.kind !== 'client_dept' || !active.client_id) { el.style.display = 'none'; return; }
+      const cl = ncClients[active.client_id];
+      const here = active.department || 'general';
+      el.style.display = 'flex';
+      el.innerHTML =
+        `<span style="font-size:12px;font-weight:800;color:var(--c3-t1);margin-right:6px;">${chatEsc((cl && cl.name) || 'Client')}</span>`
+        + NC_DEPTS.map(d => {
+            const chans = ncChannelsFor(active.client_id, d.key);
+            const on = d.key === here;
+            // A department with no channel is still shown, greyed: the strip is the
+            // client's shape, not a list of what happens to exist today.
+            return `<span class="nc_dept-tab${on ? ' nc_on' : ''}${chans.length ? '' : ' nc_empty'}"`
+              + ` data-nc-dept="${d.key}" data-nc-client="${chatEsc(active.client_id)}"`
+              + ` style="${on ? 'background:color-mix(in srgb, ' + d.color + ' 14%, transparent);border-color:color-mix(in srgb, ' + d.color + ' 30%, transparent);' : ''}"`
+              + ` title="${chans.length ? chans.length + ' channel' + (chans.length > 1 ? 's' : '') : 'No conversation yet'}">`
+              + `<span class="nc_dept-dot" style="background:${d.color};"></span>${d.label}`
+              + (chans.length > 1 ? `<span style="font-size:9.5px;color:var(--c3-t5);">${chans.length}</span>` : '')
+              + `</span>`;
+          }).join('');
+      el.querySelectorAll('[data-nc-dept]').forEach(t => t.addEventListener('click', () => {
+        const ch = ncPrimaryChannel(t.dataset.ncClient, t.dataset.ncDept);
+        if (ch) switchChannel(ch.id);
+      }));
+    }
+    window.nc_renderDeptStrip = renderDeptStrip;
+
     // ── Load all channels + select first ─────────────────────────
     async function loadChannels() {
       // Wire the Team/Clients scope toggle (once, idempotent)
@@ -70255,6 +70319,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         chatChannels.forEach(c => { c._scope = 'team'; });
       }
 
+      await loadNcClients();
       renderChannelList();
       renderDmChannelList();
       // Wire the ReachGiant Home card (idempotent — only wire once)
@@ -70563,7 +70628,27 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // sections were being used to approximate, so on this tab sections are ignored.
       const inMyCard = (c) => scope !== 'clients' && c.section_id
         && window._chatMySectionIds && window._chatMySectionIds.has(c.section_id);
-      const topLevel = visibleChannels.filter(c => (!c.parent_id || !byId.has(c.parent_id)) && !inMyCard(c));
+      let topLevel = visibleChannels.filter(c => (!c.parent_id || !byId.has(c.parent_id)) && !inMyCard(c));
+      if (scope === 'clients') {
+        // One entry per client. The channel kept is the client's General if it has
+        // one, else its busiest department -- opening a client should land somewhere
+        // with content rather than on an arbitrary tab.
+        const seen = new Set();
+        topLevel = topLevel.filter(c => {
+          if (!c.client_id) return true;
+          if (seen.has(c.client_id)) return false;
+          seen.add(c.client_id);
+          return true;
+        }).map(c => {
+          if (!c.client_id) return c;
+          const general = ncPrimaryChannel(c.client_id, 'general');
+          const chosen = general || ncChannelsFor(c.client_id, (c.department || 'general'))[0] || c;
+          const cl = ncClients[c.client_id];
+          // Render under the client's name, not the channel's -- "#burrus-seo" is an
+          // implementation detail of where the messages happen to live.
+          return Object.assign({}, chosen, { name: (cl && cl.name) || chosen.name, _isClientRow: true });
+        });
+      }
       // Helper to recursively render a channel + its children
       function renderOne(c, depth) {
         const isActive = c.id === activeChannelId ? ' active' : '';
@@ -70784,6 +70869,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
 
     async function switchChannel(channelId) {
+      // The strip belongs to whichever client the newly-opened channel is under, so
+      // it has to be redrawn on every switch, not only when the client changes.
+      setTimeout(() => { try { renderDeptStrip(); } catch(_){} }, 0);
       activeChannelId = channelId;
       window.nc_activeChannelId = channelId; // expose for voice note + other features
       try { localStorage.setItem('giant_nc_active_channel', channelId); } catch(_) {}
