@@ -7874,7 +7874,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <div class="chat-subtabs" id="chatSubTabs">
               <button class="chat-subtab active" data-subtab="messages"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Messages</button>
               <button class="chat-subtab" data-subtab="media"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="5.5" cy="6.5" r="1.2" stroke="currentColor" stroke-width="1.1"/><path d="M2.5 11l3-3 2.5 2.5L11 7.5l2.5 3" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Media<span class="chat-subtab-count" id="chatMediaCount"></span></button>
-              <button class="chat-subtab" data-subtab="canvas"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Canvas</button>
+              <button class="chat-subtab" data-subtab="canvas"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Vault</button>
             </div>
             <div class="msgs" id="chatMsgs">
               <div id="chatMsgsLoading" style="padding:40px;text-align:center;color:var(--text-3);font-size:12.5px;">Loading messages…</div>
@@ -8463,7 +8463,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <div class="nc_chat-subtabs" id="nc_chatSubTabs">
               <button class="nc_chat-subtab active" data-subtab="messages"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Messages</button>
               <button class="nc_chat-subtab" data-subtab="media"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="5.5" cy="6.5" r="1.2" stroke="currentColor" stroke-width="1.1"/><path d="M2.5 11l3-3 2.5 2.5L11 7.5l2.5 3" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Media<span class="nc_chat-subtab-count" id="nc_chatMediaCount"></span></button>
-              <button class="nc_chat-subtab" data-subtab="canvas"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Canvas</button>
+              <button class="nc_chat-subtab" data-subtab="canvas"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Vault</button>
               <button class="nc_chat-subtab" data-subtab="management" id="nc_mgmtTabBtn" style="display:none;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 8h6M5 5.5h6M5 10.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Management</button>
             </div>
             </div>
@@ -70554,6 +70554,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       mgmtMatrixFor: null, mgmtMatrixLoading: false, mgmtMatrixThreads: {},
       mgmtMatrixMembers: {}, mgmtMatrixBusy: '',
       clientDeptPrivacy: {}, activeThreadId: null,
+      vaultCards: [], vaultChannelId: null, vaultLoading: false,
       selectedId: null, selectedKind: 'client', selectedDept: 'general', myName: '',
     };
     // A const arrow in Chat 3.0, so the extraction -- which worked from a list of
@@ -71295,6 +71296,150 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       await loadClientMemberMatrix(c.client_id);
     }
     window.nc_openMgmtForChannel = openMgmtForChannel;
+
+
+    // ── Vault (ported from Chat 3.0) ────────────────────────────────────────────
+    // Chat 3.0 stores its card canvas in chat2_thread_canvas.cards, keyed on a
+    // thread. Here the equivalent row is channel_canvas, keyed on a channel, and the
+    // cards column for it was added by the triage migration. Old chat's own plain-text
+    // canvas still writes channel_canvas.content, which this leaves untouched: the two
+    // use different columns of the same row, so neither overwrites the other.
+      function newVaultCardId(){ return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+      async function loadVaultCards(threadId){
+        mg.vaultChannelId = threadId;
+        mg.vaultLoading = true; renderMgmt();
+        const { data } = await NCSB().from('channel_canvas').select('cards').eq('channel_id', threadId).maybeSingle();
+        if (mg.vaultChannelId !== threadId) return;
+        mg.vaultCards = (data && data.cards) || [];
+        mg.vaultLoading = false;
+        renderMgmt();
+      }
+      async function saveVaultCards(){
+        if (!mg.vaultChannelId) return;
+        await NCSB().from('channel_canvas').upsert({ thread_id: mg.vaultChannelId, cards: mg.vaultCards }, { onConflict: 'channel_id' });
+      }
+      let vaultSaveDebounce = null;
+      function addVaultCard(){
+        mg.vaultCards.push({ id: newVaultCardId(), title: 'Untitled card', collapsed: false, items: [], images: [] });
+        renderMgmt();
+        saveVaultCards();
+      }
+      function deleteVaultCard(cardId){
+        mg.vaultCards = mg.vaultCards.filter(c => c.id !== cardId);
+        renderMgmt();
+        saveVaultCards();
+      }
+      function addVaultItem(cardId){
+        const c = mg.vaultCards.find(x => x.id === cardId);
+        if (c) { c.items.push({ id: newVaultCardId(), text: '', done: false }); renderMgmt(); saveVaultCards(); }
+      }
+      function deleteVaultItem(cardId, itemId){
+        const c = mg.vaultCards.find(x => x.id === cardId);
+        if (c) { c.items = c.items.filter(i => i.id !== itemId); renderMgmt(); saveVaultCards(); }
+      }
+      function removeVaultImage(cardId, idx){
+        const c = mg.vaultCards.find(x => x.id === cardId);
+        if (c) { c.images.splice(idx, 1); renderMgmt(); saveVaultCards(); }
+      }
+      function vaultCardHtml(c){
+        return `<div style="background:var(--c3-s1);border:1px solid var(--c3-b1);border-radius:12px;padding:14px 16px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span data-c3-vault-collapse="${chatEsc(c.id)}" style="cursor:pointer;color:var(--c3-t4);font-size:11px;flex-shrink:0;">${c.collapsed?'▶':'▼'}</span>
+            <input data-c3-vault-title="${chatEsc(c.id)}" value="${chatEsc(c.title)}" style="flex:1;background:transparent;border:none;outline:none;color:var(--c3-t0);font-size:13.5px;font-weight:700;font-family:inherit;">
+            <span data-c3-vault-del-card="${chatEsc(c.id)}" style="cursor:pointer;color:var(--c3-t6);display:flex;">${ncIcon.close('currentColor', 12)}</span>
+          </div>
+          ${c.collapsed ? '' : `
+            <div style="margin-top:10px;display:flex;flex-direction:column;gap:5px;">
+              ${c.items.map(it => `<div style="display:flex;align-items:center;gap:8px;">
+                <span data-c3-vault-toggle-item="${chatEsc(c.id)}::${chatEsc(it.id)}" style="cursor:pointer;width:15px;height:15px;border-radius:4px;border:1.4px solid var(--c3-b4);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;${it.done?'background:var(--c3-brand);border-color:var(--c3-brand);color:var(--c3-on-accent);':'color:transparent;'}">✓</span>
+                <input data-c3-vault-item-text="${chatEsc(c.id)}::${chatEsc(it.id)}" value="${chatEsc(it.text)}" placeholder="Checklist item…" style="flex:1;background:transparent;border:none;outline:none;color:${it.done?'var(--c3-t4)':'var(--c3-t1)'};font-size:12.5px;text-decoration:${it.done?'line-through':'none'};font-family:inherit;">
+                <span data-c3-vault-del-item="${chatEsc(c.id)}::${chatEsc(it.id)}" style="cursor:pointer;color:var(--c3-t6);display:flex;">${ncIcon.close('currentColor', 11)}</span>
+              </div>`).join('')}
+              <div data-c3-vault-add-item="${chatEsc(c.id)}" style="cursor:pointer;color:var(--c3-t4);font-size:12px;margin-top:2px;">+ Add item</div>
+            </div>
+            ${c.images.length ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(70px,1fr));gap:6px;margin-top:12px;">
+              ${c.images.map((img, i) => `<div style="position:relative;">
+                <img src="${chatEsc(img.url)}" style="width:100%;height:70px;object-fit:cover;border-radius:7px;display:block;">
+                <span data-c3-vault-img-remove="${chatEsc(c.id)}::${i}" style="position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:var(--c3-on-accent);width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;cursor:pointer;">${ncIcon.close('currentColor', 10)}</span>
+              </div>`).join('')}
+            </div>` : ''}
+            <label style="display:inline-block;margin-top:10px;cursor:pointer;color:var(--c3-t4);font-size:11.5px;">📷 Add image<input type="file" accept="image/*" data-c3-vault-img-upload="${chatEsc(c.id)}" style="display:none;"></label>
+          `}
+        </div>`;
+      }
+      // ══ Per-client Library — the Vault tab on a client thread ══════════════════
+      // Seven kinds on one shelf, grouped into free-text collections. Logins carry a
+      // secret encrypted with AES-256-GCM by the same server-only key the password
+      // manager uses; the browser never sees the key and never stores plaintext.
+      function vaultTabHtml(){
+        if (mg.vaultLoading) return `<div style="text-align:center;color:var(--c3-t5);font-size:13px;padding:40px 0;">Loading…</div>`;
+        return `<div style="padding:20px 22px;display:flex;flex-direction:column;gap:12px;">
+          ${mg.vaultCards.map(vaultCardHtml).join('')}
+          <div data-c3-vault-add-card="1" style="cursor:pointer;text-align:center;padding:12px;border:1.4px dashed var(--c3-b3);border-radius:12px;color:var(--c3-t4);font-size:12.5px;font-weight:600;">+ Add card</div>
+        </div>`;
+      }
+
+      // ── Master Inbox — every notification-worthy message across ALL of Chat 3.0
+      // (DMs, team channels, client threads, Home), not just client work — per explicit
+      // instruction. Mirrors chat2's own Master Inbox model (mention > flagged > unread,
+      // own messages excluded, chat2_inbox_actions for per-user save/done state) but
+      // widens the source query beyond kind='client_dept'. ──
+
+    function renderVault(){
+      const pane = document.getElementById('nc_chatCanvasPane');
+      if (!pane || pane.style.display === 'none') return;
+      let host = document.getElementById('nc_vaultHost');
+      if (!host) {
+        host = document.createElement('div');
+        host.id = 'nc_vaultHost';
+        host.style.cssText = 'flex:1;overflow-y:auto;min-height:0;';
+        // Old chat's plain-text editor stays in the DOM but out of the way, so its
+        // own load/save path is never disturbed by this.
+        [...pane.children].forEach(ch => { ch.style.display = 'none'; });
+        pane.appendChild(host);
+      }
+      host.innerHTML = vaultTabHtml();
+      const on = (sel, ev, fn) => host.querySelectorAll(sel).forEach(el => el.addEventListener(ev, () => fn(el)));
+      on('[data-c3-vault-add-card]','click', () => addVaultCard());
+      on('[data-c3-vault-del-card]','click', el => deleteVaultCard(el.dataset.c3VaultDelCard));
+      on('[data-c3-vault-collapse]','click', el => {
+        const c = mg.vaultCards.find(x => x.id === el.dataset.c3VaultCollapse);
+        if (c) { c.collapsed = !c.collapsed; saveVaultCards(); renderVault(); }
+      });
+      on('[data-c3-vault-add-item]','click', el => addVaultItem(el.dataset.c3VaultAddItem));
+      on('[data-c3-vault-del-item]','click', el => {
+        const [cid, iid] = el.dataset.c3VaultDelItem.split('::'); deleteVaultItem(cid, iid);
+      });
+      on('[data-c3-vault-toggle-item]','click', el => {
+        const [cid, iid] = el.dataset.c3VaultToggleItem.split('::');
+        const c = mg.vaultCards.find(x => x.id === cid);
+        const it = c && (c.items || []).find(x => x.id === iid);
+        if (it) { it.done = !it.done; saveVaultCards(); renderVault(); }
+      });
+      on('[data-c3-vault-img-remove]','click', el => {
+        const [cid, idx] = el.dataset.c3VaultImgRemove.split('::'); removeVaultImage(cid, Number(idx));
+      });
+      // Text edits save on blur rather than per keystroke: this re-renders the whole
+      // pane, which would take the caret with it on every character.
+      host.querySelectorAll('[data-c3-vault-title]').forEach(el => el.addEventListener('blur', () => {
+        const c = mg.vaultCards.find(x => x.id === el.dataset.c3VaultTitle);
+        if (c && c.title !== el.value) { c.title = el.value; saveVaultCards(); }
+      }));
+      host.querySelectorAll('[data-c3-vault-item-text]').forEach(el => el.addEventListener('blur', () => {
+        const [cid, iid] = el.dataset.c3VaultItemText.split('::');
+        const c = mg.vaultCards.find(x => x.id === cid);
+        const it = c && (c.items || []).find(x => x.id === iid);
+        if (it && it.text !== el.value) { it.text = el.value; saveVaultCards(); }
+      }));
+    }
+    window.nc_renderVault = renderVault;
+
+    async function openVaultForChannel(){
+      if (!activeChannelId) return;
+      if (mg.vaultChannelId !== activeChannelId) await loadVaultCards(activeChannelId);
+      renderVault();
+    }
+    window.nc_openVaultForChannel = openVaultForChannel;
 
     // ── Load all channels + select first ─────────────────────────
     async function loadChannels() {
@@ -76540,7 +76685,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if(mgmt) mgmt.style.display = tab==='management'?'block':'none';
         window.nc__chatSubtab = tab;
         if(tab==='media') loadMedia();
-        if(tab==='canvas') loadCanvas();
+        if(tab==='canvas' && typeof window.nc_openVaultForChannel === 'function') window.nc_openVaultForChannel();
         if(tab==='management' && typeof window.nc_openMgmtForChannel === 'function') window.nc_openMgmtForChannel();
       };
       window.nc__resetChatSubtab = function(){ if(window.nc_switchChatSubtab) window.nc_switchChatSubtab('messages'); updateMediaCount(); };
