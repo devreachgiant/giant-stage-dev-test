@@ -70369,6 +70369,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         shown += n;
         if (cnt) cnt.textContent = n ? String(n) : '';
       });
+      applyCardAccordion();
       // "Channels exist but none are on screen" is the exact shape of the two bugs
       // this sidebar has already had -- rows destroyed by a re-render, and rows
       // filtered out upstream. It should report itself rather than look like an
@@ -70410,7 +70411,43 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       obs.observe(b, { childList: true, subtree: true });
     })();
 
-    // Collapsible, like Chat 3.0's cards.
+    // Chat 3.0 is an accordion, not six independently collapsible cards: exactly one
+    // is open at a time and it flexes to fill the column, while the rest sit as 30px
+    // headers. Expanding all six and capping each at 320px is what made this look
+    // wrong -- the column became a stack of equal blocks with no focus, instead of
+    // one list you are reading and six places you can go.
+    let ncOpenCard = 'clients';
+    try { ncOpenCard = localStorage.getItem('giant_nc_open_card') || 'clients'; } catch(_) {}
+    function applyCardAccordion(){
+      document.querySelectorAll('.nc_navcard').forEach(card => {
+        const key = card.dataset.nccard;
+        const open = key === ncOpenCard;
+        const body = card.querySelector('.nc_navcard-body');
+        const chev = card.querySelector('.nc_navcard-chev');
+        card.style.flex = open ? '1 1 0%' : '0 0 auto';
+        card.style.minHeight = open ? '0' : '';
+        card.style.display = 'flex';
+        card.style.flexDirection = 'column';
+        card.style.overflow = 'hidden';
+        card.style.marginBottom = open ? '9px' : '5px';
+        card.style.borderRadius = open ? '14px' : '11px';
+        if (body) {
+          body.style.display = open ? '' : 'none';
+          // The open card scrolls within whatever height the column gives it, rather
+          // than a fixed cap -- that is what lets one list use the space.
+          body.style.flex = open ? '1 1 auto' : '';
+          body.style.minHeight = open ? '0' : '';
+          body.style.maxHeight = open ? 'none' : '';
+          body.style.overflowY = open ? 'auto' : '';
+        }
+        if (chev) chev.style.transform = open ? '' : 'rotate(-90deg)';
+      });
+    }
+    function setOpenCard(key){
+      ncOpenCard = key;
+      try { localStorage.setItem('giant_nc_open_card', key); } catch(_) {}
+      applyCardAccordion();
+    }
     (function wireNavCards(){
       const cards = document.querySelectorAll('.nc_navcard');
       if (!cards.length) { setTimeout(wireNavCards, 600); return; }
@@ -70419,13 +70456,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         card._ncWired = true;
         card.querySelector('.nc_navcard-head').addEventListener('click', (e) => {
           if (e.target.closest('.nc_ch-section-add')) return;   // the + is its own action
-          const body = card.querySelector('.nc_navcard-body');
-          const chev = card.querySelector('.nc_navcard-chev');
-          const open = body.style.display !== 'none';
-          body.style.display = open ? 'none' : '';
-          if (chev) chev.style.transform = open ? 'rotate(-90deg)' : '';
+          setOpenCard(card.dataset.nccard === ncOpenCard ? '' : card.dataset.nccard);
         });
       });
+      applyCardAccordion();
     })();
 
     // Switching felt abrupt: the active row and the department tabs both changed
@@ -70435,7 +70469,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const st = document.createElement('style');
       st.id = 'nc_navcard_css';
       st.textContent = [
-        '.nc_navcard-body{max-height:min(38vh,320px);overflow-y:auto;overscroll-behavior:contain;}',
+        '.nc_navcard-body{overscroll-behavior:contain;}',
         '.nc_navcard-body::-webkit-scrollbar{width:6px;}',
         '.nc_navcard-body::-webkit-scrollbar-thumb{background:var(--c3-b3);border-radius:3px;}',
         '.nc_navcard-body::-webkit-scrollbar-track{background:transparent;}',
@@ -70461,6 +70495,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '.nc_navcard .nc_ch-item:hover{background:var(--c3-s3);}',
         '.nc_navcard-body{padding:2px 5px 6px;}',
         '.nc_navcard-head:hover{background:var(--c3-s3);}',
+        '.nc_channels{display:flex;flex-direction:column;min-height:0;}',
+        '.nc_navcard{min-height:0;}',
+        '.nc_navcard-head{flex-shrink:0;}',
         '.nc_navcard .nc_ch-item:hover .nc_star{opacity:.55 !important;}',
         '.nc_navcard .nc_ch-item .nc_star:hover{opacity:1 !important;}',
         '.nc_navcard .nc_ch-item .nc_star-on{opacity:1 !important;}',
