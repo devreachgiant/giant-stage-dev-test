@@ -70371,6 +70371,29 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
     window.nc_renderNavCards = renderNavCards;
 
+    // renderDmChannelList is async and unread badges are stamped onto rows after the
+    // fact, so a single call at load time saw neither. Watching the two source lists
+    // catches every completion, including ones added later, without hunting for each
+    // async path. The guard matters: renderNavCards moves rows OUT of these
+    // containers, which is itself a mutation, so without it this loops forever.
+    let _navBusy = false, _navTimer = null;
+    function scheduleNavCards(){
+      if (_navBusy) return;
+      clearTimeout(_navTimer);
+      _navTimer = setTimeout(() => {
+        _navBusy = true;
+        try { renderNavCards(); } finally { setTimeout(() => { _navBusy = false; }, 0); }
+      }, 60);
+    }
+    (function watchSourceLists(){
+      const a = document.getElementById('nc_chatChannelList');
+      const b = document.getElementById('nc_chatDmList');
+      if (!a || !b) { setTimeout(watchSourceLists, 500); return; }
+      const obs = new MutationObserver(scheduleNavCards);
+      obs.observe(a, { childList: true, subtree: true });
+      obs.observe(b, { childList: true, subtree: true });
+    })();
+
     // Collapsible, like Chat 3.0's cards.
     (function wireNavCards(){
       const cards = document.querySelectorAll('.nc_navcard');
@@ -70387,6 +70410,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           if (chev) chev.style.transform = open ? 'rotate(-90deg)' : '';
         });
       });
+    })();
+
+    // Switching felt abrupt: the active row and the department tabs both changed
+    // instantly with no transition, so the eye had nothing to follow.
+    (function navCardStyles(){
+      if (document.getElementById('nc_navcard_css')) return;
+      const st = document.createElement('style');
+      st.id = 'nc_navcard_css';
+      st.textContent = [
+        '.nc_navcard-body{max-height:min(38vh,320px);overflow-y:auto;overscroll-behavior:contain;}',
+        '.nc_navcard-body::-webkit-scrollbar{width:6px;}',
+        '.nc_navcard-body::-webkit-scrollbar-thumb{background:var(--c3-b3);border-radius:3px;}',
+        '.nc_navcard-body::-webkit-scrollbar-track{background:transparent;}',
+        '.nc_navcard .nc_ch-item{transition:background .13s ease,color .13s ease;}',
+        '.nc_navcard-chev{transition:transform .15s ease;}',
+        '.nc_dept-tab{transition:background .13s ease,border-color .13s ease,color .13s ease;}',
+      ].join('\n');
+      document.head.appendChild(st);
     })();
 
     function renderDeptStrip(){
