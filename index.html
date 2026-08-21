@@ -72942,18 +72942,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       }
       if (!visibleChannels.length) {
         // Show a more informative empty state with diagnostic + refresh
+        // This told you to "switch to the Clients tab above" -- a control that went
+        // away with the nav cards, so the advice pointed at nothing. It also cannot
+        // mean what it used to: this list is no longer what you look at. Rows are
+        // distributed into the Clients, Teams, Direct and Group DMs cards, so the only
+        // thing an empty source list now means is that no channel loaded at all.
         const dbCount = chatChannels.length;
-        const teamCount = chatChannels.filter(c => (c._scope||'team')==='team').length;
-        const clientCount = chatChannels.filter(c => (c._scope||'team')==='clients').length;
-        let emptyMsg;
-        if (scope === 'clients') {
-          emptyMsg = `No client-only channels yet. (${teamCount} team channels available — switch to "Team" tab above.)`;
-        } else if (dbCount > 0) {
-          // Channels exist in DB but they're all tagged 'clients'
-          emptyMsg = `No team channels yet. ${clientCount} channel${clientCount>1?'s contain':' contains'} only clients — switch to "Clients" tab above to see ${clientCount>1?'them':'it'}, or create a new team channel.`;
-        } else {
-          emptyMsg = 'No channels yet';
-        }
+        const emptyMsg = dbCount > 0
+          ? `${dbCount} channel${dbCount === 1 ? '' : 's'} loaded but none could be listed.`
+          : 'No channels yet';
         chatChannelList.innerHTML = `
           <div style="padding:8px 12px;font-size:11px;color:var(--text-3);font-style:italic;line-height:1.5;">${emptyMsg}</div>
           <div style="display:flex;gap:6px;margin:6px 12px;">
