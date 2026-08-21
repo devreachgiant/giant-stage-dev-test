@@ -8459,12 +8459,13 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               .nc_cv-search-input:focus{border-color:var(--text-3);width:160px;}
             </style>
             <!-- Management pane: Chat 3.0's five tabs, over this client's data -->
+            <div id="nc_tasksPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
             <div id="nc_mgmtPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
             <div class="nc_chat-subtabs" id="nc_chatSubTabs">
               <button class="nc_chat-subtab active" data-subtab="messages"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Messages</button>
               <button class="nc_chat-subtab" data-subtab="media"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="5.5" cy="6.5" r="1.2" stroke="currentColor" stroke-width="1.1"/><path d="M2.5 11l3-3 2.5 2.5L11 7.5l2.5 3" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Media<span class="nc_chat-subtab-count" id="nc_chatMediaCount"></span></button>
               <button class="nc_chat-subtab" data-subtab="canvas"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Vault</button>
-              <button class="nc_chat-subtab" data-subtab="management" id="nc_mgmtTabBtn" style="display:none;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 8h6M5 5.5h6M5 10.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Management</button>
+              <button class="nc_chat-subtab" data-subtab="tasks" id="nc_tasksTabBtn" style="display:none;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l2.5 2.5L13 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Tasks</button><button class="nc_chat-subtab" data-subtab="management" id="nc_mgmtTabBtn" style="display:none;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 8h6M5 5.5h6M5 10.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Management</button>
             </div>
             </div>
             <div class="nc_msgs" id="nc_chatMsgs">
@@ -70269,6 +70270,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const active = chatChannels.find(c => c.id === activeChannelId);
       const isClient = !!(active && active.kind === 'client_dept' && active.client_id);
       if (btn) btn.style.display = isClient ? '' : 'none';
+      const tBtn = document.getElementById('nc_tasksTabBtn');
+      if (tBtn) tBtn.style.display = isClient ? '' : 'none';
+      const tPane = document.getElementById('nc_tasksPane');
+      if (!isClient && tPane) tPane.style.display = 'none';
       if (!isClient && pane) {
         pane.style.display = 'none';
         // Leaving a client thread while on Management would otherwise strand the user
@@ -70747,6 +70752,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       libraryItems: [], libraryFor: null, libraryLoading: false, libraryError: null,
       libSearch: '', libKind: 'all', libAddOpen: false, libDraft: {}, libSaving: false,
       libRevealed: {}, libCollapsedSections: {},
+      clientTasks: [], clientTasksFor: null, clientTasksLoading: false, clientTasksError: null,
+      clientTimeSeconds: 0, clientRunningCount: 0, clientProject: null, clientTaskFilter: 'all',
+      taskAdding: false, taskDraft: {}, taskSaving: false, taskTimers: {},
       selectedId: null, selectedKind: 'client', selectedDept: 'general', myName: '',
     };
     // A const arrow in Chat 3.0, so the extraction -- which worked from a list of
@@ -72056,6 +72064,278 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (again) { again.focus(); again.selectionStart = again.selectionEnd = pos; }
       });
     }
+
+
+    // ── Client tasks (ported from Chat 3.0) ─────────────────────────────────────
+    // tasks, time_sessions and projects are all keyed on client_id, so this reads and
+    // writes the same rows the Projects screen does -- a task created here is a real
+    // task, not a chat-local copy, and the timer is the same time_sessions mechanism
+    // Team Pulse uses.
+      function taskAssignees(t){
+        const ids = Array.isArray(t.assigned_to) ? t.assigned_to : (t.assigned_to ? [t.assigned_to] : []);
+        return ids.map(id => mg.profilesById[id]).filter(Boolean);
+      }
+      function taskDeptLabel(t){
+        if (!t.department) return '';
+        const d = NC_DEPTS.find(x => x.key === t.department || x.label === t.department);
+        return d ? d.label : t.department;
+      }
+      function taskDeptColor(t){
+        const d = NC_DEPTS.find(x => x.key === t.department || x.label === t.department);
+        return d ? d.color : 'var(--c3-t5)';
+      }
+
+      // 7 columns, matching the reference: the checkbox is its own column rather than
+      // riding inside the name, so names line up whatever their length.
+      function c3TaskRowHtml(t){
+        const done = t.status === 'done';
+        const p = C3_PRIO[String(t.priority || '').toLowerCase()];
+        const who = taskAssignees(t);
+        const dept = taskDeptLabel(t);
+        const due = t.due_at ? new Date(t.due_at) : null;
+        const overdue = due && !done && due < new Date();
+        const running = !!mg.taskTimers[t.id];
+        return `<div style="display:grid;grid-template-columns:${C3_TASK_COLS};align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--c3-b0);">
+          <div data-c3-task-toggle="${chatEsc(t.id)}" title="${done ? 'Mark not done' : 'Mark done'}" style="width:18px;height:18px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;border:1.6px solid ${done ? 'var(--c3-green)' : 'var(--c3-s7)'};background:${done ? 'rgba(62,207,142,0.16)' : 'transparent'};">
+            ${done ? ncIcon.check('var(--c3-green)', 11) : ''}</div>
+          <span style="min-width:0;font-size:12.5px;color:${done ? 'var(--c3-t5)' : 'var(--c3-t1)'};${done ? 'text-decoration:line-through;' : ''}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(t.name || 'Untitled task')}</span>
+          <div>${p ? `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:6px;color:${p.color};background:${c3Alpha(p.color,12)};white-space:nowrap;">${p.label}</span>` : ''}</div>
+          <div style="display:flex;align-items:center;gap:7px;min-width:0;">
+            ${who.length
+              ? `${c3ProfileMarkHtml(who[0], false)}<span style="font-size:11.5px;color:var(--c3-t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(who.length > 1 ? `${who[0].display_name || 'Someone'} +${who.length - 1}` : (who[0].display_name || who[0].full_name || 'Someone'))}</span>`
+              : `<span style="font-size:11.5px;color:var(--c3-t6);">Unassigned</span>`}
+          </div>
+          <div style="min-width:0;">${dept ? `<span style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--c3-t3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;"><span style="width:6px;height:6px;border-radius:50%;background:${taskDeptColor(t)};flex-shrink:0;"></span>${chatEsc(dept)}</span>` : ''}</div>
+          <div style="min-width:0;font-size:11.5px;color:var(--c3-t4);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(t.description || '')}</div>
+          <div style="display:flex;align-items:center;gap:7px;justify-content:flex-end;">
+            ${done ? '' : `<div data-c3-task-timer="${chatEsc(t.id)}" title="${running ? 'Stop the timer' : 'Start a timer on this task'}" style="width:20px;height:20px;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;background:${running ? 'rgba(232,168,62,0.18)' : 'var(--c3-s3)'};border:1px solid ${running ? 'var(--c3-amber)' : 'var(--c3-s5)'};color:${running ? 'var(--c3-amber)' : 'var(--c3-t4)'};">
+              ${running ? `<span style="width:7px;height:7px;border-radius:1.5px;background:currentColor;"></span>` : `<span style="width:0;height:0;border-left:6px solid currentColor;border-top:4px solid transparent;border-bottom:4px solid transparent;margin-left:1px;"></span>`}</div>`}
+            <span style="font-size:11.5px;font-weight:700;white-space:nowrap;color:${running ? 'var(--c3-amber)' : overdue ? 'var(--c3-salmon)' : 'var(--c3-t4)'};">${running ? 'Running' : due ? chatEsc(due.toLocaleDateString(undefined, { month:'short', day:'numeric' })) : ''}</span>
+          </div>
+        </div>`;
+      }
+
+      // Creating a task needs a project — tasks.project_id is NOT NULL — so the inline
+      // form only appears when this client has one. Without it there is nothing to
+      // attach to, and the row points at Projects instead of failing on save.
+      function taskAddFormHtml(){
+        const d = mg.taskDraft;
+        if (!d) return '';
+        const people = mg.threadMembers.map(tm => mg.profilesById[tm.profile_id]).filter(Boolean);
+        const sel = 'background:var(--c3-s0);border:1px solid var(--c3-b2);border-radius:9px;padding:9px 11px;color:var(--c3-t0);font-size:12.5px;font-family:inherit;outline:none;';
+        return `<div style="background:var(--c3-s1);border:1px solid var(--c3-b2);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+          <input id="c3TaskName" value="${chatEsc(d.name)}" placeholder="What needs doing for this client?" style="${sel}width:100%;box-sizing:border-box;">
+          <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center;">
+            <select data-c3-task-field="priority" style="${sel}cursor:pointer;">
+              ${Object.entries(C3_PRIO).map(([k, v]) => `<option value="${k}"${d.priority === k ? ' selected' : ''}>${v.label}</option>`).join('')}
+            </select>
+            <select data-c3-task-field="assignee" style="${sel}cursor:pointer;min-width:150px;">
+              <option value=""${d.assignee ? '' : ' selected'}>Unassigned</option>
+              ${people.map(p => `<option value="${chatEsc(p.id)}"${d.assignee === p.id ? ' selected' : ''}>${chatEsc(p.display_name || p.full_name || p.email || 'Someone')}</option>`).join('')}
+            </select>
+            <div style="flex:1;"></div>
+            <div data-c3-task-cancel="1" style="font-size:12px;font-weight:600;color:var(--c3-t4);cursor:pointer;padding:8px 10px;">Cancel</div>
+            <div data-c3-task-submit="1" style="display:inline-flex;align-items:center;padding:9px 15px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:${mg.taskSaving ? 'default' : 'pointer'};background:${mg.taskSaving ? 'var(--c3-btn-off)' : 'var(--red)'};color:var(--c3-on-accent);">${mg.taskSaving ? 'Adding…' : 'Add task'}</div>
+          </div>
+        </div>`;
+      }
+      function tasksTabHtml(){
+        const all = mg.clientTasks;
+        const activeCount = all.filter(t => t.status !== 'done').length;
+        const doneCount = all.length - activeCount;
+        const shown = all.filter(t => mg.clientTaskFilter === 'done' ? t.status === 'done' : t.status !== 'done');
+        const proj = mg.clientProject;
+        const tab = (k, label, n) => `<div data-c3-task-filter="${k}" style="display:flex;align-items:center;gap:7px;padding:9px 2px;font-size:12.5px;font-weight:700;cursor:pointer;border-bottom:2px solid ${mg.clientTaskFilter === k ? 'var(--c3-brand)' : 'transparent'};color:${mg.clientTaskFilter === k ? 'var(--c3-t0)' : 'var(--c3-t4)'};">
+          ${label}<span style="font-size:10px;font-weight:700;color:var(--c3-t5);background:var(--c3-chip);border-radius:7px;padding:2px 7px;font-variant-numeric:tabular-nums;">${n}</span></div>`;
+        const head = (label) => `<div style="font-size:10px;font-weight:800;letter-spacing:0.07em;text-transform:uppercase;color:rgba(255,255,255,0.85);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${label}</div>`;
+        return `<div style="padding:16px 22px;display:flex;flex-direction:column;gap:14px;">
+          <div style="display:flex;gap:12px;">
+            ${c3StatCardHtml(activeCount, 'Active')}
+            ${c3StatCardHtml(doneCount, 'Completed', 'var(--c3-green)')}
+            ${c3StatCardHtml(fmtTimeLogged(mg.clientTimeSeconds), 'Time logged')}
+            ${c3StatCardHtml(mg.clientRunningCount, 'Running now', mg.clientRunningCount ? 'var(--c3-amber)' : 'var(--c3-t0)')}
+          </div>
+
+          <div style="display:flex;align-items:center;gap:12px;background:var(--c3-s1);border:1px solid var(--c3-b1);border-radius:12px;padding:12px 16px;">
+            <div style="width:30px;height:30px;border-radius:9px;background:rgba(217,31,15,0.14);display:flex;align-items:center;justify-content:center;flex-shrink:0;">${ncIcon.check('var(--c3-brand)', 15)}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:12.5px;font-weight:700;color:var(--c3-t0);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${proj ? chatEsc(proj.name) : 'No linked project'}</div>
+              <div style="font-size:11.5px;color:var(--c3-t4);margin-top:2px;">${activeCount} open · ${doneCount} done · ${mg.clientTimeSeconds ? chatEsc(fmtTimeLogged(mg.clientTimeSeconds)) + ' logged' : 'no time logged'}</div>
+            </div>
+            <div data-c3-open-projects="1" style="display:flex;align-items:center;gap:6px;padding:7px 13px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;background:var(--c3-s2);border:1px solid var(--c3-b2);color:var(--c3-t1);white-space:nowrap;flex-shrink:0;">
+              Open in Projects ${ncIcon.arrowRight('currentColor', 12)}</div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:20px;border-bottom:1px solid var(--c3-b1);">
+            ${tab('active', 'Active', activeCount)}
+            ${tab('done', 'Done', doneCount)}
+            <div style="flex:1;"></div>
+            ${proj
+              ? `<div data-c3-task-add="1" style="display:flex;align-items:center;gap:6px;padding:7px 14px;margin-bottom:7px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;background:var(--red);color:var(--c3-on-accent);white-space:nowrap;">+ New task</div>`
+              : `<div data-c3-open-projects="1" title="This client has no project yet — tasks need one to live in" style="display:flex;align-items:center;gap:6px;padding:7px 14px;margin-bottom:7px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;background:var(--c3-s2);border:1px solid var(--c3-b2);color:var(--c3-t1);white-space:nowrap;">+ New task in Projects ${ncIcon.arrowRight('currentColor', 12)}</div>`}
+          </div>
+
+          ${mg.taskAdding && proj ? taskAddFormHtml() : ''}
+
+          ${mg.clientTasksLoading ? `<div style="text-align:center;color:var(--c3-t5);font-size:13px;padding:40px 0;">Loading…</div>`
+            : mg.clientTasksError ? `<div style="color:var(--c3-salmon);font-size:12.5px;padding:24px 0;">Could not load tasks: ${chatEsc(mg.clientTasksError)}</div>`
+            : `<div style="border:1px solid var(--c3-b1);border-radius:12px;overflow:hidden;">
+                <div style="display:grid;grid-template-columns:${C3_TASK_COLS};gap:10px;padding:9px 14px;background:var(--red);">
+                  ${head('')}${head('Task name')}${head('Priority')}${head('Assignee')}${head('Department')}${head('Task infos')}${head('Time')}
+                </div>
+                ${shown.length ? shown.map(c3TaskRowHtml).join('')
+                  : `<div style="text-align:center;color:var(--c3-t6);font-size:12.5px;padding:44px 0;">${mg.clientTaskFilter === 'done' ? 'Nothing completed yet.' : 'No open tasks — add the first one in Projects.'}</div>`}
+              </div>`}
+        </div>`;
+      }
+      function openTaskAdd(){
+        mg.taskAdding = true;
+        mg.taskDraft = { name:'', priority:'medium', assignee:'' };
+        renderMgmt();
+      }
+      function closeTaskAdd(){ mg.taskAdding = false; mg.taskDraft = null; renderMgmt(); }
+      async function submitNewTask(){
+        const d = mg.taskDraft;
+        if (!d || mg.taskSaving) return;
+        if (!d.name.trim()) { if (typeof toast === 'function') toast({ type:'error', message:'Give the task a name first.' }); return; }
+        if (!mg.clientProject) { if (typeof toast === 'function') toast({ type:'error', message:'This client has no project to add a task to.' }); return; }
+        mg.taskSaving = true; renderMgmt();
+        const row = {
+          project_id: mg.clientProject.id,
+          client_id: mg.selectedId,
+          name: d.name.trim(),
+          priority: d.priority || 'medium',
+          status: 'todo',
+          // assigned_to is uuid[], so a single pick still goes in as an array.
+          assigned_to: d.assignee ? [d.assignee] : [],
+          department: mg.selectedDept || null,
+          created_by: ncMyId(),
+        };
+        const { data, error } = await NCSB().from('tasks').insert(row)
+          .select('id, name, description, status, priority, assigned_to, department, due_at, project_id, completed_at')
+          .single();
+        mg.taskSaving = false;
+        if (error) {
+          renderMgmt();
+          if (typeof toast === 'function') toast({ type:'error', message:'Could not add the task: ' + error.message });
+          return;
+        }
+        mg.clientTasks.unshift(data);
+        logC3Activity('task_added', 'added a task', { detail: data.name, targetType:'task', targetId: data.id });
+        mg.taskAdding = false; mg.taskDraft = null;
+        renderMgmt();
+      }
+
+      // Row timer, backed by the real time_sessions table the rest of the app uses —
+      // so time started here shows up in the same places as time started anywhere else.
+      async function toggleTaskTimer(taskId){
+        const t = mg.clientTasks.find(x => x.id === taskId);
+        if (!t) return;
+        const running = mg.taskTimers[taskId];
+        if (running) {
+          const startedAt = new Date(running.started_at).getTime();
+          const seconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000) - Math.round((running.total_paused_ms || 0) / 1000));
+          delete mg.taskTimers[taskId];
+          mg.clientTimeSeconds += seconds;
+          mg.clientRunningCount = Math.max(0, mg.clientRunningCount - 1);
+          renderMgmt();
+          const { error } = await NCSB().from('time_sessions')
+            .update({ status: 'completed', ended_at: new Date().toISOString(), duration_seconds: seconds })
+            .eq('id', running.id);
+          if (error && typeof toast === 'function') toast({ type:'error', message:'Could not stop the timer: ' + error.message });
+          return;
+        }
+        const { data, error } = await NCSB().from('time_sessions').insert({
+          profile_id: ncMyId(), client_id: mg.selectedId, task_id: taskId,
+          task_label: t.name, project_id: t.project_id || null, status: 'running',
+        }).select('id, started_at, total_paused_ms').single();
+        if (error) { if (typeof toast === 'function') toast({ type:'error', message:'Could not start the timer: ' + error.message }); return; }
+        mg.taskTimers[taskId] = data;
+        mg.clientRunningCount += 1;
+        renderMgmt();
+      }
+
+      // Optimistic, then reconciled: the row flips immediately and rolls back with a
+      // reason if the write fails, so the list never claims a state the server refused.
+      async function toggleC3ClientTask(taskId){
+        const t = mg.clientTasks.find(x => x.id === taskId);
+        if (!t) return;
+        const was = t.status;
+        t.status = was === 'done' ? 'todo' : 'done';
+        renderMgmt();
+        const patch = t.status === 'done'
+          ? { status: 'done', completed_at: new Date().toISOString(), completed_by: ncMyId() }
+          : { status: 'todo', completed_at: null, completed_by: null };
+        const { error } = await NCSB().from('tasks').update(patch).eq('id', taskId);
+        if (!error && t.status === 'done') logC3Activity('task_done', 'completed a task', { detail: t.name, targetType:'task', targetId: taskId });
+        if (error) {
+          t.status = was; renderMgmt();
+          if (typeof toast === 'function') toast({ type:'error', message:'Could not update task: ' + error.message });
+        }
+      }
+
+      // ── Scheduled messages ─────────────────────────────────────────────────────
+      // Same table and the same Netlify delivery poller Chat 2.0 uses; both are keyed
+      // on chat2_threads, so nothing new is needed server-side. RLS already limits a
+      // row to its own sender, so this only ever shows and cancels your own.
+      async function loadClientTasks(clientId){
+        if (mg.clientTasksFor === clientId) return;
+        mg.clientTasksFor = clientId; mg.clientTasksLoading = true;
+        mg.clientTasks = []; mg.clientTasksError = null;
+        mg.clientTimeSeconds = 0; mg.clientRunningCount = 0; mg.clientProject = null;
+        renderMgmt();
+        const [tasksRes, timeRes, projRes] = await Promise.all([
+          NCSB().from('tasks')
+            .select('id, name, description, status, priority, assigned_to, department, due_at, project_id, completed_at')
+            .eq('client_id', clientId)
+            .order('due_at', { ascending: true, nullsFirst: false }),
+          NCSB().from('time_sessions').select('duration_seconds, status').eq('client_id', clientId),
+          NCSB().from('projects').select('id, name').eq('client_id', clientId)
+            .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        ]);
+        if (mg.clientTasksFor !== clientId) return; // a different client won the race
+        mg.clientTasksLoading = false;
+        mg.clientTasks = tasksRes.data || [];
+        mg.clientTasksError = tasksRes.error ? tasksRes.error.message : null;
+        if (tasksRes.error) mg.clientTasksFor = null; // let the next visit retry
+        const sessions = timeRes.data || [];
+        mg.clientTimeSeconds = sessions.reduce((n, x) => n + (x.duration_seconds || 0), 0);
+        mg.clientRunningCount = sessions.filter(x => x.status === 'running').length;
+        mg.clientProject = projRes && projRes.data ? projRes.data : null;
+        renderMgmt();
+      }
+
+      // Matches the task_priority enum exactly (fire | medium | low). Anything outside
+      // it renders no pill rather than a wrong one.
+
+    function renderTasks(){
+      const pane = document.getElementById('nc_tasksPane');
+      if (!pane || pane.style.display === 'none') return;
+      pane.innerHTML = tasksTabHtml();
+      const on = (sel, ev, fn) => pane.querySelectorAll(sel).forEach(el => el.addEventListener(ev, () => fn(el)));
+      on('[data-c3-task-add]','click', () => openTaskAdd());
+      on('[data-c3-task-cancel]','click', () => closeTaskAdd());
+      on('[data-c3-task-submit]','click', () => submitNewTask());
+      on('[data-c3-task-toggle]','click', el => toggleC3ClientTask(el.dataset.c3TaskToggle));
+      on('[data-c3-task-timer]','click', el => toggleTaskTimer(el.dataset.c3TaskTimer));
+      on('[data-c3-task-filter]','click', el => { mg.clientTaskFilter = el.dataset.c3TaskFilter; renderTasks(); });
+      pane.querySelectorAll('[data-c3-task-field]').forEach(el => el.addEventListener('input', () => {
+        mg.taskDraft[el.dataset.c3TaskField] = el.value;
+      }));
+    }
+    window.nc_renderTasks = renderTasks;
+
+    async function openTasksForChannel(){
+      const c = chatChannels.find(x => x.id === activeChannelId);
+      if (!c || c.kind !== 'client_dept' || !c.client_id) return;
+      mg.selectedId = c.client_id;
+      mg.selectedDept = c.department || 'general';
+      mg.profilesById = chatProfilesCache || {};
+      renderTasks();
+      await loadClientTasks(c.client_id);
+      renderTasks();
+    }
+    window.nc_openTasksForChannel = openTasksForChannel;
 
     function renderVault(){
       const pane = document.getElementById('nc_chatCanvasPane');
@@ -77549,19 +77829,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // because it costs four queries and most visits to a client thread are to read.
         const mgmt=document.getElementById('nc_mgmtPane');
         if(mgmt) mgmt.style.display = tab==='management'?'block':'none';
+        const tasksPane=document.getElementById('nc_tasksPane');
+        if(tasksPane) tasksPane.style.display = tab==='tasks'?'block':'none';
         window.nc__chatSubtab = tab;
         if(tab==='media') { loadMedia(); if (typeof window.nc_openMediaForChannel === 'function') window.nc_openMediaForChannel(); }
         if(tab==='canvas' && typeof window.nc_openVaultForChannel === 'function') window.nc_openVaultForChannel();
         if(tab==='management' && typeof window.nc_openMgmtForChannel === 'function') window.nc_openMgmtForChannel();
+        if(tab==='tasks' && typeof window.nc_openTasksForChannel === 'function') window.nc_openTasksForChannel();
       };
       window.nc__resetChatSubtab = function(){ if(window.nc_switchChatSubtab) window.nc_switchChatSubtab('messages'); updateMediaCount(); };
       // The bar is wired once on a fixed set of buttons; Management is rendered into
       // it later, so it needs its own listener or the tab would look inert.
       (function wireMgmtTabBtn(){
         const btn=document.getElementById('nc_mgmtTabBtn');
+        const tb=document.getElementById('nc_tasksTabBtn');
         if(btn && !btn._ncWired){ btn._ncWired=true;
           btn.addEventListener('click',()=>window.nc_switchChatSubtab('management')); }
-        else if(!btn) setTimeout(wireMgmtTabBtn,600);
+        if(tb && !tb._ncWired){ tb._ncWired=true;
+          tb.addEventListener('click',()=>window.nc_switchChatSubtab('tasks')); }
+        if(!btn || !tb) setTimeout(wireMgmtTabBtn,600);
       })();
 
       function pubUrl(path){ try { return sb().storage.from('chat-attachments').getPublicUrl(path).data.publicUrl; } catch(_){ return ''; } }
