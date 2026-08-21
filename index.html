@@ -70498,6 +70498,28 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '.nc_channels{display:flex;flex-direction:column;min-height:0;}',
         '.nc_navcard{min-height:0;}',
         '.nc_navcard-head{flex-shrink:0;}',
+
+        // ── Thread area, matched to Chat 3.0 ────────────────────────────────────
+        // Chat 3.0 treats a message as a row with padding, a radius and a hover
+        // state, which is what makes the list feel like discrete items rather than
+        // a wall of text. Old chat's rows have no box at all.
+        '.nc_msg{padding:6px 8px;border-radius:8px;transition:background .12s ease;}',
+        '.nc_msg:hover{background:var(--c3-s2);}',
+        '.nc_msg-grouped{margin-top:-11px;}',
+        // Pinned and flagged are different states and Chat 3.0 shows them
+        // differently: pinned is a quiet red wash, flagged an amber wash with a bar
+        // down the left, because flagged means someone is waiting on you.
+        '.nc_msg.nc_pinned{background:color-mix(in srgb, var(--c3-brand) 5%, transparent);}',
+        '.nc_msg.nc_pinned::before{content:none;}',
+        '.nc_msg.nc_flagged{background:color-mix(in srgb, var(--c3-amber) 7%, transparent);box-shadow:inset 2px 0 0 var(--c3-amber);}',
+        // The composer and header pick up Chat 3.0's rounding and rhythm.
+        '.nc_composer{margin:0 20px 16px;border-radius:14px;}',
+        '.nc_thread-head{padding:14px 20px;}',
+        '.nc_thread-head .nc_title{font-size:16px;letter-spacing:-.02em;}',
+        '.nc_thread-head .nc_topic{color:var(--c3-t5);}',
+        // The message list needs the same horizontal rhythm as the strip above it,
+        // or the two read as belonging to different panes.
+        '#nc_chatMsgsList{padding-left:12px;padding-right:12px;}',
         '.nc_navcard .nc_ch-item:hover .nc_star{opacity:.55 !important;}',
         '.nc_navcard .nc_ch-item .nc_star:hover{opacity:1 !important;}',
         '.nc_navcard .nc_ch-item .nc_star-on{opacity:1 !important;}',
@@ -72571,7 +72593,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
       const { data, error } = await queryWithRetry(() => window.giantSupabase
         .from('messages')
-        .select('id, body, created_at, edited_at, author_id, channel_id, parent_id, reply_count, voice_note_url, voice_note_duration_ms')
+        .select('id, body, created_at, edited_at, author_id, channel_id, parent_id, reply_count, voice_note_url, voice_note_duration_ms, flagged')
         .eq('channel_id', channelId)
         .is('parent_id', null)
         .order('created_at', { ascending: false })
@@ -72634,7 +72656,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const prevTop = msgsContainer ? msgsContainer.scrollTop : 0;
       const { data, error } = await window.giantSupabase
         .from('messages')
-        .select('id, body, created_at, edited_at, author_id, channel_id, parent_id, reply_count, voice_note_url, voice_note_duration_ms')
+        .select('id, body, created_at, edited_at, author_id, channel_id, parent_id, reply_count, voice_note_url, voice_note_duration_ms, flagged')
         .eq('channel_id', channelId)
         .is('parent_id', null)
         .lt('created_at', page.oldestTs)
@@ -72784,7 +72806,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (isGrouped) {
           // Compact grouped message: no avatar, no head, hover-time slot on left
           return `${daySepHtml}
-            <div class="nc_msg nc_msg-grouped" data-msg-id="${chatEsc(m.id)}" data-author-id="${chatEsc(m.author_id)}" data-ts="${d.getTime()}">
+            <div class="nc_msg nc_msg-grouped${m.flagged ? ' nc_flagged' : ''}" data-msg-id="${chatEsc(m.id)}" data-author-id="${chatEsc(m.author_id)}" data-ts="${d.getTime()}">
               <div class="nc_ava-slot" title="${chatEsc(formatChatTime(m.created_at))}"><span class="nc_grouped-time">${chatEsc(formatChatTimeShort(m.created_at))}</span></div>
               <div class="nc_body">
                 <div class="nc_text" data-msg-body data-msg-id="${chatEsc(m.id)}" data-msg-mine="${isMine ? '1' : '0'}">${parseMentions(m.body).replace(/\n/g, "<br>")}${voiceHtml}${m.edited_at ? ' <span style="color:var(--text-3);font-size:9.5px;">(edited)</span>' : ''}</div>
@@ -72793,7 +72815,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             </div>`;
         }
         return `${daySepHtml}
-          <div class="nc_msg" data-msg-id="${chatEsc(m.id)}" data-author-id="${chatEsc(m.author_id)}" data-ts="${d.getTime()}">
+          <div class="nc_msg${m.flagged ? ' nc_flagged' : ''}" data-msg-id="${chatEsc(m.id)}" data-author-id="${chatEsc(m.author_id)}" data-ts="${d.getTime()}">
             <div class="ava ${(window.giantOnlineProfiles && window.giantOnlineProfiles.has(m.author_id)) ? 'online' : ''}" data-presence-for="${chatEsc(m.author_id)}" style="${avaStyle}">${avaInner}</div>
             <div class="nc_body">
               <div class="nc_head"><span class="nc_name">${chatEsc(p.full_name || p.email)}</span><span class="nc_time">${chatEsc(formatChatTime(m.created_at))}${m.edited_at ? " <span style=\"color:var(--text-3);font-size:9.5px;\">(edited)</span>" : ""}</span></div>
