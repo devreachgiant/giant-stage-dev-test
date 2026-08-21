@@ -8321,16 +8321,21 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               <div class="nc_pinned-banner-text"><b>Pinned</b> · <span id="nc_pinnedBannerSummary">—</span></div>
               <span class="nc_pinned-banner-count" id="nc_pinnedBannerCount"></span>
             </div>
+            <!-- One strip: departments, divider, tools. Reuses the existing sub-tab
+                 bar rather than reimplementing it, so switchChatSubtab stays wired. -->
+            <div class="nc_tabstrip">
             <!-- Department strip: only rendered for client channels (kind=client_dept) -->
             <div class="nc_dept-strip" id="nc_deptStrip" style="display:none;"></div>
             <style>
-              .nc_dept-strip{display:flex;align-items:center;gap:4px;padding:8px 18px 0;background:var(--bg);flex-shrink:0;flex-wrap:wrap;}
+              .nc_tabstrip{display:flex;align-items:center;gap:8px;padding:0 18px;border-bottom:1px solid var(--line);background:var(--bg);flex-shrink:0;flex-wrap:wrap;}
+              .nc_dept-strip{display:flex;align-items:center;gap:4px;padding:6px 0;background:transparent;flex-shrink:0;flex-wrap:wrap;}
+              .nc_dept-strip::after{content:"";width:1px;height:18px;background:var(--line-2);margin:0 4px 0 8px;}
               .nc_dept-tab{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid transparent;border-radius:8px;color:var(--c3-t4);font-family:inherit;font-size:12px;font-weight:600;padding:5px 10px;cursor:pointer;transition:.15s;}
               .nc_dept-tab:hover{color:var(--c3-t1);background:var(--c3-s3);}
               .nc_dept-tab.nc_on{color:var(--c3-t0);font-weight:700;}
               .nc_dept-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
               .nc_dept-tab.nc_empty{opacity:.45;}
-              .nc_chat-subtabs{display:flex;gap:2px;padding:0 18px;border-bottom:1px solid var(--line);background:var(--bg);flex-shrink:0;}
+              .nc_chat-subtabs{display:flex;gap:2px;padding:0;border-bottom:none;background:transparent;flex-shrink:0;}
               .nc_chat-subtab{display:inline-flex;align-items:center;gap:6px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--text-3);font-family:inherit;font-size:12.5px;font-weight:600;padding:11px 13px;cursor:pointer;transition:.15s;margin-bottom:-1px;}
               .nc_chat-subtab:hover{color:var(--text);}
               .nc_chat-subtab.active{color:var(--text);border-bottom-color:var(--red);}
@@ -8395,6 +8400,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               <button class="nc_chat-subtab active" data-subtab="messages"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Messages</button>
               <button class="nc_chat-subtab" data-subtab="media"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="5.5" cy="6.5" r="1.2" stroke="currentColor" stroke-width="1.1"/><path d="M2.5 11l3-3 2.5 2.5L11 7.5l2.5 3" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Media<span class="nc_chat-subtab-count" id="nc_chatMediaCount"></span></button>
               <button class="nc_chat-subtab" data-subtab="canvas"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Canvas</button>
+            </div>
             </div>
             <div class="nc_msgs" id="nc_chatMsgs">
               <div id="nc_chatMsgsLoading" style="padding:40px;text-align:center;color:var(--text-3);font-size:12.5px;">Loading messages…</div>
