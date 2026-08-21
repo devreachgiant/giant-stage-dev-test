@@ -7874,7 +7874,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <div class="chat-subtabs" id="chatSubTabs">
               <button class="chat-subtab active" data-subtab="messages"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Messages</button>
               <button class="chat-subtab" data-subtab="media"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="5.5" cy="6.5" r="1.2" stroke="currentColor" stroke-width="1.1"/><path d="M2.5 11l3-3 2.5 2.5L11 7.5l2.5 3" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Media<span class="chat-subtab-count" id="chatMediaCount"></span></button>
-              <button class="chat-subtab" data-subtab="canvas"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Vault</button>
+              <button class="chat-subtab" data-subtab="canvas"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Canvas</button>
             </div>
             <div class="msgs" id="chatMsgs">
               <div id="chatMsgsLoading" style="padding:40px;text-align:center;color:var(--text-3);font-size:12.5px;">Loading messages…</div>
@@ -71316,7 +71316,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       }
       async function saveVaultCards(){
         if (!mg.vaultChannelId) return;
-        await NCSB().from('channel_canvas').upsert({ thread_id: mg.vaultChannelId, cards: mg.vaultCards }, { onConflict: 'channel_id' });
+        await NCSB().from('channel_canvas').upsert({ channel_id: mg.vaultChannelId, cards: mg.vaultCards }, { onConflict: 'channel_id' });
       }
       let vaultSaveDebounce = null;
       function addVaultCard(){
