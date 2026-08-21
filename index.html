@@ -70284,15 +70284,47 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // but hidden. Rows are then MOVED into the right card rather than re-rendered:
     // click handlers are attached per row, not delegated, so moving preserves them
     // and none of the engine's wiring has to be reimplemented.
-    function getStarredChannels(){
-      try { return new Set(JSON.parse(localStorage.getItem('giant_nc_starred_channels') || '[]')); }
-      catch(_) { return new Set(); }
-    }
-    function toggleStarChannel(id){
-      const set = getStarredChannels();
-      set.has(id) ? set.delete(id) : set.add(id);
-      try { localStorage.setItem('giant_nc_starred_channels', JSON.stringify([...set])); } catch(_) {}
+    // Stars live in channel_stars now rather than localStorage, so they follow the
+    // person rather than the machine. Held in memory for rendering -- renderNavCards
+    // runs on every mutation of the source lists and cannot await a query.
+    let ncStars = new Set();
+    function getStarredChannels(){ return ncStars; }
+    async function loadStars(){
+      const me = ncMyId();
+      if (!me) return;
+      const { data, error } = await NCSB().from('channel_stars').select('channel_id').eq('profile_id', me);
+      if (error) return;                      // leave whatever is in memory; stars are not worth a toast
+      ncStars = new Set((data || []).map(r => r.channel_id));
+      // One-time lift of anything starred before this table existed, so nobody
+      // silently loses the shortcuts they already set on this machine.
+      try {
+        const legacy = JSON.parse(localStorage.getItem('giant_nc_starred_channels') || '[]');
+        const missing = legacy.filter(id => !ncStars.has(id));
+        if (missing.length) {
+          await NCSB().from('channel_stars')
+            .upsert(missing.map(id => ({ profile_id: me, channel_id: id })), { onConflict: 'profile_id,channel_id' });
+          missing.forEach(id => ncStars.add(id));
+        }
+        if (legacy.length) localStorage.removeItem('giant_nc_starred_channels');
+      } catch(_) {}
       renderNavCards();
+    }
+    async function toggleStarChannel(id){
+      const me = ncMyId();
+      if (!me) return;
+      const had = ncStars.has(id);
+      // Optimistic: a star should feel instant, and the revert below covers the
+      // case where the write is refused.
+      had ? ncStars.delete(id) : ncStars.add(id);
+      renderNavCards();
+      const { error } = had
+        ? await NCSB().from('channel_stars').delete().eq('profile_id', me).eq('channel_id', id)
+        : await NCSB().from('channel_stars').upsert({ profile_id: me, channel_id: id }, { onConflict: 'profile_id,channel_id' });
+      if (error) {
+        had ? ncStars.add(id) : ncStars.delete(id);
+        renderNavCards();
+        if (typeof toast === 'function') toast({ type:'error', message:'Could not save that star: ' + error.message });
+      }
     }
     function starButton(id){
       const on = getStarredChannels().has(id);
@@ -71881,6 +71913,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // Needs you depends on read state and message content, so it is computed
       // rather than derived from what is already on screen.
       computeNeedsYou();
+      loadStars();
       // Wire the ReachGiant Home card (idempotent — only wire once)
       const rgHomeCard = document.getElementById('nc_rgHomeCard');
       if (rgHomeCard && !rgHomeCard.dataset.wired) {
