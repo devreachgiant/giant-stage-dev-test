@@ -8215,6 +8215,67 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               <span class="badge" id="nc_rgHomeBadge" style="display:none;background:var(--red);color:#fff;font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:9px;flex-shrink:0;">0</span>
             </div>
 
+            <div class="nc_navcard" data-nccard="needs" style="background:linear-gradient(180deg,color-mix(in srgb, var(--c3-green) 6%, transparent),var(--c3-s0) 82%);border:1px solid color-mix(in srgb, var(--c3-green) 14%, transparent);border-radius:11px;margin-bottom:5px;overflow:hidden;">
+              <div class="nc_navcard-head" style="display:flex;align-items:center;gap:9px;height:32px;padding:0 9px;cursor:pointer;">
+                <span style="width:18px;height:18px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb, var(--c3-green) 18%, transparent);flex-shrink:0;">
+                  <span style="width:7px;height:7px;border-radius:50%;background:var(--c3-green);"></span></span>
+                <span style="flex:1;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--c3-t2);">Needs you</span>
+                <span class="nc_navcard-count" style="font-size:10px;font-weight:700;color:var(--c3-t5);"></span>
+                <span class="nc_navcard-chev" style="display:inline-flex;color:var(--c3-t5);"><svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+              </div>
+              <div class="nc_navcard-body" id="nc_cardNeedsBody" style="padding:0 4px 6px;"></div>
+            </div>
+            <div class="nc_navcard" data-nccard="starred" style="background:linear-gradient(180deg,color-mix(in srgb, var(--c3-amber) 6%, transparent),var(--c3-s0) 82%);border:1px solid color-mix(in srgb, var(--c3-amber) 14%, transparent);border-radius:11px;margin-bottom:5px;overflow:hidden;">
+              <div class="nc_navcard-head" style="display:flex;align-items:center;gap:9px;height:32px;padding:0 9px;cursor:pointer;">
+                <span style="width:18px;height:18px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb, var(--c3-amber) 18%, transparent);flex-shrink:0;">
+                  <span style="width:7px;height:7px;border-radius:50%;background:var(--c3-amber);"></span></span>
+                <span style="flex:1;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--c3-t2);">Starred</span>
+                <span class="nc_navcard-count" style="font-size:10px;font-weight:700;color:var(--c3-t5);"></span>
+                <span class="nc_navcard-chev" style="display:inline-flex;color:var(--c3-t5);"><svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+              </div>
+              <div class="nc_navcard-body" id="nc_cardStarredBody" style="padding:0 4px 6px;"></div>
+            </div>
+            <div class="nc_navcard" data-nccard="clients" style="background:linear-gradient(180deg,color-mix(in srgb, var(--c3-cyan) 6%, transparent),var(--c3-s0) 82%);border:1px solid color-mix(in srgb, var(--c3-cyan) 14%, transparent);border-radius:11px;margin-bottom:5px;overflow:hidden;">
+              <div class="nc_navcard-head" style="display:flex;align-items:center;gap:9px;height:32px;padding:0 9px;cursor:pointer;">
+                <span style="width:18px;height:18px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb, var(--c3-cyan) 18%, transparent);flex-shrink:0;">
+                  <span style="width:7px;height:7px;border-radius:50%;background:var(--c3-cyan);"></span></span>
+                <span style="flex:1;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--c3-t2);">Clients</span>
+                <span class="nc_navcard-count" style="font-size:10px;font-weight:700;color:var(--c3-t5);"></span>
+                <span class="nc_navcard-chev" style="display:inline-flex;color:var(--c3-t5);"><svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+              </div>
+              <div class="nc_navcard-body" id="nc_cardClientsBody" style="padding:0 4px 6px;"></div>
+            </div>
+            <div class="nc_navcard" data-nccard="teams" style="background:linear-gradient(180deg,color-mix(in srgb, var(--c3-indigo) 6%, transparent),var(--c3-s0) 82%);border:1px solid color-mix(in srgb, var(--c3-indigo) 14%, transparent);border-radius:11px;margin-bottom:5px;overflow:hidden;">
+              <div class="nc_navcard-head" style="display:flex;align-items:center;gap:9px;height:32px;padding:0 9px;cursor:pointer;">
+                <span style="width:18px;height:18px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb, var(--c3-indigo) 18%, transparent);flex-shrink:0;">
+                  <span style="width:7px;height:7px;border-radius:50%;background:var(--c3-indigo);"></span></span>
+                <span style="flex:1;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--c3-t2);">Teams</span>
+                <span class="nc_ch-section-add" id="nc_newChannelBtn2" title="Create channel" style="display:inline-flex;color:var(--c3-t5);cursor:pointer;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><span class="nc_navcard-count" style="font-size:10px;font-weight:700;color:var(--c3-t5);"></span>
+                <span class="nc_navcard-chev" style="display:inline-flex;color:var(--c3-t5);"><svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+              </div>
+              <div class="nc_navcard-body" id="nc_cardTeamsBody" style="padding:0 4px 6px;"></div>
+            </div>
+            <div class="nc_navcard" data-nccard="direct" style="background:linear-gradient(180deg,color-mix(in srgb, var(--c3-violet) 6%, transparent),var(--c3-s0) 82%);border:1px solid color-mix(in srgb, var(--c3-violet) 14%, transparent);border-radius:11px;margin-bottom:5px;overflow:hidden;">
+              <div class="nc_navcard-head" style="display:flex;align-items:center;gap:9px;height:32px;padding:0 9px;cursor:pointer;">
+                <span style="width:18px;height:18px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb, var(--c3-violet) 18%, transparent);flex-shrink:0;">
+                  <span style="width:7px;height:7px;border-radius:50%;background:var(--c3-violet);"></span></span>
+                <span style="flex:1;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--c3-t2);">Direct</span>
+                <span class="nc_ch-section-add" id="nc_newDmBtn2" title="New direct message" style="display:inline-flex;color:var(--c3-t5);cursor:pointer;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><span class="nc_navcard-count" style="font-size:10px;font-weight:700;color:var(--c3-t5);"></span>
+                <span class="nc_navcard-chev" style="display:inline-flex;color:var(--c3-t5);"><svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+              </div>
+              <div class="nc_navcard-body" id="nc_cardDirectBody" style="padding:0 4px 6px;"></div>
+            </div>
+            <div class="nc_navcard" data-nccard="groups" style="background:linear-gradient(180deg,color-mix(in srgb, var(--c3-pink) 6%, transparent),var(--c3-s0) 82%);border:1px solid color-mix(in srgb, var(--c3-pink) 14%, transparent);border-radius:11px;margin-bottom:5px;overflow:hidden;">
+              <div class="nc_navcard-head" style="display:flex;align-items:center;gap:9px;height:32px;padding:0 9px;cursor:pointer;">
+                <span style="width:18px;height:18px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb, var(--c3-pink) 18%, transparent);flex-shrink:0;">
+                  <span style="width:7px;height:7px;border-radius:50%;background:var(--c3-pink);"></span></span>
+                <span style="flex:1;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--c3-t2);">Group DMs</span>
+                <span class="nc_navcard-count" style="font-size:10px;font-weight:700;color:var(--c3-t5);"></span>
+                <span class="nc_navcard-chev" style="display:inline-flex;color:var(--c3-t5);"><svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
+              </div>
+              <div class="nc_navcard-body" id="nc_cardGroupsBody" style="padding:0 4px 6px;"></div>
+            </div>
+            <div style="display:none;">
             <!-- Team / Clients toggle. Hidden for users with client role (data-client-hidden) -->
             <div id="nc_chatScopeToggle" data-client-hidden style="display:flex;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:3px;margin:2px 4px 10px;gap:2px;">
               <button class="nc_ch-scope-btn" data-scope="team" style="flex:1;background:var(--surface-2);border:none;color:var(--text);padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;border-radius:6px;display:flex;align-items:center;justify-content:center;gap:5px;transition:.14s;">
@@ -8256,7 +8317,8 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               </div>
             </div>
 
-            <!-- Custom user sections (cards) rendered here -->
+                        </div>
+<!-- Custom user sections (cards) rendered here -->
             <div id="nc_chatCustomSectionsContainer"></div>
 
             <!-- + Add card button -->
@@ -70217,6 +70279,116 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
     window.nc_syncMgmtTab = syncMgmtTab;
 
+    // ── Chat 3.0 nav cards ──────────────────────────────────────────────────────
+    // The engine still renders into its own two containers, which are kept in the DOM
+    // but hidden. Rows are then MOVED into the right card rather than re-rendered:
+    // click handlers are attached per row, not delegated, so moving preserves them
+    // and none of the engine's wiring has to be reimplemented.
+    function getStarredChannels(){
+      try { return new Set(JSON.parse(localStorage.getItem('giant_nc_starred_channels') || '[]')); }
+      catch(_) { return new Set(); }
+    }
+    function toggleStarChannel(id){
+      const set = getStarredChannels();
+      set.has(id) ? set.delete(id) : set.add(id);
+      try { localStorage.setItem('giant_nc_starred_channels', JSON.stringify([...set])); } catch(_) {}
+      renderNavCards();
+    }
+    function starButton(id){
+      const on = getStarredChannels().has(id);
+      const b = document.createElement('span');
+      b.style.cssText = 'margin-left:auto;display:inline-flex;cursor:pointer;flex-shrink:0;opacity:' + (on ? '1' : '.35') + ';';
+      b.title = on ? 'Unstar' : 'Star';
+      b.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="' + (on ? 'var(--c3-amber)' : 'none')
+        + '"><path d="M8 2.4l1.7 3.6 3.9.5-2.9 2.8.7 3.9L8 11.3 4.6 13.2l.7-3.9L2.4 6.5l3.9-.5z" stroke="var(--c3-amber)" stroke-width="1.3" stroke-linejoin="round"/></svg>';
+      b.addEventListener('click', (e) => { e.stopPropagation(); toggleStarChannel(id); });
+      return b;
+    }
+    function renderNavCards(){
+      const bodies = {
+        needs:   document.getElementById('nc_cardNeedsBody'),
+        starred: document.getElementById('nc_cardStarredBody'),
+        clients: document.getElementById('nc_cardClientsBody'),
+        teams:   document.getElementById('nc_cardTeamsBody'),
+        direct:  document.getElementById('nc_cardDirectBody'),
+        groups:  document.getElementById('nc_cardGroupsBody'),
+      };
+      if (!bodies.teams) return;
+      Object.values(bodies).forEach(b => { if (b) b.innerHTML = ''; });
+      const byId = new Map(chatChannels.map(c => [c.id, c]));
+      const dmById = new Map((chatDmChannels || []).map(c => [c.id, c]));
+      const starred = getStarredChannels();
+
+      const src = document.getElementById('nc_chatChannelList');
+      const rows = src ? [...src.querySelectorAll('.nc_ch-item[data-channel-id]')] : [];
+      rows.forEach(row => {
+        const c = byId.get(row.dataset.channelId);
+        if (!c) return;
+        const target = c.kind === 'client_dept' ? bodies.clients : bodies.teams;
+        row.appendChild(starButton(c.id));
+        target.appendChild(row);
+      });
+
+      const dmSrc = document.getElementById('nc_chatDmList');
+      const dmRows = dmSrc ? [...dmSrc.querySelectorAll('.nc_ch-item[data-dm-channel-id]')] : [];
+      dmRows.forEach(row => {
+        const c = dmById.get(row.dataset.dmChannelId);
+        (c && c.is_group ? bodies.groups : bodies.direct).appendChild(row);
+      });
+
+      // Starred and Needs you are views over the same rows, so they are clones with
+      // their own click handler -- cloneNode does not carry listeners.
+      const cloneInto = (row, body, id) => {
+        const cl = row.cloneNode(true);
+        cl.addEventListener('click', () => switchChannel(id));
+        body.appendChild(cl);
+      };
+      [...bodies.clients.children, ...bodies.teams.children].forEach(row => {
+        const id = row.dataset.channelId;
+        if (id && starred.has(id)) cloneInto(row, bodies.starred, id);
+      });
+      // "Needs you" is anything carrying an unread badge -- the engine already computes
+      // that, so this reads its output rather than recomputing unread from scratch.
+      [...bodies.clients.children, ...bodies.teams.children, ...bodies.direct.children, ...bodies.groups.children]
+        .forEach(row => {
+          const id = row.dataset.channelId || row.dataset.dmChannelId;
+          if (id && row.querySelector('.nc_ch-unread-badge, .nc_unread')) cloneInto(row, bodies.needs, id);
+        });
+
+      const empty = (b, msg) => { if (b && !b.children.length) b.innerHTML = '<div style="padding:7px 9px;font-size:11px;color:var(--c3-t6);font-style:italic;">' + msg + '</div>'; };
+      empty(bodies.needs, 'Nothing needs you.');
+      empty(bodies.starred, 'Star a channel to pin it here.');
+      empty(bodies.clients, 'No client threads.');
+      empty(bodies.teams, 'No team channels.');
+      empty(bodies.direct, 'No direct messages.');
+      empty(bodies.groups, 'No group DMs.');
+      document.querySelectorAll('.nc_navcard').forEach(card => {
+        const body = card.querySelector('.nc_navcard-body');
+        const cnt = card.querySelector('.nc_navcard-count');
+        const n = body ? body.querySelectorAll('.nc_ch-item').length : 0;
+        if (cnt) cnt.textContent = n ? String(n) : '';
+      });
+    }
+    window.nc_renderNavCards = renderNavCards;
+
+    // Collapsible, like Chat 3.0's cards.
+    (function wireNavCards(){
+      const cards = document.querySelectorAll('.nc_navcard');
+      if (!cards.length) { setTimeout(wireNavCards, 600); return; }
+      cards.forEach(card => {
+        if (card._ncWired) return;
+        card._ncWired = true;
+        card.querySelector('.nc_navcard-head').addEventListener('click', (e) => {
+          if (e.target.closest('.nc_ch-section-add')) return;   // the + is its own action
+          const body = card.querySelector('.nc_navcard-body');
+          const chev = card.querySelector('.nc_navcard-chev');
+          const open = body.style.display !== 'none';
+          body.style.display = open ? 'none' : '';
+          if (chev) chev.style.transform = open ? 'rotate(-90deg)' : '';
+        });
+      });
+    })();
+
     function renderDeptStrip(){
       const el = document.getElementById('nc_deptStrip');
       if (!el) return;
@@ -71110,6 +71282,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       await loadNcClients();
       renderChannelList();
       renderDmChannelList();
+      renderNavCards();
       // Wire the ReachGiant Home card (idempotent — only wire once)
       const rgHomeCard = document.getElementById('nc_rgHomeCard');
       if (rgHomeCard && !rgHomeCard.dataset.wired) {
@@ -71346,7 +71519,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // Apply the "Jump to…" search filter from the sidebar input (matches channel name, case-insensitive)
       const query = (window.nc__chatJumpToQuery || '').trim().toLowerCase();
       // Filter channels by scope (channel without _scope tag defaults to 'team')
-      let visibleChannels = chatChannels.filter(c => (c._scope || 'team') === scope);
+      // The Team/Clients toggle is gone: Clients and Teams are separate cards now, so
+      // the list renders every channel and renderNavCards routes each to its card.
+      let visibleChannels = chatChannels.slice();
       // The ReachGiant Home / announcements channel lives ONLY in the pinned card at the top —
       // don't duplicate it in the regular Channels list.
       visibleChannels = visibleChannels.filter(c => {
