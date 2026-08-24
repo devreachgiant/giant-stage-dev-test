@@ -70716,8 +70716,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       });
       (dmSrc ? [...dmSrc.querySelectorAll('.nc_ch-item[data-nc-dm-channel-id]')] : []).forEach(row => {
         const id = row.dataset.ncDmChannelId;
+        // Route on what the list decided, not on the column. is_group is unset on plenty of
+        // real group conversations, and re-deriving it here is how the two disagreed.
         const c = dmById.get(id);
-        place(row, c && c.is_group ? bodies.groups : bodies.direct, id, false);
+        const isGroup = row.dataset.ncDmGroup === '1' || !!(c && c.is_group);
+        place(row, isGroup ? bodies.groups : bodies.direct, id, false);
         const needDm = ncNeeds[id];
         if (needDm) {
           const cl3 = place(row, bodies.needs, id, false);
@@ -74321,7 +74324,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // Fetch all channels (RLS handles visibility)
       const { data, error } = await window.giantSupabase
         .from('channels')
-        .select('id, name, slug, description, is_private, is_dm, dm_pair, emoji, position, section_id, kind, client_id, department')
+        // is_group was missing from this list, so c.is_group was undefined on every channel
+        // in the module. A two-person group conversation then read as a one-to-one -- the
+        // other person's name and face instead of the group's -- and landed under DIRECT.
+        // Only conversations with three or more people were caught, by counting members.
+        .select('id, name, slug, description, is_private, is_dm, is_group, dm_pair, emoji, position, section_id, kind, client_id, department')
         .order('position', { ascending: true })
         .order('name', { ascending: true });
       if (error) {
@@ -74532,7 +74539,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           if (query && !label.toLowerCase().includes(query)) return;
           const isActive = c.id === activeChannelId ? ' active' : '';
           const gava = `<span class="nc_dot-ava" style="background:var(--surface-3);color:var(--text-2);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><circle cx="10.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><path d="M2 12.5c0-1.7 1.4-2.8 3.5-2.8M14 12.5c0-1.7-1.4-2.8-3.5-2.8M6 13c0-1.6 1-2.6 2-2.6s2 1 2 2.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></span>`;
-          html.push(`<div class="nc_ch-item${isActive}" data-nc-dm-channel-id="${chatEsc(c.id)}" title="${chatEsc(label)}">${gava}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${chatEsc(label)}</span></div>`);
+          // Marked here rather than re-derived in renderNavCards. The card used to route on
+          // c.is_group alone while this line treats a conversation with more than one other
+          // person as a group either way -- so every multi-person DM whose is_group was
+          // never set landed under DIRECT, next to the one-to-ones.
+          html.push(`<div class="nc_ch-item${isActive}" data-nc-dm-channel-id="${chatEsc(c.id)}" data-nc-dm-group="1" title="${chatEsc(label)}">${gava}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${chatEsc(label)}</span></div>`);
           return;
         }
         const otherId = others[0];

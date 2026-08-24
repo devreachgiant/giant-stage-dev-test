@@ -200,7 +200,16 @@ const sidebar = await page.evaluate(() => {
     teams: document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item').length,
     direct: document.querySelectorAll('#nc_cardDirectBody .nc_ch-item').length,
     dimmedClients: [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')]
-      .filter(r => parseFloat(r.style.opacity || '1') < 1).length
+      .filter(r => parseFloat(r.style.opacity || '1') < 1).length,
+    groups: document.querySelectorAll('#nc_cardGroupsBody .nc_ch-item').length,
+    // truth from the data: a DM with more than one other member, or is_group set
+    expectedGroups: (() => {
+      const me = window.__mock.me, db = window.__mock.db;
+      return db.channels.filter(c => c.is_dm).filter(c => c.is_group
+        || db.channel_members.filter(m => m.channel_id === c.id && m.profile_id !== me).length > 1).length;
+    })(),
+    groupsInDirect: [...document.querySelectorAll('#nc_cardDirectBody .nc_ch-item')]
+      .filter(el => el.dataset.ncDmGroup === '1').length
   };
 });
 check('sidebar renders its six nav cards', sidebar.cards === 6, 'cards=' + sidebar.cards);
@@ -210,7 +219,15 @@ check('all 53 clients are listed', sidebar.clients === 53, 'clients=' + sidebar.
 check('clients without a channel render dimmed', sidebar.dimmedClients === 42,
   'dimmed=' + sidebar.dimmedClients + ' (expect 53 - 11 threads = 42)');
 check('11 team channels + home are listed', sidebar.teams === 12, 'teams=' + sidebar.teams);
-check('80 DMs are listed', sidebar.direct === 80, 'direct=' + sidebar.direct);
+// Group conversations belong under GROUP DMS, one-to-ones under DIRECT. The card used to
+// route on channels.is_group alone while the list treated "more than one other person" as a
+// group either way, so every multi-person DM with is_group unset sat among the one-to-ones.
+check('every DM is listed, split by whether it is a group', sidebar.direct + sidebar.groups === 80,
+  'direct=' + sidebar.direct + ' groups=' + sidebar.groups);
+check('multi-person DMs are under Group DMs, not Direct',
+  sidebar.groups === sidebar.expectedGroups && sidebar.groupsInDirect === 0,
+  'groups=' + sidebar.groups + ' expected=' + sidebar.expectedGroups
+    + ' multi-person rows still in Direct=' + sidebar.groupsInDirect);
 
 // Every nav card had the same coloured dot, so the rail read as one undifferentiated
 // block you had to parse by label. Each card now carries its own icon; assert they are

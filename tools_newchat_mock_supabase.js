@@ -111,6 +111,16 @@
     if (c.is_dm) {
       const other = c.dm_pair.split(':').find(x => x !== ME);
       DB.channel_members.push({ channel_id: c.id, profile_id: other, joined_at: iso(200, 1), last_read_at: iso(2, 0) });
+      // Every tenth DM is a group conversation with is_group NEVER SET -- which is the
+      // real shape: plenty of group DMs carry more than two members and a false is_group,
+      // and routing the sidebar card off that column alone filed them under DIRECT.
+      const n = Number(c.id.split('-')[2]);
+      if (n % 10 === 0) {
+        DB.channel_members.push({ channel_id: c.id, profile_id: 'u-' + (((n + 3) % 80) + 1), joined_at: iso(200, 2), last_read_at: iso(2, 0) });
+        DB.channel_members.push({ channel_id: c.id, profile_id: 'u-' + (((n + 7) % 80) + 1), joined_at: iso(200, 3), last_read_at: iso(2, 0) });
+      }
+      // and a few that do set it, so both routes are exercised
+      if (n % 25 === 0) c.is_group = true;
     } else {
       for (let i = 1; i <= 4; i++)
         DB.channel_members.push({ channel_id: c.id, profile_id: 'u-' + ((DB.channel_members.length + i) % 80 + 1),

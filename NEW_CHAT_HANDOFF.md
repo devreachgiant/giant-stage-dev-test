@@ -169,6 +169,23 @@ non-client channels, and every other reader in the module treats that field as a
 id. The card Vault reads neither `selectedId` nor `selectedKind` — only `mg.vaultCards` —
 so the assignment is simply gone.
 
+## Group DMs were all filed under Direct
+
+`is_group` **was not in the `channels` select**, so `c.is_group` was `undefined` on every
+channel in the module. Two consequences, and the first hid the second:
+
+- A two-person group conversation read as a one-to-one — the other person's name and face
+  instead of the group's — because `renderDmChannelList` falls back to counting members
+  (`is_group === true || others.length > 1`) and two people is one other.
+- `renderNavCards` routed the card off `c.is_group` **alone**, with no member-count
+  fallback, so **every** group DM landed under DIRECT and GROUP DMS was empty. Measured on
+  the fixture before the fix: `direct=80, groups=0`.
+
+Both fixed by selecting the column. The card now routes on `data-nc-dm-group`, stamped by
+the list when it decides — so the two cannot disagree again, which is how they got here.
+
+On the real account that moves 11 of 25 conversations out of DIRECT and into GROUP DMS.
+
 ## The DM list, and a filter with no control
 
 DIRECT and GROUP DMS were empty on an account with 25 DM channels — 14 one-to-one, 11 group,
@@ -551,7 +568,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 63 checks in a headless browser, ~95s
+node tools_newchat_clickthrough.mjs      # 64 checks in a headless browser, ~95s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```
