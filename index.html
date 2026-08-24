@@ -71873,14 +71873,42 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const nameOf = (p) => p.display_name || p.full_name || p.email || 'Someone';
         const everyone = Object.values(mg.profilesById)
           .sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
-        const has = (pid, dept) => !!(mg.mgmtMatrixMembers[dept] && mg.mgmtMatrixMembers[dept].has(pid));
-        const hasArea = (pid, area) => !!(mg.mgmtAreaMembers[area] && mg.mgmtAreaMembers[area].has(pid));
+        const rowFor = (pid, dept) => !!(mg.mgmtMatrixMembers[dept] && mg.mgmtMatrixMembers[dept].has(pid));
+        const rowForArea = (pid, area) => !!(mg.mgmtAreaMembers[area] && mg.mgmtAreaMembers[area].has(pid));
+
+        // Some access comes from the role, not from a row, and those ticks must be shown
+        // as on and NOT be clickable -- unticking them would delete a row that was not
+        // granting anything and leave the access in place.
+        //
+        // The two column groups differ, and the difference is not cosmetic:
+        //
+        //  - The four AREAS are gated in the app by ncCanArea, which passes owner,
+        //    manager and inhouse_dev. All three are genuinely on.
+        //  - A DEPARTMENT tick is a channel_members row, and channels_select grants
+        //    blanket read on non-DM channels to inhouse_dev ONLY -- migration
+        //    20260821110000 turned that down for managers and owners on purpose. So a
+        //    manager shown as ticked would open the channel and find nothing. They still
+        //    need a real membership row, and the tick stays theirs to set.
+        const STAFF_ROLES = { owner:'Owner', manager:'Manager', inhouse_dev:'In-house dev' };
+        const roleOf = (pid) => String((mg.profilesById[pid] || {}).role || '').toLowerCase();
+        const staffRole = (pid) => STAFF_ROLES[roleOf(pid)] || null;
+        const deptByRole = (pid) => roleOf(pid) === 'inhouse_dev';
+        const areaByRole = (pid) => !!staffRole(pid);
+
+        const has = (pid, dept) => rowFor(pid, dept) || deptByRole(pid);
+        const hasArea = (pid, area) => rowForArea(pid, area) || areaByRole(pid);
         // A grant on any of the nine columns makes someone a member of this client --
         // billing-only access is still access, and a row you cannot see is a row you
-        // cannot revoke.
-        const isMember = (pid) => NC_DEPTS.some(d => has(pid, d.key)) || NC_AREAS.some(a => hasArea(pid, a.key));
+        // cannot revoke. Staff are members of every client by role, so they are listed
+        // whether or not anyone has ticked anything for them.
+        const isMember = (pid) => !!staffRole(pid)
+          || NC_DEPTS.some(d => rowFor(pid, d.key)) || NC_AREAS.some(a => rowForArea(pid, a.key));
         const members = everyone.filter(p => isMember(p.id));
+        // Staff are already members of every client, so offering to add them is offering
+        // to do nothing.
         const addable = everyone.filter(p => !isMember(p.id));
+        const explicitRows = (pid) => NC_DEPTS.some(d => rowFor(pid, d.key))
+          || NC_AREAS.some(a => rowForArea(pid, a.key));
         // A public client_dept thread is readable by any signed-in staff member through
         // chat2_threads_select_public_channel, whatever this matrix says. Ticks only
         // restrict private departments, so the ones that grant nothing are named rather
@@ -71906,6 +71934,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // grant: a department tick is membership of a conversation, an area tick is
         // permission on the client record. Ticking Billing does not put you in a channel.
         const split = `<div style="width:1px;height:26px;background:var(--c3-b1);flex-shrink:0;margin:0 4px;"></div>`;
+        // One tick, both groups. `byRole` ticks are on because of who the person is, so
+        // they are drawn dimmer and are not clickable: unticking one would delete a row
+        // that was granting nothing and leave the access exactly where it was. One
+        // colour throughout -- the column header already says which column it is.
+        const tick = (pid, label, byRow, byRole, attr, busyKey, scope) => {
+          const on = byRow || byRole;
+          const busy = mg.mgmtMatrixBusy === busyKey;
+          const live = canEdit && !byRole;
+          const box = `<span style="width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;border:1.6px solid ${on ? 'var(--red)' : 'var(--c3-b3)'};background:${on ? 'var(--red)' : 'transparent'};opacity:${byRole ? '0.55' : '1'};">
+              ${on ? ncIcon.check('#fff', 13) : ''}</span>`;
+          const why = byRole
+            ? `Always on — ${chatEsc(staffRole(pid))}s can open ${scope}`
+            : `${on ? 'Can open' : 'Hidden'} — ${chatEsc(label)}`;
+          // Marked whether or not it is clickable, so "every row has nine ticks" is
+          // checkable. A role-granted tick has no data-c3-* action by design.
+          return cell(box, `${live ? 'cursor:pointer;' : ''}opacity:${busy ? '0.45' : '1'};`,
+            `data-nc-tick="${chatEsc(busyKey)}" data-nc-tick-role="${byRole ? '1' : '0'}" ${live ? attr : ''} title="${why}"`);
+        };
         const colHead = (label) => cell(`<span style="font-size:11.5px;color:var(--c3-t4);white-space:nowrap;">${chatEsc(label)}</span>`);
         const head = `<div style="display:flex;align-items:center;gap:2px;padding:13px 18px;background:var(--c3-s2);border-bottom:1px solid var(--c3-b1);">
           <div style="flex:1;min-width:140px;font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);">Member</div>
@@ -71918,7 +71964,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const rows = members.map(pr => {
           const isMe = pr.id === ncMyId();
           const busyAll = mg.mgmtMatrixBusy === pr.id + ':*';
-          return `<div style="display:flex;align-items:center;gap:2px;padding:11px 18px;border-top:1px solid var(--c3-b0);opacity:${busyAll ? '0.45' : '1'};">
+          return `<div data-nc-member="${chatEsc(pr.id)}" style="display:flex;align-items:center;gap:2px;padding:11px 18px;border-top:1px solid var(--c3-b0);opacity:${busyAll ? '0.45' : '1'};">
             <div style="flex:1;min-width:140px;display:flex;align-items:center;gap:10px;">
               ${c3ProfileMarkHtml(pr, false)}
               <div style="min-width:0;">
@@ -71926,29 +71972,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                 ${pr.email ? `<div style="font-size:10.5px;color:var(--c3-t5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(pr.email)}</div>` : ''}
               </div>
             </div>
-            ${NC_DEPTS.map(d => {
-              const on = has(pr.id, d.key);
-              const busy = mg.mgmtMatrixBusy === pr.id + ':' + d.key;
-              // One colour for every tick. The column header already says which
-              // department it is, so colouring the box per department spent the app's
-              // only "this is on" signal on information that was already there.
-              const box = `<span style="width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;border:1.6px solid ${on ? 'var(--red)' : 'var(--c3-b3)'};background:${on ? 'var(--red)' : 'transparent'};">
-                  ${on ? ncIcon.check('#fff', 13) : ''}</span>`;
-              return cell(box,
-                `${canEdit ? 'cursor:pointer;' : ''}opacity:${busy ? '0.45' : '1'};`,
-                `${canEdit ? `data-c3-matrix-cell="${chatEsc(pr.id)}::${d.key}"` : ''} title="${on ? 'Can open' : 'Hidden'} — ${chatEsc(d.label)}"`);
-            }).join('')}
+            ${NC_DEPTS.map(d => tick(pr.id, d.label, rowFor(pr.id, d.key), deptByRole(pr.id),
+                `data-c3-matrix-cell="${chatEsc(pr.id)}::${d.key}"`, pr.id + ':' + d.key,
+                'every channel')).join('')}
             ${split}
-            ${NC_AREAS.map(a => {
-              const on = hasArea(pr.id, a.key);
-              const busy = mg.mgmtMatrixBusy === pr.id + ':' + a.key;
-              const box = `<span style="width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;border:1.6px solid ${on ? 'var(--red)' : 'var(--c3-b3)'};background:${on ? 'var(--red)' : 'transparent'};">
-                  ${on ? ncIcon.check('#fff', 13) : ''}</span>`;
-              return cell(box,
-                `${canEdit ? 'cursor:pointer;' : ''}opacity:${busy ? '0.45' : '1'};`,
-                `${canEdit ? `data-c3-area-cell="${chatEsc(pr.id)}::${a.key}"` : ''} title="${on ? 'Can see and manage' : 'Hidden'} — ${chatEsc(a.label)}"`);
-            }).join('')}
-            ${canEdit ? cell(`<span data-c3-member-remove="${chatEsc(pr.id)}" style="font-size:12.5px;color:var(--c3-t4);cursor:pointer;">Remove</span>`, '', '', ACT) : ''}
+            ${NC_AREAS.map(a => tick(pr.id, a.label, rowForArea(pr.id, a.key), areaByRole(pr.id),
+                `data-c3-area-cell="${chatEsc(pr.id)}::${a.key}"`, pr.id + ':' + a.key,
+                'this whole client')).join('')}
+            ${canEdit ? cell(
+              // Removing clears rows. Someone whose access is entirely their role has no
+              // rows to clear, so the button would look like it failed. Their access is
+              // changed by changing their role, which is not this screen.
+              (staffRole(pr.id) && !explicitRows(pr.id))
+                ? `<span title="Access comes from being ${chatEsc(staffRole(pr.id))}. Change it in Settings, not here." style="font-size:11.5px;color:var(--c3-t6);">By role</span>`
+                : `<span data-c3-member-remove="${chatEsc(pr.id)}" style="font-size:12.5px;color:var(--c3-t4);cursor:pointer;">Remove</span>`,
+              '', '', ACT) : ''}
           </div>`;
         }).join('');
 
@@ -71958,7 +71996,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
         return `<div style="display:flex;flex-direction:column;gap:14px;">
           <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:260px;font-size:12.5px;color:var(--c3-t4);line-height:1.5;">Tick what each member can open for this client. Unticked areas are hidden from them entirely.</div>
+            <div style="flex:1;min-width:260px;font-size:12.5px;color:var(--c3-t4);line-height:1.5;">Tick what each member can open for this client. Unticked areas are hidden from them entirely. Managers, owners and in-house devs are on by default.</div>
             ${canEdit ? `<select data-c3-member-add="1" ${mg.mgmtMatrixBusy ? 'disabled' : ''} style="appearance:none;-webkit-appearance:none;background:transparent;border:none;outline:none;color:var(--red);font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;flex-shrink:0;">
                 <option value="" selected>+ Add member</option>
                 ${addable.map(p => `<option value="${chatEsc(p.id)}">${chatEsc(nameOf(p))}</option>`).join('')}

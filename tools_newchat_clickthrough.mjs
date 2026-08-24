@@ -488,7 +488,7 @@ await step('Members lists the client\'s members, not everyone', async () => {
     if (t) t.click();
   });
   await page.waitForFunction(
-    () => document.querySelectorAll('#nc_mgmtPane [data-c3-member-remove]').length > 0,
+    () => document.querySelectorAll('#nc_mgmtPane [data-nc-member]').length > 0,
     null, { timeout: 20000 }).catch(() => {});
   const m = await page.evaluate(() => {
     const pane = document.getElementById('nc_mgmtPane');
@@ -500,23 +500,37 @@ await step('Members lists the client\'s members, not everyone', async () => {
       .filter(x => chans.includes(x.channel_id)).map(x => x.profile_id));
     window.__mock.db.client_member_areas.filter(a => a.client_id === cid)
       .forEach(a => expect.add(a.profile_id));
+    // Managers, owners and in-house devs are members of every client by role, with no
+    // row anywhere, so they belong in the expected set too.
+    window.__mock.db.profiles.filter(p => ['owner', 'manager', 'inhouse_dev'].includes(p.role))
+      .forEach(p => expect.add(p.id));
     const add = pane.querySelector('[data-c3-member-add]');
     // Read the columns off the cells' own titles ("Hidden — Billing") rather than by
     // scraping header text: Onboarding and Billing are also Management sub-tabs, and
     // matching on visible strings picked those up instead.
     const labels = (sel) => [...new Set([...pane.querySelectorAll(sel)]
       .map(el => (el.title.split('—')[1] || '').trim()).filter(Boolean))].sort();
-    return { rows: pane.querySelectorAll('[data-c3-member-remove]').length,
-             expected: expect.size, profiles: window.__mock.db.profiles.length,
-             deptCells: pane.querySelectorAll('[data-c3-matrix-cell]').length,
-             areaCells: pane.querySelectorAll('[data-c3-area-cell]').length,
+    const rows = pane.querySelectorAll('[data-nc-member]').length;
+    // Every row has nine ticks whether or not they are clickable; the role-granted ones
+    // carry no action, which is the point of them.
+    const staff = new Set(window.__mock.db.profiles
+      .filter(p => ['owner', 'manager', 'inhouse_dev'].includes(p.role)).map(p => p.id));
+    const byRole = [...pane.querySelectorAll('[data-nc-tick-role="1"]')];
+    return { rows, expected: expect.size, profiles: window.__mock.db.profiles.length,
+             ticks: pane.querySelectorAll('[data-nc-tick]').length,
+             lockedAllStaff: byRole.every(el => staff.has(el.dataset.ncTick.split(':')[0])),
+             // an in-house dev is locked on all nine; a manager or owner only on the four
+             // areas, because channels_select never gave them blanket channel read
+             devLocked: byRole.filter(el => el.dataset.ncTick.startsWith('u-2:')).length,
+             ownerLocked: byRole.filter(el => el.dataset.ncTick.startsWith('u-me:')).length,
              areaCols: labels('[data-c3-area-cell]'),
              deptCols: labels('[data-c3-matrix-cell]'),
              addOptions: add ? add.options.length - 1 : -1 };
   });
   check('Members lists the client\'s members, not everyone',
     m.rows === m.expected && m.rows > 0 && m.rows < m.profiles
-      && m.deptCells === m.rows * 5 && m.areaCells === m.rows * 4
+      && m.ticks === m.rows * 9 && m.lockedAllStaff
+      && m.devLocked === 9 && m.ownerLocked === 4
       && m.areaCols.join('|') === 'Billing|Deliverables|Onboarding|Tasks'
       // the rename: the department is "Web", not "Web Projects", everywhere it renders
       && m.deptCols.join('|') === 'General|Google Ads|Meta Ads|SEO|Web'
@@ -636,7 +650,15 @@ await step('a tick grants a department, and Remove clears them all', async () =>
       .filter(c => c.kind === 'client_dept' && c.client_id === cid).map(c => c.id);
     const rowsFor = (pid) => window.__mock.db.channel_members
       .filter(x => chans().includes(x.channel_id) && x.profile_id === pid).length;
-    const pid = pane.querySelector('[data-c3-member-remove]').dataset.c3MemberRemove;
+    // Deliberately not a staff member: their ticks are granted by role, carry no action
+    // and cannot be removed, so picking the first row now picks a person this check
+    // cannot act on at all.
+    const plain = new Set(window.__mock.db.profiles
+      .filter(p => !['owner', 'manager', 'inhouse_dev'].includes(p.role)).map(p => p.id));
+    const row = [...pane.querySelectorAll('[data-c3-member-remove]')]
+      .find(el => plain.has(el.dataset.c3MemberRemove));
+    if (!row) return { skipped: 'no non-staff member to act on' };
+    const pid = row.dataset.c3MemberRemove;
     const before = rowsFor(pid);
 
     // an unticked cell for this member: ticking it must write one membership row
