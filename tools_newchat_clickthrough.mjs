@@ -803,6 +803,63 @@ await step('a tick grants a department, and Remove clears them all', async () =>
     JSON.stringify(r));
 });
 
+// The four area columns need a table that ships in migration 20260824120000. Between
+// writing that migration and applying it PostgREST answers PGRST205, so the screen has to
+// degrade rather than error -- it shipped as a red toast on every open plus four columns
+// whose ticks could not persist. Last, and on a fresh client: loadClientMemberMatrix is
+// guarded by mgmtMatrixFor and will not reload for a client it has already seen, so the
+// only honest way to reach this state is the way a person would.
+await step('a table that is not deployed yet degrades instead of erroring', async () => {
+  await page.evaluate(() => {
+    window.__mock.hideTable('client_member_areas');
+    const card = [...document.querySelectorAll('.nc_navcard')].find(c => c.dataset.nccard === 'clients');
+    if (card && !card.querySelector('.nc_navcard-body').getBoundingClientRect().height)
+      card.querySelector('.nc_navcard-head').click();
+  });
+  await page.waitForTimeout(400);
+  // a different client, so the matrix loads fresh against the missing table
+  const switched = await page.evaluate(() => {
+    const here = (window.__mock.db.channels.find(c => c.id === window.nc_activeChannelId) || {}).client_id;
+    const rows = [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')]
+      .filter(r => parseFloat(r.style.opacity || '1') === 1);
+    const other = rows.find(r => {
+      const id = r.dataset.channelId;
+      const ch = window.__mock.db.channels.find(c => c.id === id);
+      return ch && ch.client_id && ch.client_id !== here;
+    });
+    if (!other) return false;
+    other.click();
+    return true;
+  });
+  if (!switched) { check('a table that is not deployed yet degrades instead of erroring', false, 'no second client to switch to'); return; }
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => window.nc_switchChatSubtab('management'));
+  await page.waitForFunction(() => {
+    const p = document.getElementById('nc_mgmtPane');
+    return p && getComputedStyle(p).display !== 'none' && p.innerHTML.length > 4000;
+  }, null, { timeout: 20000 }).catch(() => {});
+  await page.evaluate(() => {
+    const t = [...document.querySelectorAll('[data-c3-mgmt-tab]')].find(x => x.dataset.c3MgmtTab === 'members');
+    if (t) t.click();
+  });
+  await page.waitForFunction(
+    () => document.querySelectorAll('#nc_mgmtPane [data-nc-member]').length > 0,
+    null, { timeout: 20000 }).catch(() => {});
+  const r = await page.evaluate(() => {
+    const pane = document.getElementById('nc_mgmtPane');
+    const rows = pane.querySelectorAll('[data-nc-member]').length;
+    const out = { rows,
+      areaCells: pane.querySelectorAll('[data-c3-area-cell]').length,
+      ticksPerRow: rows ? pane.querySelectorAll('[data-nc-tick]').length / rows : 0,
+      explains: /not deployed yet/i.test(pane.innerText) };
+    window.__mock.showTable('client_member_areas');
+    return out;
+  });
+  check('a table that is not deployed yet degrades instead of erroring',
+    r.rows > 0 && r.areaCells === 0 && r.ticksPerRow === 5 && r.explains,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

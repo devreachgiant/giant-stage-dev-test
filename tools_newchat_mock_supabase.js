@@ -277,6 +277,15 @@
     return DB[n];
   };
 
+  // Tables the app asks for that the database does not have yet -- the state between a
+  // migration being written and being applied. PostgREST answers PGRST205 there, and the
+  // app is supposed to degrade rather than error, so the harness needs to be able to
+  // produce it. window.__mock.hideTable('x') / showTable('x').
+  const hidden = new Set();
+  const MISSING = (n) => ({ data: null, count: null, status: 404, error: {
+    code: 'PGRST205', details: null, hint: null,
+    message: "Could not find the table 'public." + n + "' in the schema cache" } });
+
   // ── PostgREST-ish query builder ──────────────────────────────────────────
   const FK = { 'messages.channels': 'channel_id', 'tasks.projects': 'project_id',
                'channel_members.profiles': 'profile_id' };
@@ -427,6 +436,7 @@
   P._run = function () {
     const t = this._t;
     log.queries.push(t + '.' + this._mode);
+    if (hidden.has(t)) return MISSING(t);
     try {
       if (this._mode === 'select') {
         let rows = this._rows();
@@ -575,6 +585,8 @@
   window.supabase = { createClient, SupabaseClient: function () {}, __isMock: true };
   window.__mock = {
     db: DB, log, session: SESSION, me: ME,
+    hideTable: (n) => hidden.add(n),
+    showTable: (n) => hidden.delete(n),
     counts: () => Object.fromEntries(Object.keys(DB).map(k => [k, DB[k].length])),
     tally: () => {
       const t = {};

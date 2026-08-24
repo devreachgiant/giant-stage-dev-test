@@ -268,6 +268,26 @@ RLS widening (which `20260821110000` declined, and which would widen the origina
 RLS is per-table, not per-module) or real membership rows on every client channel (which
 puts those channels in old chat's sidebar for every manager). Both are decisions, not edits.
 
+### A migration that is written but not applied
+
+`client_member_areas` shipped as code before it shipped as a table, and the gap looked like
+a bug: a red `Could not load area access: Could not find the table 'public.client_member_areas'
+in the schema cache` toast on every open, and four columns whose ticks could never persist.
+
+That is a deployment state, not a runtime failure. `loadClientMemberMatrix` now recognises
+PostgREST's `PGRST205`, sets `mg.areasMissing`, and the Members table drops to the five
+department columns with a line naming the migration. Nothing to toast, nothing to click that
+cannot work, and the columns come back on their own once it is applied.
+
+Worth keeping the shape in mind for the next one: **code that needs a migration has to work
+before the migration lands**, because on this branch it always will for a while.
+
+`window.__mock.hideTable(name)` / `showTable(name)` make the mock answer PGRST205, which is
+how the click-through reaches this state. That check runs **last** and switches client on
+purpose: `loadClientMemberMatrix` is guarded by `mgmtMatrixFor` and will not reload for a
+client it has already seen, so a mid-run toggle proved nothing — the first version of the
+check passed with all nine columns still on screen.
+
 ### Members: deactivated accounts, and the Add member popover
 
 **Deactivated accounts are filtered out of the Members list, not out of the profile cache.**
@@ -353,7 +373,9 @@ a bordered card — elevated header, avatar and name per row, one red tick per d
 - **Nine columns, two stores.** The five departments are `channel_members` rows against the
   client's department channels — a department *is* a channel. Onboarding, Deliverables, Tasks
   and Billing are not; they are areas of the client record, and live in
-  `client_member_areas` (migration `20260824120000`, **not yet applied**). A grant on any of
+  `client_member_areas` (migration `20260824120000`). **`supabase migration list` confirms
+  it is the only unapplied migration on this branch** — every other one is on production.
+  Until it is applied the four columns are hidden and the table says so; see below. A grant on any of
   the nine makes someone a member of the client: billing-only access is still access, and a
   row you cannot see is a row you cannot revoke. Remove clears both stores.
 - `ncCanArea(area, profileId)` is the gate, published as `window.nc_canArea`. Managers, owners
@@ -374,7 +396,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 52 checks in a headless browser, ~60s
+node tools_newchat_clickthrough.mjs      # 53 checks in a headless browser, ~60s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```

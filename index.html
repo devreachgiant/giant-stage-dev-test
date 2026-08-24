@@ -70890,6 +70890,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       mgmtAreaMembers: {},   // area key -> Set of profile ids, from client_member_areas
       ovOpen: {},   // which Overview sections are expanded, by key
       addOpen: false, addInviting: false,   // the Members > Add member popover
+      areasMissing: false,   // client_member_areas not deployed yet, see loadClientMemberMatrix
       clientDeptPrivacy: {}, activeThreadId: null,
       vaultCards: [], vaultChannelId: null, vaultLoading: false,
       libMediaUploading: false, mediaChannelId: null,
@@ -71418,7 +71419,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         (areas || []).forEach(a => {
           (mg.mgmtAreaMembers[a.area] = mg.mgmtAreaMembers[a.area] || new Set()).add(a.profile_id);
         });
-        if (areaErr && typeof toast === 'function') {
+        // The table ships in migration 20260824120000. Until that is applied PostgREST
+        // answers PGRST205 -- "Could not find the table in the schema cache" -- which is a
+        // deployment state, not a runtime failure. Toasting it on every open is noise, and
+        // drawing four columns whose ticks cannot possibly persist is worse than not
+        // drawing them: the table says what is missing instead, and the columns come back
+        // on their own the moment the migration lands.
+        mg.areasMissing = !!(areaErr && (areaErr.code === 'PGRST205'
+          || /could not find the table/i.test(areaErr.message || '')));
+        if (areaErr && !mg.areasMissing && typeof toast === 'function') {
           toast({ type:'error', message:'Could not load area access: ' + areaErr.message });
         }
         mg.mgmtMatrixLoading = false;
@@ -71997,6 +72006,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         //    20260821110000 turned that down for managers and owners on purpose. So a
         //    manager shown as ticked would open the channel and find nothing. They still
         //    need a real membership row, and the tick stays theirs to set.
+        // No table, no columns. Everything below iterates AREAS rather than NC_AREAS, so
+        // the header, the ticks, the width and "who is a member" all agree.
+        const AREAS = mg.areasMissing ? [] : NC_AREAS;
         const STAFF_ROLES = { owner:'Owner', manager:'Manager', inhouse_dev:'In-house dev' };
         const roleOf = (pid) => String((mg.profilesById[pid] || {}).role || '').toLowerCase();
         const staffRole = (pid) => STAFF_ROLES[roleOf(pid)] || null;
@@ -72010,13 +72022,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // cannot revoke. Staff are members of every client by role, so they are listed
         // whether or not anyone has ticked anything for them.
         const isMember = (pid) => !!staffRole(pid)
-          || NC_DEPTS.some(d => rowFor(pid, d.key)) || NC_AREAS.some(a => rowForArea(pid, a.key));
+          || NC_DEPTS.some(d => rowFor(pid, d.key)) || AREAS.some(a => rowForArea(pid, a.key));
         const members = everyone.filter(p => isMember(p.id));
         // Staff are already members of every client, so offering to add them is offering
         // to do nothing.
         const addable = everyone.filter(p => !isMember(p.id));
         const explicitRows = (pid) => NC_DEPTS.some(d => rowFor(pid, d.key))
-          || NC_AREAS.some(a => rowForArea(pid, a.key));
+          || AREAS.some(a => rowForArea(pid, a.key));
         // A public client_dept thread is readable by any signed-in staff member through
         // chat2_threads_select_public_channel, whatever this matrix says. Ticks only
         // restrict private departments, so the ones that grant nothing are named rather
@@ -72064,8 +72076,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const head = `<div style="display:flex;align-items:center;gap:2px;padding:13px 18px;background:var(--c3-s2);border-bottom:1px solid var(--c3-b1);">
           <div style="flex:1;min-width:140px;font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);">Member</div>
           ${NC_DEPTS.map(d => colHead(d.label)).join('')}
-          ${split}
-          ${NC_AREAS.map(a => colHead(a.label)).join('')}
+          ${AREAS.length ? split : ''}
+          ${AREAS.map(a => colHead(a.label)).join('')}
           ${canEdit ? cell('', '', '', ACT) : ''}
         </div>`;
 
@@ -72083,8 +72095,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             ${NC_DEPTS.map(d => tick(pr.id, d.label, rowFor(pr.id, d.key), deptByRole(pr.id),
                 `data-c3-matrix-cell="${chatEsc(pr.id)}::${d.key}"`, pr.id + ':' + d.key,
                 'every channel')).join('')}
-            ${split}
-            ${NC_AREAS.map(a => tick(pr.id, a.label, rowForArea(pr.id, a.key), areaByRole(pr.id),
+            ${AREAS.length ? split : ''}
+            ${AREAS.map(a => tick(pr.id, a.label, rowForArea(pr.id, a.key), areaByRole(pr.id),
                 `data-c3-area-cell="${chatEsc(pr.id)}::${a.key}"`, pr.id + ':' + a.key,
                 'this whole client')).join('')}
             ${canEdit ? cell(
@@ -72137,12 +72149,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
           <div style="border:1px solid var(--c3-b1);border-radius:12px;overflow:hidden;background:var(--c3-s1);">
             <div style="overflow-x:auto;">
-              <div style="min-width:${140 + (NC_DEPTS.length + NC_AREAS.length) * COL + (canEdit ? ACT : 0) + 65}px;">
+              <div style="min-width:${140 + (NC_DEPTS.length + AREAS.length) * COL + (canEdit ? ACT : 0) + 65}px;">
                 ${head}
                 ${members.length ? rows : empty}
               </div>
             </div>
           </div>
+
+          ${mg.areasMissing ? `<div style="font-size:11.5px;color:var(--c3-amber);background:${c3Alpha('var(--c3-amber)', 10)};border:1px solid ${c3Alpha('var(--c3-amber)', 26)};border-radius:9px;padding:10px 13px;">
+            Onboarding, Deliverables, Tasks and Billing are not shown: the table that stores them is not deployed yet.
+            <span style="color:var(--c3-t5);">Apply migration 20260824120000_client_member_areas and they appear here.</span>
+          </div>` : ''}
 
           <div style="font-size:11px;color:var(--c3-t6);">${canEdit
             ? 'Adding someone puts them in the client’s General conversation; tick the rest from there. Enforced on the server: chat2_threads and chat2_messages both require a membership row, and only managers can write one.'
