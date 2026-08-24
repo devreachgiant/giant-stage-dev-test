@@ -71245,6 +71245,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const MGMT_TABS = [
         { key:'overview',   label:'Overview' },
         { key:'members',    label:'Members' },
+        { key:'library',    label:'Library' },
         { key:'onboarding', label:'Onboarding' },
         { key:'billing',    label:'Billing' },
         { key:'activity',   label:'Activity' },
@@ -72372,8 +72373,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const tab = (t) => `<div data-c3-mgmt-tab="${t.key}" style="padding:8px 2px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap;border-bottom:2px solid ${mg.mgmtTab === t.key ? 'var(--c3-brand)' : 'transparent'};color:${mg.mgmtTab === t.key ? 'var(--c3-t0)' : 'var(--c3-t4)'};">${t.label}</div>`;
         const body = mg.mgmtLoading
           ? `<div style="text-align:center;color:var(--c3-t5);font-size:13px;padding:40px 0;">Loading…</div>`
-          : ({ overview: mgmtOverviewHtml, members: mgmtMembersHtml, onboarding: mgmtOnboardingHtml,
-               billing: mgmtBillingHtml, activity: mgmtActivityHtml }[mg.mgmtTab] || mgmtOverviewHtml)();
+          : ({ overview: mgmtOverviewHtml, members: mgmtMembersHtml, library: libraryTabHtml,
+               onboarding: mgmtOnboardingHtml, billing: mgmtBillingHtml,
+               activity: mgmtActivityHtml }[mg.mgmtTab] || mgmtOverviewHtml)();
         // The rule under the tabs runs the full width of the pane, hard against the
         // sidebar, while the labels stay on the same 44px gutter as the cards below --
         // so the padding lives on the strip, inside its border box, rather than on a
@@ -72393,8 +72395,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const host = document.getElementById('nc_mgmtPane');
       if (!host || host.style.display === 'none') return;
       host.innerHTML = managementTabHtml();
+      if (mg.mgmtTab === 'library') wireLibrary(host);
       host.querySelectorAll('[data-c3-mgmt-tab]').forEach(el => el.addEventListener('click', () => {
-        mg.mgmtTab = el.dataset.c3MgmtTab; renderMgmt();
+        mg.mgmtTab = el.dataset.c3MgmtTab;
+        // Lazily, and guarded inside loadClientLibrary, so reopening the tab is free.
+        if (mg.mgmtTab === 'library' && mg.selectedId) loadClientLibrary(mg.selectedId);
+        renderMgmt();
       }));
       host.querySelectorAll('[data-c3-access-cycle]').forEach(el => el.addEventListener('click', () => cycleClientAccess(el.dataset.c3AccessCycle)));
       host.querySelectorAll('[data-c3-archive-client]').forEach(el => el.addEventListener('click', () => toggleClientArchive()));
@@ -73055,44 +73061,46 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       });
     }
 
+    // Repaints the Management pane, not the Vault: the library moved there when the
+    // Vault became one thing in every chat.
     function wireLibrary(host){
       const on = (sel, ev, fn) => host.querySelectorAll(sel).forEach(el => el.addEventListener(ev, () => fn(el)));
-      on('[data-c3-lib-add]','click', () => { mg.libAddOpen = true; renderVault(); });
-      on('[data-c3-lib-cancel]','click', () => { mg.libAddOpen = false; mg.libDraft = {}; renderVault(); });
+      on('[data-c3-lib-add]','click', () => { mg.libAddOpen = true; renderMgmt(); });
+      on('[data-c3-lib-cancel]','click', () => { mg.libAddOpen = false; mg.libDraft = {}; renderMgmt(); });
       on('[data-c3-lib-save]','click', () => saveLibItem());
-      on('[data-c3-lib-kind]','click', el => { mg.libDraft = {}; mg.libDraft.kind = el.dataset.c3LibKind; renderVault(); });
+      on('[data-c3-lib-kind]','click', el => { mg.libDraft = {}; mg.libDraft.kind = el.dataset.c3LibKind; renderMgmt(); });
       on('[data-c3-lib-pin]','click', el => toggleLibPin(el.dataset.c3LibPin));
       on('[data-c3-lib-remove]','click', el => removeLibItem(el.dataset.c3LibRemove));
       on('[data-c3-lib-toggle-reveal]','click', el => {
         const id = el.dataset.c3LibToggleReveal;
         mg.libRevealed[id] = !mg.libRevealed[id];
-        renderVault();
+        renderMgmt();
       });
       on('[data-c3-lib-section-open]','click', el => {
         const k = el.dataset.c3LibSectionOpen;
         mg.libCollapsedSections[k] = !mg.libCollapsedSections[k];
-        renderVault();
+        renderMgmt();
       });
       on('[data-c3-lib-copy-text]','click', el => copyLibText(el.dataset.c3LibCopyText, 'Copied'));
       on('[data-c3-lib-copy-secret]','click', el => copyLibSecret(el.dataset.c3LibCopySecret));
-      on('[data-c3-lib-pass-open]','click', () => { if (mg.libDraft) { mg.libDraft.passOpen = true; renderVault(); } });
-      on('[data-c3-lib-notes-open]','click', () => { if (mg.libDraft) { mg.libDraft.notesOpen = true; renderVault(); } });
+      on('[data-c3-lib-pass-open]','click', () => { if (mg.libDraft) { mg.libDraft.passOpen = true; renderMgmt(); } });
+      on('[data-c3-lib-notes-open]','click', () => { if (mg.libDraft) { mg.libDraft.notesOpen = true; renderMgmt(); } });
       on('[data-c3-lib-section]','click', el => {
         const k = el.dataset.c3LibSection;
         mg.libCollapsedSections[k] = !mg.libCollapsedSections[k];
-        renderVault();
+        renderMgmt();
       });
       on('[data-c3-lib-share]','click', el => {
         if (!mg.libDraft) return;
         mg.libDraft.share = el.dataset.c3LibShare;
-        renderVault();
+        renderMgmt();
       });
       on('[data-c3-lib-share-who]','click', el => {
         const d = mg.libDraft; if (!d) return;
         d.shareIds = d.shareIds || [];
         const id = el.dataset.c3LibShareWho;
         d.shareIds = d.shareIds.includes(id) ? d.shareIds.filter(x => x !== id) : d.shareIds.concat(id);
-        renderVault();
+        renderMgmt();
       });
       // File pickers: the visible control is a div, the input is hidden, so the click
       // is forwarded and the change handler does the upload.
@@ -73102,7 +73110,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         filePick.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (e) => {
           const f = e.target.files && e.target.files[0];
-          if (f) { mg.libDraft = mg.libDraft || {}; mg.libDraft.file = f; renderVault(); }
+          if (f) { mg.libDraft = mg.libDraft || {}; mg.libDraft.file = f; renderMgmt(); }
         });
       }
       wireDropZone(host.querySelector('[data-c3-lib-media-drop]'), (f) => uploadLibMedia(f));
@@ -73125,7 +73133,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (search) search.addEventListener('input', () => {
         mg.libSearch = search.value;
         const pos = search.selectionStart;
-        renderVault();
+        renderMgmt();
         const again = document.getElementById('c3LibSearch');
         if (again) { again.focus(); again.selectionStart = again.selectionEnd = pos; }
       });
@@ -73991,13 +73999,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         [...pane.children].forEach(ch => { ch.style.display = 'none'; });
         pane.appendChild(host);
       }
-      const c = chatChannels.find(x => x.id === activeChannelId);
-      const isClient = !!(c && c.kind === 'client_dept' && c.client_id);
-      mg.selectedKind = isClient ? 'client' : 'channel';
-      mg.selectedId = isClient ? c.client_id : (c ? c.id : null);
-      host.innerHTML = isClient ? libraryTabHtml() : vaultTabHtml();
-      if (isClient) { wireLibrary(host); return; }
+      // The same Vault in every chat. This used to render the client LIBRARY on client
+      // threads and the card Vault everywhere else -- two different screens behind one
+      // tab, so what "Vault" meant depended on which conversation you were in. The
+      // library is client-scoped, so it moved to Management, where every other
+      // client-scoped panel already lives; the Vault is channel-scoped and now always
+      // shows the channel's cards.
+      //
+      // The assignment that used to sit here also had to go: it wrote a CHANNEL id into
+      // mg.selectedId, which every other reader in this module treats as a client id.
       const on = (sel, ev, fn) => host.querySelectorAll(sel).forEach(el => el.addEventListener(ev, () => fn(el)));
+      host.innerHTML = vaultTabHtml();
       on('[data-c3-vault-add-card]','click', () => addVaultCard());
       on('[data-c3-vault-del-card]','click', el => deleteVaultCard(el.dataset.c3VaultDelCard));
       on('[data-c3-vault-collapse]','click', el => {
@@ -74038,12 +74050,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
     async function openVaultForChannel(){
       if (!activeChannelId) return;
-      const c = chatChannels.find(x => x.id === activeChannelId);
-      if (c && c.kind === 'client_dept' && c.client_id) {
-        if (mg.libraryFor !== c.client_id) await loadClientLibrary(c.client_id);
-      } else if (mg.vaultChannelId !== activeChannelId) {
-        await loadVaultCards(activeChannelId);
-      }
+      if (mg.vaultChannelId !== activeChannelId) await loadVaultCards(activeChannelId);
       renderVault();
     }
     window.nc_openVaultForChannel = openVaultForChannel;

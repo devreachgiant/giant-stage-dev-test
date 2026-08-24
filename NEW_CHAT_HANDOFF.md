@@ -96,9 +96,9 @@ realtime is still filtered to the primary channel, and sending always writes to 
 | feature | keyed on | status |
 |---|---|---|
 | Management (5 tabs) | `client_id` | done |
-| Vault (card canvas) | thread → repointed to `channel_canvas.cards` | done |
+| Vault (card canvas) | thread → repointed to `channel_canvas.cards` | done, and now the **only** thing the Vault tab renders |
 | Media gallery | needed an adapter (`message_attachments` table → jsonb shape) | done |
-| Client library | `client_id` | done |
+| Client library | `client_id` | done — moved out of the Vault tab into **Management > Library** |
 | Client tasks | `client_id` | done |
 | Magnus | nothing — posts to `/.netlify/functions/claude-api` | done |
 | Master Inbox | repointed to `messages` / `channel_members` / new `inbox_actions` | done |
@@ -151,6 +151,23 @@ Four more are assigned unprefixed but never looked up prefixed — `mention-pick
 `msg-attachments-uploading`, `reaction-tooltip`, `schedule-preset`. Two of those have bare
 CSS in the original chat and no `nc_` rule, so **prefixing them would remove their styling**.
 Left alone deliberately; they are a style leak, not a duplication bug.
+
+## One Vault, everywhere
+
+The Vault tab used to render **two different screens**: `libraryTabHtml()` on a client
+thread and `vaultTabHtml()` everywhere else. What "Vault" meant depended on which
+conversation you happened to be in.
+
+It is the card Vault now, in every chat — channel-scoped, on `channel_canvas.cards`. The
+client library is client-scoped, so it moved to **Management > Library**, alongside every
+other client-scoped panel. `wireLibrary`'s handlers repaint `renderMgmt()` rather than
+`renderVault()`, and the tab loads lazily on first open (guarded inside
+`loadClientLibrary`, so reopening is free).
+
+One hazard went with it: `renderVault` used to set `mg.selectedId` to a **channel** id for
+non-client channels, and every other reader in the module treats that field as a **client**
+id. The card Vault reads neither `selectedId` nor `selectedKind` — only `mg.vaultCards` —
+so the assignment is simply gone.
 
 ## Dialogs
 
@@ -501,7 +518,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 59 checks in a headless browser, ~80s
+node tools_newchat_clickthrough.mjs      # 61 checks in a headless browser, ~90s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```

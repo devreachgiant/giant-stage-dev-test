@@ -607,6 +607,80 @@ await step('members with a profile picture render it, not an empty circle', asyn
     JSON.stringify(a));
 });
 
+// The Vault tab used to render two different screens: the client LIBRARY on client
+// threads and the card Vault everywhere else, so what "Vault" meant depended on which
+// conversation you were in. One thing now; the library moved to Management.
+await step('the Vault is the same screen on a client thread and a team channel', async () => {
+  const read = async () => page.evaluate(async () => {
+    await new Promise(r => setTimeout(r, 900));
+    const pane = document.getElementById('nc_chatCanvasPane');
+    return { cards: pane.querySelectorAll('[data-c3-vault-add-card]').length,
+             library: pane.querySelectorAll('[data-c3-lib-add], [data-c3-lib-kind]').length };
+  });
+  // a client thread
+  await page.evaluate(() => {
+    const card = [...document.querySelectorAll('.nc_navcard')].find(c => c.dataset.nccard === 'clients');
+    if (card && card.querySelector('.nc_navcard-body').getBoundingClientRect().height < 4)
+      card.querySelector('.nc_navcard-head').click();
+  });
+  await page.waitForTimeout(500);
+  await page.evaluate(() => {
+    const r = [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')]
+      .find(x => parseFloat(x.style.opacity || '1') === 1 && x.dataset.ncChannelId);
+    if (r) r.click();
+  });
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => window.nc_switchChatSubtab('canvas'));
+  const onClient = await read();
+
+  // a team channel
+  await page.evaluate(() => {
+    const card = [...document.querySelectorAll('.nc_navcard')].find(c => c.dataset.nccard === 'teams');
+    if (card && card.querySelector('.nc_navcard-body').getBoundingClientRect().height < 4)
+      card.querySelector('.nc_navcard-head').click();
+  });
+  await page.waitForTimeout(500);
+  await page.evaluate(() => {
+    const r = document.querySelector('#nc_cardTeamsBody .nc_ch-item');
+    if (r) r.click();
+  });
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => window.nc_switchChatSubtab('canvas'));
+  const onTeam = await read();
+
+  check('the Vault is the same screen on a client thread and a team channel',
+    onClient.cards === 1 && onTeam.cards === 1
+      && onClient.library === 0 && onTeam.library === 0,
+    JSON.stringify({ onClient, onTeam }));
+});
+
+// and the library it used to occupy is reachable, in the pane that owns client data
+await step('the client library is a Management tab', async () => {
+  const r = await page.evaluate(async () => {
+    const card = [...document.querySelectorAll('.nc_navcard')].find(c => c.dataset.nccard === 'clients');
+    if (card && card.querySelector('.nc_navcard-body').getBoundingClientRect().height < 4)
+      card.querySelector('.nc_navcard-head').click();
+    await new Promise(r => setTimeout(r, 400));
+    const row = [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')]
+      .find(x => parseFloat(x.style.opacity || '1') === 1 && x.dataset.ncChannelId);
+    if (row) row.click();
+    await new Promise(r => setTimeout(r, 1200));
+    window.nc_switchChatSubtab('management');
+    await new Promise(r => setTimeout(r, 1800));
+    const tab = [...document.querySelectorAll('[data-c3-mgmt-tab]')]
+      .find(x => x.dataset.c3MgmtTab === 'library');
+    if (!tab) return { hasTab: false };
+    tab.click();
+    await new Promise(r => setTimeout(r, 2000));
+    const pane = document.getElementById('nc_mgmtPane');
+    return { hasTab: true,
+             wired: pane.querySelectorAll('[data-c3-lib-add]').length,
+             showsItems: /Brand kit|Reporting cadence|No items/i.test(pane.innerText) };
+  });
+  check('the client library is a Management tab',
+    r.hasTab && r.wired > 0 && r.showsItems, JSON.stringify(r));
+});
+
 // ── Management > Members ─────────────────────────────────────────────────────
 // The table lists the client's members, not the whole workspace. That is the change
 // worth pinning: reverting it is a one-word edit and the symptom is 81 rows of empty
