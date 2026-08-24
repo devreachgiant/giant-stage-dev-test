@@ -704,6 +704,35 @@ await step('the Master Inbox opens into its own pane', async () => {
     st.display !== 'none' && st.chars > 0 && st.h > 200, JSON.stringify(st));
 });
 
+// The Inbox scanned the 400 newest messages and filtered afterwards, so an older mention
+// did not exist as far as it was concerned -- the same sampling bug as the Needs you card,
+// and the reason the two disagreed. It asks for mentions and flags by name now.
+await step('the Inbox finds a mention older than its recent window', async () => {
+  const r = await page.evaluate(async () => {
+    const db = window.__mock.db, me = window.__mock.me;
+    const mine = db.channel_members.filter(m => m.profile_id === me);
+    const target = mine.find(m => {
+      const ch = db.channels.find(c => c.id === m.channel_id);
+      return ch && ch.kind === 'team_channel';
+    }) || mine[0];
+    // one mention, old enough to sit well outside the 400 newest messages
+    db.messages.push({ id: 'm-old-mention', channel_id: target.channel_id, author_id: 'u-6',
+      body: 'ages ago @nishchay flagged this', created_at: new Date(Date.now() - 200 * 864e5).toISOString(),
+      parent_id: null, reply_count: 0, flagged: false, pinned_at: null });
+    // and 500 newer messages elsewhere, so it is nowhere near the recent window
+    const noisy = mine[1].channel_id;
+    for (let i = 0; i < 500; i++) db.messages.push({ id: 'm-inbox-noise-' + i, channel_id: noisy,
+      author_id: 'u-4', body: 'noise ' + i, created_at: new Date(Date.now() - i * 6e4).toISOString(),
+      parent_id: null, reply_count: 0, flagged: false, pinned_at: null });
+
+    window.nc_openInbox();
+    await new Promise(res => setTimeout(res, 2500));
+    const pane = document.getElementById('nc_inboxPane');
+    return { found: /ages ago/.test(pane.innerText), chars: pane.innerHTML.length };
+  });
+  check('the Inbox finds a mention older than its recent window', r.found, JSON.stringify(r));
+});
+
 // ── back to messages, and send something (an optimistic write) ───────────────
 await step('the composer sends a message', async () => {
   await page.evaluate(() => window.nc_switchChatSubtab('messages'));
@@ -862,6 +891,40 @@ await step('Needs you finds an old unread message behind a busy channel', async 
   });
   check('Needs you finds an old unread message behind a busy channel',
     r.listed && r.rows > 0, JSON.stringify(r));
+
+  // The card opens the Master Inbox, so it has to agree with it. The Inbox keeps a
+  // mention until you clear it; the card used to drop it the moment you opened the
+  // channel, which is how "Nothing needs you" ended up above a pane reading "All 37".
+  const mention = await page.evaluate(async () => {
+    const db = window.__mock.db, me = window.__mock.me;
+    // A channel where the probe message will be the ONLY reason it needs you: nothing
+    // flagged, no other mention. Picking any member row made the clear look broken --
+    // the channel still qualified on a flagged message the fixture had put there.
+    const mine = db.channel_members.filter(m => m.profile_id === me);
+    const clean = mine.find(m => !db.messages.some(x => x.channel_id === m.channel_id
+      && (x.flagged || /@nishchay/i.test(x.body || ''))));
+    const target = clean || mine[3];
+    // read to the second: nothing in here is unread any more either
+    target.last_read_at = new Date().toISOString();
+    const msg = { id: 'm-mention-probe', channel_id: target.channel_id, author_id: 'u-5',
+      body: 'hey @nishchay can you take this', created_at: new Date(Date.now() - 6e5).toISOString(),
+      parent_id: null, reply_count: 0, flagged: false, pinned_at: null };
+    db.messages.push(msg);
+    await window.nc_computeNeedsYou();
+    await new Promise(res => setTimeout(res, 500));
+    const on = (id) => [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')]
+      .some(el => el.dataset.channelId === id || el.dataset.dmChannelId === id);
+    const readButListed = on(target.channel_id);
+
+    // and it drops out once the Inbox marks it done
+    db.inbox_actions.push({ id: 'ia-probe', profile_id: me, message_id: msg.id, task_id: null,
+      done: true, saved: false, created_at: new Date().toISOString() });
+    await window.nc_computeNeedsYou();
+    await new Promise(res => setTimeout(res, 500));
+    return { readButListed, clearedAndGone: !on(target.channel_id), usedCleanChannel: !!clean };
+  });
+  check('a read mention still needs you, and a cleared one does not',
+    mention.readButListed && mention.clearedAndGone, JSON.stringify(mention));
 
   // The other half of the card: its header opens the Master Inbox.
   const opened = await page.evaluate(async () => {

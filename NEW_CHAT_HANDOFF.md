@@ -324,7 +324,7 @@ That relies on the header naming the department, which it did not: `switchChanne
 "Private channel · N members" when the member count landed a round trip later. `ncHeadTopicBase`
 is now the single source for that line and both call it.
 
-### Needs you reads unread_counts, not a sample of messages
+### Needs you and the Master Inbox answer the same question
 
 `computeNeedsYou` used to pull the 600 newest messages across every channel and work out
 what was unread in the browser. That loses things, and the arithmetic is easy to miss: the
@@ -343,6 +343,24 @@ free.
 
 The mock **computes `unread_counts` on read** now, the way the view does. It was six
 hand-written rows, which meant a screen reading it could not be checked against anything.
+
+**The card is the entry point to the Inbox, so it has to count what the Inbox holds — and
+it did not.** The Inbox keeps a mention or a flag until you clear it; the card required
+every kind to be *unread*, so opening a channel emptied the card while the Inbox still
+listed seventeen mentions. "Nothing needs you" above a pane reading "All 37" was the two of
+them disagreeing, not a count going stale. `computeNeedsYou` now matches `loadInboxItems`:
+mentions and flags count regardless of read state and drop out when marked done, only
+"unread" depends on reading, and both use the same reach (a client thread is visible to an
+owner or in-house dev whether or not anyone added them to it).
+
+**The Inbox had the same sampling bug.** It scanned the 400 newest messages across
+everything and filtered afterwards, so a mention older than that did not exist as far as it
+was concerned. Measured against production: the card found 32 channels with an open mention
+where the Inbox listed 17. It asks for mentions and flags by name now — they are rare enough
+to query directly — and only "new activity" stays a recent window, because that one
+genuinely is. Results are merged and de-duplicated by id, or a recent mention would come
+back from two queries and become two rows.
+
 
 ### Management > Activity — what it can and cannot record
 
@@ -416,7 +434,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 55 checks in a headless browser, ~70s
+node tools_newchat_clickthrough.mjs      # 58 checks in a headless browser, ~80s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```

@@ -70439,62 +70439,64 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // did, flattens all three into one and buries a direct mention under twenty
     // channels that merely have new activity.
     let ncNeeds = {};   // channel_id -> 'mention' | 'flagged' | 'unread'
+    // The card is the entry point to the Master Inbox, so it has to count what the Inbox
+    // holds. It did not: the Inbox keeps a mention or a flag until you clear it, while
+    // this required every kind to be UNREAD -- so opening a channel emptied the card while
+    // the Inbox it opens still listed seventeen mentions. "Nothing needs you" over a
+    // pane reading "All 37" is the two of them disagreeing, not a count going stale.
+    //
+    // Matched to loadInboxItems: mentions and flags count regardless of read state and
+    // drop out when marked done; only "unread" depends on reading.
     async function computeNeedsYou(){
       const me = ncMyId();
       if (!me) return;
       const first = String((window.giantCurrentProfile
         && (window.giantCurrentProfile.full_name || window.giantCurrentProfile.email)) || '')
         .trim().split(/\s+/)[0].toLowerCase();
-      // Only channels this user actually belongs to: a mention in a public channel
-      // they never opened is not something waiting on them.
-      const { data: mem } = await NCSB().from('channel_members')
-        .select('channel_id, last_read_at').eq('profile_id', me);
+      const [memRes, actRes, countRes] = await Promise.all([
+        NCSB().from('channel_members').select('channel_id, last_read_at').eq('profile_id', me),
+        NCSB().from('inbox_actions').select('message_id, done').eq('profile_id', me),
+        NCSB().from('unread_counts').select('channel_id, unread_count').eq('profile_id', me),
+      ]);
       const readBy = {};
-      (mem || []).forEach(m => { readBy[m.channel_id] = m.last_read_at; });
-      const ids = Object.keys(readBy);
-      if (!ids.length) { ncNeeds = {}; return; }
+      (memRes.data || []).forEach(m => { readBy[m.channel_id] = m.last_read_at; });
+      // Same reach as the Inbox: a client thread is visible to an owner or in-house dev
+      // whether or not anyone ever added them to it.
+      const ids = new Set(Object.keys(readBy));
+      if (isOwner()) chatChannels.forEach(c => { if (c.kind === 'client_dept') ids.add(c.id); });
+      const idList = [...ids];
+      if (!idList.length) { ncNeeds = {}; return; }
+      const done = new Set((actRes.data || []).filter(a => a.done && a.message_id).map(a => a.message_id));
       const next = {};
 
       // Unread comes from the unread_counts view, which the database computes per
-      // channel against last_read_at. This used to pull the 600 newest messages across
-      // every channel and work it out here, and that silently loses things: one chatty
-      // channel drags the cutoff forward -- measured at three days with a single busy
-      // channel -- and a twelve-day-old unread DM never appears. On a list whose entire
-      // job is to not lose things, a cap is the wrong shape of answer.
-      const { data: counts } = await NCSB().from('unread_counts')
-        .select('channel_id, unread_count').eq('profile_id', me);
-      (counts || []).forEach(r => {
-        if ((r.unread_count || 0) > 0 && (r.channel_id in readBy)) next[r.channel_id] = 'unread';
+      // (channel, member) against last_read_at. Working it out here from the 600 newest
+      // messages lost things: the limit applies to the whole result set, so one chatty
+      // channel dragged the cutoff forward for every other channel -- measured at three
+      // days -- and an older unread message never appeared.
+      (countRes.data || []).forEach(r => {
+        if ((r.unread_count || 0) > 0 && ids.has(r.channel_id)) next[r.channel_id] = 'unread';
       });
 
-      // Mentions and flags do need the message rows, but only the ones that match. Both
-      // are rare, so these ask for exactly those instead of scanning the window and
-      // filtering afterwards. The window is wider than before precisely because the
-      // result set no longer grows with how talkative the team has been.
-      const since = new Date(Date.now() - 30 * 864e5).toISOString();
-      const unreadFor = (m) => {
-        const lastRead = readBy[m.channel_id];
-        return !lastRead || new Date(m.created_at) > new Date(lastRead);
-      };
-      for (let k = 0; k < ids.length; k += 200) {
-        const chunk = ids.slice(k, k + 200);
+      // Mentions and flags need message rows, but only the matching ones, so these ask
+      // for exactly those rather than scanning a window and filtering afterwards.
+      const since = new Date(Date.now() - 90 * 864e5).toISOString();
+      for (let k = 0; k < idList.length; k += 200) {
+        const chunk = idList.slice(k, k + 200);
         const [flagged, mentions] = await Promise.all([
-          NCSB().from('messages').select('channel_id, author_id, created_at')
-            .in('channel_id', chunk).eq('flagged', true).gte('created_at', since).limit(500),
+          NCSB().from('messages').select('id, channel_id, author_id')
+            .in('channel_id', chunk).eq('flagged', true).neq('author_id', me)
+            .gte('created_at', since).limit(500),
           first
-            ? NCSB().from('messages').select('channel_id, author_id, created_at')
-                .in('channel_id', chunk).ilike('body', '%@' + first + '%')
+            ? NCSB().from('messages').select('id, channel_id, author_id')
+                .in('channel_id', chunk).ilike('body', '%@' + first + '%').neq('author_id', me)
                 .gte('created_at', since).limit(500)
             : Promise.resolve({ data: [] }),
         ]);
-        // Applied in reverse rank order so the stronger reason wins: flagged may replace
-        // unread, and a mention may replace either.
-        (flagged.data || []).forEach(m => {
-          if (m.author_id !== me && unreadFor(m)) next[m.channel_id] = 'flagged';
-        });
-        (mentions.data || []).forEach(m => {
-          if (m.author_id !== me && unreadFor(m)) next[m.channel_id] = 'mention';
-        });
+        // Applied in rank order so the stronger reason wins: a flag may replace unread,
+        // and a mention may replace either.
+        (flagged.data || []).forEach(m => { if (!done.has(m.id)) next[m.channel_id] = 'flagged'; });
+        (mentions.data || []).forEach(m => { if (!done.has(m.id)) next[m.channel_id] = 'mention'; });
       }
       ncNeeds = next;
       renderNavCards();
@@ -73382,13 +73384,30 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       String((window.giantCurrentProfile && window.giantCurrentProfile.role) || '').toLowerCase());
 
       function inboxAction(key){ return mg.inboxActions[key] || { done:false, saved:false }; }
+      const INBOX_MSG_TABLE = 'messages';
+      const INBOX_MSG_COLS = 'id, body, flagged, created_at, author_id, channel_id, thread:channels(id, name, client_id, department, kind, is_group, dm_pair)';
       async function loadInboxItems(){
         mg.inboxLoading = true; renderMagnus();
         const myLower = (mg.myName || '').trim().toLowerCase();
-        const [membershipsRes, actionsRes, msgsRes, tasksRes] = await Promise.all([
+        const [membershipsRes, actionsRes, recentRes, mentionRes, flaggedRes, tasksRes] = await Promise.all([
           NCSB().from('channel_members').select('channel_id, last_read_at').eq('profile_id', ncMyId()),
           NCSB().from('inbox_actions').select('message_id, task_id, done, saved').eq('profile_id', ncMyId()),
-          NCSB().from('messages').select('id, body, flagged, created_at, author_id, channel_id, thread:channels(id, name, client_id, department, kind, is_group, dm_pair)').neq('author_id', ncMyId()).order('created_at', { ascending: false }).limit(400),
+          // Three queries, not one. This was the 400 newest messages across everything,
+          // filtered afterwards -- so a mention older than the last 400 messages simply
+          // did not exist as far as the Inbox was concerned, and the Needs you card that
+          // opens it disagreed by fifteen channels once that card started asking for
+          // mentions directly. Mentions and flags are rare enough to ask for by name;
+          // only "new activity" is inherently recent, so only that one stays a window.
+          NCSB().from(INBOX_MSG_TABLE).select(INBOX_MSG_COLS)
+            .neq('author_id', ncMyId()).order('created_at', { ascending: false }).limit(400),
+          myLower
+            ? NCSB().from(INBOX_MSG_TABLE).select(INBOX_MSG_COLS)
+                .ilike('body', '%@' + myLower.split(' ')[0] + '%').neq('author_id', ncMyId())
+                .order('created_at', { ascending: false }).limit(300)
+            : Promise.resolve({ data: [] }),
+          NCSB().from(INBOX_MSG_TABLE).select(INBOX_MSG_COLS)
+            .eq('flagged', true).neq('author_id', ncMyId())
+            .order('created_at', { ascending: false }).limit(300),
           NCSB().from('tasks').select('id, name, description, status, created_by, created_at, project_id, project:projects(name)').contains('assigned_to', [ncMyId()]).neq('status', 'done').order('created_at', { ascending: false }).limit(50),
         ]);
         const readMap = {};
@@ -73400,8 +73419,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           mg.inboxActions[key] = { done: a.done, saved: a.saved };
         });
 
+        // Merged and de-duplicated by id: a recent mention comes back from two of the
+        // three queries, and it must not become two Inbox rows.
+        const seenMsg = new Set();
+        const allMsgs = [];
+        [recentRes, mentionRes, flaggedRes].forEach(res => {
+          (res.data || []).forEach(m => { if (!seenMsg.has(m.id)) { seenMsg.add(m.id); allMsgs.push(m); } });
+        });
+        allMsgs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
         const items = [];
-        (msgsRes.data || []).forEach(m => {
+        allMsgs.forEach(m => {
           const t = m.thread;
           if (!t) return;
           const isMember = myThreadIds.has(m.channel_id);
