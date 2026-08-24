@@ -71,8 +71,12 @@ realtime is still filtered to the primary channel, and sending always writes to 
 | Media gallery | needed an adapter (`message_attachments` table → jsonb shape) | done |
 | Client library | `client_id` | done |
 | Client tasks | `client_id` | done |
-| **Magnus** | `client_id` | **TODO** (~184 lines) |
-| **Master Inbox** | reads `chat2_messages`/`chat2_threads` → **needs repointing** | **TODO** (~197 lines) |
+| Magnus | nothing — posts to `/.netlify/functions/claude-api` | done |
+| Master Inbox | repointed to `messages` / `channel_members` / new `inbox_actions` | done |
+
+**All ports are complete.** Every `data-c3-*` action the module emits has a listener
+(63/63) — check that with a set difference before calling any port finished, because the
+scope check does not catch a button that renders and does nothing.
 
 The extraction pipeline is `scratchpad/port.py` (regenerate if gone). Three lessons in it:
 
@@ -107,13 +111,13 @@ state object plus shims (`NCSB`, `ncMyId`, `ncIsStaff`, `ncIcon`, `renderMgmt`, 
 
 ## Left to do
 
-1. Port **Magnus** (~184 lines, `client_id`-keyed — should go like Tasks did)
-2. Port **Master Inbox** (~197 lines, repoint `chat2_messages`→`messages`,
-   `chat2_threads`→`channels`)
-3. Push the branch — nothing is on the remote
-4. Retire `feature/chat3-management-panels` — its panels were ported here, so it is superseded
-5. `version.json` is stale at `20260724u3`, three releases behind; desktop clients are not
+1. **Click-through test** — nothing past the sign-in gate has been verified by machine
+2. **Push the branch** — nothing is on the remote
+3. Retire `feature/chat3-management-panels` — its panels were ported here, so it is superseded
+4. `version.json` is stale at `20260724u3`, three releases behind; desktop clients are not
    being told to update
+5. Old chat still cannot be retired: access is manager/owner/inhouse_dev only, so members
+   and clients have no other chat surface until that decision changes
 
 ## Verifying
 
