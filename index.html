@@ -6528,6 +6528,14 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
            repurposed and reordered, so setupRail()'s existing wiring below didn't need to
            change. Local/uncommitted, not pushed — see branch redesign/sidebar-nav-2026-08-14. -->
 
+      <!-- Favourites. A real nav group, not a special case: the collapsed three-tier rail
+           is built from .nav-group-label + [data-navgroup-body], so following that shape
+           means it appears there too without the rail builder knowing it exists. Hidden
+           until something is pinned -- an empty group above Communication is just a
+           heading in the way. -->
+      <div class="nav-group-label nav-group-toggle" data-navgroup="favorites" id="navFavGroupLabel" style="display:none;"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 2.2l1.68 3.6 3.92.42-2.92 2.64.83 3.86L8 10.8l-3.51 1.92.83-3.86L2.4 6.22l3.92-.42L8 2.2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span><span class="group-label-text">Favourites</span><svg class="nav-group-chev" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="nav-rail" data-navgroup-body="favorites" id="navFavBody" style="display:none;"></div>
+
       <div class="nav-group-label nav-group-toggle" data-navgroup="communication"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.5C2 3.4 2.9 2.5 4 2.5h8c1.1 0 2 .9 2 2v5c0 1.1-.9 2-2 2H6.5L3 13.5V11.5H4C2.9 11.5 2 10.6 2 9.5v-5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span><span class="group-label-text">Communication</span><svg class="nav-group-chev" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div class="nav-rail" id="railComms" data-navgroup-body="communication">
         <div class="nav-pill" id="pillComms" style="opacity:0;"></div>
@@ -11832,6 +11840,167 @@ function enterApp(){
    the real .nav-group-label icons and item tiles from the real .nav-item icons, so
    adding a nav entry can never leave the rail out of date. Spec §5's rule holds —
    every destination stays reachable, nothing is hidden. */
+/* ===== FAVOURITES =====
+   A star on every nav item, and a Favourites group pinned above Communication holding
+   whatever has been starred. Cross-module by construction: it stores a data-screen value,
+   so Chat, Projects, SOPs and White Label are all the same kind of thing to it.
+
+   A favourite row CLICKS THE REAL NAV ITEM rather than navigating itself. setupRail binds
+   its handlers per element, and those handlers carry a pile of behaviour a shortcut must
+   not reimplement -- external links, and the Business / Tools / System entries that have
+   no screen of their own and redirect to the first tab their role can see. Pressing the
+   real control inherits all of it, including the role gates.
+
+   Stored in nav_favorites (migration 20260824140000). If that table is not deployed the
+   sidebar behaves as if nothing is favourited and the star says so once, rather than
+   erroring on every page load. */
+(function navFavorites(){
+  const label = document.getElementById('navFavGroupLabel');
+  const body  = document.getElementById('navFavBody');
+  const sidebar = document.getElementById('appSidebar');
+  if (!label || !body || !sidebar) return;
+
+  let favs = [];           // ordered data-screen values
+  let unavailable = false; // the table is not deployed
+  const sb = () => window.giantSupabase;
+  const me = () => (window.giantSession && window.giantSession.user && window.giantSession.user.id) || null;
+
+  const css = document.createElement('style');
+  css.textContent = [
+    '.nav-fav-star{margin-left:auto;display:inline-flex;align-items:center;justify-content:center;',
+      'width:20px;height:20px;border-radius:5px;flex-shrink:0;opacity:0;transition:opacity .12s,color .12s;',
+      'color:var(--text-3);cursor:pointer;}',
+    '.nav-item:hover .nav-fav-star{opacity:.75;}',
+    '.nav-fav-star:hover{opacity:1!important;color:var(--amber,#F2A93B);background:rgba(255,255,255,.06);}',
+    '.nav-fav-star.on{opacity:1;color:var(--amber,#F2A93B);}',
+    // The badge sits at the right of a nav item too; the star goes before it.
+    '.nav-item .badge{margin-left:6px;}',
+  ].join('');
+  document.head.appendChild(css);
+
+  const STAR = (fill) => '<svg width="12" height="12" viewBox="0 0 16 16" fill="' + (fill ? 'currentColor' : 'none') + '">'
+    + '<path d="M8 2.2l1.68 3.6 3.92.42-2.92 2.64.83 3.86L8 10.8l-3.51 1.92.83-3.86L2.4 6.22l3.92-.42L8 2.2Z"'
+    + ' stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+
+  // Every nav item EXCEPT the ones this module renders -- a favourite does not get a star
+  // of its own, or unstarring would remove the row you are clicking.
+  const realItems = () => [...sidebar.querySelectorAll('.nav-item[data-screen]')]
+    .filter(el => !body.contains(el));
+  const realItem = (screen) => realItems().find(el => el.dataset.screen === screen) || null;
+
+  function paintStars(){
+    realItems().forEach(el => {
+      let s = el.querySelector(':scope > .nav-fav-star');
+      if (!s) {
+        s = document.createElement('span');
+        s.className = 'nav-fav-star';
+        s.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggle(el.dataset.screen); });
+        el.appendChild(s);
+      }
+      const on = favs.includes(el.dataset.screen);
+      s.classList.toggle('on', on);
+      s.innerHTML = STAR(on);
+      s.title = on ? 'Remove from Favourites' : 'Add to Favourites';
+    });
+  }
+
+  function render(){
+    body.innerHTML = '';
+    const rows = favs.map(realItem).filter(Boolean);
+    // The collapsed three-tier rail builds from .nav-item[data-screen], which these
+    // deliberately are not, so Favourites shows in the full sidebar only. Tiling it in the
+    // rail as well would mean either the duplicate-attribute trap above or a special case
+    // inside the rail builder; neither is worth it for a shortcut list.
+    const show = rows.length > 0;
+    label.style.display = show ? '' : 'none';
+    body.style.display  = show ? '' : 'none';
+    rows.forEach(src => {
+      const row = document.createElement('div');
+      // .nav-item for the styling, but data-FAV-screen, not data-screen. A second element
+      // carrying data-screen="chat" is a trap in a file this size: every
+      // querySelector('.nav-item[data-screen=…]') in the app would start resolving to
+      // whichever came first in the DOM, and this group sits above all of them. The
+      // click-through caught it within a minute of the feature existing.
+      row.className = 'nav-item nav-fav-item';
+      row.dataset.favScreen = src.dataset.screen;
+      const ico = src.querySelector('.ico');
+      row.innerHTML = (ico ? ico.outerHTML : '')
+        + (src.dataset.label || (src.textContent || '').trim());
+      row.title = src.dataset.label || '';
+      // Press the real control, so every gate and redirect on it still applies.
+      row.addEventListener('click', () => src.click());
+      const un = document.createElement('span');
+      un.className = 'nav-fav-star on';
+      un.innerHTML = STAR(true);
+      un.title = 'Remove from Favourites';
+      un.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggle(row.dataset.favScreen); });
+      row.appendChild(un);
+      body.appendChild(row);
+    });
+    paintStars();
+    // The collapsed rail is built from this markup, so it has to be rebuilt to notice.
+    if (typeof window.giantRebuildRail === 'function') window.giantRebuildRail();
+  }
+
+  async function toggle(screen){
+    if (!screen) return;
+    if (unavailable) {
+      if (typeof toast === 'function') toast({ type:'error', message:'Favourites need migration 20260824140000_nav_favorites' });
+      return;
+    }
+    const had = favs.includes(screen);
+    const wasEmpty = favs.length === 0;
+    favs = had ? favs.filter(s => s !== screen) : favs.concat(screen);
+    render();                                   // optimistic; the sidebar should not lag a click
+    // Deliberately NOT auto-opening the group. The nav groups are an accordion, so opening
+    // Favourites closes whichever group you are working in -- starring Chat would fold
+    // Communication away underneath you. The heading appearing at the top is the feedback;
+    // the toast says what happened, and the group is one click from there.
+    if (typeof toast === 'function') {
+      toast({ type: had ? 'info' : 'success',
+              message: had ? 'Removed from Favourites' : 'Added to Favourites', duration: 1600 });
+    }
+    if (wasEmpty) { /* first one: the group has just appeared above Communication */ }
+    const uid = me();
+    if (!sb() || !uid) return;
+    const { error } = had
+      ? await sb().from('nav_favorites').delete().eq('profile_id', uid).eq('screen', screen)
+      : await sb().from('nav_favorites').upsert({ profile_id: uid, screen, position: favs.length },
+                                                { onConflict: 'profile_id,screen' });
+    if (error) {
+      favs = had ? favs.concat(screen) : favs.filter(s => s !== screen);
+      render();
+      if (typeof toast === 'function') toast({ type:'error', message:'Could not save that favourite: ' + error.message });
+    }
+  }
+
+  async function load(){
+    const uid = me();
+    if (!sb() || !uid) return;
+    const { data, error } = await sb().from('nav_favorites')
+      .select('screen, position').eq('profile_id', uid).order('position', { ascending: true });
+    // Not deployed yet is a deployment state, not a runtime failure -- same handling as
+    // client_member_areas. Say it once, when someone actually tries to use it.
+    if (error && (error.code === 'PGRST205' || /could not find the table/i.test(error.message || ''))) {
+      unavailable = true; render(); return;
+    }
+    favs = (data || []).map(r => r.screen);
+    render();
+  }
+
+  // The nav is built and role-gated after auth resolves, so wait for it rather than
+  // racing it -- the same shape newChatInit uses.
+  let tries = 0;
+  (function ready(){
+    if (window.giantSupabase && window.giantSession) { load(); paintStars(); return; }
+    if (++tries > 40) { paintStars(); return; }
+    setTimeout(ready, 750);
+  })();
+  // Nav items are shown and hidden by role after boot, so re-stamp when that settles.
+  setTimeout(paintStars, 2500);
+  window.giantNavFavorites = { load, toggle, render, list: () => favs.slice() };
+})();
+
 (function threeTierMenu(){
   const STAGES = 3;
   const body = document.body;
@@ -11906,6 +12075,9 @@ function enterApp(){
     return d;
   }
 
+  // Exposed so the Favourites group can ask for a rebuild when its contents change: the
+  // rail is built from the live nav, so new markup there is invisible until it re-runs.
+  window.giantRebuildRail = () => { try { buildRail(); } catch (_) {} };
   function buildRail(){
     if (stage() === 0) { railHost.innerHTML = ''; return; }
     railHost.innerHTML = '';

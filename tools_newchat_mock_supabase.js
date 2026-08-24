@@ -272,6 +272,7 @@
         created_at: iso(12 + n, i) });
     });
   });
+  DB.nav_favorites = [];   // migration 20260824140000
   DB.invitations = [];
   DB.channel_stars = [{ profile_id: ME, channel_id: 'ch-team-0' }];
   DB.inbox_actions = [];

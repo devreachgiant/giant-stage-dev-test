@@ -125,6 +125,80 @@ await step('app boots past the sign-in gate', async () => {
 });
 check('supabase-js was replaced by the mock', await page.evaluate(() => !!(window.supabase && window.supabase.__isMock)));
 
+// Favourites: a star on every nav item and a group above Communication. It stores a
+// data-screen value, so Chat, Projects, SOPs and White Label are the same kind of thing
+// to it -- the point of the feature is that it crosses modules.
+await step('starring nav items fills the Favourites group', async () => {
+  await page.waitForFunction(
+    () => document.querySelectorAll('#appSidebar .nav-item[data-screen] .nav-fav-star').length > 5,
+    null, { timeout: 20000 });
+  const r = await page.evaluate(async () => {
+    const label = document.getElementById('navFavGroupLabel');
+    const body = document.getElementById('navFavBody');
+    const hiddenWhenEmpty = getComputedStyle(label).display === 'none';
+    // three screens from three different modules
+    const want = ['newchat', 'tasks', 'sops'];
+    for (const s of want) {
+      const item = [...document.querySelectorAll('#appSidebar .nav-item[data-screen]')]
+        .find(el => el.dataset.screen === s && !body.contains(el));
+      if (item) item.querySelector('.nav-fav-star').click();
+      await new Promise(r => setTimeout(r, 400));
+    }
+    await new Promise(r => setTimeout(r, 800));
+    // Expand it to read the rows. Starring deliberately does NOT open the group: these are
+    // an accordion, so opening Favourites would fold away whichever group you were using.
+    if (label.classList.contains('nav-group-collapsed')) label.click();
+    await new Promise(r => setTimeout(r, 500));
+    const rows = [...body.querySelectorAll('[data-fav-screen]')].map(el => el.dataset.favScreen);
+    const stored = window.__mock.db.nav_favorites.map(f => f.screen).sort();
+    // the group sits above Communication
+    const commLabel = document.querySelector('[data-navgroup="communication"]');
+    const order = label.compareDocumentPosition(commLabel) & Node.DOCUMENT_POSITION_FOLLOWING;
+    // no favourite may carry data-screen: a second element with the same value would
+    // capture every .nav-item[data-screen=…] lookup in the app, this group being first.
+    const noDuplicateScreens = ['newchat', 'tasks', 'sops'].every(s =>
+      document.querySelectorAll('#appSidebar .nav-item[data-screen="' + s + '"]').length === 1);
+    return { hiddenWhenEmpty, rows, stored, visible: getComputedStyle(label).display !== 'none',
+             aboveCommunication: !!order, noDuplicateScreens,
+             // the first star opens the group, or the heading appears over nothing
+             expanded: !label.classList.contains('nav-group-collapsed'),
+             rowsVisible: [...body.querySelectorAll('[data-fav-screen]')]
+               .filter(el => el.getBoundingClientRect().height > 2).length };
+  });
+  check('starring nav items fills the Favourites group',
+    r.hiddenWhenEmpty && r.visible && r.aboveCommunication && r.noDuplicateScreens
+      && r.rows.join(',') === 'newchat,tasks,sops'
+      && r.stored.join(',') === 'newchat,sops,tasks'
+      && r.expanded && r.rowsVisible === 3,
+    JSON.stringify(r));
+});
+
+await step('a favourite opens the screen, and unstarring removes it', async () => {
+  const r = await page.evaluate(async () => {
+    const body = document.getElementById('navFavBody');
+    const row = [...body.querySelectorAll('[data-fav-screen]')].find(el => el.dataset.favScreen === 'newchat');
+    row.click();
+    await new Promise(r => setTimeout(r, 1200));
+    const opened = !!document.querySelector('.screen[data-screen="newchat"].on');
+    // unstar from inside the group
+    [...body.querySelectorAll('[data-fav-screen]')].find(el => el.dataset.favScreen === 'sops')
+      .querySelector('.nav-fav-star').click();
+    await new Promise(r => setTimeout(r, 900));
+    const out = { opened,
+                  rows: [...body.querySelectorAll('[data-fav-screen]')].map(el => el.dataset.favScreen),
+                  stored: window.__mock.db.nav_favorites.map(f => f.screen).sort() };
+    // Put Communication back. The nav groups are an accordion, so expanding Favourites in
+    // the previous step folded it away -- and every later check reaches New Chat through it.
+    const comm = document.querySelector('.nav-group-toggle[data-navgroup="communication"]');
+    if (comm && comm.classList.contains('nav-group-collapsed')) comm.click();
+    await new Promise(r => setTimeout(r, 500));
+    return out;
+  });
+  check('a favourite opens the screen, and unstarring removes it',
+    r.opened && r.rows.join(',') === 'newchat,tasks' && r.stored.join(',') === 'newchat,tasks',
+    JSON.stringify(r));
+});
+
 // ── the nav item is visible to this role, and clicking it opens the screen ───
 await step('New Chat nav item is present for owner', async () => {
   const nav = page.locator('.nav-item[data-screen="newchat"]');
