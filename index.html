@@ -8389,16 +8389,17 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <!-- Department strip: only rendered for client channels (kind=client_dept) -->
             <div class="nc_dept-strip" id="nc_deptStrip" style="display:none;"></div>
             <style>
-              .nc_tabstrip{display:flex;align-items:center;gap:8px;padding:0 18px;border-bottom:1px solid var(--line);background:var(--bg);flex-shrink:0;flex-wrap:wrap;}
-              .nc_dept-strip{display:flex;align-items:center;gap:4px;padding:6px 0;background:transparent;flex-shrink:0;flex-wrap:wrap;}
+              .nc_tabstrip{display:flex;align-items:center;gap:6px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--bg);flex-shrink:0;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;}
+              .nc_tabstrip::-webkit-scrollbar{display:none;}
+              .nc_dept-strip{display:flex;align-items:center;gap:2px;padding:5px 0;background:transparent;flex-shrink:0;flex-wrap:nowrap;}
               .nc_dept-strip::after{content:"";width:1px;height:18px;background:var(--line-2);margin:0 4px 0 8px;}
-              .nc_dept-tab{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid transparent;border-radius:8px;color:var(--c3-t4);font-family:inherit;font-size:12px;font-weight:600;padding:5px 10px;cursor:pointer;transition:.15s;}
+              .nc_dept-tab{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;flex-shrink:0;background:transparent;border:1px solid transparent;border-radius:8px;color:var(--c3-t4);font-family:inherit;font-size:11.5px;font-weight:600;padding:5px 8px;cursor:pointer;transition:.15s;}
               .nc_dept-tab:hover{color:var(--c3-t1);background:var(--c3-s3);}
               .nc_dept-tab.nc_on{color:var(--c3-t0);font-weight:700;}
               .nc_dept-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
               .nc_dept-tab.nc_empty{opacity:.45;}
               .nc_chat-subtabs{display:flex;gap:2px;padding:0;border-bottom:none;background:transparent;flex-shrink:0;}
-              .nc_chat-subtab{display:inline-flex;align-items:center;gap:6px;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--text-3);font-family:inherit;font-size:12.5px;font-weight:600;padding:11px 13px;cursor:pointer;transition:.15s;margin-bottom:-1px;}
+              .nc_chat-subtab{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;flex-shrink:0;background:transparent;border:none;border-bottom:2px solid transparent;color:var(--text-3);font-family:inherit;font-size:11.5px;font-weight:600;padding:11px 9px;cursor:pointer;transition:.15s;margin-bottom:-1px;}
               .nc_chat-subtab:hover{color:var(--text);}
               .nc_chat-subtab.active{color:var(--text);border-bottom-color:var(--red);}
               .nc_chat-subtab-count{font-size:10px;background:var(--surface-2);color:var(--text-2);border-radius:8px;padding:1px 6px;font-weight:700;}
@@ -72174,7 +72175,42 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
 
 
+    // Two helpers the ports call that live in chat2Module, not chat3Module, so the
+    // extractor never saw them. fmtBytes is just this module's formatBytes under the
+    // name Chat 3.0's panels use; renderMd is lifted whole.
+    const fmtBytes = (n) => formatBytes(n);
+  function hexToRgbC3(hex){
+    const h = hex.replace('#', '');
+    const n = parseInt(h.length === 3 ? h.split('').map(c=>c+c).join('') : h, 16);
+    return `${(n>>16)&255},${(n>>8)&255},${n&255}`;
+  }
+  // Items are keyed 'msg:<id>' or 'task:<id>' throughout — one local map covers both,
+  // dispatched to the right column (message_id vs task_id) when persisting to
+  // chat2_inbox_actions (see migration 20260814100700, which widened that table to
+  // hold either).
+  function renderMd(s) {
+    let t = chatEsc(s);
+    t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    t = t.replace(/\+\+(.+?)\+\+/g, '<u>$1</u>');
+    t = t.replace(/~~(.+?)~~/g, '<s>$1</s>');
+    t = t.replace(/`(.+?)`/g, '<code style="background:#1f1f1f;border:1px solid #2e2e2e;border-radius:4px;padding:1px 5px;font-family:monospace;font-size:0.92em;">$1</code>');
+    t = t.replace(/(?<![*_\w])_(.+?)_(?!\w)/g, '<em>$1</em>');
+    return t;
+  }
+  // Wraps the current selection in a composer textarea/input with markdown
+  // tokens, or inserts a placeholder + inserts '@' for mentions — shared by
+  // every composer in Chat 2.0 (client thread, Home, DM/team channel, inbox reply).
+
     // ── Client tasks (ported from Chat 3.0) ─────────────────────────────────────
+  function fmtTimeLogged(totalSeconds){
+    if (!totalSeconds) return '—';
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.round((totalSeconds % 3600) / 60);
+    return h ? `${h}h ${m}m` : `${m}m`;
+  }
+  // tasks.assigned_to is uuid[], not a single uuid — a scalar lookup silently
+  // matches nothing, which is why no assignee ever appeared here before.
+
     // tasks, time_sessions and projects are all keyed on client_id, so this reads and
     // writes the same rows the Projects screen does -- a task created here is a real
     // task, not a chat-local copy, and the timer is the same time_sessions mechanism
