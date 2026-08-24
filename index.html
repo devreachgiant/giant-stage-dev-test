@@ -70931,9 +70931,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         }
         const label = (NC_DEPTS.find(d => d.key === dept) || {}).label || dept;
         const name = (ncClients[clientId] || {}).name || 'this client';
-        // Creating a channel is visible to the whole team, so it is confirmed rather
-        // than done on a stray click on a greyed-out tab.
-        if (!window.confirm(`Start the ${label} conversation for ${name}?`)) return;
+        // No dialog. This tab looks like a tab and sits in a row of tabs, so clicking it
+        // is navigation -- interrupting that with "Start the Google Ads conversation for
+        // A X E?" makes a browser-chrome dialog out of moving between departments. What
+        // it creates is one empty private channel, which the channel menu can delete, so
+        // the honest shape is to do it and say so rather than ask first.
         t.style.opacity = '.45';
         const id = await ensureClientDeptThread(clientId, dept);
         if (!id) { t.style.opacity = ''; return; }
@@ -70943,6 +70945,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           .upsert({ channel_id: id, profile_id: ncMyId() }, { onConflict: 'channel_id,profile_id' });
         await loadChannels();
         switchChannel(id);
+        if (typeof toast === 'function') toast({ type:'success', message:`Started the ${label} conversation for ${chatEsc(name)}` });
       }));
     }
     window.nc_renderDeptStrip = renderDeptStrip;
@@ -70990,6 +70993,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const onboardingUrl = (token) => `${location.origin}/onboarding?t=${encodeURIComponent(token)}`;
     const NCSB = () => window.giantSupabase;
     const ncMyId = () => (window.giantSession && window.giantSession.user && window.giantSession.user.id) || null;
+    // The app has its own dialog and the Vault's delete already uses it; the rest of this
+    // module was still calling the browser's, which renders as "localhost:8888 says" over
+    // a design that has spent a lot of effort not looking like that. Falls back to
+    // window.confirm so a missing helper can never silently approve a destructive action.
+    const ncConfirm = (title, message, label) =>
+      (typeof window.giantConfirmWarn === 'function')
+        ? window.giantConfirmWarn(title, message, label || 'Confirm', 'danger')
+        : Promise.resolve(window.confirm(message));
+
     const ncIsStaff = () => ['owner','manager','inhouse_dev'].includes(
       String((window.giantCurrentProfile && window.giantCurrentProfile.role) || '').toLowerCase());
     const initialsOf = (n) => String(n || '?').trim().split(/\s+/).slice(0,2).map(w => w.charAt(0).toUpperCase()).join('') || '?';
@@ -71652,8 +71664,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (!ids.length) return;
         const who = profileName(profileId);
         const clientName = (ncClients[mg.selectedId] || {}).name || 'this client';
-        if (typeof window.confirm === 'function'
-            && !window.confirm(`Remove ${who} from ${clientName}?\n\nThey lose access to every department for this client. Nothing they have written is deleted.`)) return;
+        if (!await ncConfirm('Remove from client', `Remove ${who} from ${clientName}? They lose access to every department for this client. Nothing they have written is deleted.`, 'Remove')) return;
         mg.mgmtMatrixBusy = profileId + ':*'; renderMgmt();
         const { error } = await NCSB().from('channel_members')
           .delete().in('channel_id', ids).eq('profile_id', profileId);
@@ -71732,8 +71743,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (!c || mg.mgmtArchiving) return;
         const wasArchived = c.status === 'churned';
         const next = wasArchived ? 'active' : 'churned';
-        if (!wasArchived && typeof window.confirm === 'function'
-            && !window.confirm(`Archive ${c.name}?\n\nThey disappear from lists, counts and MRR. Every message, file and note is kept, and you can restore them here.`)) return;
+        if (!wasArchived
+            && !await ncConfirm('Archive client', `Archive ${c.name}? They disappear from lists, counts and MRR. Every message, file and note is kept, and you can restore them here.`, 'Archive')) return;
         const prev = c.status;
         c.status = next; mg.mgmtArchiving = true; renderMgmt();
         const { error } = await NCSB().from('clients').update({ status: next }).eq('id', c.id);
@@ -71754,8 +71765,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const c = mg.clientRow;
         if (!c || mg.mgmtArchiving) return;
         if (!CLIENT_STATUS[next] || next === c.status) return;
-        if (next === 'churned' && typeof window.confirm === 'function'
-            && !window.confirm(`Archive ${c.name}?\n\nThey disappear from lists, counts and MRR. Every message, file and note is kept, and you can restore them here.`)) {
+        if (next === 'churned'
+            && !await ncConfirm('Archive client', `Archive ${c.name}? They disappear from lists, counts and MRR. Every message, file and note is kept, and you can restore them here.`, 'Archive')) {
           renderMgmt();   // the <select> already moved; put it back
           return;
         }
@@ -74830,7 +74841,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             if (typeof toast === 'function') toast({type:'success', message:'Channel renamed', duration:1500});
             if (typeof loadChannels === 'function') loadChannels();
           } else if (act === 'delete') {
-            if (!confirm(`Delete channel "#${channelName}"?\n\nAll messages in this channel will be lost permanently. This cannot be undone.`)) return;
+            if (!await ncConfirm('Delete channel', `Delete "#${channelName}"? All messages in this channel will be lost permanently. This cannot be undone.`, 'Delete')) return;
             const { error } = await window.giantSupabase.from('channels').delete().eq('id', channelId);
             if (error) {
               if (typeof toast === 'function') toast({type:'error', message:'Delete failed: ' + error.message});

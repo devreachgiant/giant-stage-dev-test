@@ -152,6 +152,25 @@ Four more are assigned unprefixed but never looked up prefixed — `mention-pick
 CSS in the original chat and no `nc_` rule, so **prefixing them would remove their styling**.
 Left alone deliberately; they are a style leak, not a duplication bug.
 
+## Dialogs
+
+Clicking a department tab used to ask `Start the Google Ads conversation for A X E?` in a
+native browser dialog. **It does not ask any more.** That tab looks like a tab and sits in a
+row of tabs, so clicking it is navigation; interrupting that with browser chrome to create
+one empty private channel — which the channel menu can delete — was the wrong trade. It
+creates it and says so with a toast.
+
+Everything genuinely destructive still confirms, but through **`ncConfirm`**, which wraps
+the app's own `window.giantConfirmWarn` and falls back to `window.confirm` only if the
+helper is missing, so a missing dialog can never silently approve a deletion. Remove member,
+archive client and delete channel all go through it. The Vault's library delete already did;
+the rest of the module had not caught up.
+
+Testing note: the click-through **auto-accepts native dialogs**, which is how a stray
+`window.confirm` survived unnoticed — it counts them now, and the department-tab check fails
+if the click raises one. In-page confirmations need a poller that presses the overlay's
+button; a native handler will not settle them.
+
 ## Traps hit, so they are not hit again
 
 - **`_boot` must run exactly once.** It re-wraps six engine functions (`loadMessages`,

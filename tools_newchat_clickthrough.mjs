@@ -91,6 +91,21 @@ page.on('requestfailed', r => failedReqs.push(
 const dialogs = [];
 page.on('dialog', d => { dialogs.push(d.type() + ': ' + d.message().slice(0, 120)); d.accept().catch(() => {}); });
 
+// The destructive paths use the app's own dialog (#giantConfirmWarnOverlay), not the
+// browser's, so accepting native dialogs is not enough -- an in-page overlay just sits
+// there and the awaited promise never settles. This polls for it and presses the
+// confirm button, which is the last button in the overlay.
+const confirmWatcher = setInterval(() => {
+  page.evaluate(() => {
+    const ov = document.getElementById('giantConfirmWarnOverlay');
+    if (!ov) return null;
+    const btns = [...ov.querySelectorAll('button')];
+    const ok = btns[btns.length - 1];
+    if (ok) { ok.click(); return ok.textContent; }
+    return null;
+  }).then(t => { if (t) dialogs.push('app-confirm: ' + t); }).catch(() => {});
+}, 250);
+
 await page.route('**/@supabase/supabase-js@2*', r =>
   r.fulfill({ status: 200, contentType: 'application/javascript', body: MOCK }));
 await page.route('**://*.supabase.co/**', r => { blocked.push(r.url().slice(0, 120)); r.abort(); });
@@ -818,16 +833,25 @@ await step('the composer sends a message', async () => {
 
 // ── an empty department tab creates its channel on click ─────────────────────
 await step('an empty department tab creates its channel', async () => {
+  const nativeBefore = dialogs.filter(d => d.startsWith('confirm:') || d.startsWith('alert:')).length;
   const r = await page.evaluate(async () => {
     const empty = document.querySelector('#nc_deptStrip .nc_dept-tab.nc_empty');
     if (!empty) return 'no empty dept tab';
     const before = window.__mock.db.channels.length;
     empty.click();
     await new Promise(r => setTimeout(r, 2000));
+    // Clicking a tab is navigation, so it must not put a dialog in the way -- native or
+    // the app's own. It creates one empty private channel and says so with a toast.
+    if (document.getElementById('giantConfirmWarnOverlay')) return 'it asked first';
     return window.__mock.db.channels.length > before ? 'ok'
       : 'no channel created (writes: ' + window.__mock.log.writes.slice(-6).join(' | ') + ')';
   });
-  check('an empty department tab creates its channel', r === 'ok', r);
+  // Native dialogs are auto-accepted by this harness, so a window.confirm here would
+  // sail through unnoticed -- which is exactly how it survived. Count them instead.
+  const nativeAfter = dialogs.filter(d => d.startsWith('confirm:') || d.startsWith('alert:')).length;
+  check('an empty department tab creates its channel without asking',
+    r === 'ok' && nativeAfter === nativeBefore,
+    r + (nativeAfter > nativeBefore ? ' | raised a native dialog: ' + dialogs[dialogs.length - 1] : ''));
 });
 
 // Last on purpose: this one writes. Ticking a department that has no channel yet creates
@@ -1118,6 +1142,7 @@ const evidence = await page.evaluate(() => ({
 
 const shot = path.join(process.env.TMPDIR || '/tmp', 'newchat-clickthrough.png');
 await page.screenshot({ path: shot, fullPage: false });
+clearInterval(confirmWatcher);
 await browser.close();
 server.close();
 
