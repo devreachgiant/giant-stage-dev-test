@@ -266,13 +266,30 @@
   DB.channel_stars = [{ profile_id: ME, channel_id: 'ch-team-0' }];
   DB.inbox_actions = [];
   DB.scheduled_messages = [];
-  DB.unread_counts = DB.channels.slice(0, 6).map(c => ({ profile_id: ME, channel_id: c.id, unread_count: 2 }));
   DB.password_entries = [{ id: 'pw-1', client_id: 'c-1', title: 'GA4', username: 'ops@maribou.example' }];
   DB.password_entry_members = [{ entry_id: 'pw-1', profile_id: ME }];
 
   // Anything New Chat asks for that was not foreseen: an empty table, loudly noted,
   // rather than a TypeError that would look like a bug in the page.
+  // unread_counts is a VIEW in the real schema -- one row per (channel, member) with a
+  // subquery counting messages newer than last_read_at and not written by that member.
+  // It was six hand-written rows here, which meant a screen reading it could not be
+  // checked against anything. Computed on read, so it stays true as the test writes.
+  const unreadCounts = () => {
+    const byChannel = {};
+    DB.messages.forEach(m => (byChannel[m.channel_id] = byChannel[m.channel_id] || []).push(m));
+    return DB.channel_members.map(cm => {
+      const ch = DB.channels.find(c => c.id === cm.channel_id) || {};
+      const floor = cm.last_read_at || ch.created_at;
+      const n = (byChannel[cm.channel_id] || []).filter(m =>
+        m.author_id !== cm.profile_id && (!floor || new Date(m.created_at) > new Date(floor))).length;
+      return { channel_id: cm.channel_id, name: ch.name, is_dm: !!ch.is_dm,
+               profile_id: cm.profile_id, last_read_at: floor, unread_count: n };
+    });
+  };
+
   const table = (n) => {
+    if (n === 'unread_counts') return unreadCounts();
     if (!DB[n]) { DB[n] = []; if (!log.unsupported.includes('table:' + n)) log.unsupported.push('table:' + n); }
     return DB[n];
   };

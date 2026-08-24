@@ -324,6 +324,26 @@ That relies on the header naming the department, which it did not: `switchChanne
 "Private channel · N members" when the member count landed a round trip later. `ncHeadTopicBase`
 is now the single source for that line and both call it.
 
+### Needs you reads unread_counts, not a sample of messages
+
+`computeNeedsYou` used to pull the 600 newest messages across every channel and work out
+what was unread in the browser. That loses things, and the arithmetic is easy to miss: the
+limit applies to the whole result set, so **one chatty channel drags the cutoff forward for
+every other channel**. Measured on the fixture — 106 channels, one busy — the effective
+window collapsed from fourteen days to **three**, and a twelve-day-old unread DM never
+appeared. On the one list whose entire job is to not lose things, a cap is the wrong shape
+of answer.
+
+Unread now comes from the **`unread_counts` view**, which the database already computes per
+(channel, member) against `last_read_at`, with no window and no cap. Mentions and flags
+still need message rows, but they ask for exactly the matching ones (`.eq('flagged', true)`,
+`.ilike('body', '%@first%')`) rather than scanning and filtering — so the result set no
+longer grows with how talkative the team has been, and the window widened to 30 days for
+free.
+
+The mock **computes `unread_counts` on read** now, the way the view does. It was six
+hand-written rows, which meant a screen reading it could not be checked against anything.
+
 ### Management > Activity — what it can and cannot record
 
 The trail is `chat2_client_activity`, written by `logC3Activity`. **Three of the kinds
@@ -396,7 +416,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 53 checks in a headless browser, ~60s
+node tools_newchat_clickthrough.mjs      # 55 checks in a headless browser, ~70s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```

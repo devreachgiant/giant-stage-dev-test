@@ -803,6 +803,54 @@ await step('a tick grants a department, and Remove clears them all', async () =>
     JSON.stringify(r));
 });
 
+// "Needs you" used to answer "is anything unread" by pulling the 600 newest messages
+// across every channel and working it out in the browser. That loses things: one chatty
+// channel drags the cutoff forward, and an older unread message in a quiet channel never
+// appears -- on the one list whose job is to not lose things. It reads unread_counts now,
+// which the database computes per channel with no window and no cap.
+await step('Needs you finds an old unread message behind a busy channel', async () => {
+  const r = await page.evaluate(async () => {
+    const db = window.__mock.db, me = window.__mock.me;
+    const mine = db.channel_members.filter(m => m.profile_id === me);
+    // a quiet channel, read three weeks ago, with one message since
+    const quiet = mine.find(m => {
+      const ch = db.channels.find(c => c.id === m.channel_id);
+      return ch && ch.is_dm && !db.messages.some(x => x.channel_id === m.channel_id);
+    }) || mine[mine.length - 1];
+    quiet.last_read_at = new Date(Date.now() - 21 * 864e5).toISOString();
+    db.messages.push({ id: 'm-quiet-probe', channel_id: quiet.channel_id, author_id: 'u-9',
+      body: 'Can you look at this?', created_at: new Date(Date.now() - 12 * 864e5).toISOString(),
+      parent_id: null, reply_count: 0, flagged: false, pinned_at: null });
+    // and a fortnight of noise elsewhere, which is what drags the old cutoff forward
+    const busy = mine[0].channel_id;
+    for (let i = 0; i < 900; i++) db.messages.push({ id: 'm-noise-' + i, channel_id: busy,
+      author_id: 'u-3', body: 'chatter ' + i,
+      created_at: new Date(Date.now() - i * 6e5).toISOString(),
+      parent_id: null, reply_count: 0, flagged: false, pinned_at: null });
+
+    await window.nc_computeNeedsYou();
+    await new Promise(res => setTimeout(res, 600));
+    const rows = [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')];
+    return { quiet: quiet.channel_id,
+             listed: rows.some(el => el.dataset.channelId === quiet.channel_id
+                                  || el.dataset.dmChannelId === quiet.channel_id),
+             rows: rows.length };
+  });
+  check('Needs you finds an old unread message behind a busy channel',
+    r.listed && r.rows > 0, JSON.stringify(r));
+
+  // The other half of the card: its header opens the Master Inbox.
+  const opened = await page.evaluate(async () => {
+    const card = [...document.querySelectorAll('.nc_navcard')].find(c => c.dataset.nccard === 'needs');
+    card.querySelector('.nc_navcard-head').click();
+    await new Promise(res => setTimeout(res, 1200));
+    const pane = document.getElementById('nc_inboxPane');
+    return { display: getComputedStyle(pane).display, chars: pane.innerHTML.trim().length };
+  });
+  check('the Needs you card opens the Master Inbox',
+    opened.display !== 'none' && opened.chars > 0, JSON.stringify(opened));
+});
+
 // The four area columns need a table that ships in migration 20260824120000. Between
 // writing that migration and applying it PostgREST answers PGRST205, so the screen has to
 // degrade rather than error -- it shipped as a red toast on every open plus four columns

@@ -70459,29 +70459,47 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       (mem || []).forEach(m => { readBy[m.channel_id] = m.last_read_at; });
       const ids = Object.keys(readBy);
       if (!ids.length) { ncNeeds = {}; return; }
-      // Recent window only. The point is what needs attention now, and scanning the
-      // whole 10k-message history to answer that would be absurd.
-      const since = new Date(Date.now() - 14 * 864e5).toISOString();
       const next = {};
+
+      // Unread comes from the unread_counts view, which the database computes per
+      // channel against last_read_at. This used to pull the 600 newest messages across
+      // every channel and work it out here, and that silently loses things: one chatty
+      // channel drags the cutoff forward -- measured at three days with a single busy
+      // channel -- and a twelve-day-old unread DM never appears. On a list whose entire
+      // job is to not lose things, a cap is the wrong shape of answer.
+      const { data: counts } = await NCSB().from('unread_counts')
+        .select('channel_id, unread_count').eq('profile_id', me);
+      (counts || []).forEach(r => {
+        if ((r.unread_count || 0) > 0 && (r.channel_id in readBy)) next[r.channel_id] = 'unread';
+      });
+
+      // Mentions and flags do need the message rows, but only the ones that match. Both
+      // are rare, so these ask for exactly those instead of scanning the window and
+      // filtering afterwards. The window is wider than before precisely because the
+      // result set no longer grows with how talkative the team has been.
+      const since = new Date(Date.now() - 30 * 864e5).toISOString();
+      const unreadFor = (m) => {
+        const lastRead = readBy[m.channel_id];
+        return !lastRead || new Date(m.created_at) > new Date(lastRead);
+      };
       for (let k = 0; k < ids.length; k += 200) {
-        const { data } = await NCSB().from('messages')
-          .select('channel_id, author_id, body, flagged, created_at')
-          .in('channel_id', ids.slice(k, k + 200))
-          .gte('created_at', since)
-          .order('created_at', { ascending: false })
-          .limit(600);
-        (data || []).forEach(m => {
-          if (m.author_id === me) return;                    // your own message is not waiting on you
-          const lastRead = readBy[m.channel_id];
-          const unread = !lastRead || new Date(m.created_at) > new Date(lastRead);
-          const mention = !!first && !!m.body && m.body.toLowerCase().includes('@' + first);
-          let kind = null;
-          if (mention && unread) kind = 'mention';
-          else if (m.flagged && unread) kind = 'flagged';
-          else if (unread) kind = 'unread';
-          if (!kind) return;
-          const rank = { mention: 0, flagged: 1, unread: 2 };
-          if (!next[m.channel_id] || rank[kind] < rank[next[m.channel_id]]) next[m.channel_id] = kind;
+        const chunk = ids.slice(k, k + 200);
+        const [flagged, mentions] = await Promise.all([
+          NCSB().from('messages').select('channel_id, author_id, created_at')
+            .in('channel_id', chunk).eq('flagged', true).gte('created_at', since).limit(500),
+          first
+            ? NCSB().from('messages').select('channel_id, author_id, created_at')
+                .in('channel_id', chunk).ilike('body', '%@' + first + '%')
+                .gte('created_at', since).limit(500)
+            : Promise.resolve({ data: [] }),
+        ]);
+        // Applied in reverse rank order so the stronger reason wins: flagged may replace
+        // unread, and a mention may replace either.
+        (flagged.data || []).forEach(m => {
+          if (m.author_id !== me && unreadFor(m)) next[m.channel_id] = 'flagged';
+        });
+        (mentions.data || []).forEach(m => {
+          if (m.author_id !== me && unreadFor(m)) next[m.channel_id] = 'mention';
         });
       }
       ncNeeds = next;
