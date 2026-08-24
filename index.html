@@ -70302,6 +70302,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const active = chatChannels.find(c => c.id === activeChannelId);
       const isClient = !!(active && active.kind === 'client_dept' && active.client_id);
       if (btn) btn.style.display = isClient ? '' : 'none';
+      // On a client thread the department tabs ARE the messages -- clicking General
+      // opens the message list -- so a separate Messages tab is a second control for
+      // the same thing. It stays for team channels and DMs, which have no department
+      // strip and would otherwise have no way back to the messages.
+      const msgBtn = document.querySelector('#nc_chatSubTabs [data-subtab="messages"]');
+      if (msgBtn) msgBtn.style.display = isClient ? 'none' : '';
       const tBtn = document.getElementById('nc_tasksTabBtn');
       if (tBtn) tBtn.style.display = isClient ? '' : 'none';
       const mBtn = document.getElementById('nc_magnusTabBtn');
