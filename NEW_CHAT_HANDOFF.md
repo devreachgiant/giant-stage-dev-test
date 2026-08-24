@@ -1,6 +1,8 @@
 # New Chat — handoff
 
-Branch: `feature/new-chat-from-chat3` · 32 commits ahead of `main` · **nothing pushed**
+Branch: `feature/new-chat-from-chat3` · 41 commits ahead of `main` · **nothing pushed**
+
+To resume in a new conversation, see `RESUME_NEW_CHAT.md`.
 
 ## What this is
 
@@ -53,7 +55,13 @@ of these columns):
 
 - `channels`: `kind` (home | team_channel | client_dept | dm), `client_id`, `department`, `color`
 - `messages.flagged`, `channel_canvas.cards`
-- new: `channel_stars(profile_id, channel_id)`
+- new: `channel_stars(profile_id, channel_id)`, `inbox_actions(profile_id, message_id|task_id, done, saved)`
+
+The Clients card lists **all 53 active clients**, not only the 11 with channels. Ones with
+no conversation render dimmed and create their General channel on first click. Pre-creating
+all 265 does not work: `channels` is shared with old chat, so public rows would flood its
+sidebar with 247 empty channels, and private rows are invisible to managers because
+`channels_select` requires membership for private rows.
 
 Result: 80 DMs · 11 team channels · 1 home · 14 client channels → **11 client threads**.
 
@@ -74,9 +82,8 @@ realtime is still filtered to the primary channel, and sending always writes to 
 | Magnus | nothing — posts to `/.netlify/functions/claude-api` | done |
 | Master Inbox | repointed to `messages` / `channel_members` / new `inbox_actions` | done |
 
-**All ports are complete.** Every `data-c3-*` action the module emits has a listener
-(63/63) — check that with a set difference before calling any port finished, because the
-scope check does not catch a button that renders and does nothing.
+**All ports are complete.** Run `python3 tools_newchat_audit.py` after every change — it
+checks the five failure modes below and should print `RESULT: clean`.
 
 The extraction pipeline is `scratchpad/port.py` (regenerate if gone). Three lessons in it:
 
@@ -84,11 +91,19 @@ The extraction pipeline is `scratchpad/port.py` (regenerate if gone). Three less
    `${...}` and unbalanced brackets inside strings, so spans run long and silently swallow
    the declarations that follow. A top-level declaration simply runs until the next one
    starts.
-2. **Name-prefix extraction misses `const` arrows and writers.** `onboardingUrl` was missed
-   that way and threw a ReferenceError; `saveLibItem`/`toggleLibPin`/`removeLibItem` were
-   missed and the panel rendered but could not save.
-3. **The scope check proves what is referenced resolves — not that everything needed came
-   across.** It was silent for both of the above. Cross-check writers explicitly.
+2. **Name-prefix extraction misses `const` arrows, writers and constants.** `onboardingUrl`
+   threw a ReferenceError; `saveLibItem`/`toggleLibPin`/`removeLibItem` were missed and the
+   panel rendered but could not save; `C3_TASK_COLS`, `C3_PRIO`, `MAGNUS_BLUE` and
+   `MAGNUS_SYSTEM` were never extracted at all.
+3. **Do not hand-write a shim for something chat3 already defines.** `ncIcon` was a stub
+   with three methods against twelve the panels call. Extract the real `C3_ICON` (29
+   methods). Rename by dot *and* bracket access — `C3_ICON[d.icon](…)` survived a rename
+   that only matched `C3_ICON.`.
+4. **Helpers may live in `chat2Module`, not `chat3Module`.** `renderMd`, `fmtBytes` and
+   `hexToRgbC3` did, so the extractor was never pointed at them.
+5. **A text search is not a scope check.** `fetchAttachments` and `pubUrl` are declared
+   inside the nested sub-tabs IIFE; the Media port could not see them even though grep
+   found them. They are published through the `ncShared` bridge.
 
 Chat 3.0 is state-and-render; New Chat is imperative. Ported panels run against a local `mg`
 state object plus shims (`NCSB`, `ncMyId`, `ncIsStaff`, `ncIcon`, `renderMgmt`, …).
@@ -108,6 +123,16 @@ state object plus shims (`NCSB`, `ncMyId`, `ncIsStaff`, `ncIcon`, `renderMgmt`, 
   be — a MutationObserver re-runs it on every change to either list.
 - **Chat 3.0's sidebar is an accordion**, one card open at a time filling the column. Six
   equally-expanded cards is what made it look wrong.
+- **Check where a pane actually ended up in the DOM.** All four ported panes were inserted
+  "before `nc_chatSubTabs`" while that was a sibling of the message list; wrapping the
+  departments and sub-tabs in `.nc_tabstrip` later swallowed them, and a pane shown inside
+  that flex row renders squeezed into the tab bar. Broke Tasks, Magnus and Management at
+  once. They belong beside `nc_chatMediaPane` / `nc_chatCanvasPane`.
+- **Each pane has its own renderer.** `adapt()` rewrites chat3's `render()` to
+  `renderMgmt()` everywhere, so Tasks and Magnus repainted the hidden Management pane
+  instead of themselves and never showed loading or optimistic updates.
+- **The audit checks names and wiring, not structure.** Neither of the two traps above
+  would trip it. Check the DOM as well as the text.
 
 ## Left to do
 
