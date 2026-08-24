@@ -70749,12 +70749,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (!el) return;
       const active = chatChannels.find(c => c.id === activeChannelId);
       if (!active || active.kind !== 'client_dept' || !active.client_id) { el.style.display = 'none'; return; }
-      const cl = ncClients[active.client_id];
       const here = active.department || 'general';
       el.style.display = 'flex';
+      // The client's name is not repeated here -- the thread header directly above
+      // already reads "Fortess DG · General", so printing it again just costs the
+      // strip horizontal room it needs for eleven tabs.
       el.innerHTML =
-        `<span style="font-size:12px;font-weight:800;color:var(--c3-t1);margin-right:6px;">${chatEsc((cl && cl.name) || 'Client')}</span>`
-        + NC_DEPTS.map(d => {
+        NC_DEPTS.map(d => {
             const chans = ncChannelsFor(active.client_id, d.key);
             const on = d.key === here;
             // A department with no channel is still shown, greyed: the strip is the
