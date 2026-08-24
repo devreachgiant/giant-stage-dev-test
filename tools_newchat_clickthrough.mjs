@@ -926,6 +926,44 @@ await step('Needs you finds an old unread message behind a busy channel', async 
   check('a read mention still needs you, and a cleared one does not',
     mention.readButListed && mention.clearedAndGone, JSON.stringify(mention));
 
+  // Working through the queue: opening a row takes it off the list and keeps it off,
+  // including across a recompute -- a mention does not clear itself the way unread does.
+  const worked = await page.evaluate(async () => {
+    const db = window.__mock.db, me = window.__mock.me;
+    const mine = db.channel_members.filter(m => m.profile_id === me);
+    const target = mine.find(m => {
+      const ch = db.channels.find(c => c.id === m.channel_id);
+      return ch && ch.kind === 'team_channel';
+    }) || mine[0];
+    target.last_read_at = new Date().toISOString();
+    db.messages.push({ id: 'm-queue-probe', channel_id: target.channel_id, author_id: 'u-5',
+      body: 'please review @nishchay', created_at: new Date(Date.now() - 3e5).toISOString(),
+      parent_id: null, reply_count: 0, flagged: false, pinned_at: null });
+    await window.nc_computeNeedsYou();
+    await new Promise(r => setTimeout(r, 500));
+    const on = () => [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')]
+      .some(el => el.dataset.channelId === target.channel_id
+                || el.dataset.dmChannelId === target.channel_id);
+    const before = on();
+
+    // open it the way a person would: click the row in the card
+    const row = [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')]
+      .find(el => el.dataset.channelId === target.channel_id
+                || el.dataset.dmChannelId === target.channel_id);
+    if (row) row.click();
+    await new Promise(r => setTimeout(r, 2000));
+    const afterClick = on();
+
+    // and it must not come back when the card recomputes
+    await window.nc_computeNeedsYou();
+    await new Promise(r => setTimeout(r, 700));
+    return { before, afterClick, afterRecompute: on(),
+             markedDone: db.inbox_actions.some(a => a.message_id === 'm-queue-probe' && a.done) };
+  });
+  check('opening a row clears it, and it stays cleared',
+    worked.before && !worked.afterClick && !worked.afterRecompute && worked.markedDone,
+    JSON.stringify(worked));
+
   // The other half of the card: its header opens the Master Inbox.
   const opened = await page.evaluate(async () => {
     const card = [...document.querySelectorAll('.nc_navcard')].find(c => c.dataset.nccard === 'needs');
@@ -953,17 +991,16 @@ await step('a table that is not deployed yet degrades instead of erroring', asyn
   });
   await page.waitForTimeout(400);
   // a different client, so the matrix loads fresh against the missing table
+  // The LAST client with a thread, not "a different one from the active channel": earlier
+  // steps take the first, and one of them can leave the app on a team channel, where
+  // there is no current client to differ from -- so "different" picked the already-loaded
+  // one and its matrix never reloaded against the hidden table.
   const switched = await page.evaluate(() => {
-    const here = (window.__mock.db.channels.find(c => c.id === window.nc_activeChannelId) || {}).client_id;
     const rows = [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')]
-      .filter(r => parseFloat(r.style.opacity || '1') === 1);
-    const other = rows.find(r => {
-      const id = r.dataset.channelId;
-      const ch = window.__mock.db.channels.find(c => c.id === id);
-      return ch && ch.client_id && ch.client_id !== here;
-    });
-    if (!other) return false;
-    other.click();
+      .filter(r => parseFloat(r.style.opacity || '1') === 1 && r.dataset.channelId);
+    const last = rows[rows.length - 1];
+    if (!last) return false;
+    last.click();
     return true;
   });
   if (!switched) { check('a table that is not deployed yet degrades instead of erroring', false, 'no second client to switch to'); return; }

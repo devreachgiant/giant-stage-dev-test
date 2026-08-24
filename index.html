@@ -70501,6 +70501,58 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       ncNeeds = next;
       renderNavCards();
     }
+    // Reading one clears it. The card is a queue you work through, so a row that stays
+    // after you have opened it is the list failing at its only job.
+    //
+    // Unread would clear itself -- opening a channel writes last_read_at -- but mentions
+    // and flags would not: the Inbox keeps those until they are cleared, which is what
+    // makes the card and the Inbox agree in the first place. So reading the channel has
+    // to actually say they are handled, or the row comes back on the next recompute.
+    // That does mean opening a channel clears its mentions from the Master Inbox too;
+    // the two are one list now, and a queue that empties in one place and not the other
+    // is the bug this came from.
+    async function ncClearNeeds(channelId){
+      const kind = channelId && ncNeeds[channelId];
+      if (!kind) return;
+      delete ncNeeds[channelId];
+      renderNavCards();                       // immediately, before any write
+      if (kind === 'unread') return;          // last_read_at already covers this one
+      const me = ncMyId();
+      if (!me) return;
+      const first = String((window.giantCurrentProfile
+        && (window.giantCurrentProfile.full_name || window.giantCurrentProfile.email)) || '')
+        .trim().split(/\s+/)[0].toLowerCase();
+      const since = new Date(Date.now() - 90 * 864e5).toISOString();
+      const [flagged, mentions] = await Promise.all([
+        NCSB().from('messages').select('id').eq('channel_id', channelId)
+          .eq('flagged', true).neq('author_id', me).gte('created_at', since).limit(200),
+        first
+          ? NCSB().from('messages').select('id').eq('channel_id', channelId)
+              .ilike('body', '%@' + first + '%').neq('author_id', me).gte('created_at', since).limit(200)
+          : Promise.resolve({ data: [] }),
+      ]);
+      const ids = [...new Set([...(flagged.data || []), ...(mentions.data || [])].map(m => m.id))];
+      if (!ids.length) return;
+      // Read the existing rows first and merge. A blind upsert would write saved:false
+      // over anything the user had saved from the Inbox, and losing that is worse than
+      // leaving a row on the card.
+      const { data: existing } = await NCSB().from('inbox_actions')
+        .select('message_id, done, saved').eq('profile_id', me).in('message_id', ids);
+      const savedBy = {};
+      (existing || []).forEach(r => { savedBy[r.message_id] = !!r.saved; });
+      const { error } = await NCSB().from('inbox_actions').upsert(
+        ids.map(id => ({ message_id: id, profile_id: me, done: true, saved: !!savedBy[id] })),
+        { onConflict: 'message_id,profile_id' });
+      if (error) {
+        // Put it back rather than leave the card lying about what has been handled.
+        ncNeeds[channelId] = kind; renderNavCards();
+        if (typeof toast === 'function') toast({ type:'error', message:'Could not clear that: ' + error.message });
+        return;
+      }
+      // Keep the Inbox's own copy in step if it happens to be loaded.
+      ids.forEach(id => { mg.inboxActions['msg:' + id] = { done: true, saved: !!savedBy[id] }; });
+    }
+
     window.nc_computeNeedsYou = computeNeedsYou;
 
     // The card + buttons forward to the engine's own buttons rather than
@@ -74818,6 +74870,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       try { localStorage.setItem('giant_nc_active_channel', channelId); } catch(_) {}
       if (window.giantRefreshScheduledPill) window.giantRefreshScheduledPill();
       if (window.nc__resetChatSubtab) window.nc__resetChatSubtab();
+      ncClearNeeds(channelId);
       // ── INSTANT VISUAL FEEDBACK ──
       // Move the red active indicator BEFORE any async work, so the user feels the click is registered.
       // Use direct attribute selectors (no #chatSidebar wrapper exists in the DOM).

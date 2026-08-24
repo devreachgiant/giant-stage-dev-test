@@ -353,6 +353,19 @@ mentions and flags count regardless of read state and drop out when marked done,
 "unread" depends on reading, and both use the same reach (a client thread is visible to an
 owner or in-house dev whether or not anyone added them to it).
 
+**Reading one clears it.** The card is a queue you work through, so a row that survives
+opening it is the list failing at its only job. `ncClearNeeds` hangs off `switchChannel`, so
+it fires however you reached the channel. Unread would clear itself — opening writes
+`last_read_at` — but a mention or a flag would not, so reading the channel marks those
+`inbox_actions` done, or the row returns on the next recompute.
+
+Consequence worth knowing: **opening a channel clears its mentions from the Master Inbox
+too.** The two are one list now, and a queue that empties in one place and not the other is
+the bug this all came from. The write reads the existing rows first and merges, because a
+blind upsert would put `saved:false` over anything saved from the Inbox — losing that is
+worse than leaving a row on the card. A failed write puts the row back rather than let the
+card claim something was handled.
+
 **The Inbox had the same sampling bug.** It scanned the 400 newest messages across
 everything and filtered afterwards, so a mention older than that did not exist as far as it
 was concerned. Measured against production: the card found 32 channels with an open mention
@@ -434,7 +447,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 58 checks in a headless browser, ~80s
+node tools_newchat_clickthrough.mjs      # 59 checks in a headless browser, ~80s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```
