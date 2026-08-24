@@ -15,6 +15,11 @@
   const pick = (a) => a[Math.floor(rnd() * a.length)];
   const iso = (daysAgo, i) => new Date(Date.UTC(2026, 7, 24) - daysAgo * 864e5 - i * 6e5).toISOString();
 
+  // 4x3 grey SVG, inline so nothing in a test run ever leaves the page.
+  const PLACEHOLDER_IMG = 'data:image/svg+xml;utf8,'
+    + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">'
+      + '<rect width="400" height="300" fill="#3a3a3a"/></svg>');
+
   const log = { queries: [], unsupported: [], writes: [], realtime: [], storage: [], rpc: [] };
 
   // ── fixtures ─────────────────────────────────────────────────────────────
@@ -233,6 +238,17 @@
       assigned_to: 'u-' + (1 + n), department: 'general', due_at: iso(-2 - n, 0),
       project_id: null, client_id: cl.id, created_by: ME, created_at: iso(10 + n, 0),
       completed_at: st === 'done' ? iso(1, n) : null }))));
+  // The four non-department grants (migration 20260824120000). Seeded unevenly on
+  // purpose: a client where everyone has everything cannot tell a working tick from a
+  // hardcoded one.
+  DB.client_member_areas = [];
+  DB.clients.slice(0, 11).forEach((cl, i) => {
+    ['onboarding', 'deliverables', 'tasks', 'billing'].forEach((area, n) => {
+      if ((i + n) % 3 === 0) DB.client_member_areas.push({
+        client_id: cl.id, profile_id: 'u-' + (1 + ((i + n) % 6)), area, granted_by: ME,
+        created_at: iso(12 + n, i) });
+    });
+  });
   DB.channel_stars = [{ profile_id: ME, channel_id: 'ch-team-0' }];
   DB.inbox_actions = [];
   DB.scheduled_messages = [];
@@ -508,7 +524,11 @@
       storage: {
         from: (bucket) => ({
           upload: (path) => { log.storage.push('upload:' + bucket + '/' + path); return Promise.resolve({ data: { path }, error: null }); },
-          getPublicUrl: (path) => ({ data: { publicUrl: 'https://mock.local/' + bucket + '/' + path } }),
+          // A data: URI, not a fake host. The Media gallery puts this straight into an
+          // <img src>, and a https://mock.local/... URL made the browser try to resolve
+          // it -- six DNS failures in the console per run, which is exactly the signal
+          // this harness exists to keep clean.
+          getPublicUrl: (path) => ({ data: { publicUrl: PLACEHOLDER_IMG } }),
           createSignedUrl: (path) => Promise.resolve({ data: { signedUrl: 'https://mock.local/' + bucket + '/' + path }, error: null }),
           remove: () => Promise.resolve({ data: [], error: null }),
           list: () => Promise.resolve({ data: [], error: null }),

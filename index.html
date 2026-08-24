@@ -70267,8 +70267,30 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       { key:'googleAds', label:'Google Ads',   color:'var(--c3-blue)' },
       { key:'metaAds',   label:'Meta Ads',     color:'var(--c3-purple)' },
       { key:'seo',       label:'SEO',          color:'var(--c3-green)' },
-      { key:'web',       label:'Web Projects', color:'var(--c3-amber)' },
+      { key:'web',       label:'Web',          color:'var(--c3-amber)' },
     ];
+    // Four things the Members matrix ticks that are NOT departments. A department is a
+    // channel, so its tick is a channel_members row; these are areas of the client
+    // record, and live in client_member_areas (migration 20260824120000). Deliverables
+    // has no surface in New Chat yet -- the grant is recorded so it exists when one
+    // arrives, rather than the column being drawn over nothing.
+    const NC_AREAS = [
+      { key:'onboarding',   label:'Onboarding'   },
+      { key:'deliverables', label:'Deliverables' },
+      { key:'tasks',        label:'Tasks'        },
+      { key:'billing',      label:'Billing'      },
+    ];
+    // Managers, owners and in-house devs always pass: the ticks widen access for
+    // everyone else rather than restricting the people who administer it. Without this
+    // the first manager to open a client with no grants would lock themselves out.
+    function ncCanArea(area, profileId){
+      if (!area) return true;
+      const who = profileId || ncMyId();
+      if (!profileId && ncIsStaff()) return true;
+      const set = mg.mgmtAreaMembers[area];
+      return !!(set && set.has(who));
+    }
+    window.nc_canArea = ncCanArea;
     let ncClients = {};   // client_id -> { id, name, avatar_bg, avatar_fg }
     // Every active client, not only the eleven that happen to have a channel. The
     // Clients card is a list of clients, so a client with no conversation yet still
@@ -70847,6 +70869,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       mgmtCreatingLink: false, mgmtArchiving: false, leadSaving: '',
       mgmtMatrixFor: null, mgmtMatrixLoading: false, mgmtMatrixThreads: {},
       mgmtMatrixMembers: {}, mgmtMatrixBusy: '',
+      mgmtAreaMembers: {},   // area key -> Set of profile ids, from client_member_areas
       ovOpen: {},   // which Overview sections are expanded, by key
       clientDeptPrivacy: {}, activeThreadId: null,
       vaultCards: [], vaultChannelId: null, vaultLoading: false,
@@ -71139,6 +71162,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         <span style="flex:1;min-width:0;font-size:12.5px;color:${muted ? 'var(--c3-t6)' : 'var(--c3-t1)'};word-break:break-word;">${value}</span>
       </div>`;
       const deptLabelOf = (k) => { const d = NC_DEPTS.find(x => x.key === k); return d ? d.label : (k || ''); };
+      const areaLabelOf = (k) => { const a = NC_AREAS.find(x => x.key === k); return a ? a.label : (k || ''); };
       function profileName(id){
         const p = mg.profilesById[id];
         return p ? (p.display_name || p.full_name || p.email || 'Someone') : 'Someone';
@@ -71290,7 +71314,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       async function loadClientMemberMatrix(clientId){
         if (mg.mgmtMatrixFor === clientId) return;
         mg.mgmtMatrixFor = clientId; mg.mgmtMatrixLoading = true;
-        mg.mgmtMatrixThreads = {}; mg.mgmtMatrixMembers = {};
+        mg.mgmtMatrixThreads = {}; mg.mgmtMatrixMembers = {}; mg.mgmtAreaMembers = {};
         renderMgmt();
         const { data: threads, error } = await NCSB().from('channels')
           .select('id, department, is_private').eq('kind', 'client_dept').eq('client_id', clientId);
@@ -71311,6 +71335,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             if (!dept) return;
             (mg.mgmtMatrixMembers[dept] = mg.mgmtMatrixMembers[dept] || new Set()).add(m.profile_id);
           });
+        }
+        // The four non-department areas load in the same pass and under the same guard.
+        // A failure here is not fatal to the matrix: the departments are the part that
+        // actually restricts a conversation, so they still render.
+        const { data: areas, error: areaErr } = await NCSB().from('client_member_areas')
+          .select('profile_id, area').eq('client_id', clientId);
+        if (mg.mgmtMatrixFor !== clientId) return;
+        mg.mgmtAreaMembers = {};
+        (areas || []).forEach(a => {
+          (mg.mgmtAreaMembers[a.area] = mg.mgmtAreaMembers[a.area] || new Set()).add(a.profile_id);
+        });
+        if (areaErr && typeof toast === 'function') {
+          toast({ type:'error', message:'Could not load area access: ' + areaErr.message });
         }
         mg.mgmtMatrixLoading = false;
         renderMgmt();
@@ -71364,6 +71401,33 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // conversation and the only department that always makes sense -- and the ticks
       // take it from there. Removing clears every department in one delete, because
       // doing it a tick at a time is five confirmations and four chances to stop half way.
+      // The area equivalent of toggleMemberDept. Simpler, because there is no channel to
+      // create first -- the row is the grant.
+      async function toggleMemberArea(profileId, area){
+        const key = profileId + ':' + area;
+        if (mg.mgmtMatrixBusy || !ncIsStaff()) return;
+        const set = mg.mgmtAreaMembers[area] || new Set();
+        const had = set.has(profileId);
+        mg.mgmtMatrixBusy = key; renderMgmt();
+        const { error } = had
+          ? await NCSB().from('client_member_areas').delete()
+              .eq('client_id', mg.selectedId).eq('profile_id', profileId).eq('area', area)
+          : await NCSB().from('client_member_areas')
+              .upsert({ client_id: mg.selectedId, profile_id: profileId, area, granted_by: ncMyId() },
+                      { onConflict: 'client_id,profile_id,area' });
+        mg.mgmtMatrixBusy = '';
+        if (error) {
+          renderMgmt();
+          if (typeof toast === 'function') toast({ type:'error', message:'Could not change access: ' + error.message });
+          return;
+        }
+        if (had) set.delete(profileId); else set.add(profileId);
+        mg.mgmtAreaMembers[area] = set;
+        logC3Activity(had ? 'member_removed' : 'member_added',
+          `${had ? 'removed' : 'gave'} ${profileName(profileId)} ${had ? 'from' : 'access to'} ${areaLabelOf(area)}`,
+          { targetType:'profile', targetId: profileId });
+        renderMgmt();
+      }
       async function addClientMember(profileId){
         if (!profileId || mg.mgmtMatrixBusy || !ncIsStaff()) return;
         if (NC_DEPTS.some(d => mg.mgmtMatrixMembers[d.key] && mg.mgmtMatrixMembers[d.key].has(profileId))) return;
@@ -71386,7 +71450,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           if (typeof toast === 'function') toast({ type:'error', message:'Could not remove them: ' + error.message });
           return;
         }
+        // Two stores, so two deletes. Leaving the area grants behind would take someone
+        // out of every conversation while they kept Billing and Onboarding, which is
+        // the opposite of what "Remove" says on the button.
+        const { error: areaErr } = await NCSB().from('client_member_areas')
+          .delete().eq('client_id', mg.selectedId).eq('profile_id', profileId);
+        if (areaErr && typeof toast === 'function') {
+          toast({ type:'error', message:'Removed from the conversations, but the area access did not clear: ' + areaErr.message });
+        }
         NC_DEPTS.forEach(d => { if (mg.mgmtMatrixMembers[d.key]) mg.mgmtMatrixMembers[d.key].delete(profileId); });
+        if (!areaErr) NC_AREAS.forEach(a => { if (mg.mgmtAreaMembers[a.key]) mg.mgmtAreaMembers[a.key].delete(profileId); });
         // Same reason as toggleMemberDept: the open thread's member list is separate
         // state, and waiting for a reload to correct it shows a stale list until then.
         mg.threadMembers = mg.threadMembers.filter(tm => tm.profile_id !== profileId);
@@ -71777,7 +71850,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const everyone = Object.values(mg.profilesById)
           .sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
         const has = (pid, dept) => !!(mg.mgmtMatrixMembers[dept] && mg.mgmtMatrixMembers[dept].has(pid));
-        const isMember = (pid) => NC_DEPTS.some(d => has(pid, d.key));
+        const hasArea = (pid, area) => !!(mg.mgmtAreaMembers[area] && mg.mgmtAreaMembers[area].has(pid));
+        // A grant on any of the nine columns makes someone a member of this client --
+        // billing-only access is still access, and a row you cannot see is a row you
+        // cannot revoke.
+        const isMember = (pid) => NC_DEPTS.some(d => has(pid, d.key)) || NC_AREAS.some(a => hasArea(pid, a.key));
         const members = everyone.filter(p => isMember(p.id));
         const addable = everyone.filter(p => !isMember(p.id));
         // A public client_dept thread is readable by any signed-in staff member through
@@ -71790,23 +71867,38 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           return `<div style="font-size:12.5px;color:var(--c3-t5);padding:24px 0;">Loading access…</div>`;
         }
 
-        const COL = 96;   // one width for the header cell and the tick cell under it
-        const cell = (inner, extra, attrs) => `<div ${attrs || ''} style="width:${COL}px;flex-shrink:0;display:flex;align-items:center;justify-content:center;${extra || ''}">${inner}</div>`;
+        // Nine tick columns plus the member and the Remove link. At 96px they overflowed
+        // the pane and the last two scrolled out of sight, which for a permissions grid
+        // is the worst kind of hidden -- 84 is the narrowest that still fits
+        // "Deliverables" without clipping. The container still scrolls on a narrow window.
+        // Sized against the real pane, not by eye: eleven flex children at gap:8 spent
+        // 80px on gaps alone, which was most of the overflow. The cells are 80 wide with
+        // a 26px box centred in them, so the gap was never doing visual work anyway.
+        const COL = 80;   // one width for the header cell and the tick cell under it
+        const ACT = 68;   // the Remove column, which needs less
+        const cell = (inner, extra, attrs, w) => `<div ${attrs || ''} style="width:${w || COL}px;flex-shrink:0;display:flex;align-items:center;justify-content:center;${extra || ''}">${inner}</div>`;
 
-        const head = `<div style="display:flex;align-items:center;gap:8px;padding:13px 18px;background:var(--c3-s2);border-bottom:1px solid var(--c3-b1);">
-          <div style="flex:1;min-width:170px;font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);">Member</div>
-          ${NC_DEPTS.map(d => cell(`<span style="font-size:12px;color:var(--c3-t4);white-space:nowrap;">${chatEsc(d.label)}</span>`)).join('')}
-          ${canEdit ? cell('') : ''}
+        // The two groups are separated by a rule, because they are different kinds of
+        // grant: a department tick is membership of a conversation, an area tick is
+        // permission on the client record. Ticking Billing does not put you in a channel.
+        const split = `<div style="width:1px;height:26px;background:var(--c3-b1);flex-shrink:0;margin:0 4px;"></div>`;
+        const colHead = (label) => cell(`<span style="font-size:11.5px;color:var(--c3-t4);white-space:nowrap;">${chatEsc(label)}</span>`);
+        const head = `<div style="display:flex;align-items:center;gap:2px;padding:13px 18px;background:var(--c3-s2);border-bottom:1px solid var(--c3-b1);">
+          <div style="flex:1;min-width:140px;font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);">Member</div>
+          ${NC_DEPTS.map(d => colHead(d.label)).join('')}
+          ${split}
+          ${NC_AREAS.map(a => colHead(a.label)).join('')}
+          ${canEdit ? cell('', '', '', ACT) : ''}
         </div>`;
 
         const rows = members.map(pr => {
           const isMe = pr.id === ncMyId();
           const busyAll = mg.mgmtMatrixBusy === pr.id + ':*';
-          return `<div style="display:flex;align-items:center;gap:8px;padding:11px 18px;border-top:1px solid var(--c3-b0);opacity:${busyAll ? '0.45' : '1'};">
-            <div style="flex:1;min-width:170px;display:flex;align-items:center;gap:10px;">
+          return `<div style="display:flex;align-items:center;gap:2px;padding:11px 18px;border-top:1px solid var(--c3-b0);opacity:${busyAll ? '0.45' : '1'};">
+            <div style="flex:1;min-width:140px;display:flex;align-items:center;gap:10px;">
               ${c3ProfileMarkHtml(pr, false)}
               <div style="min-width:0;">
-                <div style="font-size:13px;font-weight:600;color:var(--c3-t0);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(nameOf(pr))}${isMe ? ' <span style="font-size:9.5px;font-weight:800;color:var(--c3-t5);">YOU</span>' : ''}</div>
+                <div title="${chatEsc(nameOf(pr))}${pr.email ? ' · ' + chatEsc(pr.email) : ''}" style="font-size:13px;font-weight:600;color:var(--c3-t0);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(nameOf(pr))}${isMe ? ' <span style="font-size:9.5px;font-weight:800;color:var(--c3-t5);">YOU</span>' : ''}</div>
                 ${pr.email ? `<div style="font-size:10.5px;color:var(--c3-t5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(pr.email)}</div>` : ''}
               </div>
             </div>
@@ -71822,7 +71914,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                 `${canEdit ? 'cursor:pointer;' : ''}opacity:${busy ? '0.45' : '1'};`,
                 `${canEdit ? `data-c3-matrix-cell="${chatEsc(pr.id)}::${d.key}"` : ''} title="${on ? 'Can open' : 'Hidden'} — ${chatEsc(d.label)}"`);
             }).join('')}
-            ${canEdit ? cell(`<span data-c3-member-remove="${chatEsc(pr.id)}" style="font-size:12.5px;color:var(--c3-t4);cursor:pointer;">Remove</span>`) : ''}
+            ${split}
+            ${NC_AREAS.map(a => {
+              const on = hasArea(pr.id, a.key);
+              const busy = mg.mgmtMatrixBusy === pr.id + ':' + a.key;
+              const box = `<span style="width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;border:1.6px solid ${on ? 'var(--red)' : 'var(--c3-b3)'};background:${on ? 'var(--red)' : 'transparent'};">
+                  ${on ? ncIcon.check('#fff', 13) : ''}</span>`;
+              return cell(box,
+                `${canEdit ? 'cursor:pointer;' : ''}opacity:${busy ? '0.45' : '1'};`,
+                `${canEdit ? `data-c3-area-cell="${chatEsc(pr.id)}::${a.key}"` : ''} title="${on ? 'Can see and manage' : 'Hidden'} — ${chatEsc(a.label)}"`);
+            }).join('')}
+            ${canEdit ? cell(`<span data-c3-member-remove="${chatEsc(pr.id)}" style="font-size:12.5px;color:var(--c3-t4);cursor:pointer;">Remove</span>`, '', '', ACT) : ''}
           </div>`;
         }).join('');
 
@@ -71832,7 +71934,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
         return `<div style="display:flex;flex-direction:column;gap:14px;">
           <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
-            <div style="flex:1;min-width:260px;font-size:12.5px;color:var(--c3-t4);line-height:1.5;">Tick what each member can open for this client. Unticked departments are hidden from them entirely.</div>
+            <div style="flex:1;min-width:260px;font-size:12.5px;color:var(--c3-t4);line-height:1.5;">Tick what each member can open for this client. Unticked areas are hidden from them entirely.</div>
             ${canEdit ? `<select data-c3-member-add="1" ${mg.mgmtMatrixBusy ? 'disabled' : ''} style="appearance:none;-webkit-appearance:none;background:transparent;border:none;outline:none;color:var(--red);font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;flex-shrink:0;">
                 <option value="" selected>+ Add member</option>
                 ${addable.map(p => `<option value="${chatEsc(p.id)}">${chatEsc(nameOf(p))}</option>`).join('')}
@@ -71841,7 +71943,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
           <div style="border:1px solid var(--c3-b1);border-radius:12px;overflow:hidden;background:var(--c3-s1);">
             <div style="overflow-x:auto;">
-              <div style="min-width:${170 + NC_DEPTS.length * COL + (canEdit ? COL : 0) + 36}px;">
+              <div style="min-width:${140 + (NC_DEPTS.length + NC_AREAS.length) * COL + (canEdit ? ACT : 0) + 65}px;">
                 ${head}
                 ${members.length ? rows : empty}
               </div>
@@ -71985,6 +72087,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       host.querySelectorAll('[data-c3-archive-client]').forEach(el => el.addEventListener('click', () => toggleClientArchive()));
       host.querySelectorAll('[data-c3-matrix-cell]').forEach(el => el.addEventListener('click', () => {
         const [pid, dept] = el.dataset.c3MatrixCell.split('::'); toggleMemberDept(pid, dept);
+      }));
+      host.querySelectorAll('[data-c3-area-cell]').forEach(el => el.addEventListener('click', () => {
+        const [pid, area] = el.dataset.c3AreaCell.split('::'); toggleMemberArea(pid, area);
       }));
       host.querySelectorAll('[data-c3-lead-set]').forEach(el => el.addEventListener('change', () => setServiceLead(el.dataset.c3LeadSet, el.value)));
       host.querySelectorAll('[data-c3-member-add]').forEach(el => el.addEventListener('change', () => {

@@ -79,6 +79,12 @@ page.on('console', m => {
 });
 page.on('pageerror', e => pageErrors.push(String(e.message || e).slice(0, 400)));
 
+// A bare "Failed to load resource" in the console says nothing about which host. Record
+// the failures themselves so an external dependency is distinguishable from a real bug.
+const failedReqs = [];
+page.on('requestfailed', r => failedReqs.push(
+  (r.failure() && r.failure().errorText || 'failed') + ' ' + r.url().slice(0, 110)));
+
 // Playwright dismisses dialogs by default, so every confirm() reads as "no" and the
 // guarded path never runs -- which looked like a broken control rather than a
 // cancelled one. Accept them, and record what was asked.
@@ -456,18 +462,55 @@ await step('Members lists the client\'s members, not everyone', async () => {
     const pane = document.getElementById('nc_mgmtPane');
     const cid = (window.__mock.db.channels.find(c => c.id === window.nc_activeChannelId) || {}).client_id;
     const chans = window.__mock.db.channels.filter(c => c.kind === 'client_dept' && c.client_id === cid).map(c => c.id);
+    // A member is anyone with a department channel row OR an area grant -- billing-only
+    // access is still access, and the row has to exist for it to be revocable.
     const expect = new Set(window.__mock.db.channel_members
       .filter(x => chans.includes(x.channel_id)).map(x => x.profile_id));
+    window.__mock.db.client_member_areas.filter(a => a.client_id === cid)
+      .forEach(a => expect.add(a.profile_id));
     const add = pane.querySelector('[data-c3-member-add]');
+    // Read the columns off the cells' own titles ("Hidden — Billing") rather than by
+    // scraping header text: Onboarding and Billing are also Management sub-tabs, and
+    // matching on visible strings picked those up instead.
+    const labels = (sel) => [...new Set([...pane.querySelectorAll(sel)]
+      .map(el => (el.title.split('—')[1] || '').trim()).filter(Boolean))].sort();
     return { rows: pane.querySelectorAll('[data-c3-member-remove]').length,
              expected: expect.size, profiles: window.__mock.db.profiles.length,
-             cells: pane.querySelectorAll('[data-c3-matrix-cell]').length,
+             deptCells: pane.querySelectorAll('[data-c3-matrix-cell]').length,
+             areaCells: pane.querySelectorAll('[data-c3-area-cell]').length,
+             areaCols: labels('[data-c3-area-cell]'),
+             deptCols: labels('[data-c3-matrix-cell]'),
              addOptions: add ? add.options.length - 1 : -1 };
   });
   check('Members lists the client\'s members, not everyone',
     m.rows === m.expected && m.rows > 0 && m.rows < m.profiles
-      && m.cells === m.rows * 5 && m.addOptions === m.profiles - m.rows,
+      && m.deptCells === m.rows * 5 && m.areaCells === m.rows * 4
+      && m.areaCols.join('|') === 'Billing|Deliverables|Onboarding|Tasks'
+      // the rename: the department is "Web", not "Web Projects", everywhere it renders
+      && m.deptCols.join('|') === 'General|Google Ads|Meta Ads|SEO|Web'
+      && m.addOptions === m.profiles - m.rows,
     JSON.stringify(m));
+});
+
+// A permissions grid whose last two columns are off-screen is the worst kind of hidden,
+// so assert the whole table fits rather than trusting that it does.
+await step('all nine permission columns fit without scrolling', async () => {
+  const r = await page.evaluate(() => {
+    const pane = document.getElementById('nc_mgmtPane');
+    const scroller = pane.querySelector('[data-c3-member-remove]')
+      .closest('div[style*="overflow-x"]');
+    const cells = [...pane.querySelectorAll('[data-c3-area-cell]')];
+    const last = cells[cells.length - 1];
+    const sr = scroller.getBoundingClientRect();
+    return { scrollW: scroller.scrollWidth, clientW: scroller.clientWidth,
+             lastRight: Math.round(last.getBoundingClientRect().right),
+             edge: Math.round(sr.right) };
+  });
+  // The guard matters more than the comparison: a hidden pane measures zero on every
+  // axis, and 0 <= 0 passed this check while proving nothing.
+  check('all nine permission columns fit without scrolling',
+    r.clientW > 400 && r.lastRight > 0
+      && r.scrollW <= r.clientW && r.lastRight <= r.edge, JSON.stringify(r));
 });
 
 // ── Master Inbox ─────────────────────────────────────────────────────────────
@@ -572,15 +615,33 @@ await step('a tick grants a department, and Remove clears them all', async () =>
     await new Promise(res => setTimeout(res, 1200));
     const afterTick = rowsFor(pid);
 
+    // The four area columns write to a different table, so they need their own proof.
+    const areasFor = (p) => window.__mock.db.client_member_areas
+      .filter(a => a.client_id === cid && a.profile_id === p).length;
+    const areaBefore = areasFor(pid);
+    const areaOff = [...pane.querySelectorAll('[data-c3-area-cell]')]
+      .find(el => el.dataset.c3AreaCell.startsWith(pid + '::') && el.title.startsWith('Hidden'));
+    let areaAfter = areaBefore, gated = null, areaKey = null;
+    if (areaOff) {
+      areaKey = areaOff.dataset.c3AreaCell.split('::')[1];
+      areaOff.click();
+      await new Promise(res => setTimeout(res, 1200));
+      areaAfter = areasFor(pid);
+      // the grant is what the gate reads, so check the gate and not just the row
+      gated = window.nc_canArea(areaKey, pid);
+    }
+
     document.querySelector(`[data-c3-member-remove="${pid}"]`).click();
     await new Promise(res => setTimeout(res, 1500));
-    return { before, afterTick, afterRemove: rowsFor(pid),
+    return { before, afterTick, areaBefore, areaAfter, areaKey, gated,
+             areaAfterRemove: areasFor(pid), afterRemove: rowsFor(pid),
              stillListed: !!document.querySelector(`[data-c3-member-remove="${pid}"]`),
              // kept as failure context: which cell was clicked, and what the mock saw
              dept: off.dataset.c3MatrixCell, writes: window.__mock.log.writes.slice(-8) };
   });
   check('a tick grants a department, and Remove clears them all',
-    !r.skipped && r.afterTick === r.before + 1 && r.afterRemove === 0 && r.stillListed === false,
+    !r.skipped && r.afterTick === r.before + 1 && r.afterRemove === 0 && r.stillListed === false
+      && r.areaAfter === r.areaBefore + 1 && r.gated === true && r.areaAfterRemove === 0,
     JSON.stringify(r));
 });
 
@@ -605,6 +666,7 @@ console.log('\nconsole errors (' + consoleErrors.length + '):');
 console.log('uncaught page errors (' + pageErrors.length + '):');
 [...new Set(pageErrors)].slice(0, 25).forEach(e => console.log('  !! ' + e));
 console.log('\nrequests to the real project that were blocked: ' + blocked.length);
+console.log('failed requests: ' + JSON.stringify([...new Set(failedReqs.map(f => f.split('?')[0]))].slice(0, 10)));
 console.log('dialogs accepted: ' + JSON.stringify(dialogs));
 console.log('tables queried: ' + JSON.stringify(evidence.tally));
 console.log('writes: ' + JSON.stringify(evidence.writes));

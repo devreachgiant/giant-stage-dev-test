@@ -239,12 +239,22 @@ a bordered card — elevated header, avatar and name per row, one red tick per d
 - Ticks are one colour. The column header already says which department it is, so colouring
   the box per department spent the app's only "this is on" signal on information already
   present.
-- The design's other four columns — Overview, Onboarding, Deliverables, Billing — are **not
-  implemented**, and deliberately so: nothing backs them. The ticks here are `channel_members`
-  rows against the client's department channels; those four are Management sub-tabs with no
-  per-member store, and a tick that does not persist lies about who can see what. They need a
-  table before they can be drawn. New Chat is manager/owner/inhouse_dev only today, so
-  per-member gating of those areas buys nothing yet either.
+- Sized against the real pane rather than by eye. Eleven flex children at `gap:8` spent 80px
+  on gaps alone, which pushed Tasks and Billing off the right edge — the worst place to hide
+  a column in a permissions grid. The click-through measures it now.
+- **Nine columns, two stores.** The five departments are `channel_members` rows against the
+  client's department channels — a department *is* a channel. Onboarding, Deliverables, Tasks
+  and Billing are not; they are areas of the client record, and live in
+  `client_member_areas` (migration `20260824120000`, **not yet applied**). A grant on any of
+  the nine makes someone a member of the client: billing-only access is still access, and a
+  row you cannot see is a row you cannot revoke. Remove clears both stores.
+- `ncCanArea(area, profileId)` is the gate, published as `window.nc_canArea`. Managers, owners
+  and in-house devs always pass — the ticks widen access for everyone else rather than
+  restricting the people who administer it, or the first manager to open a client with no
+  grants would lock themselves out.
+- **Deliverables has no surface in New Chat.** The grant is recorded so it exists when one
+  arrives. A tick that persists and gates nothing is honest; a tick that does not persist is
+  not.
 
 **Creating a department channel invalidates the Members matrix.** `loadClientMemberMatrix`
 is guarded by `mgmtMatrixFor` and never reloads for the same client, so a department created
@@ -256,7 +266,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 47 checks in a headless browser, ~50s
+node tools_newchat_clickthrough.mjs      # 48 checks in a headless browser, ~50s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```
@@ -291,8 +301,11 @@ can:
   collapsed section opens, that the status pill offers all five statuses, and that the
   sub-tab strip stays full-bleed and scrolls away instead of pinning
 - that only department-scoped tabs highlight a department, across all seven panes
+- that Members shows all nine permission columns, that they fit without scrolling, and
+  that the department reads "Web" rather than "Web Projects"
 - that Members lists only the client's members, and that a tick writes one membership row
-  while Remove clears them all. That last one **writes**, so it runs last — placed earlier it
+  while an area tick writes one `client_member_areas` row and flips `nc_canArea`, and Remove
+  clears both stores. That last one **writes**, so it runs last — placed earlier it
   moved the ground under the checks after it, which is how the matrix staleness surfaced
 - that the header counts the channel's members, not the workspace (the fixture gives a
   team channel 5 members against 81 profiles, which is what makes the two distinguishable)
