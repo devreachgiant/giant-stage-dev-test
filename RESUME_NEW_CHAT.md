@@ -30,14 +30,15 @@ and untouched. New Chat is manager/owner/inhouse_dev only.
    tab renamed the original's too — so run it after *every* change, not at the end.
 2. **Run both checks after every change**, not at the end:
    ```
-   python3 tools_newchat_audit.py            # seven static checks; expect RESULT: clean
+   python3 tools_newchat_audit.py            # eight static checks; expect RESULT: clean
    node tools_newchat_clickthrough.mjs       # 59 checks in a headless browser, ~80s
    ```
-   The audit covers seven failure modes that all shipped as a clean parse and a broken
+   The audit covers eight failure modes that all shipped as a clean parse and a broken
    screen: undefined calls including inside `${...}`, bare CONSTANT references, methods on
    a shim object, names visible only inside the nested IIFE, emitted `data-c3-*` actions
    with no listener, calls to a name declared in the module but not in scope where it is
-   called, and classes assigned unprefixed while looked up as `nc_`. `node --check` on the 10 inline script blocks is necessary and
+   called, classes assigned unprefixed while looked up as `nc_`, and data attributes the original
+   chat selects document-wide. `node --check` on the 10 inline script blocks is necessary and
    nowhere near sufficient — so is the audit, which is why the click-through exists.
 3. **Never move messages between channels** to tidy the data model. Duplicate client
    channels are unioned on read via `ncChannelScope()`.

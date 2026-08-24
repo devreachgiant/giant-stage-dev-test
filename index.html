@@ -69919,6 +69919,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   function _boot(){
 
     // ── CHAT WIRING ──────────────────────────────────────────────
+    // A SIXTH shared namespace, found the hard way: DOM DATA ATTRIBUTES. The original
+    // chat's unread painter runs document.querySelectorAll('[data-channel-id],
+    // [data-dm-channel-id]') -- document-wide, not scoped to its own list -- so it was
+    // decorating New Chat's rows, stamping a second '.ch-unread-badge' next to this
+    // module's '.nc_ch-unread-badge'. That is the two red badges on one sidebar row.
+    // This module's painter has the same document-wide selector, so the leak ran both
+    // ways. Every row attribute here is nc_-prefixed; the original stays untouched.
     // Scope this session: channels + messages + realtime.
     // Not in scope: threads, reactions, mentions, file attachments,
     // typing indicators, edits, pins, read receipts.
@@ -70624,8 +70631,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
       const src = document.getElementById('nc_chatChannelList');
       const rowByChannel = new Map();
-      (src ? [...src.querySelectorAll('.nc_ch-item[data-channel-id]')] : []).forEach(row => {
-        const c = byId.get(row.dataset.channelId);
+      (src ? [...src.querySelectorAll('.nc_ch-item[data-nc-channel-id]')] : []).forEach(row => {
+        const c = byId.get(row.dataset.ncChannelId);
         if (!c) return;
         rowByChannel.set(c.id, row);
         // Client rows are built from the client list below, so only team channels go
@@ -70666,8 +70673,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         });
 
       const dmSrc = document.getElementById('nc_chatDmList');
-      (dmSrc ? [...dmSrc.querySelectorAll('.nc_ch-item[data-dm-channel-id]')] : []).forEach(row => {
-        const id = row.dataset.dmChannelId;
+      (dmSrc ? [...dmSrc.querySelectorAll('.nc_ch-item[data-nc-dm-channel-id]')] : []).forEach(row => {
+        const id = row.dataset.ncDmChannelId;
         const c = dmById.get(id);
         place(row, c && c.is_group ? bodies.groups : bodies.direct, id, false);
         const needDm = ncNeeds[id];
@@ -74460,7 +74467,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           if (query && !label.toLowerCase().includes(query)) return;
           const isActive = c.id === activeChannelId ? ' active' : '';
           const gava = `<span class="nc_dot-ava" style="background:var(--surface-3);color:var(--text-2);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><circle cx="10.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><path d="M2 12.5c0-1.7 1.4-2.8 3.5-2.8M14 12.5c0-1.7-1.4-2.8-3.5-2.8M6 13c0-1.6 1-2.6 2-2.6s2 1 2 2.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></span>`;
-          html.push(`<div class="nc_ch-item${isActive}" data-dm-channel-id="${chatEsc(c.id)}" title="${chatEsc(label)}">${gava}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${chatEsc(label)}</span></div>`);
+          html.push(`<div class="nc_ch-item${isActive}" data-nc-dm-channel-id="${chatEsc(c.id)}" title="${chatEsc(label)}">${gava}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${chatEsc(label)}</span></div>`);
           return;
         }
         const otherId = others[0];
@@ -74481,7 +74488,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const ava = p.avatar_url
           ? `<span class="nc_dot-ava" style="background-image:url(${chatEsc(p.avatar_url)});background-size:cover;"><span class="presence-dot ${presClass}" data-presence-for="${chatEsc(p.id)}"></span></span>`
           : `<span class="nc_dot-ava" style="background:${chatEsc(p.avatar_bg||'#4A2424')};color:${chatEsc(p.avatar_fg||'#F0A0A0')};">${chatEsc(initial)}<span class="presence-dot ${presClass}" data-presence-for="${chatEsc(p.id)}"></span></span>`;
-        html.push(`<div class="nc_ch-item${isActive}" data-dm-channel-id="${chatEsc(c.id)}">${ava}${chatEsc(p.full_name || p.email)}</div>`);
+        html.push(`<div class="nc_ch-item${isActive}" data-nc-dm-channel-id="${chatEsc(c.id)}">${ava}${chatEsc(p.full_name || p.email)}</div>`);
       });
 
       const emptyMsg = scope === 'clients'
@@ -74491,14 +74498,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // SAFETY: re-apply active class right after innerHTML rebuild, in case activeChannelId
       // changed between the start of this function and now (the user may have clicked another channel)
       if (activeChannelId) {
-        container.querySelectorAll('[data-dm-channel-id]').forEach(el => {
-          el.classList.toggle('active', el.dataset.dmChannelId === activeChannelId);
+        container.querySelectorAll('[data-nc-dm-channel-id]').forEach(el => {
+          el.classList.toggle('active', el.dataset.ncDmChannelId === activeChannelId);
         });
       }
 
       // Wire click to switch
-      container.querySelectorAll('[data-dm-channel-id]').forEach(el => {
-        el.addEventListener('click', () => switchChannel(el.dataset.dmChannelId));
+      container.querySelectorAll('[data-nc-dm-channel-id]').forEach(el => {
+        el.addEventListener('click', () => switchChannel(el.dataset.ncDmChannelId));
         if (typeof window.nc_attachChannelDrag === 'function') window.nc_attachChannelDrag(el);
         // NOTE: DMs do NOT get the three-dot menu (no rename/delete on direct messages)
       });
@@ -74537,10 +74544,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             } else if (e.key === 'Enter') {
               // Pick the first visible channel/DM and switch to it
               e.preventDefault();
-              const firstChannel = chatChannelList.querySelector('[data-channel-id]')
-                                || document.querySelector('#nc_chatDmList [data-dm-channel-id]');
+              const firstChannel = chatChannelList.querySelector('[data-nc-channel-id]')
+                                || document.querySelector('#nc_chatDmList [data-nc-dm-channel-id]');
               if (firstChannel && typeof switchChannel === 'function') {
-                const id = firstChannel.dataset.channelId || firstChannel.dataset.dmChannelId;
+                const id = firstChannel.dataset.ncChannelId || firstChannel.dataset.ncDmChannelId;
                 switchChannel(id);
                 jumpEl.value = '';
                 applyFilter();
@@ -74679,7 +74686,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // Indentation: 14px per level + a thin vertical bar so the hierarchy is visible
         const indentPx = depth * 14;
         const indentStyle = depth > 0 ? `padding-left:${12 + indentPx}px;border-left:2px solid var(--line);margin-left:${indentPx}px;` : '';
-        let html = `<div class="nc_ch-item${isActive}" data-channel-id="${chatEsc(c.id)}" style="${opacityStyle}${indentStyle}">${hashIcon}${chatEsc(c.name)}${mutedIcon}</div>`;
+        let html = `<div class="nc_ch-item${isActive}" data-nc-channel-id="${chatEsc(c.id)}" style="${opacityStyle}${indentStyle}">${hashIcon}${chatEsc(c.name)}${mutedIcon}</div>`;
         // Recurse: render children sorted by name
         const children = visibleChannels
           .filter(x => x.parent_id === c.id && !x.section_id)
@@ -74693,23 +74700,23 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // SAFETY: re-apply active class right after innerHTML rebuild, in case activeChannelId
       // changed during the render (user clicked another channel while we were building)
       if (activeChannelId) {
-        chatChannelList.querySelectorAll('[data-channel-id]').forEach(el => {
-          el.classList.toggle('active', el.dataset.channelId === activeChannelId);
+        chatChannelList.querySelectorAll('[data-nc-channel-id]').forEach(el => {
+          el.classList.toggle('active', el.dataset.ncChannelId === activeChannelId);
         });
       }
-      chatChannelList.querySelectorAll('[data-channel-id]').forEach(el => {
-        el.addEventListener('click', () => switchChannel(el.dataset.channelId));
+      chatChannelList.querySelectorAll('[data-nc-channel-id]').forEach(el => {
+        el.addEventListener('click', () => switchChannel(el.dataset.ncChannelId));
         // Right-click → context menu (mute/unmute)
         el.addEventListener('contextmenu', (e) => {
           e.preventDefault();
-          const channelId = el.dataset.channelId;
+          const channelId = el.dataset.ncChannelId;
           openChannelContextMenu(e.clientX, e.clientY, channelId);
         });
         // Double-click → rename channel inline
         el.addEventListener('dblclick', async (e) => {
           e.preventDefault();
           e.stopPropagation();
-          const channelId = el.dataset.channelId;
+          const channelId = el.dataset.ncChannelId;
           // Find the current name (last text node, before the muted icon)
           const channel = (chatChannels || []).find(c => c.id === channelId);
           if (!channel) return;
@@ -74830,7 +74837,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               return;
             }
             // Remove from sidebar
-            const item = document.querySelector(`.ch-item[data-channel-id="${channelId}"]`);
+            const item = document.querySelector(`.ch-item[data-nc-channel-id="${channelId}"]`);
             if (item) item.remove();
             // If user was viewing this channel, reset to none
             if (typeof activeChannelId !== 'undefined' && activeChannelId === channelId) {
@@ -74899,8 +74906,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // ── INSTANT VISUAL FEEDBACK ──
       // Move the red active indicator BEFORE any async work, so the user feels the click is registered.
       // Use direct attribute selectors (no #chatSidebar wrapper exists in the DOM).
-      document.querySelectorAll('[data-channel-id], [data-dm-channel-id]').forEach(el => {
-        const id = el.dataset.channelId || el.dataset.dmChannelId;
+      document.querySelectorAll('[data-nc-channel-id], [data-nc-dm-channel-id]').forEach(el => {
+        const id = el.dataset.ncChannelId || el.dataset.ncDmChannelId;
         // Only toggle elements that are channel list items (skip channel_id refs on other elements like messages)
         if (!el.classList.contains('nc_ch-item')) return;
         el.classList.toggle('active', id === channelId);
@@ -77269,8 +77276,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         else { sbChat.style.display = 'none'; }
       }
       // Per-channel — UPDATE IN PLACE to avoid flicker (don't remove+recreate, that causes visual blinking)
-      document.querySelectorAll('[data-channel-id], [data-dm-channel-id]').forEach(el => {
-        const cid = el.dataset.channelId || el.dataset.dmChannelId;
+      document.querySelectorAll('[data-nc-channel-id], [data-nc-dm-channel-id]').forEach(el => {
+        const cid = el.dataset.ncChannelId || el.dataset.ncDmChannelId;
         const count = chatUnreadCounts[cid] || 0;
         const shouldShow = count > 0 && cid !== activeChannelId;
         el.classList.toggle('nc_has-unread', shouldShow);

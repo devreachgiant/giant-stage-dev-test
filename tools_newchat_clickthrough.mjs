@@ -126,7 +126,7 @@ await step('New Chat screen becomes active', async () => {
 // init is deferred until giantSupabase/giantSession/giantCurrentProfile exist
 await step('New Chat initialises (channel rows render)', async () => {
   await page.waitForFunction(
-    () => document.querySelectorAll('#nc_chatChannelList .nc_ch-item[data-channel-id]').length > 0,
+    () => document.querySelectorAll('#nc_chatChannelList .nc_ch-item[data-nc-channel-id]').length > 0,
     null, { timeout: 40000 });
   check('New Chat initialises (channel rows render)', true);
 });
@@ -272,7 +272,7 @@ await step('a message with replies shows exactly one reply badge', async () => {
       && db.messages.some(r => r.parent_id === m.id));
     if (!parent) return null;
     const row = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item, #nc_cardClientsBody .nc_ch-item')]
-      .find(el => (el.dataset.channelId || el.dataset.dmChannelId) === parent.channel_id);
+      .find(el => (el.dataset.ncChannelId || el.dataset.ncDmChannelId) === parent.channel_id);
     if (row) row.click(); else window.nc_switchChatSubtab && null;
     return { channel: parent.channel_id, clicked: !!row };
   });
@@ -304,13 +304,13 @@ await step('a message with replies shows exactly one reply badge', async () => {
   // switching channels is how a person triggers it.
   await page.evaluate(() => {
     const other = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item')]
-      .find(el => el.dataset.channelId !== window.nc_activeChannelId);
+      .find(el => el.dataset.ncChannelId !== window.nc_activeChannelId);
     if (other) other.click();
   });
   await page.waitForTimeout(1500);
   await page.evaluate((cid) => {
     const back = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item, #nc_cardClientsBody .nc_ch-item')]
-      .find(el => (el.dataset.channelId || el.dataset.dmChannelId) === cid);
+      .find(el => (el.dataset.ncChannelId || el.dataset.ncDmChannelId) === cid);
     if (back) back.click();
   }, open.channel);
   await page.waitForTimeout(2500);
@@ -950,8 +950,8 @@ await step('Needs you finds an old unread message behind a busy channel', async 
     await new Promise(res => setTimeout(res, 600));
     const rows = [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')];
     return { quiet: quiet.channel_id,
-             listed: rows.some(el => el.dataset.channelId === quiet.channel_id
-                                  || el.dataset.dmChannelId === quiet.channel_id),
+             listed: rows.some(el => el.dataset.ncChannelId === quiet.channel_id
+                                  || el.dataset.ncDmChannelId === quiet.channel_id),
              rows: rows.length };
   });
   check('Needs you finds an old unread message behind a busy channel',
@@ -978,7 +978,7 @@ await step('Needs you finds an old unread message behind a busy channel', async 
     await window.nc_computeNeedsYou();
     await new Promise(res => setTimeout(res, 500));
     const on = (id) => [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')]
-      .some(el => el.dataset.channelId === id || el.dataset.dmChannelId === id);
+      .some(el => el.dataset.ncChannelId === id || el.dataset.ncDmChannelId === id);
     const readButListed = on(target.channel_id);
 
     // and it drops out once the Inbox marks it done
@@ -1007,14 +1007,14 @@ await step('Needs you finds an old unread message behind a busy channel', async 
     await window.nc_computeNeedsYou();
     await new Promise(r => setTimeout(r, 500));
     const on = () => [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')]
-      .some(el => el.dataset.channelId === target.channel_id
-                || el.dataset.dmChannelId === target.channel_id);
+      .some(el => el.dataset.ncChannelId === target.channel_id
+                || el.dataset.ncDmChannelId === target.channel_id);
     const before = on();
 
     // open it the way a person would: click the row in the card
     const row = [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')]
-      .find(el => el.dataset.channelId === target.channel_id
-                || el.dataset.dmChannelId === target.channel_id);
+      .find(el => el.dataset.ncChannelId === target.channel_id
+                || el.dataset.ncDmChannelId === target.channel_id);
     if (row) row.click();
     await new Promise(r => setTimeout(r, 2000));
     const afterClick = on();
@@ -1074,7 +1074,7 @@ await step('a table that is not deployed yet degrades instead of erroring', asyn
   // one and its matrix never reloaded against the hidden table.
   const switched = await page.evaluate(() => {
     const rows = [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')]
-      .filter(r => parseFloat(r.style.opacity || '1') === 1 && r.dataset.channelId);
+      .filter(r => parseFloat(r.style.opacity || '1') === 1 && r.dataset.ncChannelId);
     const last = rows[rows.length - 1];
     if (!last) return false;
     last.click();

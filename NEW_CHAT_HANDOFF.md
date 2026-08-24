@@ -48,11 +48,23 @@ Why it matters: this check has caught a real leak, a global string replace renam
 that renamed the original's tab too. Do not skip it because a change "only touched New
 Chat" — that is exactly what the leak looked like.
 
-**Five shared namespaces** had to be separated, and only two were visible in the markup:
-DOM ids, CSS classes, `window.*` globals, localStorage keys, and **Supabase realtime channel
-names**. The last one is invisible at the schema level and cost a debugging round: asking for
+**Six shared namespaces** had to be separated, and only two were visible in the markup:
+DOM ids, CSS classes, `window.*` globals, localStorage keys, **Supabase realtime channel
+names**, and **DOM data attributes**. The last one is invisible at the schema level and cost a debugging round: asking for
 a channel name the original already subscribed returns *its* channel, and attaching
 `postgres_changes` to a subscribed channel throws. Everything in the copy is `nc_`-prefixed.
+
+The sixth leaks in a direction the others do not, and it was found by looking at a
+screenshot. The original chat's unread painter runs
+`document.querySelectorAll('[data-channel-id], [data-dm-channel-id]')` — **document-wide,
+with no id or class in front of it** — so it reached into New Chat's sidebar and stamped a
+second `.ch-unread-badge` beside this module's own. Two red badges on one row, written by a
+module nobody had touched. This module's painter had the identical selector, so it ran both
+ways. New Chat's rows now use `data-nc-channel-id` / `data-nc-dm-channel-id`.
+
+**Audit check 8** catches it, and only bare selectors count: `#chatMsgsList [data-msg-id]`
+cannot escape its own list, so `data-msg-id` is shared and harmless. It reports both
+attributes on the commit before the fix.
 
 Six classes are deliberately **not** prefixed, because the app's own screen/nav machinery
 keys on them: `screen`, `fullbleed`, `on`, `active`, `badge`, `ico`.
@@ -92,7 +104,7 @@ realtime is still filtered to the primary channel, and sending always writes to 
 | Master Inbox | repointed to `messages` / `channel_members` / new `inbox_actions` | done |
 
 **All ports are complete.** Run `python3 tools_newchat_audit.py` after every change — it
-checks the seven failure modes below and should print `RESULT: clean`.
+checks the eight failure modes below and should print `RESULT: clean`.
 
 The extraction pipeline is `scratchpad/port.py` (regenerate if gone). Three lessons in it:
 

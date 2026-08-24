@@ -186,5 +186,38 @@ mismatch = sorted(a for a in assigned
 print("7. classes assigned unprefixed but looked up as nc_:", mismatch or "none")
 fail += len(mismatch)
 
+# ---------------------------------------------------------------------------
+# 8. A DOM data attribute the ORIGINAL chat selects document-wide -- the sixth namespace.
+#
+# The handoff lists five: DOM ids, CSS classes, window.*, localStorage keys and realtime
+# channel names. Data attributes are the sixth, and they leak in a direction none of the
+# others do. The original chat's unread painter runs
+#   document.querySelectorAll('[data-channel-id], [data-dm-channel-id]')
+# -- document-wide, with no id or class in front of it -- so it reached into New Chat's
+# sidebar and stamped a second '.ch-unread-badge' beside this module's own. Two red
+# badges on one row, written by a module nobody had touched. This module's painter had
+# the same selector, so it ran both ways.
+#
+# Only BARE attribute selectors count. '#chatMsgsList [data-msg-id]' cannot escape its
+# own list, and '.msg[data-msg-id]' stopped matching once this module's rows became
+# '.nc_msg' -- so data-msg-id is shared and harmless, and flagging it would make this
+# check noise. Comments are stripped first, or the paragraph above trips it.
+def strip_comments(t):
+    t = re.sub(r'//[^\n]*', '', t)
+    return re.sub(r'/\*.*?\*/', '', t, flags=re.S)
+
+orig = '\n'.join('\n'.join(S.split('\n')[a - 1:b])
+                 for a, b in [(7198, 7707), (41674, 47173), (67519, 67870)])
+reach = set()
+for m in re.finditer(r"document\.querySelectorAll\(\s*'([^']+)'", strip_comments(orig)):
+    for part in m.group(1).split(','):
+        part = part.strip()
+        if re.fullmatch(r'\[data-([a-z][\w-]*)(?:[^\]]*)\]', part):
+            reach.add(re.match(r'\[data-([a-z][\w-]*)', part).group(1))
+used = set(re.findall(r'data-([a-z][\w-]*)', strip_comments(nc)))
+shared = sorted(a for a in reach & used if not a.startswith('nc-') and not a.startswith('c3-'))
+print("8. data attributes the original selects document-wide:", shared or "none")
+fail += len(shared)
+
 print("\nRESULT:", "clean" if not fail else f"{fail} problem(s)")
 sys.exit(1 if fail else 0)
