@@ -70561,6 +70561,37 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       ids.forEach(id => { mg.inboxActions['msg:' + id] = { done: true, saved: !!savedBy[id] }; });
     }
 
+    // computeNeedsYou runs once, at boot. Everything that arrives afterwards -- which is
+    // most of what actually needs you -- never entered the card: a message in ReachGiant
+    // Home or a DM lit its unread badge in the sidebar and the Needs you list, one card
+    // above it, stayed exactly as it was until a reload. Both realtime paths call this,
+    // so the list keeps up with messages instead of describing the moment you loaded.
+    //
+    // Incremental on purpose: the rules match computeNeedsYou exactly, so a message can be
+    // placed without asking the database anything.
+    function ncNoteNeed(m){
+      if (!m || !m.channel_id || m.channel_id === activeChannelId) return;
+      const me = ncMyId();
+      if (!me || m.author_id === me) return;
+      // Same reach as computeNeedsYou and the Inbox: my channels, plus every client
+      // thread if I am an owner or in-house dev.
+      const ch = chatChannels.find(c => c.id === m.channel_id)
+              || (chatDmChannels || []).find(c => c.id === m.channel_id);
+      const mineIds = window.nc__myChannelMemberIds;
+      if (!(mineIds && mineIds.has(m.channel_id)) && !(ch && ch.kind === 'client_dept' && isOwner())) return;
+      const first = String((window.giantCurrentProfile
+        && (window.giantCurrentProfile.full_name || window.giantCurrentProfile.email)) || '')
+        .trim().split(/\s+/)[0].toLowerCase();
+      const kind = (first && m.body && String(m.body).toLowerCase().includes('@' + first)) ? 'mention'
+                 : m.flagged ? 'flagged' : 'unread';
+      const rank = { mention: 0, flagged: 1, unread: 2 };
+      const cur = ncNeeds[m.channel_id];
+      if (cur && rank[cur] <= rank[kind]) return;   // a stronger reason already stands
+      ncNeeds[m.channel_id] = kind;
+      renderNavCards();
+    }
+    window.nc_noteNeed = ncNoteNeed;
+
     window.nc_computeNeedsYou = computeNeedsYou;
 
     // The card + buttons forward to the engine's own buttons rather than
@@ -77718,6 +77749,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (m.channel_id !== activeChannelId && m.author_id !== window.giantSession.user.id) {
           chatUnreadCounts[m.channel_id] = (chatUnreadCounts[m.channel_id] || 0) + 1;
           updateUnreadBadges();
+          ncNoteNeed(m);
         } else if (m.channel_id === activeChannelId) {
           // I'm viewing this channel; mark as read
           markChannelAsRead(activeChannelId);
@@ -77824,6 +77856,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         }
         chatUnreadCounts[m.channel_id] = (chatUnreadCounts[m.channel_id] || 0) + 1;
         updateUnreadBadges();
+        ncNoteNeed(m);
       })
       .subscribe();
 

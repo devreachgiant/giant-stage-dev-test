@@ -449,6 +449,14 @@ mentions and flags count regardless of read state and drop out when marked done,
 "unread" depends on reading, and both use the same reach (a client thread is visible to an
 owner or in-house dev whether or not anyone added them to it).
 
+**It keeps up with new messages.** `computeNeedsYou` runs **once, at boot**, so before this
+the card described the moment you loaded the page: a message in ReachGiant Home or a DM lit
+its unread badge in the sidebar while the Needs you list one card above it did not move
+until a reload. `ncNoteNeed(m)` is called from both realtime paths — the `appendMessage`
+wrapper and the global message subscription — and places the message incrementally using the
+same rules as `computeNeedsYou`, so it costs no query. It never downgrades an existing
+reason, and it ignores the channel you are currently reading.
+
 **Reading one clears it.** The card is a queue you work through, so a row that survives
 opening it is the list failing at its only job. `ncClearNeeds` hangs off `switchChannel`, so
 it fires however you reached the channel. Unread would clear itself — opening writes
@@ -543,7 +551,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 62 checks in a headless browser, ~90s
+node tools_newchat_clickthrough.mjs      # 63 checks in a headless browser, ~95s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```

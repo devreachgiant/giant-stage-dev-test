@@ -1164,6 +1164,35 @@ await step('Needs you finds an old unread message behind a busy channel', async 
     worked.before && !worked.afterClick && !worked.afterRecompute && worked.markedDone,
     JSON.stringify(worked));
 
+  // A message that arrives AFTER load must enter the card. computeNeedsYou runs once at
+  // boot, so before this the list described the moment you opened the page: a message in
+  // ReachGiant Home or a DM lit its unread badge and the card one row above it did not move.
+  const live = await page.evaluate(async () => {
+    const db = window.__mock.db, me = window.__mock.me;
+    const mine = db.channel_members.filter(m => m.profile_id === me);
+    const target = mine.find(m => {
+      const ch = db.channels.find(c => c.id === m.channel_id);
+      return ch && ch.kind === 'team_channel' && ch.id !== window.nc_activeChannelId;
+    });
+    if (!target) return { skipped: true };
+    const on = () => [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')]
+      .some(el => (el.dataset.ncChannelId || el.dataset.ncDmChannelId) === target.channel_id);
+    // clear it first, the way reading the channel would
+    target.last_read_at = new Date().toISOString();
+    db.messages = db.messages.filter(x => !(x.channel_id === target.channel_id
+      && /@nishchay/i.test(x.body || '')) && !(x.channel_id === target.channel_id && x.flagged));
+    await window.nc_computeNeedsYou();
+    await new Promise(r => setTimeout(r, 700));
+    const before = on();
+    // now someone posts, exactly as the realtime handler would deliver it
+    window.nc_noteNeed({ id: 'm-live-probe', channel_id: target.channel_id, author_id: 'u-5',
+      body: 'anyone around?', flagged: false, created_at: new Date().toISOString() });
+    await new Promise(r => setTimeout(r, 500));
+    return { before, after: on() };
+  });
+  check('a message that arrives after load enters Needs you',
+    !live.skipped && live.before === false && live.after === true, JSON.stringify(live));
+
   // The header toggles the card and nothing else -- expanding it used to also throw the
   // Inbox over the thread you were reading. The Inbox has its own button now.
   const opened = await page.evaluate(async () => {
