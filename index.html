@@ -70845,11 +70845,198 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       try { navigator.clipboard.writeText(t); if (typeof toast === 'function') toast({ type:'success', message: msg || 'Copied' }); }
       catch(_) { if (typeof toast === 'function') toast({ type:'error', message:'Could not copy' }); }
     };
-    const ncIcon = {
-      check: (c, s) => `<svg width="${s||12}" height="${s||12}" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l3.5 3.5L13 5" stroke="${c}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-      arrowRight: (c, s) => `<svg width="${s||12}" height="${s||12}" viewBox="0 0 16 16" fill="none"><path d="M5 3l5 5-5 5" stroke="${c}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-      upload: (c, s) => `<svg width="${s||12}" height="${s||12}" viewBox="0 0 16 16" fill="none"><path d="M8 11V3M5 6l3-3 3 3M3 12.5h10" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-    };
+      const ncIcon = (() => {
+        const svg = (d, c, s, extra) => `<svg width="${s}" height="${s}" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;vertical-align:middle;">${typeof d === 'function' ? d(c) : `<path d="${d}" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"${extra || ''}/>`}</svg>`;
+        return {
+          flag:       (c = 'currentColor', s = 12) => svg('M4 14V2.8h7.2l-1.4 2.6 1.4 2.6H4', c, s),
+          arrowRight: (c = 'currentColor', s = 12) => svg('M3 8h10M9 4l4 4-4 4', c, s),
+          pin:        (c = 'currentColor', s = 12) => svg('M9.5 1.8l4.7 4.7-1.9.6-1 3.4-4.8-4.8 3.4-1zM6.5 9.5L2.5 13.5', c, s),
+          paperclip:  (c = 'currentColor', s = 12) => svg('M11 5L5.5 10.5a2 2 0 01-3-3L9 1a3 3 0 014 4l-6.5 6.5', c, s),
+          mic:        (c = 'currentColor', s = 12) => svg(cc => `<rect x="6" y="2" width="4" height="8" rx="2" stroke="${cc}" stroke-width="1.5"/><path d="M3 8v.5a5 5 0 0010 0V8M8 13.5V15M5.5 15h5" stroke="${cc}" stroke-width="1.4" stroke-linecap="round"/>`, c, s),
+          close:      (c = 'currentColor', s = 12) => svg('M4 4l8 8M12 4l-8 8', c, s),
+          check:      (c = 'currentColor', s = 12) => svg('M3 8.5l3.5 3.5L13 5', c, s),
+          star:       (c = 'currentColor', s = 12, fill) => `<svg width="${s}" height="${s}" viewBox="0 0 16 16" fill="${fill || 'none'}" style="flex-shrink:0;vertical-align:middle;"><path d="M8 1.8l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.6l-3.8 2 .7-4.3-3.1-3 4.3-.6z" stroke="${c}" stroke-width="1.4" stroke-linejoin="round"/></svg>`,
+          headphones: (c = 'currentColor', s = 12) => svg(cc => `<path d="M2.5 10V8a5.5 5.5 0 0111 0v2" stroke="${cc}" stroke-width="1.5" stroke-linecap="round"/><rect x="1.5" y="9.5" width="3" height="4.5" rx="1.4" stroke="${cc}" stroke-width="1.4"/><rect x="11.5" y="9.5" width="3" height="4.5" rx="1.4" stroke="${cc}" stroke-width="1.4"/>`, c, s),
+          search:     (c = 'currentColor', s = 12) => svg(cc => `<circle cx="7" cy="7" r="4.6" stroke="${cc}" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="${cc}" stroke-width="1.5" stroke-linecap="round"/>`, c, s),
+          users:      (c = 'currentColor', s = 12) => svg(cc => `<circle cx="6" cy="5.5" r="2.6" stroke="${cc}" stroke-width="1.4"/><path d="M1.6 14c0-2.4 2-4 4.4-4s4.4 1.6 4.4 4" stroke="${cc}" stroke-width="1.4" stroke-linecap="round"/><path d="M11 3.2a2.6 2.6 0 010 4.9M12.2 10.4c1.4.5 2.3 1.8 2.3 3.6" stroke="${cc}" stroke-width="1.4" stroke-linecap="round"/>`, c, s),
+          link:       (c = 'currentColor', s = 12) => svg('M6.6 9.4a2.6 2.6 0 003.9.3l2-2a2.6 2.6 0 00-3.7-3.7l-1 1M9.4 6.6a2.6 2.6 0 00-3.9-.3l-2 2a2.6 2.6 0 003.7 3.7l1-1', c, s),
+          listBullet: (c = 'currentColor', s = 12) => svg(cc => `<path d="M6 4h8M6 8h8M6 12h8" stroke="${cc}" stroke-width="1.5" stroke-linecap="round"/><circle cx="2.6" cy="4" r="1" fill="${cc}"/><circle cx="2.6" cy="8" r="1" fill="${cc}"/><circle cx="2.6" cy="12" r="1" fill="${cc}"/>`, c, s),
+          listOrder:  (c = 'currentColor', s = 12) => svg(cc => `<path d="M6 4h8M6 8h8M6 12h8" stroke="${cc}" stroke-width="1.5" stroke-linecap="round"/><text x="1" y="5.6" font-size="4.6" font-weight="700" fill="${cc}" font-family="ui-sans-serif,system-ui">1</text><text x="1" y="9.6" font-size="4.6" font-weight="700" fill="${cc}" font-family="ui-sans-serif,system-ui">2</text><text x="1" y="13.6" font-size="4.6" font-weight="700" fill="${cc}" font-family="ui-sans-serif,system-ui">3</text>`, c, s),
+          send:       (c = 'currentColor', s = 12) => svg('M3 8h9M8.5 4.5L12 8l-3.5 3.5', c, s),
+          clock:      (c = 'currentColor', s = 12) => svg(cc => `<circle cx="8" cy="8" r="6.2" stroke="${cc}" stroke-width="1.4"/><path d="M8 4.6V8l2.4 1.6" stroke="${cc}" stroke-width="1.4" stroke-linecap="round"/>`, c, s),
+          sparkle:    (c = 'currentColor', s = 12) => svg(cc => `<path d="M8 1.6l1.5 3.9 3.9 1.5-3.9 1.5L8 12.4 6.5 8.5 2.6 7l3.9-1.5z" stroke="${cc}" stroke-width="1.4" stroke-linejoin="round"/><path d="M13 11.4l.6 1.5 1.5.6-1.5.6-.6 1.5-.6-1.5-1.5-.6 1.5-.6z" stroke="${cc}" stroke-width="1.1" stroke-linejoin="round"/>`, c, s),
+          key:        (c = 'currentColor', s = 12) => svg(cc => `<circle cx="5" cy="8" r="3.1" stroke="${cc}" stroke-width="1.5"/><path d="M8.1 8H14.5M12.4 8v2.6M10.4 8v2" stroke="${cc}" stroke-width="1.5" stroke-linecap="round"/>`, c, s),
+          doc:        (c = 'currentColor', s = 12) => svg(cc => `<path d="M4 1.8h5l3 3v9.4H4z" stroke="${cc}" stroke-width="1.4" stroke-linejoin="round"/><path d="M9 1.8V5h3M6 8h4M6 10.5h4" stroke="${cc}" stroke-width="1.3" stroke-linecap="round"/>`, c, s),
+          sheet:      (c = 'currentColor', s = 12) => svg(cc => `<rect x="2.2" y="2.6" width="11.6" height="10.8" rx="1.4" stroke="${cc}" stroke-width="1.4"/><path d="M2.2 6.2h11.6M6.2 6.2v7.2M9.8 6.2v7.2" stroke="${cc}" stroke-width="1.2"/>`, c, s),
+          video:      (c = 'currentColor', s = 12) => svg(cc => `<rect x="1.6" y="3.4" width="9.4" height="9.2" rx="1.6" stroke="${cc}" stroke-width="1.4"/><path d="M11 7.4l3.4-2.2v5.6L11 8.6z" stroke="${cc}" stroke-width="1.4" stroke-linejoin="round"/>`, c, s),
+          note:       (c = 'currentColor', s = 12) => svg(cc => `<rect x="2.4" y="2.2" width="11.2" height="11.6" rx="1.6" stroke="${cc}" stroke-width="1.4"/><path d="M5.2 5.6h5.6M5.2 8h5.6M5.2 10.4h3.4" stroke="${cc}" stroke-width="1.3" stroke-linecap="round"/>`, c, s),
+          eye:        (c = 'currentColor', s = 12) => svg(cc => `<path d="M1.4 8S3.8 3.6 8 3.6 14.6 8 14.6 8 12.2 12.4 8 12.4 1.4 8 1.4 8z" stroke="${cc}" stroke-width="1.4"/><circle cx="8" cy="8" r="1.9" stroke="${cc}" stroke-width="1.4"/>`, c, s),
+          eyeOff:     (c = 'currentColor', s = 12) => svg(cc => `<path d="M6.2 4a6.7 6.7 0 011.8-.2c4.2 0 6.6 4.2 6.6 4.2a12 12 0 01-2 2.5M4 5.3A12 12 0 001.4 8s2.4 4.4 6.6 4.4c.9 0 1.7-.2 2.4-.5M2 2l12 12" stroke="${cc}" stroke-width="1.4" stroke-linecap="round"/>`, c, s),
+          copy:       (c = 'currentColor', s = 12) => svg(cc => `<rect x="5.4" y="5.4" width="8.2" height="8.2" rx="1.4" stroke="${cc}" stroke-width="1.4"/><path d="M10.6 5.4V3.8a1.4 1.4 0 00-1.4-1.4H3.8a1.4 1.4 0 00-1.4 1.4v5.4a1.4 1.4 0 001.4 1.4h1.6" stroke="${cc}" stroke-width="1.4"/>`, c, s),
+          upload:     (c = 'currentColor', s = 12) => svg('M8 10.6V2.4M4.8 5.6L8 2.4l3.2 3.2M2.4 11.4v1.2a1.4 1.4 0 001.4 1.4h8.4a1.4 1.4 0 001.4-1.4v-1.2', c, s),
+          pinFilled:  (c = 'currentColor', s = 12) => `<svg width="${s}" height="${s}" viewBox="0 0 16 16" fill="${c}" style="flex-shrink:0;vertical-align:middle;"><path d="M9.5 1.8l4.7 4.7-1.9.6-1 3.4-4.8-4.8 3.4-1z"/><path d="M6.5 9.5L2.5 13.5" stroke="${c}" stroke-width="1.5" stroke-linecap="round"/></svg>`,
+        };
+      })();
+
+      let state = {
+        loading: true,
+        role: null,
+        // Cold start done. Used to be inferred from role===null, but the access check
+        // now resolves the role first, so that signal is gone by the time we get here.
+        bootstrapped: false,
+        // Which sidebar accordion card is expanded. Exactly one at a time, and every
+        // card HEAD stays on screen regardless — only the open card's list scrolls, so
+        // the six destinations never fall below the fold no matter how many rooms exist.
+        openCard: 'needs',
+        searchQuery: '',
+        clients: [],
+        starredClientIds: new Set(),
+        dmThreads: [],          // chat2_threads kind='dm' (1:1 + group), with other-member info
+        teamChannels: [],       // chat2_threads kind='team_channel'
+        profilesById: {},
+        selectedKind: null,     // 'client' | 'dm' | 'team_channel' — which column-3 view
+        selectedId: null,       // clientId for 'client', thread id otherwise
+        selectedDept: null,     // only meaningful when selectedKind === 'client'
+        activeThreadId: null,   // the real chat2_threads.id currently loaded into threadMessages
+        threadLoading: false,
+        threadMessages: [],
+        messageDraft: '',
+        clientDeptThreadIds: {}, // `${clientId}:${dept}` -> chat2_threads.id, avoids re-querying
+        clientDeptPrivacy: {},   // `${clientId}:${dept}` -> is_private, same cache key as above
+        homeThreadId: null,      // singleton chat2_threads(kind='home') row id, cached
+        attachDraft: [],         // pending attachments for the composer (files + voice notes)
+        attachUploading: false,
+        emojiPickerOpen: null,   // { target, cursorStart, cursorEnd } | null
+        gifPickerOpen: false,
+        isRecording: false,
+        // Scheduled messages reuse chat2_scheduled_messages and its Netlify delivery
+        // function unchanged — both are keyed on chat2_threads, which Chat 3.0 uses.
+        scheduled: [],            // this user's pending rows for the open thread
+        schedulePickerOpen: false,
+        scheduleAt: '',           // datetime-local value while picking
+        scheduling: false,
+        // 'messages' | 'media' | 'vault' | 'tasks' | 'magnus' | 'management'. The last
+        // three are client-scoped, so they only appear on a client thread's tab strip.
+        selectedSubTab: 'messages',
+        threadSearchOpen: false,  // in-thread message search, toggled from the header
+        threadSearchQuery: '',
+        membersModalOpen: false,  // per-department access list for the open client
+        memberAddOpen: false,     // the "+ Add member" form inside that panel
+        memberAddId: '',          // profile being granted access
+        memberAddDepts: [],       // which of that client's departments they get
+        memberAdding: false,
+        clientTasks: [],          // real `tasks` rows for the open client (Tasks tab)
+        clientTasksLoading: false,
+        clientTasksFor: null,     // which client clientTasks belongs to, guards stale loads
+        clientTasksError: null,
+        clientTaskFilter: 'active', // 'active' | 'done'
+        clientTimeSeconds: 0,     // summed time_sessions.duration_seconds for this client
+        clientRunningCount: 0,    // time_sessions currently status='running'
+        clientProject: null,      // most recent projects row for this client, or null
+        taskAdding: false,        // inline "+ New task" form open
+        taskDraft: null,          // { name, priority, assignee }
+        taskSaving: false,
+        taskTimers: {},           // taskId -> running time_sessions row, for the row timer
+        clientServices: [],       // chat2_client_services rows for the open client
+        clientServicesFor: null,
+        clientServicesLoading: false,
+        // Management sub-tabs. Overview is the landing one because it answers "what
+        // are we doing for this client" without a click.
+        mgmtTab: 'overview',        // overview | members | onboarding | billing | activity
+        clientAccess: [],           // chat2_client_access rows
+        clientRow: null,            // the clients row (mrr, onboarding_*, archived)
+        mgmtActivity: [],           // the real audit rows, newest first
+        mgmtActivityInferred: [],   // fallback for clients with no logged history yet
+        mgmtActivityError: null,
+        mgmtLoading: false,
+        mgmtFor: null,
+        mgmtShowAnswers: false,
+        mgmtNotesDraft: null,     // null = not editing; a string = unsaved edit
+        mgmtKeywordsDraft: null,
+        mgmtSavingProfile: false,
+        magnusDraft: '',
+        magnusMessages: [],      // [{role,content,sources?}] — the Magnus exchange
+        magnusThinking: false,
+        magnusError: null,
+        magnusScope: 'client',   // 'client' | 'all' — how wide Magnus is allowed to look
+        vaultThreadId: null,     // which thread's cards are currently loaded, guards stale loads
+        vaultCards: [],
+        // ── Per-client Library (the Vault tab on a client thread) ──
+        // Keyed by client, not by thread: chat2_thread_canvas is PK'd on thread_id, so
+        // the old card store gave one client five disconnected vaults, one per dept.
+        libraryItems: [],
+        libraryFor: null,        // which client libraryItems belongs to, guards stale loads
+        libraryLoading: false,
+        libraryError: null,
+        libSearch: '',
+        libKind: 'all',          // all | file | login | doc | sheet | video | link | note
+        libAddOpen: false,
+        libDraft: null,          // { kind, title, section, url, username, password, twofa, body }
+        libSaving: false,
+        // Decrypted secrets live only here, in memory, for the row you explicitly
+        // revealed. Never written back into libraryItems, so a re-render or reload
+        // drops them and nothing plaintext is ever persisted client-side.
+        libRevealed: {},
+        libCollapsedSections: {},
+        libMediaUploading: false,
+        vaultLoading: false,
+        inboxLoading: false,
+        inboxLoadedOnce: false,
+        markingAllRead: false,
+        // Message search runs against the server, not the loaded window, so it can
+        // reach conversations that are not open. Debounced from the same sidebar box.
+        msgResults: [],
+        msgSearching: false,
+        msgSearchedFor: '',
+        inboxItems: [],
+        inboxActions: {},        // message_id -> { done, saved, task_id }, from chat2_inbox_actions
+        inboxFilter: 'all',      // all | mention | dms | teams | flagged | unread | task | saved | done
+        // Session-only: chat2_inbox_actions has a CHECK constraint allowing exactly one
+        // of message_id/task_id per row, so a task spawned FROM a message has nowhere to
+        // record itself against that message. Needs a column before it can survive reload.
+        inboxTaskMade: {},
+        myName: '',
+        newGroupOpen: false,
+        newGroupName: '',
+        newGroupSelectedIds: new Set(),
+        newChannelOpen: false,
+        newChannelName: '',
+        newChannelColor: 'var(--c3-blue)',
+        newChannelPrivate: false,
+        editingId: null,        // message id currently being edited, or null
+        editDraft: '',
+        openThreadId: null,     // top-level message id whose reply thread panel is open, or null
+        replyDraft: '',
+        replyAttachDraft: [],
+        threadMembers: [],      // chat2_thread_members rows for activeChannelId (read receipts)
+        lightboxUrl: null,
+        mentionPickerOpen: null, // { target, query } | null — composer @mention autocomplete
+        reactPickerOpen: null,   // message id whose full emoji-reaction picker is open, or null
+        hasMoreMessages: false,  // true when the initial 300-message window might not be everything
+        activeHuddleForThread: null, // chat2_huddles.id if a huddle is live for the open thread, else null
+        loadingMore: false,
+      };
+      const C3_PRIO = {
+        fire:   { label:'Fire',   color:'var(--c3-rose)' },
+        medium: { label:'Medium', color:'var(--c3-blue)' },
+        low:    { label:'Low',    color:'var(--c3-t4)' },
+      };
+      const C3_TASK_COLS = '26px minmax(0,2.2fr) 88px minmax(0,120px) 112px minmax(0,1.2fr) 96px';
+      const MAGNUS_BLUE = '#38bdf8';
+      const MAGNUS_SYSTEM = `You are Magnus, the operations lead at ReachGiant, a digital marketing agency. You are answering a staff member inside the app, and the CONTEXT below is everything you can see.
+
+    Rules:
+    - Be direct and short. Lead with the answer. No preamble, no "great question".
+    - Ground every claim in the CONTEXT. If it is not there, say plainly what is missing instead of guessing.
+    - Never invent metrics, spend figures, dates or names.
+    - When something is blocked or overdue, say who it is on and what unblocks it.
+    - Markdown is supported: **bold**, \`code\`, short lists. Under ~200 words unless asked for more.
+    - You have no access to passwords or credentials, and must never ask for them.
+    - End your reply with a single line beginning "SOURCES:" listing the parts of the context you actually used, separated by semicolons (e.g. "SOURCES: #SEO thread; Tasks; Vault"). If the context did not contain the answer, write "SOURCES: none" and say so above.`;
+
+      // Magnus can look at one client or across the whole book. The wide view is
+      // deliberately shallow — the roster plus what is outstanding everywhere — because
+      // sending every message of every client would be both useless and enormous.
     // Chat 3.0 creates a thread on demand; here the equivalent is a channel for that
     // client x department, which is what the Members matrix needs to grant access to a
     // department nobody has posted in yet.
@@ -71752,7 +71939,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       };
       const libKind = (k) => LIB_KINDS.find(x => x.key === k) || LIB_KINDS[0];
       const libKindHasSecret = (k) => k === 'login' || k === 'link';
-      const libIcon = (k, size) => { const d = libKind(k); return C3_ICON[d.icon](d.color, size || 13); };
+      const libIcon = (k, size) => { const d = libKind(k); return ncIcon[d.icon](d.color, size || 13); };
       // Which kinds carry a secret, and therefore need the encrypt round-trip on save.
       function libFieldHtml(label, inner){
         return `<div style="margin-bottom:11px;">
@@ -73094,6 +73281,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     window.nc_openVaultForChannel = openVaultForChannel;
 
 
+    const ncShared = {};
+
     // ── Media gallery (ported from Chat 3.0) ────────────────────────────────────
     // The one port needing a real adapter rather than a repoint. Chat 3.0 reads an
     // `attachments` jsonb array hanging off each message; old chat keeps attachments
@@ -73120,7 +73309,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             <div style="height:84px;display:flex;align-items:center;justify-content:center;background:${isImage ? 'var(--c3-s0)' : c3Alpha(d.color,8)};">
               ${isImage && m.file_url
                 ? `<img src="${chatEsc(m.file_url)}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">`
-                : C3_ICON[d.icon](d.color, 26)}
+                : ncIcon[d.icon](d.color, 26)}
             </div>
             <div style="padding:9px 11px 11px;">
               <div style="font-size:9.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:${d.color};">${d.kind}</div>
@@ -73230,12 +73419,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       }
 
     async function loadNcMedia(channelId){
-      const atts = await fetchAttachments(channelId);
+      const atts = await ncShared.fetchAttachments(channelId);
       mg.threadMessages = (atts || []).map(a => ({
         author_id: a.uploader_id || null,
         created_at: a._ts,
         attachments: [{
-          url: pubUrl(a.storage_path),
+          url: ncShared.pubUrl(a.storage_path),
           name: a.file_name,
           size: a.file_size,
           mime_type: a.mime_type,
@@ -78883,6 +79072,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if(!bar._wired){ bar._wired=true; bar.querySelectorAll('.nc_chat-subtab').forEach(b=>b.addEventListener('click',()=>window.nc_switchChatSubtab(b.dataset.subtab))); }
         initCanvasEditor();
       }
+      // These live in this IIFE but the Media port outside it needs them, so they are
+      // published rather than duplicated -- one implementation of the attachment query
+      // and the storage-URL resolution.
+      ncShared.fetchAttachments = fetchAttachments;
+      ncShared.pubUrl = pubUrl;
       init();
     })();
     })();
