@@ -72429,6 +72429,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // extractor never saw them. fmtBytes is just this module's formatBytes under the
     // name Chat 3.0's panels use; renderMd is lifted whole.
     const fmtBytes = (n) => formatBytes(n);
+  // Chat 3.0 declares fmtTime twice at its own top level, so the second one wins and
+  // is what its Master Inbox actually renders -- that is the one copied here. This
+  // module already had a fmtTime, but nested inside the scheduled-message code and
+  // taking a Date, so the Inbox's cardHtml could not see it and threw a ReferenceError
+  // the moment the pane opened. Grep found the name; only running it found the scope.
+  function fmtTime(ts){
+    const d=new Date(ts);
+    return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  }
   function hexToRgbC3(hex){
     const h = hex.replace('#', '');
     const n = parseInt(h.length === 3 ? h.split('').map(c=>c+c).join('') : h, 16);
