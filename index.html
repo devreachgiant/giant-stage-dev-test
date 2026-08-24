@@ -70895,6 +70895,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const ncIsStaff = () => ['owner','manager','inhouse_dev'].includes(
       String((window.giantCurrentProfile && window.giantCurrentProfile.role) || '').toLowerCase());
     const initialsOf = (n) => String(n || '?').trim().split(/\s+/).slice(0,2).map(w => w.charAt(0).toUpperCase()).join('') || '?';
+    // Colour only, and only two parameters -- which is what it always was. The bug was at
+    // the call site: c3ProfileMarkHtml passed avatar_url as a third argument that this
+    // never took, JavaScript dropped it, and the caller had already skipped the initials
+    // on the assumption the photo would be drawn. See c3ProfileMarkHtml for the fix.
     const c3AvatarStyle = (bg, fg) => `background:${chatEsc(bg || 'var(--c3-avatar-bg)')};color:${chatEsc(fg || 'var(--c3-avatar-fg)')};`;
     const prettifyKey = (k) => String(k || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     const copyLibText = (t, msg) => {
@@ -71168,9 +71172,27 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const p = mg.profilesById[id];
         return p ? (p.display_name || p.full_name || p.email || 'Someone') : 'Someone';
       }
+      // Everyone with a profile picture used to get an empty coloured circle here -- no
+      // photo, no initials -- because the avatar_url argument was passed to a function
+      // that does not take one. This is the shared mark for the Members table, the
+      // Activity feed, the Inbox and the service leads, so it was all of them at once.
+      //
+      // An <img>, the way every other avatar in this module is drawn, rather than a CSS
+      // background: the URL then sits in src, where chatEsc is the correct and only
+      // escape. In url("...") inside a style attribute it needs a CSS escape as well as
+      // an HTML one, and the obvious encodeURI silently double-encodes any percent
+      // already in the path -- which is every storage URL with an encoded filename, and
+      // every data: URI. That renders as a black circle, which looks like a styling
+      // choice rather than a broken image.
       function c3ProfileMarkHtml(p, active){
         const name = p.display_name || p.full_name || p.email || 'Someone';
-        return `<div style="width:22px;height:22px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700;${c3AvatarStyle(active ? 'var(--c3-brand)' : p.avatar_bg, active ? 'var(--c3-on-accent)' : p.avatar_fg, p.avatar_url)}">${p.avatar_url ? '' : chatEsc(initialsOf(name))}</div>`;
+        const base = 'width:22px;height:22px;border-radius:50%;flex-shrink:0;display:flex;'
+          + 'align-items:center;justify-content:center;font-size:8.5px;font-weight:700;overflow:hidden;';
+        if (p.avatar_url) {
+          return `<div style="${base}"><img loading="lazy" decoding="async" src="${chatEsc(p.avatar_url)}"`
+            + ` alt="${chatEsc(name)}" style="width:100%;height:100%;object-fit:cover;display:block;"></div>`;
+        }
+        return `<div style="${base}${c3AvatarStyle(active ? 'var(--c3-brand)' : p.avatar_bg, active ? 'var(--c3-on-accent)' : p.avatar_fg)}">${chatEsc(initialsOf(name))}</div>`;
       }
       function c3StatCardHtml(value, label, color){
         return `<div style="flex:1;min-width:0;background:var(--c3-s1);border:1px solid var(--c3-b1);border-radius:12px;padding:14px 16px;">

@@ -16,6 +16,13 @@
   const iso = (daysAgo, i) => new Date(Date.UTC(2026, 7, 24) - daysAgo * 864e5 - i * 6e5).toISOString();
 
   // 4x3 grey SVG, inline so nothing in a test run ever leaves the page.
+  // Every third profile has a picture, so the harness can tell "renders the photo" from
+  // "renders a coloured circle" -- with avatar_url null everywhere, the bug where a photo
+  // rendered as an empty circle was invisible to it.
+  const AVATAR_IMG = (n) => 'data:image/svg+xml;utf8,'
+    + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">'
+      + '<rect width="64" height="64" fill="hsl(' + (n * 47 % 360) + ',45%,42%)"/></svg>');
+
   const PLACEHOLDER_IMG = 'data:image/svg+xml;utf8,'
     + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">'
       + '<rect width="400" height="300" fill="#3a3a3a"/></svg>');
@@ -58,8 +65,9 @@
     DB.profiles.push({
       id: 'u-' + i, email: 'user' + i + '@reachgiant.com', full_name: 'Team Member ' + i,
       display_name: 'Member ' + i,
+      avatar_url: i % 3 === 0 ? AVATAR_IMG(i) : null,
       role: i === 1 ? 'manager' : i === 2 ? 'inhouse_dev' : i <= 6 ? 'manager' : 'member',
-      title: 'Specialist', bio: null, avatar_url: null,
+      title: 'Specialist', bio: null,
       avatar_bg: '#2' + (i % 9) + '3' + (i % 7) + '4' + (i % 5), avatar_fg: '#eaeaea',
       onboarded_at: iso(200, i)
     });

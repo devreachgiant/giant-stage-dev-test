@@ -224,6 +224,50 @@ claimed a client-wide panel was scoped to one department.
 it has to be redrawn when the *tab* changes and not only when the channel does —
 `nc_switchChatSubtab` and `openInbox` both call it now.
 
+### Avatars: everyone with a photo was showing an empty circle
+
+`c3AvatarStyle` takes `(bg, fg)`. `c3ProfileMarkHtml` called it with **three** arguments,
+passing `avatar_url` as a third the function never had. JavaScript dropped it silently, and
+the caller had already decided not to draw initials on the assumption the photo would be
+there — so every person with a profile picture got a blank coloured circle. That mark is
+shared by the Members table, the Activity feed, the Master Inbox and the service leads, so
+it was all of them at once.
+
+The photo is now an `<img>`, matching how every other avatar in the module is drawn. That
+is not a style preference: in `url("…")` inside a `style` attribute the URL needs a CSS
+escape *and* an HTML one, and the obvious `encodeURI` **double-encodes any percent already
+in the path** — which is every storage URL with an encoded filename, and every `data:` URI.
+It renders as a black circle, which reads as a design choice rather than a broken image.
+In `src`, `chatEsc` is correct and sufficient.
+
+**The first version of the click-through check for this passed while the image was
+broken**, because it asserted a `background-image` had been set. A screenshot caught it.
+It now asserts `naturalWidth > 0` — that the image actually decoded.
+
+### Staff are on by default in Members, but only where that is true
+
+Managers, owners and in-house devs no longer have to be ticked into every client by hand.
+The two column groups are **not** the same, and the difference is not cosmetic:
+
+- The four **areas** are gated by `ncCanArea`, which passes all three roles. Genuinely on.
+- A **department** tick is a `channel_members` row, and `channels_select` grants blanket
+  read on non-DM channels to `inhouse_dev` **only** — migration `20260821110000` turned
+  that down for managers and owners deliberately, with a note saying why. A manager shown
+  as ticked would open the channel and find nothing, so their department ticks stay theirs
+  to set.
+
+So an in-house dev is locked on all nine columns; a manager or owner on four. The
+click-through pins exactly that asymmetry.
+
+Role-granted ticks are drawn dimmer and carry no click handler — unticking one would delete
+a row that was granting nothing. `Remove` becomes **By role** for anyone whose access is
+entirely their role, since there are no rows to clear.
+
+**Still open:** giving managers and owners the same default on *departments* needs either an
+RLS widening (which `20260821110000` declined, and which would widen the original Chat too —
+RLS is per-table, not per-module) or real membership rows on every client channel (which
+puts those channels in old chat's sidebar for every manager). Both are decisions, not edits.
+
 ### Management > Activity — what it can and cannot record
 
 The trail is `chat2_client_activity`, written by `logC3Activity`. **Three of the kinds
@@ -294,7 +338,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 49 checks in a headless browser, ~50s
+node tools_newchat_clickthrough.mjs      # 50 checks in a headless browser, ~50s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```

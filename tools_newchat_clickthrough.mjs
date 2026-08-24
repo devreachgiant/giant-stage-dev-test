@@ -478,6 +478,48 @@ await step('Activity reconstructs the messages and payments the trail cannot hol
     JSON.stringify(a));
 });
 
+// c3AvatarStyle took (bg, fg) while its only caller passed three arguments, so
+// avatar_url was dropped -- and the caller had already skipped the initials on the
+// assumption the photo was there. Everyone with a profile picture got an empty circle.
+await step('members with a profile picture render it, not an empty circle', async () => {
+  await page.evaluate(() => {
+    const t = [...document.querySelectorAll('[data-c3-mgmt-tab]')].find(x => x.dataset.c3MgmtTab === 'members');
+    if (t) t.click();
+  });
+  await page.waitForFunction(
+    () => document.querySelectorAll('#nc_mgmtPane [data-nc-member]').length > 0,
+    null, { timeout: 20000 });
+  // naturalWidth, not "is there a src". The first version of this check asserted that a
+  // background-image had been set, and passed while the URL was double-encoded and every
+  // photo rendered as a black circle. A screenshot caught it; the check had not.
+  await page.waitForFunction(() => {
+    const imgs = [...document.querySelectorAll('#nc_mgmtPane [data-nc-member] img')];
+    return imgs.length > 0 && imgs.every(i => i.complete);
+  }, null, { timeout: 15000 }).catch(() => {});
+  const a = await page.evaluate(() => {
+    const byId = Object.fromEntries(window.__mock.db.profiles.map(p => [p.id, p]));
+    let withPhoto = 0, loaded = 0, broken = 0, blank = 0, initials = 0;
+    document.querySelectorAll('#nc_mgmtPane [data-nc-member]').forEach(row => {
+      const p = byId[row.dataset.ncMember];
+      const mark = row.querySelector('div[style*="border-radius:50%"]');
+      if (!p || !mark) return;
+      const img = mark.querySelector('img');
+      const txt = mark.textContent.trim();
+      if (p.avatar_url) {
+        withPhoto++;
+        if (img && img.naturalWidth > 0) loaded++;
+        else if (img) broken++;
+        else if (!txt) blank++;   // the original failure: no photo AND no initials
+      } else if (txt) initials++;
+    });
+    return { withPhoto, loaded, broken, blank, initials };
+  });
+  check('members with a profile picture render it, not an empty circle',
+    a.withPhoto > 0 && a.loaded === a.withPhoto && a.broken === 0 && a.blank === 0
+      && a.initials > 0,
+    JSON.stringify(a));
+});
+
 // ── Management > Members ─────────────────────────────────────────────────────
 // The table lists the client's members, not the whole workspace. That is the change
 // worth pinning: reverting it is a one-word edit and the symptom is 81 rows of empty
