@@ -8459,13 +8459,15 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               .nc_cv-search-input:focus{border-color:var(--text-3);width:160px;}
             </style>
             <!-- Management pane: Chat 3.0's five tabs, over this client's data -->
+            <div id="nc_inboxPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
+            <div id="nc_magnusPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
             <div id="nc_tasksPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
             <div id="nc_mgmtPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
             <div class="nc_chat-subtabs" id="nc_chatSubTabs">
               <button class="nc_chat-subtab active" data-subtab="messages"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Messages</button>
               <button class="nc_chat-subtab" data-subtab="media"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="5.5" cy="6.5" r="1.2" stroke="currentColor" stroke-width="1.1"/><path d="M2.5 11l3-3 2.5 2.5L11 7.5l2.5 3" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Media<span class="nc_chat-subtab-count" id="nc_chatMediaCount"></span></button>
               <button class="nc_chat-subtab" data-subtab="canvas"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 2.5h10v11H3z" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 5.5h5M5.5 8h5M5.5 10.5h3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Vault</button>
-              <button class="nc_chat-subtab" data-subtab="tasks" id="nc_tasksTabBtn" style="display:none;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l2.5 2.5L13 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Tasks</button><button class="nc_chat-subtab" data-subtab="management" id="nc_mgmtTabBtn" style="display:none;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 8h6M5 5.5h6M5 10.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Management</button>
+              <button class="nc_chat-subtab" data-subtab="tasks" id="nc_tasksTabBtn" style="display:none;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 8.5l2.5 2.5L13 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Tasks</button><button class="nc_chat-subtab" data-subtab="magnus" id="nc_magnusTabBtn" style="display:none;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 2l1.6 4.4L14 8l-4.4 1.6L8 14l-1.6-4.4L2 8l4.4-1.6z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Magnus</button><button class="nc_chat-subtab" data-subtab="management" id="nc_mgmtTabBtn" style="display:none;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.3"/><path d="M5 8h6M5 5.5h6M5 10.5h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>Management</button>
             </div>
             </div>
             <div class="nc_msgs" id="nc_chatMsgs">
@@ -70275,6 +70277,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (btn) btn.style.display = isClient ? '' : 'none';
       const tBtn = document.getElementById('nc_tasksTabBtn');
       if (tBtn) tBtn.style.display = isClient ? '' : 'none';
+      const mBtn = document.getElementById('nc_magnusTabBtn');
+      if (mBtn) mBtn.style.display = isClient ? '' : 'none';
+      const mPane = document.getElementById('nc_magnusPane');
+      if (!isClient && mPane) mPane.style.display = 'none';
       const tPane = document.getElementById('nc_tasksPane');
       if (!isClient && tPane) tPane.style.display = 'none';
       if (!isClient && pane) {
@@ -70597,6 +70603,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         card.querySelector('.nc_navcard-head').addEventListener('click', (e) => {
           if (e.target.closest('.nc_ch-section-add')) return;   // the + is its own action
           setOpenCard(card.dataset.nccard === ncOpenCard ? '' : card.dataset.nccard);
+          // In Chat 3.0 the Needs you card is not just a list -- opening it shows the
+          // Master Inbox in the thread column. Same here.
+          if (card.dataset.nccard === 'needs' && typeof window.nc_openInbox === 'function') window.nc_openInbox();
         });
       });
       applyCardAccordion();
@@ -70758,6 +70767,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       clientTasks: [], clientTasksFor: null, clientTasksLoading: false, clientTasksError: null,
       clientTimeSeconds: 0, clientRunningCount: 0, clientProject: null, clientTaskFilter: 'all',
       taskAdding: false, taskDraft: {}, taskSaving: false, taskTimers: {},
+      magnusMessages: [], magnusDraft: '', magnusThinking: false, magnusError: null, magnusScope: 'client',
+      inboxItems: [], inboxActions: {}, inboxLoading: false, inboxLoadedOnce: false,
+      inboxFilter: 'all', inboxTaskMade: {}, clients: [],
       selectedId: null, selectedKind: 'client', selectedDept: 'general', myName: '',
     };
     // A const arrow in Chat 3.0, so the extraction -- which worked from a list of
@@ -71476,6 +71488,23 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       }));
       host.querySelectorAll('[data-c3-lead-set]').forEach(el => el.addEventListener('change', () => setServiceLead(el.dataset.c3LeadSet, el.value)));
       host.querySelectorAll('[data-c3-onboarding-create]').forEach(el => el.addEventListener('click', () => createOnboardingLink()));
+      host.querySelectorAll('[data-c3-onboarding-answers]').forEach(el => el.addEventListener('click', () => {
+        mg.mgmtShowAnswers = !mg.mgmtShowAnswers; renderMgmt();
+      }));
+      host.querySelectorAll('[data-c3-onboarding-copy]').forEach(el => el.addEventListener('click', () =>
+        copyLibText(onboardingUrl(el.dataset.c3OnboardingCopy), 'Onboarding link copied')));
+      host.querySelectorAll('[data-c3-onboarding-open]').forEach(el => el.addEventListener('click', () =>
+        window.open(onboardingUrl(el.dataset.c3OnboardingOpen), '_blank', 'noopener')));
+      // The Conversations card lists every department: clicking one opens that
+      // department's channel, which is the same jump the strip above does.
+      host.querySelectorAll('[data-c3-dept]').forEach(el => el.addEventListener('click', () => {
+        const ch = ncPrimaryChannel(mg.selectedId, el.dataset.c3Dept);
+        if (ch) switchChannel(ch.id);
+      }));
+      host.querySelectorAll('[data-c3-open-projects]').forEach(el => el.addEventListener('click', () => {
+        const nav = document.querySelector('.nav-item[data-screen="tasks"]');
+        if (nav) nav.click();
+      }));
       host.querySelectorAll('[data-c3-mgmt-profile-save]').forEach(el => el.addEventListener('click', () => saveMgmtProfile()));
       host.querySelectorAll('[data-c3-mgmt-profile-cancel]').forEach(el => el.addEventListener('click', () => discardMgmtProfile()));
       const notes = host.querySelector('#c3MgmtNotes');
@@ -72033,6 +72062,41 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
       // ── Rendering ──
 
+  async function copyLibSecret(itemId){
+    try {
+      const plain = mg.libRevealed[itemId] || await libReveal(itemId);
+      const it = mg.libraryItems.find(x => x.id === itemId);
+      logC3Activity('vault_reveal', 'copied a saved password', { detail: it ? it.title : '', targetType:'vault_item', targetId: itemId });
+      await navigator.clipboard.writeText(plain);
+      if (typeof toast === 'function') toast({ type:'success', message:'Password copied' });
+    } catch (e) {
+      if (typeof toast === 'function') toast({ type:'error', message: e.message });
+    }
+  }
+  async function uploadVaultImage(cardId, file){
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 120);
+    const path = `${ncMyId()}/${Date.now()}_${safeName}`;
+    const { error: upErr } = await NCSB().storage.from('chat-attachments').upload(path, file, { cacheControl:'3600', upsert:false });
+    if (upErr) { if (typeof toast === 'function') toast({ type:'error', message: 'Upload failed: ' + upErr.message }); return; }
+    const url = NCSB().storage.from('chat-attachments').getPublicUrl(path).data.publicUrl;
+    const c = mg.vaultCards.find(x => x.id === cardId);
+    if (c) { c.images.push({ url, name: file.name }); renderMgmt(); saveVaultCards(); }
+  }
+
+    // Drop zones. preventDefault on dragover is what makes an element a valid drop
+    // target -- without it the browser navigates to the file instead of dropping it.
+    function wireDropZone(el, onFile){
+      if (!el || el._ncDrop) return;
+      el._ncDrop = true;
+      el.addEventListener('dragover', (e) => { e.preventDefault(); el.style.opacity = '.7'; });
+      el.addEventListener('dragleave', () => { el.style.opacity = ''; });
+      el.addEventListener('drop', (e) => {
+        e.preventDefault(); el.style.opacity = '';
+        const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) onFile(f);
+      });
+    }
+
     function wireLibrary(host){
       const on = (sel, ev, fn) => host.querySelectorAll(sel).forEach(el => el.addEventListener(ev, () => fn(el)));
       on('[data-c3-lib-add]','click', () => { mg.libAddOpen = true; renderVault(); });
@@ -72052,6 +72116,47 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         renderVault();
       });
       on('[data-c3-lib-copy-text]','click', el => copyLibText(el.dataset.c3LibCopyText, 'Copied'));
+      on('[data-c3-lib-copy-secret]','click', el => copyLibSecret(el.dataset.c3LibCopySecret));
+      on('[data-c3-lib-pass-open]','click', () => { if (mg.libDraft) { mg.libDraft.passOpen = true; renderVault(); } });
+      on('[data-c3-lib-notes-open]','click', () => { if (mg.libDraft) { mg.libDraft.notesOpen = true; renderVault(); } });
+      on('[data-c3-lib-section]','click', el => {
+        const k = el.dataset.c3LibSection;
+        mg.libCollapsedSections[k] = !mg.libCollapsedSections[k];
+        renderVault();
+      });
+      on('[data-c3-lib-share]','click', el => {
+        if (!mg.libDraft) return;
+        mg.libDraft.share = el.dataset.c3LibShare;
+        renderVault();
+      });
+      on('[data-c3-lib-share-who]','click', el => {
+        const d = mg.libDraft; if (!d) return;
+        d.shareIds = d.shareIds || [];
+        const id = el.dataset.c3LibShareWho;
+        d.shareIds = d.shareIds.includes(id) ? d.shareIds.filter(x => x !== id) : d.shareIds.concat(id);
+        renderVault();
+      });
+      // File pickers: the visible control is a div, the input is hidden, so the click
+      // is forwarded and the change handler does the upload.
+      const filePick = host.querySelector('[data-c3-lib-file-pick]');
+      const fileInput = host.querySelector('#c3LibFile');
+      if (filePick && fileInput) {
+        filePick.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+          const f = e.target.files && e.target.files[0];
+          if (f) { mg.libDraft = mg.libDraft || {}; mg.libDraft.file = f; renderVault(); }
+        });
+      }
+      wireDropZone(host.querySelector('[data-c3-lib-media-drop]'), (f) => uploadLibMedia(f));
+      const upBtn = host.querySelector('[data-c3-lib-upload]');
+      const upInput = host.querySelector('#c3MediaInput') || host.querySelector('#c3LibMediaInput');
+      if (upBtn && upInput) {
+        upBtn.addEventListener('click', () => { if (!mg.libMediaUploading) upInput.click(); });
+        upInput.addEventListener('change', (e) => {
+          const f = e.target.files && e.target.files[0];
+          if (f) uploadLibMedia(f);
+        });
+      }
       // Draft fields are read on input, but the pane is only re-rendered where the
       // layout actually depends on the value -- otherwise every keystroke would
       // rebuild the form and take the caret with it.
@@ -72340,6 +72445,491 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
     window.nc_openTasksForChannel = openTasksForChannel;
 
+
+    // ── Magnus + Master Inbox (ported from Chat 3.0) ────────────────────────────
+    // Magnus touches no tables at all -- it posts to /.netlify/functions/claude-api
+    // with context assembled from state -- so it ported with no repointing.
+    //
+    // The Inbox needed the most repointing of any port: chat2_messages -> messages,
+    // chat2_thread_members -> channel_members, and chat2_inbox_actions -> a new
+    // inbox_actions table, because that one's message_id is a foreign key to
+    // chat2_messages and an old-chat id fails it outright.
+    const isOwner = () => ['owner','inhouse_dev'].includes(
+      String((window.giantCurrentProfile && window.giantCurrentProfile.role) || '').toLowerCase());
+
+      function inboxAction(key){ return mg.inboxActions[key] || { done:false, saved:false }; }
+      async function loadInboxItems(){
+        mg.inboxLoading = true; renderMgmt();
+        const myLower = (mg.myName || '').trim().toLowerCase();
+        const [membershipsRes, actionsRes, msgsRes, tasksRes] = await Promise.all([
+          NCSB().from('channel_members').select('channel_id, last_read_at').eq('profile_id', ncMyId()),
+          NCSB().from('inbox_actions').select('message_id, task_id, done, saved').eq('profile_id', ncMyId()),
+          NCSB().from('messages').select('id, body, flagged, created_at, author_id, channel_id, thread:channels(id, name, client_id, department, kind, is_group, dm_pair)').neq('author_id', ncMyId()).order('created_at', { ascending: false }).limit(400),
+          NCSB().from('tasks').select('id, name, description, status, created_by, created_at, project_id, project:projects(name)').contains('assigned_to', [ncMyId()]).neq('status', 'done').order('created_at', { ascending: false }).limit(50),
+        ]);
+        const readMap = {};
+        (membershipsRes.data || []).forEach(r => { readMap[r.channel_id] = r.last_read_at; });
+        const myThreadIds = new Set((membershipsRes.data || []).map(r => r.channel_id));
+        mg.inboxActions = {};
+        (actionsRes.data || []).forEach(a => {
+          const key = a.message_id ? 'msg:' + a.message_id : 'task:' + a.task_id;
+          mg.inboxActions[key] = { done: a.done, saved: a.saved };
+        });
+
+        const items = [];
+        (msgsRes.data || []).forEach(m => {
+          const t = m.thread;
+          if (!t) return;
+          const isMember = myThreadIds.has(m.channel_id);
+          if (t.kind === 'client_dept') { if (!isOwner() && !isMember) return; }
+          else if (!isMember) return; // dm/team_channel/home: no membership, not this user's notification
+          const lastRead = readMap[m.channel_id];
+          const isUnread = !lastRead || new Date(m.created_at) > new Date(lastRead);
+          const isMention = myLower && m.body && m.body.toLowerCase().includes('@' + myLower.split(' ')[0]);
+          let notifKind = null;
+          if (isMention) notifKind = 'mention';
+          else if (m.flagged) notifKind = 'flagged';
+          else if (isUnread) notifKind = 'unread';
+          if (!notifKind) return;
+
+          let targetKind, targetId, dept = null, label, sub, color = 'var(--c3-t4)';
+          if (t.kind === 'client_dept') {
+            const client = mg.clients.find(c => c.id === t.client_id);
+            if (!client) return;
+            const deptInfo = NC_DEPTS.find(d => d.key === t.department);
+            targetKind = 'client'; targetId = client.id; dept = t.department;
+            label = client.name; sub = deptInfo ? deptInfo.label : t.department; color = deptInfo ? deptInfo.color : 'var(--c3-t4)';
+          } else if (t.kind === 'team_channel') {
+            targetKind = 'team_channel'; targetId = t.id;
+            label = '#' + (t.name || ''); sub = 'Team channel'; color = 'var(--c3-t4)';
+          } else if (t.kind === 'dm') {
+            targetKind = 'dm'; targetId = t.id;
+            label = t.is_group ? (t.name || 'Group') : profileName(m.author_id);
+            sub = t.is_group ? 'Group DM' : 'Direct message'; color = 'var(--c3-blue)';
+          } else if (t.kind === 'home') {
+            targetKind = 'home'; targetId = t.id;
+            label = 'ReachGiant Home'; sub = 'Announcement'; color = 'var(--c3-brand)';
+          } else return;
+
+          items.push({ key: 'msg:' + m.id, kind:'message', id: m.id, threadId: m.channel_id, targetKind, targetId, dept, label, sub, color, body: m.body, createdAt: m.created_at, authorId: m.author_id, notifKind });
+        });
+        (tasksRes.data || []).forEach(t => {
+          items.push({
+            key: 'task:' + t.id, kind:'task', id: t.id, taskId: t.id,
+            label: (t.project && t.project.name) || 'Task', sub: 'Assigned to you', color: 'var(--c3-green)',
+            body: t.name, createdAt: t.created_at, authorId: t.created_by, notifKind: 'task',
+          });
+        });
+        mg.inboxItems = items;
+        mg.inboxLoading = false;
+        mg.inboxLoadedOnce = true;
+        renderMgmt();
+      }
+      async function setInboxAction(key, patch){
+        mg.inboxActions[key] = { ...inboxAction(key), ...patch };
+        renderInbox();
+        const [type, id] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
+        const row = { profile_id: ncMyId(), ...inboxAction(key) };
+        if (type === 'msg') { row.message_id = id; await NCSB().from('inbox_actions').upsert(row, { onConflict: 'message_id,profile_id' }); }
+        else { row.task_id = id; await NCSB().from('inbox_actions').upsert(row, { onConflict: 'task_id,profile_id' }); }
+      }
+      // "Make task" from the inbox. Can't reuse createC3TaskFromMessage — that resolves
+      // the message out of mg.threadMessages (the open thread), and an inbox item's
+      // thread isn't loaded. Assigns to ME, not the author: the point is that I owe the
+      // work, which is the opposite of the in-thread version's intent.
+      async function clearAllInbox(keys){
+        keys.forEach(k => { mg.inboxActions[k] = { ...inboxAction(k), done: true }; });
+        renderInbox();
+        const msgIds = keys.filter(k => k.startsWith('msg:')).map(k => k.slice(4));
+        const taskIds = keys.filter(k => k.startsWith('task:')).map(k => k.slice(5));
+        const ops = [];
+        if (msgIds.length) ops.push(NCSB().from('inbox_actions').upsert(msgIds.map(id => ({ message_id:id, profile_id:ncMyId(), ...inboxAction('msg:'+id) })), { onConflict:'message_id,profile_id' }));
+        if (taskIds.length) ops.push(NCSB().from('inbox_actions').upsert(taskIds.map(id => ({ task_id:id, profile_id:ncMyId(), ...inboxAction('task:'+id) })), { onConflict:'task_id,profile_id' }));
+        await Promise.all(ops);
+      }
+      function inboxTabHtml(){
+        if (mg.inboxLoading) return `<div style="text-align:center;color:var(--c3-t5);font-size:13px;padding:40px 0;">Loading…</div>`;
+        const notDone = mg.inboxItems.filter(i => !inboxAction(i.key).done);
+        const counts = {
+          all: notDone.length,
+          mention: notDone.filter(i => i.notifKind === 'mention').length,
+          flagged: notDone.filter(i => i.notifKind === 'flagged').length,
+          unread: notDone.filter(i => i.notifKind === 'unread').length,
+          task: notDone.filter(i => i.notifKind === 'task').length,
+          dms: notDone.filter(i => i.targetKind === 'dm').length,
+          teams: notDone.filter(i => i.targetKind === 'team_channel').length,
+          saved: mg.inboxItems.filter(i => inboxAction(i.key).saved).length,
+          done: mg.inboxItems.filter(i => inboxAction(i.key).done).length,
+        };
+        const filters = [['all','All'],['mention','Mentions'],['dms','DMs'],['teams','Teams'],['flagged','Flagged'],['unread','New activity'],['task','Tasks'],['saved','Saved'],['done','Done']];
+        let visible;
+        if (mg.inboxFilter === 'saved') visible = mg.inboxItems.filter(i => inboxAction(i.key).saved);
+        else if (mg.inboxFilter === 'done') visible = mg.inboxItems.filter(i => inboxAction(i.key).done);
+        else if (mg.inboxFilter === 'all') visible = notDone;
+        // DMs/Teams filter on where an item came FROM; every other chip filters on what
+        // kind of item it is. Two axes, one row of chips — same as the design.
+        else if (mg.inboxFilter === 'dms') visible = notDone.filter(i => i.targetKind === 'dm');
+        else if (mg.inboxFilter === 'teams') visible = notDone.filter(i => i.targetKind === 'team_channel');
+        else visible = notDone.filter(i => i.notifKind === mg.inboxFilter);
+        const rank = { mention:0, flagged:1, task:2, unread:3 };
+        visible = [...visible].sort((a,b) => {
+          const sv = (inboxAction(b.key).saved?1:0) - (inboxAction(a.key).saved?1:0);
+          if (sv) return sv;
+          return (rank[a.notifKind]??4) - (rank[b.notifKind]??4);
+        });
+        const clearableKeys = visible.filter(i => !inboxAction(i.key).done).map(i => i.key);
+        const showClearAll = clearableKeys.length > 1 && mg.inboxFilter !== 'done';
+        const cardHtml = (i) => {
+          const act = inboxAction(i.key);
+          const isTask = i.kind === 'task';
+          const kindLabel = i.notifKind === 'mention' ? 'Mentioned you' : i.notifKind === 'flagged' ? 'Flagged for reply' : i.notifKind === 'task' ? 'New task assigned' : 'New activity';
+          const kindColor = i.notifKind === 'mention' ? 'var(--c3-blue)' : i.notifKind === 'flagged' ? 'var(--c3-amber)' : i.notifKind === 'task' ? 'var(--c3-green)' : 'var(--c3-t3)';
+          const jumpAttr = isTask ? `data-c3-inbox-task-open="${chatEsc(i.taskId)}"` : `data-c3-inbox-jump="${chatEsc(i.targetKind)}::${chatEsc(i.targetId)}::${chatEsc(i.dept||'')}::${chatEsc(i.threadId||'')}::${chatEsc(i.id)}"`;
+          return `<div style="background:${act.done?'var(--c3-s0)':'var(--c3-s1)'};border:1px solid ${act.done?'rgba(62,207,142,0.22)':act.saved?'rgba(217,31,15,0.4)':'var(--c3-s4)'};border-radius:13px;padding:15px 17px;${act.done?'opacity:0.72;':''}">
+            <div style="display:flex;gap:13px;align-items:flex-start;">
+              <div data-c3-inbox-done="${chatEsc(i.key)}" style="width:24px;height:24px;border-radius:50%;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--c3-t0);background:${act.done?'var(--c3-green)':'transparent'};border:2px solid ${act.done?'var(--c3-green)':'var(--c3-s7)'};">${act.done?'✓':''}</div>
+              <div style="min-width:0;flex:1;">
+                <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                  <span style="font-size:13px;font-weight:700;color:var(--c3-t0);">${isTask ? chatEsc(profileName(i.authorId)) + ' assigned you a task' : chatEsc(profileName(i.authorId))}</span>
+                  <div style="font-size:10px;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;padding:3px 8px;border-radius:7px;background:rgba(${hexToRgbC3(kindColor)},0.14);color:${kindColor};">${kindLabel}</div>
+                  <span style="font-size:11.5px;color:var(--c3-t6);margin-left:auto;">${chatEsc(fmtTime(i.createdAt))}</span>
+                </div>
+                <div style="font-size:13.5px;color:var(--c3-t1);margin-top:10px;line-height:1.5;white-space:pre-wrap;">${chatEsc(i.body)}</div>
+                <div ${jumpAttr} style="display:flex;align-items:center;gap:9px;margin-top:11px;cursor:pointer;">
+                  <div style="width:6px;height:6px;border-radius:50%;background:${i.color};flex-shrink:0;"></div>
+                  <span style="font-size:11.5px;color:var(--c3-t3);">${chatEsc(i.label)} · ${chatEsc(i.sub)}</span>
+                </div>
+                ${!act.done ? `<div style="display:flex;align-items:center;gap:16px;margin-top:13px;padding-top:12px;border-top:1px solid var(--c3-b0);flex-wrap:wrap;">
+                  <span ${jumpAttr} style="font-size:11.5px;font-weight:700;color:var(--c3-brand);cursor:pointer;">${isTask ? 'Open task' : 'Reply'}</span>
+                  ${isTask ? '' : `<span data-c3-inbox-make-task="${chatEsc(i.key)}" style="font-size:11.5px;font-weight:700;cursor:pointer;color:${mg.inboxTaskMade[i.key]?'var(--c3-green)':'var(--c3-t5)'};">${mg.inboxTaskMade[i.key]?'Task added':'Make task'}</span>`}
+                  <span data-c3-inbox-save="${chatEsc(i.key)}" style="font-size:11.5px;font-weight:700;cursor:pointer;color:${act.saved?'var(--c3-brand)':'var(--c3-t5)'};display:inline-flex;align-items:center;gap:5px;">${ncIcon.star('currentColor', 12, act.saved ? 'currentColor' : null)}${act.saved?'Saved':'Save'}</span>
+                </div>` : `<div style="display:flex;align-items:center;gap:12px;margin-top:13px;padding-top:12px;border-top:1px solid var(--c3-b0);">
+                  <span style="font-size:11.5px;color:var(--c3-green);font-weight:600;">${isTask ? 'Cleared — the task is unaffected' : 'Cleared — the message stays in the thread'}</span>
+                  <span data-c3-inbox-done="${chatEsc(i.key)}" style="font-size:11.5px;font-weight:700;color:var(--c3-t5);cursor:pointer;margin-left:auto;">Undo</span>
+                </div>`}
+              </div>
+            </div>
+          </div>`;
+        };
+        return `
+          <div style="padding:16px 22px 0;display:flex;flex-direction:column;gap:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+              <div style="display:flex;gap:3px;background:var(--c3-s1);border:1px solid var(--c3-b1);border-radius:11px;padding:3px;flex-wrap:wrap;width:fit-content;">
+                ${filters.map(([k,label]) => `<div data-c3-inbox-filter="${k}" style="display:flex;align-items:center;gap:7px;padding:6px 13px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:pointer;${mg.inboxFilter===k?'background:var(--c3-s5);color:var(--c3-t0);':'color:var(--c3-t4);'}">${label} <span style="opacity:0.55;">${counts[k]}</span></div>`).join('')}
+              </div>
+              ${showClearAll ? `<span data-c3-inbox-clear-all="1" style="font-size:11.5px;font-weight:700;color:var(--c3-t4);cursor:pointer;flex-shrink:0;">Clear all ${clearableKeys.length}</span>` : ''}
+            </div>
+          </div>
+          <div style="padding:16px 22px 22px;display:flex;flex-direction:column;gap:10px;">
+            ${visible.length === 0 ? `<div style="text-align:center;color:var(--c3-t5);font-size:13px;padding:60px 0;border:1px dashed var(--c3-b1);border-radius:14px;">Nothing here.</div>` : visible.map(cardHtml).join('')}
+          </div>
+        `;
+      }
+
+      // ── Rich message-body rendering: markdown tokens, @mentions, autolink, inline
+      // image/GIF embed — ported from chat2's renderMd + old chat's mention/link logic,
+      // combined into one pass over the already-escaped string so nothing raw ever
+      // reaches innerHTML. ──
+
+      function magnusContext(){
+        const wide = mg.magnusScope === 'all';
+        const L = [];
+        if (wide) {
+          L.push(`SCOPE: all ${mg.clients.length} clients`);
+          L.push('CLIENTS: ' + mg.clients.map(c => c.name).join(', '));
+          const open = mg.inboxItems.filter(i => !inboxAction(i.key).done);
+          L.push(`OUTSTANDING ACROSS EVERYTHING: ${open.length} item${open.length === 1 ? '' : 's'}`);
+          open.slice(0, 40).forEach(i => L.push(`  - [${i.notifKind}] ${i.label}${i.sub ? ' · ' + i.sub : ''}: ${(i.body || '').replace(/\s+/g, ' ').slice(0, 160)}`));
+          return L.join('\n');
+        }
+        const c = mg.clients.find(x => x.id === mg.selectedId);
+        const dept = NC_DEPTS.find(x => x.key === mg.selectedDept);
+        L.push(`CLIENT: ${c ? c.name : 'unknown'}`);
+        if (dept) L.push(`DEPARTMENT IN VIEW: ${dept.label}`);
+        const active = mg.clientServices.filter(s => s.active);
+        if (mg.clientServices.length) {
+          L.push(`SERVICES: ${active.length
+            ? active.map(s => { const d = NC_DEPTS.find(x => x.key === s.dept_key);
+                return `${d ? d.label : s.dept_key}${s.spend_cents ? ` ($${Math.round(s.spend_cents / 100)}/mo)` : ''}`; }).join(', ')
+            : 'none active'}`);
+        }
+        if (mg.clientTasks.length) {
+          const open = mg.clientTasks.filter(t => t.status !== 'done');
+          L.push(`TASKS: ${open.length} open, ${mg.clientTasks.length - open.length} done`);
+          open.slice(0, 15).forEach(t => {
+            const who = taskAssignees(t).map(p => p.display_name || p.full_name || 'someone').join(', ');
+            L.push(`  - [${t.priority || 'medium'}] ${t.name}${t.department ? ` · ${t.department}` : ''}${who ? ` · ${who}` : ' · unassigned'}${t.due_at ? ` · due ${new Date(t.due_at).toDateString()}` : ''}`);
+          });
+        }
+        if (mg.clientTimeSeconds) L.push(`TIME LOGGED: ${fmtTimeLogged(mg.clientTimeSeconds)}${mg.clientRunningCount ? ` (${mg.clientRunningCount} timer running)` : ''}`);
+        if (mg.libraryItems.length) {
+          L.push(`VAULT: ${mg.libraryItems.length} saved items (titles only — credentials are not available to you)`);
+          mg.libraryItems.slice(0, 20).forEach(i => L.push(`  - ${i.kind}: ${i.title}${i.section ? ` · ${i.section}` : ''}`));
+        }
+        const msgs = mg.threadMessages.filter(m => !m.parent_id).slice(-30);
+        if (msgs.length) {
+          L.push('RECENT MESSAGES IN THIS THREAD (oldest first):');
+          msgs.forEach(m => L.push(`  ${profileName(m.author_id)}${m.flagged ? ' [FLAGGED, awaiting reply]' : ''}: ${(m.body || '').replace(/\s+/g, ' ').slice(0, 400)}`));
+        }
+        return L.join('\n');
+      }
+
+      // The model is asked to end with a SOURCES: line. Splitting it off keeps the
+      // provenance out of the prose and lets it render as chips — and when it says
+      // "none", that is the honest "I could not find this" signal, not a citation.
+      function splitMagnusSources(text){
+        const m = String(text || '').match(/\n?\s*SOURCES:\s*(.+)\s*$/i);
+        if (!m) return { body: text, sources: [] };
+        const raw = m[1].trim();
+        const body = text.slice(0, m.index).trim();
+        if (/^none$/i.test(raw)) return { body, sources: [] };
+        return { body, sources: raw.split(';').map(x => x.trim()).filter(Boolean).slice(0, 6) };
+      }
+      async function askMagnus(question){
+        const q = (question || mg.magnusDraft).trim();
+        if (!q || mg.magnusThinking) return;
+        mg.magnusMessages.push({ role:'user', content: q });
+        mg.magnusDraft = ''; mg.magnusThinking = true; mg.magnusError = null;
+        renderInbox();
+        try {
+          const res = await fetch('/.netlify/functions/claude-api', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              system: `${MAGNUS_SYSTEM}\n\n--- CONTEXT ---\n${magnusContext()}`,
+              messages: mg.magnusMessages.map(m => ({ role: m.role, content: m.content })),
+              max_tokens: 900, temperature: 0.4,
+            }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || `Magnus is unavailable (${res.status})`);
+          const text = (data.text || '').trim();
+          if (!text) throw new Error('Magnus returned nothing');
+          const { body, sources } = splitMagnusSources(text);
+          mg.magnusMessages.push({ role:'assistant', content: body, sources });
+        } catch (e) {
+          mg.magnusError = e.message;
+          const last = mg.magnusMessages[mg.magnusMessages.length - 1];
+          if (last && last.role === 'user') { mg.magnusDraft = last.content; mg.magnusMessages.pop(); }
+        }
+        mg.magnusThinking = false;
+        renderInbox();
+      }
+      function resetMagnus(){ mg.magnusMessages = []; mg.magnusError = null; mg.magnusDraft = ''; renderInbox(); }
+      function sendToMagnus(){
+        const c = mg.clients.find(x => x.id === mg.selectedId);
+        const d = NC_DEPTS.find(x => x.key === mg.selectedDept);
+        const q = mg.magnusDraft.trim() || (mg.magnusMessages.filter(m => m.role === 'user').slice(-1)[0] || {}).content || '';
+        try {
+          window.__magnusHandoff = { question: q, clientId: mg.selectedId, clientName: c ? c.name : null, department: d ? d.label : null };
+        } catch (_) { /* handoff is a convenience — never block the navigation on it */ }
+        const ok = typeof navigateToScreen === 'function' && navigateToScreen('crew');
+        if (!ok && typeof toast === 'function') toast({ type:'error', message:'Could not open Crew.' });
+      }
+
+      // The constellation mark — a lead with spokes out to the specialist agents.
+      function magnusMarkHtml(size){
+        const s = size || 26;
+        return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;">
+          <g stroke="${MAGNUS_BLUE}" stroke-width="0.8" opacity="0.5">
+            <line x1="12" y1="12" x2="5" y2="6.5"/><line x1="12" y1="12" x2="19" y2="6.5"/>
+            <line x1="12" y1="12" x2="3.5" y2="12"/><line x1="12" y1="12" x2="20.5" y2="12"/>
+            <line x1="12" y1="12" x2="5" y2="17.5"/><line x1="12" y1="12" x2="19" y2="17.5"/></g>
+          <circle cx="5" cy="6.5" r="1.5" fill="var(--c3-purple)"/><circle cx="19" cy="6.5" r="1.5" fill="#f0913e"/>
+          <circle cx="3.5" cy="12" r="1.3" fill="${MAGNUS_BLUE}"/><circle cx="20.5" cy="12" r="1.3" fill="${MAGNUS_BLUE}"/>
+          <circle cx="5" cy="17.5" r="1.5" fill="#e8404f"/><circle cx="19" cy="17.5" r="1.5" fill="#eab308"/>
+          <circle cx="12" cy="12" r="3.4" fill="${MAGNUS_BLUE}"/><circle cx="12" cy="12" r="1.6" fill="var(--c3-ice)"/>
+        </svg>`;
+      }
+      function magnusTabHtml(){
+        const c = mg.clients.find(x => x.id === mg.selectedId);
+        const name = c ? c.name : 'this client';
+        const wide = mg.magnusScope === 'all';
+        const nClients = mg.clients.length;
+        // The note states what is actually sent, not what would sound impressive.
+        const scopeNote = wide
+          ? `Looking across ${nClients} clients — everything outstanding, never credentials`
+          : `Looking at ${name} — this thread, its tasks, services and vault titles, never credentials`;
+        const prompts = wide
+          ? ['Which clients are at risk?', "What's blocked on us?", 'Where is spend rising?', 'Catch me up']
+          : ['What did we agree on budget?', 'Catch me up', "What's blocked?", 'What access do we have?'];
+        const scopeBtn = (key, label) => `<div data-c3-magnus-scope="${key}" style="display:flex;align-items:center;height:30px;padding:0 15px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;background:${mg.magnusScope === key ? c3Alpha(MAGNUS_BLUE,14) : 'transparent'};border:1px solid ${mg.magnusScope === key ? MAGNUS_BLUE : 'var(--c3-s5)'};color:${mg.magnusScope === key ? 'var(--c3-ice)' : 'var(--c3-t3)'};">${chatEsc(label)}</div>`;
+
+        const bubble = (m) => m.role === 'user'
+          ? `<div style="display:flex;justify-content:flex-end;"><div style="max-width:78%;background:var(--c3-s3);border:1px solid var(--c3-b2);border-radius:12px 12px 4px 12px;padding:9px 13px;font-size:12.5px;color:var(--c3-t1);white-space:pre-wrap;">${chatEsc(m.content)}</div></div>`
+          : `<div style="display:flex;gap:10px;align-items:flex-start;">
+              <div style="width:26px;height:26px;flex-shrink:0;margin-top:1px;">${magnusMarkHtml(26)}</div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:12.5px;color:var(--c3-t1);line-height:1.6;white-space:pre-wrap;">${renderMd(m.content)}</div>
+                ${(m.sources || []).length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:11px;padding-top:11px;border-top:1px solid var(--c3-b1);">
+                  ${m.sources.map(sc => `<div style="font-size:10.5px;font-weight:600;color:${MAGNUS_BLUE};background:${c3Alpha(MAGNUS_BLUE,8)};border:1px solid ${c3Alpha(MAGNUS_BLUE,20)};border-radius:7px;padding:3px 9px;">${chatEsc(sc)}</div>`).join('')}
+                </div>` : ''}
+              </div>
+            </div>`;
+
+        return `<div style="height:100%;display:flex;flex-direction:column;min-height:0;">
+          <div style="display:flex;align-items:center;gap:12px;padding:14px 22px;flex-shrink:0;flex-wrap:wrap;">
+            <div style="display:flex;gap:6px;">
+              ${scopeBtn('client', c ? c.name : 'This client')}
+              ${scopeBtn('all', `All ${nClients}`)}
+            </div>
+            <span style="font-size:11.5px;color:var(--c3-t5);">${chatEsc(scopeNote)}</span>
+            ${mg.magnusMessages.length ? `<span data-c3-magnus-reset="1" style="margin-left:auto;font-size:11.5px;font-weight:600;color:var(--c3-t4);cursor:pointer;">Clear</span>` : ''}
+          </div>
+
+          <div style="flex:1;min-height:0;overflow-y:auto;padding:0 22px 8px;display:flex;flex-direction:column;gap:16px;">
+            ${!mg.magnusMessages.length ? `<div style="margin:auto 0;text-align:center;padding:24px 0;">
+              <div style="display:flex;justify-content:center;margin-bottom:14px;">${magnusMarkHtml(46)}</div>
+              <div style="font-size:10px;font-weight:800;letter-spacing:0.14em;color:var(--c3-t5);">OPERATIONS &amp; DELIVERY</div>
+              <div style="font-size:21px;font-weight:800;letter-spacing:-0.02em;color:var(--c3-t0);margin-top:6px;">Magnus</div>
+              <div style="font-size:12.5px;color:${MAGNUS_BLUE};margin-top:3px;">&ldquo;Makes the machine run&rdquo;</div>
+              <div style="font-size:12px;color:var(--c3-t4);margin:10px auto 0;max-width:430px;line-height:1.6;">Reads this client's messages, tasks, services and vault titles &mdash; never credentials. Every answer cites what it used, and says so when it can't find one.</div>
+            </div>` : mg.magnusMessages.map(bubble).join('')}
+            ${mg.magnusThinking ? `<div style="display:flex;align-items:center;gap:9px;font-size:12.5px;color:${MAGNUS_BLUE};">
+              <span style="width:6px;height:6px;border-radius:50%;background:${MAGNUS_BLUE};animation:pulse 1.2s infinite;"></span>Searching…</div>` : ''}
+            ${mg.magnusError ? `<div style="font-size:12px;color:var(--c3-salmon);background:rgba(240,112,95,0.08);border:1px solid rgba(240,112,95,0.25);border-radius:9px;padding:9px 12px;">${chatEsc(mg.magnusError)}</div>` : ''}
+          </div>
+
+          <div style="flex-shrink:0;border-top:1px solid var(--c3-b1);padding:11px 22px 14px;">
+            <div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:10px;padding-bottom:2px;">
+              ${prompts.map(p => `<div data-c3-magnus-preset="${chatEsc(p)}" style="font-size:11.5px;font-weight:600;color:var(--c3-t2);background:var(--c3-s2);border:1px solid var(--c3-b2);border-radius:9px;padding:7px 12px;cursor:pointer;white-space:nowrap;flex-shrink:0;">${chatEsc(p)}</div>`).join('')}
+              <div data-c3-magnus-crew="1" title="Hand this to the Crew as a dispatched mission" style="font-size:11.5px;font-weight:600;color:var(--c3-t4);background:var(--c3-s2);border:1px solid var(--c3-b2);border-radius:9px;padding:7px 12px;cursor:pointer;white-space:nowrap;flex-shrink:0;margin-left:auto;">Run as a mission ↗</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:9px;background:var(--c3-s0);border:1px solid var(--c3-b2);border-radius:10px;padding:0 12px;height:40px;">
+              <input id="c3MagnusDraft" value="${chatEsc(mg.magnusDraft)}" placeholder="${chatEsc(wide ? `Ask Magnus across ${nClients} clients…` : `Ask Magnus about ${name}…`)}" style="flex:1;min-width:0;background:transparent;border:none;outline:none;color:var(--c3-t0);font-size:13px;font-family:inherit;">
+              <div data-c3-magnus-send="1" style="width:26px;height:26px;border-radius:7px;background:${mg.magnusThinking ? 'var(--c3-s5)' : MAGNUS_BLUE};color:var(--c3-ink);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;cursor:${mg.magnusThinking ? 'default' : 'pointer'};flex-shrink:0;">↑</div>
+            </div>
+          </div>
+        </div>`;
+      }
+
+      // Media is the union of two genuinely different sources: files someone uploaded
+      // here on purpose, and files that happened to be posted in the conversation.
+      // They are kept as separate sections because "I put this here for the team" and
+      // "this went past in a thread three weeks ago" are not the same thing to look for.
+      //
+      // Uploads land in chat2_client_library as kind='file' — the same store the Vault
+      // uses — so there is one place a client's files live, not two. Non-client threads
+      // (DMs, channels, Home) have no per-thread file store, so they show chat files
+      // only rather than a button that would have nowhere to write.
+
+  async function createC3TaskFromInbox(key){
+    const item = mg.inboxItems.find(i => i.key === key);
+    if (!item || mg.inboxTaskMade[key]) return;
+    let projectId = window.activeProjectId || null;
+    if (!projectId) {
+      const { data: firstProj } = await NCSB().from('projects').select('id').limit(1).maybeSingle();
+      projectId = (firstProj && firstProj.id) || null;
+    }
+    if (!projectId) { if (typeof toast === 'function') toast({ type:'error', message:'Create a project first to make tasks from the inbox.' }); return; }
+    const body = (item.body || '').trim();
+    const { error } = await NCSB().from('tasks').insert({
+      project_id: projectId,
+      name: body.length > 60 ? body.slice(0, 57) + '…' : (body || `Follow up: ${item.label}`),
+      status: 'todo',
+      assigned_to: [ncMyId()],
+      created_by: ncMyId(),
+      description: `From ${item.label} · ${item.sub}\n\n"${body}"`,
+    });
+    if (error) { if (typeof toast === 'function') toast({ type:'error', message: 'Could not create task: ' + error.message }); return; }
+    mg.inboxTaskMade[key] = true;
+    renderInbox();
+    if (typeof toast === 'function') toast({ type:'success', message: 'Task created and assigned to you.' });
+  }
+
+    function renderMagnus(){
+      const pane = document.getElementById('nc_magnusPane');
+      if (!pane || pane.style.display === 'none') return;
+      pane.innerHTML = magnusTabHtml();
+      const on = (sel, ev, fn) => pane.querySelectorAll(sel).forEach(el => el.addEventListener(ev, () => fn(el)));
+      on('[data-c3-magnus-send]','click', () => askMagnus());
+      on('[data-c3-magnus-reset]','click', () => { resetMagnus(); renderMagnus(); });
+      on('[data-c3-magnus-scope]','click', el => { mg.magnusScope = el.dataset.c3MagnusScope; renderMagnus(); });
+      on('[data-c3-magnus-preset]','click', el => { mg.magnusDraft = el.dataset.c3MagnusPreset; renderMagnus(); askMagnus(); });
+      on('[data-c3-magnus-crew]','click', () => {
+        // Chat 3.0 parks the question on window for the Crew screen to pick up.
+        const c = ncClients[mg.selectedId];
+        window.__magnusHandoff = { question: mg.magnusDraft || '', clientId: mg.selectedId,
+          clientName: c ? c.name : null, department: mg.selectedDept || null };
+        const nav = document.querySelector('.nav-item[data-screen="crew"]');
+        if (nav) nav.click();
+        else if (typeof toast === 'function') toast({ type:'error', message:'Crew is not available here.' });
+      });
+      const box = pane.querySelector('#c3MagnusDraft');
+      if (box) {
+        box.addEventListener('input', () => { mg.magnusDraft = box.value; });
+        box.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); askMagnus(); }
+        });
+        box.focus();
+      }
+    }
+    window.nc_renderMagnus = renderMagnus;
+
+    async function openMagnusForChannel(){
+      const c = chatChannels.find(x => x.id === activeChannelId);
+      if (!c || c.kind !== 'client_dept' || !c.client_id) return;
+      mg.selectedId = c.client_id;
+      mg.selectedDept = c.department || 'general';
+      // Magnus answers about a client, so it needs the client list its context builder
+      // reads -- populated from what the sidebar already loaded rather than re-queried.
+      mg.clients = Object.values(ncClients);
+      renderMagnus();
+    }
+    window.nc_openMagnusForChannel = openMagnusForChannel;
+
+    function renderInbox(){
+      const pane = document.getElementById('nc_inboxPane');
+      if (!pane || pane.style.display === 'none') return;
+      pane.innerHTML = inboxTabHtml();
+      const on = (sel, ev, fn) => pane.querySelectorAll(sel).forEach(el => el.addEventListener(ev, () => fn(el)));
+      on('[data-c3-inbox-filter]','click', el => { mg.inboxFilter = el.dataset.c3InboxFilter; renderInbox(); });
+      on('[data-c3-inbox-clear-all]','click', () => clearAllInbox());
+      on('[data-c3-inbox-make-task]','click', el => createC3TaskFromInbox(el.dataset.c3InboxMakeTask));
+      on('[data-c3-inbox-task-open]','click', el => {
+        if (typeof window.openTaskDetailPanel === 'function') window.openTaskDetailPanel(el.dataset.c3InboxTaskOpen);
+      });
+      // "kind::targetId::dept::threadId::messageId". threadId is the channel in this
+      // world, and it is what to open -- targetId is the client, which is a different
+      // thing entirely for a client_dept row.
+      on('[data-c3-inbox-jump]','click', el => {
+        const [, , , channelId, messageId] = String(el.dataset.c3InboxJump).split('::');
+        if (!channelId) return;
+        switchChannel(channelId);
+        if (!messageId) return;
+        // The list renders asynchronously, so wait for the row rather than guess.
+        let tries = 0;
+        const findRow = () => {
+          const row = document.querySelector('#nc_chatMsgsList [data-msg-id="' + messageId + '"]');
+          if (row) { row.scrollIntoView({ behavior:'smooth', block:'center' }); return; }
+          if (++tries < 24) setTimeout(findRow, 150);
+        };
+        setTimeout(findRow, 300);
+      });
+      // Both carry the item key and toggle one flag. setInboxAction takes a patch
+      // object, not a field name -- it merges over whatever the item already has.
+      on('[data-c3-inbox-done]','click', el => {
+        const k = el.dataset.c3InboxDone;
+        setInboxAction(k, { done: !inboxAction(k).done });
+      });
+      on('[data-c3-inbox-save]','click', el => {
+        const k = el.dataset.c3InboxSave;
+        setInboxAction(k, { saved: !inboxAction(k).saved });
+      });
+    }
+    window.nc_renderInbox = renderInbox;
+
+    async function openInbox(){
+      const pane = document.getElementById('nc_inboxPane');
+      if (pane) pane.style.display = 'block';
+      mg.myName = (window.giantCurrentProfile && (window.giantCurrentProfile.full_name || window.giantCurrentProfile.email)) || '';
+      mg.clients = Object.values(ncClients);
+      renderInbox();
+      await loadInboxItems();
+      renderInbox();
+    }
+    window.nc_openInbox = openInbox;
+
     function renderVault(){
       const pane = document.getElementById('nc_chatCanvasPane');
       if (!pane || pane.style.display === 'none') return;
@@ -72376,6 +72966,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const it = c && (c.items || []).find(x => x.id === iid);
         if (it) { it.done = !it.done; saveVaultCards(); renderVault(); }
       });
+      host.querySelectorAll('[data-c3-vault-img-upload]').forEach(el => el.addEventListener('change', (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (f) uploadVaultImage(el.dataset.c3VaultImgUpload, f);
+      }));
       on('[data-c3-vault-img-remove]','click', el => {
         const [cid, idx] = el.dataset.c3VaultImgRemove.split('::'); removeVaultImage(cid, Number(idx));
       });
@@ -72574,6 +73168,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       mg.selectedKind = c && c.kind === 'client_dept' ? 'client' : 'channel';
       mg.selectedId = c ? (c.client_id || c.id) : null;
       host.innerHTML = mediaTabHtml();
+      wireDropZone(host.querySelector('[data-c3-media-drop]'), (f) => uploadLibMedia(f));
+      const mediaBtn = host.querySelector('[data-c3-media-upload]');
+      const mediaInput = host.querySelector('#c3MediaInput');
+      if (mediaBtn && mediaInput) {
+        mediaBtn.addEventListener('click', () => { if (!mg.libMediaUploading) mediaInput.click(); });
+        mediaInput.addEventListener('change', (e) => {
+          const f = e.target.files && e.target.files[0];
+          if (f) uploadLibMedia(f);
+        });
+      }
     }
 
     async function openMediaForChannel(){
@@ -77831,11 +78435,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if(mgmt) mgmt.style.display = tab==='management'?'block':'none';
         const tasksPane=document.getElementById('nc_tasksPane');
         if(tasksPane) tasksPane.style.display = tab==='tasks'?'block':'none';
+        const magnusPane=document.getElementById('nc_magnusPane');
+        if(magnusPane) magnusPane.style.display = tab==='magnus'?'block':'none';
+        // The Inbox is not a thread tool -- it is a view over everything -- so any
+        // tab selection means you have left it.
+        const inboxPane=document.getElementById('nc_inboxPane');
+        if(inboxPane) inboxPane.style.display='none';
         window.nc__chatSubtab = tab;
         if(tab==='media') { loadMedia(); if (typeof window.nc_openMediaForChannel === 'function') window.nc_openMediaForChannel(); }
         if(tab==='canvas' && typeof window.nc_openVaultForChannel === 'function') window.nc_openVaultForChannel();
         if(tab==='management' && typeof window.nc_openMgmtForChannel === 'function') window.nc_openMgmtForChannel();
         if(tab==='tasks' && typeof window.nc_openTasksForChannel === 'function') window.nc_openTasksForChannel();
+        if(tab==='magnus' && typeof window.nc_openMagnusForChannel === 'function') window.nc_openMagnusForChannel();
       };
       window.nc__resetChatSubtab = function(){ if(window.nc_switchChatSubtab) window.nc_switchChatSubtab('messages'); updateMediaCount(); };
       // The bar is wired once on a fixed set of buttons; Management is rendered into
@@ -77847,7 +78458,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           btn.addEventListener('click',()=>window.nc_switchChatSubtab('management')); }
         if(tb && !tb._ncWired){ tb._ncWired=true;
           tb.addEventListener('click',()=>window.nc_switchChatSubtab('tasks')); }
-        if(!btn || !tb) setTimeout(wireMgmtTabBtn,600);
+        const mgb=document.getElementById('nc_magnusTabBtn');
+        if(mgb && !mgb._ncWired){ mgb._ncWired=true;
+          mgb.addEventListener('click',()=>window.nc_switchChatSubtab('magnus')); }
+        if(!btn || !tb || !mgb) setTimeout(wireMgmtTabBtn,600);
       })();
 
       function pubUrl(path){ try { return sb().storage.from('chat-attachments').getPublicUrl(path).data.publicUrl; } catch(_){ return ''; } }
