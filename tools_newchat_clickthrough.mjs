@@ -415,6 +415,36 @@ await step('the status pill offers every client status', async () => {
     JSON.stringify(st));
 });
 
+// ── Management > Members ─────────────────────────────────────────────────────
+// The table lists the client's members, not the whole workspace. That is the change
+// worth pinning: reverting it is a one-word edit and the symptom is 81 rows of empty
+// checkboxes, which looks like data rather than a bug.
+await step('Members lists the client\'s members, not everyone', async () => {
+  await page.evaluate(() => {
+    const t = [...document.querySelectorAll('[data-c3-mgmt-tab]')].find(x => x.dataset.c3MgmtTab === 'members');
+    if (t) t.click();
+  });
+  await page.waitForFunction(
+    () => document.querySelectorAll('#nc_mgmtPane [data-c3-member-remove]').length > 0,
+    null, { timeout: 20000 }).catch(() => {});
+  const m = await page.evaluate(() => {
+    const pane = document.getElementById('nc_mgmtPane');
+    const cid = (window.__mock.db.channels.find(c => c.id === window.nc_activeChannelId) || {}).client_id;
+    const chans = window.__mock.db.channels.filter(c => c.kind === 'client_dept' && c.client_id === cid).map(c => c.id);
+    const expect = new Set(window.__mock.db.channel_members
+      .filter(x => chans.includes(x.channel_id)).map(x => x.profile_id));
+    const add = pane.querySelector('[data-c3-member-add]');
+    return { rows: pane.querySelectorAll('[data-c3-member-remove]').length,
+             expected: expect.size, profiles: window.__mock.db.profiles.length,
+             cells: pane.querySelectorAll('[data-c3-matrix-cell]').length,
+             addOptions: add ? add.options.length - 1 : -1 };
+  });
+  check('Members lists the client\'s members, not everyone',
+    m.rows === m.expected && m.rows > 0 && m.rows < m.profiles
+      && m.cells === m.rows * 5 && m.addOptions === m.profiles - m.rows,
+    JSON.stringify(m));
+});
+
 // ── Master Inbox ─────────────────────────────────────────────────────────────
 await step('the Master Inbox opens into its own pane', async () => {
   await page.evaluate(() => window.nc_openInbox && window.nc_openInbox());
@@ -462,6 +492,71 @@ await step('an empty department tab creates its channel', async () => {
       : 'no channel created (writes: ' + window.__mock.log.writes.slice(-6).join(' | ') + ')';
   });
   check('an empty department tab creates its channel', r === 'ok', r);
+});
+
+// Last on purpose: this one writes. Ticking a department that has no channel yet creates
+// one, and removing a member deletes their rows — run it earlier and it moves the ground
+// under the checks that follow, which is exactly what it did.
+await step('a tick grants a department, and Remove clears them all', async () => {
+  // Self-contained: earlier steps left the composer showing and renderMgmt() returns
+  // early while its pane is hidden, so acting on whatever markup was still in the DOM
+  // clicked handlers whose state had moved on.
+  await page.evaluate(() => window.nc_switchChatSubtab('management'));
+  await page.waitForFunction(() => {
+    const p = document.getElementById('nc_mgmtPane');
+    return p && getComputedStyle(p).display !== 'none';
+  }, null, { timeout: 20000 });
+  await page.evaluate(() => {
+    const t = [...document.querySelectorAll('[data-c3-mgmt-tab]')].find(x => x.dataset.c3MgmtTab === 'members');
+    if (t) t.click();
+  });
+  // Wait for the matrix to actually agree with the database rather than for markup to
+  // exist: creating a department earlier invalidated it, and acting on the pre-reload
+  // render meant clicking a cell whose tick state was one channel out of date.
+  await page.waitForFunction(() => {
+    const pane = document.getElementById('nc_mgmtPane');
+    const cells = [...pane.querySelectorAll('[data-c3-matrix-cell]')];
+    if (!cells.length) return false;
+    const cid = (window.__mock.db.channels.find(c => c.id === window.nc_activeChannelId) || {}).client_id;
+    const byDept = {};
+    window.__mock.db.channels.filter(c => c.kind === 'client_dept' && c.client_id === cid)
+      .forEach(c => { byDept[c.department] = c.id; });
+    return cells.every(el => {
+      const [pid, dept] = el.dataset.c3MatrixCell.split('::');
+      const chId = byDept[dept];
+      const on = !!chId && window.__mock.db.channel_members
+        .some(m => m.channel_id === chId && m.profile_id === pid);
+      return el.title.startsWith(on ? 'Can open' : 'Hidden');
+    });
+  }, null, { timeout: 20000 });
+  const r = await page.evaluate(async () => {
+    const pane = document.getElementById('nc_mgmtPane');
+    const cid = (window.__mock.db.channels.find(c => c.id === window.nc_activeChannelId) || {}).client_id;
+    const chans = () => window.__mock.db.channels
+      .filter(c => c.kind === 'client_dept' && c.client_id === cid).map(c => c.id);
+    const rowsFor = (pid) => window.__mock.db.channel_members
+      .filter(x => chans().includes(x.channel_id) && x.profile_id === pid).length;
+    const pid = pane.querySelector('[data-c3-member-remove]').dataset.c3MemberRemove;
+    const before = rowsFor(pid);
+
+    // an unticked cell for this member: ticking it must write one membership row
+    const off = [...pane.querySelectorAll('[data-c3-matrix-cell]')]
+      .find(el => el.dataset.c3MatrixCell.startsWith(pid + '::') && el.title.startsWith('Hidden'));
+    if (!off) return { skipped: 'no unticked cell' };
+    off.click();
+    await new Promise(res => setTimeout(res, 1200));
+    const afterTick = rowsFor(pid);
+
+    document.querySelector(`[data-c3-member-remove="${pid}"]`).click();
+    await new Promise(res => setTimeout(res, 1500));
+    return { before, afterTick, afterRemove: rowsFor(pid),
+             stillListed: !!document.querySelector(`[data-c3-member-remove="${pid}"]`),
+             // kept as failure context: which cell was clicked, and what the mock saw
+             dept: off.dataset.c3MatrixCell, writes: window.__mock.log.writes.slice(-8) };
+  });
+  check('a tick grants a department, and Remove clears them all',
+    !r.skipped && r.afterTick === r.before + 1 && r.afterRemove === 0 && r.stillListed === false,
+    JSON.stringify(r));
 });
 
 // ── what the mock actually served, as evidence the paths ran ─────────────────

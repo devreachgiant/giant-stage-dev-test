@@ -71078,6 +71078,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         return null;
       }
       chatChannels.push(data);
+      // The Members matrix is loaded once per client and then guarded by mgmtMatrixFor,
+      // so a department created after that load stays invisible to it: the column keeps
+      // reading "no conversation here" and everyone reads as not a member of it, however
+      // many membership rows get written. Invalidate rather than patch -- the next open
+      // reloads from the database, which is right by construction. Callers that already
+      // repair their own copy (toggleMemberDept) are unaffected.
+      if (mg.mgmtMatrixFor === clientId) mg.mgmtMatrixFor = null;
       return data.id;
     }
 
@@ -71338,6 +71345,45 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         logC3Activity(had ? 'member_removed' : 'member_added',
           `${had ? 'removed' : 'gave'} ${profileName(profileId)} ${had ? 'from' : 'access to'} ${deptLabelOf(dept)}`,
           { department: dept, targetType:'profile', targetId: profileId });
+        // Ticking a department that had no channel yet creates one, and the strip above
+        // is drawn from that same list -- so without this it keeps the department greyed
+        // out as "no conversation here" when there now is one.
+        renderDeptStrip();
+        renderMgmt();
+      }
+      // The design's "+ Add member" and "Remove": the row-level bookends to the
+      // per-cell toggle above. Adding lands someone in General -- the client's base
+      // conversation and the only department that always makes sense -- and the ticks
+      // take it from there. Removing clears every department in one delete, because
+      // doing it a tick at a time is five confirmations and four chances to stop half way.
+      async function addClientMember(profileId){
+        if (!profileId || mg.mgmtMatrixBusy || !ncIsStaff()) return;
+        if (NC_DEPTS.some(d => mg.mgmtMatrixMembers[d.key] && mg.mgmtMatrixMembers[d.key].has(profileId))) return;
+        await toggleMemberDept(profileId, 'general');
+      }
+      async function removeClientMember(profileId){
+        if (!profileId || mg.mgmtMatrixBusy || !ncIsStaff()) return;
+        const ids = NC_DEPTS.map(d => mg.mgmtMatrixThreads[d.key] && mg.mgmtMatrixThreads[d.key].id).filter(Boolean);
+        if (!ids.length) return;
+        const who = profileName(profileId);
+        const clientName = (ncClients[mg.selectedId] || {}).name || 'this client';
+        if (typeof window.confirm === 'function'
+            && !window.confirm(`Remove ${who} from ${clientName}?\n\nThey lose access to every department for this client. Nothing they have written is deleted.`)) return;
+        mg.mgmtMatrixBusy = profileId + ':*'; renderMgmt();
+        const { error } = await NCSB().from('channel_members')
+          .delete().in('channel_id', ids).eq('profile_id', profileId);
+        mg.mgmtMatrixBusy = '';
+        if (error) {
+          renderMgmt();
+          if (typeof toast === 'function') toast({ type:'error', message:'Could not remove them: ' + error.message });
+          return;
+        }
+        NC_DEPTS.forEach(d => { if (mg.mgmtMatrixMembers[d.key]) mg.mgmtMatrixMembers[d.key].delete(profileId); });
+        // Same reason as toggleMemberDept: the open thread's member list is separate
+        // state, and waiting for a reload to correct it shows a stale list until then.
+        mg.threadMembers = mg.threadMembers.filter(tm => tm.profile_id !== profileId);
+        logC3Activity('member_removed', `removed ${who} from every department`,
+          { targetType:'profile', targetId: profileId });
         renderMgmt();
       }
       async function setServiceLead(dept, profileId){
@@ -71712,11 +71758,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           ${fold('depts', 'Conversations', 'Every department for this client', deptBody)}
         </div>`;
       }
+      // Members, rebuilt to the approved design: a caption, an add control, and one table
+      // in a card. The change with teeth is that rows are the client's members rather than
+      // the whole workspace -- the old version listed every profile, which at eighty-odd
+      // people is a wall of empty checkboxes you scroll past to find the four that matter.
+      // Adding someone is now an explicit act, which is also how the design reads it.
       function mgmtMembersHtml(){
         const canEdit = ncIsStaff();
-        const people = Object.values(mg.profilesById)
-          .sort((a, b) => (a.display_name || a.full_name || a.email || '').localeCompare(b.display_name || b.full_name || b.email || ''));
+        const nameOf = (p) => p.display_name || p.full_name || p.email || 'Someone';
+        const everyone = Object.values(mg.profilesById)
+          .sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
         const has = (pid, dept) => !!(mg.mgmtMatrixMembers[dept] && mg.mgmtMatrixMembers[dept].has(pid));
+        const isMember = (pid) => NC_DEPTS.some(d => has(pid, d.key));
+        const members = everyone.filter(p => isMember(p.id));
+        const addable = everyone.filter(p => !isMember(p.id));
         // A public client_dept thread is readable by any signed-in staff member through
         // chat2_threads_select_public_channel, whatever this matrix says. Ticks only
         // restrict private departments, so the ones that grant nothing are named rather
@@ -71727,43 +71782,67 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           return `<div style="font-size:12.5px;color:var(--c3-t5);padding:24px 0;">Loading access…</div>`;
         }
 
-        const head = `<div style="display:flex;align-items:center;gap:8px;padding:0 0 10px;border-bottom:1px solid var(--c3-b1);">
-          <div style="flex:1;min-width:0;font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);">Team member</div>
-          ${NC_DEPTS.map(d => `<div title="${chatEsc(d.label)}" style="width:64px;flex-shrink:0;text-align:center;">
-            <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${d.color};"></span>
-            <div style="font-size:9.5px;font-weight:700;color:var(--c3-t5);margin-top:3px;line-height:1.1;">${chatEsc(d.label)}</div>
-          </div>`).join('')}
+        const COL = 96;   // one width for the header cell and the tick cell under it
+        const cell = (inner, extra, attrs) => `<div ${attrs || ''} style="width:${COL}px;flex-shrink:0;display:flex;align-items:center;justify-content:center;${extra || ''}">${inner}</div>`;
+
+        const head = `<div style="display:flex;align-items:center;gap:8px;padding:13px 18px;background:var(--c3-s2);border-bottom:1px solid var(--c3-b1);">
+          <div style="flex:1;min-width:170px;font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);">Member</div>
+          ${NC_DEPTS.map(d => cell(`<span style="font-size:12px;color:var(--c3-t4);white-space:nowrap;">${chatEsc(d.label)}</span>`)).join('')}
+          ${canEdit ? cell('') : ''}
         </div>`;
 
-        const rows = people.map(pr => {
+        const rows = members.map(pr => {
           const isMe = pr.id === ncMyId();
-          return `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--c3-b0);">
-            <div style="flex:1;min-width:0;display:flex;align-items:center;gap:9px;">
+          const busyAll = mg.mgmtMatrixBusy === pr.id + ':*';
+          return `<div style="display:flex;align-items:center;gap:8px;padding:11px 18px;border-top:1px solid var(--c3-b0);opacity:${busyAll ? '0.45' : '1'};">
+            <div style="flex:1;min-width:170px;display:flex;align-items:center;gap:10px;">
               ${c3ProfileMarkHtml(pr, false)}
               <div style="min-width:0;">
-                <div style="font-size:12.5px;color:var(--c3-t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(pr.display_name || pr.full_name || pr.email || 'Someone')}${isMe ? ' <span style="font-size:9.5px;font-weight:800;color:var(--c3-t5);">YOU</span>' : ''}</div>
+                <div style="font-size:13px;font-weight:600;color:var(--c3-t0);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(nameOf(pr))}${isMe ? ' <span style="font-size:9.5px;font-weight:800;color:var(--c3-t5);">YOU</span>' : ''}</div>
                 ${pr.email ? `<div style="font-size:10.5px;color:var(--c3-t5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(pr.email)}</div>` : ''}
               </div>
             </div>
             ${NC_DEPTS.map(d => {
               const on = has(pr.id, d.key);
               const busy = mg.mgmtMatrixBusy === pr.id + ':' + d.key;
-              return `<div ${canEdit ? `data-c3-matrix-cell="${chatEsc(pr.id)}::${d.key}"` : ''} title="${on ? 'Can open' : 'Hidden'} — ${chatEsc(d.label)}"
-                style="width:64px;flex-shrink:0;display:flex;align-items:center;justify-content:center;${canEdit ? 'cursor:pointer;' : ''}opacity:${busy ? '0.45' : '1'};">
-                <span style="width:17px;height:17px;border-radius:5px;display:flex;align-items:center;justify-content:center;border:1.6px solid ${on ? d.color : 'var(--c3-b3)'};background:${on ? c3Alpha(d.color,18) : 'transparent'};">
-                  ${on ? ncIcon.check(d.color, 10) : ''}</span>
-              </div>`;
+              // One colour for every tick. The column header already says which
+              // department it is, so colouring the box per department spent the app's
+              // only "this is on" signal on information that was already there.
+              const box = `<span style="width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;border:1.6px solid ${on ? 'var(--red)' : 'var(--c3-b3)'};background:${on ? 'var(--red)' : 'transparent'};">
+                  ${on ? ncIcon.check('#fff', 13) : ''}</span>`;
+              return cell(box,
+                `${canEdit ? 'cursor:pointer;' : ''}opacity:${busy ? '0.45' : '1'};`,
+                `${canEdit ? `data-c3-matrix-cell="${chatEsc(pr.id)}::${d.key}"` : ''} title="${on ? 'Can open' : 'Hidden'} — ${chatEsc(d.label)}"`);
             }).join('')}
+            ${canEdit ? cell(`<span data-c3-member-remove="${chatEsc(pr.id)}" style="font-size:12.5px;color:var(--c3-t4);cursor:pointer;">Remove</span>`) : ''}
           </div>`;
         }).join('');
 
+        const empty = `<div style="padding:26px 18px;font-size:12.5px;color:var(--c3-t6);border-top:1px solid var(--c3-b0);">
+          Nobody has been given access to this client yet.${canEdit ? ' Use <b style="color:var(--c3-t3);">Add member</b> above.' : ''}
+        </div>`;
+
         return `<div style="display:flex;flex-direction:column;gap:14px;">
-          ${mgmtCard('Who can open what', `${people.length} on the team`,
-            `<div style="font-size:12px;color:var(--c3-t5);margin:-2px 0 10px;">Tick what each member can open for this client. Unticked departments are hidden from them entirely.</div>`
-            + `<div style="overflow-x:auto;">${head}${rows}</div>`
-            + (canEdit
-                ? `<div style="font-size:11px;color:var(--c3-t6);margin-top:12px;">Enforced on the server: chat2_threads and chat2_messages both require a membership row, and only managers can write one.</div>`
-                : `<div style="font-size:11px;color:var(--c3-t6);margin-top:12px;">Only managers and owners can change this.</div>`))}
+          <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+            <div style="flex:1;min-width:260px;font-size:12.5px;color:var(--c3-t4);line-height:1.5;">Tick what each member can open for this client. Unticked departments are hidden from them entirely.</div>
+            ${canEdit ? `<select data-c3-member-add="1" ${mg.mgmtMatrixBusy ? 'disabled' : ''} style="appearance:none;-webkit-appearance:none;background:transparent;border:none;outline:none;color:var(--red);font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;flex-shrink:0;">
+                <option value="" selected>+ Add member</option>
+                ${addable.map(p => `<option value="${chatEsc(p.id)}">${chatEsc(nameOf(p))}</option>`).join('')}
+              </select>` : ''}
+          </div>
+
+          <div style="border:1px solid var(--c3-b1);border-radius:12px;overflow:hidden;background:var(--c3-s1);">
+            <div style="overflow-x:auto;">
+              <div style="min-width:${170 + NC_DEPTS.length * COL + (canEdit ? COL : 0) + 36}px;">
+                ${head}
+                ${members.length ? rows : empty}
+              </div>
+            </div>
+          </div>
+
+          <div style="font-size:11px;color:var(--c3-t6);">${canEdit
+            ? 'Adding someone puts them in the client’s General conversation; tick the rest from there. Enforced on the server: chat2_threads and chat2_messages both require a membership row, and only managers can write one.'
+            : 'Only managers and owners can change this.'}</div>
 
           ${openDepts.length ? mgmtCard('These departments are public', `${openDepts.length} of ${NC_DEPTS.length}`,
             `<div style="font-size:12.5px;color:var(--c3-t2);line-height:1.6;">`
@@ -71900,6 +71979,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const [pid, dept] = el.dataset.c3MatrixCell.split('::'); toggleMemberDept(pid, dept);
       }));
       host.querySelectorAll('[data-c3-lead-set]').forEach(el => el.addEventListener('change', () => setServiceLead(el.dataset.c3LeadSet, el.value)));
+      host.querySelectorAll('[data-c3-member-add]').forEach(el => el.addEventListener('change', () => {
+        const id = el.value; el.value = '';   // it is an action, not a selection
+        addClientMember(id);
+      }));
+      host.querySelectorAll('[data-c3-member-remove]').forEach(el => el.addEventListener('click', () => removeClientMember(el.dataset.c3MemberRemove)));
       host.querySelectorAll('[data-c3-onboarding-create]').forEach(el => el.addEventListener('click', () => createOnboardingLink()));
       host.querySelectorAll('[data-c3-onboarding-answers]').forEach(el => el.addEventListener('click', () => {
         mg.mgmtShowAnswers = !mg.mgmtShowAnswers; renderMgmt();

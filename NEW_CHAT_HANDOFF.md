@@ -212,10 +212,39 @@ click-through fixture had invented a separate id, and the panel rendered its "no
 record" state for a whole run while still passing — "the pane has content" is too weak an
 assertion, which is why there are now three specific Overview checks.
 
+### Management > Members
+
+Rebuilt to the approved design: caption and **+ Add member** on one row, then the matrix in
+a bordered card — elevated header, avatar and name per row, one red tick per department,
+**Remove** on the right.
+
+- **Rows are the client's members, not the workspace.** The old table listed every profile,
+  which at eighty-odd people is a wall of empty checkboxes you scroll past to find the four
+  that matter. Adding is now an explicit act: `addClientMember` puts them in General — the
+  client's base conversation — and the ticks take it from there. `removeClientMember` clears
+  every department in one delete, behind a confirmation, because doing it a tick at a time is
+  five confirmations and four chances to stop half way.
+- Ticks are one colour. The column header already says which department it is, so colouring
+  the box per department spent the app's only "this is on" signal on information already
+  present.
+- The design's other four columns — Overview, Onboarding, Deliverables, Billing — are **not
+  implemented**, and deliberately so: nothing backs them. The ticks here are `channel_members`
+  rows against the client's department channels; those four are Management sub-tabs with no
+  per-member store, and a tick that does not persist lies about who can see what. They need a
+  table before they can be drawn. New Chat is manager/owner/inhouse_dev only today, so
+  per-member gating of those areas buys nothing yet either.
+
+**Creating a department channel invalidates the Members matrix.** `loadClientMemberMatrix`
+is guarded by `mgmtMatrixFor` and never reloads for the same client, so a department created
+after that load stayed invisible to it — the column read "no conversation here" and everyone
+read as not a member, however many membership rows were written. `ensureClientDeptThread`
+now clears the guard, and `toggleMemberDept` re-renders the department strip, which had the
+same staleness.
+
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 44 checks in a headless browser, ~40s
+node tools_newchat_clickthrough.mjs      # 46 checks in a headless browser, ~50s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```
@@ -249,6 +278,9 @@ can:
 - that Management > Overview renders the client record rather than its empty state, that a
   collapsed section opens, that the status pill offers all five statuses, and that the
   sub-tab strip stays full-bleed and scrolls away instead of pinning
+- that Members lists only the client's members, and that a tick writes one membership row
+  while Remove clears them all. That last one **writes**, so it runs last — placed earlier it
+  moved the ground under the checks after it, which is how the matrix staleness surfaced
 - that the header counts the channel's members, not the workspace (the fixture gives a
   team channel 5 members against 81 profiles, which is what makes the two distinguishable)
 - uncaught exceptions and `console.error`, which is how `fmtTime` was found
