@@ -169,6 +169,31 @@ non-client channels, and every other reader in the module treats that field as a
 id. The card Vault reads neither `selectedId` nor `selectedKind` — only `mg.vaultCards` —
 so the assignment is simply gone.
 
+## The DM list, and a filter with no control
+
+DIRECT and GROUP DMS were empty on an account with 25 DM channels — 14 one-to-one, 11 group,
+counterparties all staff. Three separate ways that list could come up empty in silence, all
+now closed:
+
+- **A scope filter that outlived its switch.** `renderDmChannelList` filtered on
+  `window.nc__chatScope`, persisted in `giant_nc_chat_scope`. The Team/Clients toggle it
+  belonged to is not part of this sidebar any more — CLIENTS, TEAMS and DIRECT are separate
+  cards — but the value it last wrote still applied, and `'clients'` hides every group DM
+  *and* every DM whose other person is not a client, which for a staff account is all of
+  them. Reproduced: with that value set, the old build lists **zero** DMs. A filter nothing
+  on screen can change is a switch someone can be stuck behind forever.
+- **An unresolved profile dropped the whole conversation.** `if (!p) return` meant one
+  profile that had not hydrated removed a DM from the sidebar with nothing said. It renders
+  as "Unknown member" now.
+- **The start-a-DM fallback never reached the card.** With no DM channels,
+  `renderDmChannelList` lists teammates as `data-start-dm` rows; the DIRECT card cloned only
+  `[data-nc-dm-channel-id]`, so it said "No direct messages." over a list full of people you
+  could message.
+
+`renderChannelList` had the same filter and it was removed earlier — but **two live
+references to `scope` remain** there (the switch button and an empty-state branch), so
+deleting the declaration breaks the channel list outright. It is left in place with a note.
+
 ## Dialogs
 
 Clicking a department tab used to ask `Start the Google Ads conversation for A X E?` in a
@@ -518,7 +543,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 61 checks in a headless browser, ~90s
+node tools_newchat_clickthrough.mjs      # 62 checks in a headless browser, ~90s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```

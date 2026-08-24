@@ -70673,6 +70673,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         });
 
       const dmSrc = document.getElementById('nc_chatDmList');
+      // With no DM channels yet, renderDmChannelList falls back to listing teammates as
+      // "start a DM" rows, which carry data-start-dm and no channel id. Cloning only the
+      // channel rows meant the card said "No direct messages." while the list underneath
+      // it was full of people you could message.
+      (dmSrc ? [...dmSrc.querySelectorAll('.nc_ch-item[data-start-dm]')] : []).forEach(row => {
+        const cl = row.cloneNode(true);
+        const pid = row.dataset.startDm;
+        cl.addEventListener('click', () => { const src = document.querySelector(`#nc_chatDmList [data-start-dm="${pid}"]`); if (src) src.click(); });
+        if (bodies.direct) bodies.direct.appendChild(cl);
+      });
       (dmSrc ? [...dmSrc.querySelectorAll('.nc_ch-item[data-nc-dm-channel-id]')] : []).forEach(row => {
         const id = row.dataset.ncDmChannelId;
         const c = dmById.get(id);
@@ -74439,6 +74449,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     let chatDmChannels = [];
 
     async function renderDmChannelList() {
+      // Exposed like its sibling renderChannelList, so the DM list can be repainted
+      // without a full channel reload -- and so a test can ask for one.
+      window.nc_renderDmChannelList = renderDmChannelList;
       const container = document.getElementById('nc_chatDmList');
       if (!container) return;
       // For each DM channel, find the OTHER member to display
@@ -74468,7 +74481,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       }
       const profilesById = chatProfilesCache;
 
-      const scope = window.nc__chatScope || 'team';
+      // No scope filter here any more. It survived the Team/Clients toggle it belonged to:
+      // this sidebar has separate CLIENTS, TEAMS and DIRECT cards, so nothing on screen can
+      // change nc__chatScope -- but the value it last wrote is still in localStorage, and
+      // 'clients' hides every group DM and every DM whose other person is not a client,
+      // which for a staff account is all of them. A filter with no control is a switch
+      // someone can be stuck behind forever.
       // Apply the "Jump to…" search filter (matches profile name)
       const query = (window.nc__chatJumpToQuery || '').trim().toLowerCase();
 
@@ -74478,8 +74496,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const others = channelToOthers[c.id] || [];
         const isGroup = c.is_group === true || others.length > 1;
         if (isGroup) {
-          // Group DM — shown in the Team scope only
-          if (scope === 'clients') return;
           const names = others.map(id => profilesById[id]).filter(Boolean).map(p => (p.full_name || p.email || '?').split(' ')[0]);
           const label = (c.name && c.name.trim()) ? c.name : (names.join(', ') || 'Group');
           if (query && !label.toLowerCase().includes(query)) return;
@@ -74489,12 +74505,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           return;
         }
         const otherId = others[0];
-        const p = profilesById[otherId];
-        if (!p) return;
-        const otherRole = String(p.role || 'member').toLowerCase();
-        const isClient = otherRole === 'client';
-        if (scope === 'clients' && !isClient) return;
-        if (scope === 'team' && isClient) return;
+        // A profile that has not resolved is a reason to label the row "Unknown", not to
+        // drop the conversation. Skipping meant a DM could vanish from the sidebar and
+        // there was nothing on screen to say one had.
+        const p = profilesById[otherId] || { id: otherId, full_name: 'Unknown member', email: '' };
+
         // Apply search query
         if (query) {
           const name = ((p.full_name || '') + ' ' + (p.email || '')).toLowerCase();
@@ -74509,9 +74524,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         html.push(`<div class="nc_ch-item${isActive}" data-nc-dm-channel-id="${chatEsc(c.id)}">${ava}${chatEsc(p.full_name || p.email)}</div>`);
       });
 
-      const emptyMsg = scope === 'clients'
-        ? 'No client DMs yet'
-        : 'No direct messages yet';
+      const emptyMsg = 'No direct messages yet';
       container.innerHTML = html.join('') || `<div style="padding:8px 12px;font-size:11px;color:var(--text-3);font-style:italic;">${emptyMsg}</div>`;
       // SAFETY: re-apply active class right after innerHTML rebuild, in case activeChannelId
       // changed between the start of this function and now (the user may have clicked another channel)
@@ -74582,7 +74595,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           }
         }
       }
-      // Active scope (Team or Clients) — defaults to 'team', stored in window so toggle can update
+      // Still read here: the empty-state branch below and the old switch button both use
+      // it. The channel FILTER it used to feed is gone -- Clients and Teams are separate
+      // cards -- but two live references remain, so removing the declaration only breaks
+      // the channel list. The DM list carried the same filter much longer, and hid every DM.
       const scope = window.nc__chatScope || 'team';
       // Apply the "Jump to…" search filter from the sidebar input (matches channel name, case-insensitive)
       const query = (window.nc__chatJumpToQuery || '').trim().toLowerCase();

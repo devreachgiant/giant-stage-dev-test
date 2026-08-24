@@ -236,6 +236,43 @@ await step('each nav card has its own icon, not a dot', async () => {
     JSON.stringify(n));
 });
 
+// Three ways the DM list could come up empty while DMs existed, all silent: a persisted
+// scope filter with no control left to change it, a counterparty profile that had not
+// resolved dropping the whole row, and the "start a DM" fallback rows never reaching the
+// card. The mock has no RLS and a fully-hydrated profile cache, which is exactly why none
+// of them ever showed up here.
+await step('a DM still lists when its counterparty has not resolved', async () => {
+  const r = await page.evaluate(async () => {
+    const db = window.__mock.db, me = window.__mock.me;
+    const dm = db.channels.find(c => c.is_dm);
+    const other = db.channel_members.find(m => m.channel_id === dm.id && m.profile_id !== me);
+    // a counterparty the profile cache cannot resolve
+    const orphan = 'u-ghost';
+    other.profile_id = orphan;
+    // Set the scope through the control that set it, not by assignment: the toggle still
+    // exists in the DOM behind the accordion, and its handler is what re-renders both
+    // lists. Poking window.nc__chatScope and calling the renderer only worked on the
+    // build that exposes it -- the first version of this check passed on the broken one
+    // because the call was a no-op there and it read the previous render.
+    const btn = document.querySelector('.nc_ch-scope-btn[data-scope="clients"]');
+    if (!btn) return { noToggle: true };
+    btn.click();
+    await new Promise(r => setTimeout(r, 2000));
+    const src = document.getElementById('nc_chatDmList');
+    const out = { listed: src.querySelectorAll('[data-nc-dm-channel-id]').length,
+                  orphanListed: !!src.querySelector(`[data-nc-dm-channel-id="${dm.id}"]`) };
+    // Put the scope back through the same control. Leaving it set is global state, and it
+    // cost the Needs you check five rows further down the run before this line existed.
+    const back = document.querySelector('.nc_ch-scope-btn[data-scope="team"]');
+    if (back) back.click();
+    await new Promise(r => setTimeout(r, 1200));
+    try { localStorage.removeItem('giant_nc_chat_scope'); } catch (e) {}
+    return out;
+  });
+  check('a DM still lists when its counterparty has not resolved',
+    !r.noToggle && r.listed > 1 && r.orphanListed, JSON.stringify(r));
+});
+
 // ── open a team channel and read messages ────────────────────────────────────
 await step('a team channel opens and paints messages', async () => {
   await page.evaluate(() => {
