@@ -56,8 +56,8 @@ strip. Audit clean, isolation clean, click-through 53/53 with no uncaught errors
 
 **Left to do, in order:**
 1. **Nothing is pushed, and that is the current decision** — the branch stays local.
-   10 of the 11 migrations are already applied to production; `20260824120000_client_member_areas.sql`
-   is **not**, and the Members tab's four area columns need it. The code is not deployed either. `main`
+   All 11 migrations are applied to production, including
+   `20260824120000_client_member_areas.sql` (applied 2026-08-24). The code is not deployed. `main`
    auto-deploys via Netlify, so do not push without asking again.
 2. **Sign in as a real manager and click through once.** The harness proves the wiring and
    the structure against stand-in data; it proves nothing about production rows — Maribou's

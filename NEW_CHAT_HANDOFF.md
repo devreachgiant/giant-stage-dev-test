@@ -268,7 +268,7 @@ RLS widening (which `20260821110000` declined, and which would widen the origina
 RLS is per-table, not per-module) or real membership rows on every client channel (which
 puts those channels in old chat's sidebar for every manager). Both are decisions, not edits.
 
-### A migration that is written but not applied
+### A migration that is written but not applied (now applied — keep the fallback)
 
 `client_member_areas` shipped as code before it shipped as a table, and the gap looked like
 a bug: a red `Could not load area access: Could not find the table 'public.client_member_areas'
@@ -373,9 +373,9 @@ a bordered card — elevated header, avatar and name per row, one red tick per d
 - **Nine columns, two stores.** The five departments are `channel_members` rows against the
   client's department channels — a department *is* a channel. Onboarding, Deliverables, Tasks
   and Billing are not; they are areas of the client record, and live in
-  `client_member_areas` (migration `20260824120000`). **`supabase migration list` confirms
-  it is the only unapplied migration on this branch** — every other one is on production.
-  Until it is applied the four columns are hidden and the table says so; see below. A grant on any of
+  `client_member_areas` (migration `20260824120000`, **applied to production 2026-08-24**).
+  `supabase migration list` now reports nothing unapplied. The fallback below stays in the
+  code anyway — it is what makes the next code-before-migration gap harmless. A grant on any of
   the nine makes someone a member of the client: billing-only access is still access, and a
   row you cannot see is a row you cannot revoke. Remove clears both stores.
 - `ncCanArea(area, profileId)` is the gate, published as `window.nc_canArea`. Managers, owners
