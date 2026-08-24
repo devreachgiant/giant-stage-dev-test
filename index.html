@@ -8460,10 +8460,6 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               .nc_cv-search-input:focus{border-color:var(--text-3);width:160px;}
             </style>
             <!-- Management pane: Chat 3.0's five tabs, over this client's data -->
-            <div id="nc_inboxPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
-            <div id="nc_magnusPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
-            <div id="nc_tasksPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
-            <div id="nc_mgmtPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
             <div class="nc_chat-subtabs" id="nc_chatSubTabs">
               <button class="nc_chat-subtab active" data-subtab="messages"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Messages</button>
               <button class="nc_chat-subtab" data-subtab="media"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.3"/><circle cx="5.5" cy="6.5" r="1.2" stroke="currentColor" stroke-width="1.1"/><path d="M2.5 11l3-3 2.5 2.5L11 7.5l2.5 3" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Media<span class="nc_chat-subtab-count" id="nc_chatMediaCount"></span></button>
@@ -8485,6 +8481,10 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               <div id="nc_chatMediaContent"></div>
             </div>
             <!-- Canvas pane -->
+            <div class="nc_chat-tabpane" id="nc_inboxPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
+            <div class="nc_chat-tabpane" id="nc_magnusPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
+            <div class="nc_chat-tabpane" id="nc_tasksPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
+            <div class="nc_chat-tabpane" id="nc_mgmtPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
             <div class="nc_chat-tabpane" id="nc_chatCanvasPane" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
               <div class="nc_canvas-toolbar" id="nc_chatCanvasToolbar">
                 <button class="nc_canvas-tool" data-cmd="bold" title="Bold" style="font-weight:800;">B</button>
@@ -72585,15 +72585,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       function openTaskAdd(){
         mg.taskAdding = true;
         mg.taskDraft = { name:'', priority:'medium', assignee:'' };
-        renderMgmt();
+        renderTasks();
       }
-      function closeTaskAdd(){ mg.taskAdding = false; mg.taskDraft = null; renderMgmt(); }
+      function closeTaskAdd(){ mg.taskAdding = false; mg.taskDraft = null; renderTasks(); }
       async function submitNewTask(){
         const d = mg.taskDraft;
         if (!d || mg.taskSaving) return;
         if (!d.name.trim()) { if (typeof toast === 'function') toast({ type:'error', message:'Give the task a name first.' }); return; }
         if (!mg.clientProject) { if (typeof toast === 'function') toast({ type:'error', message:'This client has no project to add a task to.' }); return; }
-        mg.taskSaving = true; renderMgmt();
+        mg.taskSaving = true; renderTasks();
         const row = {
           project_id: mg.clientProject.id,
           client_id: mg.selectedId,
@@ -72610,14 +72610,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           .single();
         mg.taskSaving = false;
         if (error) {
-          renderMgmt();
+          renderTasks();
           if (typeof toast === 'function') toast({ type:'error', message:'Could not add the task: ' + error.message });
           return;
         }
         mg.clientTasks.unshift(data);
         logC3Activity('task_added', 'added a task', { detail: data.name, targetType:'task', targetId: data.id });
         mg.taskAdding = false; mg.taskDraft = null;
-        renderMgmt();
+        renderTasks();
       }
 
       // Row timer, backed by the real time_sessions table the rest of the app uses —
@@ -72632,7 +72632,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           delete mg.taskTimers[taskId];
           mg.clientTimeSeconds += seconds;
           mg.clientRunningCount = Math.max(0, mg.clientRunningCount - 1);
-          renderMgmt();
+          renderTasks();
           const { error } = await NCSB().from('time_sessions')
             .update({ status: 'completed', ended_at: new Date().toISOString(), duration_seconds: seconds })
             .eq('id', running.id);
@@ -72646,7 +72646,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (error) { if (typeof toast === 'function') toast({ type:'error', message:'Could not start the timer: ' + error.message }); return; }
         mg.taskTimers[taskId] = data;
         mg.clientRunningCount += 1;
-        renderMgmt();
+        renderTasks();
       }
 
       // Optimistic, then reconciled: the row flips immediately and rolls back with a
@@ -72656,14 +72656,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (!t) return;
         const was = t.status;
         t.status = was === 'done' ? 'todo' : 'done';
-        renderMgmt();
+        renderTasks();
         const patch = t.status === 'done'
           ? { status: 'done', completed_at: new Date().toISOString(), completed_by: ncMyId() }
           : { status: 'todo', completed_at: null, completed_by: null };
         const { error } = await NCSB().from('tasks').update(patch).eq('id', taskId);
         if (!error && t.status === 'done') logC3Activity('task_done', 'completed a task', { detail: t.name, targetType:'task', targetId: taskId });
         if (error) {
-          t.status = was; renderMgmt();
+          t.status = was; renderTasks();
           if (typeof toast === 'function') toast({ type:'error', message:'Could not update task: ' + error.message });
         }
       }
@@ -72677,7 +72677,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         mg.clientTasksFor = clientId; mg.clientTasksLoading = true;
         mg.clientTasks = []; mg.clientTasksError = null;
         mg.clientTimeSeconds = 0; mg.clientRunningCount = 0; mg.clientProject = null;
-        renderMgmt();
+        renderTasks();
         const [tasksRes, timeRes, projRes] = await Promise.all([
           NCSB().from('tasks')
             .select('id, name, description, status, priority, assigned_to, department, due_at, project_id, completed_at')
@@ -72696,7 +72696,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         mg.clientTimeSeconds = sessions.reduce((n, x) => n + (x.duration_seconds || 0), 0);
         mg.clientRunningCount = sessions.filter(x => x.status === 'running').length;
         mg.clientProject = projRes && projRes.data ? projRes.data : null;
-        renderMgmt();
+        renderTasks();
       }
 
       // Matches the task_priority enum exactly (fire | medium | low). Anything outside
@@ -72745,7 +72745,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
       function inboxAction(key){ return mg.inboxActions[key] || { done:false, saved:false }; }
       async function loadInboxItems(){
-        mg.inboxLoading = true; renderMgmt();
+        mg.inboxLoading = true; renderMagnus();
         const myLower = (mg.myName || '').trim().toLowerCase();
         const [membershipsRes, actionsRes, msgsRes, tasksRes] = await Promise.all([
           NCSB().from('channel_members').select('channel_id, last_read_at').eq('profile_id', ncMyId()),
@@ -72809,7 +72809,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         mg.inboxItems = items;
         mg.inboxLoading = false;
         mg.inboxLoadedOnce = true;
-        renderMgmt();
+        renderMagnus();
       }
       async function setInboxAction(key, patch){
         mg.inboxActions[key] = { ...inboxAction(key), ...patch };
