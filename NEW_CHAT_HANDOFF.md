@@ -1,6 +1,7 @@
 # New Chat — handoff
 
-Branch: `feature/new-chat-from-chat3` · 45 commits ahead of `main` · **nothing pushed**
+Branch: `feature/new-chat-from-chat3` · **nothing pushed**, by decision — the branch
+stays local. `git rev-list --count main..HEAD` for the commit count.
 
 To resume in a new conversation, see `RESUME_NEW_CHAT.md`.
 
@@ -21,8 +22,8 @@ Decisions taken up front, all still in force:
 
 ## The isolation rule
 
-The original chat is three regions of `index.html`, and for 44 commits the rule was that
-they stay byte-identical to `main`. **That rule has now been broken exactly once, on
+The original chat is three regions of `index.html`, and for every commit on this branch
+up to the member-count fix the rule was that they stay byte-identical to `main`. **That rule has now been broken exactly once, on
 purpose** — see "the member count" below — so it is no longer a containment check you can
 write inline. Run the tool instead, after every change:
 
@@ -150,9 +151,9 @@ state object plus shims (`NCSB`, `ncMyId`, `ncIsStaff`, `ncIcon`, `renderMgmt`, 
 
 ## Left to do
 
-1. **Push the branch** — nothing is on the remote. 10 migrations are already applied to
-   production; the code is not. `main` auto-deploys via Netlify, so this needs a decision,
-   not a `git push`.
+1. **Nothing is pushed, and that is the current decision** — the branch stays local. The
+   10 migrations are already applied to production; the code is not, and `main`
+   auto-deploys via Netlify, so do not push without asking again.
 2. **Sign in as a real manager and click through once.** The harness below covers the
    wiring and the structure against stand-in data; it says nothing about production rows —
    Maribou's two Generals unioning, the four `-seo` channels landing in SEO, 10,363 real

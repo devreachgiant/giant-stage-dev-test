@@ -6,7 +6,8 @@ two files that hold the detail.
 ---
 
 Continue the **New Chat** work in this repo. Branch `feature/new-chat-from-chat3` —
-45 commits ahead of `main`, **nothing pushed**, working tree clean.
+**nothing pushed**, working tree clean.
+The branch stays local by decision; `git rev-list --count main..HEAD` for the count.
 
 **Read `NEW_CHAT_HANDOFF.md` first.** It has the decisions, the data model, how each port
 went, and a "traps hit" section that will save you repeating seven separate bugs.
@@ -54,8 +55,9 @@ Master Inbox. Sidebar is Chat 3.0's accordion with all 53 clients listed. One-li
 strip. Audit clean, isolation clean, click-through 40/40 with no uncaught errors.
 
 **Left to do, in order:**
-1. **Push** — 45 commits and 10 migrations. The migrations are already applied to
-   production; the code is not. `main` auto-deploys via Netlify, so ask before pushing.
+1. **Nothing is pushed, and that is the current decision** — the branch stays local.
+   The 10 migrations are already applied to production; the code is not. `main`
+   auto-deploys via Netlify, so do not push without asking again.
 2. **Sign in as a real manager and click through once.** The harness proves the wiring and
    the structure against stand-in data; it proves nothing about production rows — Maribou's
    two Generals unioning, the `-seo` channels landing in SEO, 10,363 messages paginating.
@@ -84,7 +86,7 @@ apart) without seeing either image.
 | `tools_newchat_clickthrough.mjs` | 40-check headless click-through; the real gate |
 | `tools_newchat_isolation.py` | the original chat vs `main`, plus its one approved change |
 | `tools_newchat_mock_supabase.js` | the stand-in Supabase and its fixtures |
-| `git log main..HEAD` | 45 commits, each explaining one decision |
+| `git log main..HEAD` | every commit, each explaining one decision |
 
 ## If you would rather not paste anything
 

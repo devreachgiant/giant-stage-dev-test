@@ -209,7 +209,13 @@ await step('a team channel opens and paints messages', async () => {
 // The header used to print the workspace profile count, so it read the same number on
 // every channel. The fixture gives each team channel 5 members against 81 profiles, which
 // is what makes the two cases distinguishable at all.
+// The count now arrives one round trip after the channel switch -- the base topic is
+// painted synchronously and the count appended when channel_members resolves -- so this
+// has to wait for it rather than read straight after the message list.
 await step('the header counts this channel\'s members, not the workspace', async () => {
+  await page.waitForFunction(
+    () => /·\s*\d+\s*member/.test(document.getElementById('nc_chatHeadTopic').textContent),
+    null, { timeout: 15000 });
   const m = await page.evaluate(async () => {
     const topic = document.getElementById('nc_chatHeadTopic').textContent;
     const shown = /·\s*(\d+)\s*member/.exec(topic);
