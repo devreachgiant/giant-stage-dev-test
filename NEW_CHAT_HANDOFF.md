@@ -1,6 +1,6 @@
 # New Chat — handoff
 
-Branch: `feature/new-chat-from-chat3` · 41 commits ahead of `main` · **nothing pushed**
+Branch: `feature/new-chat-from-chat3` · 44 commits ahead of `main` · **nothing pushed**
 
 To resume in a new conversation, see `RESUME_NEW_CHAT.md`.
 
@@ -83,7 +83,7 @@ realtime is still filtered to the primary channel, and sending always writes to 
 | Master Inbox | repointed to `messages` / `channel_members` / new `inbox_actions` | done |
 
 **All ports are complete.** Run `python3 tools_newchat_audit.py` after every change — it
-checks the five failure modes below and should print `RESULT: clean`.
+checks the six failure modes below and should print `RESULT: clean`.
 
 The extraction pipeline is `scratchpad/port.py` (regenerate if gone). Three lessons in it:
 
@@ -131,24 +131,81 @@ state object plus shims (`NCSB`, `ncMyId`, `ncIsStaff`, `ncIcon`, `renderMgmt`, 
 - **Each pane has its own renderer.** `adapt()` rewrites chat3's `render()` to
   `renderMgmt()` everywhere, so Tasks and Magnus repainted the hidden Management pane
   instead of themselves and never showed loading or optimistic updates.
+- **A name being declared in the module does not mean the call site can see it.** The
+  Master Inbox called `fmtTime`, checks 1–5 all passed, and the pane threw a
+  ReferenceError the moment it opened: the only `fmtTime` in the module was nested inside
+  the scheduled-message code and took a `Date`. Chat 3.0 declares `fmtTime` twice at its
+  own top level, so the second one wins there and that is the one now copied in. Audit
+  check 6 exists because of this and catches it; the click-through catches it too.
 - **The audit checks names and wiring, not structure.** Neither of the two traps above
   would trip it. Check the DOM as well as the text.
 
 ## Left to do
 
-1. **Click-through test** — nothing past the sign-in gate has been verified by machine
-2. **Push the branch** — nothing is on the remote
+1. **Push the branch** — nothing is on the remote. 10 migrations are already applied to
+   production; the code is not. `main` auto-deploys via Netlify, so this needs a decision,
+   not a `git push`.
+2. **Sign in as a real manager and click through once.** The harness below covers the
+   wiring and the structure against stand-in data; it says nothing about production rows —
+   Maribou's two Generals unioning, the four `-seo` channels landing in SEO, 10,363 real
+   messages paginating. That is the part still unverified.
 3. Retire `feature/chat3-management-panels` — its panels were ported here, so it is superseded
 4. `version.json` is stale at `20260724u3`, three releases behind; desktop clients are not
    being told to update
 5. Old chat still cannot be retired: access is manager/owner/inhouse_dev only, so members
    and clients have no other chat surface until that decision changes
 
+### Known, not fixed
+
+**The channel header's member count is the workspace profile count, not the channel's.**
+`renderChatHeadMembers` reads `chatProfilesCache` — which `hydrateAllWorkspaceProfiles`
+fills with everyone at boot — and prints its length, so every non-DM channel reports the
+same number regardless of who is in it. **This is pre-existing**: the original chat does
+exactly the same thing (same function, byte-identical region), so it is inherited by the
+duplication rather than introduced here. Left alone deliberately — fixing it only in New
+Chat makes the two screens disagree, and that is a product call. One line, at
+`const count = cachedProfiles.length;` in `renderChatHeadMembers`.
+
 ## Verifying
 
-There are no test credentials, so nothing past the sign-in gate can be checked automatically.
-What is checkable: `node --check` on all 10 inline script blocks, the byte-identical check
-above, and a headless load for console errors.
+```
+node tools_newchat_clickthrough.mjs      # 39 checks, headless, ~40s
+python3 tools_newchat_audit.py           # the six static checks
+```
+
+**The click-through is the one that matters.** `node --check` and the audit both pass on a
+build whose screen is broken, which is how every bug in the traps list shipped.
+
+There are no credentials for the real project, so the harness replaces the CDN's
+supabase-js at request time with `tools_newchat_mock_supabase.js`. Serving the mock in
+place of that `<script>` is what makes the timing work — `window.supabase` exists before
+the app's own code runs — and every `*.supabase.co` request is aborted as a backstop, so a
+run cannot touch production. The mock is a small PostgREST implementation (filters, order,
+limit, single/maybeSingle, insert/upsert/update/delete, the three embedded selects, storage,
+realtime, auth) over fixtures shaped like the real thing: 53 active clients, 1 home + 11
+team + 14 client channels across 11 client threads with Maribou holding two Generals, 80
+DMs, 486 messages in the four `-seo` channels.
+
+It then does what a person would: waits for the gate to resolve, clicks the New Chat nav
+item, opens a team channel, opens a client thread, clicks all five tabs, opens the Master
+Inbox, sends a message, and starts an empty department. What it asserts that nothing else
+can:
+
+- **which element each pane is parented to** — sibling of `nc_chatMsgs`, never inside
+  `.nc_tabstrip` — and that each pane has room to render (the squeezed-into-the-tab-bar bug)
+- **that a tab paints its own pane and no other** — every pane is fingerprinted before the
+  click and compared after, which is the `adapt()`/`renderMgmt()` bug
+- the layout claims that were previously only ever checked by eye: accordion sidebar with
+  exactly one card open, one-line tab strip (compare vertical *centres*, not `top` — the
+  department tabs are shorter than the sub-tabs and the strip centres them), 53 clients
+  listed with 42 dimmed, no duplicated reply badge
+- uncaught exceptions and `console.error`, which is how `fmtTime` was found
+
+Two things worth knowing before extending it. Playwright dismisses dialogs by default, so
+every `confirm()` reads as "no" and the guarded path never runs — that looked exactly like
+a broken control until the dialog handler went in. And the mock lists any table it was not
+given under `mock gaps`, so a path quietly reading an empty table is visible rather than
+silent.
 
 When screenshots cannot be sent (a conversation exhausts its image budget and then rejects
 every image regardless of size), measuring them with PIL through the shell genuinely works —
