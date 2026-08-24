@@ -1,6 +1,6 @@
 # New Chat — handoff
 
-Branch: `feature/new-chat-from-chat3` · 44 commits ahead of `main` · **nothing pushed**
+Branch: `feature/new-chat-from-chat3` · 45 commits ahead of `main` · **nothing pushed**
 
 To resume in a new conversation, see `RESUME_NEW_CHAT.md`.
 
@@ -21,8 +21,14 @@ Decisions taken up front, all still in force:
 
 ## The isolation rule
 
-The original chat is three regions of `index.html`. **After every change**, confirm they are
-byte-identical to `main`:
+The original chat is three regions of `index.html`, and for 44 commits the rule was that
+they stay byte-identical to `main`. **That rule has now been broken exactly once, on
+purpose** — see "the member count" below — so it is no longer a containment check you can
+write inline. Run the tool instead, after every change:
+
+```
+python3 tools_newchat_isolation.py     # expect RESULT: clean
+```
 
 | region | lines |
 |---|---|
@@ -30,14 +36,16 @@ byte-identical to `main`:
 | chat engine | 41674–47173 |
 | per-channel sub-tabs | 67519–67870 |
 
-```python
-old = subprocess.run(['git','show','main:index.html'],capture_output=True,text=True).stdout.split('\n')
-for a,b in [(7198,7707),(41674,47173),(67519,67870)]:
-    assert '\n'.join(old[a-1:b]) in open('index.html').read()
-```
+It takes each region from `main`, applies the approved changes listed in its `ALLOWED`
+table, and requires the result to appear verbatim in the current file. So a stray edit
+still fails — the approved patch is pinned to exact text on both sides — while the
+intentional one is recorded rather than remembered. Approving another change means adding
+a before/after pair and a reason to `ALLOWED`, which is deliberately more friction than
+editing the original by hand.
 
-This has caught a real leak once: a global string replace renaming a tab renamed the
-original's tab too. Run it every time, not at the end.
+Why it matters: this check has caught a real leak, a global string replace renaming a tab
+that renamed the original's tab too. Do not skip it because a change "only touched New
+Chat" — that is exactly what the leak looked like.
 
 **Five shared namespaces** had to be separated, and only two were visible in the markup:
 DOM ids, CSS classes, `window.*` globals, localStorage keys, and **Supabase realtime channel
@@ -155,22 +163,32 @@ state object plus shims (`NCSB`, `ncMyId`, `ncIsStaff`, `ncIcon`, `renderMgmt`, 
 5. Old chat still cannot be retired: access is manager/owner/inhouse_dev only, so members
    and clients have no other chat surface until that decision changes
 
-### Known, not fixed
+### The member count — fixed in both chats
 
-**The channel header's member count is the workspace profile count, not the channel's.**
-`renderChatHeadMembers` reads `chatProfilesCache` — which `hydrateAllWorkspaceProfiles`
-fills with everyone at boot — and prints its length, so every non-DM channel reports the
-same number regardless of who is in it. **This is pre-existing**: the original chat does
-exactly the same thing (same function, byte-identical region), so it is inherited by the
-duplication rather than introduced here. Left alone deliberately — fixing it only in New
-Chat makes the two screens disagree, and that is a product call. One line, at
-`const count = cachedProfiles.length;` in `renderChatHeadMembers`.
+The channel header's member count was `chatProfilesCache.length` — every profile
+`hydrateAllWorkspaceProfiles` loaded at boot — so every non-DM channel reported the whole
+workspace regardless of who was in it. The click-through screenshot is what surfaced it: a
+freshly created channel with one member read "81 members".
+
+It was **pre-existing and identical in both chats**, inherited by the duplication rather
+than introduced here. Fixing only New Chat would have left the two screens disagreeing, so
+the decision was to fix both — which is the one approved exception in
+`tools_newchat_isolation.py`. `renderChatHeadMembers` now asks `channel_members` for the
+active channel; avatars still come from the profile cache, so it is one extra query per
+channel switch, not the two the old comment was avoiding. Three details that matter:
+
+- a failed query falls back to the old behaviour, so it is never worse than before
+- the channel id is captured up front and rechecked after the await, or a fast channel
+  switch paints the previous channel's count
+- the count is written before the avatars and outside their empty-list early return, so a
+  channel whose members are not all in the profile cache still shows the right number
 
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 39 checks, headless, ~40s
+node tools_newchat_clickthrough.mjs      # 40 checks in a headless browser, ~40s
 python3 tools_newchat_audit.py           # the six static checks
+python3 tools_newchat_isolation.py       # the original chat is as approved
 ```
 
 **The click-through is the one that matters.** `node --check` and the audit both pass on a
@@ -199,6 +217,8 @@ can:
   exactly one card open, one-line tab strip (compare vertical *centres*, not `top` — the
   department tabs are shorter than the sub-tabs and the strip centres them), 53 clients
   listed with 42 dimmed, no duplicated reply badge
+- that the header counts the channel's members, not the workspace (the fixture gives a
+  team channel 5 members against 81 profiles, which is what makes the two distinguishable)
 - uncaught exceptions and `console.error`, which is how `fmtTime` was found
 
 Two things worth knowing before extending it. Playwright dismisses dialogs by default, so

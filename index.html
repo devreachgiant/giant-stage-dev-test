@@ -43829,11 +43829,36 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     async function renderChatHeadMembers() {
       const container = document.getElementById('chatHeadMembers');
       if (!container) return;
-      // OPTIMIZATION: use the chatProfilesCache that hydrateAllWorkspaceProfiles populated at boot.
-      // Avoids 2 DB queries on every channel switch.
+      const channelId = activeChannelId;
+      // chatProfilesCache holds every profile hydrateAllWorkspaceProfiles loaded at boot,
+      // so counting it reported the whole workspace on every non-DM channel regardless of
+      // who was actually in it — a channel with one member read "81 members". The
+      // membership has to be asked for; the avatars still come out of the cache, so this
+      // is one extra query per channel switch rather than the two the old comment avoided.
+      let memberIds = null;
+      if (channelId) {
+        const { data: mem, error: memErr } = await supabase
+          .from('channel_members').select('profile_id').eq('channel_id', channelId);
+        if (!memErr && Array.isArray(mem)) memberIds = mem.map(m => m.profile_id);
+      }
+      if (channelId !== activeChannelId) return;   // switched channel while that was in flight
       const cachedProfiles = Object.values(chatProfilesCache || {}).filter(p => p && p.id);
-      const data = cachedProfiles.length >= 1 ? cachedProfiles.slice(0, 5) : null;
-      if (!data || !data.length) {
+      // A failed query falls back to the old behaviour, so this is never worse than before.
+      const known = memberIds
+        ? memberIds.map(id => chatProfilesCache[id]).filter(p => p && p.id)
+        : cachedProfiles;
+      const count = memberIds ? memberIds.length : cachedProfiles.length;
+      // The count is written before the avatars, and outside their empty-list early
+      // return, so a channel whose members are not all in the profile cache still shows
+      // the right number instead of silently keeping the previous channel's.
+      const headTopic = document.getElementById('chatHeadTopic');
+      if (headTopic) {
+        const c = chatChannels.find(x => x.id === activeChannelId);
+        const baseTopic = c?.description || (c?.is_private ? 'Private channel' : 'Public channel');
+        headTopic.textContent = `${baseTopic} · ${count} member${count===1?'':'s'}`;
+      }
+      const data = known.slice(0, 5);
+      if (!data.length) {
         container.innerHTML = '';
         return;
       }
@@ -43844,14 +43869,6 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         }
         return `<div class="m" style="background:${chatEsc(p.avatar_bg||'#4A2424')};color:${chatEsc(p.avatar_fg||'#F0A0A0')};">${chatEsc(initial)}</div>`;
       }).join('');
-      // Use cached count instead of a second DB query
-      const headTopic = document.getElementById('chatHeadTopic');
-      if (headTopic) {
-        const c = chatChannels.find(x => x.id === activeChannelId);
-        const baseTopic = c?.description || (c?.is_private ? 'Private channel' : 'Public channel');
-        const count = cachedProfiles.length;
-        headTopic.textContent = `${baseTopic} · ${count} member${count===1?'':'s'}`;
-      }
     }
 
     // Per-channel message cache
@@ -74285,11 +74302,35 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     async function renderChatHeadMembers() {
       const container = document.getElementById('nc_chatHeadMembers');
       if (!container) return;
-      // OPTIMIZATION: use the chatProfilesCache that hydrateAllWorkspaceProfiles populated at boot.
-      // Avoids 2 DB queries on every channel switch.
+      const channelId = activeChannelId;
+      // Same fix as the original chat's copy of this function: chatProfilesCache is every
+      // profile loaded at boot, so counting it reported the whole workspace on every
+      // non-DM channel -- the click-through screenshot caught a channel with one member
+      // reading "81 members". Ask for the membership; avatars still come from the cache.
+      let memberIds = null;
+      if (channelId) {
+        const { data: mem, error: memErr } = await window.giantSupabase
+          .from('channel_members').select('profile_id').eq('channel_id', channelId);
+        if (!memErr && Array.isArray(mem)) memberIds = mem.map(m => m.profile_id);
+      }
+      if (channelId !== activeChannelId) return;   // switched channel while that was in flight
       const cachedProfiles = Object.values(chatProfilesCache || {}).filter(p => p && p.id);
-      const data = cachedProfiles.length >= 1 ? cachedProfiles.slice(0, 5) : null;
-      if (!data || !data.length) {
+      // A failed query falls back to the old behaviour, so this is never worse than before.
+      const known = memberIds
+        ? memberIds.map(id => chatProfilesCache[id]).filter(p => p && p.id)
+        : cachedProfiles;
+      const count = memberIds ? memberIds.length : cachedProfiles.length;
+      // Written before the avatars, and outside their empty-list early return, so a
+      // channel whose members are not all cached still shows the right number rather than
+      // keeping the previous channel's.
+      const headTopic = document.getElementById('nc_chatHeadTopic');
+      if (headTopic) {
+        const c = chatChannels.find(x => x.id === activeChannelId);
+        const baseTopic = c?.description || (c?.is_private ? 'Private channel' : 'Public channel');
+        headTopic.textContent = `${baseTopic} · ${count} member${count===1?'':'s'}`;
+      }
+      const data = known.slice(0, 5);
+      if (!data.length) {
         container.innerHTML = '';
         return;
       }
@@ -74300,14 +74341,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         }
         return `<div class="nc_m" style="background:${chatEsc(p.avatar_bg||'#4A2424')};color:${chatEsc(p.avatar_fg||'#F0A0A0')};">${chatEsc(initial)}</div>`;
       }).join('');
-      // Use cached count instead of a second DB query
-      const headTopic = document.getElementById('nc_chatHeadTopic');
-      if (headTopic) {
-        const c = chatChannels.find(x => x.id === activeChannelId);
-        const baseTopic = c?.description || (c?.is_private ? 'Private channel' : 'Public channel');
-        const count = cachedProfiles.length;
-        headTopic.textContent = `${baseTopic} · ${count} member${count===1?'':'s'}`;
-      }
     }
 
     // Per-channel message cache

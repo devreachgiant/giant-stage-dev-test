@@ -6,7 +6,7 @@ two files that hold the detail.
 ---
 
 Continue the **New Chat** work in this repo. Branch `feature/new-chat-from-chat3` —
-44 commits ahead of `main`, **nothing pushed**, working tree clean.
+45 commits ahead of `main`, **nothing pushed**, working tree clean.
 
 **Read `NEW_CHAT_HANDOFF.md` first.** It has the decisions, the data model, how each port
 went, and a "traps hit" section that will save you repeating seven separate bugs.
@@ -17,20 +17,20 @@ and untouched. New Chat is manager/owner/inhouse_dev only.
 
 **Three rules that are not negotiable:**
 
-1. **The original chat must stay byte-identical to `main`** — regions 7198–7707,
-   41674–47173, 67519–67870 of `index.html`. Check after *every* change, not at the end.
-   It has caught a real leak (a global string replace renamed the original's tab too).
-   ```python
-   import subprocess
-   old = subprocess.run(['git','show','main:index.html'],capture_output=True,text=True).stdout.split('\n')
-   s = open('index.html').read()
-   for a,b in [(7198,7707),(41674,47173),(67519,67870)]:
-       assert '\n'.join(old[a-1:b]) in s
+1. **The original chat stays as approved.** Three regions of `index.html` — 7198–7707,
+   41674–47173, 67519–67870. The rule used to be "byte-identical to `main`"; it has now
+   been broken exactly once on purpose (the member count, fixed in both chats), so use the
+   tool rather than an inline assert:
    ```
+   python3 tools_newchat_isolation.py
+   ```
+   It applies the approved changes to main's regions and requires the result verbatim, so a
+   stray edit still fails. This has caught a real leak — a global string replace renaming a
+   tab renamed the original's too — so run it after *every* change, not at the end.
 2. **Run both checks after every change**, not at the end:
    ```
    python3 tools_newchat_audit.py            # six static checks; expect RESULT: clean
-   node tools_newchat_clickthrough.mjs       # 39 checks in a headless browser, ~40s
+   node tools_newchat_clickthrough.mjs       # 40 checks in a headless browser, ~40s
    ```
    The audit covers six failure modes that all shipped as a clean parse and a broken
    screen: undefined calls including inside `${...}`, bare CONSTANT references, methods on
@@ -51,10 +51,10 @@ Supabase, so it needs no credentials and cannot touch production.
 
 **State:** all ports done — Management, Vault, Media, Client library, Tasks, Magnus,
 Master Inbox. Sidebar is Chat 3.0's accordion with all 53 clients listed. One-line tab
-strip. Audit clean, click-through 39/39 with no uncaught errors.
+strip. Audit clean, isolation clean, click-through 40/40 with no uncaught errors.
 
 **Left to do, in order:**
-1. **Push** — 44 commits and 10 migrations. The migrations are already applied to
+1. **Push** — 45 commits and 10 migrations. The migrations are already applied to
    production; the code is not. `main` auto-deploys via Netlify, so ask before pushing.
 2. **Sign in as a real manager and click through once.** The harness proves the wiring and
    the structure against stand-in data; it proves nothing about production rows — Maribou's
@@ -64,11 +64,6 @@ strip. Audit clean, click-through 39/39 with no uncaught errors.
    told to update.
 5. Old chat cannot be retired while New Chat is manager-only — members and clients have no
    other chat surface.
-
-**One known defect, deliberately not fixed:** the channel header's member count is the
-workspace profile count, not the channel's. It is pre-existing — the original chat does the
-same thing in the same function — so fixing it only in New Chat is a product call. See
-"Known, not fixed" in the handoff.
 
 **On screenshots:** a long conversation exhausts its image budget, after which the API
 rejects *every* image and reports it as "exceeds 2000 pixels" even for a 334×664 file. That
@@ -86,9 +81,10 @@ apart) without seeing either image.
 |---|---|
 | `NEW_CHAT_HANDOFF.md` | decisions, data model, ports, traps — read first |
 | `tools_newchat_audit.py` | the six static checks; run it after every change |
-| `tools_newchat_clickthrough.mjs` | 39-check headless click-through; the real gate |
+| `tools_newchat_clickthrough.mjs` | 40-check headless click-through; the real gate |
+| `tools_newchat_isolation.py` | the original chat vs `main`, plus its one approved change |
 | `tools_newchat_mock_supabase.js` | the stand-in Supabase and its fixtures |
-| `git log main..HEAD` | 44 commits, each explaining one decision |
+| `git log main..HEAD` | 45 commits, each explaining one decision |
 
 ## If you would rather not paste anything
 

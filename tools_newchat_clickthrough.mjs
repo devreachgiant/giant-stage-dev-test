@@ -206,6 +206,23 @@ await step('a team channel opens and paints messages', async () => {
   check('a team channel opens and paints messages', n > 0, 'messages rendered=' + n);
 });
 
+// The header used to print the workspace profile count, so it read the same number on
+// every channel. The fixture gives each team channel 5 members against 81 profiles, which
+// is what makes the two cases distinguishable at all.
+await step('the header counts this channel\'s members, not the workspace', async () => {
+  const m = await page.evaluate(async () => {
+    const topic = document.getElementById('nc_chatHeadTopic').textContent;
+    const shown = /·\s*(\d+)\s*member/.exec(topic);
+    const cid = window.nc_activeChannelId;
+    return { topic, shown: shown ? +shown[1] : null,
+             actual: window.__mock.db.channel_members.filter(x => x.channel_id === cid).length,
+             profiles: window.__mock.db.profiles.length };
+  });
+  check('the header counts this channel\'s members, not the workspace',
+    m.shown !== null && m.shown === m.actual && m.shown !== m.profiles,
+    'header said ' + m.shown + ', channel has ' + m.actual + ', workspace has ' + m.profiles);
+});
+
 // the _boot-run-twice bug showed up as two reply badges under one message
 await step('no message carries a duplicated reply badge', async () => {
   const dupes = await page.evaluate(() => {
