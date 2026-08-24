@@ -74884,7 +74884,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           // c.is_group alone while this line treats a conversation with more than one other
           // person as a group either way -- so every multi-person DM whose is_group was
           // never set landed under DIRECT, next to the one-to-ones.
-          html.push(`<div class="nc_ch-item${isActive}" data-nc-dm-channel-id="${chatEsc(c.id)}" data-nc-dm-group="1" title="${chatEsc(label)}">${gava}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${chatEsc(label)}</span><span class="nc_row-menu" title="More" style="margin-left:auto;flex-shrink:0;opacity:0;width:20px;height:20px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-3);cursor:pointer;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3.5" cy="8" r="1.15" fill="currentColor"/><circle cx="8" cy="8" r="1.15" fill="currentColor"/><circle cx="12.5" cy="8" r="1.15" fill="currentColor"/></svg></span></div>`);
+          html.push(`<div class="nc_ch-item${isActive}" data-nc-dm-channel-id="${chatEsc(c.id)}" data-nc-dm-group="1" title="${chatEsc(label)}">${gava}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${chatEsc(label)}</span><span class="nc_row-menu" title="More" style="margin-left:auto;flex-shrink:0;opacity:1;width:22px;height:22px;border-radius:6px;background:var(--surface-2);display:inline-flex;align-items:center;justify-content:center;color:var(--text-3);cursor:pointer;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3.5" cy="8" r="1.15" fill="currentColor"/><circle cx="8" cy="8" r="1.15" fill="currentColor"/><circle cx="12.5" cy="8" r="1.15" fill="currentColor"/></svg></span></div>`);
           return;
         }
         const otherId = others[0];
@@ -74904,7 +74904,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const ava = p.avatar_url
           ? `<span class="nc_dot-ava" style="background-image:url(${chatEsc(p.avatar_url)});background-size:cover;"><span class="presence-dot ${presClass}" data-presence-for="${chatEsc(p.id)}"></span></span>`
           : `<span class="nc_dot-ava" style="background:${chatEsc(p.avatar_bg||'#4A2424')};color:${chatEsc(p.avatar_fg||'#F0A0A0')};">${chatEsc(initial)}<span class="presence-dot ${presClass}" data-presence-for="${chatEsc(p.id)}"></span></span>`;
-        html.push(`<div class="nc_ch-item${isActive}" data-nc-dm-channel-id="${chatEsc(c.id)}">${ava}${chatEsc(p.full_name || p.email)}<span class="nc_row-menu" title="More" style="margin-left:auto;flex-shrink:0;opacity:0;width:20px;height:20px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-3);cursor:pointer;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3.5" cy="8" r="1.15" fill="currentColor"/><circle cx="8" cy="8" r="1.15" fill="currentColor"/><circle cx="12.5" cy="8" r="1.15" fill="currentColor"/></svg></span></div>`);
+        html.push(`<div class="nc_ch-item${isActive}" data-nc-dm-channel-id="${chatEsc(c.id)}">${ava}${chatEsc(p.full_name || p.email)}<span class="nc_row-menu" title="More" style="margin-left:auto;flex-shrink:0;opacity:1;width:22px;height:22px;border-radius:6px;background:var(--surface-2);display:inline-flex;align-items:center;justify-content:center;color:var(--text-3);cursor:pointer;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3.5" cy="8" r="1.15" fill="currentColor"/><circle cx="8" cy="8" r="1.15" fill="currentColor"/><circle cx="12.5" cy="8" r="1.15" fill="currentColor"/></svg></span></div>`);
       });
 
       const emptyMsg = 'No direct messages yet';
@@ -75107,7 +75107,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // clones these rows into the sidebar cards and cloneNode carries no listeners, so
         // anything attached per element would work in the hidden source list and nowhere
         // the user can see. The click is delegated, for the same reason.
-        let html = `<div class="nc_ch-item${isActive}" data-nc-channel-id="${chatEsc(c.id)}" style="${opacityStyle}${indentStyle}">${hashIcon}${chatEsc(c.name)}${mutedIcon}<span class="nc_row-menu" title="More" style="margin-left:auto;flex-shrink:0;opacity:0;width:20px;height:20px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-3);cursor:pointer;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3.5" cy="8" r="1.15" fill="currentColor"/><circle cx="8" cy="8" r="1.15" fill="currentColor"/><circle cx="12.5" cy="8" r="1.15" fill="currentColor"/></svg></span></div>`;
+        let html = `<div class="nc_ch-item${isActive}" data-nc-channel-id="${chatEsc(c.id)}" style="${opacityStyle}${indentStyle}">${hashIcon}${chatEsc(c.name)}${mutedIcon}<span class="nc_row-menu" title="More" style="margin-left:auto;flex-shrink:0;opacity:1;width:22px;height:22px;border-radius:6px;background:var(--surface-2);display:inline-flex;align-items:center;justify-content:center;color:var(--text-3);cursor:pointer;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3.5" cy="8" r="1.15" fill="currentColor"/><circle cx="8" cy="8" r="1.15" fill="currentColor"/><circle cx="12.5" cy="8" r="1.15" fill="currentColor"/></svg></span></div>`;
         // Recurse: render children sorted by name
         const children = visibleChannels
           .filter(x => x.parent_id === c.id && !x.section_id)
@@ -75191,8 +75191,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // One delegated listener for every "..." in the sidebar, cloned rows included.
     (function wireRowMenus(){
       const st = document.createElement('style');
-      st.textContent = '.nc_ch-item:hover .nc_row-menu{opacity:.7;}'
-        + '.nc_row-menu:hover{opacity:1!important;color:var(--text);background:var(--surface-2);}';
+      // Permanently visible, as a chip -- not revealed on hover. Hover-only meant nothing
+      // on the row said a menu was there, so there was no reason to hover looking for one:
+      // the feature was finished and undiscoverable at the same time.
+      // order:99 rather than DOM order. The chip is written into the row template, but the
+      // unread badge, the star and the needs-dot are appended afterwards by renderNavCards,
+      // so in source order the menu ends up in the middle of the row's trailing controls.
+      st.textContent = '.nc_row-menu{order:99;margin-left:6px;transition:background .12s,color .12s;}'
+        + '.nc_ch-item:hover .nc_row-menu{color:var(--text-2);}'
+        + '.nc_row-menu:hover{color:var(--text);background:var(--surface-3,var(--line));}';
       document.head.appendChild(st);
       document.addEventListener('click', (e) => {
         const btn = e.target.closest && e.target.closest('.nc_row-menu');

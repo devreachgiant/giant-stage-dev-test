@@ -214,7 +214,11 @@ deleting the declaration breaks the channel list outright. It is left in place w
 ## The row menu
 
 Every sidebar row — team channel, client thread, group DM and one-to-one — carries a
-`···` and the same menu. Items are gated to match `channels_delete_owner_mgr`, which the
+**permanently visible** `···` chip and the same menu. It shipped at `opacity:0` until hover,
+which made it finished and undiscoverable at once: nothing on the row said a menu was there,
+so there was no reason to hover looking for one. The chip is ordered last with
+`order:99` — it lives in the row template, but the unread badge, the star and the needs-dot
+are appended afterwards by `renderNavCards`, so in source order it lands mid-row. Items are gated to match `channels_delete_owner_mgr`, which the
 database already enforces, rather than to a guess:
 
 | item | who |
@@ -664,7 +668,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 74 checks in a headless browser, ~120s
+node tools_newchat_clickthrough.mjs      # 75 checks in a headless browser, ~120s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```

@@ -995,6 +995,37 @@ await step('Add member opens a searchable list and can invite by email', async (
 // The row menu: on every channel, group DM and DM, with the items gated the way
 // channels_delete_owner_mgr is on the server -- creator or owner/manager/inhouse_dev may
 // delete, invite and rename; anyone may mute and leave.
+// The trigger has to be VISIBLE without hovering. It shipped at opacity 0 until hover,
+// which meant nothing on the row said a menu was there, so there was no reason to hover
+// looking for one -- the feature was complete and undiscoverable.
+await step('the row menu trigger is visible without hovering', async () => {
+  const r = await page.evaluate(async () => {
+    // The cards are an accordion, so a row in a closed one has no layout at all and
+    // measures zero wide. Open each before measuring it, or the check reports "invisible"
+    // for eleven cards that are simply shut.
+    const look = async (card, sel) => {
+      const c = [...document.querySelectorAll('.nc_navcard')].find(x => x.dataset.nccard === card);
+      if (c && c.querySelector('.nc_navcard-body').getBoundingClientRect().height < 4) {
+        c.querySelector('.nc_navcard-head').click();
+        await new Promise(r => setTimeout(r, 450));
+      }
+      const rows = [...document.querySelectorAll(sel)];
+      const withDots = rows.filter(x => x.querySelector('.nc_row-menu'));
+      const first = withDots[0] && withDots[0].querySelector('.nc_row-menu');
+      return { rows: rows.length, withDots: withDots.length,
+               opacity: first ? Number(getComputedStyle(first).opacity) : -1,
+               width: first ? Math.round(first.getBoundingClientRect().width) : -1 };
+    };
+    const teams = await look('teams', '#nc_cardTeamsBody .nc_ch-item');
+    const direct = await look('direct', '#nc_cardDirectBody .nc_ch-item');
+    const groups = await look('groups', '#nc_cardGroupsBody .nc_ch-item');
+    return { teams, direct, groups };
+  });
+  const ok = (g) => g.withDots === g.rows && g.rows > 0 && g.opacity > 0.15 && g.width >= 16;
+  check('the row menu trigger is visible without hovering',
+    ok(r.teams) && ok(r.direct) && ok(r.groups), JSON.stringify(r));
+});
+
 await step('every sidebar row has a menu, gated by role', async () => {
   const r = await page.evaluate(async () => {
     const open = async (sel) => {
