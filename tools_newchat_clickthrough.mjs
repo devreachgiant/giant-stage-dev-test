@@ -446,6 +446,38 @@ await step('the status pill offers every client status', async () => {
     JSON.stringify(st));
 });
 
+// Activity claimed to show "messages ... and billing" while the trail can contain
+// neither -- nothing writes a message or payment row -- and the reconstruction that
+// could supply them was hidden as soon as one real row existed. For a client with any
+// history that is immediately, so the tab showed a single line.
+await step('Activity reconstructs the messages and payments the trail cannot hold', async () => {
+  await page.evaluate(() => {
+    const t = [...document.querySelectorAll('[data-c3-mgmt-tab]')].find(x => x.dataset.c3MgmtTab === 'activity');
+    if (t) t.click();
+  });
+  await page.waitForFunction(
+    () => /reconstructed/i.test(document.getElementById('nc_mgmtPane').innerText),
+    null, { timeout: 20000 }).catch(() => {});
+  const a = await page.evaluate(() => {
+    const pane = document.getElementById('nc_mgmtPane');
+    const text = pane.innerText;
+    const cid = (window.__mock.db.channels.find(c => c.id === window.nc_activeChannelId) || {}).client_id;
+    const chans = window.__mock.db.channels.filter(c => c.client_id === cid).map(c => c.id);
+    const msgs = window.__mock.db.messages
+      .filter(m => chans.includes(m.channel_id) && !m.parent_id).length;
+    const paid = window.__mock.db.invoices.filter(i => i.client_id === cid && i.paid_at).length;
+    return { shown: +((/·\s*(\d+)\s*reconstructed/i.exec(text) || [])[1] || 0),
+             expect: Math.min(msgs, 40) + paid,
+             posted: (text.match(/posted a message/g) || []).length,
+             // the caption must not promise what the trail cannot record
+             overclaims: /Full history for this client/.test(text),
+             chars: pane.innerHTML.length };
+  });
+  check('Activity reconstructs the messages and payments the trail cannot hold',
+    a.shown > 1 && a.shown === a.expect && a.posted > 0 && !a.overclaims,
+    JSON.stringify(a));
+});
+
 // ── Management > Members ─────────────────────────────────────────────────────
 // The table lists the client's members, not the whole workspace. That is the change
 // worth pinning: reverting it is a one-word edit and the symptom is 81 rows of empty

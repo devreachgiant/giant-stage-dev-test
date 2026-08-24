@@ -70863,6 +70863,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       clientRow: null, clientAccess: [], clientServices: [], clientServicesFor: null,
       clientServicesLoading: false, clientTasks: [], libraryItems: [],
       threadMembers: [], threadMessages: [], profilesById: {},
+      mgmtInferredMsgs: [],   // real messages for the Activity reconstruction, see loadMgmtInferred
       mgmtActivity: [], mgmtActivityInferred: [], mgmtActivityError: null,
       mgmtNotesDraft: null, mgmtKeywordsDraft: null, mgmtSavingProfile: false,
       mgmtShowAnswers: false, mgmtLastPayment: null, mgmtPayments: [],
@@ -71195,6 +71196,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           }).then(() => {}, () => {});
         } catch (_) { /* never let bookkeeping break the action it describes */ }
       }
+      // The reconstruction used to read mg.clientTasks, mg.libraryItems and
+      // mg.threadMessages -- three pieces of state owned by the Tasks, Vault and Media
+      // tabs. Open Management without visiting those first and all three are empty, so
+      // "reconstructed from messages, tasks, payments and the vault" was, in practice,
+      // onboarding and payments. Messages are the one part worth a query of its own:
+      // they are the bulk of a client's history and nothing else on this screen loads them.
+      async function loadMgmtInferred(clientId){
+        const ids = chatChannels.filter(c => c.client_id === clientId).map(c => c.id);
+        if (!ids.length) { mg.mgmtInferredMsgs = []; return; }
+        const { data } = await NCSB().from('messages')
+          .select('id, body, author_id, created_at, channel_id')
+          .in('channel_id', ids).is('parent_id', null)
+          .order('created_at', { ascending: false }).limit(40);
+        mg.mgmtInferredMsgs = data || [];
+      }
       async function loadC3Activity(clientId){
         const { data, error } = await NCSB().from('chat2_client_activity')
           .select('id, actor_id, actor_name, kind, summary, detail, department, created_at')
@@ -71226,7 +71242,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       }
       function buildMgmtActivity(){
         const out = [];
-        mg.threadMessages.filter(m => !m.parent_id).forEach(m => out.push({
+        // Was mg.threadMessages, which is not messages: loadNcMedia overwrites that with
+        // ATTACHMENTS shaped like messages, so every "posted a message" row was really a
+        // file upload -- and only after someone had opened the Media tab, since nothing
+        // else fills it. mgmtInferredMsgs is queried for this feed and nothing else.
+        mg.mgmtInferredMsgs.forEach(m => out.push({
           kind:'message', color:'var(--c3-blue)', who: profileName(m.author_id),
           what: 'posted a message', detail: (m.body || '').replace(/\s+/g, ' ').slice(0, 120), when: m.created_at,
         }));
@@ -71301,8 +71321,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (clientRes && clientRes.error && typeof toast === 'function') {
           toast({ type:'error', message:'Could not load the client record: ' + clientRes.error.message });
         }
-        // The inferred set is only ever a fallback for clients whose history predates
-        // the audit table — it is never mixed into the real trail.
+        // Two kinds -- messages and payments -- can never appear in the trail at all,
+        // because nobody performs either of them in this panel and nothing writes them.
+        // So the reconstruction is not only a fallback for clients that predate the
+        // audit table; it is the only source for a third of what Activity claims to show.
+        await loadMgmtInferred(clientId);
+        if (mg.mgmtFor !== clientId) return;
         mg.mgmtActivityInferred = buildMgmtActivity();
         renderMgmt();
         const act = await loadC3Activity(clientId);
@@ -72035,13 +72059,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (mg.mgmtActivityError) {
           return `<div style="color:var(--c3-salmon);font-size:12.5px;padding:24px 0;">Could not load the audit trail: ${chatEsc(mg.mgmtActivityError)}</div>`;
         }
-        const caption = `<div style="font-size:12px;color:var(--c3-t4);margin-bottom:6px;">Full history for this client — messages, uploads, views, tasks, onboarding and billing.</div>`;
+        // The caption used to promise "messages, uploads, views, tasks, onboarding and
+        // billing". Three of those are not in the trail and cannot be: nothing writes a
+        // message, payment or vault_view row. It now says what is actually recorded.
+        const caption = `<div style="font-size:12px;color:var(--c3-t4);margin-bottom:6px;">Everything recorded for this client — uploads, vault access, tasks, onboarding, members and access changes.</div>`;
         const real = mg.mgmtActivity;
+        // Reconstructed, and shown ALONGSIDE the trail rather than only when it is
+        // empty. The old rule dropped every message and payment the moment one real row
+        // was logged, which for a client with any history at all is immediately.
+        const gap = mg.mgmtActivityInferred.filter(x => x.kind === 'message' || x.kind === 'payment');
+        const gapSection = gap.length ? `
+          <div style="font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);margin-top:22px;">Messages and payments · ${gap.length} reconstructed</div>
+          <div style="font-size:11px;color:var(--c3-t6);margin:4px 0 2px;">Neither is written to the trail — nobody performs them in this panel — so these are read back from the messages and invoices themselves.</div>
+          ${gap.map(actRowHtml).join('')}` : '';
         if (real.length) {
           return `<div style="display:flex;flex-direction:column;">
             ${caption}
             ${real.map(actRowHtml).join('')}
-            <div style="font-size:11px;color:var(--c3-t6);margin-top:12px;">Recorded as it happens and never edited — including who opened the Vault or revealed a password.</div>
+            <div style="font-size:11px;color:var(--c3-t6);margin-top:12px;">Recorded as it happens and never edited — including who revealed a password.</div>
+            ${gapSection}
           </div>`;
         }
         // Nothing logged for this client yet. Rather than an empty panel, show what can

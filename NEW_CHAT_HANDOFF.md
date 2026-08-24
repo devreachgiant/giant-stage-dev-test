@@ -224,6 +224,34 @@ claimed a client-wide panel was scoped to one department.
 it has to be redrawn when the *tab* changes and not only when the channel does —
 `nc_switchChatSubtab` and `openInbox` both call it now.
 
+### Management > Activity — what it can and cannot record
+
+The trail is `chat2_client_activity`, written by `logC3Activity`. **Three of the kinds
+declared in `ACT_COLOR` are never written**: `message`, `payment` and `vault_view`. Nothing
+posts a message *through this panel*, nobody takes a payment in it, and opening the Vault
+was never wired to log. So the caption's old promise — "Full history for this client —
+messages, uploads, views, tasks, onboarding and billing" — was false by construction, not
+by accident.
+
+Worse, the reconstruction that *could* supply messages and payments was rendered only when
+the trail was empty. One logged action hid it, which for a client with any history is
+immediately: a client with 40 messages, three tasks, a paid invoice and completed
+onboarding showed **one row**.
+
+Now: the trail renders as the trail, and beneath it a labelled *Messages and payments ·
+reconstructed* section always renders, because those two can never be in the trail. Same
+client, 1 real row + 41 reconstructed.
+
+`buildMgmtActivity` also read three pieces of state owned by other tabs —
+`mg.clientTasks`, `mg.libraryItems` and `mg.threadMessages`. Open Management without
+visiting Tasks, the Vault and Media first and all three are empty. **`threadMessages` is
+not messages at all**: `loadNcMedia` overwrites it with *attachments* shaped like messages,
+so every "posted a message" row was really a file upload, and only after someone had opened
+the Media tab. Messages now come from `loadMgmtInferred`, which queries them.
+
+Still true and worth knowing: `vault_view` is declared but never logged, so "who opened the
+Vault" is not recorded — only `vault_reveal` is. The footnote no longer claims otherwise.
+
 ### Management > Members
 
 Rebuilt to the approved design: caption and **+ Add member** on one row, then the matrix in
@@ -266,7 +294,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 48 checks in a headless browser, ~50s
+node tools_newchat_clickthrough.mjs      # 49 checks in a headless browser, ~50s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```
@@ -301,6 +329,8 @@ can:
   collapsed section opens, that the status pill offers all five statuses, and that the
   sub-tab strip stays full-bleed and scrolls away instead of pinning
 - that only department-scoped tabs highlight a department, across all seven panes
+- that Activity reconstructs the messages and payments the trail cannot hold, and that
+  its caption does not promise what is never recorded
 - that Members shows all nine permission columns, that they fit without scrolling, and
   that the department reads "Web" rather than "Web Projects"
 - that Members lists only the client's members, and that a tick writes one membership row
