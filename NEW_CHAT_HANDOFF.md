@@ -211,6 +211,39 @@ now closed:
 references to `scope` remain** there (the switch button and an empty-state branch), so
 deleting the declaration breaks the channel list outright. It is left in place with a note.
 
+## The row menu
+
+Every sidebar row — team channel, client thread, group DM and one-to-one — carries a
+`···` and the same menu. Items are gated to match `channels_delete_owner_mgr`, which the
+database already enforces, rather than to a guess:
+
+| item | who |
+|---|---|
+| Mark as unread, Mute, **Leave** | everyone |
+| Invite, Rename, Delete | the creator, or owner / manager / inhouse_dev / admin |
+
+A **one-to-one** gets Mark unread, Mute and Delete only: there is nothing to rename, nobody
+to invite, and leaving a two-person conversation is deleting it.
+
+Three things this needed that were not there:
+
+- **`created_by` was not in the channels select**, so "the person who created it" could not
+  be evaluated at all — the creator gate existed on the server and was invisible to the client.
+- **The trigger lives in the row markup**, not attached per element. `renderNavCards` clones
+  rows into the sidebar cards and `cloneNode` carries no listeners, so anything attached
+  afterwards works in the hidden source list and nowhere the user can see. The click is
+  delegated for the same reason.
+- **Group-ness is read from `data-nc-dm-group`**, the flag the list already stamps. The first
+  version derived it again from `mg.threadMembers` — which is the Media adapter's attachment
+  array, not members — so every group DM presented as a one-to-one and lost Leave, Rename and
+  Invite.
+
+**Leave** deletes only your own `channel_members` row. On a private channel that ends your
+access, since `channels_select` requires membership there, so the confirmation says so
+instead of letting it be discovered afterwards. **Delete** is unchanged and still cascades:
+`messages_channel_id_fkey` is `ON DELETE CASCADE`, and `channels` is shared with the original
+Chat, so deleting removes the conversation and its whole history for everyone, in both chats.
+
 ## Dialogs
 
 Clicking a department tab used to ask `Start the Google Ads conversation for A X E?` in a
@@ -568,7 +601,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 64 checks in a headless browser, ~95s
+node tools_newchat_clickthrough.mjs      # 69 checks in a headless browser, ~110s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```

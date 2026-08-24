@@ -952,6 +952,83 @@ await step('Add member opens a searchable list and can invite by email', async (
     JSON.stringify({ before, term, filtered, after }));
 });
 
+// The row menu: on every channel, group DM and DM, with the items gated the way
+// channels_delete_owner_mgr is on the server -- creator or owner/manager/inhouse_dev may
+// delete, invite and rename; anyone may mute and leave.
+await step('every sidebar row has a menu, gated by role', async () => {
+  const r = await page.evaluate(async () => {
+    const open = async (sel) => {
+      document.querySelectorAll('.nc_channel-ctx-menu').forEach(m => m.remove());
+      const row = document.querySelector(sel);
+      if (!row) return null;
+      const btn = row.querySelector('.nc_row-menu');
+      if (!btn) return { noButton: true };
+      btn.click();
+      await new Promise(r => setTimeout(r, 350));
+      const menu = document.querySelector('.nc_channel-ctx-menu');
+      const acts = menu ? [...menu.querySelectorAll('[data-action]')].map(e => e.dataset.action) : [];
+      if (menu) menu.remove();
+      return acts;
+    };
+    const team = await open('#nc_cardTeamsBody .nc_ch-item');
+    const dm = await open('#nc_cardDirectBody .nc_ch-item');
+    const grp = await open('#nc_cardGroupsBody .nc_ch-item');
+    return { team, dm, grp, role: window.giantCurrentProfile && window.giantCurrentProfile.role };
+  });
+  const has = (a, k) => Array.isArray(a) && a.includes(k);
+  check('every sidebar row has a menu, gated by role',
+    // owner: everything on a channel and a group, no rename/invite/leave on a one-to-one
+    has(r.team, 'mute') && has(r.team, 'leave') && has(r.team, 'delete')
+      && has(r.team, 'invite') && has(r.team, 'rename')
+      && has(r.grp, 'leave') && has(r.grp, 'rename') && has(r.grp, 'delete')
+      && has(r.dm, 'mute') && has(r.dm, 'delete')
+      && !has(r.dm, 'leave') && !has(r.dm, 'rename') && !has(r.dm, 'invite'),
+    JSON.stringify(r));
+});
+
+await step('a member sees only mute, mark-unread and leave', async () => {
+  const r = await page.evaluate(async () => {
+    const was = window.giantCurrentProfile.role;
+    window.giantCurrentProfile.role = 'member';
+    document.querySelectorAll('.nc_channel-ctx-menu').forEach(m => m.remove());
+    const row = document.querySelector('#nc_cardTeamsBody .nc_ch-item');
+    row.querySelector('.nc_row-menu').click();
+    await new Promise(r => setTimeout(r, 350));
+    const menu = document.querySelector('.nc_channel-ctx-menu');
+    const acts = menu ? [...menu.querySelectorAll('[data-action]')].map(e => e.dataset.action) : [];
+    if (menu) menu.remove();
+    window.giantCurrentProfile.role = was;
+    return { acts };
+  });
+  check('a member sees only mute, mark-unread and leave',
+    r.acts.includes('mute') && r.acts.includes('leave')
+      && !r.acts.includes('delete') && !r.acts.includes('rename') && !r.acts.includes('invite'),
+    JSON.stringify(r));
+});
+
+await step('leaving a channel removes only my membership', async () => {
+  const r = await page.evaluate(async () => {
+    const db = window.__mock.db, me = window.__mock.me;
+    const row = document.querySelector('#nc_cardTeamsBody .nc_ch-item');
+    const id = row.dataset.ncChannelId;
+    const before = db.channel_members.filter(m => m.channel_id === id).length;
+    const mineBefore = db.channel_members.some(m => m.channel_id === id && m.profile_id === me);
+    row.querySelector('.nc_row-menu').click();
+    await new Promise(r => setTimeout(r, 350));
+    const menu = document.querySelector('.nc_channel-ctx-menu');
+    const leave = menu && [...menu.querySelectorAll('[data-action]')].find(e => e.dataset.action === 'leave');
+    if (!leave) return { noLeave: true };
+    leave.click();
+    await new Promise(r => setTimeout(r, 2500));
+    return { mineBefore, before, after: db.channel_members.filter(m => m.channel_id === id).length,
+             stillMine: db.channel_members.some(m => m.channel_id === id && m.profile_id === me),
+             channelStillExists: !!db.channels.find(c => c.id === id) };
+  });
+  check('leaving a channel removes only my membership',
+    !r.noLeave && r.mineBefore && r.after === r.before - 1 && r.stillMine === false
+      && r.channelStillExists, JSON.stringify(r));
+});
+
 // ── Master Inbox ─────────────────────────────────────────────────────────────
 await step('the Master Inbox replaces the thread', async () => {
   // Start from a thread that is actually showing. Earlier steps can leave a tool tab open,

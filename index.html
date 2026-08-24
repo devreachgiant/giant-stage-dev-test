@@ -74500,7 +74500,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // in the module. A two-person group conversation then read as a one-to-one -- the
         // other person's name and face instead of the group's -- and landed under DIRECT.
         // Only conversations with three or more people were caught, by counting members.
-        .select('id, name, slug, description, is_private, is_dm, is_group, dm_pair, emoji, position, section_id, kind, client_id, department')
+        .select('id, name, slug, description, is_private, is_dm, is_group, dm_pair, emoji, position, section_id, kind, client_id, department, created_by')
         .order('position', { ascending: true })
         .order('name', { ascending: true });
       if (error) {
@@ -74715,7 +74715,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           // c.is_group alone while this line treats a conversation with more than one other
           // person as a group either way -- so every multi-person DM whose is_group was
           // never set landed under DIRECT, next to the one-to-ones.
-          html.push(`<div class="nc_ch-item${isActive}" data-nc-dm-channel-id="${chatEsc(c.id)}" data-nc-dm-group="1" title="${chatEsc(label)}">${gava}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${chatEsc(label)}</span></div>`);
+          html.push(`<div class="nc_ch-item${isActive}" data-nc-dm-channel-id="${chatEsc(c.id)}" data-nc-dm-group="1" title="${chatEsc(label)}">${gava}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${chatEsc(label)}</span><span class="nc_row-menu" title="More" style="margin-left:auto;flex-shrink:0;opacity:0;width:20px;height:20px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-3);cursor:pointer;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3.5" cy="8" r="1.15" fill="currentColor"/><circle cx="8" cy="8" r="1.15" fill="currentColor"/><circle cx="12.5" cy="8" r="1.15" fill="currentColor"/></svg></span></div>`);
           return;
         }
         const otherId = others[0];
@@ -74735,7 +74735,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const ava = p.avatar_url
           ? `<span class="nc_dot-ava" style="background-image:url(${chatEsc(p.avatar_url)});background-size:cover;"><span class="presence-dot ${presClass}" data-presence-for="${chatEsc(p.id)}"></span></span>`
           : `<span class="nc_dot-ava" style="background:${chatEsc(p.avatar_bg||'#4A2424')};color:${chatEsc(p.avatar_fg||'#F0A0A0')};">${chatEsc(initial)}<span class="presence-dot ${presClass}" data-presence-for="${chatEsc(p.id)}"></span></span>`;
-        html.push(`<div class="nc_ch-item${isActive}" data-nc-dm-channel-id="${chatEsc(c.id)}">${ava}${chatEsc(p.full_name || p.email)}</div>`);
+        html.push(`<div class="nc_ch-item${isActive}" data-nc-dm-channel-id="${chatEsc(c.id)}">${ava}${chatEsc(p.full_name || p.email)}<span class="nc_row-menu" title="More" style="margin-left:auto;flex-shrink:0;opacity:0;width:20px;height:20px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-3);cursor:pointer;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3.5" cy="8" r="1.15" fill="currentColor"/><circle cx="8" cy="8" r="1.15" fill="currentColor"/><circle cx="12.5" cy="8" r="1.15" fill="currentColor"/></svg></span></div>`);
       });
 
       const emptyMsg = 'No direct messages yet';
@@ -74934,7 +74934,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // Indentation: 14px per level + a thin vertical bar so the hierarchy is visible
         const indentPx = depth * 14;
         const indentStyle = depth > 0 ? `padding-left:${12 + indentPx}px;border-left:2px solid var(--line);margin-left:${indentPx}px;` : '';
-        let html = `<div class="nc_ch-item${isActive}" data-nc-channel-id="${chatEsc(c.id)}" style="${opacityStyle}${indentStyle}">${hashIcon}${chatEsc(c.name)}${mutedIcon}</div>`;
+        // The trigger lives in the row MARKUP, not attached afterwards: renderNavCards
+        // clones these rows into the sidebar cards and cloneNode carries no listeners, so
+        // anything attached per element would work in the hidden source list and nowhere
+        // the user can see. The click is delegated, for the same reason.
+        let html = `<div class="nc_ch-item${isActive}" data-nc-channel-id="${chatEsc(c.id)}" style="${opacityStyle}${indentStyle}">${hashIcon}${chatEsc(c.name)}${mutedIcon}<span class="nc_row-menu" title="More" style="margin-left:auto;flex-shrink:0;opacity:0;width:20px;height:20px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:var(--text-3);cursor:pointer;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3.5" cy="8" r="1.15" fill="currentColor"/><circle cx="8" cy="8" r="1.15" fill="currentColor"/><circle cx="12.5" cy="8" r="1.15" fill="currentColor"/></svg></span></div>`;
         // Recurse: render children sorted by name
         const children = visibleChannels
           .filter(x => x.parent_id === c.id && !x.section_id)
@@ -75015,13 +75019,84 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       return getMutedChannels().has(channelId);
     };
 
+    // One delegated listener for every "..." in the sidebar, cloned rows included.
+    (function wireRowMenus(){
+      const st = document.createElement('style');
+      st.textContent = '.nc_ch-item:hover .nc_row-menu{opacity:.7;}'
+        + '.nc_row-menu:hover{opacity:1!important;color:var(--text);background:var(--surface-2);}';
+      document.head.appendChild(st);
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest && e.target.closest('.nc_row-menu');
+        if (!btn) return;
+        const row = btn.closest('.nc_ch-item');
+        if (!row) return;
+        const id = row.dataset.ncChannelId || row.dataset.ncDmChannelId;
+        if (!id) return;
+        e.preventDefault(); e.stopPropagation();
+        const r = btn.getBoundingClientRect();
+        openChannelContextMenu(r.left, r.bottom + 4, id);
+      }, true);
+    })();
+
+    // Leaving removes YOUR membership row and nothing else. On a private channel that is
+    // also the end of your access -- channels_select requires membership there -- so the
+    // confirmation says so rather than letting it be discovered afterwards.
+    async function leaveChannel(channelId, name, isDm){
+      const me = ncMyId();
+      if (!channelId || !me) return;
+      const ch = (chatChannels || []).find(c => c.id === channelId)
+              || (chatDmChannels || []).find(c => c.id === channelId);
+      const priv = !!(ch && ch.is_private);
+      const what = isDm ? 'conversation' : 'channel';
+      if (!await ncConfirm('Leave ' + what,
+            'Leave ' + (name || ('this ' + what)) + '? ' + (priv
+              ? 'It is private, so you will not be able to open it again unless someone adds you back.'
+              : 'You can rejoin from the channel list.'), 'Leave')) return;
+      const { error } = await NCSB().from('channel_members')
+        .delete().eq('channel_id', channelId).eq('profile_id', me);
+      if (error) {
+        if (typeof toast === 'function') toast({ type:'error', message:'Could not leave: ' + error.message });
+        return;
+      }
+      if (window.nc__myChannelMemberIds) window.nc__myChannelMemberIds.delete(channelId);
+      delete ncNeeds[channelId];
+      if (activeChannelId === channelId) {
+        const next = (chatChannels || []).find(c => c.id !== channelId);
+        if (next) switchChannel(next.id);
+      }
+      await loadChannels();
+      if (typeof toast === 'function') toast({ type:'success', message:'Left ' + (name || ('the ' + what)) });
+    }
+
     function openChannelContextMenu(x, y, channelId) {
       // Remove any existing menu
       document.querySelectorAll('.nc_channel-ctx-menu').forEach(m => m.remove());
       const muted = getMutedChannels();
       const isMuted = muted.has(channelId);
-      const channel = (chatChannels || []).find(c => c.id === channelId);
-      const channelName = channel ? channel.name : 'channel';
+      // DMs are in a different list, and they get a menu now too -- muting and leaving a
+      // group conversation are the same needs as on a channel.
+      const channel = (chatChannels || []).find(c => c.id === channelId)
+                   || (chatDmChannels || []).find(c => c.id === channelId);
+      const channelName = channel ? (channel.name || 'conversation') : 'channel';
+      const isDm = !!(channel && channel.is_dm);
+      // Group-ness comes from the row the list already stamped, not from a second
+      // derivation here. is_group is unset on plenty of real group conversations, and
+      // mg.threadMembers -- which the first version of this read -- is the Media adapter's
+      // attachment array, not members, so every group DM looked like a one-to-one.
+      const rowEl = document.querySelector('[data-nc-dm-channel-id="' + channelId + '"]');
+      const isGroup = !!(channel && channel.is_group)
+        || !!(rowEl && rowEl.dataset.ncDmGroup === '1');
+      // Who may manage it: the person who created it, or a role that administers the
+      // workspace. Exactly the set channels_delete_owner_mgr already enforces server-side,
+      // so hiding these items matches what the database would allow rather than guessing.
+      const myRole = String((window.giantCurrentProfile && window.giantCurrentProfile.role) || '').toLowerCase();
+      const canManage = ['owner', 'manager', 'inhouse_dev', 'admin'].includes(myRole)
+        || !!(channel && channel.created_by && channel.created_by === ncMyId());
+      // A one-to-one has nothing to rename, nobody to invite, and leaving it is deleting
+      // it -- so those three are simply not offered there.
+      const showRename = canManage && (!isDm || isGroup);
+      const showInvite = canManage && (!isDm || isGroup);
+      const showLeave  = !isDm || isGroup;
       const menu = document.createElement('div');
       menu.className = 'nc_channel-ctx-menu';
       menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--pane);border:1px solid var(--line-2);border-radius:9px;box-shadow:0 14px 36px -10px rgba(0,0,0,.55);padding:5px;z-index:9999;min-width:180px;font-family:inherit;`;
@@ -75029,10 +75104,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       menu.innerHTML = `
         <div class="nc_channel-ctx-item" data-action="mark_unread" style="display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--text);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3.2" fill="currentColor"/></svg>Mark as unread</div>
         <div class="nc_channel-ctx-item" data-action="mute" style="display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--text);">${muteIcon}${isMuted ? 'Unmute channel' : 'Mute channel'}</div>
-        <div class="nc_channel-ctx-item" data-action="invite" style="display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--text);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M1.5 14c.6-2.5 2.4-3.5 4.5-3.5M11 6.5v4M13 8.5h-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Invite people</div>
-        <div class="nc_channel-ctx-item" data-action="rename" style="display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--text);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 3l2 2-8 8H3v-2l8-8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Rename channel</div>
-        <div style="height:1px;background:var(--line);margin:3px 0;"></div>
-        <div class="nc_channel-ctx-item" data-action="delete" style="display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--red);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M5.5 4.5V3a1 1 0 011-1h3a1 1 0 011 1v1.5M4.5 4.5l.7 9a1 1 0 001 .9h3.6a1 1 0 001-.9l.7-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Delete channel</div>
+        ${showInvite ? `<div class="nc_channel-ctx-item" data-action="invite" style="display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--text);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="6" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M1.5 14c.6-2.5 2.4-3.5 4.5-3.5M11 6.5v4M13 8.5h-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Invite people</div>` : ''}
+        ${showRename ? `<div class="nc_channel-ctx-item" data-action="rename" style="display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--text);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 3l2 2-8 8H3v-2l8-8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Rename ${isDm ? 'conversation' : 'channel'}</div>` : ''}
+        ${showLeave ? `<div style="height:1px;background:var(--line);margin:3px 0;"></div>
+        <div class="nc_channel-ctx-item" data-action="leave" style="display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--text);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M9.5 3.5H12a1 1 0 011 1v7a1 1 0 01-1 1H9.5M7 10.5L9.5 8 7 5.5M9.5 8H3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Leave ${isDm ? 'conversation' : 'channel'}</div>` : ''}
+        ${canManage ? `${showLeave ? '' : '<div style="height:1px;background:var(--line);margin:3px 0;"></div>'}
+        <div class="nc_channel-ctx-item" data-action="delete" style="display:flex;align-items:center;gap:9px;padding:8px 11px;border-radius:6px;cursor:pointer;font-size:12.5px;color:var(--red);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 4.5h10M5.5 4.5V3a1 1 0 011-1h3a1 1 0 011 1v1.5M4.5 4.5l.7 9a1 1 0 001 .9h3.6a1 1 0 001-.9l.7-9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Delete ${isDm ? 'conversation' : 'channel'}</div>` : ''}
       `;
       document.body.appendChild(menu);
       // Adjust if menu goes off-screen
@@ -75055,6 +75132,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             setMutedChannels(cur);
             renderChannelList();
             if (typeof toast === 'function') toast({type:'info', message: cur.has(channelId) ? 'Channel muted' : 'Channel unmuted', duration: 1500});
+          } else if (act === 'leave') {
+            await leaveChannel(channelId, channelName, isDm);
           } else if (act === 'invite') {
             const nameEl = document.getElementById('nc_invChName');
             if (nameEl) nameEl.textContent = '#' + channelName;
