@@ -212,6 +212,18 @@ click-through fixture had invented a separate id, and the panel rendered its "no
 record" state for a whole run while still passing — "the pane has content" is too weak an
 assertion, which is why there are now three specific Overview checks.
 
+### The department strip and the tool tabs are two different selections
+
+Only one of them is about a department. `Media` and `Vault` are per-channel, so they keep
+the department highlighted. **Tasks, Magnus, Management and the Master Inbox are keyed on
+`client_id`** — each shows the whole client — so they clear it. Before this, every tab left
+the department pill lit, which put two things in the strip looking selected at once and
+claimed a client-wide panel was scoped to one department.
+
+`renderDeptStrip` reads `window.nc__chatSubtab` and the Inbox pane's computed display, so
+it has to be redrawn when the *tab* changes and not only when the channel does —
+`nc_switchChatSubtab` and `openInbox` both call it now.
+
 ### Management > Members
 
 Rebuilt to the approved design: caption and **+ Add member** on one row, then the matrix in
@@ -244,7 +256,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 46 checks in a headless browser, ~50s
+node tools_newchat_clickthrough.mjs      # 47 checks in a headless browser, ~50s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```
@@ -278,6 +290,7 @@ can:
 - that Management > Overview renders the client record rather than its empty state, that a
   collapsed section opens, that the status pill offers all five statuses, and that the
   sub-tab strip stays full-bleed and scrolls away instead of pinning
+- that only department-scoped tabs highlight a department, across all seven panes
 - that Members lists only the client's members, and that a tick writes one membership row
   while Remove clears them all. That last one **writes**, so it runs last — placed earlier it
   moved the ground under the checks after it, which is how the matrix staleness surfaced

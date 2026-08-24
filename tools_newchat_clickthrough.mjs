@@ -339,6 +339,31 @@ for (const [tab, paneId] of Object.entries(PANE_OF)) {
   });
 }
 
+// The department strip and the tool tabs are two different selections, and only one of
+// them is about a department. Tasks, Magnus and Management are keyed on client_id, so a
+// highlighted department while one is open says the panel is scoped to it.
+await step('only department-scoped tabs highlight a department', async () => {
+  const read = () => page.evaluate(() => ({
+    on: [...document.querySelectorAll('#nc_deptStrip .nc_dept-tab')]
+      .filter(t => t.classList.contains('nc_on')).map(t => t.dataset.ncDept),
+    tab: window.nc__chatSubtab || 'messages'
+  }));
+  const seen = {};
+  for (const t of ['messages', 'media', 'canvas', 'tasks', 'magnus', 'management']) {
+    await page.evaluate((x) => window.nc_switchChatSubtab(x), t);
+    await page.waitForTimeout(350);
+    seen[t] = (await read()).on;
+  }
+  await page.evaluate(() => window.nc_openInbox && window.nc_openInbox());
+  await page.waitForTimeout(600);
+  seen.inbox = (await read()).on;
+
+  const scoped = ['messages', 'media', 'canvas'];
+  const ok = scoped.every(t => seen[t].length === 1)
+    && ['tasks', 'magnus', 'management', 'inbox'].every(t => seen[t].length === 0);
+  check('only department-scoped tabs highlight a department', ok, JSON.stringify(seen));
+});
+
 // ── Management > Overview, in detail ─────────────────────────────────────────
 // "The pane has content" is too weak a check: the pane rendered its own
 // "No client record loaded" state for a whole run and still passed, because a fixture

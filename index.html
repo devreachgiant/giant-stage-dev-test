@@ -70772,7 +70772,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (!el) return;
       const active = chatChannels.find(c => c.id === activeChannelId);
       if (!active || active.kind !== 'client_dept' || !active.client_id) { el.style.display = 'none'; return; }
-      const here = active.department || 'general';
+      // Tasks, Magnus and Management are keyed on client_id, not on the department --
+      // each one shows the whole client. Highlighting a department while one of them is
+      // open claims the panel is scoped to it, which it is not, and puts two things in
+      // the strip looking selected at once. Media and the Vault genuinely are per-channel,
+      // so they keep it. The Master Inbox is a view over everything, so it clears it too.
+      const inboxPane = document.getElementById('nc_inboxPane');
+      const inboxOpen = !!inboxPane && getComputedStyle(inboxPane).display !== 'none';
+      const deptScoped = ['messages', 'media', 'canvas'].includes(window.nc__chatSubtab || 'messages');
+      const here = (deptScoped && !inboxOpen) ? (active.department || 'general') : null;
       el.style.display = 'flex';
       // The client's name is not repeated here -- the thread header directly above
       // already reads "Fortess DG · General", so printing it again just costs the
@@ -73470,6 +73478,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     async function openInbox(){
       const pane = document.getElementById('nc_inboxPane');
       if (pane) pane.style.display = 'block';
+      renderDeptStrip();   // the Inbox is not about a department either
       mg.myName = (window.giantCurrentProfile && (window.giantCurrentProfile.full_name || window.giantCurrentProfile.email)) || '';
       mg.clients = Object.values(ncClients);
       renderInbox();
@@ -79013,6 +79022,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if(tab==='management' && typeof window.nc_openMgmtForChannel === 'function') window.nc_openMgmtForChannel();
         if(tab==='tasks' && typeof window.nc_openTasksForChannel === 'function') window.nc_openTasksForChannel();
         if(tab==='magnus' && typeof window.nc_openMagnusForChannel === 'function') window.nc_openMagnusForChannel();
+        // Which department reads as selected depends on the tab, so the strip is redrawn
+        // here rather than only when the channel changes.
+        if (typeof window.nc_renderDeptStrip === 'function') window.nc_renderDeptStrip();
       };
       window.nc__resetChatSubtab = function(){ if(window.nc_switchChatSubtab) window.nc_switchChatSubtab('messages'); updateMediaCount(); };
       // The bar is wired once on a fixed set of buttons; Management is rendered into
