@@ -533,8 +533,18 @@
   P.finally = function (f) { return this.then(v => { f(); return v; }, e => { f(); throw e; }); };
 
   // ── realtime / storage / auth ────────────────────────────────────────────
+  // Realtime subscribers, so a test can actually deliver an event. Without this the mock
+  // accepted .on() and dropped it on the floor, which meant every realtime path in the app
+  // -- the unread bump, Needs you placing a live message, the thread-reply branch -- was
+  // never once exercised by the click-through.
+  const subs = [];   // { table, event, cb }
   function Chan(name) { this.topic = name; log.realtime.push(name); }
-  Chan.prototype.on = function () { return this; };
+  Chan.prototype.on = function (kind, filter, cb) {
+    if (kind === 'postgres_changes' && typeof cb === 'function' && filter) {
+      subs.push({ table: filter.table, event: String(filter.event || '*').toUpperCase(), cb });
+    }
+    return this;
+  };
   Chan.prototype.send = function () { return Promise.resolve('ok'); };
   Chan.prototype.track = function () { return Promise.resolve('ok'); };
   Chan.prototype.untrack = function () { return Promise.resolve('ok'); };
@@ -613,6 +623,20 @@
   window.supabase = { createClient, SupabaseClient: function () {}, __isMock: true };
   window.__mock = {
     db: DB, log, session: SESSION, me: ME,
+    // Deliver a postgres_changes event to whoever subscribed, the way Supabase would.
+    // Does NOT write to DB -- the caller decides whether the row exists, so a test can
+    // model an event arriving for a row it has already inserted.
+    emit: (table, event, newRow, oldRow) => {
+      const ev = String(event || 'INSERT').toUpperCase();
+      let n = 0;
+      subs.filter(s => s.table === table && (s.event === ev || s.event === '*')).forEach(s => {
+        n++;
+        try { s.cb({ eventType: ev, new: newRow || {}, old: oldRow || {}, table, schema: 'public' }); }
+        catch (e) { log.unsupported.push('realtime handler threw: ' + e.message); }
+      });
+      return n;
+    },
+    subscriberCount: (table) => subs.filter(s => s.table === table).length,
     hideTable: (n) => hidden.add(n),
     showTable: (n) => hidden.delete(n),
     counts: () => Object.fromEntries(Object.keys(DB).map(k => [k, DB[k].length])),

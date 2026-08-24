@@ -219,5 +219,21 @@ shared = sorted(a for a in reach & used if not a.startswith('nc-') and not a.sta
 print("8. data attributes the original selects document-wide:", shared or "none")
 fail += len(shared)
 
+# ---------------------------------------------------------------------------
+# 9. The inverse of check 7: a class this module RENDERS as nc_X but SELECTS as bare .X.
+#
+# Four places looked up `.msg[data-msg-id="…"]` while every message this module renders is
+# `.nc_msg`. That does not fail loudly -- it silently matches the ORIGINAL chat's messages,
+# which are `.msg` and sit in the DOM on a hidden screen, so "jump to this message"
+# scrolled and highlighted an element nobody could see. Same family as checks 7 and 8:
+# two modules, one namespace, and the wrong one answering.
+rendered = set(re.findall(r'class="(nc_[\w-]+)', nc)) | set(re.findall(r"className\s*=\s*'(nc_[\w-]+)", nc))
+bare = set()
+for m in re.finditer(r"querySelector(?:All)?\(\s*[`'\"]([^`'\"]+)", nc):
+    bare.update(re.findall(r'\.([A-Za-z][\w-]*)', m.group(1)))
+wrong = sorted(c for c in bare if not c.startswith('nc_') and ('nc_' + c) in rendered)
+print("9. classes rendered as nc_ but selected bare:", wrong or "none")
+fail += len(wrong)
+
 print("\nRESULT:", "clean" if not fail else f"{fail} problem(s)")
 sys.exit(1 if fail else 0)

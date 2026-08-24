@@ -104,7 +104,7 @@ realtime is still filtered to the primary channel, and sending always writes to 
 | Master Inbox | repointed to `messages` / `channel_members` / new `inbox_actions` | done |
 
 **All ports are complete.** Run `python3 tools_newchat_audit.py` after every change — it
-checks the eight failure modes below and should print `RESULT: clean`.
+checks the nine failure modes below and should print `RESULT: clean`.
 
 The extraction pipeline is `scratchpad/port.py` (regenerate if gone). Three lessons in it:
 
@@ -523,6 +523,24 @@ again on three signals:
 pass would race the first. Watched via a MutationObserver on the screen's own class rather
 than by hooking `navigateToScreen`, which is shared with every other module.
 
+**Thread replies count.** The realtime handler hit `return` on "thread reply, not
+involved" — one exit that left the whole handler, so a reply never reached the unread badge
+*or* this card. It also fired **before** the @mention check below it, so being mentioned
+inside a thread was dropped without ever being looked at, which is the case people actually
+notice. It sets `quietReply` now: the notification is suppressed, everything else runs.
+
+**Clicking a row lands on the message.** `ncNeedMsg` records which message put the channel
+on the list, so the row jumps to it, scrolls it into view and flashes it — the same
+treatment the search jump uses. A **thread reply opens its thread first**: replies are never
+in the main list, so scrolling to one there finds nothing; it falls back to the parent,
+which at least is on screen.
+
+That jump was also broken by four selectors reading `.msg[data-msg-id="…"]` while every
+message this module renders is `.nc_msg`. Bare, they matched the ORIGINAL chat's messages —
+in the DOM on a hidden screen — so "jump to message" scrolled and lit an element nobody
+could see. **Audit check 9** is the inverse of check 7 and catches exactly that; it found a
+fifth, `.ch-item`, that I had not spotted.
+
 **Newest first.** It used to sort by reason — every mention, then every flag, then every
 unread — which buried a message that had just arrived under a fortnight-old mention. The
 reason is still on the row as the coloured dot; it no longer decides the order, and only
@@ -629,7 +647,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 71 checks in a headless browser, ~115s
+node tools_newchat_clickthrough.mjs      # 73 checks in a headless browser, ~120s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```
@@ -681,6 +699,11 @@ every `confirm()` reads as "no" and the guarded path never runs — that looked 
 a broken control until the dialog handler went in. And the mock lists any table it was not
 given under `mock gaps`, so a path quietly reading an empty table is visible rather than
 silent.
+
+**The mock delivers realtime events now** — `window.__mock.emit(table, event, row)` calls
+whatever subscribed via `.on('postgres_changes', …)`. It used to accept `.on()` and drop it,
+which meant every realtime path in the app was untested: a check that recomputed instead
+passed on a build where the realtime branch was broken, and said nothing.
 
 When screenshots cannot be sent (a conversation exhausts its image budget and then rejects
 every image regardless of size), measuring them with PIL through the shell genuinely works —

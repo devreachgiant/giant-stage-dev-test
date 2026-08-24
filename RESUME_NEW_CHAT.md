@@ -30,10 +30,10 @@ and untouched. New Chat is manager/owner/inhouse_dev only.
    tab renamed the original's too — so run it after *every* change, not at the end.
 2. **Run both checks after every change**, not at the end:
    ```
-   python3 tools_newchat_audit.py            # eight static checks; expect RESULT: clean
-   node tools_newchat_clickthrough.mjs       # 71 checks in a headless browser, ~115s
+   python3 tools_newchat_audit.py            # nine static checks; expect RESULT: clean
+   node tools_newchat_clickthrough.mjs       # 73 checks in a headless browser, ~120s
    ```
-   The audit covers eight failure modes that all shipped as a clean parse and a broken
+   The audit covers nine failure modes that all shipped as a clean parse and a broken
    screen: undefined calls including inside `${...}`, bare CONSTANT references, methods on
    a shim object, names visible only inside the nested IIFE, emitted `data-c3-*` actions
    with no listener, calls to a name declared in the module but not in scope where it is
@@ -53,7 +53,7 @@ Supabase, so it needs no credentials and cannot touch production.
 
 **State:** all ports done — Management, Vault, Media, Client library, Tasks, Magnus,
 Master Inbox. Sidebar is Chat 3.0's accordion with all 53 clients listed. One-line tab
-strip. Audit clean, isolation clean, click-through 71/71 with no uncaught errors.
+strip. Audit clean, isolation clean, click-through 73/73 with no uncaught errors.
 
 **Left to do, in order:**
 1. **Nothing is pushed, and that is the current decision** — the branch stays local.
@@ -85,7 +85,7 @@ apart) without seeing either image.
 |---|---|
 | `NEW_CHAT_HANDOFF.md` | decisions, data model, ports, traps — read first |
 | `tools_newchat_audit.py` | the six static checks; run it after every change |
-| `tools_newchat_clickthrough.mjs` | 71-check headless click-through; the real gate |
+| `tools_newchat_clickthrough.mjs` | 73-check headless click-through; the real gate |
 | `tools_newchat_isolation.py` | the original chat vs `main`, plus its one approved change |
 | `tools_newchat_mock_supabase.js` | the stand-in Supabase and its fixtures |
 | `git log main..HEAD` | every commit, each explaining one decision |

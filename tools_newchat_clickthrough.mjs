@@ -1371,6 +1371,70 @@ await step('Needs you finds an old unread message behind a busy channel', async 
     !returned.skipped && returned.before === false && returned.stillHidden === false
       && returned.after === true, JSON.stringify(returned));
 
+  // Threads. A mention inside a thread REPLY is the case that got dropped: the realtime
+  // handler returned early on "thread reply, not involved" before it ever looked at the
+  // body, so it never reached the unread count or this card.
+  const thread = await page.evaluate(async () => {
+    const db = window.__mock.db, me = window.__mock.me;
+    const mine = db.channel_members.filter(m => m.profile_id === me);
+    const target = mine.find(m => {
+      const ch = db.channels.find(c => c.id === m.channel_id);
+      return ch && ch.kind === 'team_channel' && ch.id !== window.nc_activeChannelId;
+    });
+    if (!target) return { skipped: true };
+    target.last_read_at = new Date().toISOString();
+    db.messages = db.messages.filter(x => x.channel_id !== target.channel_id);
+    const parent = { id: 'm-thread-parent', channel_id: target.channel_id, author_id: 'u-5',
+      body: 'kicking off the thread', created_at: new Date(Date.now() - 9e5).toISOString(),
+      parent_id: null, reply_count: 1, flagged: false, pinned_at: null };
+    const reply = { id: 'm-thread-reply', channel_id: target.channel_id, author_id: 'u-6',
+      body: 'inside the thread @nishchay can you look', created_at: new Date().toISOString(),
+      parent_id: parent.id, reply_count: 0, flagged: false, pinned_at: null };
+    db.messages.push(parent);
+    await window.nc_refreshNeedsYou(true);
+    await new Promise(r => setTimeout(r, 1200));
+    const beforeReply = [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')]
+      .some(el => (el.dataset.ncChannelId || el.dataset.ncDmChannelId) === target.channel_id);
+
+    // The reply arrives as a REALTIME event, not a recompute. That is the path that
+    // returned early on "thread reply, not involved" -- before it had even looked at the
+    // body -- so a mention inside a thread never reached the unread count or this card.
+    db.messages.push(reply);
+    const delivered = window.__mock.emit('messages', 'INSERT', reply);
+    await new Promise(r => setTimeout(r, 1800));
+    const row = [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')]
+      .find(el => (el.dataset.ncChannelId || el.dataset.ncDmChannelId) === target.channel_id);
+    return { beforeReply, delivered, listed: !!row, kind: row && row.dataset.needKind,
+             channel: target.channel_id, subs: window.__mock.subscriberCount('messages') };
+  });
+  check('a mention inside a thread reply reaches Needs you',
+    !thread.skipped && thread.subs > 0 && thread.delivered > 0
+      && thread.beforeReply === false && thread.listed && thread.kind === 'mention',
+    JSON.stringify(thread));
+
+  // And clicking it lands on the message rather than the bottom of the channel.
+  const jump = await page.evaluate(async (cid) => {
+    const row = [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')]
+      .find(el => (el.dataset.ncChannelId || el.dataset.ncDmChannelId) === cid);
+    if (!row) return { noRow: true };
+    row.click();
+    // Poll rather than sleep: the highlight clears itself after 1.8s, so a fixed wait
+    // longer than that reads an empty page and reports "nothing was highlighted".
+    let lit = [];
+    for (let i = 0; i < 24; i++) {
+      lit = [...document.querySelectorAll('.nc_msg[data-msg-id]')]
+        .filter(el => (el.style.background || '').includes('208'));
+      if (lit.length) break;
+      await new Promise(r => setTimeout(r, 150));
+    }
+    return { switched: window.nc_activeChannelId === cid,
+             litCount: lit.length, litIds: lit.map(el => el.dataset.msgId) };
+  }, thread.channel);
+  check('clicking a Needs you row jumps to the message and highlights it',
+    jump.switched && jump.litCount >= 1
+      && (jump.litIds.includes('m-thread-reply') || jump.litIds.includes('m-thread-parent')),
+    JSON.stringify(jump));
+
   // Newest first. This used to sort by reason -- every mention, then every flag, then
   // every unread -- so a message that had just arrived sat below a fortnight-old mention.
   const ordered = await page.evaluate(async () => {

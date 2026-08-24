@@ -70623,6 +70623,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // ncNeeds rather than folded into it so every existing reader of ncNeeds -- the row
     // dot, ncClearNeeds, the nav card -- keeps working unchanged.
     let ncNeedAt = {};
+    // channel_id -> { id, parentId } of the message that put it there, so clicking the row
+    // can land on that message instead of dropping you at the bottom of the channel to
+    // hunt for it. parentId is set when the message is a THREAD REPLY: those never appear
+    // in the main list, so without it the jump would scroll to a message that is not on
+    // screen and look broken.
+    let ncNeedMsg = {};
     const ncSetNeedAt = (cid, at) => {
       if (!cid || !at) return;
       if (!ncNeedAt[cid] || new Date(at) > new Date(ncNeedAt[cid])) ncNeedAt[cid] = at;
@@ -70672,21 +70678,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       for (let k = 0; k < idList.length; k += 200) {
         const chunk = idList.slice(k, k + 200);
         const [flagged, mentions] = await Promise.all([
-          NCSB().from('messages').select('id, channel_id, author_id, created_at')
+          NCSB().from('messages').select('id, channel_id, author_id, created_at, parent_id')
             .in('channel_id', chunk).eq('flagged', true).neq('author_id', me)
             .gte('created_at', since).limit(500),
           first
-            ? NCSB().from('messages').select('id, channel_id, author_id, created_at')
+            ? NCSB().from('messages').select('id, channel_id, author_id, created_at, parent_id')
                 .in('channel_id', chunk).ilike('body', '%@' + first + '%').neq('author_id', me)
                 .gte('created_at', since).limit(500)
             : Promise.resolve({ data: [] }),
         ]);
         // Applied in rank order so the stronger reason wins: a flag may replace unread,
         // and a mention may replace either.
-        (flagged.data || []).forEach(m => { if (!done.has(m.id)) { next[m.channel_id] = 'flagged'; ncSetNeedAt(m.channel_id, m.created_at); } });
-        (mentions.data || []).forEach(m => { if (!done.has(m.id)) { next[m.channel_id] = 'mention'; ncSetNeedAt(m.channel_id, m.created_at); } });
+        (flagged.data || []).forEach(m => { if (!done.has(m.id)) { next[m.channel_id] = 'flagged'; ncSetNeedAt(m.channel_id, m.created_at); ncNeedMsg[m.channel_id] = { id: m.id, parentId: m.parent_id || null }; } });
+        (mentions.data || []).forEach(m => { if (!done.has(m.id)) { next[m.channel_id] = 'mention'; ncSetNeedAt(m.channel_id, m.created_at); ncNeedMsg[m.channel_id] = { id: m.id, parentId: m.parent_id || null }; } });
       }
       ncNeeds = next;
+      Object.keys(ncNeedMsg).forEach(k => { if (!next[k]) delete ncNeedMsg[k]; });
       // Newest-first needs a time for every row, and unread_counts has none. Asked for
       // here, once the list is known, so it covers exactly the channels on it -- a
       // "newest N messages everywhere" query is the sampling trap that hid an old unread
@@ -70703,10 +70710,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // has to own 300 of its chunk's newest 300 to hide anything.
       for (let k = 0; k < needIds.length; k += 12) {
         const { data: recent } = await NCSB().from('messages')
-          .select('channel_id, created_at')
+          .select('id, channel_id, created_at, parent_id')
           .in('channel_id', needIds.slice(k, k + 12)).neq('author_id', me)
           .order('created_at', { ascending: false }).limit(300);
-        (recent || []).forEach(m => ncSetNeedAt(m.channel_id, m.created_at));
+        (recent || []).forEach(m => {
+          // Only claim the jump target if this message is actually the newest thing we
+          // know about; a mention already recorded stays the thing you are being sent to.
+          const isNewest = !ncNeedAt[m.channel_id] || new Date(m.created_at) >= new Date(ncNeedAt[m.channel_id]);
+          ncSetNeedAt(m.channel_id, m.created_at);
+          if (isNewest && !ncNeedMsg[m.channel_id]) ncNeedMsg[m.channel_id] = { id: m.id, parentId: m.parent_id || null };
+        });
       }
       renderNavCards();
     }
@@ -70725,6 +70738,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (!kind) return;
       delete ncNeeds[channelId];
       delete ncNeedAt[channelId];
+      delete ncNeedMsg[channelId];
       renderNavCards();                       // immediately, before any write
       if (kind === 'unread') return;          // last_read_at already covers this one
       const me = ncMyId();
@@ -70791,8 +70805,53 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (cur && rank[cur] <= rank[kind]) return;   // a stronger reason already stands
       ncNeeds[m.channel_id] = kind;
       ncSetNeedAt(m.channel_id, m.created_at || new Date().toISOString());
+      ncNeedMsg[m.channel_id] = { id: m.id, parentId: m.parent_id || null };
       renderNavCards();
     }
+    // Land on the message, not just the channel. Opening a busy channel at the bottom and
+    // saying "your mention is in here somewhere" is the whole reason this card felt like a
+    // dead end.
+    //
+    // A THREAD REPLY needs the thread opened first: replies are never in the main list, so
+    // scrolling to one there finds nothing. Falls back to the parent, which is at least on
+    // screen and is where the thread hangs off.
+    async function ncJumpToMessage(channelId, msgId, parentId){
+      if (!channelId) return;
+      if (channelId !== activeChannelId) {
+        switchChannel(channelId);
+        // loadMessages is async and paints after; wait for the row rather than guessing.
+        await new Promise(res => setTimeout(res, 700));
+      }
+      if (!msgId) return;
+      const find = (id) => document.querySelector(`.nc_msg[data-msg-id="${id}"]`);
+      const settle = async (id) => {
+        for (let i = 0; i < 12; i++) {
+          const el = find(id);
+          if (el) return el;
+          await new Promise(res => setTimeout(res, 250));
+        }
+        return null;
+      };
+      if (parentId) {
+        const parentEl = await settle(parentId);
+        if (typeof openThread === 'function') { try { await openThread(parentId); } catch (_) {} }
+        // The reply lives in the thread panel, which renders its own rows.
+        const inThread = await settle(msgId);
+        ncFlashMessage(inThread || parentEl);
+        return;
+      }
+      ncFlashMessage(await settle(msgId));
+    }
+    // Same treatment the search jump uses, so a jump looks the same wherever it came from.
+    function ncFlashMessage(el){
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.style.transition = 'background .3s';
+      el.style.background = 'rgba(208,4,0,.15)';
+      setTimeout(() => { el.style.background = ''; }, 1800);
+    }
+    window.nc_jumpToMessage = ncJumpToMessage;
+
     window.nc_noteNeed = ncNoteNeed;
 
     // Realtime keeps the card current while the app is open -- ncNoteNeed places each
@@ -70904,10 +70963,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         row.appendChild(dot);
       };
       // cloneNode does not carry listeners, so each clone gets its own.
-      const place = (row, body, id, withStar) => {
+      const place = (row, body, id, withStar, jump) => {
         if (!body) return null;
         const cl = row.cloneNode(true);
-        cl.addEventListener('click', () => switchChannel(id));
+        // Rows in the Needs you card jump to the message that put them there; everywhere
+        // else a row just opens its channel.
+        cl.addEventListener('click', () => {
+          const t = jump && ncNeedMsg[id];
+          if (t) ncJumpToMessage(id, t.id, t.parentId); else switchChannel(id);
+        });
         if (withStar) cl.appendChild(starButton(id));
         body.appendChild(cl);
         return cl;
@@ -70925,7 +70989,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (starred.has(c.id)) place(row, bodies.starred, c.id, true);
         const need = ncNeeds[c.id];
         if (need) {
-          const cl2 = place(row, bodies.needs, c.id, false);
+          const cl2 = place(row, bodies.needs, c.id, false, true);
           if (cl2) tagNeed(cl2, need);
         }
       });
@@ -70976,7 +71040,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         place(row, isGroup ? bodies.groups : bodies.direct, id, false);
         const needDm = ncNeeds[id];
         if (needDm) {
-          const cl3 = place(row, bodies.needs, id, false);
+          const cl3 = place(row, bodies.needs, id, false, true);
           if (cl3) tagNeed(cl3, needDm);
         }
       });
@@ -75256,7 +75320,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               return;
             }
             // Remove from sidebar
-            const item = document.querySelector(`.ch-item[data-nc-channel-id="${channelId}"]`);
+            const item = document.querySelector(`.nc_ch-item[data-nc-channel-id="${channelId}"]`);
             if (item) item.remove();
             // If user was viewing this channel, reset to none
             if (typeof activeChannelId !== 'undefined' && activeChannelId === channelId) {
@@ -76089,7 +76153,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     function renderLinkPreviewForMsg(messageId, url) {
       // Image / GIF URLs are already shown inline as images — no link card.
       if (/\.(?:gif|gifv|png|jpe?g|webp)(?:[?#]|$)/i.test(url) || /(?:giphy\.com|tenor\.com)/i.test(url)) return;
-      const msgEl = document.querySelector(`.msg[data-msg-id="${messageId}"]`);
+      const msgEl = document.querySelector(`.nc_msg[data-msg-id="${messageId}"]`);
       if (!msgEl) return;
       const body = msgEl.querySelector('.nc_body');
       if (!body || body.querySelector('.nc_link-preview')) return;
@@ -78123,6 +78187,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // If this is a thread reply, check if the user is "involved" — i.e. they're the parent author,
         // OR they previously replied in the thread. If so, treat it like a mention so they get notified.
         let isThreadReplyForMe = false;
+        // A thread reply you are not part of should not PING you. It should still count:
+        // it is unread, and it belongs in Needs you. Those were the same decision here --
+        // one `return` that left the handler entirely -- so a reply in a thread never
+        // reached the unread badge or the card. It also returned BEFORE the @mention check
+        // below, so being mentioned inside a thread was dropped without ever being looked
+        // at, which is the case that actually gets missed.
+        let quietReply = false;
         if (m.parent_id) {
           try {
             // Optim: try to resolve parent author from in-memory cache first
@@ -78151,8 +78222,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                 isThreadReplyForMe = true;
                 kind = 'mention';
               } else {
-                // Thread reply but I'm not involved — skip notification
-                return;
+                // Not involved: suppress the notification, but carry on so the unread
+                // count and Needs you still see it.
+                quietReply = true;
               }
             }
           } catch(e) {}
@@ -78191,7 +78263,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         }
         // Only notify if user preferences allow this kind of notification AND (for plain channel
         // messages) you're actually a member of the channel it happened in
-        const shouldNotify = isChannelMember && !!(window.giantShouldNotify && window.giantShouldNotify(kind));
+        // quietReply only silences the ping. Everything after this point still runs.
+        const shouldNotify = isChannelMember && !quietReply
+          && !!(window.giantShouldNotify && window.giantShouldNotify(kind));
         // Sound follows the same membership scoping — no point pinging for a channel you're not in
         if (!isViewingChannel && !isMuted && !isHuddleInvite && isChannelMember) {
           try { window.giantPlayNotifSound && window.giantPlayNotifSound(); } catch(e) {}
@@ -78320,7 +78394,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             el.addEventListener('mouseleave', () => el.style.background = '');
             el.addEventListener('click', () => {
               const id = el.dataset.searchJump;
-              const msgEl = document.querySelector(`.msg[data-msg-id="${id}"]`);
+              const msgEl = document.querySelector(`.nc_msg[data-msg-id="${id}"]`);
               if (msgEl) {
                 msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 msgEl.style.transition = 'background .3s';
@@ -78377,7 +78451,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       });
     }
     function renderReadReceiptForMsg(messageId) {
-      const msgEl = document.querySelector(`.msg[data-msg-id="${messageId}"]`);
+      const msgEl = document.querySelector(`.nc_msg[data-msg-id="${messageId}"]`);
       if (!msgEl) return;
       const myId = window.giantSession.user.id;
       const authorId = msgEl.dataset.authorId;
@@ -79595,7 +79669,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             const { count } = await window.giantSupabase.from('messages').select('id', { count: 'exact', head: true }).eq('parent_id', parentId);
             if (count && count > 0) fullMsg.reply_count = count;
           }
-          const msgEl = document.querySelector(`.msg[data-msg-id="${parentId}"]`);
+          const msgEl = document.querySelector(`.nc_msg[data-msg-id="${parentId}"]`);
           if (msgEl && fullMsg.reply_count > 0) renderReplyCtaForMsg(msgEl, fullMsg);
         }
       } catch(e) { console.warn('[thread] CTA refresh failed', e); }
