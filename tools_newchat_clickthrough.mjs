@@ -1332,6 +1332,45 @@ await step('Needs you finds an old unread message behind a busy channel', async 
     worked.before && !worked.afterClick && !worked.afterRecompute && worked.markedDone,
     JSON.stringify(worked));
 
+  // Coming back to the screen must show what arrived while you were away. Realtime places
+  // messages as they land, but a subscription dropped by a backgrounded tab reconnects with
+  // no replay -- so this plants a message WITHOUT going through ncNoteNeed, which is what a
+  // missed event looks like, then leaves the screen and returns.
+  const returned = await page.evaluate(async () => {
+    const db = window.__mock.db, me = window.__mock.me;
+    const mine = db.channel_members.filter(m => m.profile_id === me);
+    const target = mine.find(m => {
+      const ch = db.channels.find(c => c.id === m.channel_id);
+      return ch && ch.kind === 'team_channel' && ch.id !== window.nc_activeChannelId;
+    });
+    if (!target) return { skipped: true };
+    const on = () => [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')]
+      .some(el => (el.dataset.ncChannelId || el.dataset.ncDmChannelId) === target.channel_id);
+    // clear it, and let the throttle expire so the return actually recomputes
+    target.last_read_at = new Date().toISOString();
+    db.messages = db.messages.filter(x => x.channel_id !== target.channel_id);
+    await window.nc_refreshNeedsYou(true);
+    await new Promise(r => setTimeout(r, 1200));
+    const before = on();
+
+    // a message lands with the app none the wiser -- no realtime event
+    db.messages.push({ id: 'm-missed-probe', channel_id: target.channel_id, author_id: 'u-5',
+      body: 'sent while you were away', created_at: new Date().toISOString(),
+      parent_id: null, reply_count: 0, flagged: false, pinned_at: null });
+    const stillHidden = on();
+
+    // leave the screen and come back, the way switching tabs does
+    const host = document.querySelector('.screen[data-screen="newchat"]');
+    host.classList.remove('on');
+    await new Promise(r => setTimeout(r, 300));
+    host.classList.add('on');
+    await new Promise(r => setTimeout(r, 3000));
+    return { before, stillHidden, after: on() };
+  });
+  check('returning to the screen picks up what was missed',
+    !returned.skipped && returned.before === false && returned.stillHidden === false
+      && returned.after === true, JSON.stringify(returned));
+
   // Newest first. This used to sort by reason -- every mention, then every flag, then
   // every unread -- so a message that had just arrived sat below a fortnight-old mention.
   const ordered = await page.evaluate(async () => {

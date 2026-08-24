@@ -507,6 +507,22 @@ wrapper and the global message subscription — and places the message increment
 same rules as `computeNeedsYou`, so it costs no query. It never downgrades an existing
 reason, and it ignores the channel you are currently reading.
 
+**It refreshes when you come back to it.** `ncNoteNeed` keeps the card current while the
+app is open, but realtime cannot tell you what you *missed*: a subscription dropped by a
+backgrounded tab, a sleeping laptop or a network blip reconnects with **no replay**, and
+anything that arrived in the gap stays invisible until a reload. So `computeNeedsYou` runs
+again on three signals:
+
+- **the screen becoming active** — forced, because opening it is deliberate and rare, and
+  throttling that means the one moment someone looks is the moment it is allowed to be stale
+- **`visibilitychange` and `focus`** — throttled to 15s, since a single alt-tab fires both
+- **a five-minute tick**, only while the screen is on top and the tab visible — for the case
+  none of the above catches: the screen never left while the socket silently reconnects
+
+`_needsBusy` guards overlap, because `computeNeedsYou` is several awaits long and a second
+pass would race the first. Watched via a MutationObserver on the screen's own class rather
+than by hooking `navigateToScreen`, which is shared with every other module.
+
 **Newest first.** It used to sort by reason — every mention, then every flag, then every
 unread — which buried a message that had just arrived under a fortnight-old mention. The
 reason is still on the row as the coloured dot; it no longer decides the order, and only
@@ -613,7 +629,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 70 checks in a headless browser, ~110s
+node tools_newchat_clickthrough.mjs      # 71 checks in a headless browser, ~115s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```

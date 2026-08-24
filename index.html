@@ -70795,6 +70795,56 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
     window.nc_noteNeed = ncNoteNeed;
 
+    // Realtime keeps the card current while the app is open -- ncNoteNeed places each
+    // message as it lands. What it cannot do is tell you what you MISSED: a subscription
+    // dropped by a backgrounded tab, a sleeping laptop or a network blip reconnects with
+    // no replay, and every message that arrived in the gap is invisible until a reload.
+    //
+    // So the card recomputes whenever it comes back into view -- returning to the screen
+    // from another tab, or the browser window regaining focus. Throttled, because those
+    // three events fire together on a single alt-tab, and guarded against overlapping runs
+    // since computeNeedsYou is several awaits long and a second pass would race the first.
+    let _needsBusy = false, _needsRanAt = 0;
+    async function refreshNeedsYou(force){
+      if (_needsBusy) return;
+      if (!force && Date.now() - _needsRanAt < 15000) return;
+      _needsBusy = true;
+      try { await computeNeedsYou(); }
+      catch (err) { console.warn('[newchat] needs-you refresh failed:', err); }
+      finally { _needsBusy = false; _needsRanAt = Date.now(); }
+    }
+    window.nc_refreshNeedsYou = refreshNeedsYou;
+
+    (function watchForReturn(){
+      const host = document.querySelector('.screen[data-screen="newchat"]');
+      if (!host) { setTimeout(watchForReturn, 500); return; }
+      // Watching the screen's own class rather than hooking navigateToScreen: the nav is
+      // shared with the original chat and every other module, and this needs to observe it
+      // without reaching into it.
+      let wasOn = host.classList.contains('on');
+      new MutationObserver(() => {
+        const on = host.classList.contains('on');
+        // Forced. Opening the screen is a deliberate, infrequent act and the whole point
+        // is that it shows the truth -- throttling it means the one moment someone looks
+        // is the one moment it is allowed to be stale. _needsBusy still stops overlap.
+        if (on && !wasOn) refreshNeedsYou(true);
+        wasOn = on;
+      }).observe(host, { attributes: true, attributeFilter: ['class'] });
+      // These two fire together on a single alt-tab, so they stay throttled.
+      const whenVisible = () => { if (!document.hidden && host.classList.contains('on')) refreshNeedsYou(); };
+      document.addEventListener('visibilitychange', whenVisible);
+      window.addEventListener('focus', whenVisible);
+      // A slow tick for the case none of the above catches: the screen open and the tab
+      // never left, while the realtime socket drops and reconnects underneath. Nothing
+      // fires, nothing replays, and the card quietly stops moving. Five minutes, and only
+      // while the screen is actually on top, so an idle tab costs nothing.
+      setInterval(() => {
+        if (document.hidden) return;
+        if (!host.classList.contains('on')) return;
+        refreshNeedsYou();
+      }, 5 * 60 * 1000);
+    })();
+
     window.nc_computeNeedsYou = computeNeedsYou;
 
     // The card + buttons forward to the engine's own buttons rather than
