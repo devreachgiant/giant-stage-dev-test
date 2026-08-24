@@ -184,10 +184,33 @@ channel switch, not the two the old comment was avoiding. Three details that mat
 - the count is written before the avatars and outside their empty-list early return, so a
   channel whose members are not all in the profile cache still shows the right number
 
+### Management > Overview
+
+Rebuilt to the approved design: one hero card (avatar, name, industry, MRR, state pills,
+contact columns, service leads, working notes, keywords), then Services & ad spend as a
+boxed list, then Account access / Active work / Conversations collapsed.
+
+- The status pill is a real `<select>` over `CLIENT_STATUS` — `setClientStatus()`. Archiving
+  keeps its confirmation; the other four transitions go straight through.
+- Paid and Onboarding **report** rather than set. There is no billing-status column, so they
+  open the tab that owns them. Down chevron means a menu, right chevron means another tab.
+- Chevrons are drawn inline. `C3_ICON` has none, and a rotated `arrowRight` reads as a
+  download arrow.
+- Service leads follow the **active** services, falling back to every billable department
+  when nothing is active — otherwise the control is unreachable on the clients that need it.
+- The department jump list survives as a collapsed row. It is not in the mock, but removing a
+  working control to match a picture is a regression.
+
+**`client_onboarding` is keyed by the client's own id.** It is the restricted projection of
+`clients` and shares its primary key, so the panel selects it with `.eq('id', clientId)`. The
+click-through fixture had invented a separate id, and the panel rendered its "no client
+record" state for a whole run while still passing — "the pane has content" is too weak an
+assertion, which is why there are now three specific Overview checks.
+
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 40 checks in a headless browser, ~40s
+node tools_newchat_clickthrough.mjs      # 43 checks in a headless browser, ~40s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```
@@ -218,6 +241,8 @@ can:
   exactly one card open, one-line tab strip (compare vertical *centres*, not `top` — the
   department tabs are shorter than the sub-tabs and the strip centres them), 53 clients
   listed with 42 dimmed, no duplicated reply badge
+- that Management > Overview renders the client record rather than its empty state,
+  that a collapsed section opens, and that the status pill offers all five statuses
 - that the header counts the channel's members, not the workspace (the fixture gives a
   team channel 5 members against 81 profiles, which is what makes the two distinguishable)
 - uncaught exceptions and `console.error`, which is how `fmtTime` was found

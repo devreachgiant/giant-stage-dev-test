@@ -153,16 +153,6 @@
               { id: 'k2', kind: 'note', title: 'Tone of voice', body: 'Warm, plain.', section: 'Brand' }] },
     { channel_id: 'ch-team-0', content: '<p>Team notes.</p>', updated_at: iso(4, 0), updated_by: ME, cards: [] }
   ];
-  DB.chat2_client_library = [
-    { id: 'lib-1', client_id: 'c-1', kind: 'link', title: 'Brand kit', section: 'Brand',
-      url: 'https://drive.example/kit', username: null, body: null, twofa: null,
-      password_entry_id: null, file_url: null, file_name: null, file_size: null, mime_type: null,
-      pinned: true, created_by: ME, created_at: iso(30, 0) },
-    { id: 'lib-2', client_id: 'c-1', kind: 'note', title: 'Reporting cadence', section: 'Process',
-      url: null, username: null, body: 'Monthly, first Tuesday.', twofa: null,
-      password_entry_id: null, file_url: null, file_name: null, file_size: null, mime_type: null,
-      pinned: false, created_by: ME, created_at: iso(20, 0) }
-  ];
 
   DB.projects = [{ id: 'p-1', name: 'Maribou — Q3 SEO', client_id: 'c-1' },
                  { id: 'p-2', name: 'Fortess DG — Site rebuild', client_id: 'c-2' }];
@@ -179,20 +169,70 @@
 
   DB.time_sessions = [{ client_id: 'c-1', duration_seconds: 5400, status: 'stopped' },
                       { client_id: 'c-1', duration_seconds: 1800, status: 'stopped' }];
-  DB.invoices = [{ client_id: 'c-1', amount_cents: 120000, paid_at: iso(15, 0), currency: 'GBP', number: 'INV-1041' },
-                 { client_id: 'c-1', amount_cents: 120000, paid_at: null, currency: 'GBP', number: 'INV-1042' }];
-  DB.client_onboarding = [{ id: 'ob-1', client_id: 'c-1', name: 'Maribou', status: 'submitted',
-    created_at: iso(60, 0), started_at: iso(59, 0), industry: 'Retail',
-    company_website: 'https://maribou.example', timezone: 'Europe/London', working_notes: null,
-    keywords: ['gifts', 'homeware'], mrr_cents: 120000, onboarding_sent_at: iso(58, 0),
-    onboarding_submitted_at: iso(55, 0), contact_name: 'Ana', contact_email: 'ana@maribou.example',
-    contact_phone: null, onboarding_token: 'tok-abc', onboarding_answers: { goals: 'More revenue' } }];
-  DB.chat2_client_services = [{ client_id: 'c-1', dept_key: 'seo', active: true, spend_cents: 90000, lead_profile_id: 'u-1' },
-                              { client_id: 'c-1', dept_key: 'googleAds', active: false, spend_cents: 0, lead_profile_id: null }];
-  DB.chat2_client_access = [{ client_id: 'c-1', service_key: 'ga4', status: 'granted', updated_at: iso(9, 0), updated_by: ME }];
-  DB.chat2_client_activity = [{ id: 'ac-1', client_id: 'c-1', actor_id: ME, actor_name: 'Nishchay Pandya',
-    kind: 'note', summary: 'Kickoff call done', detail: null, department: 'general', created_at: iso(7, 0) }];
-
+  // Keyed by the client's own id, not a separate one: the management panel selects
+  // client_onboarding by `id`, because that table is the restricted projection of
+  // `clients` and shares its primary key. Getting this wrong made the panel render its
+  // "no client record" state, which read as a broken tab.
+  // One row per client that actually has a thread, so whichever one a test opens has a
+  // record -- seeding only Maribou meant the panel's real layout was never exercised.
+  DB.client_onboarding = DB.clients.slice(0, 11).map((cl, i) => ({
+    id: cl.id, client_id: cl.id, name: cl.name,
+    status: ['submitted', 'submitted', 'sent', 'draft'][i % 4],
+    created_at: iso(60 - i, 0), started_at: iso(59 - i, 0), industry: cl.industry,
+    company_website: cl.company_website, timezone: 'Europe/London',
+    working_notes: i % 3 === 0 ? 'Google Ads only — very budget-conscious, reviews spend weekly.' : null,
+    keywords: [['commercial real estate', 'property development'], ['gifts', 'homeware'],
+               ['emergency dentist', 'implants'], []][i % 4],
+    mrr_cents: (400 + i * 120) * 100,
+    onboarding_sent_at: i % 4 === 3 ? null : iso(58 - i, 0),
+    onboarding_submitted_at: i % 4 < 2 ? iso(55 - i, 0) : null,
+    contact_name: cl.contact_name, contact_email: cl.contact_email, contact_phone: '+1 (917) 555-01' + (10 + i),
+    onboarding_token: 'tok-' + cl.id,
+    onboarding_answers: { goals: 'More revenue', budget: '$' + (5 + i) + 'k/mo' }
+  }));
+  const BILLABLE = ['googleAds', 'metaAds', 'seo', 'web'];
+  DB.chat2_client_services = [];
+  DB.chat2_client_access = [];
+  DB.chat2_client_activity = [];
+  DB.clients.slice(0, 11).forEach((cl, i) => {
+    BILLABLE.forEach((k, n) => {
+      // Two active services per client, which is what makes "2 active · $9,200 / mo"
+      // and the dimmed "Not active" rows both testable.
+      const active = (n === 0) || (n === (i % 3) + 1);
+      DB.chat2_client_services.push({ client_id: cl.id, dept_key: k, active,
+        spend_cents: active ? (2000 + n * 1500 + i * 100) * 100 : 0,
+        lead_profile_id: active && n < 2 ? 'u-' + (1 + ((i + n) % 6)) : null });
+    });
+    ['ga4', 'gsc', 'googleAds', 'meta', 'website'].forEach((k, n) => {
+      DB.chat2_client_access.push({ client_id: cl.id, service_key: k,
+        status: n < 3 ? 'granted' : n === 3 ? 'pending' : 'none',
+        updated_at: iso(9 + n, i), updated_by: ME });
+    });
+    DB.chat2_client_activity.push({ id: 'ac-' + cl.id, client_id: cl.id, actor_id: ME,
+      actor_name: 'Nishchay Pandya', kind: 'note', summary: 'Kickoff call done',
+      detail: null, department: 'general', created_at: iso(7 + i, 0) });
+  });
+  DB.invoices = DB.clients.slice(0, 11).flatMap((cl, i) => ([
+    { client_id: cl.id, amount_cents: (400 + i * 120) * 100, paid_at: iso(15 + i, 0), currency: 'GBP', number: 'INV-10' + (40 + i) },
+    { client_id: cl.id, amount_cents: (400 + i * 120) * 100, paid_at: null, currency: 'GBP', number: 'INV-11' + (40 + i) },
+  ]));
+  DB.chat2_client_library = DB.clients.slice(0, 11).flatMap((cl) => ([
+    { id: 'lib-a-' + cl.id, client_id: cl.id, kind: 'link', title: 'Brand kit', section: 'Brand',
+      url: 'https://drive.example/kit', username: null, body: null, twofa: null,
+      password_entry_id: null, file_url: null, file_name: null, file_size: null, mime_type: null,
+      pinned: true, created_by: ME, created_at: iso(30, 0) },
+    { id: 'lib-b-' + cl.id, client_id: cl.id, kind: 'note', title: 'Reporting cadence', section: 'Process',
+      url: null, username: null, body: 'Monthly, first Tuesday.', twofa: null,
+      password_entry_id: null, file_url: null, file_name: null, file_size: null, mime_type: null,
+      pinned: false, created_by: ME, created_at: iso(20, 0) },
+  ]));
+  DB.tasks = DB.tasks.concat(DB.clients.slice(1, 11).flatMap((cl, i) =>
+    ['todo', 'in_progress', 'done'].map((st, n) => ({
+      id: 't-' + cl.id + '-' + n, name: 'Task for ' + cl.name + ' #' + (n + 1),
+      description: null, status: st, priority: ['low', 'medium', 'fire'][n],
+      assigned_to: 'u-' + (1 + n), department: 'general', due_at: iso(-2 - n, 0),
+      project_id: null, client_id: cl.id, created_by: ME, created_at: iso(10 + n, 0),
+      completed_at: st === 'done' ? iso(1, n) : null }))));
   DB.channel_stars = [{ profile_id: ME, channel_id: 'ch-team-0' }];
   DB.inbox_actions = [];
   DB.scheduled_messages = [];

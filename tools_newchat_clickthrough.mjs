@@ -339,6 +339,55 @@ for (const [tab, paneId] of Object.entries(PANE_OF)) {
   });
 }
 
+// ── Management > Overview, in detail ─────────────────────────────────────────
+// "The pane has content" is too weak a check: the pane rendered its own
+// "No client record loaded" state for a whole run and still passed, because a fixture
+// key was wrong. These assert what is actually on it.
+await step('Overview renders the client record, not its empty state', async () => {
+  await page.evaluate(() => window.nc_switchChatSubtab('management'));
+  await page.waitForFunction(
+    () => document.getElementById('nc_mgmtPane').innerHTML.length > 4000, null, { timeout: 20000 })
+    .catch(() => {});
+  const o = await page.evaluate(() => {
+    const pane = document.getElementById('nc_mgmtPane');
+    const t = pane.innerText;
+    const cid = (window.__mock.db.channels.find(c => c.id === window.nc_activeChannelId) || {}).client_id;
+    const name = (window.__mock.db.clients.find(c => c.id === cid) || {}).name;
+    return { empty: t.includes('No client record loaded'), name,
+             hasName: !!name && t.includes(name), hasMrr: /\bMRR\b/.test(t),
+             folds: pane.querySelectorAll('[data-c3-mgmt-fold]').length,
+             serviceRows: (t.match(/Active|Not active/g) || []).length,
+             chars: pane.innerHTML.length };
+  });
+  check('Overview renders the client record, not its empty state',
+    !o.empty && o.hasName && o.hasMrr, JSON.stringify(o));
+});
+
+await step('Overview\'s collapsed sections open on click', async () => {
+  const before = await page.evaluate(() => document.getElementById('nc_mgmtPane').innerHTML.length);
+  await page.evaluate(() => document.querySelector('[data-c3-mgmt-fold="access"]').click());
+  await page.waitForFunction((n) => document.getElementById('nc_mgmtPane').innerHTML.length > n,
+    before, { timeout: 10000 }).catch(() => {});
+  const after = await page.evaluate(() => {
+    const pane = document.getElementById('nc_mgmtPane');
+    return { chars: pane.innerHTML.length, granted: pane.innerText.includes('GRANTED'),
+             rows: pane.querySelectorAll('[data-c3-access-cycle]').length };
+  });
+  check('Overview\'s collapsed sections open on click',
+    after.chars > before && after.rows === 5, JSON.stringify({ before, ...after }));
+});
+
+await step('the status pill offers every client status', async () => {
+  const st = await page.evaluate(() => {
+    const sel = document.querySelector('[data-c3-status-set]');
+    if (!sel) return { missing: true };
+    return { options: [...sel.options].map(o => o.value), selected: sel.value };
+  });
+  check('the status pill offers every client status',
+    !st.missing && st.options.length === 5 && st.options.includes('churned') && !!st.selected,
+    JSON.stringify(st));
+});
+
 // ── Master Inbox ─────────────────────────────────────────────────────────────
 await step('the Master Inbox opens into its own pane', async () => {
   await page.evaluate(() => window.nc_openInbox && window.nc_openInbox());

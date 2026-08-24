@@ -70839,6 +70839,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       mgmtCreatingLink: false, mgmtArchiving: false, leadSaving: '',
       mgmtMatrixFor: null, mgmtMatrixLoading: false, mgmtMatrixThreads: {},
       mgmtMatrixMembers: {}, mgmtMatrixBusy: '',
+      ovOpen: {},   // which Overview sections are expanded, by key
       clientDeptPrivacy: {}, activeThreadId: null,
       vaultCards: [], vaultChannelId: null, vaultLoading: false,
       libMediaUploading: false, mediaChannelId: null,
@@ -71405,6 +71406,36 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         logC3Activity('other', wasArchived ? 'restored the client' : 'archived the client', { targetType:'client', targetId: c.id });
         renderMgmt();
       }
+      // The status pill on Overview is a real control, so it needs a writer. Archiving
+      // keeps its confirmation -- it pulls the client out of lists, counts and MRR -- but
+      // the other four transitions are routine and go straight through. Optimistic, and
+      // reverted on failure, because the pill is the thing being clicked.
+      async function setClientStatus(next){
+        const c = mg.clientRow;
+        if (!c || mg.mgmtArchiving) return;
+        if (!CLIENT_STATUS[next] || next === c.status) return;
+        if (next === 'churned' && typeof window.confirm === 'function'
+            && !window.confirm(`Archive ${c.name}?\n\nThey disappear from lists, counts and MRR. Every message, file and note is kept, and you can restore them here.`)) {
+          renderMgmt();   // the <select> already moved; put it back
+          return;
+        }
+        const prev = c.status;
+        c.status = next; mg.mgmtArchiving = true; renderMgmt();
+        const { error } = await NCSB().from('clients').update({ status: next }).eq('id', c.id);
+        mg.mgmtArchiving = false;
+        if (error) {
+          c.status = prev; renderMgmt();
+          if (typeof toast === 'function') toast({ type:'error', message:'Could not update the client: ' + error.message });
+          return;
+        }
+        // Keep the sidebar's copy honest -- it is what the Clients card renders from.
+        if (ncClients[c.id]) ncClients[c.id].status = next;
+        logC3Activity('other', next === 'churned' ? 'archived the client'
+          : prev === 'churned' ? 'restored the client'
+          : 'set the client status to ' + CLIENT_STATUS[next].label.toLowerCase(),
+          { targetType:'client', targetId: c.id });
+        renderMgmt();
+      }
       async function createOnboardingLink(){
         const c = mg.clientRow;
         if (!c || mg.mgmtCreatingLink) return;
@@ -71453,6 +71484,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       function discardMgmtProfile(){
         mg.mgmtNotesDraft = null; mg.mgmtKeywordsDraft = null; renderMgmt();
       }
+      // Overview, rebuilt to the approved design. The old version was nine equally
+      // weighted cards, so the client's name, what they pay and whether they are active
+      // read no louder than the list of departments. This is one hero card carrying the
+      // identity, the money and the things you edit; services as their own boxed list;
+      // and the reference material -- access, work, conversations -- collapsed, because
+      // it is looked up rather than read.
       function mgmtOverviewHtml(){
         const c = mg.clientRow;
         const svcFor = (key) => mg.clientServices.find(s => s.dept_key === key) || { active:false, spend_cents:0 };
@@ -71470,106 +71507,209 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const dirty = mg.mgmtNotesDraft !== null || mg.mgmtKeywordsDraft !== null;
         const inputStyle = 'width:100%;box-sizing:border-box;background:var(--c3-s0);border:1px solid var(--c3-b2);border-radius:9px;padding:9px 11px;color:var(--c3-t0);font-size:12.5px;font-family:inherit;outline:none;';
 
-        return `<div style="display:flex;flex-direction:column;gap:14px;">
-          ${mgmtCard('Profile', c && c.status ? chatEsc(String(c.status).replace('_', ' ')) : '',
-            (c ? mgmtField('Industry', c.industry ? chatEsc(c.industry) : 'Not set', !c.industry)
-               + mgmtField('Website', c.company_website
-                   ? `<a href="${chatEsc(/^https?:/.test(c.company_website) ? c.company_website : 'https://' + c.company_website)}" target="_blank" rel="noopener" style="color:var(--c3-blue);text-decoration:none;">${chatEsc(c.company_website)}</a>`
-                   : 'Not set', !c.company_website)
-               + mgmtField('Time zone', c.timezone ? chatEsc(c.timezone) : 'Not set', !c.timezone)
-               + mgmtField('Client since', c.started_at ? chatEsc(new Date(c.started_at).toLocaleDateString())
-                   : c.created_at ? chatEsc(new Date(c.created_at).toLocaleDateString()) : 'Unknown', !c.started_at && !c.created_at)
-             : '<div style="font-size:12.5px;color:var(--c3-t6);">No client record loaded.</div>'))}
+        if (!c) {
+          return `<div style="font-size:12.5px;color:var(--c3-t6);padding:24px 0;">No client record loaded.</div>`;
+        }
 
-          ${mgmtCard('Contact', canEdit ? '' : 'Managers and owners only',
-            canEdit
-              ? (c ? mgmtField('Name', c.contact_name ? chatEsc(c.contact_name) : 'Not set', !c.contact_name)
-                   + mgmtField('Email', c.contact_email ? `<a href="mailto:${chatEsc(c.contact_email)}" style="color:var(--c3-blue);text-decoration:none;">${chatEsc(c.contact_email)}</a>` : 'Not set', !c.contact_email)
-                   + mgmtField('Phone', c.contact_phone ? chatEsc(c.contact_phone) : 'Not set', !c.contact_phone)
-                 : '')
-              // Withheld by the view, so say so — a blank card reads as "no contact on file".
-              : `<div style="font-size:12.5px;color:var(--c3-t6);">Contact details are withheld from your role.</div>`)}
+        const listRow = ncClients[mg.selectedId] || {};
+        const status = CLIENT_STATUS[c.status] || CLIENT_STATUS.active;
+        // "Paid" is the settled-invoice state, not a column -- there is no billing status
+        // to edit, so this pill reports rather than sets, and opens the Billing tab.
+        const paid = mg.mgmtLastPayment
+          ? { label:'Paid', color:'var(--c3-green)' }
+          : { label:'No payments yet', color:'var(--c3-t5)' };
+        const obDone = !!c.onboarding_submitted_at;
+        const ob = obDone
+          ? { label:'Onboarding: Complete', color:'var(--c3-green)' }
+          : c.onboarding_sent_at
+            ? { label:'Onboarding: Sent', color:'var(--c3-amber)' }
+            : { label:'Onboarding: Not sent', color:'var(--c3-t5)' };
 
-          ${mgmtCard('Working notes', canEdit ? 'What the next person needs to know' : 'Read only for your role',
-            canEdit
-              ? `<textarea id="c3MgmtNotes" rows="3" placeholder="Anything the next person picking this up should know…" style="${inputStyle}resize:vertical;">${chatEsc(notes)}</textarea>`
-              : `<div style="font-size:12.5px;color:${notes ? 'var(--c3-t2)' : 'var(--c3-t6)'};white-space:pre-wrap;line-height:1.6;">${notes ? chatEsc(notes) : 'Nothing noted yet.'}</div>`)}
+        // C3_ICON has no chevron, and a rotated arrowRight reads as a download arrow, so
+        // this is drawn here rather than bent out of an icon that means something else.
+        // Down means "this opens a menu"; right means "this opens another tab".
+        const chev = (color, size, down) => `<svg width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" style="display:block;transform:rotate(${down ? 90 : 0}deg);"><path d="M6 3.5L10.5 8L6 12.5" stroke="${color}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-          ${mgmtCard('Keywords', `${kw.length} tracked`,
-            (kw.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:${canEdit ? '10px' : '0'};">
-                ${kw.map(k => `<span style="font-size:11.5px;color:var(--c3-t2);background:var(--c3-s3);border:1px solid var(--c3-b1);border-radius:7px;padding:4px 10px;">${chatEsc(k)}</span>`).join('')}
-              </div>` : (canEdit ? '' : `<div style="font-size:12.5px;color:var(--c3-t6);">No keywords tracked.</div>`))
-            + (canEdit ? `<input id="c3MgmtKeywords" value="${chatEsc(kwDraft)}" placeholder="Comma separated — e.g. emergency vet, pet dentistry" style="${inputStyle}">` : ''))}
+        // A pill is a coloured dot, a label, and optionally something to click. The
+        // colour is carried behind it at low alpha so the three read as one row rather
+        // than three unrelated badges.
+        const pill = (dot, label, color, attr) => `<div ${attr || ''} style="display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:9px;font-size:12px;font-weight:700;color:${color};background:${c3Alpha(color, 12)};border:1px solid ${c3Alpha(color, 26)};${attr ? 'cursor:pointer;' : ''}">
+          ${dot ? `<span style="width:7px;height:7px;border-radius:50%;background:${color};flex-shrink:0;"></span>` : ''}
+          <span>${label}</span>
+          ${attr ? `<span style="display:inline-flex;opacity:.7;">${chev(color, 11, false)}</span>` : ''}
+        </div>`;
 
-          ${dirty ? `<div style="display:flex;align-items:center;gap:10px;">
+        const label = (t) => `<div style="font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);margin-bottom:9px;">${t}</div>`;
+        const rule = `<div style="height:1px;background:var(--c3-b1);margin:18px 0;"></div>`;
+        const col = (t, v, muted) => `<div style="min-width:0;">
+          <div style="font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);margin-bottom:6px;">${t}</div>
+          <div style="font-size:12.5px;color:${muted ? 'var(--c3-t6)' : 'var(--c3-t1)'};word-break:break-word;">${v}</div>
+        </div>`;
+
+        const site = c.company_website
+          ? `<a href="${chatEsc(/^https?:/.test(c.company_website) ? c.company_website : 'https://' + c.company_website)}" target="_blank" rel="noopener" style="color:var(--c3-t1);text-decoration:none;">${chatEsc(c.company_website)}</a>`
+          : 'Not set';
+
+        // Leads are shown for what the client is actually paying for. With nothing
+        // active the control would be unreachable, so it falls back to every billable
+        // department rather than rendering an empty section.
+        const leadDepts = activeSvcs.length ? activeSvcs : billable;
+        const people = Object.values(mg.profilesById)
+          .sort((a, b) => (a.display_name || a.full_name || a.email || '').localeCompare(b.display_name || b.full_name || b.email || ''));
+
+        const hero = `<div style="background:var(--c3-s1);border:1px solid var(--c3-b1);border-radius:14px;padding:22px 24px;">
+          <div style="display:flex;align-items:flex-start;gap:16px;">
+            <div style="width:58px;height:58px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;${c3AvatarStyle(listRow.avatar_bg, listRow.avatar_fg)}">${chatEsc(initialsOf(c.name))}</div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:25px;font-weight:800;letter-spacing:-0.02em;color:var(--c3-t0);line-height:1.15;word-break:break-word;">${chatEsc(c.name || 'Client')}</div>
+              <div style="font-size:13px;color:var(--c3-t4);margin-top:4px;">${c.industry ? chatEsc(c.industry) : 'Industry not set'}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">
+              <div style="font-size:26px;font-weight:800;letter-spacing:-0.02em;line-height:1.1;color:${c.mrr_cents ? 'var(--c3-green)' : 'var(--c3-t5)'};">${c.mrr_cents ? money(c.mrr_cents) : '—'}</div>
+              <div style="font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);margin-top:4px;">MRR</div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:18px;">
+            ${canEdit
+              ? `<div style="position:relative;display:inline-flex;align-items:center;padding:7px 12px;border-radius:9px;background:${c3Alpha(status.color, 12)};border:1px solid ${c3Alpha(status.color, 26)};">
+                  <span style="width:7px;height:7px;border-radius:50%;background:${status.color};flex-shrink:0;margin-right:7px;"></span>
+                  <select data-c3-status-set="1" ${mg.mgmtArchiving ? 'disabled' : ''} style="appearance:none;-webkit-appearance:none;background:transparent;border:none;outline:none;color:${status.color};font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;padding:0 16px 0 0;">
+                    ${Object.keys(CLIENT_STATUS).map(k => `<option value="${k}"${k === c.status ? ' selected' : ''}>${CLIENT_STATUS[k].label}</option>`).join('')}
+                  </select>
+                  <span style="position:absolute;right:11px;display:inline-flex;pointer-events:none;opacity:.75;">${chev(status.color, 11, true)}</span>
+                </div>`
+              : pill(true, chatEsc(status.label), status.color)}
+            ${pill(true, chatEsc(paid.label), paid.color, 'data-c3-mgmt-goto="billing"')}
+            ${pill(false, chatEsc(ob.label), ob.color, 'data-c3-mgmt-goto="onboarding"')}
+          </div>
+
+          ${rule}
+
+          ${canEdit
+            ? `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:20px;">
+                ${col('Email', c.contact_email ? `<a href="mailto:${chatEsc(c.contact_email)}" style="color:var(--c3-t1);text-decoration:none;">${chatEsc(c.contact_email)}</a>` : 'Not set', !c.contact_email)}
+                ${col('Phone', c.contact_phone ? chatEsc(c.contact_phone) : 'Not set', !c.contact_phone)}
+                ${col('Website', site, !c.company_website)}
+              </div>`
+            // Withheld by the view, so say so -- blank fields read as "nothing on file".
+            : `<div style="font-size:12.5px;color:var(--c3-t6);">Contact details are withheld from your role.</div>`}
+
+          ${rule}
+
+          ${label('Service leads')}
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;">
+            ${leadDepts.map(d => {
+              const sv = svcFor(d.key);
+              const lead = sv.lead_profile_id ? mg.profilesById[sv.lead_profile_id] : null;
+              return `<div style="display:flex;align-items:center;gap:10px;padding:11px 13px;border:1px solid var(--c3-b1);border-radius:11px;background:var(--c3-s0);">
+                <span style="width:7px;height:7px;border-radius:50%;background:${d.color};flex-shrink:0;"></span>
+                <span style="flex:1;min-width:0;font-size:12.5px;color:var(--c3-t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(d.label)}</span>
+                ${lead ? c3ProfileMarkHtml(lead, false) : ''}
+                ${canEdit
+                  ? `<select data-c3-lead-set="${d.key}" ${mg.leadSaving === d.key ? 'disabled' : ''} style="appearance:none;-webkit-appearance:none;background:transparent;border:none;outline:none;color:${lead ? 'var(--c3-t1)' : 'var(--c3-t5)'};font-size:12px;font-weight:${lead ? '700' : '400'};font-family:inherit;cursor:pointer;max-width:130px;flex-shrink:0;">
+                      <option value=""${lead ? '' : ' selected'}>Unassigned</option>
+                      ${people.map(pr => `<option value="${chatEsc(pr.id)}"${lead && lead.id === pr.id ? ' selected' : ''}>${chatEsc(pr.display_name || pr.full_name || pr.email || 'Someone')}</option>`).join('')}
+                    </select>`
+                  : `<span style="font-size:12px;color:${lead ? 'var(--c3-t1)' : 'var(--c3-t6)'};flex-shrink:0;">${lead ? chatEsc(lead.display_name || lead.full_name || lead.email || 'Someone') : 'Unassigned'}</span>`}
+              </div>`;
+            }).join('')}
+          </div>
+          <div style="font-size:11px;color:var(--c3-t6);margin-top:9px;">Who to chase when a department goes quiet. Assigning a lead does not grant access — that is the Members tab.</div>
+
+          ${rule}
+
+          ${label('Working notes')}
+          ${canEdit
+            ? `<textarea id="c3MgmtNotes" rows="3" placeholder="Anything the next person picking this up should know…" style="${inputStyle}resize:vertical;line-height:1.6;">${chatEsc(notes)}</textarea>`
+            : `<div style="font-size:13px;color:${notes ? 'var(--c3-t1)' : 'var(--c3-t6)'};white-space:pre-wrap;line-height:1.6;">${notes ? chatEsc(notes) : 'Nothing noted yet.'}</div>`}
+
+          ${rule}
+
+          ${label('Keywords &amp; needs')}
+          ${kw.length ? `<div style="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:${canEdit ? '10px' : '0'};">
+              ${kw.map(k => `<span style="font-size:12px;color:var(--c3-t2);background:var(--c3-s3);border:1px solid var(--c3-b1);border-radius:8px;padding:6px 12px;">${chatEsc(k)}</span>`).join('')}
+            </div>` : (canEdit ? '' : `<div style="font-size:12.5px;color:var(--c3-t6);">No keywords tracked.</div>`)}
+          ${canEdit ? `<input id="c3MgmtKeywords" value="${chatEsc(kwDraft)}" placeholder="Add keywords, comma separated — e.g. emergency vet, pet dentistry" title="Edit the keywords above" style="${inputStyle}">
+            <div style="font-size:11px;color:var(--c3-t6);margin-top:6px;">Edit the list above, comma separated.</div>` : ''}
+
+          ${dirty ? `<div style="display:flex;align-items:center;gap:10px;margin-top:14px;">
             <span style="font-size:11.5px;color:var(--c3-amber);">Unsaved changes</span>
             <div style="flex:1;"></div>
             <div data-c3-mgmt-profile-cancel="1" style="font-size:12px;font-weight:600;color:var(--c3-t4);cursor:pointer;padding:8px 10px;">Discard</div>
             <div data-c3-mgmt-profile-save="1" style="display:inline-flex;align-items:center;padding:9px 15px;border-radius:9px;font-size:12.5px;font-weight:700;cursor:${mg.mgmtSavingProfile ? 'default' : 'pointer'};background:${mg.mgmtSavingProfile ? 'var(--c3-btn-off)' : 'var(--red)'};color:var(--c3-on-accent);">${mg.mgmtSavingProfile ? 'Saving…' : 'Save'}</div>
           </div>` : ''}
+        </div>`;
 
-          ${mgmtCard('Active work', `${openTasks.length} open · ${mg.clientTasks.length - openTasks.length} done`,
-            (openTasks.length
-              ? openTasks.slice(0, 5).map(t => {
-                  const p = C3_PRIO[String(t.priority || '').toLowerCase()];
-                  return `<div style="display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--c3-b0);">
-                    <span style="flex:1;min-width:0;font-size:12.5px;color:var(--c3-t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(t.name)}</span>
-                    ${p ? `<span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;color:${p.color};background:${c3Alpha(p.color,12)};flex-shrink:0;">${p.label}</span>` : ''}
-                  </div>`;
-                }).join('') + (openTasks.length > 5 ? `<div style="font-size:11.5px;color:var(--c3-t5);margin-top:8px;">+${openTasks.length - 5} more</div>` : '')
-              : `<div style="font-size:12.5px;color:var(--c3-t6);">Nothing open right now.</div>`))}
-
-          ${mgmtCard('Conversations', 'Every department for this client',
-            NC_DEPTS.map(d => {
-              const isHere = mg.selectedDept === d.key;
-              return `<div data-c3-dept="${d.key}" style="display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid var(--c3-b0);cursor:pointer;">
-                <span style="width:7px;height:7px;border-radius:50%;background:${d.color};flex-shrink:0;"></span>
-                <span style="flex:1;min-width:0;font-size:12.5px;color:${isHere ? 'var(--c3-t0)' : 'var(--c3-t2)'};font-weight:${isHere ? '700' : '400'};">${chatEsc(d.label)}</span>
-                ${isHere ? `<span style="font-size:10px;font-weight:800;color:var(--c3-t5);">YOU ARE HERE</span>` : ncIcon.arrowRight('var(--c3-t6)', 12)}
-              </div>`;
-            }).join(''))}
-
-          ${mgmtCard('Services &amp; ad spend', `${activeSvcs.length} active · ${money(totalCents)} / mo`,
-            billable.map(d => {
+        const services = `<div style="background:var(--c3-s1);border:1px solid var(--c3-b1);border-radius:14px;padding:18px 20px;">
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:13px;">
+            <div style="font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);">Services &amp; ad spend</div>
+            <div style="flex:1;"></div>
+            <div style="font-size:12px;color:var(--c3-t4);">${activeSvcs.length} active · ${money(totalCents)} / mo</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:9px;">
+            ${billable.map(d => {
               const sv = svcFor(d.key);
-              return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--c3-b0);opacity:${sv.active ? '1' : '0.45'};">
-                <span style="width:7px;height:7px;border-radius:50%;background:${d.color};flex-shrink:0;"></span>
-                <span style="flex:1;min-width:0;font-size:12.5px;color:var(--c3-t1);">${chatEsc(d.label)}</span>
-                ${sv.active && sv.spend_cents ? `<span style="font-size:12px;font-weight:700;color:var(--c3-t1);">${money(sv.spend_cents)}<span style="color:var(--c3-t5);font-weight:600;"> / mo</span></span>` : ''}
-                <span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;flex-shrink:0;color:${sv.active ? 'var(--c3-green)' : 'var(--c3-t5)'};background:${sv.active ? 'rgba(62,207,142,0.14)' : 'var(--c3-s3)'};">${sv.active ? 'ACTIVE' : 'NOT ACTIVE'}</span>
+              return `<div style="display:flex;align-items:center;gap:12px;padding:13px 15px;border:1px solid var(--c3-b1);border-radius:11px;background:var(--c3-s0);">
+                <span style="width:9px;height:9px;border-radius:3px;flex-shrink:0;background:${sv.active ? d.color : 'var(--c3-t6)'};"></span>
+                <span style="flex:1;min-width:0;font-size:13px;font-weight:700;color:${sv.active ? 'var(--c3-t0)' : 'var(--c3-t5)'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(d.label)}</span>
+                ${sv.active && sv.spend_cents ? `<span style="font-size:12.5px;font-weight:700;color:var(--c3-t1);flex-shrink:0;">${money(sv.spend_cents)}<span style="color:var(--c3-t5);font-weight:600;"> / mo</span></span>` : ''}
+                <span style="font-size:11px;font-weight:700;padding:4px 10px;border-radius:7px;flex-shrink:0;color:${sv.active ? 'var(--c3-green)' : 'var(--c3-t5)'};background:${sv.active ? c3Alpha('var(--c3-green)', 14) : 'var(--c3-s3)'};">${sv.active ? 'Active' : 'Not active'}</span>
               </div>`;
-            }).join(''))}
+            }).join('')}
+          </div>
+        </div>`;
 
-          ${mgmtCard('Service leads', `${billable.filter(d => svcFor(d.key).lead_profile_id).length} of ${billable.length} assigned`,
-            billable.map(d => {
-              const sv = svcFor(d.key);
-              const lead = sv.lead_profile_id ? mg.profilesById[sv.lead_profile_id] : null;
-              const people = Object.values(mg.profilesById)
-                .sort((a, b) => (a.display_name || a.full_name || a.email || '').localeCompare(b.display_name || b.full_name || b.email || ''));
-              return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--c3-b0);">
-                <span style="width:7px;height:7px;border-radius:50%;background:${d.color};flex-shrink:0;"></span>
-                <span style="flex:1;min-width:0;font-size:12.5px;color:var(--c3-t1);">${chatEsc(d.label)}</span>
-                ${canEdit
-                  ? `<select data-c3-lead-set="${d.key}" ${mg.leadSaving === d.key ? 'disabled' : ''} style="background:var(--c3-s0);border:1px solid var(--c3-b2);border-radius:8px;padding:5px 8px;color:${lead ? 'var(--c3-t1)' : 'var(--c3-t5)'};font-size:11.5px;font-family:inherit;cursor:pointer;max-width:190px;">
-                      <option value=""${lead ? '' : ' selected'}>Unassigned</option>
-                      ${people.map(pr => `<option value="${chatEsc(pr.id)}"${lead && lead.id === pr.id ? ' selected' : ''}>${chatEsc(pr.display_name || pr.full_name || pr.email || 'Someone')}</option>`).join('')}
-                    </select>`
-                  : lead
-                    ? `<span style="display:flex;align-items:center;gap:7px;flex-shrink:0;">${c3ProfileMarkHtml(lead, false)}<span style="font-size:12px;color:var(--c3-t1);">${chatEsc(lead.display_name || lead.full_name || lead.email || 'Someone')}</span></span>`
-                    : `<span style="font-size:11.5px;color:var(--c3-t6);">Unassigned</span>`}
-              </div>`;
-            }).join('') + `<div style="font-size:11px;color:var(--c3-t6);margin-top:9px;">Who to chase when this department goes quiet. Assigning a lead does not grant access — that is the Members tab.</div>`)}
+        // Reference material: needed often enough to belong on Overview, not often
+        // enough to push the client's own record below the fold.
+        const fold = (key, title, sub, body) => {
+          const open = !!mg.ovOpen[key];
+          return `<div style="background:var(--c3-s1);border:1px solid var(--c3-b1);border-radius:14px;">
+            <div data-c3-mgmt-fold="${key}" style="display:flex;align-items:center;gap:10px;padding:17px 20px;cursor:pointer;">
+              <span style="font-size:14px;font-weight:800;color:var(--c3-t0);">${title}</span>
+              <span style="font-size:12px;color:var(--c3-t5);">${sub}</span>
+              <div style="flex:1;"></div>
+              <span style="display:inline-flex;">${chev('var(--c3-t5)', 14, open)}</span>
+            </div>
+            ${open ? `<div style="padding:0 20px 17px;">${body()}</div>` : ''}
+          </div>`;
+        };
 
-          ${mgmtCard('Account access', `${granted} of ${ACCESS_ITEMS.length} granted`,
-            ACCESS_ITEMS.map(a => {
-              const st = ACCESS_STATE[accessOf(a.key)] || ACCESS_STATE.none;
-              return `<div data-c3-access-cycle="${a.key}" title="Click to change" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--c3-b0);cursor:pointer;">
-                <span style="width:14px;height:14px;border-radius:50%;border:1.6px solid ${st.color};background:${accessOf(a.key) === 'granted' ? c3Alpha(st.color,18) : 'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;">
-                  ${accessOf(a.key) === 'granted' ? ncIcon.check(st.color, 9) : ''}</span>
-                <span style="flex:1;min-width:0;font-size:12.5px;color:var(--c3-t1);">${chatEsc(a.label)}</span>
-                <span style="font-size:10px;font-weight:800;color:${st.color};">${st.label.toUpperCase()}</span>
+        const accessBody = () => ACCESS_ITEMS.map(a => {
+          const st = ACCESS_STATE[accessOf(a.key)] || ACCESS_STATE.none;
+          return `<div data-c3-access-cycle="${a.key}" title="Click to change" style="display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--c3-b0);cursor:pointer;">
+            <span style="width:14px;height:14px;border-radius:50%;border:1.6px solid ${st.color};background:${accessOf(a.key) === 'granted' ? c3Alpha(st.color,18) : 'transparent'};flex-shrink:0;display:flex;align-items:center;justify-content:center;">
+              ${accessOf(a.key) === 'granted' ? ncIcon.check(st.color, 9) : ''}</span>
+            <span style="flex:1;min-width:0;font-size:12.5px;color:var(--c3-t1);">${chatEsc(a.label)}</span>
+            <span style="font-size:10px;font-weight:800;color:${st.color};">${st.label.toUpperCase()}</span>
+          </div>`;
+        }).join('') + `<div style="font-size:11px;color:var(--c3-t6);margin-top:9px;">This is the thing that blocks work at kickoff, so it is tracked here rather than in someone's head.</div>`;
+
+        const workBody = () => openTasks.length
+          ? openTasks.slice(0, 8).map(t => {
+              const p = C3_PRIO[String(t.priority || '').toLowerCase()];
+              return `<div style="display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid var(--c3-b0);">
+                <span style="flex:1;min-width:0;font-size:12.5px;color:var(--c3-t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(t.name)}</span>
+                ${p ? `<span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;color:${p.color};background:${c3Alpha(p.color,12)};flex-shrink:0;">${p.label}</span>` : ''}
               </div>`;
-            }).join('') + `<div style="font-size:11px;color:var(--c3-t6);margin-top:9px;">This is the thing that blocks work at kickoff, so it is tracked here rather than in someone's head.</div>`)}
+            }).join('') + (openTasks.length > 8 ? `<div style="font-size:11.5px;color:var(--c3-t5);margin-top:8px;">+${openTasks.length - 8} more</div>` : '')
+          : `<div style="font-size:12.5px;color:var(--c3-t6);padding-top:8px;">Nothing open right now.</div>`;
+
+        const deptBody = () => NC_DEPTS.map(d => {
+          const isHere = mg.selectedDept === d.key;
+          return `<div data-c3-dept="${d.key}" style="display:flex;align-items:center;gap:9px;padding:8px 0;border-top:1px solid var(--c3-b0);cursor:pointer;">
+            <span style="width:7px;height:7px;border-radius:50%;background:${d.color};flex-shrink:0;"></span>
+            <span style="flex:1;min-width:0;font-size:12.5px;color:${isHere ? 'var(--c3-t0)' : 'var(--c3-t2)'};font-weight:${isHere ? '700' : '400'};">${chatEsc(d.label)}</span>
+            ${isHere ? `<span style="font-size:10px;font-weight:800;color:var(--c3-t5);">YOU ARE HERE</span>` : ncIcon.arrowRight('var(--c3-t6)', 12)}
+          </div>`;
+        }).join('');
+
+        return `<div style="display:flex;flex-direction:column;gap:14px;">
+          ${hero}
+          ${services}
+          ${fold('access', 'Account access', `${granted} of ${ACCESS_ITEMS.length} granted`, accessBody)}
+          ${fold('work', 'Active work', `${openTasks.length} active`, workBody)}
+          ${fold('depts', 'Conversations', 'Every department for this client', deptBody)}
         </div>`;
       }
       function mgmtMembersHtml(){
@@ -71773,6 +71913,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const nav = document.querySelector('.nav-item[data-screen="tasks"]');
         if (nav) nav.click();
       }));
+      host.querySelectorAll('[data-c3-mgmt-fold]').forEach(el => el.addEventListener('click', () => {
+        const k = el.dataset.c3MgmtFold; mg.ovOpen[k] = !mg.ovOpen[k]; renderMgmt();
+      }));
+      host.querySelectorAll('[data-c3-mgmt-goto]').forEach(el => el.addEventListener('click', () => {
+        mg.mgmtTab = el.dataset.c3MgmtGoto; renderMgmt();
+      }));
+      host.querySelectorAll('[data-c3-status-set]').forEach(el => el.addEventListener('change', () => setClientStatus(el.value)));
       host.querySelectorAll('[data-c3-mgmt-profile-save]').forEach(el => el.addEventListener('click', () => saveMgmtProfile()));
       host.querySelectorAll('[data-c3-mgmt-profile-cancel]').forEach(el => el.addEventListener('click', () => discardMgmtProfile()));
       const notes = host.querySelector('#c3MgmtNotes');
