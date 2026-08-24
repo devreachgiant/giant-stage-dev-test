@@ -75197,7 +75197,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // order:99 rather than DOM order. The chip is written into the row template, but the
       // unread badge, the star and the needs-dot are appended afterwards by renderNavCards,
       // so in source order the menu ends up in the middle of the row's trailing controls.
-      st.textContent = '.nc_row-menu{order:99;margin-left:6px;transition:background .12s,color .12s;}'
+      // The star sits immediately before the chip, at the end of every row. It carries
+      // margin-left:auto, which alone only pushes the star itself right and left the chip
+      // stranded further out with a gap between them; ordering it 98 puts the pair
+      // together and lets the auto margin push both.
+      st.textContent = '.nc_star{order:98;}'
+        + '.nc_row-menu{order:99;margin-left:6px;transition:background .12s,color .12s;}'
         + '.nc_ch-item:hover .nc_row-menu{color:var(--text-2);}'
         + '.nc_row-menu:hover{color:var(--text);background:var(--surface-3,var(--line));}';
       document.head.appendChild(st);
@@ -78594,10 +78599,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       .subscribe();
 
     // Realtime: channel_members (for refreshing member list)
+    let ncMembershipSidebarTimer = null;
     window.giantSupabase.channel('nc_channel-members-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'channel_members' }, () => {
         // Refresh unread counts (membership change may add/remove channels)
         loadUnreadCounts();
+        // ...and the sidebar itself. The line above says a membership change may add or
+        // remove channels and then only reloaded the badges, so a channel you had just
+        // created -- or been invited to, or been removed from -- did not appear or vanish
+        // until a full page reload. That is why the "+" button read as broken: it created
+        // the channel, wrote your membership row, and showed you nothing.
+        // Debounced because creating a channel writes the member row and then updates it.
+        clearTimeout(ncMembershipSidebarTimer);
+        ncMembershipSidebarTimer = setTimeout(() => { loadChannels(); }, 350);
         // If members modal is open, refresh it
         if (document.getElementById('nc_channelMembersModal')?.classList.contains('on')) {
           renderChannelMembersList();

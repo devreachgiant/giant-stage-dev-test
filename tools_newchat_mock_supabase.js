@@ -498,6 +498,7 @@
           arr.push(r); done.push(r);
         });
         log.writes.push(t + '.' + this._mode + ' x' + done.length);
+        done.forEach(r => deliver(t, this._mode === 'upsert' ? 'UPDATE' : 'INSERT', r));
         const data = done.map(r => projectRow(r, this._cols, t));
         if (this._single) return { data: data[0] || null, error: null };
         return { data: this._returning ? data : null, error: null };
@@ -507,6 +508,7 @@
         const hit = this._rows();
         hit.forEach(r => Object.assign(r, this._payload));
         log.writes.push(t + '.update x' + hit.length);
+        hit.forEach(r => deliver(t, 'UPDATE', r));
         const data = hit.map(r => projectRow(r, this._cols, t));
         if (this._single) return { data: data[0] || null, error: null };
         return { data: this._returning ? data : null, error: null };
@@ -517,6 +519,7 @@
         const arr = table(t);
         hit.forEach(r => { const i = arr.indexOf(r); if (i >= 0) arr.splice(i, 1); });
         log.writes.push(t + '.delete x' + hit.length);
+        hit.forEach(r => deliver(t, 'DELETE', {}, r));
         const data = hit.map(r => projectRow(r, this._cols, t));
         if (this._single) return { data: data[0] || null, error: null };
         return { data: this._returning ? data : null, error: null };
@@ -538,6 +541,22 @@
   // -- the unread bump, Needs you placing a live message, the thread-reply branch -- was
   // never once exercised by the click-through.
   const subs = [];   // { table, event, cb }
+  // Postgres sends a replication event for every write, so the mock does too. Before this,
+  // realtime only fired when a test called __mock.emit by hand, which meant the harness
+  // could not see a bug in the app's own write-then-refresh path: the write landed, no
+  // event was delivered, and the check just watched the DOM stay stale forever.
+  function deliver(t, ev, newRow, oldRow) {
+    const up = String(ev).toUpperCase();
+    const targets = subs.filter(s => s.table === t && (s.event === up || s.event === '*'));
+    if (!targets.length) return 0;
+    // Async, like the wire. A handler that runs inside the caller's own insert() would see
+    // a half-applied world and would not match production ordering.
+    setTimeout(() => targets.forEach(s => {
+      try { s.cb({ eventType: up, new: newRow || {}, old: oldRow || {}, table: t, schema: 'public' }); }
+      catch (e) { log.unsupported.push('realtime handler threw: ' + e.message); }
+    }), 0);
+    return targets.length;
+  }
   function Chan(name) { this.topic = name; log.realtime.push(name); }
   Chan.prototype.on = function (kind, filter, cb) {
     if (kind === 'postgres_changes' && typeof cb === 'function' && filter) {
@@ -626,16 +645,7 @@
     // Deliver a postgres_changes event to whoever subscribed, the way Supabase would.
     // Does NOT write to DB -- the caller decides whether the row exists, so a test can
     // model an event arriving for a row it has already inserted.
-    emit: (table, event, newRow, oldRow) => {
-      const ev = String(event || 'INSERT').toUpperCase();
-      let n = 0;
-      subs.filter(s => s.table === table && (s.event === ev || s.event === '*')).forEach(s => {
-        n++;
-        try { s.cb({ eventType: ev, new: newRow || {}, old: oldRow || {}, table, schema: 'public' }); }
-        catch (e) { log.unsupported.push('realtime handler threw: ' + e.message); }
-      });
-      return n;
-    },
+    emit: (table, event, newRow, oldRow) => deliver(table, event || 'INSERT', newRow, oldRow),
     subscriberCount: (table) => subs.filter(s => s.table === table).length,
     hideTable: (n) => hidden.add(n),
     showTable: (n) => hidden.delete(n),

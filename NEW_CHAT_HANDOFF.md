@@ -730,3 +730,26 @@ When screenshots cannot be sent (a conversation exhausts its image budget and th
 every image regardless of size), measuring them with PIL through the shell genuinely works —
 it found the accordion (card boundaries 234px vs 362px) and the duplicate badges (three red
 blobs on one row, 82px apart).
+
+### The "+" on a nav card (2026-08-24)
+
+Reported as *"+ icon not working on all channels"*. The button was fine: it opened the
+modal, the modal wrote the channel and the membership row. What never happened was the
+sidebar redrawing, so the channel you had just made was invisible until a reload.
+
+The cause is one line that was never written. `nc_channel-members-changes` carried the
+comment *"membership change may add/remove channels"* and then called `loadUnreadCounts()`
+only -- badges, not the list. It now also calls `loadChannels()`, debounced 350ms because
+creating a channel writes the member row and then updates it. This also fixes being invited
+to, or removed from, a channel while the app is open.
+
+The click-through could not have caught this before: the mock only delivered realtime when
+a test called `__mock.emit` by hand, so the app's own write-then-refresh path was never
+exercised. `tools_newchat_mock_supabase.js` now delivers a `postgres_changes` event on every
+insert, update, upsert and delete, asynchronously, the way replication does. Worth knowing
+when reading the suite: realtime handlers now fire during ordinary writes.
+
+The star-order check was rewritten at the same time. It asserted a pixel gap and failed at
+31px against a threshold of 24 -- it was measuring mid-animation while the card opened. It
+now waits for the card body's height to settle and asserts the property actually claimed:
+no other child of the row sits between the star and the chip.

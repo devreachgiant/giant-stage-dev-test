@@ -1024,6 +1024,44 @@ await step('the row menu trigger is visible without hovering', async () => {
   const ok = (g) => g.withDots === g.rows && g.rows > 0 && g.opacity > 0.15 && g.width >= 16;
   check('the row menu trigger is visible without hovering',
     ok(r.teams) && ok(r.direct) && ok(r.groups), JSON.stringify(r));
+
+  // The star belongs immediately before the chip, at the end of the row -- not floating
+  // in the middle of it, which is where margin-left:auto alone put it.
+  const starOrder = await page.evaluate(async () => {
+    const c = [...document.querySelectorAll('.nc_navcard')].find(x => x.dataset.nccard === 'teams');
+    if (c && c.querySelector('.nc_navcard-body').getBoundingClientRect().height < 4) {
+      c.querySelector('.nc_navcard-head').click();
+      await new Promise(r => setTimeout(r, 450));
+    }
+    // Let the card's open transition settle. Measuring mid-animation reports a gap that
+    // reflects where the row is sliding through, not where it lands.
+    for (let i = 0; i < 20; i++) {
+      const b = c && c.querySelector('.nc_navcard-body').getBoundingClientRect().height;
+      await new Promise(r => requestAnimationFrame(r));
+      if (c && Math.abs(c.querySelector('.nc_navcard-body').getBoundingClientRect().height - b) < 0.5) break;
+    }
+    const row = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item')]
+      .find(el => el.querySelector('.nc_star') && el.querySelector('.nc_row-menu'));
+    if (!row) return { noRow: true };
+    const s = row.querySelector('.nc_star').getBoundingClientRect();
+    const m = row.querySelector('.nc_row-menu').getBoundingClientRect();
+    // Adjacency measured structurally rather than by a pixel threshold: nothing else in
+    // the row may sit between them. A gap in pixels drifts with padding and font size;
+    // "the star is the last thing before the chip" is the property actually being claimed.
+    const between = [...row.children].filter(el => {
+      if (el.classList.contains('nc_star') || el.classList.contains('nc_row-menu')) return false;
+      const r = el.getBoundingClientRect();
+      if (r.width < 1) return false;
+      const mid = (r.left + r.right) / 2;
+      return mid > s.right && mid < m.left;
+    }).map(el => el.className);
+    return { starBeforeMenu: s.right <= m.left + 1, between,
+             menuIsLast: Math.round(row.getBoundingClientRect().right - m.right) < 20 };
+  });
+  check('the star sits at the end, just before the menu',
+    !starOrder.noRow && starOrder.starBeforeMenu && starOrder.between.length === 0
+      && starOrder.menuIsLast,
+    JSON.stringify(starOrder));
 });
 
 await step('every sidebar row has a menu, gated by role', async () => {
@@ -1633,6 +1671,47 @@ await step('a table that is not deployed yet degrades instead of erroring', asyn
   });
   check('a table that is not deployed yet degrades instead of erroring',
     r.rows > 0 && r.areaCells === 0 && r.ticksPerRow === 5 && r.explains,
+    JSON.stringify(r));
+});
+
+await step('the "+" on a nav card creates a channel and shows it', async () => {
+  const r = await page.evaluate(async () => {
+    const out = {};
+    document.querySelectorAll('.modal-overlay.on').forEach(m => m.classList.remove('on'));
+    const card = [...document.querySelectorAll('.nc_navcard')].find(x => x.dataset.nccard === 'teams');
+    if (card && card.querySelector('.nc_navcard-body').getBoundingClientRect().height < 4) {
+      card.querySelector('.nc_navcard-head').click();
+      await new Promise(r => setTimeout(r, 500));
+    }
+    const inList = () => [...document.querySelectorAll('#nc_chatChannelList .nc_ch-item, #nc_cardTeamsBody .nc_ch-item')]
+      .some(e => /clickthrough-made/.test(e.textContent));
+    out.presentBefore = inList();
+    const plus = document.getElementById('nc_newChannelBtn2');
+    out.plusExists = !!plus;
+    if (!plus) return out;
+    plus.click();
+    await new Promise(r => setTimeout(r, 500));
+    const modal = document.getElementById('newChannelModal');
+    out.modalOpened = !!modal && modal.classList.contains('on');
+    if (!out.modalOpened) return out;
+    const name = document.getElementById('newChannelName');
+    if (name) { name.value = 'clickthrough-made'; name.dispatchEvent(new Event('input', { bubbles: true })); }
+    const before = window.__mock.db.channels.length;
+    document.getElementById('newChannelSubmit')?.click();
+    // Generous: the insert, the membership write, the debounced reload and a re-render.
+    for (let i = 0; i < 40; i++) {
+      await new Promise(r => setTimeout(r, 250));
+      if (inList()) break;
+    }
+    out.created = window.__mock.db.channels.length > before;
+    out.presentAfter = inList();
+    document.querySelectorAll('.modal-overlay.on').forEach(m => m.classList.remove('on'));
+    return out;
+  });
+  // Creating it was never the broken half. The channel landed in the database and the
+  // sidebar went on showing the old list, so the button read as dead.
+  check('the "+" on a nav card creates a channel and shows it',
+    r.plusExists && r.modalOpened && r.created && !r.presentBefore && r.presentAfter,
     JSON.stringify(r));
 });
 
