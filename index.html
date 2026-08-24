@@ -70253,13 +70253,39 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       { key:'web',       label:'Web Projects', color:'var(--c3-amber)' },
     ];
     let ncClients = {};   // client_id -> { id, name, avatar_bg, avatar_fg }
+    // Every active client, not only the eleven that happen to have a channel. The
+    // Clients card is a list of clients, so a client with no conversation yet still
+    // belongs on it -- it just has nothing to open until someone starts one.
     async function loadNcClients(){
-      const ids = [...new Set(chatChannels.filter(c => c.client_id).map(c => c.client_id))];
-      if (!ids.length) return;
-      const { data } = await window.giantSupabase.from('clients')
-        .select('id, name, avatar_bg, avatar_fg').in('id', ids);
+      const { data } = await window.giantSupabase.from(clientTableName())
+        .select('id, name, avatar_bg, avatar_fg, status')
+        .neq('status', 'churned').order('name');
       (data || []).forEach(c => { ncClients[c.id] = c; });
     }
+    function clientTableName(){ return 'clients'; }
+
+    // Opening a client that has no channel yet creates its General one, the same way
+    // an empty department tab does. Pre-creating all 265 up front was the alternative
+    // and does not actually work: `channels` is shared with old chat, so public rows
+    // would flood its sidebar with 247 empty channels, and private rows would be
+    // invisible to the managers who need them, because channels_select requires
+    // membership for private rows.
+    async function openClientThread(clientId){
+      const existing = ncPrimaryChannel(clientId, 'general')
+        || (chatChannels.find(c => c.client_id === clientId) || null);
+      if (existing) { switchChannel(existing.id); return; }
+      if (!ncIsStaff()) {
+        if (typeof toast === 'function') toast({ type:'error', message:'Only managers can start a client conversation.' });
+        return;
+      }
+      const id = await ensureClientDeptThread(clientId, 'general');
+      if (!id) return;
+      await NCSB().from('channel_members')
+        .upsert({ channel_id: id, profile_id: ncMyId() }, { onConflict: 'channel_id,profile_id' });
+      await loadChannels();
+      switchChannel(id);
+    }
+    window.nc_openClientThread = openClientThread;
     // Channels for one client x department. Plural on purpose: Maribou has two
     // channels that both mean General, and merging them would mean moving messages
     // between channels, which this branch does not do to old chat's data.
@@ -70472,10 +70498,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       };
 
       const src = document.getElementById('nc_chatChannelList');
+      const rowByChannel = new Map();
       (src ? [...src.querySelectorAll('.nc_ch-item[data-channel-id]')] : []).forEach(row => {
         const c = byId.get(row.dataset.channelId);
         if (!c) return;
-        place(row, c.kind === 'client_dept' ? bodies.clients : bodies.teams, c.id, true);
+        rowByChannel.set(c.id, row);
+        // Client rows are built from the client list below, so only team channels go
+        // straight through here.
+        if (c.kind !== 'client_dept') place(row, bodies.teams, c.id, true);
         if (starred.has(c.id)) place(row, bodies.starred, c.id, true);
         const need = ncNeeds[c.id];
         if (need) {
@@ -70483,6 +70513,32 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           if (cl2) tagNeed(cl2, need);
         }
       });
+
+      // One row per client, in name order. Where the client has a channel the engine
+      // already rendered, that row is reused so unread badges and muting carry over;
+      // where it has none, a plain row is synthesised that creates the channel on click.
+      Object.values(ncClients)
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        .forEach(cl => {
+          const chan = ncPrimaryChannel(cl.id, 'general')
+            || chatChannels.find(c => c.client_id === cl.id) || null;
+          const existingRow = chan ? rowByChannel.get(chan.id) : null;
+          if (existingRow) { place(existingRow, bodies.clients, chan.id, true); return; }
+          const row = document.createElement('div');
+          row.className = 'nc_ch-item';
+          row.dataset.clientId = cl.id;
+          row.innerHTML =
+            `<span class="nc_hash" style="font-style:normal;width:20px;height:20px;border-radius:50%;`
+            + `display:inline-flex;align-items:center;justify-content:center;`
+            + `background:${chatEsc(cl.avatar_bg || 'var(--c3-avatar-bg)')};color:${chatEsc(cl.avatar_fg || 'var(--c3-avatar-fg)')};`
+            + `font-size:8.5px;font-weight:800;flex-shrink:0;">${chatEsc((cl.name || '?').trim().charAt(0).toUpperCase())}</span>`
+            + chatEsc(cl.name || 'Client');
+          // Dimmed, because there is nothing there yet -- the first click starts it.
+          row.style.opacity = '.62';
+          row.title = 'No conversation yet — click to start one';
+          row.addEventListener('click', () => openClientThread(cl.id));
+          bodies.clients.appendChild(row);
+        });
 
       const dmSrc = document.getElementById('nc_chatDmList');
       (dmSrc ? [...dmSrc.querySelectorAll('.nc_ch-item[data-dm-channel-id]')] : []).forEach(row => {
