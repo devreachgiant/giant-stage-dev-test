@@ -157,5 +157,34 @@ for m in re.finditer(r'(?<![\w.$])([A-Za-z_$][\w$]*)\s*\(', src):
 print("6. called out of scope (declared, but not where it is called):", sorted(set(oos)) or "none")
 fail+=len(set(oos))
 
+# ---------------------------------------------------------------------------
+# 7. A class this module ASSIGNS unprefixed while looking the same name up WITH nc_.
+#
+# The namespacing pass rewrote class="..." in the markup and missed JS assignments, so
+# sixteen classes were created unprefixed and searched for prefixed. Each one is two bugs
+# at once: the de-dupe guard that looks for '.nc_x' never matches, so every re-render
+# appends another copy -- that is the duplicated reply badge AND the duplicated unread
+# badge -- and the element silently picks up the ORIGINAL chat's '.x' CSS, which is the
+# leak this branch exists to prevent.
+#
+# Mechanical, and worth a check precisely because it looks like a cosmetic detail.
+assigned = set()
+for m in re.finditer(r"\.className\s*=\s*'([^']+)'", nc):
+    assigned.update(m.group(1).split())
+for m in re.finditer(r"classList\.add\(([^)]*)\)", nc):
+    for q in re.findall(r"'([^']+)'", m.group(1)):
+        assigned.update(q.split())
+looked = set()
+for m in re.finditer(r"querySelector(?:All)?\('([^']+)'\)", nc):
+    looked.update(re.findall(r"\.([A-Za-z0-9_-]+)", m.group(1)))
+for m in re.finditer(r"classList\.(?:contains|toggle|remove)\(([^),]*)", nc):
+    looked.update(re.findall(r"'([^']+)'", m.group(1)))
+# Six are deliberately shared with the app's own screen/nav machinery.
+SHARED = {'screen', 'fullbleed', 'on', 'active', 'badge', 'ico'}
+mismatch = sorted(a for a in assigned
+                  if not a.startswith('nc_') and a not in SHARED and ('nc_' + a) in looked)
+print("7. classes assigned unprefixed but looked up as nc_:", mismatch or "none")
+fail += len(mismatch)
+
 print("\nRESULT:", "clean" if not fail else f"{fail} problem(s)")
 sys.exit(1 if fail else 0)

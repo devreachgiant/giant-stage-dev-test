@@ -259,18 +259,66 @@ await step('the header counts this channel\'s members, not the workspace', async
     'header said ' + m.shown + ', channel has ' + m.actual + ', workspace has ' + m.profiles);
 });
 
-// the _boot-run-twice bug showed up as two reply badges under one message
-await step('no message carries a duplicated reply badge', async () => {
-  const dupes = await page.evaluate(() => {
-    const rows = [...document.querySelectorAll('#nc_chatMsgsList [data-message-id]')];
-    let worst = 0;
+// Duplicate reply badges have shipped twice: once from _boot running twice, and once from
+// a de-dupe guard that looked for '.nc_msg-reply-cta' while the element was created
+// unprefixed, so it never matched and every re-render appended another. The old version of
+// this check counted anything with "reply" in a class name and reported 0 -- there were no
+// badges on screen at all, so it was passing on an empty set.
+await step('a message with replies shows exactly one reply badge', async () => {
+  const open = await page.evaluate(async () => {
+    // a channel that definitely has a message with replies
+    const db = window.__mock.db;
+    const parent = db.messages.find(m => m.reply_count > 0
+      && db.messages.some(r => r.parent_id === m.id));
+    if (!parent) return null;
+    const row = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item, #nc_cardClientsBody .nc_ch-item')]
+      .find(el => (el.dataset.channelId || el.dataset.dmChannelId) === parent.channel_id);
+    if (row) row.click(); else window.nc_switchChatSubtab && null;
+    return { channel: parent.channel_id, clicked: !!row };
+  });
+  if (!open || !open.clicked) { check('a message with replies shows exactly one reply badge', false, JSON.stringify(open)); return; }
+  await page.waitForFunction(
+    () => document.querySelectorAll('#nc_chatMsgsList .nc_msg-reply-cta, #nc_chatMsgsList .msg-reply-cta').length > 0,
+    null, { timeout: 20000 }).catch(() => {});
+  const count = async () => page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#nc_chatMsgsList [data-msg-id], #nc_chatMsgsList [data-message-id]')];
+    let worst = 0, total = 0;
     rows.forEach(r => {
-      const n = r.querySelectorAll('[class*="reply"], [data-nc-open-thread], [data-c3-thread]').length;
+      const n = r.querySelectorAll('.nc_msg-reply-cta, .msg-reply-cta').length;
+      total += n;
       if (n > worst) worst = n;
     });
-    return worst;
+    return { worst, total };
   });
-  check('no message carries a duplicated reply badge', dupes <= 1, 'max reply controls on one message=' + dupes);
+  const first = await count();
+  // The invariant the duplicate came from: the guard removes '.nc_msg-reply-cta' before
+  // appending, so a badge built with any other class can never be de-duplicated. A channel
+  // switch will not reproduce that -- it rebuilds the list from fresh elements -- and the
+  // realtime paths that re-attach to a LIVE element are what actually double it.
+  const classed = await page.evaluate(() => {
+    const all = [...document.querySelectorAll('#nc_chatMsgsList .nc_msg-reply-cta, #nc_chatMsgsList .msg-reply-cta')];
+    return { total: all.length,
+             guardable: all.filter(e => e.classList.contains('nc_msg-reply-cta')).length };
+  });
+  // Leave and come back. The append-on-every-render bug only shows on the second pass, and
+  // switching channels is how a person triggers it.
+  await page.evaluate(() => {
+    const other = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item')]
+      .find(el => el.dataset.channelId !== window.nc_activeChannelId);
+    if (other) other.click();
+  });
+  await page.waitForTimeout(1500);
+  await page.evaluate((cid) => {
+    const back = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item, #nc_cardClientsBody .nc_ch-item')]
+      .find(el => (el.dataset.channelId || el.dataset.dmChannelId) === cid);
+    if (back) back.click();
+  }, open.channel);
+  await page.waitForTimeout(2500);
+  const second = await count();
+  check('a message with replies shows exactly one reply badge',
+    first.total > 0 && first.worst === 1 && second.worst === 1
+      && classed.total > 0 && classed.guardable === classed.total,
+    JSON.stringify({ first, classed, second }));
 });
 
 // ── open a client thread: department strip + the three extra tabs ────────────
@@ -688,7 +736,14 @@ await step('Add member opens a searchable list and can invite by email', async (
 });
 
 // ── Master Inbox ─────────────────────────────────────────────────────────────
-await step('the Master Inbox opens into its own pane', async () => {
+await step('the Master Inbox replaces the thread', async () => {
+  // Start from a thread that is actually showing. Earlier steps can leave a tool tab open,
+  // where nc_chatMsgs is already hidden -- which is how this passed on a build that stacked
+  // the Inbox under the channel's messages.
+  await page.evaluate(() => window.nc_switchChatSubtab('messages'));
+  await page.waitForFunction(
+    () => getComputedStyle(document.getElementById('nc_chatMsgs')).display !== 'none',
+    null, { timeout: 10000 });
   await page.evaluate(() => window.nc_openInbox && window.nc_openInbox());
   await page.waitForFunction(() => {
     const e = document.getElementById('nc_inboxPane');
@@ -697,17 +752,24 @@ await step('the Master Inbox opens into its own pane', async () => {
   const st = await page.evaluate(() => {
     const e = document.getElementById('nc_inboxPane');
     const r = e.getBoundingClientRect();
+    const thread = document.querySelector('main.nc_thread');
+    const composer = thread && thread.querySelector('.nc_composer');
     return { display: getComputedStyle(e).display, chars: e.innerHTML.trim().length,
-             w: Math.round(r.width), h: Math.round(r.height) };
+             w: Math.round(r.width), h: Math.round(r.height),
+             // it REPLACES the thread. Without this the check passed while the channel's
+             // messages and the Inbox were stacked in one column with a shared composer.
+             msgsHidden: getComputedStyle(document.getElementById('nc_chatMsgs')).display === 'none',
+             composerHidden: !composer || getComputedStyle(composer).display === 'none' };
   });
-  check('the Master Inbox opens into its own pane',
-    st.display !== 'none' && st.chars > 0 && st.h > 200, JSON.stringify(st));
+  check('the Master Inbox replaces the thread',
+    st.display !== 'none' && st.chars > 0 && st.h > 200
+      && st.msgsHidden && st.composerHidden, JSON.stringify(st));
 });
 
 // The Inbox scanned the 400 newest messages and filtered afterwards, so an older mention
 // did not exist as far as it was concerned -- the same sampling bug as the Needs you card,
 // and the reason the two disagreed. It asks for mentions and flags by name now.
-await step('the Inbox finds a mention older than its recent window', async () => {
+await step('the Inbox finds a mention outside its newest-messages sample', async () => {
   const r = await page.evaluate(async () => {
     const db = window.__mock.db, me = window.__mock.me;
     const mine = db.channel_members.filter(m => m.profile_id === me);
@@ -715,9 +777,12 @@ await step('the Inbox finds a mention older than its recent window', async () =>
       const ch = db.channels.find(c => c.id === m.channel_id);
       return ch && ch.kind === 'team_channel';
     }) || mine[0];
-    // one mention, old enough to sit well outside the 400 newest messages
+    // 60 days old: well outside the 400 newest messages once the noise below lands, but
+    // inside the Inbox's deliberate 90-day window. The first version used 200 days, which
+    // then failed for the right reason once that window was introduced -- the check was
+    // proving "not limited to the newest 400", not "unbounded".
     db.messages.push({ id: 'm-old-mention', channel_id: target.channel_id, author_id: 'u-6',
-      body: 'ages ago @nishchay flagged this', created_at: new Date(Date.now() - 200 * 864e5).toISOString(),
+      body: 'ages ago @nishchay flagged this', created_at: new Date(Date.now() - 60 * 864e5).toISOString(),
       parent_id: null, reply_count: 0, flagged: false, pinned_at: null });
     // and 500 newer messages elsewhere, so it is nowhere near the recent window
     const noisy = mine[1].channel_id;
@@ -730,7 +795,7 @@ await step('the Inbox finds a mention older than its recent window', async () =>
     const pane = document.getElementById('nc_inboxPane');
     return { found: /ages ago/.test(pane.innerText), chars: pane.innerHTML.length };
   });
-  check('the Inbox finds a mention older than its recent window', r.found, JSON.stringify(r));
+  check('the Inbox finds a mention outside its newest-messages sample', r.found, JSON.stringify(r));
 });
 
 // ── back to messages, and send something (an optimistic write) ───────────────
@@ -964,16 +1029,28 @@ await step('Needs you finds an old unread message behind a busy channel', async 
     worked.before && !worked.afterClick && !worked.afterRecompute && worked.markedDone,
     JSON.stringify(worked));
 
-  // The other half of the card: its header opens the Master Inbox.
+  // The header toggles the card and nothing else -- expanding it used to also throw the
+  // Inbox over the thread you were reading. The Inbox has its own button now.
   const opened = await page.evaluate(async () => {
     const card = [...document.querySelectorAll('.nc_navcard')].find(c => c.dataset.nccard === 'needs');
-    card.querySelector('.nc_navcard-head').click();
-    await new Promise(res => setTimeout(res, 1200));
     const pane = document.getElementById('nc_inboxPane');
-    return { display: getComputedStyle(pane).display, chars: pane.innerHTML.trim().length };
+    pane.style.display = 'none';
+    const bodyH = () => card.querySelector('.nc_navcard-body').getBoundingClientRect().height;
+    const wasOpen = bodyH() > 4;
+    card.querySelector('.nc_navcard-head').click();
+    await new Promise(res => setTimeout(res, 900));
+    const toggled = (bodyH() > 4) !== wasOpen;
+    const inboxStayedShut = getComputedStyle(pane).display === 'none';
+
+    card.querySelector('.nc_open-inbox-btn').click();
+    await new Promise(res => setTimeout(res, 1500));
+    return { toggled, inboxStayedShut,
+             opensOnButton: getComputedStyle(pane).display !== 'none',
+             chars: pane.innerHTML.trim().length };
   });
-  check('the Needs you card opens the Master Inbox',
-    opened.display !== 'none' && opened.chars > 0, JSON.stringify(opened));
+  check('the Needs you header toggles, and its button opens the Inbox',
+    opened.toggled && opened.inboxStayedShut && opened.opensOnButton && opened.chars > 0,
+    JSON.stringify(opened));
 });
 
 // The four area columns need a table that ships in migration 20260824120000. Between

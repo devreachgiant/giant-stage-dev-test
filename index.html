@@ -8219,6 +8219,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               <div class="nc_navcard-head" style="display:flex;align-items:center;gap:9px;height:32px;padding:0 9px;cursor:pointer;">
                 <span style="width:20px;height:20px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb, var(--c3-green) 16%, transparent);color:var(--c3-green);flex-shrink:0;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 2a3.4 3.4 0 00-3.4 3.4c0 2.9-1.4 3.9-1.4 3.9h9.6s-1.4-1-1.4-3.9A3.4 3.4 0 008 2Z" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/><path d="M6.75 11.6a1.3 1.3 0 002.5 0" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg></span>
                 <span style="flex:1;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--c3-t2);">Needs you</span>
+                <span class="nc_ch-section-add nc_open-inbox-btn" title="Open the Master Inbox" style="display:inline-flex;color:var(--c3-t5);cursor:pointer;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 9.5h3.2l.9 1.6h3.8l.9-1.6H14M2 9.5l1.8-5.6A1 1 0 014.75 3.2h6.5a1 1 0 01.95.7L14 9.5v2.4a1.1 1.1 0 01-1.1 1.1H3.1A1.1 1.1 0 012 11.9V9.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>
                 <span class="nc_navcard-count" style="font-size:10px;font-weight:700;color:var(--c3-t5);"></span>
                 <span class="nc_navcard-chev" style="display:inline-flex;color:var(--c3-t5);"><svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
               </div>
@@ -70783,11 +70784,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         card._ncWired = true;
         card.querySelector('.nc_navcard-head').addEventListener('click', (e) => {
           if (e.target.closest('.nc_ch-section-add')) return;   // the + is its own action
+          // Toggle, and only toggle. Expanding the Needs you card used to also throw the
+          // Master Inbox over the thread column, so glancing at the list cost you the
+          // channel you were reading. The Inbox has its own button in the header now.
           setOpenCard(card.dataset.nccard === ncOpenCard ? '' : card.dataset.nccard);
-          // In Chat 3.0 the Needs you card is not just a list -- opening it shows the
-          // Master Inbox in the thread column. Same here.
-          if (card.dataset.nccard === 'needs' && typeof window.nc_openInbox === 'function') window.nc_openInbox();
         });
+        const inboxBtn = card.querySelector('.nc_open-inbox-btn');
+        if (inboxBtn && !inboxBtn._ncWired) {
+          inboxBtn._ncWired = true;
+          inboxBtn.addEventListener('click', (e) => { e.stopPropagation(); openInbox(); });
+        }
       });
       applyCardAccordion();
     })();
@@ -73437,6 +73443,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
       function inboxAction(key){ return mg.inboxActions[key] || { done:false, saved:false }; }
       const INBOX_MSG_TABLE = 'messages';
+      const INBOX_SINCE = () => new Date(Date.now() - 90 * 864e5).toISOString();
       const INBOX_MSG_COLS = 'id, body, flagged, created_at, author_id, channel_id, thread:channels(id, name, client_id, department, kind, is_group, dm_pair)';
       async function loadInboxItems(){
         mg.inboxLoading = true; renderMagnus();
@@ -73452,14 +73459,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           // only "new activity" is inherently recent, so only that one stays a window.
           NCSB().from(INBOX_MSG_TABLE).select(INBOX_MSG_COLS)
             .neq('author_id', ncMyId()).order('created_at', { ascending: false }).limit(400),
+          // Same 90-day window as computeNeedsYou. Unbounded, these returned 286 mentions
+          // against the card's 32 channels -- the two disagreeing again, the other way
+          // round, and an Inbox nobody could work through.
           myLower
             ? NCSB().from(INBOX_MSG_TABLE).select(INBOX_MSG_COLS)
                 .ilike('body', '%@' + myLower.split(' ')[0] + '%').neq('author_id', ncMyId())
-                .order('created_at', { ascending: false }).limit(300)
+                .gte('created_at', INBOX_SINCE()).order('created_at', { ascending: false }).limit(300)
             : Promise.resolve({ data: [] }),
           NCSB().from(INBOX_MSG_TABLE).select(INBOX_MSG_COLS)
             .eq('flagged', true).neq('author_id', ncMyId())
-            .order('created_at', { ascending: false }).limit(300),
+            .gte('created_at', INBOX_SINCE()).order('created_at', { ascending: false }).limit(300),
           NCSB().from('tasks').select('id, name, description, status, created_by, created_at, project_id, project:projects(name)').contains('assigned_to', [ncMyId()]).neq('status', 'done').order('created_at', { ascending: false }).limit(50),
         ]);
         const readMap = {};
@@ -73925,7 +73935,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
     async function openInbox(){
       const pane = document.getElementById('nc_inboxPane');
-      if (pane) pane.style.display = 'block';
+      if (!pane) return;
+      // The Inbox REPLACES the thread; it does not sit under it. Showing this pane without
+      // hiding the message list stacked the two in one column -- reachgiant-home rendering
+      // its messages with the Inbox's "All 306" pinned below them and one composer at the
+      // bottom serving both. nc_switchChatSubtab already owns this set; opening the Inbox
+      // is the same transition with none of the tabs selected.
+      ['nc_chatMsgs', 'nc_chatMediaPane', 'nc_chatCanvasPane', 'nc_mgmtPane', 'nc_tasksPane', 'nc_magnusPane']
+        .forEach(id => { const el = document.getElementById(id); if (el) el.style.display = 'none'; });
+      const thread = document.querySelector('main.nc_thread');
+      const composer = thread && thread.querySelector('.nc_composer');
+      if (composer) composer.style.display = 'none';
+      const typing = document.getElementById('nc_typingIndicator');
+      if (typing) typing.style.display = 'none';
+      document.querySelectorAll('#nc_chatSubTabs .nc_chat-subtab').forEach(b => b.classList.remove('active'));
+      window.nc__chatSubtab = 'inbox';
+      pane.style.display = 'block';
       renderDeptStrip();   // the Inbox is not about a department either
       mg.myName = (window.giantCurrentProfile && (window.giantCurrentProfile.full_name || window.giantCurrentProfile.email)) || '';
       mg.clients = Object.values(ncClients);
@@ -74743,7 +74768,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const channel = (chatChannels || []).find(c => c.id === channelId);
       const channelName = channel ? channel.name : 'channel';
       const menu = document.createElement('div');
-      menu.className = 'channel-ctx-menu';
+      menu.className = 'nc_channel-ctx-menu';
       menu.style.cssText = `position:fixed;left:${x}px;top:${y}px;background:var(--pane);border:1px solid var(--line-2);border-radius:9px;box-shadow:0 14px 36px -10px rgba(0,0,0,.55);padding:5px;z-index:9999;min-width:180px;font-family:inherit;`;
       const muteIcon = isMuted ? '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 6.5v3h2.5L8 12V4L4.5 6.5H2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M11 6c.7.6 1 1.3 1 2s-.3 1.4-1 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>' : '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 6.5v3h2.5L8 12V4L4.5 6.5H2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M11 5.5L14 8.5M14 5.5L11 8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
       menu.innerHTML = `
@@ -75649,7 +75674,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const path = urlObj.pathname + urlObj.search;
       const pathLabel = path === '/' ? '' : path.slice(0, 60) + (path.length > 60 ? '…' : '');
       const card = document.createElement('a');
-      card.className = 'link-preview';
+      card.className = 'nc_link-preview';
       card.href = url;
       card.target = '_blank';
       card.rel = 'noopener noreferrer';
@@ -75804,7 +75829,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             let editedTag = msgEl.querySelector('.nc_msg-edited-tag');
             if (!editedTag) {
               editedTag = document.createElement('span');
-              editedTag.className = 'msg-edited-tag';
+              editedTag.className = 'nc_msg-edited-tag';
               editedTag.style.cssText = 'font-size:10px;color:var(--text-3);margin-left:6px;font-style:italic;';
               editedTag.textContent = '(edited)';
               const timeEl = msgEl.querySelector('.nc_msg-time, .msg-head time, .msg-ts');
@@ -76812,7 +76837,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       }
       if (!reactionsEl) {
         reactionsEl = document.createElement('div');
-        reactionsEl.className = 'reactions';
+        reactionsEl.className = 'nc_reactions';
         body.appendChild(reactionsEl);
       }
       reactionsEl.innerHTML = Object.entries(grouped).map(([emoji, ids]) => {
@@ -76934,7 +76959,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // sending, instead of only after a refresh.
       const liveId = () => msgEl.dataset.msgId || messageId;
       const bar = document.createElement('div');
-      bar.className = 'msg-react-bar';
+      bar.className = 'nc_msg-react-bar';
       const emojisHtml = QUICK_EMOJIS.map(e => `<div class="nc_msg-react-bar-emoji" data-emoji="${chatEsc(e)}">${chatEsc(e)}</div>`).join('');
       const moreEmojiHtml = `<div class="nc_msg-react-bar-more" data-action="more-emoji" title="Find another reaction"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.3"/><path d="M5.5 9s.9 1.2 2.5 1.2S10.5 9 10.5 9M6 6.2h.01M10 6.2h.01" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M12.5 3.5v3M11 5h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></div>`;
       const sepHtml = '<div class="nc_msg-react-bar-sep"></div>';
@@ -77257,7 +77282,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             if (badge.textContent !== txt) badge.textContent = txt;
           } else {
             badge = document.createElement('span');
-            badge.className = 'ch-unread-badge';
+            badge.className = 'nc_ch-unread-badge';
             badge.textContent = txt;
             el.appendChild(badge);
           }
@@ -77939,7 +77964,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       let existing = body.querySelector('.nc_read-receipt');
       if (!existing) {
         existing = document.createElement('div');
-        existing.className = 'read-receipt';
+        existing.className = 'nc_read-receipt';
         existing.style.cssText = 'display:flex;align-items:center;gap:5px;margin-top:3px;font-size:10px;color:var(--text-3);';
         body.appendChild(existing);
       }
@@ -78110,7 +78135,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
       // Build popover with loading state first
       const pop = document.createElement('div');
-      pop.className = 'ai-reply-pop';
+      pop.className = 'nc_ai-reply-pop';
       // Force visibility (override the proto's hidden-by-default styles)
       pop.style.cssText = 'display:block!important;opacity:1!important;transform:none!important;pointer-events:auto!important;position:absolute;background:var(--pane);border:1px solid var(--line-2);border-radius:12px;box-shadow:0 16px 40px -8px rgba(0,0,0,.55),0 6px 16px -4px rgba(0,0,0,.35);padding:12px;width:340px;z-index:1500;';
       pop.innerHTML = `
@@ -78407,7 +78432,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // Remove existing
       document.querySelectorAll('.nc_chat-emoji-pop').forEach(p => p.remove());
       const pop = document.createElement('div');
-      pop.className = 'chat-emoji-pop';
+      pop.className = 'nc_chat-emoji-pop';
       // Position relative to the emoji button itself
       const btnRect = chatEmojiBtn.getBoundingClientRect();
       pop.style.cssText = `position:fixed;left:${btnRect.left - 240}px;top:${btnRect.top - 260}px;width:300px;max-height:240px;overflow-y:auto;background:var(--pane);border:1px solid var(--line-2);border-radius:11px;padding:10px;box-shadow:0 16px 40px -8px rgba(0,0,0,.55),0 6px 16px -4px rgba(0,0,0,.35);z-index:10000;display:grid;grid-template-columns:repeat(8,1fr);gap:3px;`;
@@ -78445,7 +78470,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     function openReactionEmojiPicker(anchorEl, onPick) {
       document.querySelectorAll('.nc_chat-emoji-pop').forEach(p => p.remove());
       const pop = document.createElement('div');
-      pop.className = 'chat-emoji-pop';
+      pop.className = 'nc_chat-emoji-pop';
       const r = anchorEl.getBoundingClientRect();
       const top = Math.max(8, r.top - 250);
       const left = Math.min(window.innerWidth - 310, Math.max(8, r.left - 130));
@@ -78665,7 +78690,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const existing = body.querySelector('.nc_msg-attachments');
       if (existing) existing.remove();
       const el = document.createElement('div');
-      el.className = 'msg-attachments msg-attachments-uploading';
+      el.className = 'nc_msg-attachments msg-attachments-uploading';
       el.innerHTML = (atts || []).map(a => {
         const isImg = (a.file && a.file.type || '').startsWith('image/');
         if (isImg && a.blobUrl) {
@@ -78795,7 +78820,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       let attEl = body.querySelector('.nc_msg-attachments');
       if (attEl) attEl.remove();
       attEl = document.createElement('div');
-      attEl.className = 'msg-attachments';
+      attEl.className = 'nc_msg-attachments';
       attEl.innerHTML = atts.map(a => {
         const url = publicAttachmentUrl(a.storage_path);
         const mime = a.mime_type || '';
@@ -78933,7 +78958,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const avaInner = p.avatar_url ? '' : chatEsc(initial);
       const isMine = m.author_id === window.giantSession.user.id;
       const div = document.createElement('div');
-      div.className = 'msg';
+      div.className = 'nc_msg';
       div.dataset.msgId = m.id;
       div.innerHTML = `<div class="ava ${(window.giantOnlineProfiles && window.giantOnlineProfiles.has(m.author_id)) ? 'online' : ''}" data-presence-for="${chatEsc(m.author_id)}" style="${avaStyle}">${avaInner}</div>
         <div class="nc_body">
@@ -79216,7 +79241,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const bar = msgEl.querySelector('.nc_msg-react-bar');
       if (bar && !bar.querySelector('.nc_msg-reply-btn')) {
         const replyBtn = document.createElement('div');
-        replyBtn.className = 'msg-reply-btn';
+        replyBtn.className = 'nc_msg-reply-btn';
         replyBtn.title = 'Reply in thread';
         replyBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 9V6a2 2 0 012-2h7l-2-2m2 2l-2 2M13 9v1a2 2 0 01-2 2H4l2 2m-2-2l2-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
         replyBtn.addEventListener('click', (e) => {
@@ -79301,7 +79326,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const excerptShort = excerpt.length > 80 ? excerpt.slice(0, 80) + '…' : excerpt;
       const lastTime = lastReplyAt ? timeAgoShort(lastReplyAt) : '';
       const cta = document.createElement('div');
-      cta.className = 'msg-reply-cta';
+      // nc_-prefixed, and not only for tidiness. The de-dupe guard eleven lines up looks
+      // for '.nc_msg-reply-cta', so an unprefixed container never matched it and every
+      // re-render appended another badge -- two "1 reply · Nishchay replied" rows under
+      // the same message. It was also picking up the ORIGINAL chat's .msg-reply-cta CSS,
+      // which is the namespace leak this whole branch is built to avoid.
+      cta.className = 'nc_msg-reply-cta';
       cta.innerHTML = `
         <span class="nc_msg-reply-cta-avas">${avasHtml}</span>
         <span class="nc_msg-reply-cta-count">${m.reply_count} ${m.reply_count===1?'reply':'replies'}</span>
@@ -79745,10 +79775,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             const oldPrev=card.querySelector('.nc_cv-card-preview'); if(oldPrev) oldPrev.remove();
             const oldChev=card.querySelector(':scope > .nc_cv-card-collapse'); if(oldChev) oldChev.remove();
             const oldDel=card.querySelector(':scope > .nc_cv-card-del'); if(oldDel) oldDel.remove();
-            const head=document.createElement('div'); head.className='cv-card-head';
-            const title=document.createElement('span'); title.className='cv-card-title'; title.setAttribute('contenteditable','true'); title.setAttribute('data-ph','Card title…');
-            const ch=document.createElement('span'); ch.className='cv-card-collapse'; ch.setAttribute('contenteditable','false'); ch.title='Collapse / expand'; ch.textContent='▾';
-            const dl=document.createElement('span'); dl.className='cv-card-del'; dl.setAttribute('contenteditable','false'); dl.title='Delete card'; dl.textContent='✕';
+            const head=document.createElement('div'); head.className='nc_cv-card-head';
+            const title=document.createElement('span'); title.className='nc_cv-card-title'; title.setAttribute('contenteditable','true'); title.setAttribute('data-ph','Card title…');
+            const ch=document.createElement('span'); ch.className='nc_cv-card-collapse'; ch.setAttribute('contenteditable','false'); ch.title='Collapse / expand'; ch.textContent='▾';
+            const dl=document.createElement('span'); dl.className='nc_cv-card-del'; dl.setAttribute('contenteditable','false'); dl.title='Delete card'; dl.textContent='✕';
             head.appendChild(title); head.appendChild(ch); head.appendChild(dl);
             card.insertBefore(head, card.firstChild);
           });

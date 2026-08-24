@@ -92,7 +92,7 @@ realtime is still filtered to the primary channel, and sending always writes to 
 | Master Inbox | repointed to `messages` / `channel_members` / new `inbox_actions` | done |
 
 **All ports are complete.** Run `python3 tools_newchat_audit.py` after every change — it
-checks the six failure modes below and should print `RESULT: clean`.
+checks the seven failure modes below and should print `RESULT: clean`.
 
 The extraction pipeline is `scratchpad/port.py` (regenerate if gone). Three lessons in it:
 
@@ -116,6 +116,29 @@ The extraction pipeline is `scratchpad/port.py` (regenerate if gone). Three less
 
 Chat 3.0 is state-and-render; New Chat is imperative. Ported panels run against a local `mg`
 state object plus shims (`NCSB`, `ncMyId`, `ncIsStaff`, `ncIcon`, `renderMgmt`, …).
+
+## The namespacing pass missed JS class assignments
+
+`class="..."` in the markup was rewritten. **`el.className = '...'` and `classList.add()` in
+the JS were not** — seventeen classes were created unprefixed while the same module looked
+them up as `.nc_…`. Each is two bugs at once:
+
+- **The de-dupe guard never matches**, so every re-render appends another copy. That is the
+  duplicated reply badge *and* the duplicated unread badge in the sidebar — two red "1"s on
+  one row. The `_boot`-runs-twice fix in the traps list was a different cause of the same
+  symptom, which is why it looked like a regression.
+- **The element picks up the ORIGINAL chat's CSS** for that class, which is exactly the leak
+  this branch exists to prevent.
+
+**Audit check 7** catches it: a class assigned unprefixed while `nc_<name>` is looked up
+somewhere in the module. It reports all seventeen on the commit before the fix. The six
+deliberately shared classes (`screen`, `fullbleed`, `on`, `active`, `badge`, `ico`) are
+excluded.
+
+Four more are assigned unprefixed but never looked up prefixed — `mention-picker-pop`,
+`msg-attachments-uploading`, `reaction-tooltip`, `schedule-preset`. Two of those have bare
+CSS in the original chat and no `nc_` rule, so **prefixing them would remove their styling**.
+Left alone deliberately; they are a style leak, not a duplication bug.
 
 ## Traps hit, so they are not hit again
 
