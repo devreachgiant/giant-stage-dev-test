@@ -200,6 +200,11 @@ boxed list, then Account access / Active work / Conversations collapsed.
   when nothing is active — otherwise the control is unreachable on the clients that need it.
 - The department jump list survives as a collapsed row. It is not in the mock, but removing a
   working control to match a picture is a regression.
+- **The sub-tab strip is full-bleed and not sticky.** Its rule runs the whole width of the
+  pane, hard against the sidebar, while its labels sit on the same 44px gutter as the cards.
+  That needs the padding on the strip itself, inside its border box — `nc_mgmtPane` used to
+  carry `18px 22px` and the strip's wrapper added another `22px`, so the rule could never
+  reach the edge. The pane's padding is now `0` and one place owns the gutter.
 
 **`client_onboarding` is keyed by the client's own id.** It is the restricted projection of
 `clients` and shares its primary key, so the panel selects it with `.eq('id', clientId)`. The
@@ -210,7 +215,7 @@ assertion, which is why there are now three specific Overview checks.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 43 checks in a headless browser, ~40s
+node tools_newchat_clickthrough.mjs      # 44 checks in a headless browser, ~40s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```
@@ -241,8 +246,9 @@ can:
   exactly one card open, one-line tab strip (compare vertical *centres*, not `top` — the
   department tabs are shorter than the sub-tabs and the strip centres them), 53 clients
   listed with 42 dimmed, no duplicated reply badge
-- that Management > Overview renders the client record rather than its empty state,
-  that a collapsed section opens, and that the status pill offers all five statuses
+- that Management > Overview renders the client record rather than its empty state, that a
+  collapsed section opens, that the status pill offers all five statuses, and that the
+  sub-tab strip stays full-bleed and scrolls away instead of pinning
 - that the header counts the channel's members, not the workspace (the fixture gives a
   team channel 5 members against 81 profiles, which is what makes the two distinguishable)
 - uncaught exceptions and `console.error`, which is how `fmtTime` was found

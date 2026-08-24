@@ -377,6 +377,33 @@ await step('Overview\'s collapsed sections open on click', async () => {
     after.chars > before && after.rows === 5, JSON.stringify({ before, ...after }));
 });
 
+// The strip's rule runs the full width of the pane, hard against the sidebar, while its
+// labels sit on the same gutter as the cards. Both are easy to undo by adding padding to
+// a wrapper, and neither shows up in any static check.
+await step('the Management tab strip is full-bleed and scrolls away', async () => {
+  const r = await page.evaluate(async () => {
+    const pane = document.getElementById('nc_mgmtPane');
+    const strip = pane.querySelector('[data-c3-mgmt-tab]').parentElement;
+    const card = pane.querySelector('[data-c3-mgmt-fold]');
+    const pr = pane.getBoundingClientRect();
+    const before = strip.getBoundingClientRect();
+    const labelLeft = Math.round(strip.querySelector('[data-c3-mgmt-tab]').getBoundingClientRect().left - pr.left);
+    const cardLeft = card ? Math.round(card.getBoundingClientRect().left - pr.left) : -1;
+    pane.scrollTop = 300;
+    await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+    const after = strip.getBoundingClientRect();
+    return { stripWidth: Math.round(before.width), paneWidth: pane.clientWidth,
+             leftGap: Math.round(before.left - pr.left),
+             labelLeft, cardLeft, scrolled: pane.scrollTop,
+             movedBy: Math.round(before.top - after.top) };
+  });
+  check('the Management tab strip is full-bleed and scrolls away',
+    r.stripWidth === r.paneWidth && r.leftGap === 0
+      && r.scrolled > 0 && r.movedBy >= r.scrolled - 1
+      && Math.abs(r.labelLeft - r.cardLeft) <= 2,
+    JSON.stringify(r));
+});
+
 await step('the status pill offers every client status', async () => {
   const st = await page.evaluate(() => {
     const sel = document.querySelector('[data-c3-status-set]');

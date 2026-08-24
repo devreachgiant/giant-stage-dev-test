@@ -8484,7 +8484,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <div class="nc_chat-tabpane" id="nc_inboxPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
             <div class="nc_chat-tabpane" id="nc_magnusPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
             <div class="nc_chat-tabpane" id="nc_tasksPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
-            <div class="nc_chat-tabpane" id="nc_mgmtPane" style="display:none;flex:1;overflow-y:auto;padding:18px 22px;"></div>
+            <div class="nc_chat-tabpane" id="nc_mgmtPane" style="display:none;flex:1;overflow-y:auto;padding:0;"></div>
             <div class="nc_chat-tabpane" id="nc_chatCanvasPane" style="display:none;flex:1;flex-direction:column;overflow:hidden;">
               <div class="nc_canvas-toolbar" id="nc_chatCanvasToolbar">
                 <button class="nc_canvas-tool" data-cmd="bold" title="Bold" style="font-weight:800;">B</button>
@@ -71872,11 +71872,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           ? `<div style="text-align:center;color:var(--c3-t5);font-size:13px;padding:40px 0;">Loading…</div>`
           : ({ overview: mgmtOverviewHtml, members: mgmtMembersHtml, onboarding: mgmtOnboardingHtml,
                billing: mgmtBillingHtml, activity: mgmtActivityHtml }[mg.mgmtTab] || mgmtOverviewHtml)();
-        return `<div style="padding:0 22px 18px;">
-          <div style="display:flex;align-items:center;gap:18px;border-bottom:1px solid var(--c3-b1);margin-bottom:16px;position:sticky;top:0;background:var(--c3-s1);z-index:2;">
+        // The rule under the tabs runs the full width of the pane, hard against the
+        // sidebar, while the labels stay on the same 44px gutter as the cards below --
+        // so the padding lives on the strip, inside its border box, rather than on a
+        // wrapper around it. Not sticky: it scrolled over the content it belongs to,
+        // and pinning a five-item row costs more than it returns.
+        return `<div style="padding:0 0 36px;">
+          <div style="display:flex;align-items:center;gap:18px;padding:18px 44px 0;border-bottom:1px solid var(--c3-b1);margin-bottom:16px;">
             ${MGMT_TABS.map(tab).join('')}
           </div>
-          ${body}
+          <div style="padding:0 44px;">${body}</div>
         </div>`;
       }
     // Renders into the Management pane and rewires its handlers. Chat 3.0 re-renders
