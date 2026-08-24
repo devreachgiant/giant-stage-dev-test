@@ -1332,6 +1332,27 @@ await step('Needs you finds an old unread message behind a busy channel', async 
     worked.before && !worked.afterClick && !worked.afterRecompute && worked.markedDone,
     JSON.stringify(worked));
 
+  // Newest first. This used to sort by reason -- every mention, then every flag, then
+  // every unread -- so a message that had just arrived sat below a fortnight-old mention.
+  const ordered = await page.evaluate(async () => {
+    await window.nc_computeNeedsYou();
+    await new Promise(r => setTimeout(r, 1200));
+    const db = window.__mock.db, me = window.__mock.me;
+    const rows = [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')]
+      .map(el => el.dataset.ncChannelId || el.dataset.ncDmChannelId).filter(Boolean);
+    // newest message from someone else, per listed channel
+    const newest = (cid) => db.messages
+      .filter(m => m.channel_id === cid && m.author_id !== me)
+      .reduce((a, m) => Math.max(a, new Date(m.created_at).getTime()), 0);
+    const times = rows.map(newest);
+    const descending = times.every((t, i) => i === 0 || times[i - 1] >= t);
+    return { rows: rows.length, descending,
+             first: times[0] || 0, last: times[times.length - 1] || 0 };
+  });
+  check('Needs you lists the newest first',
+    ordered.rows > 2 && ordered.descending && ordered.first >= ordered.last,
+    JSON.stringify(ordered));
+
   // A message that arrives AFTER load must enter the card. computeNeedsYou runs once at
   // boot, so before this the list described the moment you opened the page: a message in
   // ReachGiant Home or a DM lit its unread badge and the card one row above it did not move.

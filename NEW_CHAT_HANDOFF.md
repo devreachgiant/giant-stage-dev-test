@@ -507,6 +507,18 @@ wrapper and the global message subscription — and places the message increment
 same rules as `computeNeedsYou`, so it costs no query. It never downgrades an existing
 reason, and it ignores the channel you are currently reading.
 
+**Newest first.** It used to sort by reason — every mention, then every flag, then every
+unread — which buried a message that had just arrived under a fortnight-old mention. The
+reason is still on the row as the coloured dot; it no longer decides the order, and only
+breaks ties.
+
+Ordering needs a time per row and `unread_counts` has none, so one query asks for it once
+the list is known — covering exactly the listed channels, **in chunks of 12 against a limit
+of 300**. One query for "the newest 400 across all of them" is the sampling trap again: a
+single busy channel eats the whole result and every quieter one comes back untimed, which
+puts it at the bottom of a list sorted by time. The click-through caught precisely that,
+because the fixture injects 1,400 noise messages mid-run to defeat sampling.
+
 **Reading one clears it.** The card is a queue you work through, so a row that survives
 opening it is the list failing at its only job. `ncClearNeeds` hangs off `switchChannel`, so
 it fires however you reached the channel. Unread would clear itself — opening writes
@@ -601,7 +613,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 69 checks in a headless browser, ~110s
+node tools_newchat_clickthrough.mjs      # 70 checks in a headless browser, ~110s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```

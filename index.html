@@ -70619,6 +70619,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // did, flattens all three into one and buries a direct mention under twenty
     // channels that merely have new activity.
     let ncNeeds = {};   // channel_id -> 'mention' | 'flagged' | 'unread'
+    // channel_id -> ISO time of the newest thing that put it on the list. Kept beside
+    // ncNeeds rather than folded into it so every existing reader of ncNeeds -- the row
+    // dot, ncClearNeeds, the nav card -- keeps working unchanged.
+    let ncNeedAt = {};
+    const ncSetNeedAt = (cid, at) => {
+      if (!cid || !at) return;
+      if (!ncNeedAt[cid] || new Date(at) > new Date(ncNeedAt[cid])) ncNeedAt[cid] = at;
+    };
     // The card is the entry point to the Master Inbox, so it has to count what the Inbox
     // holds. It did not: the Inbox keeps a mention or a flag until you clear it, while
     // this required every kind to be UNREAD -- so opening a channel emptied the card while
@@ -70664,21 +70672,42 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       for (let k = 0; k < idList.length; k += 200) {
         const chunk = idList.slice(k, k + 200);
         const [flagged, mentions] = await Promise.all([
-          NCSB().from('messages').select('id, channel_id, author_id')
+          NCSB().from('messages').select('id, channel_id, author_id, created_at')
             .in('channel_id', chunk).eq('flagged', true).neq('author_id', me)
             .gte('created_at', since).limit(500),
           first
-            ? NCSB().from('messages').select('id, channel_id, author_id')
+            ? NCSB().from('messages').select('id, channel_id, author_id, created_at')
                 .in('channel_id', chunk).ilike('body', '%@' + first + '%').neq('author_id', me)
                 .gte('created_at', since).limit(500)
             : Promise.resolve({ data: [] }),
         ]);
         // Applied in rank order so the stronger reason wins: a flag may replace unread,
         // and a mention may replace either.
-        (flagged.data || []).forEach(m => { if (!done.has(m.id)) next[m.channel_id] = 'flagged'; });
-        (mentions.data || []).forEach(m => { if (!done.has(m.id)) next[m.channel_id] = 'mention'; });
+        (flagged.data || []).forEach(m => { if (!done.has(m.id)) { next[m.channel_id] = 'flagged'; ncSetNeedAt(m.channel_id, m.created_at); } });
+        (mentions.data || []).forEach(m => { if (!done.has(m.id)) { next[m.channel_id] = 'mention'; ncSetNeedAt(m.channel_id, m.created_at); } });
       }
       ncNeeds = next;
+      // Newest-first needs a time for every row, and unread_counts has none. Asked for
+      // here, once the list is known, so it covers exactly the channels on it -- a
+      // "newest N messages everywhere" query is the sampling trap that hid an old unread
+      // DM from this very card.
+      // EVERY listed channel, not only the ones without a time. "Latest at the top" means
+      // the conversation with the most recent activity, not the one whose mention happens
+      // to be newest -- a channel that has moved on since the mention is more recent than
+      // the mention is. ncSetNeedAt keeps the max, so a newer message wins.
+      const needIds = Object.keys(next);
+      // Small chunks, generous limit. One query for "the newest 400 across all of them"
+      // is the sampling trap again: a single busy channel eats the whole result and every
+      // quieter one comes back untimed, which puts it at the bottom of a list that is
+      // supposed to be ordered by time. Twelve channels against 300 rows means a channel
+      // has to own 300 of its chunk's newest 300 to hide anything.
+      for (let k = 0; k < needIds.length; k += 12) {
+        const { data: recent } = await NCSB().from('messages')
+          .select('channel_id, created_at')
+          .in('channel_id', needIds.slice(k, k + 12)).neq('author_id', me)
+          .order('created_at', { ascending: false }).limit(300);
+        (recent || []).forEach(m => ncSetNeedAt(m.channel_id, m.created_at));
+      }
       renderNavCards();
     }
     // Reading one clears it. The card is a queue you work through, so a row that stays
@@ -70695,6 +70724,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const kind = channelId && ncNeeds[channelId];
       if (!kind) return;
       delete ncNeeds[channelId];
+      delete ncNeedAt[channelId];
       renderNavCards();                       // immediately, before any write
       if (kind === 'unread') return;          // last_read_at already covers this one
       const me = ncMyId();
@@ -70760,6 +70790,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const cur = ncNeeds[m.channel_id];
       if (cur && rank[cur] <= rank[kind]) return;   // a stronger reason already stands
       ncNeeds[m.channel_id] = kind;
+      ncSetNeedAt(m.channel_id, m.created_at || new Date().toISOString());
       renderNavCards();
     }
     window.nc_noteNeed = ncNoteNeed;
@@ -70903,7 +70934,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const empty = (b, msg) => { if (b && !b.children.length) b.innerHTML = '<div style="padding:7px 9px;font-size:11px;color:var(--c3-t6);font-style:italic;">' + msg + '</div>'; };
       if (bodies.needs) {
         const rows = [...bodies.needs.children];
-        rows.sort((a, b) => (NEED_RANK[a.dataset.needKind] ?? 9) - (NEED_RANK[b.dataset.needKind] ?? 9));
+        // Newest first. This used to sort by reason -- every mention, then every flag,
+        // then every unread -- which buried a message that had just arrived under a
+        // fortnight-old mention. The reason is still on the row, as the coloured dot;
+        // it is no longer what decides the order. Rows with no time known fall to the
+        // bottom, and rank breaks ties.
+        const at = (el) => {
+          const id = el.dataset.ncChannelId || el.dataset.ncDmChannelId;
+          const v = id && ncNeedAt[id];
+          return v ? new Date(v).getTime() : 0;
+        };
+        rows.sort((a, b) => (at(b) - at(a))
+          || ((NEED_RANK[a.dataset.needKind] ?? 9) - (NEED_RANK[b.dataset.needKind] ?? 9)));
         rows.forEach(r => bodies.needs.appendChild(r));
       }
       empty(bodies.needs, 'Nothing needs you.');
