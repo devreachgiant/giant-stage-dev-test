@@ -197,6 +197,30 @@ check('clients without a channel render dimmed', sidebar.dimmedClients === 42,
 check('11 team channels + home are listed', sidebar.teams === 12, 'teams=' + sidebar.teams);
 check('80 DMs are listed', sidebar.direct === 80, 'direct=' + sidebar.direct);
 
+// Every nav card had the same coloured dot, so the rail read as one undifferentiated
+// block you had to parse by label. Each card now carries its own icon; assert they are
+// real and distinct, because "a dot in a tinted square" and "an icon in a tinted square"
+// are one CSS line apart.
+await step('each nav card has its own icon, not a dot', async () => {
+  const n = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('.nc_navcard')];
+    // The FIRST span in the head is the tile. Any span will also match the chevron's,
+    // which made the previous version of this report six icons on a build that had none.
+    const shapes = cards.map(c => {
+      const tile = c.querySelector('.nc_navcard-head > span:first-child > svg');
+      return tile ? tile.innerHTML.replace(/\s+/g, '') : null;
+    });
+    return { cards: cards.length,
+             withIcon: shapes.filter(Boolean).length,
+             distinct: new Set(shapes.filter(Boolean)).size,
+             dotsLeft: cards.filter(c =>
+               c.querySelector('.nc_navcard-head > span:first-child > span[style*="border-radius:50%"]')).length };
+  });
+  check('each nav card has its own icon, not a dot',
+    n.cards === 6 && n.withIcon === 6 && n.distinct === 6 && n.dotsLeft === 0,
+    JSON.stringify(n));
+});
+
 // ── open a team channel and read messages ────────────────────────────────────
 await step('a team channel opens and paints messages', async () => {
   await page.evaluate(() => {
