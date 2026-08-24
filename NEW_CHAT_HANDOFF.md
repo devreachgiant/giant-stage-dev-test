@@ -295,6 +295,23 @@ button; a native handler will not settle them.
 - **The audit checks names and wiring, not structure.** Neither of the two traps above
   would trip it. Check the DOM as well as the text.
 
+## Chat 2.0 and Chat 3.0 are archived
+
+Both moved out of Communication into an **Archive** nav group at the bottom of the sidebar.
+Moved, not deleted: the screens, their code and their data are untouched, both items still
+open, and putting either back is one line. Communication now reads as Chat and New Chat
+rather than four chats to choose between.
+
+Two things a new rail needs, and one that surprised me:
+
+- **`setupRail('railArchive','pillArchive')`.** `setupRail` binds click handlers per element
+  and only to the rails it is handed, so a new rail's items render and do nothing without it.
+- **Its own `.nav-pill`**, like every other rail.
+- **Chat 2.0 is behind a private-review allowlist** of four profile ids in `initApp` — anyone
+  else gets `style.display = 'none'` on the nav item outright. Pre-existing and deliberate;
+  it is why Chat 2.0 does not appear in the click-through, whose fixture user is not on the
+  list. The check asserts placement for it and visibility on Chat 3.0.
+
 ## Left to do
 
 1. **Nothing is pushed, and that is the current decision** — the branch stays local. The
@@ -647,7 +664,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 73 checks in a headless browser, ~120s
+node tools_newchat_clickthrough.mjs      # 74 checks in a headless browser, ~120s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```

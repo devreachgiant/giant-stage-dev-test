@@ -199,6 +199,46 @@ await step('a favourite opens the screen, and unstarring removes it', async () =
     JSON.stringify(r));
 });
 
+// Chat 2.0 and Chat 3.0 are the two builds New Chat came from. They are out of
+// Communication and into Archive -- moved, not deleted, so both still open.
+await step('Chat 2.0 and 3.0 are archived, not removed', async () => {
+  const r = await page.evaluate(async () => {
+    const inGroup = (screen, group) => {
+      const rail = document.querySelector(`[data-navgroup-body="${group}"]`);
+      return !!(rail && rail.querySelector(`.nav-item[data-screen="${screen}"]`));
+    };
+    const label = document.querySelector('.nav-group-toggle[data-navgroup="archive"]');
+    if (label && label.classList.contains('nav-group-collapsed')) label.click();
+    await new Promise(r => setTimeout(r, 500));
+    const item = document.querySelector('[data-navgroup-body="archive"] .nav-item[data-screen="chat3"]');
+    if (item) item.click();
+    await new Promise(r => setTimeout(r, 1200));
+    const opened = !!document.querySelector('.screen[data-screen="chat3"].on');
+    // put Communication back: the accordion closed it, and later checks reach New Chat there
+    const comm = document.querySelector('.nav-group-toggle[data-navgroup="communication"]');
+    if (comm && comm.classList.contains('nav-group-collapsed')) comm.click();
+    await new Promise(r => setTimeout(r, 500));
+    return {
+      inArchive: ['chat2', 'chat3'].filter(s => inGroup(s, 'archive')),
+      stillInComms: ['chat2', 'chat3'].filter(s => inGroup(s, 'communication')),
+      chatStays: inGroup('chat', 'communication'),
+      newChatStays: inGroup('newchat', 'communication'),
+      // moved, not deleted: the screens are untouched and the item still navigates
+      screensExist: ['chat2', 'chat3'].every(s => !!document.querySelector(`.screen[data-screen="${s}"]`)),
+      opened,
+      // Chat 2.0 sits behind a private-review ALLOWLIST of four profile ids (initApp
+      // hides it outright for anyone else), and this fixture's user is not one of them.
+      // So placement is what can be asserted for it; visibility is asserted on Chat 3.0.
+      chat3Visible: getComputedStyle(
+        document.querySelector('[data-navgroup-body="archive"] .nav-item[data-screen="chat3"]')).display !== 'none',
+    };
+  });
+  check('Chat 2.0 and 3.0 are archived, not removed',
+    r.inArchive.length === 2 && r.stillInComms.length === 0
+      && r.chatStays && r.newChatStays && r.screensExist && r.opened && r.chat3Visible,
+    JSON.stringify(r));
+});
+
 // ── the nav item is visible to this role, and clicking it opens the screen ───
 await step('New Chat nav item is present for owner', async () => {
   const nav = page.locator('.nav-item[data-screen="newchat"]');
