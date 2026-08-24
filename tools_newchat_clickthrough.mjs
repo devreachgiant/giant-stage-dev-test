@@ -345,10 +345,10 @@ for (const [tab, paneId] of Object.entries(PANE_OF)) {
   });
 }
 
-// The department strip and the tool tabs are two different selections, and only one of
-// them is about a department. Tasks, Magnus and Management are keyed on client_id, so a
-// highlighted department while one is open says the panel is scoped to it.
-await step('only department-scoped tabs highlight a department', async () => {
+// The strip is one row of tabs, so exactly one thing in it may look selected. Only the
+// messages view lights a department; every tool tab clears it. Which department you are
+// in stays legible in the header directly above.
+await step('only one tab in the strip is ever active', async () => {
   const read = () => page.evaluate(() => ({
     on: [...document.querySelectorAll('#nc_deptStrip .nc_dept-tab')]
       .filter(t => t.classList.contains('nc_on')).map(t => t.dataset.ncDept),
@@ -364,10 +364,10 @@ await step('only department-scoped tabs highlight a department', async () => {
   await page.waitForTimeout(600);
   seen.inbox = (await read()).on;
 
-  const scoped = ['messages', 'media', 'canvas'];
-  const ok = scoped.every(t => seen[t].length === 1)
-    && ['tasks', 'magnus', 'management', 'inbox'].every(t => seen[t].length === 0);
-  check('only department-scoped tabs highlight a department', ok, JSON.stringify(seen));
+  const ok = seen.messages.length === 1
+    && ['media', 'canvas', 'tasks', 'magnus', 'management', 'inbox']
+         .every(t => seen[t].length === 0);
+  check('only one tab in the strip is ever active', ok, JSON.stringify(seen));
 });
 
 // ── Management > Overview, in detail ─────────────────────────────────────────
@@ -544,9 +544,12 @@ await step('Members lists the client\'s members, not everyone', async () => {
       .forEach(a => expect.add(a.profile_id));
     // Managers, owners and in-house devs are members of every client by role, with no
     // row anywhere, so they belong in the expected set too.
-    window.__mock.db.profiles.filter(p => ['owner', 'manager', 'inhouse_dev'].includes(p.role))
+    window.__mock.db.profiles
+      .filter(p => ['owner', 'manager', 'inhouse_dev'].includes(p.role) && !p.deactivated_at)
       .forEach(p => expect.add(p.id));
-    const add = pane.querySelector('[data-c3-member-add]');
+    // and a deactivated account is nobody's member, whatever rows it still holds
+    window.__mock.db.profiles.filter(p => p.deactivated_at).forEach(p => expect.delete(p.id));
+    const addBtn = pane.querySelector('[data-c3-member-add-open]');
     // Read the columns off the cells' own titles ("Hidden — Billing") rather than by
     // scraping header text: Onboarding and Billing are also Management sub-tabs, and
     // matching on visible strings picked those up instead.
@@ -567,7 +570,7 @@ await step('Members lists the client\'s members, not everyone', async () => {
              ownerLocked: byRole.filter(el => el.dataset.ncTick.startsWith('u-me:')).length,
              areaCols: labels('[data-c3-area-cell]'),
              deptCols: labels('[data-c3-matrix-cell]'),
-             addOptions: add ? add.options.length - 1 : -1 };
+             hasAddControl: !!addBtn };
   });
   check('Members lists the client\'s members, not everyone',
     m.rows === m.expected && m.rows > 0 && m.rows < m.profiles
@@ -576,7 +579,7 @@ await step('Members lists the client\'s members, not everyone', async () => {
       && m.areaCols.join('|') === 'Billing|Deliverables|Onboarding|Tasks'
       // the rename: the department is "Web", not "Web Projects", everywhere it renders
       && m.deptCols.join('|') === 'General|Google Ads|Meta Ads|SEO|Web'
-      && m.addOptions === m.profiles - m.rows,
+      && m.hasAddControl,
     JSON.stringify(m));
 });
 
@@ -599,6 +602,65 @@ await step('all nine permission columns fit without scrolling', async () => {
   check('all nine permission columns fit without scrolling',
     r.clientW > 400 && r.lastRight > 0
       && r.scrollW <= r.clientW && r.lastRight <= r.edge, JSON.stringify(r));
+});
+
+// Deactivated accounts cannot sign in, so listing them is offering access to nobody.
+// They stay in the profile CACHE, because their name belongs on the messages they wrote.
+await step('deactivated accounts are not offered access', async () => {
+  const d = await page.evaluate(() => {
+    const pane = document.getElementById('nc_mgmtPane');
+    const dead = new Set(window.__mock.db.profiles.filter(p => p.deactivated_at).map(p => p.id));
+    const rows = [...pane.querySelectorAll('[data-nc-member]')].map(r => r.dataset.ncMember);
+    return { deactivated: dead.size,
+             inTable: rows.filter(id => dead.has(id)).length,
+             cached: window.__mock.db.profiles.filter(p => p.deactivated_at).length };
+  });
+  check('deactivated accounts are not offered access',
+    d.deactivated > 0 && d.inTable === 0, JSON.stringify(d));
+});
+
+// "+ Add member" was a bare <select>. It opens a searchable list now, with an invite
+// path for people who have no account to tick.
+await step('Add member opens a searchable list and can invite by email', async () => {
+  await page.evaluate(() => document.querySelector('[data-c3-member-add-open]').click());
+  await page.waitForSelector('#c3AddSearch', { timeout: 10000 });
+  const before = await page.evaluate(() => ({
+    picks: document.querySelectorAll('[data-c3-member-add-pick]').length,
+    invites: window.__mock.db.invitations.length,
+  }));
+
+  // Search for an email taken from the list itself. Guessing a name matched eleven
+  // people ("member 7" also matches 70-79), and guessing an id matched nobody, because
+  // whether a given person is addable depends on the fixture's membership seeding.
+  const term = await page.evaluate(() => {
+    const row = document.querySelector('[data-c3-member-add-pick]');
+    return (row.dataset.ncAddName.match(/\S+@\S+/) || [''])[0];
+  });
+  // the search filters in the DOM, so the caret survives -- a re-render would not
+  await page.fill('#c3AddSearch', term);
+  await page.waitForTimeout(250);
+  const filtered = await page.evaluate(() => ({
+    visible: [...document.querySelectorAll('[data-c3-member-add-pick]')]
+      .filter(el => el.style.display !== 'none').length,
+    focused: document.activeElement && document.activeElement.id === 'c3AddSearch',
+  }));
+
+  await page.fill('#c3AddSearch', '');
+  await page.fill('#c3InviteEmail', 'brand.new@example.com');
+  await page.evaluate(() => document.querySelector('[data-c3-member-invite]').click());
+  await page.waitForFunction((n) => window.__mock.db.invitations.length > n,
+    before.invites, { timeout: 15000 }).catch(() => {});
+  const after = await page.evaluate(() => {
+    const inv = window.__mock.db.invitations[window.__mock.db.invitations.length - 1];
+    return { invites: window.__mock.db.invitations.length,
+             email: inv && inv.email, hasToken: !!(inv && inv.token && inv.token.length >= 40) };
+  });
+
+  check('Add member opens a searchable list and can invite by email',
+    before.picks > 1 && filtered.visible === 1 && filtered.focused
+      && after.invites === before.invites + 1
+      && after.email === 'brand.new@example.com' && after.hasToken,
+    JSON.stringify({ before, term, filtered, after }));
 });
 
 // ── Master Inbox ─────────────────────────────────────────────────────────────

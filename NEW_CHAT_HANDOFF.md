@@ -268,6 +268,42 @@ RLS widening (which `20260821110000` declined, and which would widen the origina
 RLS is per-table, not per-module) or real membership rows on every client channel (which
 puts those channels in old chat's sidebar for every manager). Both are decisions, not edits.
 
+### Members: deactivated accounts, and the Add member popover
+
+**Deactivated accounts are filtered out of the Members list, not out of the profile cache.**
+`profiles.deactivated_at` (migration `20260720120000`) is how the rest of the app blocks a
+login; New Chat never selected the column, so blocked accounts were still being offered
+access. They stay in `chatProfilesCache` deliberately — their name and face belong on every
+message they ever wrote, and dropping them would turn all of that into "Someone".
+
+**+ Add member** is a searchable popover, not a `<select>`: avatar, name, email and role per
+row, click to add. The search filters **in the DOM** rather than through `renderMgmt` — a
+re-render rebuilds the pane and drops focus and the caret on every keystroke, which is
+tolerable for the notes textarea and useless for a search box.
+
+Below it, an invite path for people with no account to tick: same `invitations` row, same
+token shape and same `/accept-invite?token=` link the rest of the app writes, duplicated
+rather than shared because these modules only ever share tables. The email is best effort —
+the row exists either way, so the link is copied regardless. It does **not** grant access to
+this client: they are not a profile yet, so there is no `profile_id` to write.
+
+`copyLibText` was fixed on the way: `navigator.clipboard.writeText` returns a promise, so its
+`try/catch` never saw a denied clipboard. The rejection escaped, this module's own
+`unhandledrejection` listener caught it, and the screen grew a red "New Chat — async error"
+banner over a copy that simply had not happened — after toasting "Copied", because the
+synchronous call had not thrown.
+
+### Only one tab in the strip is ever active
+
+Media and the Vault are per-channel, so a lit department was arguably true there — but the
+strip is one row of tabs and two of them looking selected reads as a bug whatever the
+justification. Only the messages view lights a department now.
+
+That relies on the header naming the department, which it did not: `switchChannel` wrote
+"Fortess DG" over "SEO", and then `renderChatHeadMembers` overwrote the second line with
+"Private channel · N members" when the member count landed a round trip later. `ncHeadTopicBase`
+is now the single source for that line and both call it.
+
 ### Management > Activity — what it can and cannot record
 
 The trail is `chat2_client_activity`, written by `logC3Activity`. **Three of the kinds
@@ -338,7 +374,7 @@ same staleness.
 ## Verifying
 
 ```
-node tools_newchat_clickthrough.mjs      # 50 checks in a headless browser, ~50s
+node tools_newchat_clickthrough.mjs      # 52 checks in a headless browser, ~60s
 python3 tools_newchat_audit.py           # the six static checks
 python3 tools_newchat_isolation.py       # the original chat is as approved
 ```

@@ -69,6 +69,11 @@
       role: i === 1 ? 'manager' : i === 2 ? 'inhouse_dev' : i <= 6 ? 'manager' : 'member',
       title: 'Specialist', bio: null,
       avatar_bg: '#2' + (i % 9) + '3' + (i % 7) + '4' + (i % 5), avatar_fg: '#eaeaea',
+      // Two deactivated accounts. They keep their profile row and their name on every
+      // message they ever wrote -- that is the point of the column -- so a list that
+      // filters them and a cache that does not are both correct, and the harness can
+      // only tell the difference if some exist.
+      deactivated_at: (i === 4 || i === 11) ? iso(30, i) : null,
       onboarded_at: iso(200, i)
     });
   }
@@ -257,6 +262,7 @@
         created_at: iso(12 + n, i) });
     });
   });
+  DB.invitations = [];
   DB.channel_stars = [{ profile_id: ME, channel_id: 'ch-team-0' }];
   DB.inbox_actions = [];
   DB.scheduled_messages = [];

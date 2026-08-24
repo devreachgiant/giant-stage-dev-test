@@ -70333,6 +70333,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                   .sort((x, y) => (y._msgCount || 0) - (x._msgCount || 0));
     const ncPrimaryChannel = (clientId, dept) => (ncChannelsFor(clientId, dept)[0] || null);
 
+    // What the line under the channel name says. switchChannel worked this out for client
+    // threads -- "Fortess DG" over "SEO" -- and then renderChatHeadMembers overwrote it
+    // with "Private channel" when the member count arrived a round trip later, so the
+    // department was only ever on screen for a moment. One function now, called by both.
+    function ncHeadTopicBase(c){
+      const cl = c && c.kind === 'client_dept' && c.client_id ? ncClients[c.client_id] : null;
+      if (cl) {
+        const d = NC_DEPTS.find(x => x.key === (c.department || 'general'));
+        return (d ? d.label : 'General') + (c.description ? ' · ' + c.description : '');
+      }
+      return (c && c.description) || (c && c.is_private ? 'Private channel' : 'Public channel');
+    }
+
     // Management belongs to a client, so the tab appears only on client threads and
     // the pane joins the same show/hide set as Messages/Media/Canvas.
     function syncMgmtTab(){
@@ -70801,7 +70814,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // so they keep it. The Master Inbox is a view over everything, so it clears it too.
       const inboxPane = document.getElementById('nc_inboxPane');
       const inboxOpen = !!inboxPane && getComputedStyle(inboxPane).display !== 'none';
-      const deptScoped = ['messages', 'media', 'canvas'].includes(window.nc__chatSubtab || 'messages');
+      // Only the messages view. Media and the Vault are per-channel, so a lit department
+      // was arguably telling the truth there -- but the strip is one row of tabs and two
+      // of them looking selected reads as a bug whatever the justification. Which
+      // department you are in is named in the header directly above, so nothing is lost.
+      const deptScoped = (window.nc__chatSubtab || 'messages') === 'messages';
       const here = (deptScoped && !inboxOpen) ? (active.department || 'general') : null;
       el.style.display = 'flex';
       // The client's name is not repeated here -- the thread header directly above
@@ -70872,6 +70889,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       mgmtMatrixMembers: {}, mgmtMatrixBusy: '',
       mgmtAreaMembers: {},   // area key -> Set of profile ids, from client_member_areas
       ovOpen: {},   // which Overview sections are expanded, by key
+      addOpen: false, addInviting: false,   // the Members > Add member popover
       clientDeptPrivacy: {}, activeThreadId: null,
       vaultCards: [], vaultChannelId: null, vaultLoading: false,
       libMediaUploading: false, mediaChannelId: null,
@@ -70901,9 +70919,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // on the assumption the photo would be drawn. See c3ProfileMarkHtml for the fix.
     const c3AvatarStyle = (bg, fg) => `background:${chatEsc(bg || 'var(--c3-avatar-bg)')};color:${chatEsc(fg || 'var(--c3-avatar-fg)')};`;
     const prettifyKey = (k) => String(k || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    // writeText returns a promise, so the try/catch never saw a denied clipboard: the
+    // rejection escaped, this module's own unhandledrejection listener caught it, and the
+    // screen grew a red "New Chat — async error" banner over a copy that simply did not
+    // happen. It also toasted "Copied" first, because the synchronous call had not thrown.
     const copyLibText = (t, msg) => {
-      try { navigator.clipboard.writeText(t); if (typeof toast === 'function') toast({ type:'success', message: msg || 'Copied' }); }
-      catch(_) { if (typeof toast === 'function') toast({ type:'error', message:'Could not copy' }); }
+      const ok = () => { if (typeof toast === 'function') toast({ type:'success', message: msg || 'Copied' }); };
+      const no = () => { if (typeof toast === 'function') toast({ type:'error', message:'Could not copy — the browser blocked clipboard access' }); };
+      try {
+        const p = navigator.clipboard && navigator.clipboard.writeText(t);
+        if (p && typeof p.then === 'function') p.then(ok, no); else ok();
+      } catch(_) { no(); }
     };
       const ncIcon = (() => {
         const svg = (d, c, s, extra) => `<svg width="${s}" height="${s}" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;vertical-align:middle;">${typeof d === 'function' ? d(c) : `<path d="${d}" stroke="${c}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"${extra || ''}/>`}</svg>`;
@@ -71479,6 +71505,59 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (NC_DEPTS.some(d => mg.mgmtMatrixMembers[d.key] && mg.mgmtMatrixMembers[d.key].has(profileId))) return;
         await toggleMemberDept(profileId, 'general');
       }
+      // "Not on the list" means they have no Giant account, so there is nobody to tick.
+      // The invitation is the same row and the same token the rest of the app writes --
+      // duplicated rather than shared because these modules only ever share tables.
+      // Access to THIS client is not granted here: they are not a profile yet, so there
+      // is no profile_id to write. The popover says so.
+      async function inviteClientMember(email){
+        if (mg.addInviting || !ncIsStaff()) return;
+        const addr = String(email || '').trim().toLowerCase();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr)) {
+          if (typeof toast === 'function') toast({ type:'error', message:'Enter a valid email address' });
+          return;
+        }
+        const { data: existing } = await NCSB().from('profiles').select('id').eq('email', addr).maybeSingle();
+        if (existing) {
+          if (typeof toast === 'function') toast({ type:'error', message:'They already have a Giant account — pick them from the list above.' });
+          return;
+        }
+        const { data: pending } = await NCSB().from('invitations').select('id, token')
+          .eq('email', addr).is('accepted_at', null).is('revoked_at', null).maybeSingle();
+        if (pending) {
+          copyLibText(location.origin + '/accept-invite?token=' + encodeURIComponent(pending.token),
+            'Already invited — link copied');
+          return;
+        }
+        mg.addInviting = true; renderMgmt();
+        const token = Array.from(crypto.getRandomValues(new Uint8Array(24)))
+          .map(b => b.toString(16).padStart(2, '0')).join('');
+        const { data: inv, error } = await NCSB().from('invitations')
+          .insert({ email: addr, role: 'member', token, invited_by: ncMyId() })
+          .select('id, token').single();
+        if (error || !inv) {
+          mg.addInviting = false; renderMgmt();
+          if (typeof toast === 'function') toast({ type:'error', message:'Could not create the invite: ' + ((error && error.message) || '?') });
+          return;
+        }
+        const link = location.origin + '/accept-invite?token=' + encodeURIComponent(inv.token);
+        // The email is best effort. The row exists either way, so the link is copied
+        // regardless -- an invite you cannot hand over is worse than no invite.
+        try {
+          const res = await fetch('/.netlify/functions/send-invitation', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ invitation_id: inv.id }),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok || body.error) throw new Error(body.error || ('HTTP ' + res.status));
+          copyLibText(link, 'Invite sent to ' + addr + ' — link copied too');
+        } catch (e) {
+          copyLibText(link, 'Invite created, but the email did not send — link copied');
+        }
+        mg.addInviting = false;
+        logC3Activity('other', 'invited ' + addr + ' to the workspace', { targetType:'client', targetId: mg.selectedId });
+        renderMgmt();
+      }
       async function removeClientMember(profileId){
         if (!profileId || mg.mgmtMatrixBusy || !ncIsStaff()) return;
         const ids = NC_DEPTS.map(d => mg.mgmtMatrixThreads[d.key] && mg.mgmtMatrixThreads[d.key].id).filter(Boolean);
@@ -71893,7 +71972,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       function mgmtMembersHtml(){
         const canEdit = ncIsStaff();
         const nameOf = (p) => p.display_name || p.full_name || p.email || 'Someone';
+        // Deactivated accounts are filtered out HERE, not out of chatProfilesCache: they
+        // keep their name and face on every message they ever wrote, and stripping them
+        // from the cache would turn all of that into "Someone". They cannot sign in, so
+        // any grant they still hold is inert -- but it is also unrevokable from a list
+        // they are not on, which is why removeClientMember clears both stores by
+        // profile_id rather than relying on the row being visible.
         const everyone = Object.values(mg.profilesById)
+          .filter(p => p && p.id && !p.deactivated_at)
           .sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
         const rowFor = (pid, dept) => !!(mg.mgmtMatrixMembers[dept] && mg.mgmtMatrixMembers[dept].has(pid));
         const rowForArea = (pid, area) => !!(mg.mgmtAreaMembers[area] && mg.mgmtAreaMembers[area].has(pid));
@@ -72019,10 +72105,34 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         return `<div style="display:flex;flex-direction:column;gap:14px;">
           <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
             <div style="flex:1;min-width:260px;font-size:12.5px;color:var(--c3-t4);line-height:1.5;">Tick what each member can open for this client. Unticked areas are hidden from them entirely. Managers, owners and in-house devs are on by default.</div>
-            ${canEdit ? `<select data-c3-member-add="1" ${mg.mgmtMatrixBusy ? 'disabled' : ''} style="appearance:none;-webkit-appearance:none;background:transparent;border:none;outline:none;color:var(--red);font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;flex-shrink:0;">
-                <option value="" selected>+ Add member</option>
-                ${addable.map(p => `<option value="${chatEsc(p.id)}">${chatEsc(nameOf(p))}</option>`).join('')}
-              </select>` : ''}
+            ${canEdit ? `<div style="position:relative;flex-shrink:0;">
+              <div data-c3-member-add-open="1" style="font-size:12.5px;font-weight:700;color:var(--red);cursor:pointer;user-select:none;">+ Add member</div>
+              ${mg.addOpen ? `<div style="position:absolute;top:26px;right:0;z-index:30;width:340px;background:var(--c3-s1);border:1px solid var(--c3-b2);border-radius:12px;box-shadow:0 18px 44px -12px var(--c3-shadow);overflow:hidden;">
+                <div style="padding:11px 13px;border-bottom:1px solid var(--c3-b1);">
+                  <input id="c3AddSearch" placeholder="Search the team…" autocomplete="off" style="width:100%;box-sizing:border-box;background:var(--c3-s0);border:1px solid var(--c3-b2);border-radius:8px;padding:8px 10px;color:var(--c3-t0);font-size:12.5px;font-family:inherit;outline:none;">
+                </div>
+                <div id="c3AddList" style="max-height:250px;overflow-y:auto;">
+                  ${addable.length ? addable.map(p => `<div data-c3-member-add-pick="${chatEsc(p.id)}" data-nc-add-name="${chatEsc((nameOf(p) + ' ' + (p.email || '')).toLowerCase())}" style="display:flex;align-items:center;gap:10px;padding:9px 13px;cursor:pointer;border-top:1px solid var(--c3-b0);">
+                      ${c3ProfileMarkHtml(p, false)}
+                      <div style="min-width:0;flex:1;">
+                        <div style="font-size:12.5px;color:var(--c3-t1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(nameOf(p))}</div>
+                        ${p.email ? `<div style="font-size:10.5px;color:var(--c3-t5);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(p.email)}</div>` : ''}
+                      </div>
+                      ${STAFF_ROLES[String(p.role || '').toLowerCase()] ? `<span style="font-size:9.5px;font-weight:800;color:var(--c3-t5);flex-shrink:0;">${chatEsc(STAFF_ROLES[String(p.role || '').toLowerCase()].toUpperCase())}</span>` : ''}
+                    </div>`).join('')
+                    : `<div style="padding:16px 13px;font-size:12px;color:var(--c3-t6);">Everyone on the team already has access to this client.</div>`}
+                  <div id="c3AddEmpty" style="display:none;padding:16px 13px;font-size:12px;color:var(--c3-t6);">Nobody on the team matches that.</div>
+                </div>
+                <div style="padding:11px 13px;border-top:1px solid var(--c3-b1);background:var(--c3-s0);">
+                  <div style="font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);margin-bottom:7px;">Not on the list?</div>
+                  <div style="display:flex;gap:7px;">
+                    <input id="c3InviteEmail" type="email" placeholder="name@company.com" autocomplete="off" ${mg.addInviting ? 'disabled' : ''} style="flex:1;min-width:0;background:var(--c3-s1);border:1px solid var(--c3-b2);border-radius:8px;padding:8px 10px;color:var(--c3-t0);font-size:12.5px;font-family:inherit;outline:none;">
+                    <div data-c3-member-invite="1" style="display:inline-flex;align-items:center;padding:0 13px;border-radius:8px;font-size:12px;font-weight:700;white-space:nowrap;cursor:${mg.addInviting ? 'default' : 'pointer'};background:${mg.addInviting ? 'var(--c3-btn-off)' : 'var(--red)'};color:var(--c3-on-accent);">${mg.addInviting ? 'Sending…' : 'Invite'}</div>
+                  </div>
+                  <div style="font-size:11px;color:var(--c3-t6);margin-top:7px;">They get an invitation link. Access to this client is granted when they accept.</div>
+                </div>
+              </div>` : ''}
+            </div>` : ''}
           </div>
 
           <div style="border:1px solid var(--c3-b1);border-radius:12px;overflow:hidden;background:var(--c3-s1);">
@@ -72188,10 +72298,38 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const [pid, area] = el.dataset.c3AreaCell.split('::'); toggleMemberArea(pid, area);
       }));
       host.querySelectorAll('[data-c3-lead-set]').forEach(el => el.addEventListener('change', () => setServiceLead(el.dataset.c3LeadSet, el.value)));
-      host.querySelectorAll('[data-c3-member-add]').forEach(el => el.addEventListener('change', () => {
-        const id = el.value; el.value = '';   // it is an action, not a selection
-        addClientMember(id);
+      host.querySelectorAll('[data-c3-member-add-open]').forEach(el => el.addEventListener('click', () => {
+        mg.addOpen = !mg.addOpen; renderMgmt();
       }));
+      host.querySelectorAll('[data-c3-member-add-pick]').forEach(el => el.addEventListener('click', () => {
+        addClientMember(el.dataset.c3MemberAddPick);
+      }));
+      host.querySelectorAll('[data-c3-member-invite]').forEach(el => el.addEventListener('click', () => {
+        const input = host.querySelector('#c3InviteEmail');
+        inviteClientMember(input ? input.value : '');
+      }));
+      // Filtering happens in the DOM rather than through a re-render. renderMgmt rebuilds
+      // the whole pane, which would drop focus and the caret on every keystroke -- fine
+      // for the notes textarea, useless for a search box.
+      const addSearch = host.querySelector('#c3AddSearch');
+      if (addSearch) {
+        addSearch.addEventListener('input', () => {
+          const q = addSearch.value.trim().toLowerCase();
+          let shown = 0;
+          host.querySelectorAll('[data-nc-add-name]').forEach(row => {
+            const hit = !q || row.dataset.ncAddName.includes(q);
+            row.style.display = hit ? '' : 'none';
+            if (hit) shown++;
+          });
+          const empty = host.querySelector('#c3AddEmpty');
+          if (empty) empty.style.display = shown ? 'none' : '';
+        });
+        addSearch.focus();
+      }
+      const inviteInput = host.querySelector('#c3InviteEmail');
+      if (inviteInput) inviteInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); inviteClientMember(inviteInput.value); }
+      });
       host.querySelectorAll('[data-c3-member-remove]').forEach(el => el.addEventListener('click', () => removeClientMember(el.dataset.c3MemberRemove)));
       host.querySelectorAll('[data-c3-onboarding-create]').forEach(el => el.addEventListener('click', () => createOnboardingLink()));
       host.querySelectorAll('[data-c3-onboarding-answers]').forEach(el => el.addEventListener('click', () => {
@@ -74166,7 +74304,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const allOtherIds = [...new Set(Object.values(channelToOthers).flat())];
       const missing = allOtherIds.filter(id => !chatProfilesCache[id]);
       if (missing.length) {
-        const { data: missingProfiles } = await window.giantSupabase.from('profiles').select('id, full_name, email, avatar_url, avatar_bg, avatar_fg, role').in('id', missing);
+        const { data: missingProfiles } = await window.giantSupabase.from('profiles').select('id, full_name, email, avatar_url, avatar_bg, avatar_fg, role, deactivated_at').in('id', missing);
         (missingProfiles || []).forEach(p => { chatProfilesCache[p.id] = p; });
       }
       const profilesById = chatProfilesCache;
@@ -74586,7 +74724,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // Fallback when no DM channels exist yet: show teammates with hint
       const container = document.getElementById('nc_chatDmList');
       if (!container) return;
-      const { data } = await window.giantSupabase.from('profiles').select('id, full_name, email, avatar_url, avatar_bg, avatar_fg, role').neq('id', window.giantSession.user.id).order('full_name');
+      const { data } = await window.giantSupabase.from('profiles').select('id, full_name, email, avatar_url, avatar_bg, avatar_fg, role, deactivated_at').neq('id', window.giantSession.user.id).order('full_name');
       if (!data || !data.length) {
         container.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:var(--text-3);font-style:italic;">No teammates yet</div>';
         return;
@@ -74707,9 +74845,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           // The # is a channel affordance and reads as wrong on a client thread.
           if (hash) hash.textContent = hdrClient ? '' : '#';
         }
-        chatHeadTopic.textContent = hdrClient
-          ? (hdrDept ? hdrDept.label : 'General') + (c.description ? ' · ' + c.description : '')
-          : (c.description || (c.is_private ? 'Private channel' : 'Public channel'));
+        chatHeadTopic.textContent = ncHeadTopicBase(c);
         chatInput.placeholder = hdrClient
           ? `Message ${hdrClient.name}${hdrDept ? ' · ' + hdrDept.label : ''}…`
           : `Message #${c.name}…`;
@@ -74772,8 +74908,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const headTopic = document.getElementById('nc_chatHeadTopic');
       if (headTopic) {
         const c = chatChannels.find(x => x.id === activeChannelId);
-        const baseTopic = c?.description || (c?.is_private ? 'Private channel' : 'Public channel');
-        headTopic.textContent = `${baseTopic} · ${count} member${count===1?'':'s'}`;
+        headTopic.textContent = `${ncHeadTopicBase(c)} · ${count} member${count===1?'':'s'}`;
       }
       const data = known.slice(0, 5);
       if (!data.length) {
@@ -75060,7 +75195,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     let _profilesHydrated = false;
     async function hydrateAllWorkspaceProfiles() {
       try {
-        const { data } = await window.giantSupabase.from('profiles').select('id, full_name, email, avatar_url, avatar_bg, avatar_fg, role');
+        const { data } = await window.giantSupabase.from('profiles').select('id, full_name, email, avatar_url, avatar_bg, avatar_fg, role, deactivated_at');
         (data || []).forEach(p => { chatProfilesCache[p.id] = p; });
         _profilesHydrated = true;
         // If messages already rendered with a partial cache, re-render now that we have all profiles
@@ -76409,7 +76544,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     async function loadDmModalList(filter = '') {
       if (!newDmList) return;
       if (!dmTeammatesCache.length) {
-        const { data } = await window.giantSupabase.from('profiles').select('id, full_name, email, avatar_url, avatar_bg, avatar_fg, role').neq('id', window.giantSession.user.id).order('full_name');
+        const { data } = await window.giantSupabase.from('profiles').select('id, full_name, email, avatar_url, avatar_bg, avatar_fg, role, deactivated_at').neq('id', window.giantSession.user.id).order('full_name');
         dmTeammatesCache = data || [];
       }
       const f = (filter||'').toLowerCase();
@@ -77196,7 +77331,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (!activeChannelId) return;
       const [membersRes, allProfilesRes] = await Promise.all([
         window.giantSupabase.from('channel_members').select('profile_id, joined_at').eq('channel_id', activeChannelId),
-        window.giantSupabase.from('profiles').select('id, full_name, email, avatar_url, avatar_bg, avatar_fg, role').order('full_name')
+        window.giantSupabase.from('profiles').select('id, full_name, email, avatar_url, avatar_bg, avatar_fg, role, deactivated_at').order('full_name')
       ]);
       const memberIds = new Set((membersRes.data || []).map(m => m.profile_id));
       chMembersAllProfilesCache = allProfilesRes.data || [];
