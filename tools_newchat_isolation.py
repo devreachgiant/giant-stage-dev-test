@@ -55,7 +55,13 @@ ALLOWED = [(1, BEFORE_HEAD_MEMBERS, AFTER_HEAD_MEMBERS,
             'client conversations are public now, so old chat would otherwise list every '
             'one of them in a sidebar that has never had them; hidden by explicit decision')]
 
-main = subprocess.run(['git', 'show', 'main:index.html'],
+# The baseline is the last commit BEFORE New Chat was merged into main, not main itself.
+# Once the branch landed, "main:index.html" became the file this tool is checking, so it
+# was comparing the file against itself -- and the line ranges below, which are positions
+# in the pre-merge file, then pointed at entirely different code. Pinned, so the question
+# it answers stays "is the original chat still as approved".
+BASELINE = '5acfd19'
+main = subprocess.run(['git', 'show', BASELINE + ':index.html'],
                       capture_output=True, text=True).stdout.split('\n')
 cur = open('index.html').read()
 
