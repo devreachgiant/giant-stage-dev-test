@@ -928,12 +928,19 @@ measured 120ms after adding `.on`, while `.nc_modal-overlay` fades in over 280ms
 for opacity to settle. A check that fails at random is worse than no check: it trains you to
 re-run until it is green.
 
-**"Client not in this list…" (2026-08-25).** The client picker only offers clients that
-have a record, and not every conversation about a client has one -- a prospect, a one-off,
-someone not onboarded yet. The picker now carries a final option that hides the Department
-field, changes the button to Continue, and hands off to `nc_newChannelModal`, the same form
-the Teams "+" uses, where the name is typed rather than derived. The channel it makes is an
-ordinary one: no `client_id`, no `department`, so it lands in Teams rather than under a
-client. That is the honest outcome -- a channel cannot belong to a client that does not
-exist as a record. If those should become real client channels later, the client has to be
-created first and the channel triaged onto it.
+**The client picker was removed the same day.** It shipped as a client + department
+picker, then grew a "Client not in this list…" escape hatch, and was then asked for as
+simply "the same thing the Teams card has". The Clients "+" is now one more entry in
+`wireCardActions`, opening `nc_newChannelModal` exactly as the Teams "+" does.
+
+What that means, and it is visible to the user: a channel made this way has no `client_id`
+and no `department`, so it lands under **Teams**, not Clients. A channel cannot belong to a
+client record that does not exist, and nothing here creates client records. The check
+asserts that outcome rather than glossing it. Making it appear under Clients would mean
+either creating a `clients` row from a typed name -- which drives Management, Billing and
+the Members matrix -- or inventing a second way to group channels under that card.
+
+Audit check 10 grew a leg while doing this. Removing the picker's markup and leaving its
+`openModal` call behind produced a button that did nothing and said nothing, and nothing
+caught it: check 10 only compared SCREENS, so an id in no markup at all was skipped rather
+than flagged. It now reports "no element with that id exists".

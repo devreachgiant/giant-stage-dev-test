@@ -266,6 +266,12 @@ def screen_of(mid):
 opened = sorted(set(re.findall(r"(?:open|close)Modal\(\s*'([^']+)'", strip_comments(nc))))
 stray = []
 for mid in opened:
+    # An id that is in no markup at all is the same failure with the volume turned up:
+    # openModal is a no-op, so the click does nothing and says nothing. This is reachable
+    # by deleting a modal's markup and leaving the call, which happened once.
+    if not re.search(r'id="%s"' % re.escape(mid), S):
+        stray.append(f"{mid} (no element with that id exists)")
+        continue
     sc = screen_of(mid)
     if sc is not None and sc != 'newchat':
         stray.append(f"{mid} (lives in screen '{sc}')")

@@ -2067,7 +2067,7 @@ await step('deleting a client conversation removes it', async () => {
     JSON.stringify(r));
 });
 
-await step('the Clients "+" creates a client channel', async () => {
+await step('the Clients "+" opens the same form as Teams', async () => {
   const r = await page.evaluate(async () => {
     const seen = (el) => {
       if (!el) return false;
@@ -2081,76 +2081,37 @@ await step('the Clients "+" creates a client channel', async () => {
     const btn = document.getElementById('nc_newClientChannelBtn');
     out.hasButton = !!btn;
     if (!btn) return out;
+    // Pressing "+" must not open or collapse the card it sits on.
+    const card = btn.closest('.nc_navcard');
+    const bodyBefore = card.querySelector('.nc_navcard-body').getBoundingClientRect().height;
     btn.click();
-    await new Promise(r => setTimeout(r, 600));
-    const modal = document.getElementById('nc_newClientChannelModal');
-    out.modalVisible = seen(modal);
-    const clientSel = document.getElementById('nc_clientChannelClient');
-    const deptSel = document.getElementById('nc_clientChannelDept');
-    out.clientOptions = clientSel ? clientSel.options.length : 0;
-    out.deptOptions = deptSel ? deptSel.options.length : 0;
-    if (!clientSel || !deptSel) return out;
+    await new Promise(r => setTimeout(r, 900));
+    out.opensTeamForm = seen(document.getElementById('nc_newChannelModal'));
+    out.cardDidNotToggle =
+      Math.abs(card.querySelector('.nc_navcard-body').getBoundingClientRect().height - bodyBefore) < 2;
+    out.pickerGone = !document.getElementById('nc_newClientChannelModal');
+    if (!out.opensTeamForm) return out;
 
-    // A client and department with no channel yet: client 2 has only a General.
-    clientSel.value = 'c-2';
-    deptSel.value = 'web';
-    deptSel.dispatchEvent(new Event('change', { bubbles: true }));
-    await new Promise(r => setTimeout(r, 200));
-    out.noteForNew = document.getElementById('nc_clientChannelNote')?.textContent || '';
+    const name = document.getElementById('nc_newChannelName');
+    name.value = 'from-clients-card';
+    name.dispatchEvent(new Event('input', { bubbles: true }));
     const before = window.__mock.db.channels.length;
-    document.getElementById('nc_clientChannelSubmit')?.click();
+    document.getElementById('nc_newChannelSubmit')?.click();
     for (let i = 0; i < 40; i++) {
       await new Promise(r => setTimeout(r, 200));
       if (window.__mock.db.channels.length > before) break;
     }
-    const made = window.__mock.db.channels.find(c => c.client_id === 'c-2' && c.department === 'web');
+    const made = window.__mock.db.channels.find(c => c.name === 'from-clients-card');
     out.created = !!made;
-    out.shape = made ? { kind: made.kind, client: made.client_id, dept: made.department, priv: !!made.is_private } : null;
-    await new Promise(r => setTimeout(r, 1200));
-    out.modalClosed = !seen(document.getElementById('nc_newClientChannelModal'));
-
-    // Picking the same pair again must offer to open it, not make a second one.
-    document.getElementById('nc_newClientChannelBtn').click();
-    await new Promise(r => setTimeout(r, 500));
-    document.getElementById('nc_clientChannelClient').value = 'c-2';
-    const d2 = document.getElementById('nc_clientChannelDept');
-    d2.value = 'web';
-    d2.dispatchEvent(new Event('change', { bubbles: true }));
-    await new Promise(r => setTimeout(r, 250));
-    out.noteForExisting = document.getElementById('nc_clientChannelNote')?.textContent || '';
-    out.buttonSaysOpen = document.getElementById('nc_clientChannelSubmit')?.textContent || '';
-    const before2 = window.__mock.db.channels.length;
-    document.getElementById('nc_clientChannelSubmit').click();
-    await new Promise(r => setTimeout(r, 1800));
-    out.madeADuplicate = window.__mock.db.channels.length > before2;
-    // A client that has no record: hands off to the ordinary create-channel form.
-    document.querySelectorAll('.nc_modal-overlay.on').forEach(m => m.classList.remove('on'));
-    document.getElementById('nc_newClientChannelBtn').click();
-    await new Promise(r => setTimeout(r, 500));
-    const sel = document.getElementById('nc_clientChannelClient');
-    out.hasNotListed = [...sel.options].some(o => o.value === '__other__');
-    sel.value = '__other__';
-    sel.dispatchEvent(new Event('change', { bubbles: true }));
-    await new Promise(r => setTimeout(r, 250));
-    out.deptHiddenForOther =
-      document.getElementById('nc_clientChannelDept').closest('.nc_m-field').style.display === 'none';
-    out.otherButton = document.getElementById('nc_clientChannelSubmit')?.textContent || '';
-    document.getElementById('nc_clientChannelSubmit').click();
-    await new Promise(r => setTimeout(r, 900));
-    out.clientModalClosed = !seen(document.getElementById('nc_newClientChannelModal'));
-    out.teamModalOpen = seen(document.getElementById('nc_newChannelModal'));
-    out.teamModalHasName = !!document.getElementById('nc_newChannelName');
+    // Asserted because it is what the user will see: with no client record to hang off,
+    // this is an ordinary channel and it lands in Teams, not Clients.
+    out.hasNoClient = !!made && !made.client_id && !made.department;
     document.querySelectorAll('.nc_modal-overlay.on').forEach(m => m.classList.remove('on'));
     return out;
   });
-  check('the Clients "+" creates a client channel',
-    r.hasButton && r.modalVisible && r.clientOptions > 1 && r.deptOptions === 5
-      && r.created && r.shape && r.shape.kind === 'client_dept' && r.shape.dept === 'web'
-      && r.shape.priv === true && r.modalClosed
-      && /already exists/i.test(r.noteForExisting) && /open/i.test(r.buttonSaysOpen)
-      && !r.madeADuplicate
-      && r.hasNotListed && r.deptHiddenForOther && /continue/i.test(r.otherButton)
-      && r.clientModalClosed && r.teamModalOpen && r.teamModalHasName,
+  check('the Clients "+" opens the same form as Teams',
+    r.hasButton && r.opensTeamForm && r.cardDidNotToggle && r.pickerGone
+      && r.created && r.hasNoClient,
     JSON.stringify(r));
 });
 
