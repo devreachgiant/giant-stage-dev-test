@@ -2862,6 +2862,57 @@ await step('clicking your profile opens the status menu, and it saves', async ()
     JSON.stringify(r));
 });
 
+await step('deactivated people are filtered by default, everywhere', async () => {
+  const r = await page.evaluate(async () => {
+    const db = window.__mock.db;
+    const dead = db.profiles.filter(p => p.deactivated_at);
+    const out = { deactivatedInFixture: dead.length };
+    if (!dead.length) return out;
+    const deadId = dead[0].id;
+    const sb = window.giantSupabase;
+
+    // 1. A plain read of profiles -- the shape 78 places in this file use -- must not
+    //    return them, without that query having asked for anything.
+    const plain = await sb.from('profiles').select('id, full_name, deactivated_at');
+    out.plainReturned = (plain.data || []).length;
+    out.plainIncludesDeactivated = (plain.data || []).some(p => p.id === deadId);
+
+    // 2. Naming ids is RESOLVING someone already known, not offering a choice -- a
+    //    message written by someone who has left must still show their name.
+    const byId = await sb.from('profiles').select('id, full_name').in('id', [deadId]);
+    out.resolvesById = (byId.data || []).some(p => p.id === deadId);
+    const one = await sb.from('profiles').select('id, full_name').eq('id', deadId);
+    out.resolvesByEq = (one.data || []).some(p => p.id === deadId);
+
+    // 3. The explicit way out, for the screen that manages them.
+    const all = await window.giantProfilesAll().select('id, deactivated_at');
+    out.optOutSeesThem = (all.data || []).some(p => p.id === deadId);
+
+    // 4. A WRITE must never carry the filter. On an insert it is meaningless; on an
+    //    update it would silently change which rows are written.
+    const target = db.profiles.find(p => !p.deactivated_at && p.id !== window.__mock.me);
+    const upd = await sb.from('profiles').update({ title: 'wrapper-write-test' }).eq('id', target.id);
+    out.writeSucceeded = !upd.error;
+    out.writeLanded = (db.profiles.find(p => p.id === target.id) || {}).title === 'wrapper-write-test';
+    // ...including one that does not name an id.
+    const upd2 = await sb.from('profiles').update({ title: 'by-email' }).eq('email', target.email);
+    out.writeByOtherKeySucceeded = !upd2.error;
+
+    // 5. And the filter must not have broken ordinary reads of other tables.
+    const chans = await sb.from('channels').select('id').limit(3);
+    out.otherTablesFine = Array.isArray(chans.data) && chans.data.length > 0;
+    return out;
+  });
+  check('deactivated people are filtered by default, everywhere',
+    r.deactivatedInFixture > 0
+      && r.plainReturned > 0 && r.plainIncludesDeactivated === false
+      && r.resolvesById === true && r.resolvesByEq === true
+      && r.optOutSeesThem === true && r.otherTablesFine === true
+      && r.writeSucceeded === true && r.writeLanded === true
+      && r.writeByOtherKeySucceeded === true,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
