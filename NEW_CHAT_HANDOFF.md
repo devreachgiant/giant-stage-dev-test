@@ -1075,3 +1075,29 @@ the entire module at runtime -- the click-through reported it as fifty unrelated
 (`window.nc_switchChatSubtab is not a function` fifteen times over). `node --check` cannot
 be aimed at an HTML file and counting `<script>` blocks says nothing about whether they
 parse. Run it first; it is the cheapest of the four and the only one that catches this.
+
+### Every client channel is a row, and Start huddle works (2026-08-25)
+
+**The Clients card kept one row per client** -- its General, or its busiest department --
+so a client's SEO and Web conversations were not in the sidebar at all; they were reachable
+only through the department strip of whichever one had been picked. That is also what lost
+two channels from Needs you, since that card can only show what the sidebar painted.
+
+Every client channel is its own row now, named after the client with the department after
+it (`Burrus Reseach, Inc. · SEO`), in client-name order and then department order so a
+client's conversations sit together. The labelling happens in both scopes -- the nav cards
+are the sidebar now, and a row should not read differently depending on a toggle with no
+control. A client with no conversation at all is still not listed; the "+" is how one
+starts.
+
+**Start huddle did nothing from New Chat.** The huddle feature lives outside
+`newChatModule` and `getHuddleEls()` resolved the original chat's ids unconditionally, so
+New Chat's button was never wired and its bar never appeared. It now picks the prefix from
+whichever chat screen is `.on`, `wireHuddleUI` is exposed, and New Chat calls it when a
+channel opens -- the per-element `dataset.huddleWired` guard makes that idempotent.
+
+One feature, one connection, one piece of state; only which button and bar it drives
+changes. Both screens' buttons end up wired, which is correct -- each drives it while its
+own screen is the one open. The check asserts New Chat's button carries the wiring stamp
+and that `getHuddleEls` resolves to `nc_` while New Chat is on, NOT that the other button
+is unwired, which was the first and wrong assertion.

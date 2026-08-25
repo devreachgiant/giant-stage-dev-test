@@ -52024,15 +52024,22 @@ ${JSON.stringify(context, null, 2)}
         el.textContent = `${min}:${String(sec).padStart(2,'0')}`;
       }
 
+      // Whichever chat screen is on. Huddles are one feature with one connection and one
+      // piece of state; what changes between the two screens is only which button and bar
+      // it drives. This resolved the original chat's elements unconditionally, so from New
+      // Chat "Start huddle" was an unwired button and the huddle bar never appeared.
       function getHuddleEls() {
+        const onNewChat = !!document.querySelector('.screen[data-screen="newchat"].on');
+        const p = onNewChat ? 'nc_' : '';
+        const el = (n) => document.getElementById(p + n);
         return {
-          btn: document.getElementById('chatHuddleBtn'),
-          btnLabel: document.getElementById('chatHuddleBtnLabel'),
-          bar: document.getElementById('chatHuddleBar'),
-          duration: document.getElementById('chatHuddleDuration'),
-          avas: document.getElementById('chatHuddleAvas'),
-          leaveBtn: document.getElementById('chatHuddleLeaveBtn'),
-          muteBtn: document.getElementById('chatHuddleMuteBtn')
+          btn: el('chatHuddleBtn'),
+          btnLabel: el('chatHuddleBtnLabel'),
+          bar: el('chatHuddleBar'),
+          duration: el('chatHuddleDuration'),
+          avas: el('chatHuddleAvas'),
+          leaveBtn: el('chatHuddleLeaveBtn'),
+          muteBtn: el('chatHuddleMuteBtn')
         };
       }
 
@@ -52744,7 +52751,10 @@ ${JSON.stringify(context, null, 2)}
         updateHuddleUI();
       }
 
-      // Wire UI
+      // Wire UI. Exposed because the elements it wires depend on which screen is open,
+      // so New Chat calls it again when it takes over -- the per-element guard below
+      // makes that idempotent.
+      window.giantWireHuddleUI = () => wireHuddleUI();
       function wireHuddleUI() {
         const els = getHuddleEls();
         if (els.btn && !els.btn.dataset.huddleWired) {
@@ -71042,23 +71052,23 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         .sort((a, b) => new Date(b.c.created_at || 0) - new Date(a.c.created_at || 0))
         .forEach(({ row, c }) => place(row, bodies.clients, c.id, true));
 
-      // One row per client, in name order. Where the client has a channel the engine
-      // already rendered, that row is reused so unread badges and muting carry over;
-      // where it has none, a plain row is synthesised that creates the channel on click.
-      Object.values(ncClients)
-        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-        .forEach(cl => {
-          const chan = ncPrimaryChannel(cl.id, 'general')
-            || chatChannels.find(c => c.client_id === cl.id) || null;
-          const existingRow = chan ? rowByChannel.get(chan.id) : null;
-          if (existingRow) { place(existingRow, bodies.clients, chan.id, true); return; }
-          // A client with no conversation is not listed. It used to appear as a dimmed
-          // "No conversation yet" row that started one on click, which meant deleting a
-          // client's conversation left the client sitting there looking undeleted -- and
-          // with 53 client records, most of them without a channel, the card was mostly
-          // rows for conversations that do not exist. Starting one now goes through the
-          // "+", which asks for the client and the department.
-        });
+      // Every client channel, in client-name order and then department, so a client's
+      // conversations sit together. A client with no conversation at all is not listed:
+      // it used to appear as a dimmed "No conversation yet" row, which after a delete
+      // read as the delete having failed. Starting one goes through the "+".
+      (src ? [...src.querySelectorAll('.nc_ch-item[data-nc-channel-id]')] : [])
+        .map(row => ({ row, c: byId.get(row.dataset.ncChannelId) }))
+        .filter(({ c }) => c && c.kind === 'client_dept' && c.client_id && ncClients[c.client_id])
+        .sort((a, b) => {
+          const an = (ncClients[a.c.client_id].name || '').toLowerCase();
+          const bn = (ncClients[b.c.client_id].name || '').toLowerCase();
+          if (an !== bn) return an < bn ? -1 : 1;
+          // General first, then the rest in the order the department strip shows them.
+          const ai = NC_DEPTS.findIndex(d => d.key === (a.c.department || 'general'));
+          const bi = NC_DEPTS.findIndex(d => d.key === (b.c.department || 'general'));
+          return ai - bi;
+        })
+        .forEach(({ row, c }) => place(row, bodies.clients, c.id, true));
 
       const dmSrc = document.getElementById('nc_chatDmList');
       // With no DM channels yet, renderDmChannelList falls back to listing teammates as
@@ -75140,26 +75150,28 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // sectioned. That is why the chats vanished.
       const inMyCard = () => false;
       let topLevel = visibleChannels.filter(c => (!c.parent_id || !byId.has(c.parent_id)) && !inMyCard(c));
-      if (scope === 'clients') {
-        // One entry per client. The channel kept is the client's General if it has
-        // one, else its busiest department -- opening a client should land somewhere
-        // with content rather than on an arbitrary tab.
-        const seen = new Set();
-        topLevel = topLevel.filter(c => {
-          if (!c.client_id) return true;
-          if (seen.has(c.client_id)) return false;
-          seen.add(c.client_id);
-          return true;
-        }).map(c => {
-          if (!c.client_id) return c;
-          const general = ncPrimaryChannel(c.client_id, 'general');
-          const chosen = general || ncChannelsFor(c.client_id, (c.department || 'general'))[0] || c;
-          const cl = ncClients[c.client_id];
-          // Render under the client's name, not the channel's -- "#burrus-seo" is an
-          // implementation detail of where the messages happen to live.
-          return Object.assign({}, chosen, { name: (cl && cl.name) || chosen.name, client_id: c.client_id, _isClientRow: true });
+      // EVERY client channel gets a row. This used to keep one entry per client -- its
+      // General, or its busiest department -- which meant a client's SEO and Web
+      // conversations were not in the sidebar at all: you could only reach them through
+      // the department strip of the one that was. It is also what lost two channels from
+      // Needs you, since that card can only show what the sidebar painted.
+      //
+      // Named after the client, because "#burrus-seo" is an implementation detail of
+      // where the messages happen to live, with the department after it so a client's
+      // several conversations are tellable apart. Done in both scopes: the nav cards are
+      // the sidebar now, and a row should not read differently depending on a toggle
+      // that no longer has a control.
+      topLevel = topLevel.map(c => {
+        if (!c.client_id || c.kind !== 'client_dept') return c;
+        const cl = ncClients[c.client_id];
+        const dept = c.department || 'general';
+        const deptLabel = (NC_DEPTS.find(d => d.key === dept) || {}).label || dept;
+        const base = (cl && cl.name) || c.name;
+        return Object.assign({}, c, {
+          name: dept === 'general' ? base : base + ' · ' + deptLabel,
+          _isClientRow: true
         });
-      }
+      });
       // Helper to recursively render a channel + its children
       function renderOne(c, depth) {
         const isActive = c.id === activeChannelId ? ' active' : '';
@@ -75622,6 +75634,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       await loadMessages(channelId);
       subscribeRealtime(channelId);
       // Check if there's an active huddle in this channel
+      // The huddle controls live in the shared feature and are resolved per active
+      // screen, so they have to be wired once New Chat is the screen that is on.
+      if (typeof window.giantWireHuddleUI === 'function') window.giantWireHuddleUI();
       if (typeof window.nc_huddleCheckForActive === 'function') {
         window.nc_huddleCheckForActive(channelId);
       }

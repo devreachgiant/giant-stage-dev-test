@@ -315,11 +315,12 @@ const sidebar = await page.evaluate(() => {
     direct: document.querySelectorAll('#nc_cardDirectBody .nc_ch-item').length,
     dimmedClients: [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')]
       .filter(r => parseFloat(r.style.opacity || '1') < 1).length,
-    // How many clients actually have a channel, straight from the fixture.
+    // Every client CHANNEL, not one per client: a client's SEO and Web conversations
+    // are their own rows now, or they are not in the sidebar at all.
     expectedClients: (() => {
       const db = window.__mock.db;
-      return new Set(db.channels.filter(c => c.kind === 'client_dept' && c.client_id)
-        .map(c => c.client_id)).size;
+      const known = new Set(db.clients.map(c => c.id));
+      return db.channels.filter(c => c.kind === 'client_dept' && c.client_id && known.has(c.client_id)).length;
     })(),
     groups: document.querySelectorAll('#nc_cardGroupsBody .nc_ch-item').length,
     // truth from the data: a DM with more than one other member, or is_group set
@@ -335,13 +336,15 @@ const sidebar = await page.evaluate(() => {
 check('sidebar renders its six nav cards', sidebar.cards === 6, 'cards=' + sidebar.cards);
 check('sidebar behaves as an accordion (one card open)', sidebar.openCards === 1,
   'open=' + sidebar.openCards + ' heights=' + sidebar.heights.join(','));
-// Was 'all 53 clients are listed'. A client with no conversation is deliberately not
-// listed any more: the dimmed placeholder row made a deleted conversation look like a
-// failed delete, and with 53 client records the card was mostly rows for conversations
-// that do not exist. Starting one goes through the "+" instead.
-check('only clients with a conversation are listed',
+// Was 'all 53 clients are listed', then 'only clients with a conversation'. Now: every
+// client CHANNEL is a row. Keeping one row per client hid a client's SEO and Web
+// conversations completely -- reachable only through the department strip of whichever
+// one the sidebar had picked -- and that is also what lost two channels from Needs you,
+// which can only show what the sidebar painted. A client with no conversation at all is
+// still not listed; the "+" is how one starts.
+check('every client channel is listed, not one per client',
   sidebar.clients > 0 && sidebar.clients === sidebar.expectedClients,
-  'listed=' + sidebar.clients + ' withAChannel=' + sidebar.expectedClients);
+  'listed=' + sidebar.clients + ' clientChannels=' + sidebar.expectedClients);
 check('no client is listed without a conversation', sidebar.dimmedClients === 0,
   'placeholderRows=' + sidebar.dimmedClients);
 check('11 team channels + home are listed', sidebar.teams === 12, 'teams=' + sidebar.teams);
@@ -2277,6 +2280,35 @@ await step('the formatting toolbar formats New Chat\'s own composer', async () =
     r.hasBold && r.wrapped === '**hello**' && r.otherComposer === ''
       && r.hasThreadInput && r.hasThreadBold
       && r.threadWrapped === '**reply**' && r.channelUntouched,
+    JSON.stringify(r));
+});
+
+await step('Start huddle is wired to New Chat\'s own button', async () => {
+  const r = await page.evaluate(async () => {
+    const out = {};
+    const btn = document.getElementById('nc_chatHuddleBtn');
+    out.hasButton = !!btn;
+    if (!btn) return out;
+    // wireHuddleUI stamps this on whatever button it bound, so it is the direct
+    // evidence that New Chat's button -- not the other screen's -- got the listener.
+    out.wired = btn.dataset.huddleWired === '1';
+    // The other screen's button being wired too is correct and expected -- both drive
+    // the same feature, each while its own screen is the one on. What matters is that
+    // getHuddleEls resolves to New Chat's elements from here.
+    out.otherWired = (document.getElementById('chatHuddleBtn') || {}).dataset?.huddleWired === '1';
+    out.resolvedId = (() => {
+      const onNew = !!document.querySelector('.screen[data-screen="newchat"].on');
+      return (onNew ? 'nc_' : '') + 'chatHuddleBtn';
+    })();
+    // ...and the feature resolves New Chat's elements while New Chat is the screen on.
+    out.resolvesNewChat = !!document.querySelector('.screen[data-screen="newchat"].on');
+    out.hasBar = !!document.getElementById('nc_chatHuddleBar');
+    out.label = (document.getElementById('nc_chatHuddleBtnLabel') || {}).textContent || null;
+    return out;
+  });
+  check('Start huddle is wired to New Chat\'s own button',
+    r.hasButton && r.wired && r.resolvesNewChat && r.hasBar
+      && r.resolvedId === 'nc_chatHuddleBtn' && /huddle/i.test(r.label || ''),
     JSON.stringify(r));
 });
 
