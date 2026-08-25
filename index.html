@@ -6670,6 +6670,9 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
           <div class="status-menu-item" data-status="commuting" data-label="Commuting">🚗 Commuting</div>
           <div class="status-menu-item" data-status="ooo" data-label="Out of office">🏝️ Out of office</div>
           <div class="status-menu-sep"></div>
+          <div class="status-menu-item" id="statusMenuCustom">✏️ Set a custom status…</div>
+          <div class="status-menu-item" id="statusMenuClear" style="display:none;color:var(--text-2);">✕ Clear status</div>
+          <div class="status-menu-sep"></div>
           <div class="status-menu-item" data-status="offline" data-label="Appear offline"><span class="presence-dot presence-offline"></span>Appear offline</div>
           <div class="status-menu-sep"></div>
           <div class="status-menu-item" id="statusMenuSignOut" style="color:var(--text-2);">
@@ -6679,6 +6682,44 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         </div>
       </div>
     </aside>
+
+    <!-- Custom status. Outside every screen, like the schedule modal, so it opens from
+         wherever you are rather than only on one screen. -->
+    <div class="modal-overlay" id="statusCustomModal">
+      <div class="modal" style="max-width:420px;">
+        <div class="m-head">
+          <div><h3>Set a status</h3><div class="m-sub">Your team sees this next to your name</div></div>
+          <div class="m-close" data-close="statusCustomModal">✕</div>
+        </div>
+        <div class="m-body">
+          <div class="m-field">
+            <label>Status</label>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input type="text" id="statusEmojiInput" maxlength="8" placeholder="🙂"
+                style="width:56px;text-align:center;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 6px;font-size:16px;color:var(--text);font-family:inherit;outline:none;">
+              <input type="text" id="statusTextInput" maxlength="100" placeholder="What's happening?"
+                style="flex:1;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;">
+            </div>
+          </div>
+          <div class="m-field">
+            <label>Clear it</label>
+            <select id="statusClearAfter"
+              style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;">
+              <option value="">Don't clear</option>
+              <option value="30">In 30 minutes</option>
+              <option value="60">In 1 hour</option>
+              <option value="240">In 4 hours</option>
+              <option value="today">Today</option>
+              <option value="week">This week</option>
+            </select>
+          </div>
+        </div>
+        <div class="m-foot">
+          <button class="m-cancel" data-close="statusCustomModal">Cancel</button>
+          <button class="m-submit" id="statusCustomSave">Save</button>
+        </div>
+      </div>
+    </div>
 
     <!-- MAIN -->
     <main class="main">
@@ -32637,44 +32678,127 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
   input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();send();}});
 })();
 
-/* status menu (sidebar avatar / who area) */
+/* status menu — anchored to the person in the header, and written down */
 (function(){
   const menu=document.getElementById('statusMenu');
-  const trigger=document.querySelector('.sidebar-foot .who');
-  const avatar=document.getElementById('userAvatar');
+  // The trigger USED to be `.sidebar-foot .who`. That element is moved into #hdrPerson at
+  // boot and the sidebar foot is removed, so this selector found nothing, the guard below
+  // returned, and clicking your profile did nothing at all -- no menu, ever. It waits for
+  // the person chip instead, which is where the profile actually lives now.
+  if(!menu)return;
   const presence=document.getElementById('userPresence');
   const label=document.getElementById('userStatusLabel');
-  if(!menu||!trigger)return;
-  function open(){menu.classList.add('on');}
-  function close(){menu.classList.remove('on');}
-  trigger.addEventListener('click',e=>{
-    e.stopPropagation();
-    menu.classList.contains('on')?close():open();
-  });
-  if(avatar)avatar.addEventListener('click',e=>{
-    e.stopPropagation();
-    menu.classList.contains('on')?close():open();
-  });
-  document.addEventListener('click',e=>{
-    if(!menu.contains(e.target)&&!trigger.contains(e.target)&&(!avatar||!avatar.contains(e.target))){
-      close();
-    }
-  });
-  menu.querySelectorAll('.status-menu-item').forEach(it=>{
-    it.addEventListener('click',()=>{
-      const status=it.dataset.status;
-      const lbl=it.dataset.label;
-      if(label)label.textContent=lbl;
-      if(presence){
-        presence.className='presence-dot';
-        if(status==='online')presence.classList.add('presence-online');
-        else if(status==='away'||status==='lunch'||status==='meeting'||status==='commuting')presence.classList.add('presence-away');
-        else if(status==='busy')presence.classList.add('presence-busy');
-        else presence.classList.add('presence-offline');
+
+  const PRESET_EMOJI={lunch:'🍱',meeting:'📞',commuting:'🚗',ooo:'🏝️'};
+  const sb=()=>window.giantSupabase;
+  const myId=()=>window.giantSession&&window.giantSession.user&&window.giantSession.user.id;
+
+  function dotFor(key){
+    if(key==='online')return 'presence-online';
+    if(key==='away'||key==='lunch'||key==='meeting'||key==='commuting')return 'presence-away';
+    if(key==='busy')return 'presence-busy';
+    return 'presence-offline';
+  }
+  // A status whose time has passed reads as no status. Enforced here rather than by a job:
+  // the row is tidied the next time that person sets one.
+  function live(p){
+    if(!p)return null;
+    if(p.status_expires_at&&new Date(p.status_expires_at)<=new Date())return null;
+    if(!p.status_text&&!p.status_emoji&&!p.status_key)return null;
+    return p;
+  }
+  function paint(){
+    const p=live(window.giantCurrentProfile)||{};
+    const clearBtn=document.getElementById('statusMenuClear');
+    const has=!!(p.status_text||p.status_emoji||(p.status_key&&p.status_key!=='online'));
+    if(clearBtn)clearBtn.style.display=has?'':'none';
+    if(presence){presence.className='presence-dot '+dotFor(p.status_key||'online');}
+    if(label){
+      const txt=[p.status_emoji||'',p.status_text||''].join(' ').trim();
+      if(txt){label.textContent=txt;label.title=txt;}
+      else{
+        const r=(window.giantCurrentProfile||{}).role;
+        if(r)label.textContent=String(r).replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase());
       }
+    }
+  }
+  window.giantPaintMyStatus=paint;
+
+  async function save(patch){
+    const id=myId();
+    if(!id||!sb())return;
+    Object.assign(window.giantCurrentProfile=window.giantCurrentProfile||{},patch);
+    paint();
+    const {error}=await sb().from('profiles').update(patch).eq('id',id);
+    if(error&&window.toast)toast({type:'error',message:'Could not save your status: '+error.message});
+  }
+
+  function open(){menu.classList.add('on');paint();}
+  function close(){menu.classList.remove('on');}
+  // #hdrPerson is built after this script runs, so wait for it rather than giving up.
+  (function anchor(){
+    const person=document.getElementById('hdrPerson');
+    if(!person){setTimeout(anchor,400);return;}
+    if(person._statusWired)return;
+    person._statusWired=true;
+    person.appendChild(menu);
+    person.addEventListener('click',e=>{
+      if(menu.contains(e.target))return;
+      e.stopPropagation();
+      menu.classList.contains('on')?close():open();
+    });
+    document.addEventListener('click',e=>{
+      if(!menu.contains(e.target)&&!person.contains(e.target))close();
+    });
+    paint();
+  })();
+
+  menu.querySelectorAll('.status-menu-item[data-status]').forEach(it=>{
+    it.addEventListener('click',()=>{
+      const key=it.dataset.status;
+      save({status_key:key,
+            status_emoji:PRESET_EMOJI[key]||null,
+            status_text:(key==='online')?null:it.dataset.label,
+            status_expires_at:null});
       close();
     });
   });
+  const clearBtn=document.getElementById('statusMenuClear');
+  if(clearBtn)clearBtn.addEventListener('click',()=>{
+    save({status_key:'online',status_emoji:null,status_text:null,status_expires_at:null});
+    close();
+  });
+  const customBtn=document.getElementById('statusMenuCustom');
+  if(customBtn)customBtn.addEventListener('click',()=>{
+    close();
+    const p=live(window.giantCurrentProfile)||{};
+    const e1=document.getElementById('statusEmojiInput');
+    const t1=document.getElementById('statusTextInput');
+    const c1=document.getElementById('statusClearAfter');
+    if(e1)e1.value=p.status_emoji||'';
+    if(t1)t1.value=p.status_text||'';
+    if(c1)c1.value='';
+    if(typeof openModal==='function')openModal('statusCustomModal');
+    setTimeout(()=>t1&&t1.focus(),120);
+  });
+  const saveBtn=document.getElementById('statusCustomSave');
+  if(saveBtn)saveBtn.addEventListener('click',()=>{
+    const emoji=(document.getElementById('statusEmojiInput')||{}).value||'';
+    const text=(document.getElementById('statusTextInput')||{}).value||'';
+    const after=(document.getElementById('statusClearAfter')||{}).value||'';
+    let expires=null;
+    if(after==='today'){const d=new Date();d.setHours(23,59,59,999);expires=d.toISOString();}
+    else if(after==='week'){const d=new Date();d.setDate(d.getDate()+(7-d.getDay()));d.setHours(23,59,59,999);expires=d.toISOString();}
+    else if(after){expires=new Date(Date.now()+Number(after)*60000).toISOString();}
+    save({status_key:null,
+          status_emoji:emoji.trim()||null,
+          status_text:text.trim()||null,
+          status_expires_at:expires});
+    if(typeof closeModal==='function')closeModal('statusCustomModal');
+  });
+
+  // The profile arrives after this runs, so paint once it lands.
+  setTimeout(paint,900); setTimeout(paint,2600);
 })();
 
 /* inbox — mail item selection */
@@ -37183,7 +37307,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     // Authenticated → check if onboarded
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('id, email, full_name, display_name, avatar_url, avatar_bg, avatar_fg, role, title, bio, onboarded_at')
+      .select('id, email, full_name, display_name, avatar_url, avatar_bg, avatar_fg, role, title, bio, onboarded_at, status_key, status_emoji, status_text, status_expires_at')
       .eq('id', session.user.id)
       .maybeSingle();
     console.log('[bootstrap] Profile fetched:', !!profile, 'err:', profileError?.message || 'none');
@@ -37204,7 +37328,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       await new Promise(r => setTimeout(r, 1000));
       const { data: profile2 } = await supabase
         .from('profiles')
-        .select('id, email, full_name, display_name, avatar_url, avatar_bg, avatar_fg, role, title, bio, onboarded_at')
+        .select('id, email, full_name, display_name, avatar_url, avatar_bg, avatar_fg, role, title, bio, onboarded_at, status_key, status_emoji, status_text, status_expires_at')
         .eq('id', session.user.id)
         .maybeSingle();
       if (!profile2) {

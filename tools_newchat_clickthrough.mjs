@@ -2787,6 +2787,66 @@ await step('a department tab opens that thread, it does not make a channel', asy
     r.foundTab && r.created === 0 && r.openedTheExistingOne, JSON.stringify(r));
 });
 
+await step('clicking your profile opens the status menu, and it saves', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const person = document.getElementById('hdrPerson');
+    out.hasPerson = !!person;
+    if (!person) return out;
+    const menu = document.getElementById('statusMenu');
+    out.menuInsidePerson = !!(menu && person.contains(menu));
+    // It used to be anchored to `.sidebar-foot .who`, which is moved into the header at
+    // boot -- so the trigger was null, the block bailed, and this click did nothing.
+    person.click();
+    await wait(400);
+    out.opensOnClick = !!menu && menu.classList.contains('on');
+    if (!out.opensOnClick) return out;
+
+    // A preset writes it down. It used to change a dot on your own screen and nothing else.
+    const writesBefore = window.__mock.log.writes.filter(w => w.startsWith('profiles.update')).length;
+    menu.querySelector('[data-status="lunch"]').click();
+    await wait(1200);
+    out.presetWrote = window.__mock.log.writes.filter(w => w.startsWith('profiles.update')).length > writesBefore;
+    const me = window.__mock.db.profiles.find(p => p.id === window.__mock.me);
+    out.savedKey = me && me.status_key;
+    out.savedEmoji = me && me.status_emoji;
+    out.labelShows = (document.getElementById('userStatusLabel') || {}).textContent || '';
+
+    // ...and a custom one, with a clear-after.
+    person.click(); await wait(400);
+    document.getElementById('statusMenuCustom').click();
+    await wait(600);
+    const modal = document.getElementById('statusCustomModal');
+    out.modalOpens = !!modal && modal.classList.contains('on');
+    if (!out.modalOpens) return out;
+    document.getElementById('statusEmojiInput').value = '🚀';
+    document.getElementById('statusTextInput').value = 'shipping chat';
+    document.getElementById('statusClearAfter').value = '60';
+    document.getElementById('statusCustomSave').click();
+    await wait(1200);
+    const me2 = window.__mock.db.profiles.find(p => p.id === window.__mock.me);
+    out.customText = me2 && me2.status_text;
+    out.customEmoji = me2 && me2.status_emoji;
+    out.hasExpiry = !!(me2 && me2.status_expires_at);
+    out.labelAfter = (document.getElementById('userStatusLabel') || {}).textContent || '';
+
+    // An expired status reads as no status at all.
+    me2.status_expires_at = new Date(Date.now() - 60000).toISOString();
+    Object.assign(window.giantCurrentProfile, me2);
+    if (window.giantPaintMyStatus) window.giantPaintMyStatus();
+    await wait(300);
+    out.expiredHidden = !/shipping chat/.test((document.getElementById('userStatusLabel') || {}).textContent || '');
+    return out;
+  });
+  check('clicking your profile opens the status menu, and it saves',
+    r.hasPerson && r.menuInsidePerson && r.opensOnClick
+      && r.presetWrote && r.savedKey === 'lunch' && r.savedEmoji === '🍱'
+      && r.modalOpens && r.customText === 'shipping chat' && r.customEmoji === '🚀'
+      && r.hasExpiry && /shipping chat/.test(r.labelAfter) && r.expiredHidden,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
