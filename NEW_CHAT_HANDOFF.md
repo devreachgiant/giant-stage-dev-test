@@ -909,3 +909,21 @@ and privacy all follow from those. It is a picker in front of `ensureClientDeptT
 the same call an empty department tab makes -- so there is only one way a `client_dept` row
 is ever inserted. Picking a pair that already exists says so and opens it instead of
 creating a duplicate.
+
+**The invite row blew up (2026-08-25).** The `<img>` fix above left the box to
+`.nc_dot-ava`, which is defined three times over and, in the rule that reaches this row,
+sets no width or height at all. An image at `width:100%` inside a box that resolves against
+nothing paints at the file's own dimensions, so a full-width photograph shoved the name and
+role off the row. Sizes are now stated on the element itself.
+
+The check had passed on this, and it is worth understanding why: it asserted the image
+LOADED (`complete && naturalWidth > 0`), which was true -- gloriously true, at 64x64 in a
+row meant to be 24. It now also asserts the painted box is between 8 and 40px, that no child
+overflows its row, and that no row exceeds 60px tall. Putting the unsized version back
+reports `photoBoxes: ["64x64","64x64"], photosSized: 0, tallestRow: 76`.
+
+Fixed a flaky check in the same pass: "every modal New Chat opens is actually on screen"
+measured 120ms after adding `.on`, while `.nc_modal-overlay` fades in over 280ms, and
+`seen()` checks opacity -- so a perfectly good modal reported hidden at random. It now waits
+for opacity to settle. A check that fails at random is worse than no check: it trains you to
+re-run until it is green.

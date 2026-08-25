@@ -1762,7 +1762,16 @@ await step('every modal New Chat opens is actually on screen', async () => {
       const el = document.getElementById(id);
       if (!el) { out[id] = 'missing'; continue; }
       el.classList.add('on');
-      await new Promise(r => setTimeout(r, 120));
+      // .nc_modal-overlay fades in over 280ms and seen() checks opacity, so measuring at
+      // 120ms caught it mid-animation and reported a perfectly good modal as hidden --
+      // a check that fails at random is worse than no check. Wait for it to settle.
+      let last = -1;
+      for (let i = 0; i < 40; i++) {
+        await new Promise(r => setTimeout(r, 50));
+        const o = parseFloat(getComputedStyle(el).opacity || '1');
+        if (o >= 0.99 && o === last) break;
+        last = o;
+      }
       out[id] = seen(el) ? 'visible' : 'hidden';
     }
     shut();
@@ -1889,6 +1898,26 @@ await step('Invite members picks people, and they are actually added', async () 
       const img = el.querySelector('img');
       return img.complete && img.naturalWidth > 0;
     }).length;
+    // Loading is not the same as fitting. An <img> whose box resolves against nothing
+    // paints at the file's own size -- a full-width photograph in a 6px-tall row -- and
+    // "the image loaded" passes happily on exactly that.
+    out.photoBoxes = withPhoto.map(el => {
+      const r = el.querySelector('img').getBoundingClientRect();
+      return Math.round(r.width) + 'x' + Math.round(r.height);
+    });
+    out.photosSized = withPhoto.filter(el => {
+      const r = el.querySelector('img').getBoundingClientRect();
+      return r.width > 8 && r.width <= 40 && r.height > 8 && r.height <= 40;
+    }).length;
+    // Nothing may overflow the row it sits in, in either direction.
+    out.rowsOverflowing = offered.filter(el => {
+      const rr = el.getBoundingClientRect();
+      return [...el.querySelectorAll('*')].some(ch => {
+        const cr = ch.getBoundingClientRect();
+        return cr.width > 0 && (cr.right > rr.right + 2 || cr.left < rr.left - 2);
+      });
+    }).length;
+    out.tallestRow = Math.max(...offered.map(el => Math.round(el.getBoundingClientRect().height)));
     out.rowsWithName = offered.filter(el => (el.textContent || '').trim().length > 1).length;
     out.offered = offered.length;
 
@@ -1931,7 +1960,8 @@ await step('Invite members picks people, and they are actually added', async () 
       // that exists actually renders
       && r.deactivatedInFixture > 0 && r.deactivatedOffered === 0
       && r.rowsWithName === r.offered
-      && r.rowsWithPhoto > 0 && r.photosLoaded === r.rowsWithPhoto,
+      && r.rowsWithPhoto > 0 && r.photosLoaded === r.rowsWithPhoto
+      && r.photosSized === r.rowsWithPhoto && r.rowsOverflowing === 0 && r.tallestRow < 60,
     JSON.stringify(r));
 });
 

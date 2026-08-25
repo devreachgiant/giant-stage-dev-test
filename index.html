@@ -77343,26 +77343,34 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // encoded filename, and putting one inside url(...) in an attribute loses it --
         // the row then renders as an empty circle, which reads as "this person has no
         // photo" rather than as a broken image. Same trap c3ProfileMarkHtml documents.
+        // Size stated here rather than left to .nc_dot-ava. That class is defined three
+        // times over and the one that reaches this row sets no box, so an <img> at
+        // width:100% inside it resolved against nothing and painted at the file's own
+        // dimensions -- a full-width photograph shoving the name and role off the row.
+        const AVA = 'width:24px;height:24px;min-width:24px;flex-shrink:0;border-radius:50%;'
+          + 'overflow:hidden;display:inline-flex;align-items:center;justify-content:center;'
+          + 'font-size:9.5px;font-weight:700;';
         const ava = p.avatar_url
-          ? '<span class="nc_dot-ava" style="overflow:hidden;padding:0;">'
+          ? '<span style="' + AVA + '">'
             + '<img loading="lazy" decoding="async" src="' + chatEsc(p.avatar_url) + '"'
-            + ' alt="" style="width:100%;height:100%;object-fit:cover;display:block;"></span>'
-          : '<span class="nc_dot-ava" style="background:' + chatEsc(p.avatar_bg || '#4A2424') + ';color:' + chatEsc(p.avatar_fg || '#F0A0A0') + ';">' + chatEsc(initial) + '</span>';
+            + ' alt="" style="width:24px;height:24px;object-fit:cover;display:block;"></span>'
+          : '<span style="' + AVA + 'background:' + chatEsc(p.avatar_bg || '#4A2424') + ';color:' + chatEsc(p.avatar_fg || '#F0A0A0') + ';">' + chatEsc(initial) + '</span>';
         // The role, so a bot or a client account is recognisable before you invite it.
         const role = (p.role || '').replace(/_/g, ' ');
         const meta = role
-          ? '<span style="margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);flex-shrink:0;">' + chatEsc(role) + '</span>'
+          ? '<span style="margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);flex-shrink:0;white-space:nowrap;">' + chatEsc(role) + '</span>'
           : '';
         const label = p.full_name || p.email || 'Member';
         const sub = p.full_name && p.email
-          ? '<span style="color:var(--text-3);font-size:10.5px;">' + chatEsc(p.email) + '</span>'
+          ? '<span style="color:var(--text-3);font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + chatEsc(p.email) + '</span>'
           : '';
         return '<div class="nc_invite-suggest-item" data-invite-id="' + chatEsc(p.id) + '"'
           + ' style="display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:7px;cursor:pointer;font-size:12px;">'
           + ava
-          + '<span style="display:flex;flex-direction:column;line-height:1.25;min-width:0;">'
+          + '<span style="display:flex;flex-direction:column;line-height:1.25;min-width:0;flex:1;overflow:hidden;">'
           + '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + chatEsc(label) + '</span>'
           + sub + '</span>' + meta + '</div>';
+        // (row is flex; avatar fixed, text flexes, role pinned at its natural width)
       }).join('');
     }
 
