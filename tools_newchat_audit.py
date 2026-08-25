@@ -379,6 +379,10 @@ def screen_span(marker):
 # Deliberately removed, with the reason, so a real regression still fails here.
 DROPPED = {
     'newChannelParent': 'Parent channel field removed on request 2026-08-25',
+    'chatAddSectionBtn': 'custom sidebar sections do not exist in New Chat -- the fixed '
+                         'Clients/Teams/Direct/Group DMs cards replaced them, and '
+                         'nc_loadCustomChatSections is never defined, so the button would '
+                         'have created a card that never appears',
 }
 cs, ce = screen_span('<div class="screen fullbleed" data-screen="chat">')
 ns, ne = screen_span('<div class="screen fullbleed" data-screen="newchat"')

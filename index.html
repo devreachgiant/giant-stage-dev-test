@@ -8343,10 +8343,6 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <div id="nc_chatCustomSectionsContainer"></div>
 
             <!-- + Add card button -->
-            <button id="nc_chatAddSectionBtn" title="Add a new sidebar card" style="margin:4px 0 8px;background:transparent;color:var(--text-3);border:1px dashed var(--line-2);border-radius:11px;padding:9px 12px;font-size:11.5px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px;width:100%;transition:.15s;">
-              <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-              <span>Add card</span>
-            </button>
 
           </aside>
 
@@ -77377,6 +77373,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         setTimeout(() => inp?.focus(), 120);
       });
     }
+
+    // Full-screen chat. The original's toggle is a one-line IIFE bound to its own id, so
+    // New Chat's button sat there doing nothing. body.chat-fullscreen only hides the
+    // sidebar, which is screen-agnostic, so the behaviour is the same on either screen.
+    (function wireFullscreen(){
+      const btn = document.getElementById('nc_chatFsBtn');
+      if (!btn || btn._ncWired) return;
+      btn._ncWired = true;
+      btn.addEventListener('click', () => {
+        document.body.classList.toggle('chat-fullscreen');
+        btn.classList.toggle('active');
+      });
+    })();
 
     // The global handler at load time binds .modal-overlay only, so New Chat's own
     // overlays had no click-the-backdrop-to-close until now.

@@ -1226,3 +1226,34 @@ messages are deleted -- the channel is still there and still searchable.
 Two checks were updated rather than dropped: "Chat 2.0 and 3.0 are archived" asserted old
 chat STAYS in Communication, which is no longer true, and the DM split count now subtracts
 the dead one-to-ones, computed from the fixture rather than hardcoded.
+
+### The pre-launch sweep (2026-08-25)
+
+Every visible control in the Chat screen was clicked in a headless browser and checked for
+any observable effect -- DOM change, query, write, modal. 46 controls; 24 came back with no
+effect, of which **two were real**:
+
+- **Full-screen toggle.** The original's is a one-line IIFE bound to its own id, so New
+  Chat's button did nothing. Wired in the module now; `body.chat-fullscreen` only hides the
+  sidebar, so the behaviour is identical on either screen.
+- **"Add card".** Custom sidebar sections do not exist in New Chat -- the fixed
+  Clients/Teams/Direct/Group DMs cards replaced them, and `nc_loadCustomChatSections` is
+  called but never defined -- so the button could only have made a card that never appears.
+  Removed, and pinned in check 14's `DROPPED` with that reason.
+
+The other 22 were containers, inputs, the already-active tab, the `mousedown`-driven format
+buttons, and the two that open native pickers (attach, mic). Search, privacy toggle and
+load-earlier were all suspects and all work; they now have a check.
+
+**Feature parity against old chat**, by reference count in the module: threads, scheduled
+messages, mentions, reactions, pins, attachments, edit, delete, in-channel search, voice
+notes, typing, read receipts, huddles, canvas, tasks, Magnus, media/vault, emoji, GIF,
+mark-unread, mute, link previews and drafts are all present. Nothing from the old screen is
+missing -- check 14 says the same thing structurally, control by control.
+
+**What is driven end to end** is narrower than what is present, and worth keeping straight:
+sending, threads (open, reply, mention into Needs you, jump-and-highlight), scheduling,
+formatting, mentions picker, reactions, in-channel search, huddle wiring, every sub-tab,
+the Inbox, Needs you, row menus, favourites, delete, invite, DM and group creation, client
+channels. **Pin, edit, delete-a-message, attachments and voice notes are present but not
+exercised** -- worth ten minutes of clicking before launch.

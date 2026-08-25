@@ -2519,6 +2519,111 @@ await step('New Chat is now Chat, and the old one is in Archive', async () => {
     JSON.stringify(r));
 });
 
+await step('the header controls all do something', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const team = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item[data-nc-channel-id]')][0]
+              || [...document.querySelectorAll('#nc_chatChannelList .nc_ch-item[data-nc-channel-id]')][0];
+    if (team) { team.click(); await wait(1600); }
+
+    // full-screen: was bound only to the other screen's button, so this did nothing
+    const fs = document.getElementById('nc_chatFsBtn');
+    out.hasFs = !!fs;
+    const bodyBefore = document.body.classList.contains('chat-fullscreen');
+    fs?.click(); await wait(400);
+    out.fullscreenOn = document.body.classList.contains('chat-fullscreen') !== bodyBefore;
+    fs?.click(); await wait(300);
+    out.fullscreenOff = document.body.classList.contains('chat-fullscreen') === bodyBefore;
+
+    // search in channel
+    document.getElementById('nc_chatHeadSearchBtn')?.click(); await wait(600);
+    out.searchFocused = (document.activeElement || {}).id === 'nc_chatSearchInput';
+    document.getElementById('nc_chatHeadSearchBtn')?.click(); await wait(300);
+
+    // privacy toggle writes and flips its label
+    const w0 = window.__mock.log.writes.length;
+    const before = document.getElementById('nc_chatHeadPrivacyLabel')?.textContent;
+    document.getElementById('nc_chatHeadPrivacyBtn')?.click(); await wait(1500);
+    out.privacyWrote = window.__mock.log.writes.length > w0;
+    out.privacyFlipped = document.getElementById('nc_chatHeadPrivacyLabel')?.textContent !== before;
+    document.getElementById('nc_chatHeadPrivacyBtn')?.click(); await wait(1200);
+
+    // load earlier asks the database for more
+    const q0 = window.__mock.log.queries.length;
+    document.getElementById('nc_chatLoadEarlierBtn')?.click(); await wait(1400);
+    out.loadEarlierQueried = window.__mock.log.queries.length > q0;
+
+    // "Add card" is gone: custom sections do not exist here, so it could only have made
+    // a card that never appears.
+    out.addCardGone = !document.getElementById('nc_chatAddSectionBtn');
+    return out;
+  });
+  check('the header controls all do something',
+    r.hasFs && r.fullscreenOn && r.fullscreenOff && r.searchFocused
+      && r.privacyWrote && r.privacyFlipped && r.loadEarlierQueried && r.addCardGone,
+    JSON.stringify(r));
+});
+
+await step('a message reacts, opens a thread, and the channel searches', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const db = window.__mock.db;
+    const out = {};
+    const team = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item[data-nc-channel-id]')][0];
+    if (team) { team.click(); await wait(2000); }
+    const msgs = () => [...document.querySelectorAll('#nc_chatMsgs [data-msg-id]')];
+    out.messagesPainted = msgs().length;
+    if (!msgs().length) return out;
+    const row = msgs()[msgs().length - 1];
+    const id = row.dataset.msgId;
+    out.msgId = id;
+    row.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    await wait(300);
+
+    // react
+    const before = db.message_reactions ? db.message_reactions.length : 0;
+    row.querySelector('.nc_msg-react-bar-emoji')?.click();
+    await wait(1200);
+    out.reacted = (db.message_reactions ? db.message_reactions.length : 0) > before;
+
+    // reply in thread opens the thread panel
+    row.querySelector('.nc_msg-reply-btn')?.click();
+    await wait(1500);
+    const panel = document.getElementById('nc_threadPanel') || document.getElementById('nc_threadPane');
+    out.threadOpened = !!panel && panel.getBoundingClientRect().width > 100;
+    out.threadInput = !!document.getElementById('nc_threadInput');
+    const close = document.getElementById('nc_threadCloseBtn') || document.querySelector('[data-close-thread]');
+    if (close) { close.click(); await wait(700); }
+
+    // in-channel search finds a word that is definitely in this channel
+    const word = (db.messages.find(m => m.channel_id === window.nc_activeChannelId && (m.body || '').length > 8) || {}).body;
+    if (word) {
+      document.getElementById('nc_chatHeadSearchBtn')?.click();
+      await wait(500);
+      const inp = document.getElementById('nc_chatSearchInput');
+      if (inp) {
+        inp.value = word.split(/\s+/)[0];
+        inp.dispatchEvent(new Event('input', { bubbles: true }));
+        await wait(1200);
+        out.searchTerm = inp.value;
+        out.searchHits = document.querySelectorAll('#nc_chatSearchResults .nc_search-hit, #nc_chatSearchResults > *').length;
+      }
+      document.getElementById('nc_chatHeadSearchBtn')?.click();
+      await wait(300);
+    }
+    return out;
+  });
+  // Named for what it drives. Pin, edit and delete are present in the module -- the
+  // markup and the messages.update / messages.delete calls are there -- but they are NOT
+  // exercised here, and a check that claims them would be the same overclaiming that has
+  // bitten this branch six times.
+  check('a message reacts, opens a thread, and the channel searches',
+    r.messagesPainted > 0 && r.reacted && r.threadOpened && r.threadInput
+      && r.searchHits > 0,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
