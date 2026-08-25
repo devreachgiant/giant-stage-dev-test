@@ -2624,6 +2624,36 @@ await step('a message reacts, opens a thread, and the channel searches', async (
     JSON.stringify(r));
 });
 
+await step('the voice recorder is wired to New Chat\'s own mic', async () => {
+  const r = await page.evaluate(async () => {
+    const out = {};
+    const mic = document.getElementById('nc_chatMicBtn');
+    out.hasMic = !!mic;
+    if (!mic) return out;
+    // _wireVoiceUI stamps this on whatever button it bound, so it is direct evidence
+    // that New Chat's mic -- not the other screen's -- carries the listener.
+    out.micWired = mic.dataset.wired === '1';
+    out.cancelWired = (document.getElementById('nc_chatVoiceCancel') || {}).dataset?.wired === '1';
+    out.sendWired = (document.getElementById('nc_chatVoiceSend') || {}).dataset?.wired === '1';
+    // ...and the recording bar it will drive belongs to this screen.
+    out.recorderHere = !!document.getElementById('nc_chatVoiceRecorder');
+    out.timerHere = !!document.getElementById('nc_chatVoiceTimer');
+    out.levelHere = !!document.getElementById('nc_chatVoiceLevel');
+    out.onNewChat = !!document.querySelector('.screen[data-screen="newchat"].on');
+    // Pressing it asks for a microphone. Headless Chromium has none, so the recorder
+    // cannot be driven further here -- what is assertable is that the press reaches the
+    // feature rather than falling on the floor.
+    out.startExposed = typeof window._startVoiceRecording === 'function';
+    out.stopExposed = typeof window._stopVoiceRecording === 'function';
+    return out;
+  });
+  check('the voice recorder is wired to New Chat\'s own mic',
+    r.hasMic && r.micWired && r.cancelWired && r.sendWired
+      && r.recorderHere && r.timerHere && r.levelHere
+      && r.onNewChat && r.startExposed && r.stopExposed,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

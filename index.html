@@ -66970,9 +66970,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   async function _startVoiceRecording() {
     if (_voiceState.recording) return;
-    const recorder = document.getElementById('chatVoiceRecorder');
-    const timer = document.getElementById('chatVoiceTimer');
-    const levelEl = document.getElementById('chatVoiceLevel');
+    const recorder = _voiceEl('chatVoiceRecorder');
+    const timer = _voiceEl('chatVoiceTimer');
+    const levelEl = _voiceEl('chatVoiceLevel');
     if (!recorder || !timer || !levelEl) return;
 
     try {
@@ -67061,7 +67061,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     _voiceState.chunks = [];
     _voiceState.recording = false;
     _voiceState.levelBars = [];
-    const recorder = document.getElementById('chatVoiceRecorder');
+    const recorder = _voiceEl('chatVoiceRecorder');
     if (recorder) recorder.style.display = 'none';
   }
 
@@ -67159,14 +67159,26 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (typeof toast === 'function') toast({type:'error', message:'Voice note failed: ' + err.message, duration:4000});
     }
   }
+  // Whichever chat screen is on. Recording is one feature with one MediaRecorder; what
+  // changes between the screens is only which mic button, timer and level meter it drives.
+  // This looked the original chat's ids up unconditionally, so from New Chat the mic
+  // button was unwired and the recording bar would have appeared on a hidden screen.
+  function _voiceEl(name) {
+    const onNewChat = !!document.querySelector('.screen[data-screen="newchat"].on');
+    return document.getElementById((onNewChat ? 'nc_' : '') + name);
+  }
   window._startVoiceRecording = _startVoiceRecording;
   window._stopVoiceRecording = _stopVoiceRecording;
+  // Exposed for the same reason as the huddle's: the elements depend on the active
+  // screen, so New Chat wires its own when it takes over. The per-element guard below
+  // makes that idempotent.
+  window.giantWireVoiceUI = () => _wireVoiceUI();
 
   // Wire mic button + cancel + send (idempotent)
-  setTimeout(() => {
-    const micBtn = document.getElementById('chatMicBtn');
-    const cancelBtn = document.getElementById('chatVoiceCancel');
-    const sendBtn = document.getElementById('chatVoiceSend');
+  function _wireVoiceUI() {
+    const micBtn = _voiceEl('chatMicBtn');
+    const cancelBtn = _voiceEl('chatVoiceCancel');
+    const sendBtn = _voiceEl('chatVoiceSend');
     if (micBtn && !micBtn.dataset.wired) {
       micBtn.dataset.wired = '1';
       micBtn.addEventListener('click', (e) => {
@@ -67186,7 +67198,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       sendBtn.dataset.wired = '1';
       sendBtn.addEventListener('click', () => _stopVoiceRecording(true));
     }
-  }, 600);
+  }
+  setTimeout(_wireVoiceUI, 600);
 
   // Playback speed for voice notes — remembered across the app (like WhatsApp/Telegram),
   // so once you pick 1.5x it stays 1.5x for the next notes you play too.
@@ -75704,6 +75717,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // The huddle controls live in the shared feature and are resolved per active
       // screen, so they have to be wired once New Chat is the screen that is on.
       if (typeof window.giantWireHuddleUI === 'function') window.giantWireHuddleUI();
+      // Same for the voice recorder: its mic button, timer and level meter are resolved
+      // per active screen, so they have to be wired once New Chat is the screen that is on.
+      if (typeof window.giantWireVoiceUI === 'function') window.giantWireVoiceUI();
       if (typeof window.nc_huddleCheckForActive === 'function') {
         window.nc_huddleCheckForActive(channelId);
       }

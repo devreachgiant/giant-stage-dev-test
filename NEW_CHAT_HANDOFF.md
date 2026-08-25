@@ -1257,3 +1257,28 @@ formatting, mentions picker, reactions, in-channel search, huddle wiring, every 
 the Inbox, Needs you, row menus, favourites, delete, invite, DM and group creation, client
 channels. **Pin, edit, delete-a-message, attachments and voice notes are present but not
 exercised** -- worth ten minutes of clicking before launch.
+
+### Voice notes (2026-08-25)
+
+Pin, edit and delete were confirmed working by hand. Voice notes were not, and it is the
+third instance of the same shape as huddles: the feature lives outside `newChatModule` and
+looked the original chat's ids up unconditionally, so New Chat's mic button was never wired
+and the recording bar would have appeared on a hidden screen anyway.
+
+`_voiceEl()` now takes the prefix from whichever chat screen is `.on`, covering the mic,
+cancel and send buttons and the recorder, timer and level meter -- all three of which
+already had `nc_` twins. The wiring block became `_wireVoiceUI()`, exposed as
+`window.giantWireVoiceUI`, and New Chat calls it when a channel opens, next to the huddle
+one; the per-element `dataset.wired` guard makes both idempotent.
+
+Recording itself cannot be driven headlessly -- Chromium has no microphone -- so the check
+asserts what is assertable: New Chat's mic, cancel and send carry the wiring stamp, the bar
+they drive belongs to this screen, and the start/stop entry points exist. It fails on the
+previous commit with all three stamps false.
+
+**This is now a known pattern worth checking first for any "X doesn't work in Chat":** a
+feature whose code sits outside `newChatModule` and resolves elements by the original
+chat's ids. Huddles, voice notes and the full-screen toggle were all this. None of checks
+12, 13 or 14 can see it -- 14 passes because the `nc_` twin exists, and 12 and 13 only read
+inside the module. The remaining candidates are anything else wired from the shared script
+blocks.
