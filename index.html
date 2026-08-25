@@ -77419,7 +77419,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       e.preventDefault();
       const panel = document.getElementById('nc_threadPanel');
       const intoThread = panel && panel.classList.contains('on') &&
-        (!e.target || e.target.closest('#nc_threadPanel') || !e.target.closest('main.thread'));
+        // e.target is not always an element -- a paste with nothing focused arrives with
+        // the document as its target, and calling closest() on that throws and takes the
+        // whole handler with it.
+        (!e.target || typeof e.target.closest !== 'function'
+          || e.target.closest('#nc_threadPanel') || !e.target.closest('main.thread'));
       if (intoThread && typeof addThreadAttachment === 'function') {
         files.forEach(addThreadAttachment);
       } else if (typeof addPendingAttachment === 'function') {
