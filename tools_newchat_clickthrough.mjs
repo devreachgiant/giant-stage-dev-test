@@ -221,7 +221,11 @@ await step('Chat 2.0 and 3.0 are archived, not removed', async () => {
     return {
       inArchive: ['chat2', 'chat3'].filter(s => inGroup(s, 'archive')),
       stillInComms: ['chat2', 'chat3'].filter(s => inGroup(s, 'communication')),
-      chatStays: inGroup('chat', 'communication'),
+      // Old chat joined them in Archive when New Chat took the name. It is NOT gated
+      // there -- it is still the surface for clients -- while Chat 2.0 and 3.0 stay
+      // manager-only inside the same group.
+      chatArchived: inGroup('chat', 'archive'),
+      chatGoneFromComms: !inGroup('chat', 'communication'),
       newChatStays: inGroup('newchat', 'communication'),
       // moved, not deleted: the screens are untouched and the item still navigates
       screensExist: ['chat2', 'chat3'].every(s => !!document.querySelector(`.screen[data-screen="${s}"]`)),
@@ -235,7 +239,8 @@ await step('Chat 2.0 and 3.0 are archived, not removed', async () => {
   });
   check('Chat 2.0 and 3.0 are archived, not removed',
     r.inArchive.length === 2 && r.stillInComms.length === 0
-      && r.chatStays && r.newChatStays && r.screensExist && r.opened && r.chat3Visible,
+      && r.chatArchived && r.chatGoneFromComms && r.newChatStays
+      && r.screensExist && r.opened && r.chat3Visible,
     JSON.stringify(r));
 });
 
@@ -317,6 +322,13 @@ const sidebar = await page.evaluate(() => {
       .filter(r => parseFloat(r.style.opacity || '1') < 1).length,
     // Every client on the books, plus a row per conversation. A client with channels
     // contributes one row each; a client with none contributes one dimmed row.
+    deadOneToOnes: (() => {
+      const db = window.__mock.db, me = window.__mock.me;
+      const dead = new Set(db.profiles.filter(p => p.deactivated_at).map(p => p.id));
+      return db.channels.filter(c => c.is_dm && c.dm_pair)
+        .filter(c => db.channel_members.filter(m => m.channel_id === c.id && m.profile_id !== me).length === 1)
+        .filter(c => c.dm_pair.split(':').some(id => dead.has(id))).length;
+    })(),
     expectedDimmed: (() => {
       const db = window.__mock.db;
       return db.clients.filter(c => c.status !== 'churned')
@@ -368,7 +380,10 @@ check('11 team channels + home are listed', sidebar.teams === 12, 'teams=' + sid
 // Group conversations belong under GROUP DMS, one-to-ones under DIRECT. The card used to
 // route on channels.is_group alone while the list treated "more than one other person" as a
 // group either way, so every multi-person DM with is_group unset sat among the one-to-ones.
-check('every DM is listed, split by whether it is a group', sidebar.direct + sidebar.groups === 80,
+// ...minus the one-to-ones with someone who has left, which are hidden: they cannot be
+// read or replied to, and the person is hidden everywhere else.
+check('every live DM is listed, split by whether it is a group',
+  sidebar.direct + sidebar.groups === 80 - sidebar.deadOneToOnes,
   'direct=' + sidebar.direct + ' groups=' + sidebar.groups);
 check('multi-person DMs are under Group DMs, not Direct',
   sidebar.groups === sidebar.expectedGroups && sidebar.groupsInDirect === 0,
@@ -2441,6 +2456,16 @@ await step('a deactivated account appears nowhere a person is offered', async ()
     if (dmRows.some(el => deadIds.has(el.dataset.dmId))) out.offenders.push('dm-picker');
     const startDm = [...document.querySelectorAll('#nc_chatDmList [data-start-dm]')];
     if (startDm.some(el => deadIds.has(el.dataset.startDm))) out.offenders.push('sidebar-dm-list');
+    // Existing one-to-one conversations with someone who has left. The picker was
+    // filtered; the conversations already in the list were not.
+    const deadDmIds = new Set(db.channels.filter(c => c.is_dm && c.dm_pair)
+      .filter(c => c.dm_pair.split(':').some(id => deadIds.has(id)))
+      .filter(c => db.channel_members.filter(m => m.channel_id === c.id
+        && m.profile_id !== window.__mock.me).length === 1)
+      .map(c => c.id));
+    out.deadDmConversations = deadDmIds.size;
+    const dmRowsInList = [...document.querySelectorAll('#nc_chatDmList [data-nc-dm-channel-id], #nc_cardDirectBody .nc_ch-item')];
+    if (dmRowsInList.some(el => deadDmIds.has(el.dataset.ncDmChannelId))) out.offenders.push('dm-conversation-list');
 
     // 6. the channel members modal, both halves
     const modalRows = [...document.querySelectorAll('#nc_chMembersList .nc_ch-member, #nc_chMembersList [data-remove]')];
@@ -2449,7 +2474,8 @@ await step('a deactivated account appears nowhere a person is offered', async ()
     return out;
   });
   check('a deactivated account appears nowhere a person is offered',
-    r.deactivatedInFixture > 0 && r.offenders.length === 0, JSON.stringify(r));
+    r.deactivatedInFixture > 0 && r.deadDmConversations > 0 && r.offenders.length === 0,
+    JSON.stringify(r));
 });
 
 await step('New Chat is now Chat, and the old one is in Archive', async () => {
@@ -2472,10 +2498,15 @@ await step('New Chat is now Chat, and the old one is in Archive', async () => {
     out.oldChatLabel = oldInArchive ? oldInArchive.dataset.label : null;
     out.oldChatArchived = !!oldInArchive;
     // ...and no Chat entry left loose in Communication for a non-client.
-    const strayInComms = byScreen('chat').filter(e => comms && comms.contains(e));
-    out.commsChatEntries = strayInComms.length;
-    out.commsChatIsClientOnly = strayInComms.every(e => e.hasAttribute('data-client-only'));
-    out.commsChatVisibleToMe = strayInComms.some(e => e.getBoundingClientRect().width > 10);
+    out.commsChatEntries = byScreen('chat').filter(e => comms && comms.contains(e)).length;
+    // Old Chat is for everyone -- members and clients included, since it is still their
+    // surface. Chat 2.0 and 3.0 stay manager-only inside the same group.
+    const gate = (el) => el && el.getAttribute('data-role-min');
+    out.archiveGroupGated = !!gate(document.querySelector('[data-navgroup="archive"]'))
+      || !!gate(document.querySelector('[data-navgroup-body="archive"]'));
+    out.oldChatGated = !!gate(oldInArchive);
+    out.chat2Gated = gate(byScreen('chat2')[0]) === 'manager';
+    out.chat3Gated = gate(byScreen('chat3')[0]) === 'manager';
     out.role = window.giantCurrentProfile.role;
     return out;
   });
@@ -2483,7 +2514,8 @@ await step('New Chat is now Chat, and the old one is in Archive', async () => {
     r.newChatLabel === 'Chat' && r.newChatInComms && r.newChatVisible && r.keepsNewBadge
       && r.hasUnreadBadge
       && r.oldChatArchived && r.oldChatLabel === 'Old Chat'
-      && r.commsChatEntries === 1 && r.commsChatIsClientOnly && !r.commsChatVisibleToMe,
+      && r.commsChatEntries === 0
+      && !r.archiveGroupGated && !r.oldChatGated && r.chat2Gated && r.chat3Gated,
     JSON.stringify(r));
 });
 

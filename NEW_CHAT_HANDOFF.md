@@ -1210,3 +1210,19 @@ Two things that would have gone wrong silently:
 
 Clients are deliberately still out of the new Chat: client conversations are public now and
 they are where the team talks ABOUT a client.
+
+**Archive is open to everyone; only what is inside it is gated (2026-08-25).** Old Chat is
+in Archive with no role gate at all -- it is still the surface for clients, and members may
+want it while they settle into Chat. Chat 2.0 and Chat 3.0 keep `data-role-min="manager"`
+inside the same group, so members and clients see Archive containing exactly one thing.
+That replaced the `data-client-only` entry added an hour earlier, which is gone: with
+Archive open there is no need for a second way in.
+
+**One-to-one DMs with someone who has left are hidden.** The picker was filtered; the
+conversations already in the list were not, which is what "I can still see them in DM"
+meant. A GROUP with one departed member is left alone, because the rest of it is live. No
+messages are deleted -- the channel is still there and still searchable.
+
+Two checks were updated rather than dropped: "Chat 2.0 and 3.0 are archived" asserted old
+chat STAYS in Communication, which is no longer true, and the DM split count now subtracts
+the dead one-to-ones, computed from the fixture rather than hardcoded.
