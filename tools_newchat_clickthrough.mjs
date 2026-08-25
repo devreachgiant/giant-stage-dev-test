@@ -2452,6 +2452,41 @@ await step('a deactivated account appears nowhere a person is offered', async ()
     r.deactivatedInFixture > 0 && r.offenders.length === 0, JSON.stringify(r));
 });
 
+await step('New Chat is now Chat, and the old one is in Archive', async () => {
+  const r = await page.evaluate(async () => {
+    const out = {};
+    const items = [...document.querySelectorAll('.nav-item[data-screen]')];
+    const byScreen = (s) => items.filter(e => e.dataset.screen === s);
+    const comms = document.querySelector('[data-navgroup-body="communication"]');
+    const arch = document.querySelector('[data-navgroup-body="archive"]');
+
+    const newChat = byScreen('newchat')[0];
+    out.newChatLabel = newChat ? newChat.dataset.label : null;
+    out.newChatInComms = !!(newChat && comms && comms.contains(newChat));
+    out.newChatVisible = !!(newChat && newChat.getBoundingClientRect().width > 10);
+    out.keepsNewBadge = !!(newChat && /NEW/.test(newChat.textContent || ''));
+    // Unread has somewhere to land now that this is THE chat.
+    out.hasUnreadBadge = !!document.getElementById('nc_sidebarBadgeChat');
+
+    const oldInArchive = byScreen('chat').find(e => arch && arch.contains(e));
+    out.oldChatLabel = oldInArchive ? oldInArchive.dataset.label : null;
+    out.oldChatArchived = !!oldInArchive;
+    // ...and no Chat entry left loose in Communication for a non-client.
+    const strayInComms = byScreen('chat').filter(e => comms && comms.contains(e));
+    out.commsChatEntries = strayInComms.length;
+    out.commsChatIsClientOnly = strayInComms.every(e => e.hasAttribute('data-client-only'));
+    out.commsChatVisibleToMe = strayInComms.some(e => e.getBoundingClientRect().width > 10);
+    out.role = window.giantCurrentProfile.role;
+    return out;
+  });
+  check('New Chat is now Chat, and the old one is in Archive',
+    r.newChatLabel === 'Chat' && r.newChatInComms && r.newChatVisible && r.keepsNewBadge
+      && r.hasUnreadBadge
+      && r.oldChatArchived && r.oldChatLabel === 'Old Chat'
+      && r.commsChatEntries === 1 && r.commsChatIsClientOnly && !r.commsChatVisibleToMe,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

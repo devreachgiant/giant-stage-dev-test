@@ -1187,3 +1187,26 @@ would blank the author on everything a since-deactivated person ever wrote.
 
 One check now sweeps all six surfaces at once and fails on the previous commit with
 `offenders: ["mention-picker"]`.
+
+### The swap (2026-08-25)
+
+New Chat is **Chat**, in Communication, keeping the NEW badge. The old one is **Old Chat**
+in Archive, above Chat 2.0. `data-screen` values are unchanged -- `newchat` and `chat` --
+because they key the screens, the routing, every localStorage screen memory and the
+click-through; only the labels moved.
+
+Two things that would have gone wrong silently:
+
+- **`nc_sidebarBadgeChat` did not exist in the nav.** New Chat's unread total was written
+  to an element nobody had made, which did not matter while it was a side experiment and
+  matters a great deal now it is Chat. The renamed item carries it.
+- **Clients would have had no chat at all.** New Chat is `data-client-hidden`, and Archive
+  is manager-only, so moving old chat there takes it away from clients as well as members.
+  Members are fine -- they have Chat now -- but clients are not, so there is a
+  `data-client-only` Chat entry in Communication pointing at old chat, and a matching CSS
+  rule (`body:not(.role-client) [data-client-only]{display:none}`) that is the mirror of
+  `data-client-hidden`. `sidebarBadgeChat` moved onto that entry, since a client is now the
+  only person who sees it.
+
+Clients are deliberately still out of the new Chat: client conversations are public now and
+they are where the team talks ABOUT a client.
