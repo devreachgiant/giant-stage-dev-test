@@ -1935,6 +1935,56 @@ await step('Invite members picks people, and they are actually added', async () 
     JSON.stringify(r));
 });
 
+await step('the DM picker takes one person, the group picker takes several', async () => {
+  const r = await page.evaluate(async () => {
+    const out = {};
+    const shut = () => document.querySelectorAll('.modal-overlay.on, .nc_modal-overlay.on')
+      .forEach(m => m.classList.remove('on'));
+    const dead = new Set(window.__mock.db.profiles.filter(p => p.deactivated_at).map(p => p.id));
+    out.deactivatedInFixture = dead.size;
+
+    const open = async (btnId) => {
+      shut();
+      document.getElementById(btnId)?.click();
+      for (let i = 0; i < 30; i++) {
+        await new Promise(r => setTimeout(r, 200));
+        if (document.querySelectorAll('#nc_newDmList .nc_m-dm-item').length) break;
+      }
+      return [...document.querySelectorAll('#nc_newDmList .nc_m-dm-item')];
+    };
+    const selected = () => document.querySelectorAll('#nc_newDmList .nc_m-dm-item')
+      .length && [...document.querySelectorAll('#nc_newDmList .nc_m-dm-item')]
+        .filter(el => el.innerHTML.includes('M3.5 8.5l3 3 6-7')).length;
+
+    // Direct card: one at a time.
+    let rows = await open('nc_newDmBtn2');
+    out.dmRows = rows.length;
+    out.dmOffersDeactivated = rows.filter(el => dead.has(el.dataset.dmId)).length;
+    out.dmTitle = document.querySelector('#nc_newDmModal h3')?.textContent || '';
+    rows[0].click(); await new Promise(r => setTimeout(r, 200));
+    rows[1].click(); await new Promise(r => setTimeout(r, 250));
+    out.dmSelectedAfterTwo = selected();
+
+    // Group DMs card: several.
+    rows = await open('nc_newGroupBtn2');
+    out.groupTitle = document.querySelector('#nc_newDmModal h3')?.textContent || '';
+    rows[0].click(); await new Promise(r => setTimeout(r, 200));
+    rows[1].click(); await new Promise(r => setTimeout(r, 250));
+    out.groupSelectedAfterTwo = selected();
+    shut();
+
+    // The sidebar's "start a DM" fallback list, same rule.
+    out.sidebarOffersDeactivated = [...document.querySelectorAll('#nc_chatDmList [data-start-dm]')]
+      .filter(el => dead.has(el.dataset.startDm)).length;
+    return out;
+  });
+  check('the DM picker takes one person, the group picker takes several',
+    r.deactivatedInFixture > 0 && r.dmOffersDeactivated === 0 && r.sidebarOffersDeactivated === 0
+      && r.dmRows > 2 && r.dmSelectedAfterTwo === 1 && r.groupSelectedAfterTwo === 2
+      && /direct message/i.test(r.dmTitle) && /group/i.test(r.groupTitle),
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

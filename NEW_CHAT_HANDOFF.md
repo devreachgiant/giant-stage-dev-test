@@ -863,3 +863,26 @@ client-role account is recognisable before you invite it. Deactivation is checke
 `deactivated === true` -- the cache is shared with other screens and offering a disabled
 account is worse than missing one. The fixture has two deactivated profiles and the check
 requires none of them to be offered.
+
+### Deactivated accounts in the pickers, and DM vs group selection (2026-08-25)
+
+**Deactivated accounts were offered everywhere except the create-channel invite field.**
+`ncIsDeactivated` now gates three more places: the New DM / group picker, the sidebar's
+"start a DM" fallback list, and the "add someone" half of the channel members modal.
+
+Deliberately NOT filtered: `hydrateProfiles`, `hydrateAllWorkspaceProfiles` and
+`switchChannel`. Those resolve names for messages and memberships that already exist --
+filtering there would blank the author on every message a since-deactivated person wrote.
+Nor is the existing-members half of the members modal filtered: a deactivated account that
+is already in a channel stays listed, or the channel understates its membership and there
+is no way to remove them.
+
+**A DM now takes one person.** The picker was multi-select in both directions and decided
+afterwards, by count, whether to call `ensure_dm_channel` or `create_group_dm`. Picking a
+second person from the Direct card now replaces the first; the Group DMs card keeps adding.
+`window.nc__dmModalMode` carries which card was clicked, since both open the same modal, and
+the modal's title, subtitle and submit label follow it. This also closes the older gap where
+the Group DMs "+" opened a one-to-one picker and could not create a group at all.
+
+Note when editing `loadDmModalList`: the original chat has a byte-identical copy of the
+filter line, so a blind string replace hits both. Scope edits to the `newChatModule` slice.

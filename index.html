@@ -70933,6 +70933,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         el._ncWired = true;
         el.addEventListener('click', (e) => {
           e.stopPropagation();                       // do not toggle the card open/closed
+          // The Group DMs card shares the DM picker; it just wants more than one person.
+          window.nc__dmModalMode = mine === 'nc_newGroupBtn2' ? 'group' : 'dm';
           const target = document.getElementById(theirs);
           if (target) target.click();
           else if (typeof toast === 'function') toast({ type:'error', message:'That action is not available yet.' });
@@ -75427,7 +75429,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         container.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:var(--text-3);font-style:italic;">No teammates yet</div>';
         return;
       }
-      container.innerHTML = data.map(p => {
+      container.innerHTML = data.filter(p => !ncIsDeactivated(p)).map(p => {
         const initial = (p.full_name || p.email || '?').charAt(0).toUpperCase();
         const presClass = (window.giantOnlineProfiles && window.giantOnlineProfiles.has(p.id)) ? 'presence-online' : 'presence-offline';
         const ava = p.avatar_url
@@ -77437,9 +77439,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const newDmSearch = document.getElementById('nc_newDmSearch');
     let dmTeammatesCache = [];
     let _dmSelected = new Set();
+    // 'dm' from the Direct card, 'group' from the Group DMs card. Both open the same
+    // modal; only the number of people it will take differs.
+    let _ncDmMode = 'dm';
     function updateDmSubmit(){
       const btn = newDmModal && newDmModal.querySelector('.nc_m-submit'); if(!btn) return;
       const n = _dmSelected.size;
+      if (_ncDmMode !== 'group') {
+        btn.textContent = n === 1 ? 'Start conversation' : 'Select a person';
+        btn.disabled = n !== 1; btn.style.opacity = n === 1 ? '1' : '.55';
+        return;
+      }
       btn.textContent = n>=2 ? `Create group DM (${n})` : (n===1 ? 'Start conversation' : 'Select people');
       btn.disabled = n===0; btn.style.opacity = n===0 ? '.55' : '1';
     }
@@ -77451,7 +77461,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         dmTeammatesCache = data || [];
       }
       const f = (filter||'').toLowerCase();
-      const filtered = dmTeammatesCache.filter(p => !f || (p.full_name||'').toLowerCase().includes(f) || (p.email||'').toLowerCase().includes(f));
+      // A deactivated account cannot read a DM, so offering one only starts a
+      // conversation nobody will ever answer.
+      const filtered = dmTeammatesCache.filter(p => !ncIsDeactivated(p))
+        .filter(p => !f || (p.full_name||'').toLowerCase().includes(f) || (p.email||'').toLowerCase().includes(f));
       if (!filtered.length) {
         newDmList.innerHTML = '<div style="padding:14px;color:var(--text-3);font-size:11.5px;text-align:center;">No teammates found</div>';
         return;
@@ -77470,7 +77483,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       newDmList.querySelectorAll('[data-dm-id]').forEach(el => {
         el.addEventListener('click', () => {
           const id = el.dataset.dmId;
-          if (_dmSelected.has(id)) _dmSelected.delete(id); else _dmSelected.add(id);
+          // A direct message is between two people by definition, so the DM picker holds one
+      // choice and picking again replaces it. The group picker is the one that adds up.
+      if (_dmSelected.has(id)) _dmSelected.delete(id);
+      else { if (_ncDmMode !== 'group') _dmSelected.clear(); _dmSelected.add(id); }
           loadDmModalList(newDmSearch ? newDmSearch.value : '');
           updateDmSubmit();
         });
@@ -77484,6 +77500,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       fresh.addEventListener('click', () => {
         dmTeammatesCache = []; // force reload to pick up new members
         _dmSelected.clear();
+        _ncDmMode = window.nc__dmModalMode === 'group' ? 'group' : 'dm';
+        window.nc__dmModalMode = null;
+        const head = newDmModal && newDmModal.querySelector('.nc_modal-head');
+        const h3 = head && head.querySelector('h3');
+        const sub = head && head.querySelector('.nc_m-sub');
+        if (h3) h3.textContent = _ncDmMode === 'group' ? 'New group DM' : 'New direct message';
+        if (sub) sub.textContent = _ncDmMode === 'group'
+          ? 'Pick the people for this group'
+          : 'Pick one person to message';
         loadDmModalList('');
         // Wire the submit button once (handles 1:1 + group)
         const dmSubmitBtn = newDmModal && newDmModal.querySelector('.nc_m-submit');
@@ -78239,7 +78264,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const memberIds = new Set((membersRes.data || []).map(m => m.profile_id));
       chMembersAllProfilesCache = allProfilesRes.data || [];
       const members = chMembersAllProfilesCache.filter(p => memberIds.has(p.id));
-      const notMembers = chMembersAllProfilesCache.filter(p => !memberIds.has(p.id));
+      // Only the "add someone" half. A deactivated account already IN the channel stays
+      // listed above -- hiding it would understate the membership and leave no way to
+      // remove them.
+      const notMembers = chMembersAllProfilesCache.filter(p => !memberIds.has(p.id) && !ncIsDeactivated(p));
       const listEl = document.getElementById('nc_chMembersList');
       const countEl = document.getElementById('nc_chMembersCount');
       countEl.textContent = `· ${members.length}`;
