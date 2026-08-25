@@ -790,3 +790,37 @@ Known limit, stated plainly: the "every modal is on screen" check opens the five
 `.on` directly, so for four of them it really only proves the close target. The `"+"` check
 is the one that drives a real app path end to end. Driving Members/Invite/Pinned/DM the way
 a user does is still to do.
+
+### Needs you dropped channels, and badges vanished on every repaint (2026-08-25)
+
+Two separate faults behind "the old chat says 20 unread, the card shows 3".
+
+**1. The card was built from the DOM, not from the data.** `renderNavCards` cloned rows
+already painted in `#nc_chatChannelList`, so a channel with no painted row could not appear
+however loudly it was asking for you. With the Clients scope the sidebar deliberately keeps
+ONE row per client -- its General, or its busiest department -- so unread on any other
+department of that client pointed at a channel id with no row, and the need was dropped in
+silence. In the real data that lost `maribou` and `mango-vans-seo`; `burrus-seo` survived
+only because it happened to be its client's chosen row.
+
+The in-app diagnostic settled it: both missing channels came back `iAmMember: yes`,
+`inChatChannels: yes`, `reachedNcNeeds: mention`, `paintedRow: NO`. `computeNeedsYou` was
+right all along; the render threw the answer away.
+
+Needs you now falls back to synthesising a row from the channel record whenever nothing was
+painted, labelled as the sidebar labels it (client name, plus `· department` so two needy
+departments of one client stay tellable apart). The painted rows are now only an
+optimisation for the common case. This also removes the standing fragility around
+`reachgiant-home`, which is filtered out of that list by name.
+
+**2. Every repaint stripped the unread badges.** `renderOne` emits no badge -- badges are
+stamped on afterwards by `updateUnreadBadges` -- and `loadChannels` never called it. So any
+list rebuild removed every badge until the 30s unread poll or a reload. That is the "red
+badges disappear by themselves" report, and the 2026-08-24 sidebar-reload fix made it far
+more visible by running `loadChannels` on every membership change. One call at the end of
+`loadChannels`, reading `chatUnreadCounts` already in memory.
+
+Trap worth keeping: the first version of the badge check compared the count after a rebuild
+with the count before it, and PASSED on the broken build -- the "before" figure was itself
+taken after an earlier rebuild had already stripped them. It now counts rows that SHOULD
+carry a badge and requires every one of them to have it: 8 of 8 after, 0 of 8 before.

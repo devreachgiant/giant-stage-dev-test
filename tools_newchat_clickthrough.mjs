@@ -1782,6 +1782,72 @@ await step('every modal New Chat opens is actually on screen', async () => {
     ids.every(k => r[k] === 'visible') && r.closes === true, JSON.stringify(r));
 });
 
+await step('a need on a client department the sidebar does not paint still lists', async () => {
+  const r = await page.evaluate(async () => {
+    const me = window.giantSession.user.id;
+    // The Clients scope keeps ONE row per client -- its General -- so unread on any other
+    // department points at a channel id with no row. That is the shape that lost two
+    // channels out of five for real.
+    window.nc__chatScope = 'clients';
+    try { localStorage.setItem('giant_nc_chat_scope', 'clients'); } catch (_) {}
+    window.__mock.db.messages.push({
+      id: 'm-quiet-dept', channel_id: 'ch-cd-seo-8', author_id: 'u-7',
+      body: 'the seo department needs a look', created_at: new Date().toISOString()
+    });
+    if (window.nc_renderChannelList) window.nc_renderChannelList();
+    await window.nc_computeNeedsYou();
+    await new Promise(r => setTimeout(r, 900));
+
+    const painted = new Set([...document.querySelectorAll('#nc_chatChannelList .nc_ch-item[data-nc-channel-id]')]
+      .map(e => e.dataset.ncChannelId));
+    const onCard = new Set([...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')]
+      .map(e => e.dataset.ncChannelId || e.dataset.ncDmChannelId).filter(Boolean));
+    const { data: uc } = await window.giantSupabase.from('unread_counts')
+      .select('channel_id, unread_count').eq('profile_id', me);
+    const unread = (uc || []).filter(x => (x.unread_count || 0) > 0).map(x => x.channel_id);
+    return {
+      target: 'ch-cd-seo-8',
+      targetWasPainted: painted.has('ch-cd-seo-8'),      // false is the point
+      targetOnCard: onCard.has('ch-cd-seo-8'),
+      unreadCount: unread.length,
+      missing: unread.filter(id => !onCard.has(id)),
+      label: [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')]
+        .filter(e => e.dataset.ncChannelId === 'ch-cd-seo-8')
+        .map(e => e.textContent.trim().replace(/\s+/g, ' '))[0] || null
+    };
+  });
+  // Every channel the database calls unread has a row. The card is the queue; a silent
+  // drop is the one failure that cannot be noticed by looking at it.
+  check('a need on a client department the sidebar does not paint still lists',
+    r.targetOnCard && r.missing.length === 0 && !!r.label, JSON.stringify(r));
+});
+
+await step('unread badges survive a sidebar rebuild', async () => {
+  const r = await page.evaluate(async () => {
+    const me = window.giantSession.user.id;
+    // A membership change is the ordinary trigger: it fires whenever anyone's
+    // last_read_at is written, which is constantly.
+    window.__mock.emit('channel_members', 'UPDATE', { channel_id: 'ch-team-0', profile_id: me });
+    // Long enough for the debounced reload, the list repaint and the card rebuild.
+    await new Promise(r => setTimeout(r, 2600));
+
+    const { data: uc } = await window.giantSupabase.from('unread_counts')
+      .select('channel_id, unread_count').eq('profile_id', me);
+    const unread = new Set((uc || []).filter(x => (x.unread_count || 0) > 0).map(x => x.channel_id));
+    const rows = [...document.querySelectorAll('#nc_chatChannelList .nc_ch-item[data-nc-channel-id]')];
+    // Counting against what SHOULD carry one, not against an earlier count -- an earlier
+    // count taken after a previous rebuild is already missing the badges, so "no worse
+    // than before" passes on a build where every badge is gone.
+    const expect = rows.filter(el => unread.has(el.dataset.ncChannelId)
+      && el.dataset.ncChannelId !== window.nc_activeChannelId);
+    const withBadge = expect.filter(el => el.querySelector('.nc_ch-unread-badge'));
+    return { rowsRendered: rows.length, shouldHaveBadge: expect.length, haveBadge: withBadge.length };
+  });
+  // They used to vanish on every repaint and stay gone until the 30s poll or a reload.
+  check('unread badges survive a sidebar rebuild',
+    r.shouldHaveBadge > 0 && r.haveBadge === r.shouldHaveBadge, JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

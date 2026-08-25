@@ -70707,37 +70707,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       }
       ncNeeds = next;
       Object.keys(ncNeedMsg).forEach(k => { if (!next[k]) delete ncNeedMsg[k]; });
-      // TEMPORARY DIAGNOSTIC -- remove once the missing-rows question is settled.
-      // Prints every channel the database says is unread and where, if anywhere, it is
-      // lost on the way to the card. Set window.NC_DEBUG_NEEDS = false to silence.
-      if (window.NC_DEBUG_NEEDS !== false) setTimeout(() => {
-        try {
-          const rows = (countRes.data || []).filter(r => (r.unread_count || 0) > 0);
-          const byIdAll = new Map((chatChannels || []).map(c => [c.id, c]));
-          const painted = new Set([...document.querySelectorAll('#nc_chatChannelList .nc_ch-item[data-nc-channel-id]')].map(e => e.dataset.ncChannelId));
-          const dmPainted = new Set([...document.querySelectorAll('#nc_chatDmList .nc_ch-item[data-nc-dm-channel-id]')].map(e => e.dataset.ncDmChannelId));
-          const needRows = [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')].map(e => e.textContent.trim().replace(/\s+/g, ' '));
-          console.log('%c[needs-you] unread channels in DB: ' + rows.length
-            + '   total unread: ' + rows.reduce((a, r) => a + (r.unread_count || 0), 0)
-            + '   rows on the card: ' + needRows.length, 'color:#e11;font-weight:700');
-          console.log('[needs-you] card shows:', needRows);
-          console.table(rows.map(r => {
-            const c = byIdAll.get(r.channel_id);
-            return {
-              name: c ? (c.name || '(unnamed)') : '(NOT in chatChannels)',
-              unread: r.unread_count,
-              kind: c ? (c.kind || '') : '',
-              client: c && c.client_id ? 'yes' : '',
-              dm: c && c.is_dm ? 'yes' : '',
-              section: c && c.section_id ? 'yes' : '',
-              iAmMember: readBy[r.channel_id] !== undefined ? 'yes' : 'NO',
-              inChatChannels: c ? 'yes' : 'NO',
-              paintedRow: painted.has(r.channel_id) ? 'yes' : (dmPainted.has(r.channel_id) ? 'dm-list' : 'NO'),
-              reachedNcNeeds: next[r.channel_id] || 'NO'
-            };
-          }).sort((a, b) => b.unread - a.unread));
-        } catch (e) { console.warn('[needs-you] diagnostic failed:', e); }
-      }, 900);
       // Newest-first needs a time for every row, and unread_counts has none. Asked for
       // here, once the list is known, so it covers exactly the channels on it -- a
       // "newest N messages everywhere" query is the sampling trap that hid an old unread
@@ -71023,6 +70992,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
       const src = document.getElementById('nc_chatChannelList');
       const rowByChannel = new Map();
+      const needPlaced = new Set();
       (src ? [...src.querySelectorAll('.nc_ch-item[data-nc-channel-id]')] : []).forEach(row => {
         const c = byId.get(row.dataset.ncChannelId);
         if (!c) return;
@@ -71034,7 +71004,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const need = ncNeeds[c.id];
         if (need) {
           const cl2 = place(row, bodies.needs, c.id, false, true);
-          if (cl2) tagNeed(cl2, need);
+          if (cl2) { tagNeed(cl2, need); needPlaced.add(c.id); }
         }
       });
 
@@ -71085,8 +71055,54 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const needDm = ncNeeds[id];
         if (needDm) {
           const cl3 = place(row, bodies.needs, id, false, true);
-          if (cl3) tagNeed(cl3, needDm);
+          if (cl3) { tagNeed(cl3, needDm); needPlaced.add(id); }
         }
+      });
+
+      // Anything that needs you but had no row to clone. This card used to be built
+      // ENTIRELY from rows the sidebar had already painted, so a channel the sidebar
+      // chose not to paint could not appear here however loudly it was asking for you.
+      // That is not hypothetical: with the Clients scope the sidebar keeps one row per
+      // client -- its General, or its busiest department -- so unread on any OTHER
+      // department of that client pointed at a channel id with no row anywhere, and the
+      // need was dropped in silence. Two client channels went missing out of five, and
+      // the card said 3 while the old chat's badge said 20.
+      //
+      // Synthesised from the channel record instead, so the card is driven by ncNeeds --
+      // the data -- and the painted rows are only an optimisation for the common case.
+      Object.keys(ncNeeds).forEach(id => {
+        if (needPlaced.has(id) || !bodies.needs) return;
+        const c = byId.get(id) || dmById.get(id);
+        if (!c) return;                                   // not a channel we know about
+        const kind = ncNeeds[id];
+        const cl = c.client_id ? ncClients[c.client_id] : null;
+        const row = document.createElement('div');
+        row.className = 'nc_ch-item';
+        row.dataset.ncChannelId = id;
+        // Labelled the way the sidebar labels it: a client's conversation reads as the
+        // client, with the department after it so two needy departments of one client
+        // are still tellable apart.
+        const label = cl
+          ? (cl.name || 'Client') + (c.department && c.department !== 'general' ? ' · ' + c.department : '')
+          : (c.name || 'Channel');
+        const icon = cl
+          ? '<span class="nc_hash" style="font-style:normal;width:20px;height:20px;border-radius:50%;'
+            + 'display:inline-flex;align-items:center;justify-content:center;'
+            + 'background:' + chatEsc(cl.avatar_bg || 'var(--c3-avatar-bg)') + ';color:' + chatEsc(cl.avatar_fg || 'var(--c3-avatar-fg)') + ';'
+            + 'font-size:8.5px;font-weight:800;flex-shrink:0;">' + chatEsc((cl.name || '?').trim().charAt(0).toUpperCase()) + '</span>'
+          : '<span class="nc_hash">#</span>';
+        const n = (chatUnreadCounts && chatUnreadCounts[id]) || 0;
+        const badge = n > 0
+          ? '<span class="nc_ch-unread-badge">' + (n > 99 ? '99+' : n) + '</span>'
+          : '';
+        row.innerHTML = icon + chatEsc(label) + badge;
+        row.addEventListener('click', () => {
+          const t = ncNeedMsg[id];
+          if (t) ncJumpToMessage(id, t.id, t.parentId); else switchChannel(id);
+        });
+        bodies.needs.appendChild(row);
+        tagNeed(row, kind);
+        needPlaced.add(id);
       });
 
       const empty = (b, msg) => { if (b && !b.children.length) b.innerHTML = '<div style="padding:7px 9px;font-size:11px;color:var(--c3-t6);font-style:italic;">' + msg + '</div>'; };
@@ -74854,6 +74870,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       }
       // Refresh custom sidebar cards so section-assigned channels render inside them
       if (typeof window.nc_loadCustomChatSections === 'function') { try { window.nc_loadCustomChatSections(); } catch(_){} }
+      // Repaint the unread badges. renderOne emits no badge -- badges are stamped onto
+      // rows afterwards by updateUnreadBadges -- so every repaint of this list silently
+      // stripped them, and they only came back on the next 30s unread poll or a reload.
+      // That is the "badges disappear by themselves" report. It reads from
+      // chatUnreadCounts, already in memory, so this costs nothing.
+      if (typeof updateUnreadBadges === 'function') updateUnreadBadges();
     }
 
     let chatDmChannels = [];
