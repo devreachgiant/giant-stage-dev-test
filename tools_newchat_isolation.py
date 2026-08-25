@@ -29,9 +29,31 @@ REGIONS = [(7198, 7707, 'chat screen markup'),
            (67519, 67870, 'per-channel sub-tabs')]
 
 # (region index, before, after, why) -- before must occur exactly once in main's region.
+BEFORE_CLIENT_CHANNELS = (
+    "      .select('id, name, slug, description, is_private, is_dm, dm_pair, emoji, position, section_id')\n")
+AFTER_CLIENT_CHANNELS = (
+    "      .select('id, name, slug, description, is_private, is_dm, dm_pair, emoji, position, section_id, kind')\n")
+
+BEFORE_SPLIT = (
+    "      // Separate regular channels and DMs\n"
+    "      const allChannels = data || [];\n")
+AFTER_SPLIT = (
+    "      // Separate regular channels and DMs\n"
+    "      // New Chat's client conversations are excluded. They are public so the whole team\n"
+    "      // can read them there, and public means this screen would otherwise list all of\n"
+    "      // them -- one per client, plus a row per department -- in a sidebar that has never\n"
+    "      // had them and where they mean nothing. Approved exception to the isolation rule,\n"
+    "      // pinned in tools_newchat_isolation.py; the only other one is the member count.\n"
+    "      const allChannels = (data || []).filter(c => c.kind !== 'client_dept');\n")
+
 ALLOWED = [(1, BEFORE_HEAD_MEMBERS, AFTER_HEAD_MEMBERS,
             'the channel header counted every workspace profile instead of the channel\'s '
-            'members; fixed in both chats by explicit decision, not a leak')]
+            'members; fixed in both chats by explicit decision, not a leak'),
+           (1, BEFORE_CLIENT_CHANNELS, AFTER_CLIENT_CHANNELS,
+            'old chat reads `kind` so it can skip New Chat\'s client conversations'),
+           (1, BEFORE_SPLIT, AFTER_SPLIT,
+            'client conversations are public now, so old chat would otherwise list every '
+            'one of them in a sidebar that has never had them; hidden by explicit decision')]
 
 main = subprocess.run(['git', 'show', 'main:index.html'],
                       capture_output=True, text=True).stdout.split('\n')

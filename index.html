@@ -43301,7 +43301,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       // Fetch all channels (RLS handles visibility)
       const { data, error } = await supabase
         .from('channels')
-        .select('id, name, slug, description, is_private, is_dm, dm_pair, emoji, position, section_id')
+        .select('id, name, slug, description, is_private, is_dm, dm_pair, emoji, position, section_id, kind')
         .order('position', { ascending: true })
         .order('name', { ascending: true });
       if (error) {
@@ -43309,7 +43309,12 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         return;
       }
       // Separate regular channels and DMs
-      const allChannels = data || [];
+      // New Chat's client conversations are excluded. They are public so the whole team
+      // can read them there, and public means this screen would otherwise list all of
+      // them -- one per client, plus a row per department -- in a sidebar that has never
+      // had them and where they mean nothing. Approved exception to the isolation rule,
+      // pinned in tools_newchat_isolation.py; the only other one is the member count.
+      const allChannels = (data || []).filter(c => c.kind !== 'client_dept');
       chatChannels = allChannels.filter(c => !c.is_dm);
       chatDmChannels = allChannels.filter(c => c.is_dm);
       // Keep the global reference fresh so the custom cards (which read window.chatChannels) populate correctly
@@ -75722,6 +75727,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (!memErr && Array.isArray(mem)) memberIds = mem.map(m => m.profile_id);
       }
       if (channelId !== activeChannelId) return;   // switched channel while that was in flight
+      // Deactivated members are dropped from both the avatars and the count. They are
+      // still membership rows -- nothing is deleted -- but a channel reading "15 members"
+      // when three of them cannot sign in is telling you something untrue.
+      if (memberIds) memberIds = memberIds.filter(id => !ncIsDeactivated(chatProfilesCache[id]));
       const cachedProfiles = Object.values(chatProfilesCache || {}).filter(p => p && p.id);
       // A failed query falls back to the old behaviour, so this is never worse than before.
       const known = memberIds
@@ -78427,7 +78436,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       ]);
       const memberIds = new Set((membersRes.data || []).map(m => m.profile_id));
       chMembersAllProfilesCache = allProfilesRes.data || [];
-      const members = chMembersAllProfilesCache.filter(p => memberIds.has(p.id));
+      // Deactivated accounts are out of the member list too. They were kept here so they
+      // could be removed, but they are hidden everywhere else now, and a name that shows
+      // up in exactly one place is more confusing than one that shows up nowhere.
+      const members = chMembersAllProfilesCache.filter(p => memberIds.has(p.id) && !ncIsDeactivated(p));
       // Only the "add someone" half. A deactivated account already IN the channel stays
       // listed above -- hiding it would understate the membership and leave no way to
       // remove them.
@@ -79267,7 +79279,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const ctx = detectMentionContext(inp);
       if (!ctx) { closeMentionPicker(); return; }
       // Get all profiles from cache
-      const all = Object.values(chatProfilesCache).filter(p => p && p.id !== window.giantSession.user.id);
+      // A deactivated account cannot read the mention, so offering it only produces a
+      // notification nobody receives. The cache keeps them -- their names still have to
+      // resolve on messages they wrote -- so the filter belongs here, at the point of
+      // offering, not at the point of loading.
+      const all = Object.values(chatProfilesCache)
+        .filter(p => p && p.id !== window.giantSession.user.id && !ncIsDeactivated(p));
       // Filter by token
       const matches = all.filter(p => {
         const name = (p.full_name || p.email || '').toLowerCase();

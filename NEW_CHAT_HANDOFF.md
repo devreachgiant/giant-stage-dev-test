@@ -1151,3 +1151,39 @@ Three changes asked for together, plus a fourth they imply.
   cost written down at `openClientThread` and it has not gone away; it has been chosen. Old
   chat is still the surface for members and clients, so every client channel made from here
   shows up there too.
+
+### The backfill, and old chat is spared (2026-08-25)
+
+`20260825140000_client_channels_public_and_shared.sql`, **applied to production**: every
+`kind = 'client_dept'` channel set public, and every non-deactivated, non-client profile
+inserted as a member. Team channels and DMs are untouched -- a private team channel is
+private on purpose and a DM is private by definition.
+
+Client-role accounts are excluded, which is the one line worth arguing about: a client_dept
+channel is where the team talks ABOUT a client, not TO them, and these rows are public now,
+so adding the client's own login would make that conversation readable to them. If clients
+are ever meant into their own channel it should be a deliberate grant per client, not a
+blanket insert.
+
+**Old chat no longer lists client conversations.** Public means old chat would otherwise
+show all 44 of them, plus a row per department, in a sidebar that has never had them --
+to members and clients too. It now selects `kind` and filters `client_dept` out. That is
+two more approved exceptions in `tools_newchat_isolation.py`, and the file records the
+reason for each; the tool still fails on anything else.
+
+### Deactivated accounts are gone from the people lists
+
+They were already out of the DM picker, the sidebar's start-a-DM list, the create-channel
+invite field and the "add someone" half of the members modal. Three more, all visible:
+the **@mention picker** (offering an account that cannot read the mention), the **header
+avatars and member count** (a channel reading "15 members" when three cannot sign in), and
+the **existing-member list** in the members modal -- kept before so they could be removed,
+now hidden, because a name that appears in exactly one place is more confusing than one
+that appears nowhere.
+
+Not filtered, deliberately: `hydrateProfiles`, `hydrateAllWorkspaceProfiles`, `parseMentions`
+and `profileName`. Those resolve names on messages that already exist; filtering there
+would blank the author on everything a since-deactivated person ever wrote.
+
+One check now sweeps all six surfaces at once and fails on the previous commit with
+`offenders: ["mention-picker"]`.

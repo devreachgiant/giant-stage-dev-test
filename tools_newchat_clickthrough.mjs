@@ -2408,6 +2408,50 @@ await step('Management is a manager\'s tab, Messages and Vault are everyone\'s',
     JSON.stringify(r));
 });
 
+await step('a deactivated account appears nowhere a person is offered', async () => {
+  const r = await page.evaluate(async () => {
+    const db = window.__mock.db;
+    const dead = db.profiles.filter(p => p.deactivated_at);
+    const out = { deactivatedInFixture: dead.length, offenders: [] };
+    if (!dead.length) return out;
+    const deadIds = new Set(dead.map(p => p.id));
+    const deadNames = dead.map(p => (p.full_name || p.email || '').trim()).filter(Boolean);
+
+    // 1. the @mention picker
+    const input = document.getElementById('nc_chatInput');
+    if (input) {
+      input.focus();
+      input.value = '@';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 600));
+      const pop = document.querySelector('.mention-picker-pop');
+      const txt = pop ? pop.textContent || '' : '';
+      out.mentionPickerOpen = !!pop;
+      if (deadNames.some(n => txt.includes(n))) out.offenders.push('mention-picker');
+      input.value = '';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 250));
+    }
+    // 2. the header avatar row / member count
+    const head = document.getElementById('nc_chatHeadMembers');
+    if (head && deadNames.some(n => (head.textContent || '').includes(n))) out.offenders.push('header-avatars');
+
+    // 3. the DM picker, 4. the sidebar DM list, 5. the invite field
+    const dmRows = [...document.querySelectorAll('#nc_newDmList .nc_m-dm-item')];
+    if (dmRows.some(el => deadIds.has(el.dataset.dmId))) out.offenders.push('dm-picker');
+    const startDm = [...document.querySelectorAll('#nc_chatDmList [data-start-dm]')];
+    if (startDm.some(el => deadIds.has(el.dataset.startDm))) out.offenders.push('sidebar-dm-list');
+
+    // 6. the channel members modal, both halves
+    const modalRows = [...document.querySelectorAll('#nc_chMembersList .nc_ch-member, #nc_chMembersList [data-remove]')];
+    const modalTxt = modalRows.map(e => e.textContent || '').join(' ');
+    if (deadNames.some(n => modalTxt.includes(n))) out.offenders.push('members-modal');
+    return out;
+  });
+  check('a deactivated account appears nowhere a person is offered',
+    r.deactivatedInFixture > 0 && r.offenders.length === 0, JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
