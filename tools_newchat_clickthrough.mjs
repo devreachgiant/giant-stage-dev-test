@@ -1715,6 +1715,10 @@ await step('the "+" on a nav card creates a channel and shows it', async () => {
     out.modalOpened = seen(modal);
     out.wrongModalShown = seen(document.getElementById('newChannelModal'));
     if (!out.modalOpened) return out;
+    // Pressed from Teams, so the form must come up on Team -- otherwise the default has
+    // simply moved rather than been made to follow the card.
+    out.defaultedToTeam =
+      document.querySelector('#nc_newChannelModal [data-ctype].nc_sel')?.dataset.ctype === 'team';
     const name = document.getElementById('nc_newChannelName');
     if (name) { name.value = 'clickthrough-made'; name.dispatchEvent(new Event('input', { bubbles: true })); }
     const before = window.__mock.db.channels.length;
@@ -1733,7 +1737,7 @@ await step('the "+" on a nav card creates a channel and shows it', async () => {
   // sidebar went on showing the old list, so the button read as dead.
   check('the "+" on a nav card creates a channel and shows it',
     r.plusExists && r.modalOpened && !r.wrongModalShown && r.created
-      && !r.presentBefore && r.presentAfter,
+      && r.defaultedToTeam && !r.presentBefore && r.presentAfter,
     JSON.stringify(r));
 });
 
@@ -2091,6 +2095,15 @@ await step('the Clients "+" opens the same form as Teams', async () => {
       Math.abs(card.querySelector('.nc_navcard-body').getBoundingClientRect().height - bodyBefore) < 2;
     out.pickerGone = !document.getElementById('nc_newClientChannelModal');
     if (!out.opensTeamForm) return out;
+    // The choice is on screen and pre-set from the card that was pressed.
+    out.typeChoiceVisible = document.querySelectorAll('#nc_newChannelModal [data-ctype]').length === 2;
+    out.defaultedToClient =
+      document.querySelector('#nc_newChannelModal [data-ctype].nc_sel')?.dataset.ctype === 'client';
+    // Selecting a type must not disturb the privacy row: both grids are .nc_m-role.
+    out.privacyBefore = document.querySelector('#nc_newChannelModal [data-priv].nc_sel')?.dataset.priv;
+    document.querySelector('#nc_newChannelModal [data-ctype="client"]').click();
+    await new Promise(r => setTimeout(r, 150));
+    out.privacyAfter = document.querySelector('#nc_newChannelModal [data-priv].nc_sel')?.dataset.priv;
 
     const name = document.getElementById('nc_newChannelName');
     name.value = 'from-clients-card';
@@ -2126,6 +2139,8 @@ await step('the Clients "+" opens the same form as Teams', async () => {
   });
   check('the Clients "+" opens the same form as Teams',
     r.hasButton && r.opensTeamForm && r.cardDidNotToggle && r.pickerGone
+      && r.typeChoiceVisible && r.defaultedToClient
+      && r.privacyBefore === 'public' && r.privacyAfter === 'public'
       && r.created && r.noClientRecord && r.markedAsClient
       && r.inClientsCard && !r.inTeamsCard,
     JSON.stringify(r));

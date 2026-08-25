@@ -8651,6 +8651,13 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                 <div class="nc_m-field"><label>Channel name</label><input type="text" id="nc_newChannelName" placeholder="# e.g. q4-campaigns"></div>
                 <div class="nc_m-field"><label>Description <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional)</span></label><input type="text" id="nc_newChannelDesc" placeholder="What is this channel about?"></div>
                 <div class="nc_m-field">
+                  <label>Where it belongs</label>
+                  <div class="nc_m-role-grid">
+                    <div class="nc_m-role nc_sel" data-ctype="team"><div class="nc_mr-name">Team</div><div class="nc_mr-desc">Shows under Teams</div></div>
+                    <div class="nc_m-role" data-ctype="client"><div class="nc_mr-name">Client</div><div class="nc_mr-desc">Shows under Clients</div></div>
+                  </div>
+                </div>
+                <div class="nc_m-field">
                   <label>Privacy</label>
                   <div class="nc_m-role-grid">
                     <div class="nc_m-role nc_sel" data-priv="public"><div class="nc_mr-name">Public</div><div class="nc_mr-desc">Anyone in the workspace can join</div></div>
@@ -77409,8 +77416,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (input) input.value = '';
       ncRenderInviteChips();
       ncRenderInviteSuggest('');
-      document.querySelectorAll('#nc_newChannelModal .nc_m-role').forEach(el => {
+      document.querySelectorAll('#nc_newChannelModal [data-priv]').forEach(el => {
         el.classList.toggle('nc_sel', el.dataset.priv === 'public');
+      });
+      // Pressing "+" on the Clients card means a client channel, so say so in the form
+      // rather than deciding it invisibly. It stays changeable: the card is a default,
+      // not a verdict.
+      const want = window.nc__channelModalCard === 'clients' ? 'client' : 'team';
+      document.querySelectorAll('#nc_newChannelModal [data-ctype]').forEach(el => {
+        el.classList.toggle('nc_sel', el.dataset.ctype === want);
       });
       // The picker needs people to offer. It is the same list the DM modal uses and is
       // cached after the first load.
@@ -77421,9 +77435,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         dmTeammatesCache = data || [];
       }
     }
+    // Scoped to the row the option sits in. Selecting Client used to clear Public as
+    // well, because both grids are .nc_m-role inside the same modal.
     document.querySelectorAll('#nc_newChannelModal .nc_m-role').forEach(el => {
       el.addEventListener('click', () => {
-        document.querySelectorAll('#nc_newChannelModal .nc_m-role')
+        el.parentElement.querySelectorAll('.nc_m-role')
           .forEach(o => o.classList.toggle('nc_sel', o === el));
       });
     });
@@ -77436,7 +77452,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const sb = window.giantSupabase, sess = window.giantSession;
       if (!sb || !sess?.user) { if (typeof toast === 'function') toast({ type:'error', message:'Not signed in' }); return; }
       const name = raw.replace(/\s+/g, '-').toLowerCase();
-      const isPrivate = document.querySelector('#nc_newChannelModal .nc_m-role.nc_sel')?.dataset.priv === 'private';
+      const isPrivate = document.querySelector('#nc_newChannelModal [data-priv].nc_sel')?.dataset.priv === 'private';
       const payload = {
         name,
         slug: name + '-' + Math.random().toString(36).slice(2, 5),
@@ -77445,11 +77461,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         position: (chatChannels || []).length,
         created_by: sess.user.id
       };
-      // Made from the Clients card, so it is a client conversation and belongs in that
-      // card. client_id stays null: there is no client RECORD behind it, and inventing
-      // one here would put a half-made client into Management, Billing and the Members
-      // matrix. kind is what the sidebar groups on, which is all this needs.
-      if (window.nc__channelModalCard === 'clients') payload.kind = 'client_dept';
+      // Whatever the form says, which is whatever the person can see. client_id stays
+      // null: there is no client RECORD behind it, and inventing one here would put a
+      // half-made client into Management, Billing and the Members matrix. kind is what
+      // the sidebar groups on, which is all this needs.
+      if (document.querySelector('#nc_newChannelModal [data-ctype].nc_sel')?.dataset.ctype === 'client') {
+        payload.kind = 'client_dept';
+      }
       window.nc__channelModalCard = null;
       ncChannelSubmit.disabled = true;
       ncChannelSubmit.textContent = 'Creating…';

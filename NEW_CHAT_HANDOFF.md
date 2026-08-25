@@ -953,3 +953,15 @@ Audit check 10 grew a leg while doing this. Removing the picker's markup and lea
 `openModal` call behind produced a button that did nothing and said nothing, and nothing
 caught it: check 10 only compared SCREENS, so an id in no markup at all was skipped rather
 than flagged. It now reports "no element with that id exists".
+
+**Where it belongs is now a field, not a flag (2026-08-25).** Deciding the destination from
+which card was pressed worked, but it was invisible: the form looked identical either way
+and you found out where the channel went afterwards. `nc_newChannelModal` now has a
+Team/Client row above Privacy, pre-selected from the card that opened it and changeable, so
+one form serves both and says which it is doing.
+
+Watch the option grids: both rows are `.nc_m-role` inside the same modal, and the original
+click handler cleared every `.nc_m-role` in the modal -- so picking Client also cleared
+Public and the channel came out private. Selection is scoped to `el.parentElement` now, and
+the check asserts privacy is untouched by a type click. Same for the reads at submit:
+`[data-priv].nc_sel` and `[data-ctype].nc_sel`, never the bare class.
