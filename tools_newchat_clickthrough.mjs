@@ -2799,8 +2799,23 @@ await step('clicking your profile opens the status menu, and it saves', async ()
     // It used to be anchored to `.sidebar-foot .who`, which is moved into the header at
     // boot -- so the trigger was null, the block bailed, and this click did nothing.
     person.click();
-    await wait(400);
-    out.opensOnClick = !!menu && menu.classList.contains('on');
+    await wait(500);
+    // On screen, not merely class="on". The menu opens UPWARD by default -- it used to
+    // hang off the sidebar footer -- so anchored in the top bar it rendered above the
+    // window and clicking your profile appeared to do nothing. Asserting the class is
+    // exactly the mistake that shipped it.
+    const seen = (el) => {
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      if (r.width < 60 || r.height < 40) return false;
+      if (r.top < 0 || r.left < 0 || r.bottom > window.innerHeight || r.right > window.innerWidth) return false;
+      return typeof el.checkVisibility === 'function'
+        ? el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) : true;
+    };
+    out.hasOnClass = !!menu && menu.classList.contains('on');
+    out.rect = menu ? (() => { const r = menu.getBoundingClientRect();
+      return Math.round(r.top) + ',' + Math.round(r.left) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height); })() : null;
+    out.opensOnClick = seen(menu);
     if (!out.opensOnClick) return out;
 
     // A preset writes it down. It used to change a dot on your own screen and nothing else.
