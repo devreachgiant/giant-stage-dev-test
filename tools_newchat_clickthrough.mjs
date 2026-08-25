@@ -2103,15 +2103,31 @@ await step('the Clients "+" opens the same form as Teams', async () => {
     }
     const made = window.__mock.db.channels.find(c => c.name === 'from-clients-card');
     out.created = !!made;
-    // Asserted because it is what the user will see: with no client record to hang off,
-    // this is an ordinary channel and it lands in Teams, not Clients.
-    out.hasNoClient = !!made && !made.client_id && !made.department;
+    // No client RECORD is invented -- that would put a half-made client into Management
+    // and Billing -- but it is marked as a client conversation so the sidebar groups it
+    // where it was made.
+    out.noClientRecord = !!made && !made.client_id;
+    out.markedAsClient = !!made && made.kind === 'client_dept';
+    // The part that was actually reported: it appeared under Teams.
     document.querySelectorAll('.nc_modal-overlay.on').forEach(m => m.classList.remove('on'));
+    for (const key of ['clients', 'teams']) {
+      const card = [...document.querySelectorAll('.nc_navcard')].find(x => x.dataset.nccard === key);
+      if (card && card.querySelector('.nc_navcard-body').getBoundingClientRect().height < 4) {
+        card.querySelector('.nc_navcard-head').click();
+        await new Promise(r => setTimeout(r, 500));
+      }
+    }
+    await new Promise(r => setTimeout(r, 900));
+    const inCard = (id) => [...document.querySelectorAll('#nc_card' + id + 'Body .nc_ch-item')]
+      .some(e => /from-clients-card/.test(e.textContent));
+    out.inClientsCard = inCard('Clients');
+    out.inTeamsCard = inCard('Teams');
     return out;
   });
   check('the Clients "+" opens the same form as Teams',
     r.hasButton && r.opensTeamForm && r.cardDidNotToggle && r.pickerGone
-      && r.created && r.hasNoClient,
+      && r.created && r.noClientRecord && r.markedAsClient
+      && r.inClientsCard && !r.inTeamsCard,
     JSON.stringify(r));
 });
 

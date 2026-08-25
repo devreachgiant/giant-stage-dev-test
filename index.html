@@ -70928,6 +70928,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                      ['nc_newClientChannelBtn','nc_newChannelBtn'],
                      ['nc_newDmBtn2','nc_newDmBtn'],
                      ['nc_newGroupBtn2','nc_newDmBtn']];
+      // Which card was pressed. The form is the same either way; where the channel then
+      // belongs is not, and a channel created under Clients that appears under Teams is
+      // the sidebar disagreeing with the click that made it.
+      const cardOf = { nc_newClientChannelBtn: 'clients', nc_newChannelBtn2: 'teams' };
       let ready = 0;
       pairs.forEach(([mine, theirs]) => {
         const el = document.getElementById(mine);
@@ -70939,6 +70943,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           e.stopPropagation();                       // do not toggle the card open/closed
           // The Group DMs card shares the DM picker; it just wants more than one person.
           window.nc__dmModalMode = mine === 'nc_newGroupBtn2' ? 'group' : 'dm';
+          if (cardOf[mine]) window.nc__channelModalCard = cardOf[mine];
           const target = document.getElementById(theirs);
           if (target) target.click();
           else if (typeof toast === 'function') toast({ type:'error', message:'That action is not available yet.' });
@@ -71035,6 +71040,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           row.addEventListener('click', () => openClientThread(cl.id));
           bodies.clients.appendChild(row);
         });
+
+      // Client conversations with no client record behind them. The loop above skips them
+      // (they are not team channels) and the client loop cannot reach them (it walks
+      // ncClients), so without this they were placed nowhere and fell out of the sidebar
+      // entirely -- or, before kind was set, showed up under Teams.
+      (src ? [...src.querySelectorAll('.nc_ch-item[data-nc-channel-id]')] : []).forEach(row => {
+        const c = byId.get(row.dataset.ncChannelId);
+        if (!c || c.kind !== 'client_dept') return;
+        if (c.client_id && ncClients[c.client_id]) return;      // handled by the client loop
+        place(row, bodies.clients, c.id, true);
+      });
 
       const dmSrc = document.getElementById('nc_chatDmList');
       // With no DM channels yet, renderDmChannelList falls back to listing teammates as
@@ -77429,6 +77445,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         position: (chatChannels || []).length,
         created_by: sess.user.id
       };
+      // Made from the Clients card, so it is a client conversation and belongs in that
+      // card. client_id stays null: there is no client RECORD behind it, and inventing
+      // one here would put a half-made client into Management, Billing and the Members
+      // matrix. kind is what the sidebar groups on, which is all this needs.
+      if (window.nc__channelModalCard === 'clients') payload.kind = 'client_dept';
+      window.nc__channelModalCard = null;
       ncChannelSubmit.disabled = true;
       ncChannelSubmit.textContent = 'Creating…';
       const { data, error } = await sb.from('channels').insert(payload).select().single();

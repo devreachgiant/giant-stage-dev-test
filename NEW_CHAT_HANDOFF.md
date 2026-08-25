@@ -933,12 +933,21 @@ picker, then grew a "Client not in this list…" escape hatch, and was then aske
 simply "the same thing the Teams card has". The Clients "+" is now one more entry in
 `wireCardActions`, opening `nc_newChannelModal` exactly as the Teams "+" does.
 
-What that means, and it is visible to the user: a channel made this way has no `client_id`
-and no `department`, so it lands under **Teams**, not Clients. A channel cannot belong to a
-client record that does not exist, and nothing here creates client records. The check
-asserts that outcome rather than glossing it. Making it appear under Clients would mean
-either creating a `clients` row from a typed name -- which drives Management, Billing and
-the Members matrix -- or inventing a second way to group channels under that card.
+That first shipped with the channel landing under **Teams**, since it has no `client_id`,
+and it was reported straight back: a channel created under Clients appearing under Teams is
+the sidebar disagreeing with the click that made it. It now carries `kind = 'client_dept'`
+and is placed in the Clients card.
+
+`client_id` stays null on purpose. Creating a `clients` row from a typed channel name would
+put a half-made client into Management, Billing and the Members matrix, none of which asked
+for one. `kind` is what the sidebar groups on, and that is all this needs. The consequence
+is that such a channel has no Management tabs -- `isClient` requires a `client_id` -- which
+is right: there is no client record to manage.
+
+Placement needed its own pass in `renderNavCards`. The channel loop skips `client_dept`
+rows (they are not team channels) and the client loop walks `ncClients`, so a client
+conversation with no client record was reachable by neither and would have fallen out of
+the sidebar entirely.
 
 Audit check 10 grew a leg while doing this. Removing the picker's markup and leaving its
 `openModal` call behind produced a button that did nothing and said nothing, and nothing
