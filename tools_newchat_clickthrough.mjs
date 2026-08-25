@@ -2123,6 +2123,23 @@ await step('the Clients "+" creates a client channel', async () => {
     document.getElementById('nc_clientChannelSubmit').click();
     await new Promise(r => setTimeout(r, 1800));
     out.madeADuplicate = window.__mock.db.channels.length > before2;
+    // A client that has no record: hands off to the ordinary create-channel form.
+    document.querySelectorAll('.nc_modal-overlay.on').forEach(m => m.classList.remove('on'));
+    document.getElementById('nc_newClientChannelBtn').click();
+    await new Promise(r => setTimeout(r, 500));
+    const sel = document.getElementById('nc_clientChannelClient');
+    out.hasNotListed = [...sel.options].some(o => o.value === '__other__');
+    sel.value = '__other__';
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 250));
+    out.deptHiddenForOther =
+      document.getElementById('nc_clientChannelDept').closest('.nc_m-field').style.display === 'none';
+    out.otherButton = document.getElementById('nc_clientChannelSubmit')?.textContent || '';
+    document.getElementById('nc_clientChannelSubmit').click();
+    await new Promise(r => setTimeout(r, 900));
+    out.clientModalClosed = !seen(document.getElementById('nc_newClientChannelModal'));
+    out.teamModalOpen = seen(document.getElementById('nc_newChannelModal'));
+    out.teamModalHasName = !!document.getElementById('nc_newChannelName');
     document.querySelectorAll('.nc_modal-overlay.on').forEach(m => m.classList.remove('on'));
     return out;
   });
@@ -2131,7 +2148,9 @@ await step('the Clients "+" creates a client channel', async () => {
       && r.created && r.shape && r.shape.kind === 'client_dept' && r.shape.dept === 'web'
       && r.shape.priv === true && r.modalClosed
       && /already exists/i.test(r.noteForExisting) && /open/i.test(r.buttonSaysOpen)
-      && !r.madeADuplicate,
+      && !r.madeADuplicate
+      && r.hasNotListed && r.deptHiddenForOther && /continue/i.test(r.otherButton)
+      && r.clientModalClosed && r.teamModalOpen && r.teamModalHasName,
     JSON.stringify(r));
 });
 

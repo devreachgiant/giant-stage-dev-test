@@ -927,3 +927,13 @@ measured 120ms after adding `.on`, while `.nc_modal-overlay` fades in over 280ms
 `seen()` checks opacity -- so a perfectly good modal reported hidden at random. It now waits
 for opacity to settle. A check that fails at random is worse than no check: it trains you to
 re-run until it is green.
+
+**"Client not in this list…" (2026-08-25).** The client picker only offers clients that
+have a record, and not every conversation about a client has one -- a prospect, a one-off,
+someone not onboarded yet. The picker now carries a final option that hides the Department
+field, changes the button to Continue, and hands off to `nc_newChannelModal`, the same form
+the Teams "+" uses, where the name is typed rather than derived. The channel it makes is an
+ordinary one: no `client_id`, no `department`, so it lands in Teams rather than under a
+client. That is the honest outcome -- a channel cannot belong to a client that does not
+exist as a record. If those should become real client channels later, the client has to be
+created first and the channel triaged onto it.

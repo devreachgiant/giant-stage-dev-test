@@ -77445,9 +77445,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const deptSel = document.getElementById('nc_clientChannelDept');
       if (!clientSel || !deptSel) return;
       const clients = Object.values(ncClients).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-      clientSel.innerHTML = clients.length
+      // Not every conversation about a client belongs to a client RECORD -- a prospect, a
+      // one-off, someone not onboarded yet. Rather than refuse, hand those to the ordinary
+      // create-channel modal, where the name is typed instead of derived.
+      clientSel.innerHTML = (clients.length
         ? clients.map(c => '<option value="' + chatEsc(c.id) + '">' + chatEsc(c.name || 'Client') + '</option>').join('')
-        : '<option value="">No clients yet</option>';
+        : '<option value="">No clients yet</option>')
+        + '<option value="__other__">Client not in this list…</option>';
       deptSel.innerHTML = NC_DEPTS.map(d =>
         '<option value="' + chatEsc(d.key) + '">' + chatEsc(d.label) + '</option>').join('');
       ncClientChannelNote();
@@ -77460,6 +77464,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const deptSel = document.getElementById('nc_clientChannelDept');
       const btn = document.getElementById('nc_clientChannelSubmit');
       if (!note || !clientSel || !deptSel) return;
+      const other = clientSel.value === '__other__';
+      if (deptSel.closest('.nc_m-field')) deptSel.closest('.nc_m-field').style.display = other ? 'none' : '';
+      if (other) {
+        note.textContent = 'Takes you to the ordinary create-channel form, where you name the channel yourself and pick who is in it.';
+        if (btn) btn.textContent = 'Continue';
+        return;
+      }
       const existing = clientSel.value ? ncPrimaryChannel(clientSel.value, deptSel.value) : null;
       const label = (NC_DEPTS.find(d => d.key === deptSel.value) || {}).label || deptSel.value;
       note.textContent = existing
@@ -77491,6 +77502,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         submit.addEventListener('click', async () => {
           const clientId = document.getElementById('nc_clientChannelClient')?.value;
           const dept = document.getElementById('nc_clientChannelDept')?.value || 'general';
+          if (clientId === '__other__') {
+            closeModal('nc_newClientChannelModal');
+            await ncResetChannelModal();
+            openModal('nc_newChannelModal');
+            setTimeout(() => document.getElementById('nc_newChannelName')?.focus(), 120);
+            return;
+          }
           if (!clientId) { if (typeof toast === 'function') toast({ type:'error', message:'Pick a client first' }); return; }
           submit.disabled = true;
           const wasThere = !!ncPrimaryChannel(clientId, dept);
