@@ -334,13 +334,11 @@ const sidebar = await page.evaluate(() => {
       return db.clients.filter(c => c.status !== 'churned')
         .filter(cl => !db.channels.some(c => c.kind === 'client_dept' && c.client_id === cl.id)).length;
     })(),
+    // One row per client on the books. Their departments are threads inside the
+    // conversation, reached from the strip, not rows of their own.
     expectedClients: (() => {
       const db = window.__mock.db;
-      const live = db.clients.filter(c => c.status !== 'churned');
-      return live.reduce((n, cl) => {
-        const chans = db.channels.filter(c => c.kind === 'client_dept' && c.client_id === cl.id);
-        return n + (chans.length || 1);
-      }, 0);
+      return db.clients.filter(c => c.status !== 'churned').length;
     })(),
     groups: document.querySelectorAll('#nc_cardGroupsBody .nc_ch-item').length,
     // truth from the data: a DM with more than one other member, or is_group set
@@ -356,19 +354,16 @@ const sidebar = await page.evaluate(() => {
 check('sidebar renders its six nav cards', sidebar.cards === 6, 'cards=' + sidebar.cards);
 check('sidebar behaves as an accordion (one card open)', sidebar.openCards === 1,
   'open=' + sidebar.openCards + ' heights=' + sidebar.heights.join(','));
-// Was 'all 53 clients are listed', then 'only clients with a conversation'. Now: every
-// client CHANNEL is a row. Keeping one row per client hid a client's SEO and Web
-// conversations completely -- reachable only through the department strip of whichever
-// one the sidebar had picked -- and that is also what lost two channels from Needs you,
-// which can only show what the sidebar painted. A client with no conversation at all is
-// still not listed; the "+" is how one starts.
-// The card is the client list: every client on the books, with each of their
-// conversations under them, and a dimmed row for a client that has none yet. Nothing is
-// pre-created -- channels is shared with old chat, so 40-odd empty public rows would
-// flood its sidebar and private ones would be invisible to non-member managers.
-check('every client is listed, with a row per conversation',
+// This has moved twice today, so the rule is stated plainly: ONE row per client.
+// Departments -- General, Google Ads, Meta Ads, SEO, Web -- are threads inside the
+// conversation, on the strip at the top, which is the shape the screen was designed
+// around; a row each read as five separate clients. A client with no conversation is
+// still listed, dimmed, and starts one on click. Nothing is pre-created: channels is
+// shared with old chat, so empty public rows would flood its sidebar and private ones
+// would be invisible to non-member managers.
+check('one row per client, departments live inside the conversation',
   sidebar.clients > 0 && sidebar.clients === sidebar.expectedClients,
-  'listed=' + sidebar.clients + ' expected=' + sidebar.expectedClients);
+  'listed=' + sidebar.clients + ' clients=' + sidebar.expectedClients);
 // The inverse of what this asserted a few hours ago. A client with no conversation IS
 // listed again, dimmed, because the card is a client list and every client on the books
 // belongs on it -- it just has nothing to open until someone starts it.
@@ -2733,6 +2728,40 @@ await step('drag-drop and paste are bound to New Chat, not the original', async 
   // this branch keeps relearning.
   check('drag-drop and paste are bound to New Chat, not the original',
     r.hasOwnMain && r.pasteGuardScreen, JSON.stringify(r));
+});
+
+await step('a department tab opens that thread, it does not make a channel', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const db = window.__mock.db;
+    const out = {};
+    // A client that HAS an seo channel, so clicking SEO must open it, never create one.
+    const seo = db.channels.find(c => c.kind === 'client_dept' && c.department === 'seo' && c.client_id);
+    if (!seo) return { noFixture: true };
+    out.clientId = seo.client_id;
+    const gen = db.channels.find(c => c.kind === 'client_dept' && c.client_id === seo.client_id
+      && (c.department || 'general') === 'general');
+    if (!gen) return { noGeneral: true };
+    if (window.nc_switchChannel) await window.nc_switchChannel(gen.id);
+    await wait(2000);
+
+    // The in-memory list is emptied of that department first: this is exactly the state
+    // that made the strip create a duplicate -- the channel exists, the client just has
+    // not loaded it yet.
+    const before = db.channels.length;
+    const tab = [...document.querySelectorAll('#nc_deptStrip [data-nc-dept], .nc_dept-strip [data-nc-dept]')]
+      .find(e => e.dataset.ncDept === 'seo');
+    out.foundTab = !!tab;
+    if (!tab) return out;
+    tab.click();
+    await wait(2500);
+    out.created = db.channels.length - before;
+    out.landedOn = window.nc_activeChannelId;
+    out.openedTheExistingOne = window.nc_activeChannelId === seo.id;
+    return out;
+  });
+  check('a department tab opens that thread, it does not make a channel',
+    r.foundTab && r.created === 0 && r.openedTheExistingOne, JSON.stringify(r));
 });
 
 // ── what the mock actually served, as evidence the paths ran ─────────────────

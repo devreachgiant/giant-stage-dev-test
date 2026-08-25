@@ -71118,13 +71118,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       Object.values(ncClients)
         .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
         .forEach(cl => {
+          // ONE row per client. A client's departments are threads INSIDE it, reached
+          // from the department strip at the top of the conversation -- General, Google
+          // Ads, Meta Ads, SEO, Web -- which is the shape this was designed around. They
+          // were briefly a row each, and that read as five separate clients and made a
+          // newly created department look like a duplicate of its own client.
           const mine = (rowsByClient.get(cl.id) || []).sort((a, b) => {
             const ai = NC_DEPTS.findIndex(d => d.key === (a.c.department || 'general'));
             const bi = NC_DEPTS.findIndex(d => d.key === (b.c.department || 'general'));
             return ai - bi;
           });
           if (mine.length) {
-            mine.forEach(({ row, c }) => place(row, bodies.clients, c.id, true));
+            const primary = mine.find(x => (x.c.department || 'general') === 'general') || mine[0];
+            place(primary.row, bodies.clients, primary.c.id, true);
             return;
           }
           const row = document.createElement('div');
@@ -71782,6 +71788,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     async function ensureClientDeptThread(clientId, dept){
       const existing = ncPrimaryChannel(clientId, dept);
       if (existing) return existing.id;
+      // Ask the database before creating. ncPrimaryChannel only reads chatChannels, the
+      // in-memory list, so a department whose channel had not loaded yet looked absent and
+      // clicking its tab MADE A SECOND ONE -- which then showed up as its own row and
+      // split that department's messages in two. Every caller comes through here, so this
+      // is the one place it has to be right.
+      const { data: onDisk } = await NCSB().from('channels')
+        .select('id, name, slug, is_private, is_dm, kind, client_id, department')
+        .eq('client_id', clientId).eq('kind', 'client_dept').eq('department', dept)
+        .order('created_at', { ascending: true }).limit(1);
+      if (onDisk && onDisk.length) {
+        if (!chatChannels.some(c => c.id === onDisk[0].id)) chatChannels.push(onDisk[0]);
+        return onDisk[0].id;
+      }
       const cl = ncClients[clientId];
       const slug = ((cl && cl.name) || 'client').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30) + '-' + dept;
       // Public, and the whole team in it. A client conversation is the team's shared
@@ -75296,10 +75315,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const dept = c.department || 'general';
         const deptLabel = (NC_DEPTS.find(d => d.key === dept) || {}).label || dept;
         const base = (cl && cl.name) || c.name;
-        return Object.assign({}, c, {
-          name: dept === 'general' ? base : base + ' · ' + deptLabel,
-          _isClientRow: true
-        });
+        // Named for the client alone. The department is shown by the strip inside the
+        // conversation, and putting it in the sidebar label made one client read as
+        // several.
+        return Object.assign({}, c, { name: base, _isClientRow: true });
       });
       // Helper to recursively render a channel + its children
       function renderOne(c, depth) {
