@@ -1024,3 +1024,17 @@ Two mock fidelity gaps closed alongside: column DEFAULTs (`scheduled_messages.st
 `'pending'`, and without it a freshly scheduled message was invisible to the pill's own
 query, so the count sat at zero on a feature that works), and the channels CHECK
 constraints.
+
+**Check 14 — does New Chat have everything Chat has?** Asked structurally: every id on the
+original chat screen must have an `nc_` twin on New Chat's. It reports the answer as of
+2026-08-25: 133 controls on the old screen, 157 on the new, and the only one without a twin
+is `newChannelParent`, removed on request and pinned in a `DROPPED` map with its reason.
+
+The three id checks now cover the shapes this branch actually shipped:
+- **14** a control that never came across at all,
+- **12** a control that exists but is looked up by the other screen's id,
+- **13** an id handed around as a string argument.
+
+None of them proves a control DOES the right thing — that is the click-through's job, and it
+is at 86 checks. What they do is make "did we miss a feature" a question with an answer
+rather than a hope.

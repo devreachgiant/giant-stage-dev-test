@@ -354,5 +354,40 @@ for lit in sorted(literals):
 print("13. ids named as plain strings while an nc_ twin exists:", twinned or "none")
 fail += len(twinned)
 
+# ---------------------------------------------------------------------------
+# 14. Every control the ORIGINAL chat screen has, New Chat has too. This is the
+# "does New Chat do everything Chat does" question asked structurally: if the old
+# screen has an element with an id and there is no nc_ twin on the new screen, some
+# feature did not come across.
+#
+# It says nothing about whether the twin is WIRED -- checks 12 and 13 cover that, and
+# between them the three catch the shapes this branch actually shipped: a control that
+# is missing, a control that exists but is looked up by the other screen's id, and an
+# id handed around as a string.
+def screen_span(marker):
+    start = S.index(marker)
+    depth, i = 0, start
+    while True:
+        t = re.compile(r'<div\b[^>]*>|</div>').search(S, i)
+        if not t:
+            return start, len(S)
+        depth += -1 if t.group(0).startswith('</') else 1
+        i = t.end()
+        if depth == 0:
+            return start, i
+
+# Deliberately removed, with the reason, so a real regression still fails here.
+DROPPED = {
+    'newChannelParent': 'Parent channel field removed on request 2026-08-25',
+}
+cs, ce = screen_span('<div class="screen fullbleed" data-screen="chat">')
+ns, ne = screen_span('<div class="screen fullbleed" data-screen="newchat"')
+chat_ids = set(re.findall(r'id="([A-Za-z][\w-]*)"', S[cs:ce]))
+newchat_ids = set(re.findall(r'id="([A-Za-z][\w-]*)"', S[ns:ne]))
+absent = sorted(i for i in chat_ids
+                if ('nc_' + i) not in newchat_ids and i not in DROPPED)
+print("14. controls in the old chat with no New Chat twin:", absent or "none")
+fail += len(absent)
+
 print("\nRESULT:", "clean" if not fail else f"{fail} problem(s)")
 sys.exit(1 if fail else 0)
