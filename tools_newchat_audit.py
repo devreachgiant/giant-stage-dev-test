@@ -23,6 +23,11 @@ CSSNOISE={'big','minmax','mix','repeat','rgba','translateX','translateY','scale'
 # regex cannot tell a call from `reject(` in a Promise body or `$&` in a regex escape.
 BUILT|={'AbortController','Image','IntersectionObserver','ResizeObserver','FileReader','AudioContext','MediaRecorder','Notification','reject','resolve'}
 CSSNOISE|={'$','Ended','responses','unavailable','promiseFactory'}
+BUILT|={'MouseEvent','DragEvent','ClipboardEvent','DataTransfer'}
+# PostgREST embeds a related table as `alias:table(cols)` inside a select() string, and a
+# label like 'Password (optional)' is prose. Both read as a call to the tokenizer once the
+# surrounding string escapes its stripping. Neither is a name this module could call.
+CSSNOISE|={'channels','projects','clients','profiles','messages','Password','THREAD'}
 fail=0
 
 calls=set(re.findall(r'(?<![\w.$])([A-Za-z_$][\w$]*)\s*\(', body))

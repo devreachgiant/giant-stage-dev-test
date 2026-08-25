@@ -2644,7 +2644,7 @@ await step('a voice note lands in the channel you recorded it in', async () => {
 // Runs late on purpose: opening a client's Vault selects that client for Management
 // too -- they are one client either way -- so running it before the Management checks
 // left them reading whichever client this one had opened.
-await step('the Vault is the client library on a client, cards on a team channel', async () => {
+await step('the Vault is the library, in a client thread and a team channel alike', async () => {
   const r = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms));
     const look = async (rowSel) => {
@@ -2662,6 +2662,23 @@ await step('the Vault is the client library on a client, cards on a team channel
         mentionsAddItem: /add item|add to the vault/i.test(txt)
       };
     };
+    // Scoping, not just rendering: a team channel's vault must show that CHANNEL's items
+    // and never a client's. This table holds encrypted credentials, so a leak between
+    // scopes is the failure that matters, not a missing button. Seeded BEFORE any vault
+    // is opened -- the library caches per scope, so a row added after the first look
+    // would not be re-read.
+    const db = window.__mock.db;
+    db.chat2_client_library = db.chat2_client_library || [];
+    const seedTeam = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item[data-nc-channel-id]')][0];
+    if (seedTeam) {
+      db.chat2_client_library.push({ id: 'lib-chan-1', channel_id: seedTeam.dataset.ncChannelId,
+        client_id: null, kind: 'link', title: 'CHANNEL-SCOPED-ITEM', section: 'General',
+        url: 'https://example.com', created_by: window.__mock.me, created_at: new Date().toISOString() });
+      db.chat2_client_library.push({ id: 'lib-client-1', channel_id: null, client_id: 'c-5',
+        kind: 'link', title: 'CLIENT-SCOPED-ITEM', section: 'General',
+        url: 'https://example.com', created_by: window.__mock.me, created_at: new Date().toISOString() });
+    }
+
     // A client row backed by a real client RECORD. Client conversations with no record
     // sort first in this card, and they have no client to hold a library -- they still
     // get the card vault, which is the open question, not the assertion here.
@@ -2675,17 +2692,23 @@ await step('the Vault is the client library on a client, cards on a team channel
       onClient: withRecord ? await look('#nc_cardClientsBody .nc_ch-item[data-nc-channel-id="' + withRecord.dataset.ncChannelId + '"]') : null,
       onTeam: await look('#nc_cardTeamsBody .nc_ch-item[data-nc-channel-id]')
     };
+    const txt = (document.getElementById('nc_vaultHost') || {}).textContent || '';
+    out.teamSeesOwnItem = txt.includes('CHANNEL-SCOPED-ITEM');
+    out.teamLeaksClientItem = txt.includes('CLIENT-SCOPED-ITEM');
     if (window.nc_switchChatSubtab) window.nc_switchChatSubtab('messages');
     await wait(600);
     return out;
   });
-  // A client's vault is the things kept FOR that client -- files, logins, docs, links --
-  // which is what the approved design shows under this tab. A team channel has no client
-  // behind it and nowhere to keep such a thing, so it keeps the card vault.
-  check('the Vault is the client library on a client, cards on a team channel',
+  // The Vault is the library in EVERY conversation now. On a client thread it is that
+  // client's shelf, shared across its departments; anywhere else it is that channel's
+  // own, which 20260825180000 made possible by letting a library row hang off a channel
+  // instead of a client -- exactly one of the two, enforced by a CHECK. The card vault
+  // it replaced is gone rather than left unreachable.
+  check('the Vault is the library, in a client thread and a team channel alike',
     !!r.onClient && !!r.onTeam
       && r.onClient.library > 0 && r.onClient.cards === 0
-      && r.onTeam.cards > 0 && r.onTeam.library === 0,
+      && r.onTeam.library > 0 && r.onTeam.cards === 0
+      && r.teamSeesOwnItem === true && r.teamLeaksClientItem === false,
     JSON.stringify(r));
 });
 
