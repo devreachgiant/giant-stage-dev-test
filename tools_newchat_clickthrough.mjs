@@ -2140,18 +2140,38 @@ await step('the Clients "+" opens the same form as Teams', async () => {
       return !!error && /channels_department_needs_client/.test(error.message || '');
     })();
     document.querySelectorAll('.nc_modal-overlay.on').forEach(m => m.classList.remove('on'));
-    for (const key of ['clients', 'teams']) {
-      const card = [...document.querySelectorAll('.nc_navcard')].find(x => x.dataset.nccard === key);
-      if (card && card.querySelector('.nc_navcard-body').getBoundingClientRect().height < 4) {
-        card.querySelector('.nc_navcard-head').click();
-        await new Promise(r => setTimeout(r, 500));
-      }
+    // Only the Clients card is opened, and it is opened LAST. The cards are an accordion,
+    // so opening Teams afterwards collapses Clients and every rect in it measures 0x0 --
+    // which is how a perfectly round mark reported as not a circle.
+    const clientsCard = [...document.querySelectorAll('.nc_navcard')].find(x => x.dataset.nccard === 'clients');
+    if (clientsCard && clientsCard.querySelector('.nc_navcard-body').getBoundingClientRect().height < 4) {
+      clientsCard.querySelector('.nc_navcard-head').click();
     }
-    await new Promise(r => setTimeout(r, 900));
-    const inCard = (id) => [...document.querySelectorAll('#nc_card' + id + 'Body .nc_ch-item')]
+    for (let i = 0; i < 30; i++) {
+      await new Promise(r => setTimeout(r, 100));
+      if (clientsCard.querySelector('.nc_navcard-body').getBoundingClientRect().height > 40) break;
+    }
+    await new Promise(r => setTimeout(r, 400));
+    const rows = [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')];
+    const idx = rows.findIndex(e => /from-clients-card/.test(e.textContent));
+    out.inClientsCard = idx >= 0;
+    out.clientRows = rows.length;
+    // What you just made is at the top. Appended, it sat under fifty alphabetised
+    // clients, which is the sidebar hiding your own work.
+    out.positionInCard = idx;
+    // ...and it wears an initial circle like every other row in this card, not a "#",
+    // which made the one row that is not a client look like a stray team channel.
+    const mark = idx >= 0 ? rows[idx].querySelector('.nc_hash') : null;
+    out.markText = mark ? (mark.textContent || '').trim() : null;
+    const mr = mark ? mark.getBoundingClientRect() : null;
+    out.markBox = mr ? Math.round(mr.width) + 'x' + Math.round(mr.height) : null;
+    out.markRadius = mark ? getComputedStyle(mark).borderRadius : null;
+    // Round and roughly square: a percentage radius comes back resolved in px, so the
+    // test is that the radius is at least half the box, not that the string says "50%".
+    out.markIsCircle = !!mr && mr.width >= 16 && Math.abs(mr.width - mr.height) < 3
+      && parseFloat(out.markRadius) >= mr.width / 2 - 1;
+    out.inTeamsCard = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item')]
       .some(e => /from-clients-card/.test(e.textContent));
-    out.inClientsCard = inCard('Clients');
-    out.inTeamsCard = inCard('Teams');
     return out;
   });
   check('the Clients "+" opens the same form as Teams',
@@ -2162,7 +2182,8 @@ await step('the Clients "+" opens the same form as Teams', async () => {
       && r.created && r.shape && r.shape.kind === 'client_dept'
       && r.shape.client === null && r.shape.dept === null
       && r.rejectsDeptWithoutClient
-      && r.inClientsCard && !r.inTeamsCard,
+      && r.inClientsCard && !r.inTeamsCard
+      && r.positionInCard === 0 && r.markText === 'F' && r.markIsCircle,
     JSON.stringify(r));
 });
 

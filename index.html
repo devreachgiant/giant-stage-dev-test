@@ -71028,6 +71028,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         }
       });
 
+      // Client conversations with no client record behind them. The channel loop skips
+      // them (they are not team channels) and the client loop cannot reach them (it walks
+      // ncClients), so without this they are placed nowhere and fall out of the sidebar.
+      //
+      // Placed BEFORE the client rows, newest first: these are the ones just created, and
+      // a channel you have this second made appearing under fifty alphabetised clients is
+      // the sidebar hiding your own work. The client rows below stay in name order, which
+      // is what makes a long list findable.
+      (src ? [...src.querySelectorAll('.nc_ch-item[data-nc-channel-id]')] : [])
+        .map(row => ({ row, c: byId.get(row.dataset.ncChannelId) }))
+        .filter(({ c }) => c && c.kind === 'client_dept' && !(c.client_id && ncClients[c.client_id]))
+        .sort((a, b) => new Date(b.c.created_at || 0) - new Date(a.c.created_at || 0))
+        .forEach(({ row, c }) => place(row, bodies.clients, c.id, true));
+
       // One row per client, in name order. Where the client has a channel the engine
       // already rendered, that row is reused so unread badges and muting carry over;
       // where it has none, a plain row is synthesised that creates the channel on click.
@@ -71045,17 +71059,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           // rows for conversations that do not exist. Starting one now goes through the
           // "+", which asks for the client and the department.
         });
-
-      // Client conversations with no client record behind them. The loop above skips them
-      // (they are not team channels) and the client loop cannot reach them (it walks
-      // ncClients), so without this they were placed nowhere and fell out of the sidebar
-      // entirely -- or, before kind was set, showed up under Teams.
-      (src ? [...src.querySelectorAll('.nc_ch-item[data-nc-channel-id]')] : []).forEach(row => {
-        const c = byId.get(row.dataset.ncChannelId);
-        if (!c || c.kind !== 'client_dept') return;
-        if (c.client_id && ncClients[c.client_id]) return;      // handled by the client loop
-        place(row, bodies.clients, c.id, true);
-      });
 
       const dmSrc = document.getElementById('nc_chatDmList');
       // With no DM channels yet, renderDmChannelList falls back to listing teammates as
@@ -75166,14 +75169,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // rows get the client's own avatar, the same mark used everywhere else clients
         // are listed, so the sidebar reads as a client list rather than a channel list.
         const ncCl = c._isClientRow && c.client_id ? ncClients[c.client_id] : null;
+        // A client conversation with no client record gets the same mark, drawn from its
+        // own name. It used to fall through to "#", so the one row in the Clients card
+        // that was not a client looked like a team channel that had wandered in.
+        const initialMark = (name, bg, fg) =>
+          `<span class="nc_hash" style="font-style:normal;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;`
+          + `background:${chatEsc(bg || 'var(--c3-avatar-bg)')};color:${chatEsc(fg || 'var(--c3-avatar-fg)')};`
+          + `font-size:8.5px;font-weight:800;flex-shrink:0;">`
+          + chatEsc((name || '?').trim().charAt(0).toUpperCase()) + `</span>`;
         const hashIcon = ncCl
-          ? `<span class="nc_hash" style="font-style:normal;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;`
-            + `background:${chatEsc(ncCl.avatar_bg || 'var(--c3-avatar-bg)')};color:${chatEsc(ncCl.avatar_fg || 'var(--c3-avatar-fg)')};`
-            + `font-size:8.5px;font-weight:800;flex-shrink:0;">`
-            + chatEsc((ncCl.name || '?').trim().charAt(0).toUpperCase()) + `</span>`
-          : (c.is_private
-            ? '<span class="nc_hash nc_hash-lock"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.5"/></svg></span>'
-            : (c.emoji ? `<span class="nc_hash" style="font-style:normal;">${chatEsc(c.emoji)}</span>` : '<span class="nc_hash">#</span>'));
+          ? initialMark(ncCl.name, ncCl.avatar_bg, ncCl.avatar_fg)
+          : (c.kind === 'client_dept'
+            ? initialMark(c.name)
+            : c.is_private
+              ? '<span class="nc_hash nc_hash-lock"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.5"/></svg></span>'
+              : (c.emoji ? `<span class="nc_hash" style="font-style:normal;">${chatEsc(c.emoji)}</span>` : '<span class="nc_hash">#</span>'));
         const mutedIcon = isMuted ? '<span style="margin-left:auto;color:var(--text-3);display:inline-flex;align-items:center;" title="Muted"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M2 6.5v3h2.5L8 12V4L4.5 6.5H2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M11 5.5L14 8.5M14 5.5L11 8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>' : '';
         const opacityStyle = isMuted ? 'opacity:.55;' : '';
         // Indentation: 14px per level + a thin vertical bar so the hierarchy is visible

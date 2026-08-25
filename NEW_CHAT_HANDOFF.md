@@ -1060,3 +1060,18 @@ client and requires the refusal.
 **Applied to production on 2026-08-25**, by explicit decision. It only relaxes, so no
 existing row could be invalidated; reverting means restoring the CHECK from 20260821100000
 and deleting any client channel created since that has no client_id.
+
+**New client channels lead the card, with a proper mark (2026-08-25).** They were appended
+after the client rows, so a channel you had just made appeared beneath fifty alphabetised
+clients -- the sidebar hiding your own work. They are placed first now, newest first, while
+the client rows below stay in name order because that is what makes a long list findable.
+They also fell through to "#", so the one row in the Clients card that is not a client
+looked like a stray team channel; they get an initial circle drawn from their own name,
+the same mark used everywhere else.
+
+**`tools_newchat_parse.py` is new, and the routine is now four tools, not three.** An
+unbalanced paren in `renderOne` left the audit clean and the block count right, and killed
+the entire module at runtime -- the click-through reported it as fifty unrelated failures
+(`window.nc_switchChatSubtab is not a function` fifteen times over). `node --check` cannot
+be aimed at an HTML file and counting `<script>` blocks says nothing about whether they
+parse. Run it first; it is the cheapest of the four and the only one that catches this.
