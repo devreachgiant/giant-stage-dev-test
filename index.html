@@ -8657,6 +8657,12 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                     <div class="nc_m-role" data-ctype="client"><div class="nc_mr-name">Client</div><div class="nc_mr-desc">Shows under Clients</div></div>
                   </div>
                 </div>
+                <div class="nc_m-field" id="nc_newChannelClientFields" style="display:none;">
+                  <label>Client</label>
+                  <select id="nc_newChannelClient" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;"></select>
+                  <label style="margin-top:10px;display:block;">Department</label>
+                  <select id="nc_newChannelDept" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;"></select>
+                </div>
                 <div class="nc_m-field">
                   <label>Privacy</label>
                   <div class="nc_m-role-grid">
@@ -71032,20 +71038,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             || chatChannels.find(c => c.client_id === cl.id) || null;
           const existingRow = chan ? rowByChannel.get(chan.id) : null;
           if (existingRow) { place(existingRow, bodies.clients, chan.id, true); return; }
-          const row = document.createElement('div');
-          row.className = 'nc_ch-item';
-          row.dataset.clientId = cl.id;
-          row.innerHTML =
-            `<span class="nc_hash" style="font-style:normal;width:20px;height:20px;border-radius:50%;`
-            + `display:inline-flex;align-items:center;justify-content:center;`
-            + `background:${chatEsc(cl.avatar_bg || 'var(--c3-avatar-bg)')};color:${chatEsc(cl.avatar_fg || 'var(--c3-avatar-fg)')};`
-            + `font-size:8.5px;font-weight:800;flex-shrink:0;">${chatEsc((cl.name || '?').trim().charAt(0).toUpperCase())}</span>`
-            + chatEsc(cl.name || 'Client');
-          // Dimmed, because there is nothing there yet -- the first click starts it.
-          row.style.opacity = '.62';
-          row.title = 'No conversation yet — click to start one';
-          row.addEventListener('click', () => openClientThread(cl.id));
-          bodies.clients.appendChild(row);
+          // A client with no conversation is not listed. It used to appear as a dimmed
+          // "No conversation yet" row that started one on click, which meant deleting a
+          // client's conversation left the client sitting there looking undeleted -- and
+          // with 53 client records, most of them without a channel, the card was mostly
+          // rows for conversations that do not exist. Starting one now goes through the
+          // "+", which asks for the client and the department.
         });
 
       // Client conversations with no client record behind them. The loop above skips them
@@ -77426,6 +77424,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       document.querySelectorAll('#nc_newChannelModal [data-ctype]').forEach(el => {
         el.classList.toggle('nc_sel', el.dataset.ctype === want);
       });
+      const clientSel = document.getElementById('nc_newChannelClient');
+      if (clientSel) {
+        const list = Object.values(ncClients).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        clientSel.innerHTML = list.length
+          ? list.map(c => '<option value="' + chatEsc(c.id) + '">' + chatEsc(c.name || 'Client') + '</option>').join('')
+          : '<option value="">No clients yet</option>';
+      }
+      const deptSel = document.getElementById('nc_newChannelDept');
+      if (deptSel) deptSel.innerHTML = NC_DEPTS.map(d =>
+        '<option value="' + chatEsc(d.key) + '">' + chatEsc(d.label) + '</option>').join('');
+      ncSyncChannelType();
       // The picker needs people to offer. It is the same list the DM modal uses and is
       // cached after the first load.
       if (!dmTeammatesCache.length) {
@@ -77441,8 +77450,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       el.addEventListener('click', () => {
         el.parentElement.querySelectorAll('.nc_m-role')
           .forEach(o => o.classList.toggle('nc_sel', o === el));
+        if (el.dataset.ctype) ncSyncChannelType();
       });
     });
+    // A client channel needs a client. `channels_client_dept_needs_client` says so at the
+    // database, and the reason is in that migration: a client_dept row with no client
+    // renders a department tab strip attached to nothing. So choosing Client asks which
+    // one, rather than guessing or inventing a client record behind your back.
+    function ncSyncChannelType(){
+      const isClient = document.querySelector('#nc_newChannelModal [data-ctype].nc_sel')?.dataset.ctype === 'client';
+      const box = document.getElementById('nc_newChannelClientFields');
+      if (box) box.style.display = isClient ? '' : 'none';
+    }
 
     const ncChannelSubmit = document.getElementById('nc_newChannelSubmit');
     if (ncChannelSubmit) ncChannelSubmit.addEventListener('click', async () => {
@@ -77461,12 +77480,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         position: (chatChannels || []).length,
         created_by: sess.user.id
       };
-      // Whatever the form says, which is whatever the person can see. client_id stays
-      // null: there is no client RECORD behind it, and inventing one here would put a
-      // half-made client into Management, Billing and the Members matrix. kind is what
-      // the sidebar groups on, which is all this needs.
+      // Whatever the form says, which is whatever the person can see.
       if (document.querySelector('#nc_newChannelModal [data-ctype].nc_sel')?.dataset.ctype === 'client') {
+        const cid = document.getElementById('nc_newChannelClient')?.value;
+        if (!cid) {
+          if (typeof toast === 'function') toast({ type:'error', message:'Pick a client, or switch this to a Team channel.' });
+          return;
+        }
         payload.kind = 'client_dept';
+        payload.client_id = cid;
+        payload.department = document.getElementById('nc_newChannelDept')?.value || 'general';
       }
       window.nc__channelModalCard = null;
       ncChannelSubmit.disabled = true;

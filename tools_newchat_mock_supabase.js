@@ -484,6 +484,14 @@
       }
 
       if (this._mode === 'insert' || this._mode === 'upsert') {
+        const bad = (Array.isArray(this._payload) ? this._payload : [this._payload])
+          .map(r => checkConstraints(t, r)).find(Boolean);
+        if (bad) {
+          return { data: null, error: {
+            code: '23514',
+            message: 'new row for relation "' + t + '" violates check constraint "' + bad + '"'
+          } };
+        }
         const arr = table(t);
         const rows = (Array.isArray(this._payload) ? this._payload : [this._payload]).map(r => Object.assign({}, r));
         const done = [];
@@ -540,6 +548,20 @@
   // accepted .on() and dropped it on the floor, which meant every realtime path in the app
   // -- the unread bump, Needs you placing a live message, the thread-reply branch -- was
   // never once exercised by the click-through.
+  // The CHECK constraints the real schema carries. Without these the mock happily stored
+  // rows Postgres refuses, and a check-through went green on a build that failed against
+  // the database the moment a person tried it -- which is exactly what happened with
+  // channels_client_dept_needs_client.
+  function checkConstraints(t, r) {
+    if (t !== 'channels' || !r) return null;
+    const KINDS = ['home', 'team_channel', 'client_dept', 'dm'];
+    const DEPTS = ['general', 'googleAds', 'metaAds', 'seo', 'web'];
+    if (r.kind != null && !KINDS.includes(r.kind)) return 'channels_kind_check';
+    if (r.department != null && !DEPTS.includes(r.department)) return 'channels_department_check';
+    if (r.kind === 'client_dept' && r.client_id == null) return 'channels_client_dept_needs_client';
+    return null;
+  }
+
   const subs = [];   // { table, event, cb }
   // Postgres sends a replication event for every write, so the mock does too. Before this,
   // realtime only fired when a test called __mock.emit by hand, which meant the harness

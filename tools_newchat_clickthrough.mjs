@@ -315,6 +315,12 @@ const sidebar = await page.evaluate(() => {
     direct: document.querySelectorAll('#nc_cardDirectBody .nc_ch-item').length,
     dimmedClients: [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')]
       .filter(r => parseFloat(r.style.opacity || '1') < 1).length,
+    // How many clients actually have a channel, straight from the fixture.
+    expectedClients: (() => {
+      const db = window.__mock.db;
+      return new Set(db.channels.filter(c => c.kind === 'client_dept' && c.client_id)
+        .map(c => c.client_id)).size;
+    })(),
     groups: document.querySelectorAll('#nc_cardGroupsBody .nc_ch-item').length,
     // truth from the data: a DM with more than one other member, or is_group set
     expectedGroups: (() => {
@@ -329,9 +335,15 @@ const sidebar = await page.evaluate(() => {
 check('sidebar renders its six nav cards', sidebar.cards === 6, 'cards=' + sidebar.cards);
 check('sidebar behaves as an accordion (one card open)', sidebar.openCards === 1,
   'open=' + sidebar.openCards + ' heights=' + sidebar.heights.join(','));
-check('all 53 clients are listed', sidebar.clients === 53, 'clients=' + sidebar.clients);
-check('clients without a channel render dimmed', sidebar.dimmedClients === 42,
-  'dimmed=' + sidebar.dimmedClients + ' (expect 53 - 11 threads = 42)');
+// Was 'all 53 clients are listed'. A client with no conversation is deliberately not
+// listed any more: the dimmed placeholder row made a deleted conversation look like a
+// failed delete, and with 53 client records the card was mostly rows for conversations
+// that do not exist. Starting one goes through the "+" instead.
+check('only clients with a conversation are listed',
+  sidebar.clients > 0 && sidebar.clients === sidebar.expectedClients,
+  'listed=' + sidebar.clients + ' withAChannel=' + sidebar.expectedClients);
+check('no client is listed without a conversation', sidebar.dimmedClients === 0,
+  'placeholderRows=' + sidebar.dimmedClients);
 check('11 team channels + home are listed', sidebar.teams === 12, 'teams=' + sidebar.teams);
 // Group conversations belong under GROUP DMS, one-to-ones under DIRECT. The card used to
 // route on channels.is_group alone while the list treated "more than one other person" as a
@@ -2054,20 +2066,18 @@ await step('deleting a client conversation removes it', async () => {
     }
     out.deleted = before - window.__mock.db.channels.length;
     await new Promise(r => setTimeout(r, 1500));
-    // The CLIENT is not deleted -- only the conversation. So the row is expected to
-    // remain, as the dimmed "no conversation yet" row that starts a new one on click.
-    // What must not happen is the row coming back still bound to a channel.
+    // The row must go. It used to remain as a dimmed "no conversation yet" row, which
+    // read as the delete having failed -- the client sat there looking undeleted.
     const after = rows().find(e => /Maribou/i.test(e.textContent));
     out.rowRemains = !!after;
-    out.rowStillHasChannel = !!(after && after.dataset.ncChannelId);
-    out.rowIsEmptyState = !!(after && after.dataset.clientId && !after.dataset.ncChannelId);
+    out.emptyClientRows = rows().filter(e => e.dataset.clientId && !e.dataset.ncChannelId).length;
     out.remaining = window.__mock.db.channels
       .filter(c => target && c.client_id === target.client_id).map(c => c.id);
     return out;
   });
   check('deleting a client conversation removes it',
     r.hasMenu && r.hasDelete && r.deleted === r.siblings.length && r.remaining.length === 0
-      && !r.rowStillHasChannel && r.rowIsEmptyState,
+      && !r.rowRemains && r.emptyClientRows === 0,
     JSON.stringify(r));
 });
 
@@ -2105,6 +2115,17 @@ await step('the Clients "+" opens the same form as Teams', async () => {
     await new Promise(r => setTimeout(r, 150));
     out.privacyAfter = document.querySelector('#nc_newChannelModal [data-priv].nc_sel')?.dataset.priv;
 
+    // A client channel needs a client and a department -- the database refuses one
+    // without them (channels_client_dept_needs_client), which is what these fields are.
+    out.clientFieldsShown =
+      document.getElementById('nc_newChannelClientFields')?.style.display !== 'none';
+    const clientSel = document.getElementById('nc_newChannelClient');
+    const deptSel = document.getElementById('nc_newChannelDept');
+    out.clientOptions = clientSel ? clientSel.options.length : 0;
+    out.deptOptions = deptSel ? deptSel.options.length : 0;
+    // A department this client does not have yet, so the row is genuinely new.
+    clientSel.value = 'c-3';
+    deptSel.value = 'metaAds';
     const name = document.getElementById('nc_newChannelName');
     name.value = 'from-clients-card';
     name.dispatchEvent(new Event('input', { bubbles: true }));
@@ -2116,12 +2137,16 @@ await step('the Clients "+" opens the same form as Teams', async () => {
     }
     const made = window.__mock.db.channels.find(c => c.name === 'from-clients-card');
     out.created = !!made;
-    // No client RECORD is invented -- that would put a half-made client into Management
-    // and Billing -- but it is marked as a client conversation so the sidebar groups it
-    // where it was made.
-    out.noClientRecord = !!made && !made.client_id;
-    out.markedAsClient = !!made && made.kind === 'client_dept';
-    // The part that was actually reported: it appeared under Teams.
+    out.shape = made ? { kind: made.kind, client: made.client_id, dept: made.department } : null;
+    // The mock now enforces the real CHECK constraints, so a client_dept row without a
+    // client is refused here exactly as Postgres refuses it.
+    out.rejectsClientless = await (async () => {
+      const { error } = await window.giantSupabase.from('channels')
+        .insert({ name: 'illegal', slug: 'illegal-x', kind: 'client_dept' }).select().single();
+      return !!error && /channels_client_dept_needs_client/.test(error.message || '');
+    })();
+    // A client conversation is listed under its CLIENT, not under the channel's own
+    // name -- "#burrus-seo" is an implementation detail of where the messages live.
     document.querySelectorAll('.nc_modal-overlay.on').forEach(m => m.classList.remove('on'));
     for (const key of ['clients', 'teams']) {
       const card = [...document.querySelectorAll('.nc_navcard')].find(x => x.dataset.nccard === key);
@@ -2131,17 +2156,22 @@ await step('the Clients "+" opens the same form as Teams', async () => {
       }
     }
     await new Promise(r => setTimeout(r, 900));
-    const inCard = (id) => [...document.querySelectorAll('#nc_card' + id + 'Body .nc_ch-item')]
-      .some(e => /from-clients-card/.test(e.textContent));
-    out.inClientsCard = inCard('Clients');
-    out.inTeamsCard = inCard('Teams');
+    const clientName = (window.__mock.db.clients.find(c => c.id === 'c-3') || {}).name || '';
+    const inCard = (id, re) => [...document.querySelectorAll('#nc_card' + id + 'Body .nc_ch-item')]
+      .some(e => re.test(e.textContent));
+    out.clientName = clientName;
+    out.inClientsCard = inCard('Clients', new RegExp(clientName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+    out.inTeamsCard = inCard('Teams', /from-clients-card/);
     return out;
   });
   check('the Clients "+" opens the same form as Teams',
     r.hasButton && r.opensTeamForm && r.cardDidNotToggle && r.pickerGone
       && r.typeChoiceVisible && r.defaultedToClient
       && r.privacyBefore === 'public' && r.privacyAfter === 'public'
-      && r.created && r.noClientRecord && r.markedAsClient
+      && r.clientFieldsShown && r.clientOptions > 1 && r.deptOptions === 5
+      && r.created && r.shape && r.shape.kind === 'client_dept'
+      && r.shape.client === 'c-3' && r.shape.dept === 'metaAds'
+      && r.rejectsClientless
       && r.inClientsCard && !r.inTeamsCard,
     JSON.stringify(r));
 });

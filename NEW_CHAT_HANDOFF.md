@@ -965,3 +965,34 @@ click handler cleared every `.nc_m-role` in the modal -- so picking Client also 
 Public and the channel came out private. Selection is scoped to `el.parentElement` now, and
 the check asserts privacy is untouched by a type click. Same for the reads at submit:
 `[data-priv].nc_sel` and `[data-ctype].nc_sel`, never the bare class.
+
+### A client channel needs a client — the database says so (2026-08-25)
+
+Marking a Clients-card channel `kind = 'client_dept'` with a null `client_id` failed in
+production with `channels_client_dept_needs_client`. That constraint is in
+`20260821100000_channels_chat3_shape.sql`, written on this branch, with the reason stated:
+*a client_dept thread without a client is meaningless, and would render as a department tab
+strip attached to nothing.* The design was wrong, not the constraint.
+
+Choosing Client in the create form now reveals a **Client** and a **Department** select and
+requires the client, which is exactly what the row needs to be legal. Nothing invents a
+`clients` record.
+
+**The mock now enforces the channels CHECK constraints** — `channels_kind_check`,
+`channels_department_check`, `channels_client_dept_needs_client` — and returns PostgREST's
+`23514`. It previously stored whatever it was given, so the click-through went green on a
+build that failed against the real database the moment a person pressed the button. The
+check inserts a deliberately illegal row and requires the refusal.
+
+### Clients with no conversation are no longer listed
+
+They used to appear as a dimmed "No conversation yet" row that started one on click. After
+delete that read as the delete having failed -- the client sat there looking undeleted --
+and with 53 client records, most without a channel, the card was mostly rows for
+conversations that do not exist. Starting one goes through the "+" now, which asks for the
+client and the department.
+
+Two checks encoded the old rule and were rewritten rather than dropped: "all 53 clients are
+listed" became "only clients with a conversation are listed" (counted from the fixture, not
+hardcoded), and "clients without a channel render dimmed" became "no client is listed
+without a conversation".
