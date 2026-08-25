@@ -1985,6 +1985,126 @@ await step('the DM picker takes one person, the group picker takes several', asy
     JSON.stringify(r));
 });
 
+await step('deleting a client conversation removes it', async () => {
+  const r = await page.evaluate(async () => {
+    const out = {};
+    const card = [...document.querySelectorAll('.nc_navcard')].find(x => x.dataset.nccard === 'clients');
+    if (card && card.querySelector('.nc_navcard-body').getBoundingClientRect().height < 4) {
+      card.querySelector('.nc_navcard-head').click();
+      await new Promise(r => setTimeout(r, 700));
+    }
+    const rows = () => [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')];
+    // Maribou has TWO General channels in the fixture, which is the real shape: the
+    // sidebar unions them into one row, so deleting only the row's own channel leaves
+    // the row standing and the click reads as dead.
+    const row = rows().find(e => /Maribou/i.test(e.textContent));
+    if (!row) { out.noRow = true; return out; }
+    const cid = row.dataset.ncChannelId;
+    out.rowChannelId = cid || null;
+    const target = window.__mock.db.channels.find(c => c.id === cid);
+    out.siblings = window.__mock.db.channels
+      .filter(c => target && c.client_id === target.client_id).map(c => c.id);
+    const btn = row.querySelector('.nc_row-menu');
+    out.hasMenu = !!btn;
+    if (!btn) return out;
+    btn.click();
+    await new Promise(r => setTimeout(r, 400));
+    const del = document.querySelector('.nc_channel-ctx-menu [data-action="delete"]');
+    out.hasDelete = !!del;
+    if (!del) return out;
+    const before = window.__mock.db.channels.length;
+    del.click();
+    for (let i = 0; i < 40; i++) {
+      await new Promise(r => setTimeout(r, 200));
+      if (window.__mock.db.channels.length < before) break;
+    }
+    out.deleted = before - window.__mock.db.channels.length;
+    await new Promise(r => setTimeout(r, 1500));
+    // The CLIENT is not deleted -- only the conversation. So the row is expected to
+    // remain, as the dimmed "no conversation yet" row that starts a new one on click.
+    // What must not happen is the row coming back still bound to a channel.
+    const after = rows().find(e => /Maribou/i.test(e.textContent));
+    out.rowRemains = !!after;
+    out.rowStillHasChannel = !!(after && after.dataset.ncChannelId);
+    out.rowIsEmptyState = !!(after && after.dataset.clientId && !after.dataset.ncChannelId);
+    out.remaining = window.__mock.db.channels
+      .filter(c => target && c.client_id === target.client_id).map(c => c.id);
+    return out;
+  });
+  check('deleting a client conversation removes it',
+    r.hasMenu && r.hasDelete && r.deleted === r.siblings.length && r.remaining.length === 0
+      && !r.rowStillHasChannel && r.rowIsEmptyState,
+    JSON.stringify(r));
+});
+
+await step('the Clients "+" creates a client channel', async () => {
+  const r = await page.evaluate(async () => {
+    const seen = (el) => {
+      if (!el) return false;
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 100 || rect.height < 100) return false;
+      return typeof el.checkVisibility === 'function'
+        ? el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) : true;
+    };
+    const out = {};
+    document.querySelectorAll('.modal-overlay.on, .nc_modal-overlay.on').forEach(m => m.classList.remove('on'));
+    const btn = document.getElementById('nc_newClientChannelBtn');
+    out.hasButton = !!btn;
+    if (!btn) return out;
+    btn.click();
+    await new Promise(r => setTimeout(r, 600));
+    const modal = document.getElementById('nc_newClientChannelModal');
+    out.modalVisible = seen(modal);
+    const clientSel = document.getElementById('nc_clientChannelClient');
+    const deptSel = document.getElementById('nc_clientChannelDept');
+    out.clientOptions = clientSel ? clientSel.options.length : 0;
+    out.deptOptions = deptSel ? deptSel.options.length : 0;
+    if (!clientSel || !deptSel) return out;
+
+    // A client and department with no channel yet: client 2 has only a General.
+    clientSel.value = 'c-2';
+    deptSel.value = 'web';
+    deptSel.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 200));
+    out.noteForNew = document.getElementById('nc_clientChannelNote')?.textContent || '';
+    const before = window.__mock.db.channels.length;
+    document.getElementById('nc_clientChannelSubmit')?.click();
+    for (let i = 0; i < 40; i++) {
+      await new Promise(r => setTimeout(r, 200));
+      if (window.__mock.db.channels.length > before) break;
+    }
+    const made = window.__mock.db.channels.find(c => c.client_id === 'c-2' && c.department === 'web');
+    out.created = !!made;
+    out.shape = made ? { kind: made.kind, client: made.client_id, dept: made.department, priv: !!made.is_private } : null;
+    await new Promise(r => setTimeout(r, 1200));
+    out.modalClosed = !seen(document.getElementById('nc_newClientChannelModal'));
+
+    // Picking the same pair again must offer to open it, not make a second one.
+    document.getElementById('nc_newClientChannelBtn').click();
+    await new Promise(r => setTimeout(r, 500));
+    document.getElementById('nc_clientChannelClient').value = 'c-2';
+    const d2 = document.getElementById('nc_clientChannelDept');
+    d2.value = 'web';
+    d2.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 250));
+    out.noteForExisting = document.getElementById('nc_clientChannelNote')?.textContent || '';
+    out.buttonSaysOpen = document.getElementById('nc_clientChannelSubmit')?.textContent || '';
+    const before2 = window.__mock.db.channels.length;
+    document.getElementById('nc_clientChannelSubmit').click();
+    await new Promise(r => setTimeout(r, 1800));
+    out.madeADuplicate = window.__mock.db.channels.length > before2;
+    document.querySelectorAll('.nc_modal-overlay.on').forEach(m => m.classList.remove('on'));
+    return out;
+  });
+  check('the Clients "+" creates a client channel',
+    r.hasButton && r.modalVisible && r.clientOptions > 1 && r.deptOptions === 5
+      && r.created && r.shape && r.shape.kind === 'client_dept' && r.shape.dept === 'web'
+      && r.shape.priv === true && r.modalClosed
+      && /already exists/i.test(r.noteForExisting) && /open/i.test(r.buttonSaysOpen)
+      && !r.madeADuplicate,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

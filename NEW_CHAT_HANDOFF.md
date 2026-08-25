@@ -886,3 +886,26 @@ the Group DMs "+" opened a one-to-one picker and could not create a group at all
 
 Note when editing `loadDmModalList`: the original chat has a byte-identical copy of the
 filter line, so a blind string replace hits both. Scope edits to the `newChatModule` slice.
+
+### The Clients "+", and why Delete looked dead on a client row (2026-08-25)
+
+**Delete worked, and changed nothing on screen.** A client row is a CONVERSATION, not a
+channel: duplicate channels for the same client and department are unioned on read, and
+never merged, because moving messages to tidy the data model is the one thing this branch
+does not do. Deleting the row's own channel deleted something real and left the row
+standing, backed by its duplicate -- `deleted: 1, remaining: ["ch-cd-gen-1b"]`. Delete now
+takes everything the row unions (same client, same department), says how many channels that
+is in the confirm, and drops them from `chatChannels` locally so a re-render cannot restore
+the row from a stale copy before `loadChannels` returns.
+
+Note what correct looks like here: the client row REMAINS after the delete, as the dimmed
+"No conversation yet" row. Deleting a conversation does not delete the client. The check
+asserts the row is that empty-state row -- `rowIsEmptyState` -- rather than asserting it
+disappeared, which was the first (wrong) assertion and would have forced the wrong fix.
+
+**The Clients "+"** opens its own modal rather than the create-channel one, because there is
+nothing useful to type: a client channel is a client and a department, and its name, slug
+and privacy all follow from those. It is a picker in front of `ensureClientDeptThread` --
+the same call an empty department tab makes -- so there is only one way a `client_dept` row
+is ever inserted. Picking a pair that already exists says so and opens it instead of
+creating a duplicate.

@@ -8260,7 +8260,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               <div class="nc_navcard-head" style="display:flex;align-items:center;gap:9px;height:32px;padding:0 9px;cursor:pointer;">
                 <span style="width:20px;height:20px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:color-mix(in srgb, var(--c3-cyan) 16%, transparent);color:var(--c3-cyan);flex-shrink:0;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5.4" r="2.4" stroke="currentColor" stroke-width="1.35"/><path d="M3.6 13.2c0-2.1 2-3.8 4.4-3.8s4.4 1.7 4.4 3.8" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg></span>
                 <span style="flex:1;font-size:10.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--c3-t2);">Clients</span>
-                <span class="nc_navcard-count" style="font-size:10px;font-weight:700;color:var(--c3-t5);"></span>
+                <span class="nc_ch-section-add" id="nc_newClientChannelBtn" title="Create a client channel" style="display:inline-flex;color:var(--c3-t5);cursor:pointer;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span><span class="nc_navcard-count" style="font-size:10px;font-weight:700;color:var(--c3-t5);"></span>
                 <span class="nc_navcard-chev" style="display:inline-flex;color:var(--c3-t5);"><svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>
               </div>
               <div class="nc_navcard-body" id="nc_cardClientsBody" style="padding:0 4px 6px;"></div>
@@ -8668,6 +8668,33 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               <div class="nc_modal-foot">
                 <button class="nc_m-cancel" data-close="nc_newChannelModal">Cancel</button>
                 <button class="nc_m-submit" id="nc_newChannelSubmit">Create channel</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Create a client channel. Separate from nc_newChannelModal because a client
+               channel is not a top-level channel: it is a client and a department, and
+               its name and privacy follow from those rather than being typed. -->
+          <div class="nc_modal-overlay" id="nc_newClientChannelModal">
+            <div class="nc_modal">
+              <div class="nc_modal-head">
+                <div><h3>New client channel</h3><div class="nc_m-sub">A conversation for one client's department</div></div>
+                <div class="nc_m-close" data-close="nc_newClientChannelModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+              </div>
+              <div class="nc_modal-body">
+                <div class="nc_m-field">
+                  <label>Client</label>
+                  <select id="nc_clientChannelClient" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;"></select>
+                </div>
+                <div class="nc_m-field">
+                  <label>Department</label>
+                  <select id="nc_clientChannelDept" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;"></select>
+                </div>
+                <div id="nc_clientChannelNote" style="font-size:11.5px;color:var(--text-3);line-height:1.45;"></div>
+              </div>
+              <div class="nc_modal-foot">
+                <button class="nc_m-cancel" data-close="nc_newClientChannelModal">Cancel</button>
+                <button class="nc_m-submit" id="nc_clientChannelSubmit">Create channel</button>
               </div>
             </div>
           </div>
@@ -75389,15 +75416,33 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             if (typeof toast === 'function') toast({type:'success', message:'Channel renamed', duration:1500});
             if (typeof loadChannels === 'function') loadChannels();
           } else if (act === 'delete') {
-            if (!await ncConfirm('Delete channel', `Delete "#${channelName}"? All messages in this channel will be lost permanently. This cannot be undone.`, 'Delete')) return;
-            const { error } = await window.giantSupabase.from('channels').delete().eq('id', channelId);
+            // A client row is a CONVERSATION, not a channel: duplicate channels for the
+            // same client and department are unioned on read (they are never merged --
+            // moving messages to tidy the data model is the one thing this branch does
+            // not do). Deleting only the row's own channel therefore deleted something
+            // real and changed nothing on screen, because the row came straight back
+            // backed by its duplicate. Everything the row unions goes, or none of it.
+            const ids = (channel && channel.kind === 'client_dept' && channel.client_id)
+              ? (chatChannels || []).filter(c => c.client_id === channel.client_id
+                  && (c.department || 'general') === (channel.department || 'general'))
+                  .map(c => c.id)
+              : [channelId];
+            const extra = ids.length - 1;
+            if (!await ncConfirm('Delete channel',
+                  `Delete "#${channelName}"? All messages in ${extra > 0 ? `${ids.length} channels that make up this conversation` : 'this channel'} will be lost permanently. This cannot be undone.`,
+                  'Delete')) return;
+            const { error } = await window.giantSupabase.from('channels').delete().in('id', ids);
             if (error) {
               if (typeof toast === 'function') toast({type:'error', message:'Delete failed: ' + error.message});
               return;
             }
-            // Remove from sidebar
-            const item = document.querySelector(`.nc_ch-item[data-nc-channel-id="${channelId}"]`);
-            if (item) item.remove();
+            // Drop them locally too, so the re-render cannot put the row back from a
+            // stale copy before loadChannels returns.
+            chatChannels = (chatChannels || []).filter(c => !ids.includes(c.id));
+            ids.forEach(id => {
+              const el = document.querySelector(`.nc_ch-item[data-nc-channel-id="${id}"]`);
+              if (el) el.remove();
+            });
             // If user was viewing this channel, reset to none
             if (typeof activeChannelId !== 'undefined' && activeChannelId === channelId) {
               try { activeChannelId = null; } catch(e) {}
@@ -77381,6 +77426,80 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           .forEach(o => o.classList.toggle('nc_sel', o === el));
       });
     });
+
+    // ── the Clients card's "+" ─────────────────────────────────────────────────
+    // A client channel is a client and a department, so it cannot go through the
+    // create-channel modal: there is nothing useful to type. ensureClientDeptThread
+    // already builds exactly this -- it is what an empty department tab calls -- so this
+    // is a picker in front of it rather than a second way to insert the same row.
+    function ncFillClientChannelModal(){
+      const clientSel = document.getElementById('nc_clientChannelClient');
+      const deptSel = document.getElementById('nc_clientChannelDept');
+      if (!clientSel || !deptSel) return;
+      const clients = Object.values(ncClients).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      clientSel.innerHTML = clients.length
+        ? clients.map(c => '<option value="' + chatEsc(c.id) + '">' + chatEsc(c.name || 'Client') + '</option>').join('')
+        : '<option value="">No clients yet</option>';
+      deptSel.innerHTML = NC_DEPTS.map(d =>
+        '<option value="' + chatEsc(d.key) + '">' + chatEsc(d.label) + '</option>').join('');
+      ncClientChannelNote();
+    }
+    // Says up front when the pick already exists, so "Create channel" opening an existing
+    // conversation is not a surprise.
+    function ncClientChannelNote(){
+      const note = document.getElementById('nc_clientChannelNote');
+      const clientSel = document.getElementById('nc_clientChannelClient');
+      const deptSel = document.getElementById('nc_clientChannelDept');
+      const btn = document.getElementById('nc_clientChannelSubmit');
+      if (!note || !clientSel || !deptSel) return;
+      const existing = clientSel.value ? ncPrimaryChannel(clientSel.value, deptSel.value) : null;
+      const label = (NC_DEPTS.find(d => d.key === deptSel.value) || {}).label || deptSel.value;
+      note.textContent = existing
+        ? 'This conversation already exists — you will be taken to it.'
+        : 'Creates a private ' + label + ' channel for this client. Add people to it from Members.';
+      if (btn) btn.textContent = existing ? 'Open channel' : 'Create channel';
+    }
+    (function wireClientChannelBtn(){
+      const btn = document.getElementById('nc_newClientChannelBtn');
+      if (btn && !btn._ncWired) {
+        btn._ncWired = true;
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();                     // do not toggle the card open/closed
+          if (window.giantCurrentProfile && window.giantCurrentProfile.role === 'member') {
+            if (typeof toast === 'function') toast({ type:'error', message:'Only managers and owners can create channels' });
+            return;
+          }
+          ncFillClientChannelModal();
+          openModal('nc_newClientChannelModal');
+        });
+      }
+      ['nc_clientChannelClient', 'nc_clientChannelDept'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !el._ncWired) { el._ncWired = true; el.addEventListener('change', ncClientChannelNote); }
+      });
+      const submit = document.getElementById('nc_clientChannelSubmit');
+      if (submit && !submit._ncWired) {
+        submit._ncWired = true;
+        submit.addEventListener('click', async () => {
+          const clientId = document.getElementById('nc_clientChannelClient')?.value;
+          const dept = document.getElementById('nc_clientChannelDept')?.value || 'general';
+          if (!clientId) { if (typeof toast === 'function') toast({ type:'error', message:'Pick a client first' }); return; }
+          submit.disabled = true;
+          const wasThere = !!ncPrimaryChannel(clientId, dept);
+          const id = await ensureClientDeptThread(clientId, dept);
+          submit.disabled = false;
+          if (!id) return;                          // ensureClientDeptThread already explained
+          closeModal('nc_newClientChannelModal');
+          if (!wasThere && typeof toast === 'function') {
+            const cl = ncClients[clientId];
+            const label = (NC_DEPTS.find(d => d.key === dept) || {}).label || dept;
+            toast({ type:'success', message:'<b>' + chatEsc((cl && cl.name) || 'Client') + '</b> · ' + chatEsc(label) + ' created' });
+          }
+          await loadChannels();
+          switchChannel(id);
+        });
+      }
+    })();
 
     const ncChannelSubmit = document.getElementById('nc_newChannelSubmit');
     if (ncChannelSubmit) ncChannelSubmit.addEventListener('click', async () => {
