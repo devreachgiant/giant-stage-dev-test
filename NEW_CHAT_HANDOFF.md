@@ -1101,3 +1101,25 @@ changes. Both screens' buttons end up wired, which is correct -- each drives it 
 own screen is the one open. The check asserts New Chat's button carries the wiring stamp
 and that `getHuddleEls` resolves to `nc_` while New Chat is on, NOT that the other button
 is unwired, which was the first and wrong assertion.
+
+### The Clients card is the client list (2026-08-25)
+
+Every client on the books, in name order, with each of their conversations under them --
+General first, then departments in strip order. A client with no conversation yet is listed
+dimmed and starts one on click.
+
+This setting has now flipped twice in a day and the reasons are worth keeping, because both
+were right at the time. The dimmed rows were removed because after deleting a conversation
+the client sat there looking undeleted; they are back because the card is a list of clients
+and all 44 active ones belong on it. The delete check was rewritten to assert what holds
+either way: no row still points at a deleted channel, and the client reverts to its dimmed
+placeholder.
+
+**Nothing is pre-created, and that answers "create a channel whenever a client is added".**
+The client appears in this list the moment the client record exists -- no channel needed --
+and the channel is made the moment someone opens it. Eagerly creating one per client is
+recorded as not working, at `openClientThread`: `channels` is shared with old chat, which
+is still the surface for members and clients, so 40-odd public rows would flood its sidebar
+with empty channels, and private ones are invisible to any manager who is not a member,
+because `channels_select` requires membership for private rows. Creating on add would have
+the same effect, one client at a time.

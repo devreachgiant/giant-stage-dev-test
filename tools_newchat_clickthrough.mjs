@@ -315,12 +315,20 @@ const sidebar = await page.evaluate(() => {
     direct: document.querySelectorAll('#nc_cardDirectBody .nc_ch-item').length,
     dimmedClients: [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')]
       .filter(r => parseFloat(r.style.opacity || '1') < 1).length,
-    // Every client CHANNEL, not one per client: a client's SEO and Web conversations
-    // are their own rows now, or they are not in the sidebar at all.
+    // Every client on the books, plus a row per conversation. A client with channels
+    // contributes one row each; a client with none contributes one dimmed row.
+    expectedDimmed: (() => {
+      const db = window.__mock.db;
+      return db.clients.filter(c => c.status !== 'churned')
+        .filter(cl => !db.channels.some(c => c.kind === 'client_dept' && c.client_id === cl.id)).length;
+    })(),
     expectedClients: (() => {
       const db = window.__mock.db;
-      const known = new Set(db.clients.map(c => c.id));
-      return db.channels.filter(c => c.kind === 'client_dept' && c.client_id && known.has(c.client_id)).length;
+      const live = db.clients.filter(c => c.status !== 'churned');
+      return live.reduce((n, cl) => {
+        const chans = db.channels.filter(c => c.kind === 'client_dept' && c.client_id === cl.id);
+        return n + (chans.length || 1);
+      }, 0);
     })(),
     groups: document.querySelectorAll('#nc_cardGroupsBody .nc_ch-item').length,
     // truth from the data: a DM with more than one other member, or is_group set
@@ -342,11 +350,20 @@ check('sidebar behaves as an accordion (one card open)', sidebar.openCards === 1
 // one the sidebar had picked -- and that is also what lost two channels from Needs you,
 // which can only show what the sidebar painted. A client with no conversation at all is
 // still not listed; the "+" is how one starts.
-check('every client channel is listed, not one per client',
+// The card is the client list: every client on the books, with each of their
+// conversations under them, and a dimmed row for a client that has none yet. Nothing is
+// pre-created -- channels is shared with old chat, so 40-odd empty public rows would
+// flood its sidebar and private ones would be invisible to non-member managers.
+check('every client is listed, with a row per conversation',
   sidebar.clients > 0 && sidebar.clients === sidebar.expectedClients,
-  'listed=' + sidebar.clients + ' clientChannels=' + sidebar.expectedClients);
-check('no client is listed without a conversation', sidebar.dimmedClients === 0,
-  'placeholderRows=' + sidebar.dimmedClients);
+  'listed=' + sidebar.clients + ' expected=' + sidebar.expectedClients);
+// The inverse of what this asserted a few hours ago. A client with no conversation IS
+// listed again, dimmed, because the card is a client list and every client on the books
+// belongs on it -- it just has nothing to open until someone starts it.
+check('a client with no conversation is still listed, dimmed',
+  sidebar.dimmedClients > 0
+    && sidebar.dimmedClients === sidebar.expectedDimmed,
+  'dimmed=' + sidebar.dimmedClients + ' expected=' + sidebar.expectedDimmed);
 check('11 team channels + home are listed', sidebar.teams === 12, 'teams=' + sidebar.teams);
 // Group conversations belong under GROUP DMS, one-to-ones under DIRECT. The card used to
 // route on channels.is_group alone while the list treated "more than one other person" as a
@@ -2069,18 +2086,22 @@ await step('deleting a client conversation removes it', async () => {
     }
     out.deleted = before - window.__mock.db.channels.length;
     await new Promise(r => setTimeout(r, 1500));
-    // The row must go. It used to remain as a dimmed "no conversation yet" row, which
-    // read as the delete having failed -- the client sat there looking undeleted.
+    // The CONVERSATION goes; the CLIENT stays. This flipped twice in a day -- the empty
+    // row was removed because after a delete it read as the delete having failed, then
+    // brought back because the card is the client list and every client belongs on it.
+    // What must be true either way is that no row still points at a deleted channel.
     const after = rows().find(e => /Maribou/i.test(e.textContent));
     out.rowRemains = !!after;
-    out.emptyClientRows = rows().filter(e => e.dataset.clientId && !e.dataset.ncChannelId).length;
+    out.rowIsDimmedPlaceholder = !!(after && after.dataset.clientId && !after.dataset.ncChannelId);
+    out.rowsStillOnDeletedChannels = rows()
+      .filter(e => e.dataset.ncChannelId && out.siblings.includes(e.dataset.ncChannelId)).length;
     out.remaining = window.__mock.db.channels
       .filter(c => target && c.client_id === target.client_id).map(c => c.id);
     return out;
   });
   check('deleting a client conversation removes it',
     r.hasMenu && r.hasDelete && r.deleted === r.siblings.length && r.remaining.length === 0
-      && !r.rowRemains && r.emptyClientRows === 0,
+      && r.rowsStillOnDeletedChannels === 0 && r.rowIsDimmedPlaceholder,
     JSON.stringify(r));
 });
 

@@ -71052,23 +71052,50 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         .sort((a, b) => new Date(b.c.created_at || 0) - new Date(a.c.created_at || 0))
         .forEach(({ row, c }) => place(row, bodies.clients, c.id, true));
 
-      // Every client channel, in client-name order and then department, so a client's
-      // conversations sit together. A client with no conversation at all is not listed:
-      // it used to appear as a dimmed "No conversation yet" row, which after a delete
-      // read as the delete having failed. Starting one goes through the "+".
-      (src ? [...src.querySelectorAll('.nc_ch-item[data-nc-channel-id]')] : [])
-        .map(row => ({ row, c: byId.get(row.dataset.ncChannelId) }))
-        .filter(({ c }) => c && c.kind === 'client_dept' && c.client_id && ncClients[c.client_id])
-        .sort((a, b) => {
-          const an = (ncClients[a.c.client_id].name || '').toLowerCase();
-          const bn = (ncClients[b.c.client_id].name || '').toLowerCase();
-          if (an !== bn) return an < bn ? -1 : 1;
-          // General first, then the rest in the order the department strip shows them.
-          const ai = NC_DEPTS.findIndex(d => d.key === (a.c.department || 'general'));
-          const bi = NC_DEPTS.findIndex(d => d.key === (b.c.department || 'general'));
-          return ai - bi;
-        })
-        .forEach(({ row, c }) => place(row, bodies.clients, c.id, true));
+      // The card is the CLIENT LIST: every client on the books, in name order, with each
+      // of their conversations under them -- General first, then the departments in strip
+      // order. A client with no conversation yet is still listed, dimmed, and starts one
+      // on click.
+      //
+      // That last part is why nothing is pre-created. `channels` is shared with old chat,
+      // which is still the surface for members and clients: 40-odd public rows would flood
+      // its sidebar with empty channels, and private ones are invisible to any manager who
+      // is not a member, because channels_select requires membership for private rows. A
+      // client appears here the moment it exists; its channel is made the moment it is
+      // needed.
+      const rowsByClient = new Map();
+      (src ? [...src.querySelectorAll('.nc_ch-item[data-nc-channel-id]')] : []).forEach(row => {
+        const c = byId.get(row.dataset.ncChannelId);
+        if (!c || c.kind !== 'client_dept' || !c.client_id || !ncClients[c.client_id]) return;
+        if (!rowsByClient.has(c.client_id)) rowsByClient.set(c.client_id, []);
+        rowsByClient.get(c.client_id).push({ row, c });
+      });
+      Object.values(ncClients)
+        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        .forEach(cl => {
+          const mine = (rowsByClient.get(cl.id) || []).sort((a, b) => {
+            const ai = NC_DEPTS.findIndex(d => d.key === (a.c.department || 'general'));
+            const bi = NC_DEPTS.findIndex(d => d.key === (b.c.department || 'general'));
+            return ai - bi;
+          });
+          if (mine.length) {
+            mine.forEach(({ row, c }) => place(row, bodies.clients, c.id, true));
+            return;
+          }
+          const row = document.createElement('div');
+          row.className = 'nc_ch-item';
+          row.dataset.clientId = cl.id;
+          row.innerHTML =
+            `<span class="nc_hash" style="font-style:normal;width:20px;height:20px;border-radius:50%;`
+            + `display:inline-flex;align-items:center;justify-content:center;`
+            + `background:${chatEsc(cl.avatar_bg || 'var(--c3-avatar-bg)')};color:${chatEsc(cl.avatar_fg || 'var(--c3-avatar-fg)')};`
+            + `font-size:8.5px;font-weight:800;flex-shrink:0;">${chatEsc((cl.name || '?').trim().charAt(0).toUpperCase())}</span>`
+            + chatEsc(cl.name || 'Client');
+          row.style.opacity = '.62';
+          row.title = 'No conversation yet — click to start one';
+          row.addEventListener('click', () => openClientThread(cl.id));
+          bodies.clients.appendChild(row);
+        });
 
       const dmSrc = document.getElementById('nc_chatDmList');
       // With no DM channels yet, renderDmChannelList falls back to listing teammates as
