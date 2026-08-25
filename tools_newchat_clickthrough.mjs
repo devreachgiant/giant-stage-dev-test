@@ -2333,6 +2333,81 @@ await step('Start huddle is wired to New Chat\'s own button', async () => {
     JSON.stringify(r));
 });
 
+await step('a new client channel is public, with the whole team in it', async () => {
+  const r = await page.evaluate(async () => {
+    const db = window.__mock.db;
+    // A client with no conversation yet: its dimmed row starts one on click.
+    const withChan = new Set(db.channels.filter(c => c.kind === 'client_dept').map(c => c.client_id));
+    const target = db.clients.find(c => c.status !== 'churned' && !withChan.has(c.id));
+    if (!target) return { noEmptyClient: true };
+    const card = [...document.querySelectorAll('.nc_navcard')].find(x => x.dataset.nccard === 'clients');
+    if (card && card.querySelector('.nc_navcard-body').getBoundingClientRect().height < 4) {
+      card.querySelector('.nc_navcard-head').click();
+      await new Promise(r => setTimeout(r, 700));
+    }
+    const row = [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')]
+      .find(e => e.dataset.clientId === target.id);
+    const out = { client: target.name, foundRow: !!row };
+    if (!row) return out;
+    const before = db.channels.length;
+    row.click();
+    for (let i = 0; i < 40; i++) {
+      await new Promise(r => setTimeout(r, 200));
+      if (db.channels.length > before) break;
+    }
+    const made = db.channels.find(c => c.client_id === target.id && c.kind === 'client_dept');
+    out.created = !!made;
+    if (!made) return out;
+    out.isPublic = made.is_private === false;
+    const members = db.channel_members.filter(m => m.channel_id === made.id).map(m => m.profile_id);
+    const team = db.profiles.filter(p => !p.deactivated_at && p.role !== 'client').map(p => p.id);
+    const clients = db.profiles.filter(p => p.role === 'client').map(p => p.id);
+    const dead = db.profiles.filter(p => p.deactivated_at).map(p => p.id);
+    out.teamSize = team.length;
+    out.memberCount = members.length;
+    out.everyoneAdded = team.every(id => members.includes(id));
+    out.noClientsAdded = !clients.some(id => members.includes(id));
+    out.noDeactivatedAdded = !dead.some(id => members.includes(id));
+    return out;
+  });
+  check('a new client channel is public, with the whole team in it',
+    r.foundRow && r.created && r.isPublic && r.teamSize > 1
+      && r.everyoneAdded && r.noClientsAdded && r.noDeactivatedAdded,
+    JSON.stringify(r));
+});
+
+await step('Management is a manager\'s tab, Messages and Vault are everyone\'s', async () => {
+  const r = await page.evaluate(async () => {
+    const out = {};
+    const shown = (id) => {
+      const el = document.getElementById(id);
+      return !!el && el.style.display !== 'none';
+    };
+    const clientRow = [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item[data-nc-channel-id]')][0];
+    if (!clientRow) return { noClientChannel: true };
+    clientRow.click();
+    await new Promise(r => setTimeout(r, 1600));
+    out.roleNow = window.giantCurrentProfile.role;
+    out.mgmtForStaff = shown('nc_mgmtTabBtn');
+    // Same channel, seen as a member.
+    window.giantCurrentProfile.role = 'member';
+    if (window.nc_syncMgmtTab) window.nc_syncMgmtTab();
+    else clientRow.click();
+    await new Promise(r => setTimeout(r, 1400));
+    out.mgmtForMember = shown('nc_mgmtTabBtn');
+    out.vaultForMember = !!document.querySelector('#nc_chatSubTabs [data-subtab="canvas"]');
+    window.giantCurrentProfile.role = out.roleNow;
+    if (window.nc_syncMgmtTab) window.nc_syncMgmtTab();
+    await new Promise(r => setTimeout(r, 600));
+    out.mgmtBackForStaff = shown('nc_mgmtTabBtn');
+    return out;
+  });
+  check('Management is a manager\'s tab, Messages and Vault are everyone\'s',
+    r.mgmtForStaff === true && r.mgmtForMember === false
+      && r.vaultForMember === true && r.mgmtBackForStaff === true,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

@@ -1123,3 +1123,31 @@ is still the surface for members and clients, so 40-odd public rows would flood 
 with empty channels, and private ones are invisible to any manager who is not a member,
 because `channels_select` requires membership for private rows. Creating on add would have
 the same effect, one client at a time.
+
+### Client channels: public, whole team, Management staff-only (2026-08-25)
+
+Three changes asked for together, plus a fourth they imply.
+
+1. **`ensureClientDeptThread` creates public channels.** They were private-by-creator, so
+   every client conversation started invisible to everyone except whoever opened it first.
+2. **The whole team is added on creation** — `ncAddWholeTeam`, one upsert. Clients are
+   excluded, since they are the subject of the conversation rather than participants, and
+   so are deactivated accounts. Membership is what unread counts, Needs you and the member
+   list read from, so a channel nobody is a member of is a channel nobody is told about.
+3. **Management is staff-only.** `syncMgmtTab` now requires `ncIsStaff()`: it holds the
+   client record, the permission matrix, billing and the activity trail. Messages, Media
+   and the Vault stay open to everyone in the channel.
+4. **New Chat is no longer manager-only.** `data-role-min="manager"` is off both the screen
+   and the nav item. Point 3 is meaningless otherwise — a member could not open New Chat at
+   all. Clients are still excluded via `data-client-hidden`.
+
+**Two consequences that need a decision, both recorded rather than assumed:**
+
+- **Existing client channels are untouched.** They are still private with one member. The
+  code only governs channels created from now on; making the existing ones match needs a
+  backfill — an `is_private = false` update plus membership rows for the team, across every
+  `kind = 'client_dept'` row.
+- **Public client channels appear in OLD chat's sidebar, for everyone.** That is the exact
+  cost written down at `openClientThread` and it has not gone away; it has been chosen. Old
+  chat is still the surface for members and clients, so every client channel made from here
+  shows up there too.

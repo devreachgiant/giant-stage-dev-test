@@ -6547,7 +6547,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         
         <!-- New, in-progress third chat build — reuses chat2's real tables, Chat & Huddles
              and Chat 2.0 both stay fully untouched. See graceful-beaming-volcano.md. -->
-        <div class="nav-item" data-screen="newchat" data-label="New Chat" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 01-8.5 8.4 8.7 8.7 0 01-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0112.5 3a8.4 8.4 0 018.5 8.5z"/></svg></span>New Chat <span class="badge" style="background:linear-gradient(90deg,#A855F7,#FB923C,#10B981);color:#fff;font-size:8.5px;padding:1px 6px;border-radius:6px;font-weight:800;letter-spacing:.04em;">NEW</span></div>
+        <div class="nav-item" data-screen="newchat" data-label="New Chat" data-client-hidden><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 01-8.5 8.4 8.7 8.7 0 01-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0112.5 3a8.4 8.4 0 018.5 8.5z"/></svg></span>New Chat <span class="badge" style="background:linear-gradient(90deg,#A855F7,#FB923C,#10B981);color:#fff;font-size:8.5px;padding:1px 6px;border-radius:6px;font-weight:800;letter-spacing:.04em;">NEW</span></div>
         <!-- Renamed from "Inbox" per redesign — same real Workspace inbox screen, no new feature. -->
         <div class="nav-item" data-screen="inbox" data-label="Email" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3" width="12.4" height="10" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 4.5L8 8.5L13.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>Email <span class="badge" id="sidebarBadgeInbox" style="display:none;">0</span></div>
         <div class="nav-item" data-screen="bookings" data-label="Meetings" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M3.5 7.5L7 11l5.5-6.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="1.5" y="2" width="13" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/></svg></span>Meetings <span class="badge" id="sidebarBadgeBookings" style="display:none;">0</span></div>
@@ -8210,7 +8210,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       </div>
 
       <!-- ===== CHAT 2.0 ===== -->
-            <div class="screen fullbleed" data-screen="newchat" data-role-min="manager" data-client-hidden>
+            <div class="screen fullbleed" data-screen="newchat" data-client-hidden>
         <div class="nc_fb-grid">
           <!-- channel list -->
           <aside class="nc_channels" id="nc_chatChannels">
@@ -70531,6 +70531,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       switchChannel(id);
     }
     window.nc_openClientThread = openClientThread;
+    window.nc_syncMgmtTab = () => syncMgmtTab();
     // Channels for one client x department. Plural on purpose: Maribou has two
     // channels that both mean General, and merging them would mean moving messages
     // between channels, which this branch does not do to old chat's data.
@@ -70554,12 +70555,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
     // Management belongs to a client, so the tab appears only on client threads and
     // the pane joins the same show/hide set as Messages/Media/Canvas.
+    // Exposed so the role gate can be exercised without reloading the app.
     function syncMgmtTab(){
       const btn = document.getElementById('nc_mgmtTabBtn');
       const pane = document.getElementById('nc_mgmtPane');
       const active = chatChannels.find(c => c.id === activeChannelId);
       const isClient = !!(active && active.kind === 'client_dept' && active.client_id);
-      if (btn) btn.style.display = isClient ? '' : 'none';
+      // Messages and the Vault are for everyone in the channel. Management is not: it
+      // holds the client record, the permission matrix, billing and the activity trail,
+      // which are a manager's business and not a member's.
+      if (btn) btn.style.display = (isClient && ncIsStaff()) ? '' : 'none';
       // On a client thread the department tabs ARE the messages -- clicking General
       // opens the message list -- so a separate Messages tab is a second control for
       // the same thing. It stays for team channels and DMs, which have no department
@@ -71710,6 +71715,27 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // Magnus can look at one client or across the whole book. The wide view is
       // deliberately shallow — the roster plus what is outstanding everywhere — because
       // sending every message of every client would be both useless and enormous.
+    // Everyone on the team, in one insert. Clients are excluded -- they are the subject
+    // of the conversation, not participants in it -- and so are deactivated accounts.
+    // Membership is what unread counts, Needs you and the member list all read from, so a
+    // channel nobody is a member of is a channel nobody is told about.
+    let _ncTeamIds = null;
+    async function ncAddWholeTeam(channelId){
+      try {
+        if (!_ncTeamIds) {
+          const { data } = await NCSB().from('profiles').select('id, role, deactivated_at');
+          _ncTeamIds = (data || [])
+            .filter(p => p && p.id && !p.deactivated_at && p.role !== 'client')
+            .map(p => p.id);
+        }
+        if (!_ncTeamIds.length) return;
+        const rows = _ncTeamIds.map(id => ({ channel_id: channelId, profile_id: id }));
+        const { error } = await NCSB().from('channel_members')
+          .upsert(rows, { onConflict: 'channel_id,profile_id' });
+        if (error) console.warn('[newchat] could not add the team to', channelId, error.message);
+      } catch (e) { console.warn('[newchat] adding the team threw:', e); }
+    }
+
     // Chat 3.0 creates a thread on demand; here the equivalent is a channel for that
     // client x department, which is what the Members matrix needs to grant access to a
     // department nobody has posted in yet.
@@ -71718,14 +71744,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (existing) return existing.id;
       const cl = ncClients[clientId];
       const slug = ((cl && cl.name) || 'client').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30) + '-' + dept;
+      // Public, and the whole team in it. A client conversation is the team's shared
+      // record of that client, so making it private-by-creator meant every one of them
+      // started invisible to everyone except whoever happened to open it first.
       const { data, error } = await NCSB().from('channels')
-        .insert({ name: ((cl && cl.name) || 'Client') + ' ' + dept, slug, is_private: true,
+        .insert({ name: ((cl && cl.name) || 'Client') + ' ' + dept, slug, is_private: false,
                   kind: 'client_dept', client_id: clientId, department: dept, created_by: ncMyId() })
         .select('id, name, slug, is_private, is_dm, kind, client_id, department').single();
       if (error || !data) {
         if (typeof toast === 'function') toast({ type:'error', message:'Could not create the channel: ' + ((error && error.message) || '?') });
         return null;
       }
+      await ncAddWholeTeam(data.id);
       chatChannels.push(data);
       // The Members matrix is loaded once per client and then guarded by mgmtMatrixFor,
       // so a department created after that load stays invisible to it: the column keeps
