@@ -67112,7 +67112,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
 
     // Upload to Supabase Storage bucket "voice-notes"
-    const channelId = window.activeChannelId || window._activeChannelId || null;
+    // Whichever chat screen is on. This read old chat's channel unconditionally, so a
+    // voice note recorded in New Chat was uploaded, inserted, and filed against whatever
+    // channel the OTHER screen happened to have open -- which is why it sent cleanly and
+    // then appeared nowhere. Same fault as the mic button, one step further along.
+    const onNewChat = !!document.querySelector('.screen[data-screen="newchat"].on');
+    const channelId = (onNewChat ? window.nc_activeChannelId : null)
+      || window.activeChannelId || window._activeChannelId || null;
     const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2,8)}.webm`;
     if (typeof toast === 'function') toast({type:'info', message:'Uploading voice note…', duration:1500});
 
@@ -76113,8 +76119,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           : chatEsc(initial);
         const isMine = m.author_id === window.giantSession.user.id;
         const deleteBtn = '';  // actions unified into the hover react-bar (edit + delete + reactions)
+        // window._renderVoicePlayer, not an nc_ one. The namespacing pass renamed this
+        // CALL and there was no second function to rename, so it resolved to undefined,
+        // the ternary fell to '' and a voice note rendered as an empty message -- sent
+        // fine, visible nowhere. The player's markup and CSS are global, and playback is
+        // one feature on either screen.
         const voiceHtml = m.voice_note_url
-          ? (typeof window.nc__renderVoicePlayer === 'function' ? window.nc__renderVoicePlayer(m.voice_note_url, m.voice_note_duration_ms || 0) : '')
+          ? (typeof window._renderVoicePlayer === 'function' ? window._renderVoicePlayer(m.voice_note_url, m.voice_note_duration_ms || 0) : '')
           : '';
         prevMsg = m;
         if (isGrouped) {
@@ -76531,7 +76542,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           // causing severe lag with multiple active users.)
           const m = payload.new;
           if (!m || !m.id) return;
-          const msgEl = document.querySelector(`[data-msg-id="${m.id}"]`);
+          const msgEl = document.querySelector(`.nc_msg[data-msg-id="${m.id}"]`);
           if (!msgEl) return; // not currently rendered
           // Update only the body text element
           const bodyEl = msgEl.querySelector('[data-msg-body]') || msgEl.querySelector('.nc_msg-body');
@@ -76559,7 +76570,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           }
         })
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' }, (payload) => {
-          const row = document.querySelector(`[data-msg-id="${payload.old.id}"]`);
+          const row = document.querySelector(`.nc_msg[data-msg-id="${payload.old.id}"]`);
           if (row) row.remove();
           // Also purge from every channel's message cache, not just the DOM — otherwise
           // loadMessages()'s 10s "fresh cache" fast-path can resurrect a just-deleted message.
@@ -76576,7 +76587,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // If a real message arrives (not optimistic) AND we already have its ID in the DOM, skip.
       // (This catches both echoes of our own sends — already upgraded from tempId to real ID —
       //  and accidental duplicate inserts.)
-      if (m && !m._optimistic && document.querySelector(`[data-msg-id="${m.id}"]`)) return;
+      // `.nc_msg`, not a bare attribute selector. data-msg-id is shared with the original
+      // chat, whose realtime subscription is live whether or not its screen is -- so it
+      // appended every incoming message to its own hidden list FIRST, and this dedupe then
+      // found the id in the DOM and skipped it. Every realtime message was dropped here:
+      // nothing anyone sent appeared until the channel was reloaded, which is what "the
+      // voice note sent but I cannot see it anywhere" actually was.
+      if (m && !m._optimistic && chatMsgsList && chatMsgsList.querySelector(`[data-msg-id="${m.id}"]`)) return;
       // ALSO: if this is the echo of OUR OWN send, but the optimistic node hasn't been upgraded yet
       // (DB insert still pending), find the matching tmp_ row by body+author+channel and just upgrade it.
       // This way the realtime echo never inserts a duplicate.
@@ -76622,11 +76639,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const deleteBtn = '';  // actions unified into the hover react-bar (edit + delete + reactions)
       // Render voice note player if message has a voice_note_url
       if (m.voice_note_url) {
-        console.log('[voice-render] appendMessage got voice_note message:', m.id, 'url:', m.voice_note_url, 'duration:', m.voice_note_duration_ms, 'renderer available:', typeof window.nc__renderVoicePlayer === 'function');
+        console.log('[voice-render] appendMessage got voice_note message:', m.id, 'url:', m.voice_note_url, 'duration:', m.voice_note_duration_ms, 'renderer available:', typeof window._renderVoicePlayer === 'function');
       }
       const voiceHtml = m.voice_note_url
-        ? (typeof window.nc__renderVoicePlayer === 'function'
-            ? window.nc__renderVoicePlayer(m.voice_note_url, m.voice_note_duration_ms || 0)
+        ? (typeof window._renderVoicePlayer === 'function'
+            ? window._renderVoicePlayer(m.voice_note_url, m.voice_note_duration_ms || 0)
             : '<div style="padding:8px 13px;background:rgba(208,4,0,.10);border:1px dashed var(--red);border-radius:8px;color:var(--red);font-size:11px;">[Voice note — player not loaded. Refresh to play.]</div>')
         : '';
       const div = document.createElement('div');
@@ -76786,7 +76803,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       try { await appendMessage(optimisticMsg); } catch(e) { console.warn('[optimistic append]', e); }
       // Mark with a subtle visual cue while sending: a tiny clock icon (not opacity — that screams "broken")
       // The cue is removed as soon as we get the real ID.
-      const el = document.querySelector(`[data-msg-id="${tempId}"]`);
+      const el = document.querySelector(`.nc_msg[data-msg-id="${tempId}"]`);
       if (el) {
         el.dataset.optimisticId = tempId;
         // No opacity dim — Slack keeps the message at full visibility, just shows a status icon
@@ -76839,7 +76856,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (hasAttachments && inserted) {
           await uploadPendingAttachments(inserted.id, activeChannelId);
           await loadAttachmentsForMessages([inserted.id]);
-          const msgEl = document.querySelector(`[data-msg-id="${inserted.id}"]`);
+          const msgEl = document.querySelector(`.nc_msg[data-msg-id="${inserted.id}"]`);
           if (msgEl) renderAttachmentsForMsg(msgEl, inserted.id);
         }
       } catch (e) {
@@ -77921,7 +77938,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         tempId = 'tmp_react_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
         reactions.push({ id: tempId, message_id: messageId, profile_id: window.giantSession.user.id, emoji });
       }
-      const msgEl = document.querySelector(`[data-msg-id="${messageId}"]`);
+      const msgEl = document.querySelector(`.nc_msg[data-msg-id="${messageId}"]`);
       if (msgEl) renderReactionsForMsg(msgEl, messageId);
       // Then sync to DB in background
       try {
@@ -78142,9 +78159,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (lastLoad && (Date.now() - lastLoad) < PINS_CACHE_TTL_MS && chatPinsCache[channelId]) {
           // Use cached data — just re-render banner + apply pinned class
           renderPinnedBanner(channelId);
-          document.querySelectorAll(`[data-msg-id]`).forEach(el => el.classList.remove('nc_pinned'));
+          document.querySelectorAll(`.nc_msg[data-msg-id]`).forEach(el => el.classList.remove('nc_pinned'));
           (chatPinsCache[channelId] || []).forEach(m => {
-            const row = document.querySelector(`[data-msg-id="${m.id}"]`);
+            const row = document.querySelector(`.nc_msg[data-msg-id="${m.id}"]`);
             if (row) row.classList.add('nc_pinned');
           });
           return;
@@ -78159,9 +78176,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       chatPinsLoadedAt.set(channelId, Date.now());
       renderPinnedBanner(channelId);
       // Apply pinned class to existing message rows
-      document.querySelectorAll(`[data-msg-id]`).forEach(el => el.classList.remove('nc_pinned'));
+      document.querySelectorAll(`.nc_msg[data-msg-id]`).forEach(el => el.classList.remove('nc_pinned'));
       (data || []).forEach(m => {
-        const row = document.querySelector(`[data-msg-id="${m.id}"]`);
+        const row = document.querySelector(`.nc_msg[data-msg-id="${m.id}"]`);
         if (row) row.classList.add('nc_pinned');
       });
     }
@@ -78675,7 +78692,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const _origAppendMessage = appendMessage;
     appendMessage = async function(m) {
       await _origAppendMessage(m);
-      const msgEl = document.querySelector(`[data-msg-id="${m.id}"]`);
+      const msgEl = document.querySelector(`.nc_msg[data-msg-id="${m.id}"]`);
       if (msgEl) {
         attachReactBarToMsg(msgEl, m.id, m.author_id === window.giantSession.user.id);
         renderReactionsForMsg(msgEl, m.id);
@@ -79071,7 +79088,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (!r) return;
         // Reload reactions for that message
         await loadReactionsForMessages([r.message_id]);
-        const msgEl = document.querySelector(`[data-msg-id="${r.message_id}"]`);
+        const msgEl = document.querySelector(`.nc_msg[data-msg-id="${r.message_id}"]`);
         if (msgEl) renderReactionsForMsg(msgEl, r.message_id);
       })
       .subscribe();
@@ -79715,7 +79732,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // Show an "uploading…" placeholder (image preview from local blob + spinner) on the sent
     // message while attachments upload to storage — replaced by the real render once done.
     function renderUploadingPlaceholder(messageId, atts) {
-      const msgEl = document.querySelector(`[data-msg-id="${messageId}"]`);
+      const msgEl = document.querySelector(`.nc_msg[data-msg-id="${messageId}"]`);
       if (!msgEl) return;
       const body = msgEl.querySelector('.nc_body');
       if (!body) return;
@@ -79949,7 +79966,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           await uploadPendingAttachments(msg.id, activeChannelId);
           // Refresh to show attachments
           await loadAttachmentsForMessages([msg.id]);
-          const msgEl = document.querySelector(`[data-msg-id="${msg.id}"]`);
+          const msgEl = document.querySelector(`.nc_msg[data-msg-id="${msg.id}"]`);
           if (msgEl) renderAttachmentsForMsg(msgEl, msg.id);
         } else {
           // Has body — call original send first, then upload + render
@@ -79965,7 +79982,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           if (lastMsg && hasAtts) {
             await uploadPendingAttachments(lastMsg.id, activeChannelId);
             await loadAttachmentsForMessages([lastMsg.id]);
-            const msgEl = document.querySelector(`[data-msg-id="${lastMsg.id}"]`);
+            const msgEl = document.querySelector(`.nc_msg[data-msg-id="${lastMsg.id}"]`);
             if (msgEl) renderAttachmentsForMsg(msgEl, lastMsg.id);
           }
         }
@@ -80406,7 +80423,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           .is('parent_id', null)
           .gt('reply_count', 0);
         (parentMsgs || []).forEach(pm => {
-          const msgEl = document.querySelector(`[data-msg-id="${pm.id}"]`);
+          const msgEl = document.querySelector(`.nc_msg[data-msg-id="${pm.id}"]`);
           if (msgEl) renderReplyCtaForMsg(msgEl, pm);
         });
       };
@@ -80418,7 +80435,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // Skip thread replies in main channel view
       if (m.parent_id) {
         // But still update the parent's reply CTA if visible
-        const parentEl = document.querySelector(`[data-msg-id="${m.parent_id}"]`);
+        const parentEl = document.querySelector(`.nc_msg[data-msg-id="${m.parent_id}"]`);
         if (parentEl) {
           // Fetch updated parent reply_count
           const { data: parent } = await window.giantSupabase.from('messages').select('id, reply_count').eq('id', m.parent_id).single();
@@ -80427,7 +80444,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         return;
       }
       await _origAppendMsg(m);
-      const msgEl = document.querySelector(`[data-msg-id="${m.id}"]`);
+      const msgEl = document.querySelector(`.nc_msg[data-msg-id="${m.id}"]`);
       if (msgEl) {
         if (chatAttachmentsCache[m.id]) renderAttachmentsForMsg(msgEl, m.id);
         if (m.reply_count > 0) renderReplyCtaForMsg(msgEl, m);
@@ -80440,7 +80457,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const a = payload.new;
         if (!a) return;
         await loadAttachmentsForMessages([a.message_id]);
-        const msgEl = document.querySelector(`[data-msg-id="${a.message_id}"]`);
+        const msgEl = document.querySelector(`.nc_msg[data-msg-id="${a.message_id}"]`);
         if (msgEl) renderAttachmentsForMsg(msgEl, a.message_id);
       })
       .subscribe();
@@ -80464,7 +80481,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (window.nc__chatReplyCtaCache) {
           Object.keys(window.nc__chatReplyCtaCache).forEach(k => delete window.nc__chatReplyCtaCache[k]);
         }
-        const msgEl = document.querySelector(`[data-msg-id="${msg.id}"]`);
+        const msgEl = document.querySelector(`.nc_msg[data-msg-id="${msg.id}"]`);
         if (msgEl && msg.reply_count > 0) {
           renderReplyCtaForMsg(msgEl, msg);
         }

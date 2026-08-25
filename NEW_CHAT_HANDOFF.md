@@ -1282,3 +1282,38 @@ chat's ids. Huddles, voice notes and the full-screen toggle were all this. None 
 12, 13 or 14 can see it -- 14 passes because the `nc_` twin exists, and 12 and 13 only read
 inside the module. The remaining candidates are anything else wired from the shared script
 blocks.
+
+### The one that mattered: realtime messages never appeared (2026-08-25)
+
+Reported as "the voice note sends but I cannot see it anywhere". It was not about voice
+notes. **No realtime message appeared in New Chat at all** -- not a colleague's message, not
+your own echo -- until the channel was reloaded.
+
+Two faults, one behind the other.
+
+**1. `window.nc__renderVoicePlayer` does not exist.** The namespacing pass renamed the CALL
+and there was no second function to rename; only `window._renderVoicePlayer` was ever
+defined. The `typeof` guard around it meant no error -- the ternary fell to `''` and a voice
+note rendered as an empty message. New Chat now calls the shared renderer, whose markup and
+CSS are global and whose playback is one feature either way.
+
+**2. `appendMessage` deduped with a document-wide selector.**
+
+    if (m && !m._optimistic && document.querySelector(`[data-msg-id="${m.id}"]`)) return;
+
+`data-msg-id` is on both chats' rows. The original chat's realtime subscription runs whether
+or not its screen is on, so it appended every incoming message to its own hidden list first;
+New Chat then found the id in the document and skipped it as a duplicate. Every realtime
+message was dropped at that line. The probe made it plain: on one emit the old list went
+127 → 129 while New Chat's stayed at 100.
+
+All 20 bare `[data-msg-id]` selectors in the module are now `.nc_msg[data-msg-id]`, and the
+dedupe is scoped to `chatMsgsList` rather than the document. **Audit check 15** forbids a
+bare `[data-msg-id]`, `[data-author-id]` or `[data-channel-id]` selector in the module, and
+reports it on the previous commit.
+
+Worth sitting with: this is the same family as check 8 (attributes the original selects
+document-wide) but in the other direction -- New Chat reaching into the original -- and
+nothing caught it for four days. The click-through had a check for a message arriving over
+realtime reaching **Needs you**, which passed, because that path reads the data rather than
+the DOM. Nothing asserted the message appeared in the message list.

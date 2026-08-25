@@ -393,5 +393,26 @@ absent = sorted(i for i in chat_ids
 print("14. controls in the old chat with no New Chat twin:", absent or "none")
 fail += len(absent)
 
+# ---------------------------------------------------------------------------
+# 15. A selector that reaches the ORIGINAL chat's messages. `data-msg-id` is on both
+# chats' rows, so `document.querySelector('[data-msg-id="..."]')` inside this module
+# matches whichever copy comes first in the document -- and the original's is first.
+#
+# This is not theoretical and it was not cosmetic. appendMessage deduped with exactly
+# that selector, and the original chat's realtime subscription is live whether or not
+# its screen is, so it appended every incoming message to its own hidden list FIRST and
+# New Chat then skipped every one as a duplicate. Nothing anyone sent appeared until the
+# channel was reloaded.
+#
+# The fix is a prefix: `.nc_msg[data-msg-id=...]`, or scoping to nc_chatMsgsList.
+SHARED_ATTRS = ['data-msg-id', 'data-author-id', 'data-channel-id']
+loose = []
+for attr in SHARED_ATTRS:
+    for m in re.finditer(r'document\.querySelector(?:All)?\(\s*[`\'"]\[' + re.escape(attr), body):
+        line = body[:m.start()].count('\n') + 1
+        loose.append('%s (a bare [%s] selector)' % (attr, attr))
+print("15. selectors that can match the original chat's messages:", sorted(set(loose)) or "none")
+fail += len(loose)
+
 print("\nRESULT:", "clean" if not fail else f"{fail} problem(s)")
 sys.exit(1 if fail else 0)

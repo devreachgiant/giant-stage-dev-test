@@ -2654,6 +2654,61 @@ await step('the voice recorder is wired to New Chat\'s own mic', async () => {
     JSON.stringify(r));
 });
 
+await step('a voice note lands in the channel you recorded it in', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const team = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item[data-nc-channel-id]')][0];
+    if (team) { team.click(); await wait(1800); }
+    const here = window.nc_activeChannelId;
+    out.channel = here || null;
+    // The two screens track their own channel. The send path used to read the OTHER
+    // one's, so the note was filed against whatever old chat had open -- it sent, and
+    // then appeared nowhere.
+    out.otherScreenChannel = window.activeChannelId || null;
+    out.channelsDiffer = !!here && here !== window.activeChannelId;
+    if (!here) return out;
+    const row = {
+      id: 'm-voice-note-test', channel_id: here, author_id: window.giantSession.user.id,
+      body: '', created_at: new Date().toISOString(),
+      voice_note_url: 'data:audio/webm;base64,AAAA', voice_note_duration_ms: 4200
+    };
+    window.__mock.db.messages.push(row);
+    window.__mock.emit('messages', 'INSERT', row);
+    for (let i = 0; i < 30; i++) {
+      await wait(200);
+      if (document.querySelector('#nc_chatMsgs .msg-voice')) break;
+    }
+    out.viaRealtime = !!document.querySelector('#nc_chatMsgs .msg-voice');
+    out.rowViaRealtime = !!document.querySelector('#nc_chatMsgsList [data-msg-id="m-voice-note-test"]');
+    if (!out.viaRealtime) {
+      // Switch away and back so the list reloads from the database rather than from the
+      // realtime append -- that separates "not rendered at all" from "not rendered live".
+      const other = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item[data-nc-channel-id]')][1];
+      if (other) { other.click(); await wait(1600); }
+      if (team) { team.click(); await wait(2200); }
+      for (let i = 0; i < 30; i++) {
+        await wait(200);
+        if (document.querySelector('#nc_chatMsgs .msg-voice')) break;
+      }
+    }
+    out.viaReload = !!document.querySelector('#nc_chatMsgs .msg-voice');
+    const player = document.querySelector('#nc_chatMsgs .msg-voice');
+    out.playerRendered = !!player;
+    out.hasPlayButton = !!document.querySelector('#nc_chatMsgs .msg-voice-play');
+    out.hasDuration = !!document.querySelector('#nc_chatMsgs .msg-voice-time');
+    return out;
+  });
+  // Live, not after a reload. The original chat's realtime subscription is running
+  // whether or not its screen is, so it appended each incoming message to its own hidden
+  // list first and New Chat's document-wide dedupe then skipped it as a duplicate --
+  // every realtime message was dropped, not just voice notes.
+  check('a voice note lands in the channel you recorded it in',
+    r.channelsDiffer && r.viaRealtime && r.rowViaRealtime
+      && r.playerRendered && r.hasPlayButton && r.hasDuration,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
