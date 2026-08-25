@@ -2694,6 +2694,47 @@ await step('the Vault is the client library on a client, cards on a team channel
     JSON.stringify(r));
 });
 
+await step('drag-drop and paste are bound to New Chat, not the original', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const team = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item[data-nc-channel-id]')][0];
+    if (team) { team.click(); await wait(1800); }
+    // The drop listeners must be on THIS screen's main, not the other one's.
+    const mine = document.querySelector('.screen[data-screen="newchat"]');
+    out.hasOwnMain = !!mine;
+    out.pasteGuardScreen = !!document.querySelector('.screen[data-screen="newchat"].on');
+    if (!mine) return out;
+
+    const file = new File([new Uint8Array([137, 80, 78, 71])], 'shot.png', { type: 'image/png' });
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    const before = document.querySelectorAll('#nc_chatAttachRow [data-att], #nc_chatAttachRow > *').length;
+    mine.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    mine.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    await wait(1200);
+    out.channelAttachments =
+      document.querySelectorAll('#nc_chatAttachRow [data-att], #nc_chatAttachRow > *').length - before;
+
+    // ...and a paste, which used to return immediately because it asked whether the
+    // ORIGINAL chat screen was on.
+    const cd = new DataTransfer();
+    cd.items.add(file);
+    document.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, cancelable: true, clipboardData: cd }));
+    await wait(1200);
+    out.afterPaste =
+      document.querySelectorAll('#nc_chatAttachRow [data-att], #nc_chatAttachRow > *').length - before;
+    return out;
+  });
+  // What this proves is that the listeners are on THIS screen and the paste guard tests
+  // THIS screen -- both of which named the original chat before, so a drop or a paste in
+  // Chat did nothing at all. It does NOT prove a file reaches the composer: the attach
+  // row's markup is not asserted here, and claiming otherwise would be the overclaiming
+  // this branch keeps relearning.
+  check('drag-drop and paste are bound to New Chat, not the original',
+    r.hasOwnMain && r.pasteGuardScreen, JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

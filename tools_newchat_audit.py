@@ -319,7 +319,10 @@ body = strip_comments(nc)
 looked_up = set()
 for pat in (r"getElementById\(\s*'([^']+)'",
             r"\$\(\s*'([^']+)'\s*\)",
-            r"querySelector(?:All)?\(\s*'#([\w-]+)"):
+            r"querySelector(?:All)?\(\s*'#([\w-]+)",
+            # closest('#x') is a lookup too, and it is how a file dropped on a thread got
+            # tested against the ORIGINAL chat's panel and never matched.
+            r"closest\(\s*'#([\w-]+)"):
     looked_up.update(re.findall(pat, body))
 foreign = []
 for mid in sorted(looked_up):
@@ -330,6 +333,15 @@ for mid in sorted(looked_up):
         # is there an nc_ twin sitting unused? then it is certainly the wrong one
         twin = ' [nc_%s exists]' % mid if ('id="nc_%s"' % mid) in S else ''
         foreign.append("%s (in screen '%s')%s" % (mid, sc, twin))
+# A selector that names the OTHER screen. `.screen[data-screen="chat"] main.thread`
+# bound the whole drag-and-drop block to the original chat, and no id-based scan can see
+# it because there is no id in it.
+# Only SCREEN CONTAINERS. `.nav-item[data-screen="tasks"]` is New Chat legitimately
+# reaching for another screen's nav entry to navigate to it; `.screen[data-screen="chat"]`
+# is New Chat reaching into another screen's DOM, which is never right.
+other_screen = re.findall(r"""\.screen\[data-screen=["'](?!newchat)([\w-]+)["']""", body)
+for sc in sorted(set(other_screen)):
+    foreign.append('a selector naming screen "%s"' % sc)
 print("12. elements looked up by an id owned by another screen:", foreign or "none")
 fail += len(foreign)
 

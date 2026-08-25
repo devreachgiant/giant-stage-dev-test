@@ -70543,6 +70543,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const existing = ncPrimaryChannel(clientId, 'general')
         || (chatChannels.find(c => c.client_id === clientId) || null);
       if (existing) { switchChannel(existing.id); return; }
+      // Ask the database before making anything. The check above only sees chatChannels,
+      // the in-memory list -- so a client whose conversation had not loaded yet, or was
+      // filtered out of that list for any reason, looked like a client with no
+      // conversation, and clicking it CREATED a second one instead of opening the one
+      // that already existed. Creating a duplicate client channel is not a mistake you
+      // can see happening, and the messages then split across two rows.
+      const { data: onDisk } = await NCSB().from('channels')
+        .select('id, department, created_at')
+        .eq('client_id', clientId).eq('kind', 'client_dept')
+        .order('created_at', { ascending: true });
+      if (onDisk && onDisk.length) {
+        const general = onDisk.find(c => (c.department || 'general') === 'general') || onDisk[0];
+        await loadChannels();
+        switchChannel(general.id);
+        return;
+      }
       if (!ncIsStaff()) {
         if (typeof toast === 'function') toast({ type:'error', message:'Only managers can start a client conversation.' });
         return;
@@ -76496,7 +76512,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           // textarea back to text there), but it doesn't touch the thread panel at all — inside
           // a thread this left the textarea stuck on screen forever. Swap it back to a text
           // element ourselves so both places always end up in a consistent, non-editing state.
-          if (textEl.closest('#chatMsgsList')) {
+          if (textEl.closest('#nc_chatMsgsList')) {
             if (activeChannelId) loadMessages(activeChannelId).then(() => reattachReactBarsForChannel(activeChannelId));
           } else {
             const finalBody = (save && val) ? val : currentBody;
@@ -77391,7 +77407,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // literally clicked into the text box first, and this matches that. No-ops (lets normal text
     // paste through) unless the clipboard actually contains an image file.
     document.addEventListener('paste', (e) => {
-      const chatScreenOn = document.querySelector('.screen[data-screen="chat"].on');
+      // THIS screen. It asked whether the ORIGINAL chat was on, which it never is while
+      // you are here, so the handler returned immediately and pasting an image into Chat
+      // did nothing whatsoever.
+      const chatScreenOn = document.querySelector('.screen[data-screen="newchat"].on');
       if (!chatScreenOn) return;
       const items = e.clipboardData && e.clipboardData.items;
       if (!items) return;
@@ -77400,7 +77419,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       e.preventDefault();
       const panel = document.getElementById('nc_threadPanel');
       const intoThread = panel && panel.classList.contains('on') &&
-        (!e.target || e.target.closest('#threadPanel') || !e.target.closest('main.thread'));
+        (!e.target || e.target.closest('#nc_threadPanel') || !e.target.closest('main.thread'));
       if (intoThread && typeof addThreadAttachment === 'function') {
         files.forEach(addThreadAttachment);
       } else if (typeof addPendingAttachment === 'function') {
@@ -79722,10 +79741,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // the target, files dropped on a thread reply always ended up attached to the main channel
     // composer instead. Route based on whether the drop actually landed inside the open thread panel.
     let dragCounter = 0;
-    const chatMain = document.querySelector('.screen[data-screen="chat"] main.thread');
+    // New Chat's own main, not the original chat's. This selected
+    // `.screen[data-screen="chat"] main.thread`, so every one of these listeners was bound
+    // to the other screen and dropping a file here did nothing at all.
+    // The screen itself. It was `.screen[data-screen="chat"] main.thread` -- the ORIGINAL
+    // chat's container, so nothing here ever fired -- and New Chat has no `main.thread` to
+    // swap it for, so the screen is the container. Dropping anywhere in Chat attaches,
+    // which is what people try anyway; the thread panel is routed separately below.
+    const chatMain = document.querySelector('.screen[data-screen="newchat"]');
     const isOverOpenThreadPanel = (e) => {
       const panel = document.getElementById('nc_threadPanel');
-      return !!(panel && panel.classList.contains('on') && e.target && e.target.closest && e.target.closest('#threadPanel'));
+      // ...and the panel to test against is nc_threadPanel too. Looking for #threadPanel
+      // could only ever match the original chat's, so a file dropped on a thread reply
+      // was never recognised as being in the thread and went to the channel composer --
+      // which is why threads were the worst of it.
+      return !!(panel && panel.classList.contains('on')
+        && e.target && e.target.closest && e.target.closest('#nc_threadPanel'));
     };
     if (chatMain && chatDropOverlay) {
       chatMain.addEventListener('dragenter', (e) => {
