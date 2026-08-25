@@ -753,3 +753,40 @@ The star-order check was rewritten at the same time. It asserted a pixel gap and
 31px against a threshold of 24 -- it was measuring mid-animation while the card opened. It
 now waits for the card body's height to settle and asserts the property actually claimed:
 no other child of the row sits between the star and the chip.
+
+### The "+" really was dead — five modals opened into a hidden screen (2026-08-25)
+
+The earlier sidebar-reload fix was real but was not what the user was hitting. The actual
+fault: `newChannelModal` lives inside `<div class="screen" data-screen="chat">`. That screen
+is `display:none` whenever New Chat is active, so `openModal('newChannelModal')` added the
+class to a node in a hidden subtree and nothing appeared. Clicking "+" looked completely
+dead.
+
+Five modals were like this -- Create channel, New DM, Members, Invite, Pinned -- while seven
+correctly `nc_`-prefixed modals sat unused in New Chat's own screen. Worse, all seven of
+those had `data-close="<unprefixed id>"`, so their close buttons targeted the old chat's
+copies, and `nc_newChannelSubmit` appeared exactly once in the file: in markup, wired to
+nothing. New Chat rendered members and pinned lists into its own modals and then opened the
+other one.
+
+Fixed by repointing the open/close calls at the `nc_` modals, correcting all 17 `data-close`
+values, wiring `nc_newChannelSubmit` (name, description, parent, privacy, creator
+membership, reload, switch), giving the description input the id the handler already looked
+for, and binding backdrop-click on `.nc_modal-overlay`.
+
+Two traps worth remembering, both of which made a check pass on broken code:
+
+- `classList.contains('on')` and `getComputedStyle(el).display` describe the ELEMENT and say
+  nothing about a hidden ancestor. Neither can see this bug.
+- `offsetParent` is null for `position:fixed` by spec, and every one of these overlays is
+  fixed -- so it reports every modal invisible. The suite now uses
+  `el.checkVisibility({checkVisibilityCSS:true})` with an ancestor walk as fallback.
+
+Audit checks 10 and 11 now guard the class: a modal opened by id that lives in another
+screen, and an `nc_` modal whose close button targets a foreign id. Both report all 13
+crossings on the previous commit.
+
+Known limit, stated plainly: the "every modal is on screen" check opens the five by adding
+`.on` directly, so for four of them it really only proves the close target. The `"+"` check
+is the one that drives a real app path end to end. Driving Members/Invite/Pinned/DM the way
+a user does is still to do.

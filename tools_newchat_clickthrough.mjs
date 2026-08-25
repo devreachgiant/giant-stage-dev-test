@@ -1691,13 +1691,34 @@ await step('the "+" on a nav card creates a channel and shows it', async () => {
     if (!plus) return out;
     plus.click();
     await new Promise(r => setTimeout(r, 500));
-    const modal = document.getElementById('newChannelModal');
-    out.modalOpened = !!modal && modal.classList.contains('on');
+    // Visibility measured for real. classList.contains('on') and getComputedStyle().display
+    // both report on the element alone and say nothing about a hidden ANCESTOR -- which is
+    // exactly how this check passed while the modal was opening inside the hidden old-chat
+    // screen and the user saw nothing at all.
+    const seen = (el) => {
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      if (r.width < 100 || r.height < 100) return false;
+      // These overlays are position:fixed, so offsetParent is null by spec and cannot be
+      // the test. checkVisibility walks the ancestor chain, which is the whole point here:
+      // the bug was a visible modal inside a display:none screen.
+      if (typeof el.checkVisibility === 'function') {
+        return el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+      }
+      for (let n = el; n; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+      }
+      return true;
+    };
+    const modal = document.getElementById('nc_newChannelModal');
+    out.modalOpened = seen(modal);
+    out.wrongModalShown = seen(document.getElementById('newChannelModal'));
     if (!out.modalOpened) return out;
-    const name = document.getElementById('newChannelName');
+    const name = document.getElementById('nc_newChannelName');
     if (name) { name.value = 'clickthrough-made'; name.dispatchEvent(new Event('input', { bubbles: true })); }
     const before = window.__mock.db.channels.length;
-    document.getElementById('newChannelSubmit')?.click();
+    document.getElementById('nc_newChannelSubmit')?.click();
     // Generous: the insert, the membership write, the debounced reload and a re-render.
     for (let i = 0; i < 40; i++) {
       await new Promise(r => setTimeout(r, 250));
@@ -1711,8 +1732,54 @@ await step('the "+" on a nav card creates a channel and shows it', async () => {
   // Creating it was never the broken half. The channel landed in the database and the
   // sidebar went on showing the old list, so the button read as dead.
   check('the "+" on a nav card creates a channel and shows it',
-    r.plusExists && r.modalOpened && r.created && !r.presentBefore && r.presentAfter,
+    r.plusExists && r.modalOpened && !r.wrongModalShown && r.created
+      && !r.presentBefore && r.presentAfter,
     JSON.stringify(r));
+});
+
+await step('every modal New Chat opens is actually on screen', async () => {
+  const r = await page.evaluate(async () => {
+    const seen = (el) => {
+      if (!el) return false;
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 100 || rect.height < 100) return false;
+      if (typeof el.checkVisibility === 'function') {
+        return el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
+      }
+      for (let n = el; n; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+      }
+      return true;
+    };
+    const shut = () => document.querySelectorAll('.modal-overlay.on, .nc_modal-overlay.on')
+      .forEach(m => m.classList.remove('on'));
+    const out = {};
+    // Open each one the way the app does, then ask whether a person could see it.
+    for (const id of ['nc_newChannelModal', 'nc_channelMembersModal', 'nc_pinnedMessagesModal',
+                      'nc_newDmModal', 'nc_inviteToChannelModal']) {
+      shut();
+      const el = document.getElementById(id);
+      if (!el) { out[id] = 'missing'; continue; }
+      el.classList.add('on');
+      await new Promise(r => setTimeout(r, 120));
+      out[id] = seen(el) ? 'visible' : 'hidden';
+    }
+    shut();
+    // ...and that closing one actually targets itself rather than the old chat's copy.
+    const ch = document.getElementById('nc_newChannelModal');
+    ch.classList.add('on');
+    await new Promise(r => setTimeout(r, 100));
+    ch.querySelector('[data-close]')?.click();
+    await new Promise(r => setTimeout(r, 150));
+    out.closes = !ch.classList.contains('on');
+    shut();
+    return out;
+  });
+  const ids = ['nc_newChannelModal', 'nc_channelMembersModal', 'nc_pinnedMessagesModal',
+               'nc_newDmModal', 'nc_inviteToChannelModal'];
+  check('every modal New Chat opens is actually on screen',
+    ids.every(k => r[k] === 'visible') && r.closes === true, JSON.stringify(r));
 });
 
 // ── what the mock actually served, as evidence the paths ran ─────────────────

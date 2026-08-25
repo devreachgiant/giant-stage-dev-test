@@ -235,5 +235,54 @@ wrong = sorted(c for c in bare if not c.startswith('nc_') and ('nc_' + c) in ren
 print("9. classes rendered as nc_ but selected bare:", wrong or "none")
 fail += len(wrong)
 
+# ---------------------------------------------------------------------------
+# 10. A modal opened by id that does not live in New Chat's own screen.
+#
+# openModal() just adds a class. It cannot tell that `newChannelModal` sits inside
+# `<div class="screen" data-screen="chat">`, which is display:none whenever New Chat is
+# the active screen -- so the modal "opened" into a hidden subtree and the user saw
+# nothing at all. Create channel, New DM, Members, Invite and Pinned were all like this,
+# while seven correctly-prefixed modals sat unused in New Chat's own screen.
+#
+# The same crossing hides in `data-close="X"`: every one of those seven closed the OLD
+# chat's copy. Check 8 could not see it -- it matches attribute NAMES the original
+# selects, and this is an attribute VALUE naming a foreign id.
+def screen_of(mid):
+    m = re.search(r'id="%s"' % re.escape(mid), S)
+    if not m:
+        return None
+    depth, i, cur = 0, 0, None
+    stack = []
+    for tag in re.finditer(r'<(/?)div\b([^>]*)>', S[:m.start()]):
+        if tag.group(1):
+            if stack: stack.pop()
+        elif not tag.group(0).rstrip().endswith('/>'):
+            sc = re.search(r'data-screen="([\w-]+)"', tag.group(2))
+            stack.append(sc.group(1) if sc else None)
+    for name in reversed(stack):
+        if name: return name
+    return None
+
+opened = sorted(set(re.findall(r"(?:open|close)Modal\(\s*'([^']+)'", strip_comments(nc))))
+stray = []
+for mid in opened:
+    sc = screen_of(mid)
+    if sc is not None and sc != 'newchat':
+        stray.append(f"{mid} (lives in screen '{sc}')")
+print("10. modals opened that live in another screen:", stray or "none")
+fail += len(stray)
+
+# ...and the close targets inside New Chat's own modals
+crossing = []
+for m in re.finditer(r'<div class="nc_modal-overlay" id="(nc_\w+)"', S):
+    start = m.start()
+    nxt = S.find('<div class="nc_modal-overlay" id="', start + 10)
+    seg = S[start:nxt if nxt > 0 else start + 12000]
+    for v in set(re.findall(r'data-close="([^"]+)"', seg)):
+        if v != m.group(1):
+            crossing.append(f"{m.group(1)} closes '{v}'")
+print("11. nc_ modals whose close button targets another modal:", crossing or "none")
+fail += len(crossing)
+
 print("\nRESULT:", "clean" if not fail else f"{fail} problem(s)")
 sys.exit(1 if fail else 0)

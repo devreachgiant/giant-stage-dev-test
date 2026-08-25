@@ -8641,11 +8641,11 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <div class="nc_modal">
               <div class="nc_modal-head">
                 <div><h3>Create a channel</h3><div class="nc_m-sub">Channels are where your team communicates</div></div>
-                <div class="nc_m-close" data-close="newChannelModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+                <div class="nc_m-close" data-close="nc_newChannelModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
               </div>
               <div class="nc_modal-body">
                 <div class="nc_m-field"><label>Channel name</label><input type="text" id="nc_newChannelName" placeholder="# e.g. q4-campaigns"></div>
-                <div class="nc_m-field"><label>Description <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional)</span></label><input type="text" placeholder="What is this channel about?"></div>
+                <div class="nc_m-field"><label>Description <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional)</span></label><input type="text" id="nc_newChannelDesc" placeholder="What is this channel about?"></div>
                 <div class="nc_m-field">
                   <label>Parent channel <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional — creates a sub-channel)</span></label>
                   <select id="nc_newChannelParent" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;">
@@ -8670,7 +8670,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                 </div>
               </div>
               <div class="nc_modal-foot">
-                <button class="nc_m-cancel" data-close="newChannelModal">Cancel</button>
+                <button class="nc_m-cancel" data-close="nc_newChannelModal">Cancel</button>
                 <button class="nc_m-submit" id="nc_newChannelSubmit">Create channel</button>
               </div>
             </div>
@@ -8681,7 +8681,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <div class="nc_modal">
               <div class="nc_modal-head">
                 <div><h3 id="nc_chMembersTitle">Channel members</h3><div class="nc_m-sub" id="nc_chMembersSub">Manage who can see this channel</div></div>
-                <div class="nc_m-close" data-close="channelMembersModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+                <div class="nc_m-close" data-close="nc_channelMembersModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
               </div>
               <div class="nc_modal-body">
                 <div class="nc_m-field" id="nc_chPrivacyField" style="display:none;align-items:center;justify-content:space-between;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:10px 12px;">
@@ -8697,7 +8697,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                 <div id="nc_chMembersList" class="nc_ch-members-list"></div>
               </div>
               <div class="nc_modal-foot">
-                <button class="nc_m-cancel" data-close="channelMembersModal">Done</button>
+                <button class="nc_m-cancel" data-close="nc_channelMembersModal">Done</button>
               </div>
             </div>
           </div>
@@ -8707,13 +8707,13 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <div class="nc_modal">
               <div class="nc_modal-head">
                 <div><h3>Pinned messages</h3><div class="nc_m-sub" id="nc_pinnedModalSub">Important messages from this channel</div></div>
-                <div class="nc_m-close" data-close="pinnedMessagesModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+                <div class="nc_m-close" data-close="nc_pinnedMessagesModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
               </div>
               <div class="nc_modal-body">
                 <div id="nc_pinnedMessagesList" style="display:flex;flex-direction:column;gap:10px;"></div>
               </div>
               <div class="nc_modal-foot">
-                <button class="nc_m-cancel" data-close="pinnedMessagesModal">Close</button>
+                <button class="nc_m-cancel" data-close="nc_pinnedMessagesModal">Close</button>
               </div>
             </div>
           </div>
@@ -8723,7 +8723,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <div class="nc_modal">
               <div class="nc_modal-head">
                 <div><h3>New direct message</h3><div class="nc_m-sub">Pick one person for a DM, or several for a group</div></div>
-                <div class="nc_m-close" data-close="newDmModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+                <div class="nc_m-close" data-close="nc_newDmModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
               </div>
               <div class="nc_modal-body">
                 <div class="nc_m-field"><label>To</label><input type="text" placeholder="Type a name…" id="nc_newDmSearch"></div>
@@ -8732,8 +8732,8 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                 </div>
               </div>
               <div class="nc_modal-foot">
-                <button class="nc_m-cancel" data-close="newDmModal">Cancel</button>
-                <button class="nc_m-submit" data-close="newDmModal">Start conversation</button>
+                <button class="nc_m-cancel" data-close="nc_newDmModal">Cancel</button>
+                <button class="nc_m-submit" data-close="nc_newDmModal">Start conversation</button>
               </div>
             </div>
           </div>
@@ -8743,7 +8743,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <div class="nc_modal">
               <div class="nc_modal-head">
                 <div><h3>Invite people to <span id="nc_invChName" style="color:var(--red);">#channel</span></h3><div class="nc_m-sub">Add teammates to this conversation</div></div>
-                <div class="nc_m-close" data-close="inviteToChannelModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+                <div class="nc_m-close" data-close="nc_inviteToChannelModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
               </div>
               <div class="nc_modal-body">
                 <div class="nc_m-field">
@@ -8756,8 +8756,8 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                 </div>
               </div>
               <div class="nc_modal-foot">
-                <button class="nc_m-cancel" data-close="inviteToChannelModal">Cancel</button>
-                <button class="nc_m-submit" data-close="inviteToChannelModal">Send invitations</button>
+                <button class="nc_m-cancel" data-close="nc_inviteToChannelModal">Cancel</button>
+                <button class="nc_m-submit" data-close="nc_inviteToChannelModal">Send invitations</button>
               </div>
             </div>
           </div>
@@ -8767,13 +8767,13 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <div class="nc_modal">
               <div class="nc_modal-head">
                 <div><h3>Rename channel</h3><div class="nc_m-sub">Channel names must be lowercase, no spaces</div></div>
-                <div class="nc_m-close" data-close="renameChannelModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+                <div class="nc_m-close" data-close="nc_renameChannelModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
               </div>
               <div class="nc_modal-body">
                 <div class="nc_m-field"><label>New name</label><input type="text" id="nc_renameChInput" placeholder="# new-name"></div>
               </div>
               <div class="nc_modal-foot">
-                <button class="nc_m-cancel" data-close="renameChannelModal">Cancel</button>
+                <button class="nc_m-cancel" data-close="nc_renameChannelModal">Cancel</button>
                 <button class="nc_m-submit" id="nc_renameChSubmit">Rename</button>
               </div>
             </div>
@@ -8784,10 +8784,10 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <div class="nc_modal">
               <div class="nc_modal-head">
                 <div><h3>Delete <span id="nc_delChName" style="color:var(--red);">#channel</span>?</h3><div class="nc_m-sub">This cannot be undone. All messages will be lost.</div></div>
-                <div class="nc_m-close" data-close="deleteChannelModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+                <div class="nc_m-close" data-close="nc_deleteChannelModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
               </div>
               <div class="nc_modal-foot">
-                <button class="nc_m-cancel" data-close="deleteChannelModal">Cancel</button>
+                <button class="nc_m-cancel" data-close="nc_deleteChannelModal">Cancel</button>
                 <button class="nc_m-submit" id="nc_deleteChSubmit" style="background:var(--red);">Delete channel</button>
               </div>
             </div>
@@ -8891,7 +8891,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <div class="modal" style="max-width:540px;">
               <div class="modal-head">
                 <div><h3>Add task</h3><div class="m-sub">Create a new task in your project</div></div>
-                <div class="m-close" data-close="addTaskModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+                <div class="m-close" data-close="nc_deleteChannelModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
               </div>
               <div class="modal-body">
                 <div class="auth-alert" id="atAlert"></div>
@@ -75318,7 +75318,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           } else if (act === 'invite') {
             const nameEl = document.getElementById('nc_invChName');
             if (nameEl) nameEl.textContent = '#' + channelName;
-            if (typeof openModal === 'function') openModal('inviteToChannelModal');
+            if (typeof openModal === 'function') openModal('nc_inviteToChannelModal');
           } else if (act === 'rename') {
             const newName = (await window.giantPrompt('Rename channel:', channelName) || '').trim();
             if (!newName || newName === channelName) return;
@@ -77172,10 +77172,87 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (inp) inp.value = '';
         const desc = document.getElementById('nc_newChannelDesc');
         if (desc) desc.value = '';
-        openModal('newChannelModal');
+        ncResetChannelModal();
+        openModal('nc_newChannelModal');
         setTimeout(() => inp?.focus(), 120);
       });
     }
+
+    // The global handler at load time binds .modal-overlay only, so New Chat's own
+    // overlays had no click-the-backdrop-to-close until now.
+    document.querySelectorAll('#screen-newchat .nc_modal-overlay, .nc_modal-overlay').forEach(ov => {
+      if (ov._ncBackdrop) return;
+      ov._ncBackdrop = true;
+      ov.addEventListener('click', (e) => { if (e.target === ov) ov.classList.remove('on'); });
+    });
+
+    // The modal's own controls. None of this existed: the markup shipped with a Create
+    // button that nothing listened to, because the "+" used to open the OLD chat's modal
+    // and let the old chat's handler do the work. That modal lives inside the hidden
+    // chat screen, so from New Chat it opened invisibly and the click read as dead.
+    function ncResetChannelModal() {
+      const parent = document.getElementById('nc_newChannelParent');
+      if (parent) {
+        // Only real, top-level team channels can be a parent. Offering a client
+        // department here would produce a sub-channel nothing knows how to route.
+        const opts = (chatChannels || [])
+          .filter(c => !c.is_dm && !c.parent_id && c.kind !== 'client_dept')
+          .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        parent.innerHTML = '<option value="">None — top-level channel</option>'
+          + opts.map(c => '<option value="' + chatEsc(c.id) + '">#' + chatEsc(c.name || '') + '</option>').join('');
+        parent.value = '';
+      }
+      document.querySelectorAll('#nc_newChannelModal .nc_m-role').forEach(el => {
+        el.classList.toggle('nc_sel', el.dataset.priv === 'public');
+      });
+    }
+    document.querySelectorAll('#nc_newChannelModal .nc_m-role').forEach(el => {
+      el.addEventListener('click', () => {
+        document.querySelectorAll('#nc_newChannelModal .nc_m-role')
+          .forEach(o => o.classList.toggle('nc_sel', o === el));
+      });
+    });
+
+    const ncChannelSubmit = document.getElementById('nc_newChannelSubmit');
+    if (ncChannelSubmit) ncChannelSubmit.addEventListener('click', async () => {
+      const nameEl = document.getElementById('nc_newChannelName');
+      const raw = (nameEl?.value || '').trim().replace(/^#/, '');
+      if (!raw) { nameEl?.focus(); return; }
+      const sb = window.giantSupabase, sess = window.giantSession;
+      if (!sb || !sess?.user) { if (typeof toast === 'function') toast({ type:'error', message:'Not signed in' }); return; }
+      const name = raw.replace(/\s+/g, '-').toLowerCase();
+      const isPrivate = document.querySelector('#nc_newChannelModal .nc_m-role.nc_sel')?.dataset.priv === 'private';
+      const parentSel = document.getElementById('nc_newChannelParent');
+      const payload = {
+        name,
+        slug: name + '-' + Math.random().toString(36).slice(2, 5),
+        description: (document.getElementById('nc_newChannelDesc')?.value || '').trim() || null,
+        is_private: isPrivate,
+        position: (chatChannels || []).length,
+        created_by: sess.user.id
+      };
+      if (parentSel && parentSel.value) payload.parent_id = parentSel.value;
+      ncChannelSubmit.disabled = true;
+      ncChannelSubmit.textContent = 'Creating…';
+      const { data, error } = await sb.from('channels').insert(payload).select().single();
+      ncChannelSubmit.disabled = false;
+      ncChannelSubmit.textContent = 'Create channel';
+      if (error) { if (typeof toast === 'function') toast({ type:'error', message:'Create failed: ' + error.message }); return; }
+      // Without a membership row RLS hides the channel from its own creator on the next
+      // read, so a private channel would vanish the moment the list reloaded.
+      try {
+        const { error: memErr } = await sb.from('channel_members')
+          .insert({ channel_id: data.id, profile_id: sess.user.id });
+        if (memErr && !/duplicate key|unique constraint/i.test(memErr.message || '')) {
+          console.warn('[newchat] creator membership failed:', memErr);
+        }
+      } catch (e) { console.warn('[newchat] creator membership threw:', e); }
+      closeModal('nc_newChannelModal');
+      if (nameEl) nameEl.value = '';
+      if (typeof toast === 'function') toast({ type:'success', message:'Channel <b>#' + name + '</b> created' });
+      await loadChannels();
+      if (data?.id) switchChannel(data.id);
+    });
 
     // ── New DM button + modal ────────────────────────────────────
     const newDmBtn = document.getElementById('nc_newDmBtn');
@@ -77249,7 +77326,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                 const { data, error } = await window.giantSupabase.rpc('create_group_dm', { p_member_ids: ids });
                 if (error) throw error; cid = data;
               }
-              if (typeof closeModal === 'function') closeModal('newDmModal'); else newDmModal.classList.remove('on');
+              if (typeof closeModal === 'function') closeModal('nc_newDmModal'); else newDmModal.classList.remove('on');
               _dmSelected.clear();
               await loadChannels();
               if (cid) await switchChannel(cid);
@@ -77259,7 +77336,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             }
           });
         }
-        if (typeof openModal === 'function') openModal('newDmModal');
+        if (typeof openModal === 'function') openModal('nc_newDmModal');
         else newDmModal.classList.add('on');
         setTimeout(() => newDmSearch && newDmSearch.focus(), 100);
       });
@@ -77745,7 +77822,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           });
         });
       }
-      if (typeof openModal === 'function') openModal('pinnedMessagesModal');
+      if (typeof openModal === 'function') openModal('nc_pinnedMessagesModal');
       else document.getElementById('nc_pinnedMessagesModal').classList.add('on');
     }
 
@@ -77940,7 +78017,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         privacyField.style.display = 'none';
       }
       await renderChannelMembersList();
-      if (typeof openModal === 'function') openModal('channelMembersModal');
+      if (typeof openModal === 'function') openModal('nc_channelMembersModal');
       else document.getElementById('nc_channelMembersModal').classList.add('on');
     }
 
