@@ -825,81 +825,18 @@ await step('members with a profile picture render it, not an empty circle', asyn
 // The Vault tab used to render two different screens: the client LIBRARY on client
 // threads and the card Vault everywhere else, so what "Vault" meant depended on which
 // conversation you were in. One thing now; the library moved to Management.
-await step('the Vault is the same screen on a client thread and a team channel', async () => {
-  const read = async () => page.evaluate(async () => {
-    await new Promise(r => setTimeout(r, 900));
-    const pane = document.getElementById('nc_chatCanvasPane');
-    return { cards: pane.querySelectorAll('[data-c3-vault-add-card]').length,
-             library: pane.querySelectorAll('[data-c3-lib-add], [data-c3-lib-kind]').length };
-  });
-  // a client thread
-  await page.evaluate(() => {
-    const card = [...document.querySelectorAll('.nc_navcard')].find(c => c.dataset.nccard === 'clients');
-    if (card && card.querySelector('.nc_navcard-body').getBoundingClientRect().height < 4)
-      card.querySelector('.nc_navcard-head').click();
-  });
-  await page.waitForTimeout(500);
-  await page.evaluate(() => {
-    const r = [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')]
-      .find(x => parseFloat(x.style.opacity || '1') === 1 && x.dataset.ncChannelId);
-    if (r) r.click();
-  });
-  await page.waitForTimeout(1200);
-  await page.evaluate(() => window.nc_switchChatSubtab('canvas'));
-  const onClient = await read();
-
-  // a team channel
-  await page.evaluate(() => {
-    const card = [...document.querySelectorAll('.nc_navcard')].find(c => c.dataset.nccard === 'teams');
-    if (card && card.querySelector('.nc_navcard-body').getBoundingClientRect().height < 4)
-      card.querySelector('.nc_navcard-head').click();
-  });
-  await page.waitForTimeout(500);
-  await page.evaluate(() => {
-    const r = document.querySelector('#nc_cardTeamsBody .nc_ch-item');
-    if (r) r.click();
-  });
-  await page.waitForTimeout(1200);
-  await page.evaluate(() => window.nc_switchChatSubtab('canvas'));
-  const onTeam = await read();
-
-  check('the Vault is the same screen on a client thread and a team channel',
-    onClient.cards === 1 && onTeam.cards === 1
-      && onClient.library === 0 && onTeam.library === 0,
-    JSON.stringify({ onClient, onTeam }));
-});
-
-// and the library it used to occupy is reachable, in the pane that owns client data
-await step('the client library is a Management tab', async () => {
+await step('Library is not a Management tab any more', async () => {
   const r = await page.evaluate(async () => {
-    const card = [...document.querySelectorAll('.nc_navcard')].find(c => c.dataset.nccard === 'clients');
-    if (card && card.querySelector('.nc_navcard-body').getBoundingClientRect().height < 4)
-      card.querySelector('.nc_navcard-head').click();
-    await new Promise(r => setTimeout(r, 400));
-    const row = [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')]
-      .find(x => parseFloat(x.style.opacity || '1') === 1 && x.dataset.ncChannelId);
-    if (row) row.click();
-    await new Promise(r => setTimeout(r, 1200));
-    window.nc_switchChatSubtab('management');
-    await new Promise(r => setTimeout(r, 1800));
-    const tab = [...document.querySelectorAll('[data-c3-mgmt-tab]')]
-      .find(x => x.dataset.c3MgmtTab === 'library');
-    if (!tab) return { hasTab: false };
-    tab.click();
-    await new Promise(r => setTimeout(r, 2000));
-    const pane = document.getElementById('nc_mgmtPane');
-    return { hasTab: true,
-             wired: pane.querySelectorAll('[data-c3-lib-add]').length,
-             showsItems: /Brand kit|Reporting cadence|No items/i.test(pane.innerText) };
+    const tabs = [...document.querySelectorAll('#nc_mgmtPane [data-c3-mgmt-tab]')]
+      .map(e => e.dataset.c3MgmtTab);
+    return { tabs, hasLibrary: tabs.includes('library') };
   });
-  check('the client library is a Management tab',
-    r.hasTab && r.wired > 0 && r.showsItems, JSON.stringify(r));
+  // It moved to the Vault tab, where the design puts it. Two ways into one panel is how
+  // "what does Vault mean here" became a question in the first place.
+  check('Library is not a Management tab any more',
+    r.tabs.length > 0 && !r.hasLibrary, JSON.stringify(r));
 });
 
-// ── Management > Members ─────────────────────────────────────────────────────
-// The table lists the client's members, not the whole workspace. That is the change
-// worth pinning: reverting it is a one-word edit and the symptom is 81 rows of empty
-// checkboxes, which looks like data rather than a bug.
 await step('Members lists the client\'s members, not everyone', async () => {
   await page.evaluate(() => {
     const t = [...document.querySelectorAll('[data-c3-mgmt-tab]')].find(x => x.dataset.c3MgmtTab === 'members');
@@ -2706,6 +2643,54 @@ await step('a voice note lands in the channel you recorded it in', async () => {
   check('a voice note lands in the channel you recorded it in',
     r.channelsDiffer && r.viaRealtime && r.rowViaRealtime
       && r.playerRendered && r.hasPlayButton && r.hasDuration,
+    JSON.stringify(r));
+});
+
+// Runs late on purpose: opening a client's Vault selects that client for Management
+// too -- they are one client either way -- so running it before the Management checks
+// left them reading whichever client this one had opened.
+await step('the Vault is the client library on a client, cards on a team channel', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const look = async (rowSel) => {
+      const row = document.querySelector(rowSel);
+      if (!row) return null;
+      row.click();
+      await wait(1800);
+      if (window.nc_switchChatSubtab) window.nc_switchChatSubtab('canvas');
+      await wait(1800);
+      const host = document.getElementById('nc_vaultHost');
+      const txt = host ? (host.textContent || '') : '';
+      return {
+        cards: host ? host.querySelectorAll('[data-c3-vault-add-card]').length : -1,
+        library: host ? host.querySelectorAll('[data-c3-lib-add], [data-c3-lib-kind], [data-c3-lib-pin]').length : -1,
+        mentionsAddItem: /add item|add to the vault/i.test(txt)
+      };
+    };
+    // A client row backed by a real client RECORD. Client conversations with no record
+    // sort first in this card, and they have no client to hold a library -- they still
+    // get the card vault, which is the open question, not the assertion here.
+    const withRecord = [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item[data-nc-channel-id]')]
+      .find(el => {
+        const c = window.__mock.db.channels.find(x => x.id === el.dataset.ncChannelId);
+        return c && c.client_id;
+      });
+    const out = {
+      pickedClientChannel: withRecord ? withRecord.dataset.ncChannelId : null,
+      onClient: withRecord ? await look('#nc_cardClientsBody .nc_ch-item[data-nc-channel-id="' + withRecord.dataset.ncChannelId + '"]') : null,
+      onTeam: await look('#nc_cardTeamsBody .nc_ch-item[data-nc-channel-id]')
+    };
+    if (window.nc_switchChatSubtab) window.nc_switchChatSubtab('messages');
+    await wait(600);
+    return out;
+  });
+  // A client's vault is the things kept FOR that client -- files, logins, docs, links --
+  // which is what the approved design shows under this tab. A team channel has no client
+  // behind it and nowhere to keep such a thing, so it keeps the card vault.
+  check('the Vault is the client library on a client, cards on a team channel',
+    !!r.onClient && !!r.onTeam
+      && r.onClient.library > 0 && r.onClient.cards === 0
+      && r.onTeam.cards > 0 && r.onTeam.library === 0,
     JSON.stringify(r));
 });
 

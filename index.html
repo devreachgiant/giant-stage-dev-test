@@ -71794,7 +71794,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const MGMT_TABS = [
         { key:'overview',   label:'Overview' },
         { key:'members',    label:'Members' },
-        { key:'library',    label:'Library' },
         { key:'onboarding', label:'Onboarding' },
         { key:'billing',    label:'Billing' },
         { key:'activity',   label:'Activity' },
@@ -73411,7 +73410,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (mg.libraryFor === clientId) return;
         mg.libraryFor = clientId; mg.libraryLoading = true;
         mg.libraryItems = []; mg.libraryError = null; mg.libRevealed = {};
-        renderMgmt();
+        repaintLib();
         const { data, error } = await NCSB().from('chat2_client_library')
           .select('id, kind, title, section, url, username, body, twofa, password_entry_id, file_url, file_name, file_size, mime_type, pinned, created_by, created_at')
           .eq('client_id', clientId)
@@ -73422,12 +73421,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         mg.libraryItems = data || [];
         mg.libraryError = error ? error.message : null;
         if (error) mg.libraryFor = null; // let the next visit retry
-        renderMgmt();
+        repaintLib();
       }
 
       // Encryption happens server-side (PASSWORD_ENCRYPTION_KEY never reaches the
       // browser); this only ships the plaintext up and stores what comes back.
-      function libraryTabHtml(){
+      // Where the library is on screen right now. It renders in two places -- the Vault
+    // tab of a client thread, which is what the approved design shows, and nowhere else --
+    // and its handlers have to repaint whichever one they are inside. They called
+    // renderMgmt() unconditionally, which was correct while Library was a Management tab
+    // and repaints the wrong pane now.
+    let ncLibSurface = 'mgmt';
+    const repaintLib = () => (ncLibSurface === 'vault' ? renderVault() : renderMgmt());
+
+    function libraryTabHtml(){
         const all = libFilteredItems();
         // Files live in the media grid, not in a collection list — a thumbnail and a
         // size tell you more about an upload than a row of text does, and showing the
@@ -73487,7 +73494,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // A video needs one of the two, not both — a row with neither points at nothing.
         if (d.kind === 'video' && !d.file && !(d.url || '').trim()) { if (typeof toast === 'function') toast({ type:'error', message:'Paste a video link or upload a file.' }); return; }
         if (d.uploading) { if (typeof toast === 'function') toast({ type:'error', message:'Still uploading — one moment.' }); return; }
-        mg.libSaving = true; renderMgmt();
+        mg.libSaving = true; repaintLib();
         try {
           const row = {
             client_id: mg.selectedId,
@@ -73545,15 +73552,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         } catch (e) {
           if (typeof toast === 'function') toast({ type:'error', message:'Could not save: ' + e.message });
         }
-        mg.libSaving = false; renderMgmt();
+        mg.libSaving = false; repaintLib();
       }
       async function toggleLibPin(itemId){
         const it = mg.libraryItems.find(x => x.id === itemId);
         if (!it) return;
         const was = it.pinned;
-        it.pinned = !was; renderMgmt();
+        it.pinned = !was; repaintLib();
         const { error } = await NCSB().from('chat2_client_library').update({ pinned: it.pinned }).eq('id', itemId);
-        if (error) { it.pinned = was; renderMgmt(); if (typeof toast === 'function') toast({ type:'error', message:'Could not pin: ' + error.message }); }
+        if (error) { it.pinned = was; repaintLib(); if (typeof toast === 'function') toast({ type:'error', message:'Could not pin: ' + error.message }); }
       }
       async function removeLibItem(itemId){
         const it = mg.libraryItems.find(x => x.id === itemId);
@@ -73568,9 +73575,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         } else if (!window.confirm(label)) return;
         const idx = mg.libraryItems.findIndex(x => x.id === itemId);
         const backup = mg.libraryItems[idx];
-        mg.libraryItems.splice(idx, 1); delete mg.libRevealed[itemId]; renderMgmt();
+        mg.libraryItems.splice(idx, 1); delete mg.libRevealed[itemId]; repaintLib();
         const { error } = await NCSB().from('chat2_client_library').delete().eq('id', itemId);
-        if (error) { mg.libraryItems.splice(idx, 0, backup); renderMgmt(); if (typeof toast === 'function') toast({ type:'error', message:'Could not delete: ' + error.message }); }
+        if (error) { mg.libraryItems.splice(idx, 0, backup); repaintLib(); if (typeof toast === 'function') toast({ type:'error', message:'Could not delete: ' + error.message }); }
       }
 
       // ── Rendering ──
@@ -73614,42 +73621,42 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // Vault became one thing in every chat.
     function wireLibrary(host){
       const on = (sel, ev, fn) => host.querySelectorAll(sel).forEach(el => el.addEventListener(ev, () => fn(el)));
-      on('[data-c3-lib-add]','click', () => { mg.libAddOpen = true; renderMgmt(); });
-      on('[data-c3-lib-cancel]','click', () => { mg.libAddOpen = false; mg.libDraft = {}; renderMgmt(); });
+      on('[data-c3-lib-add]','click', () => { mg.libAddOpen = true; repaintLib(); });
+      on('[data-c3-lib-cancel]','click', () => { mg.libAddOpen = false; mg.libDraft = {}; repaintLib(); });
       on('[data-c3-lib-save]','click', () => saveLibItem());
-      on('[data-c3-lib-kind]','click', el => { mg.libDraft = {}; mg.libDraft.kind = el.dataset.c3LibKind; renderMgmt(); });
+      on('[data-c3-lib-kind]','click', el => { mg.libDraft = {}; mg.libDraft.kind = el.dataset.c3LibKind; repaintLib(); });
       on('[data-c3-lib-pin]','click', el => toggleLibPin(el.dataset.c3LibPin));
       on('[data-c3-lib-remove]','click', el => removeLibItem(el.dataset.c3LibRemove));
       on('[data-c3-lib-toggle-reveal]','click', el => {
         const id = el.dataset.c3LibToggleReveal;
         mg.libRevealed[id] = !mg.libRevealed[id];
-        renderMgmt();
+        repaintLib();
       });
       on('[data-c3-lib-section-open]','click', el => {
         const k = el.dataset.c3LibSectionOpen;
         mg.libCollapsedSections[k] = !mg.libCollapsedSections[k];
-        renderMgmt();
+        repaintLib();
       });
       on('[data-c3-lib-copy-text]','click', el => copyLibText(el.dataset.c3LibCopyText, 'Copied'));
       on('[data-c3-lib-copy-secret]','click', el => copyLibSecret(el.dataset.c3LibCopySecret));
-      on('[data-c3-lib-pass-open]','click', () => { if (mg.libDraft) { mg.libDraft.passOpen = true; renderMgmt(); } });
-      on('[data-c3-lib-notes-open]','click', () => { if (mg.libDraft) { mg.libDraft.notesOpen = true; renderMgmt(); } });
+      on('[data-c3-lib-pass-open]','click', () => { if (mg.libDraft) { mg.libDraft.passOpen = true; repaintLib(); } });
+      on('[data-c3-lib-notes-open]','click', () => { if (mg.libDraft) { mg.libDraft.notesOpen = true; repaintLib(); } });
       on('[data-c3-lib-section]','click', el => {
         const k = el.dataset.c3LibSection;
         mg.libCollapsedSections[k] = !mg.libCollapsedSections[k];
-        renderMgmt();
+        repaintLib();
       });
       on('[data-c3-lib-share]','click', el => {
         if (!mg.libDraft) return;
         mg.libDraft.share = el.dataset.c3LibShare;
-        renderMgmt();
+        repaintLib();
       });
       on('[data-c3-lib-share-who]','click', el => {
         const d = mg.libDraft; if (!d) return;
         d.shareIds = d.shareIds || [];
         const id = el.dataset.c3LibShareWho;
         d.shareIds = d.shareIds.includes(id) ? d.shareIds.filter(x => x !== id) : d.shareIds.concat(id);
-        renderMgmt();
+        repaintLib();
       });
       // File pickers: the visible control is a div, the input is hidden, so the click
       // is forwarded and the change handler does the upload.
@@ -73659,7 +73666,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         filePick.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (e) => {
           const f = e.target.files && e.target.files[0];
-          if (f) { mg.libDraft = mg.libDraft || {}; mg.libDraft.file = f; renderMgmt(); }
+          if (f) { mg.libDraft = mg.libDraft || {}; mg.libDraft.file = f; repaintLib(); }
         });
       }
       wireDropZone(host.querySelector('[data-c3-lib-media-drop]'), (f) => uploadLibMedia(f));
@@ -73682,7 +73689,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (search) search.addEventListener('input', () => {
         mg.libSearch = search.value;
         const pos = search.selectionStart;
-        renderMgmt();
+        repaintLib();
         const again = document.getElementById('c3LibSearch');
         if (again) { again.focus(); again.selectionStart = again.selectionEnd = pos; }
       });
@@ -74558,6 +74565,26 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // The assignment that used to sit here also had to go: it wrote a CHANNEL id into
       // mg.selectedId, which every other reader in this module treats as a client id.
       const on = (sel, ev, fn) => host.querySelectorAll(sel).forEach(el => el.addEventListener(ev, () => fn(el)));
+
+      // On a client thread the Vault is the client's LIBRARY -- files, logins, docs,
+      // sheets, video, links and notes, searchable and filterable by type. That is what
+      // the approved design shows under this tab, and it is what a client's vault means:
+      // the things kept for that client. The card vault stays for team channels and DMs,
+      // which have no client behind them and nowhere to keep such a thing.
+      const active = chatChannels.find(c => c.id === activeChannelId);
+      const clientId = active && active.kind === 'client_dept' ? active.client_id : null;
+      if (clientId) {
+        ncLibSurface = 'vault';
+        // mg.selectedId is what every library reader takes its client from.
+        // loadClientLibrary guards on mg.libraryFor, so switching clients reloads by
+        // itself and reopening the same one is free.
+        mg.selectedId = clientId;
+        loadClientLibrary(clientId);
+        host.innerHTML = libraryTabHtml();
+        wireLibrary(host);
+        return;
+      }
+      ncLibSurface = 'mgmt';
       host.innerHTML = vaultTabHtml();
       on('[data-c3-vault-add-card]','click', () => addVaultCard());
       on('[data-c3-vault-del-card]','click', el => deleteVaultCard(el.dataset.c3VaultDelCard));
