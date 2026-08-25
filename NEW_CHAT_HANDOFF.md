@@ -1057,6 +1057,6 @@ still implies a client, because a department tab means nothing without one. The 
 enforces the new pair, and the check inserts a client_dept row WITH a department and no
 client and requires the refusal.
 
-**This migration must be applied for the feature to work in production.** Until it is,
-pressing Create with Client selected fails with the old constraint. It only relaxes, so no
-existing row can be invalidated; reverting means restoring the CHECK from 20260821100000.
+**Applied to production on 2026-08-25**, by explicit decision. It only relaxes, so no
+existing row could be invalidated; reverting means restoring the CHECK from 20260821100000
+and deleting any client channel created since that has no client_id.
