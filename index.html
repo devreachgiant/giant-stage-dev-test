@@ -70707,6 +70707,37 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       }
       ncNeeds = next;
       Object.keys(ncNeedMsg).forEach(k => { if (!next[k]) delete ncNeedMsg[k]; });
+      // TEMPORARY DIAGNOSTIC -- remove once the missing-rows question is settled.
+      // Prints every channel the database says is unread and where, if anywhere, it is
+      // lost on the way to the card. Set window.NC_DEBUG_NEEDS = false to silence.
+      if (window.NC_DEBUG_NEEDS !== false) setTimeout(() => {
+        try {
+          const rows = (countRes.data || []).filter(r => (r.unread_count || 0) > 0);
+          const byIdAll = new Map((chatChannels || []).map(c => [c.id, c]));
+          const painted = new Set([...document.querySelectorAll('#nc_chatChannelList .nc_ch-item[data-nc-channel-id]')].map(e => e.dataset.ncChannelId));
+          const dmPainted = new Set([...document.querySelectorAll('#nc_chatDmList .nc_ch-item[data-nc-dm-channel-id]')].map(e => e.dataset.ncDmChannelId));
+          const needRows = [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')].map(e => e.textContent.trim().replace(/\s+/g, ' '));
+          console.log('%c[needs-you] unread channels in DB: ' + rows.length
+            + '   total unread: ' + rows.reduce((a, r) => a + (r.unread_count || 0), 0)
+            + '   rows on the card: ' + needRows.length, 'color:#e11;font-weight:700');
+          console.log('[needs-you] card shows:', needRows);
+          console.table(rows.map(r => {
+            const c = byIdAll.get(r.channel_id);
+            return {
+              name: c ? (c.name || '(unnamed)') : '(NOT in chatChannels)',
+              unread: r.unread_count,
+              kind: c ? (c.kind || '') : '',
+              client: c && c.client_id ? 'yes' : '',
+              dm: c && c.is_dm ? 'yes' : '',
+              section: c && c.section_id ? 'yes' : '',
+              iAmMember: readBy[r.channel_id] !== undefined ? 'yes' : 'NO',
+              inChatChannels: c ? 'yes' : 'NO',
+              paintedRow: painted.has(r.channel_id) ? 'yes' : (dmPainted.has(r.channel_id) ? 'dm-list' : 'NO'),
+              reachedNcNeeds: next[r.channel_id] || 'NO'
+            };
+          }).sort((a, b) => b.unread - a.unread));
+        } catch (e) { console.warn('[needs-you] diagnostic failed:', e); }
+      }, 900);
       // Newest-first needs a time for every row, and unread_counts has none. Asked for
       // here, once the list is known, so it covers exactly the channels on it -- a
       // "newest N messages everywhere" query is the sampling trap that hid an old unread
