@@ -8657,12 +8657,6 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                     <div class="nc_m-role" data-ctype="client"><div class="nc_mr-name">Client</div><div class="nc_mr-desc">Shows under Clients</div></div>
                   </div>
                 </div>
-                <div class="nc_m-field" id="nc_newChannelClientFields" style="display:none;">
-                  <label>Client</label>
-                  <select id="nc_newChannelClient" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;"></select>
-                  <label style="margin-top:10px;display:block;">Department</label>
-                  <select id="nc_newChannelDept" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;"></select>
-                </div>
                 <div class="nc_m-field">
                   <label>Privacy</label>
                   <div class="nc_m-role-grid">
@@ -77436,17 +77430,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       document.querySelectorAll('#nc_newChannelModal [data-ctype]').forEach(el => {
         el.classList.toggle('nc_sel', el.dataset.ctype === want);
       });
-      const clientSel = document.getElementById('nc_newChannelClient');
-      if (clientSel) {
-        const list = Object.values(ncClients).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-        clientSel.innerHTML = list.length
-          ? list.map(c => '<option value="' + chatEsc(c.id) + '">' + chatEsc(c.name || 'Client') + '</option>').join('')
-          : '<option value="">No clients yet</option>';
-      }
-      const deptSel = document.getElementById('nc_newChannelDept');
-      if (deptSel) deptSel.innerHTML = NC_DEPTS.map(d =>
-        '<option value="' + chatEsc(d.key) + '">' + chatEsc(d.label) + '</option>').join('');
-      ncSyncChannelType();
+
       // The picker needs people to offer. It is the same list the DM modal uses and is
       // cached after the first load.
       if (!dmTeammatesCache.length) {
@@ -77462,18 +77446,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       el.addEventListener('click', () => {
         el.parentElement.querySelectorAll('.nc_m-role')
           .forEach(o => o.classList.toggle('nc_sel', o === el));
-        if (el.dataset.ctype) ncSyncChannelType();
       });
     });
-    // A client channel needs a client. `channels_client_dept_needs_client` says so at the
-    // database, and the reason is in that migration: a client_dept row with no client
-    // renders a department tab strip attached to nothing. So choosing Client asks which
-    // one, rather than guessing or inventing a client record behind your back.
-    function ncSyncChannelType(){
-      const isClient = document.querySelector('#nc_newChannelModal [data-ctype].nc_sel')?.dataset.ctype === 'client';
-      const box = document.getElementById('nc_newChannelClientFields');
-      if (box) box.style.display = isClient ? '' : 'none';
-    }
 
     const ncChannelSubmit = document.getElementById('nc_newChannelSubmit');
     if (ncChannelSubmit) ncChannelSubmit.addEventListener('click', async () => {
@@ -77493,15 +77467,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         created_by: sess.user.id
       };
       // Whatever the form says, which is whatever the person can see.
+      // Client, with no client RECORD and no department. Both were asked for and then
+      // asked away again; what is left is the smallest thing that answers the question
+      // the form asks, which is where the channel should appear.
+      //
+      // `channels_client_dept_needs_client` used to refuse this, and 20260825120000 drops
+      // it: the reason it was written -- "a department tab strip attached to nothing" --
+      // is handled in the client, where isClient requires a client_id and this channel
+      // will not have one, so it shows as a plain conversation and no Management panel.
+      // department stays null, and a constraint now enforces that a department implies a
+      // client, which is the half of the original rule worth keeping.
       if (document.querySelector('#nc_newChannelModal [data-ctype].nc_sel')?.dataset.ctype === 'client') {
-        const cid = document.getElementById('nc_newChannelClient')?.value;
-        if (!cid) {
-          if (typeof toast === 'function') toast({ type:'error', message:'Pick a client, or switch this to a Team channel.' });
-          return;
-        }
         payload.kind = 'client_dept';
-        payload.client_id = cid;
-        payload.department = document.getElementById('nc_newChannelDept')?.value || 'general';
       }
       window.nc__channelModalCard = null;
       ncChannelSubmit.disabled = true;

@@ -1038,3 +1038,25 @@ The three id checks now cover the shapes this branch actually shipped:
 None of them proves a control DOES the right thing — that is the click-through's job, and it
 is at 86 checks. What they do is make "did we miss a feature" a question with an answer
 rather than a hope.
+
+### The Client/Department selects came out again (2026-08-25)
+
+Asked for, then asked away. What is left is the smallest form that answers the only
+question it needs to: Team or Client. A client channel created there has no `client_id` and
+no `department`.
+
+That required dropping `channels_client_dept_needs_client`
+(migration `20260825120000_client_channel_without_record.sql`). The reason that constraint
+was written -- "a department tab strip attached to nothing" -- is handled in the client:
+`isClient` requires a `client_id`, so a client_dept channel without one renders as a plain
+conversation in the Clients card with no department strip and no Management panel. The
+constraint was blocking something the UI gets right.
+
+Half of it was kept and made explicit: `channels_department_needs_client` -- a department
+still implies a client, because a department tab means nothing without one. The mock
+enforces the new pair, and the check inserts a client_dept row WITH a department and no
+client and requires the refusal.
+
+**This migration must be applied for the feature to work in production.** Until it is,
+pressing Create with Client selected fails with the old constraint. It only relaxes, so no
+existing row can be invalidated; reverting means restoring the CHECK from 20260821100000.

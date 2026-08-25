@@ -2115,17 +2115,10 @@ await step('the Clients "+" opens the same form as Teams', async () => {
     await new Promise(r => setTimeout(r, 150));
     out.privacyAfter = document.querySelector('#nc_newChannelModal [data-priv].nc_sel')?.dataset.priv;
 
-    // A client channel needs a client and a department -- the database refuses one
-    // without them (channels_client_dept_needs_client), which is what these fields are.
-    out.clientFieldsShown =
-      document.getElementById('nc_newChannelClientFields')?.style.display !== 'none';
-    const clientSel = document.getElementById('nc_newChannelClient');
-    const deptSel = document.getElementById('nc_newChannelDept');
-    out.clientOptions = clientSel ? clientSel.options.length : 0;
-    out.deptOptions = deptSel ? deptSel.options.length : 0;
-    // A department this client does not have yet, so the row is genuinely new.
-    clientSel.value = 'c-3';
-    deptSel.value = 'metaAds';
+    // No client or department pickers: the form asks where the channel belongs and
+    // nothing else.
+    out.noClientPicker = !document.getElementById('nc_newChannelClient');
+    out.noDeptPicker = !document.getElementById('nc_newChannelDept');
     const name = document.getElementById('nc_newChannelName');
     name.value = 'from-clients-card';
     name.dispatchEvent(new Event('input', { bubbles: true }));
@@ -2137,16 +2130,15 @@ await step('the Clients "+" opens the same form as Teams', async () => {
     }
     const made = window.__mock.db.channels.find(c => c.name === 'from-clients-card');
     out.created = !!made;
-    out.shape = made ? { kind: made.kind, client: made.client_id, dept: made.department } : null;
-    // The mock now enforces the real CHECK constraints, so a client_dept row without a
-    // client is refused here exactly as Postgres refuses it.
-    out.rejectsClientless = await (async () => {
+    out.shape = made ? { kind: made.kind, client: made.client_id || null, dept: made.department || null } : null;
+    // A DEPARTMENT still implies a client -- the half of the old constraint that was kept,
+    // because a department tab means nothing without one.
+    out.rejectsDeptWithoutClient = await (async () => {
       const { error } = await window.giantSupabase.from('channels')
-        .insert({ name: 'illegal', slug: 'illegal-x', kind: 'client_dept' }).select().single();
-      return !!error && /channels_client_dept_needs_client/.test(error.message || '');
+        .insert({ name: 'illegal', slug: 'illegal-x', kind: 'client_dept', department: 'seo' })
+        .select().single();
+      return !!error && /channels_department_needs_client/.test(error.message || '');
     })();
-    // A client conversation is listed under its CLIENT, not under the channel's own
-    // name -- "#burrus-seo" is an implementation detail of where the messages live.
     document.querySelectorAll('.nc_modal-overlay.on').forEach(m => m.classList.remove('on'));
     for (const key of ['clients', 'teams']) {
       const card = [...document.querySelectorAll('.nc_navcard')].find(x => x.dataset.nccard === key);
@@ -2156,22 +2148,20 @@ await step('the Clients "+" opens the same form as Teams', async () => {
       }
     }
     await new Promise(r => setTimeout(r, 900));
-    const clientName = (window.__mock.db.clients.find(c => c.id === 'c-3') || {}).name || '';
-    const inCard = (id, re) => [...document.querySelectorAll('#nc_card' + id + 'Body .nc_ch-item')]
-      .some(e => re.test(e.textContent));
-    out.clientName = clientName;
-    out.inClientsCard = inCard('Clients', new RegExp(clientName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
-    out.inTeamsCard = inCard('Teams', /from-clients-card/);
+    const inCard = (id) => [...document.querySelectorAll('#nc_card' + id + 'Body .nc_ch-item')]
+      .some(e => /from-clients-card/.test(e.textContent));
+    out.inClientsCard = inCard('Clients');
+    out.inTeamsCard = inCard('Teams');
     return out;
   });
   check('the Clients "+" opens the same form as Teams',
     r.hasButton && r.opensTeamForm && r.cardDidNotToggle && r.pickerGone
       && r.typeChoiceVisible && r.defaultedToClient
       && r.privacyBefore === 'public' && r.privacyAfter === 'public'
-      && r.clientFieldsShown && r.clientOptions > 1 && r.deptOptions === 5
+      && r.noClientPicker && r.noDeptPicker
       && r.created && r.shape && r.shape.kind === 'client_dept'
-      && r.shape.client === 'c-3' && r.shape.dept === 'metaAds'
-      && r.rejectsClientless
+      && r.shape.client === null && r.shape.dept === null
+      && r.rejectsDeptWithoutClient
       && r.inClientsCard && !r.inTeamsCard,
     JSON.stringify(r));
 });

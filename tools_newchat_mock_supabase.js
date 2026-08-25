@@ -575,7 +575,10 @@
     const DEPTS = ['general', 'googleAds', 'metaAds', 'seo', 'web'];
     if (r.kind != null && !KINDS.includes(r.kind)) return 'channels_kind_check';
     if (r.department != null && !DEPTS.includes(r.department)) return 'channels_department_check';
-    if (r.kind === 'client_dept' && r.client_id == null) return 'channels_client_dept_needs_client';
+    // 20260825120000 dropped channels_client_dept_needs_client: a client conversation
+    // with no client record is legal, and the UI shows it as a plain conversation. What
+    // replaced it is the half worth keeping -- a DEPARTMENT still implies a client.
+    if (r.department != null && r.client_id == null) return 'channels_department_needs_client';
     return null;
   }
 
