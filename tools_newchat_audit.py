@@ -290,5 +290,69 @@ for m in re.finditer(r'<div class="nc_modal-overlay" id="(nc_\w+)"', S):
 print("11. nc_ modals whose close button targets another modal:", crossing or "none")
 fail += len(crossing)
 
+# ---------------------------------------------------------------------------
+# 12. THE BIG ONE: any element New Chat looks up by an id that belongs to another
+# screen. This is the same fault as check 10, which only knew about modals, and it is
+# how "Schedule message doesn't work" happened: the whole feature came across with
+# unprefixed ids, so its chevrons and pills wired the ORIGINAL chat's composer, which
+# sits on a hidden screen. The buttons did nothing and said nothing.
+#
+# An id outside every screen is fine and deliberate -- the schedule modal and popover
+# live at the top of the body and both chats share one.
+def owner_screen(mid):
+    m = re.search(r'id="%s"' % re.escape(mid), S)
+    if not m:
+        return None
+    stack = []
+    for tag in re.finditer(r'<(/?)div\b([^>]*)>', S[:m.start()]):
+        if tag.group(1):
+            if stack: stack.pop()
+        elif not tag.group(0).rstrip().endswith('/>'):
+            sc = re.search(r'data-screen="([\w-]+)"', tag.group(2))
+            stack.append(sc.group(1) if sc else None)
+    for n in reversed(stack):
+        if n:
+            return n
+    return 'global'
+
+body = strip_comments(nc)
+looked_up = set()
+for pat in (r"getElementById\(\s*'([^']+)'",
+            r"\$\(\s*'([^']+)'\s*\)",
+            r"querySelector(?:All)?\(\s*'#([\w-]+)"):
+    looked_up.update(re.findall(pat, body))
+foreign = []
+for mid in sorted(looked_up):
+    if mid.startswith('nc_') or mid.startswith('c3'):
+        continue
+    sc = owner_screen(mid)
+    if sc and sc != 'global' and sc != 'newchat':
+        # is there an nc_ twin sitting unused? then it is certainly the wrong one
+        twin = ' [nc_%s exists]' % mid if ('id="nc_%s"' % mid) in S else ''
+        foreign.append("%s (in screen '%s')%s" % (mid, sc, twin))
+print("12. elements looked up by an id owned by another screen:", foreign or "none")
+fail += len(foreign)
+
+# ---------------------------------------------------------------------------
+# 13. Check 12 can only see an id written inside getElementById/$/querySelector. The
+# schedule chevrons passed theirs as an argument -- wireScheduleChevron('chatScheduleBtn')
+# -- and no scan of lookup calls will ever find that.
+#
+# So: any bare string literal in this module that names an id owned by another screen,
+# WHEN an nc_ twin of that id exists. The twin is what makes it high signal: someone
+# built New Chat its own element and the code is still naming the other one.
+literals = set(re.findall(r"'([A-Za-z][\w-]{2,})'", body))
+twinned = []
+for lit in sorted(literals):
+    if lit.startswith('nc_'):
+        continue
+    if ('id="nc_%s"' % lit) not in S or ('id="%s"' % lit) not in S:
+        continue
+    sc = owner_screen(lit)
+    if sc and sc not in ('global', 'newchat'):
+        twinned.append("'%s' (nc_%s exists, this one is in screen '%s')" % (lit, lit, sc))
+print("13. ids named as plain strings while an nc_ twin exists:", twinned or "none")
+fail += len(twinned)
+
 print("\nRESULT:", "clean" if not fail else f"{fail} problem(s)")
 sys.exit(1 if fail else 0)

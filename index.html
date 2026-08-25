@@ -70283,8 +70283,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // Wrap selected text with markers, or insert at cursor (chat & thread inputs)
     function applyChatFormat(left, right) {
       // Find which input is currently focused; fallback to chatInput
+      // New Chat's own inputs. This compared against the ORIGINAL chat's ids, which no
+      // element on this screen can ever match -- so it fell through to the channel
+      // composer every time, and formatting pressed inside a THREAD wrote into the
+      // channel box instead.
       const active = document.activeElement;
-      let el = (active && (active.id === 'chatInput' || active.id === 'threadInput'))
+      let el = (active && (active.id === 'nc_chatInput' || active.id === 'nc_threadInput'))
         ? active
         : document.getElementById('nc_chatInput');
       if (!el) return;
@@ -70312,19 +70316,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const btn = document.getElementById(id);
         if (btn) btn.addEventListener('mousedown', (e) => { e.preventDefault(); applyChatFormat(left, right); });
       };
-      bindBtn('chatFmtBold', '**', '**');
-      bindBtn('chatFmtItalic', '*', '*');
-      bindBtn('chatFmtUnderline', '__', '__');
-      bindBtn('chatFmtStrike', '~~', '~~');
-      bindBtn('chatFmtCode', '`', '`');
+      bindBtn('nc_chatFmtBold', '**', '**');
+      bindBtn('nc_chatFmtItalic', '*', '*');
+      bindBtn('nc_chatFmtUnderline', '__', '__');
+      bindBtn('nc_chatFmtStrike', '~~', '~~');
+      bindBtn('nc_chatFmtCode', '`', '`');
       // Thread composer formatting buttons (same applyChatFormat — targets the focused input)
-      bindBtn('threadFmtBold', '**', '**');
-      bindBtn('threadFmtItalic', '*', '*');
-      bindBtn('threadFmtUnderline', '__', '__');
-      bindBtn('threadFmtStrike', '~~', '~~');
-      bindBtn('threadFmtCode', '`', '`');
+      bindBtn('nc_threadFmtBold', '**', '**');
+      bindBtn('nc_threadFmtItalic', '*', '*');
+      bindBtn('nc_threadFmtUnderline', '__', '__');
+      bindBtn('nc_threadFmtStrike', '~~', '~~');
+      bindBtn('nc_threadFmtCode', '`', '`');
       // Keyboard shortcuts on both inputs
-      ['chatInput', 'threadInput'].forEach(inputId => {
+      // ...and the shortcuts, which were listening on the other screen's boxes, so
+      // Cmd-B in New Chat did nothing at all.
+      ['nc_chatInput', 'nc_threadInput'].forEach(inputId => {
         const el = document.getElementById(inputId);
         if (!el || el.dataset.fmtShortcutsWired) return;
         el.dataset.fmtShortcutsWired = '1';
@@ -76744,6 +76750,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
       // Two composers (main channel + thread reply) share one modal/popover. activeScheduleKind
       // tracks which one is currently being scheduled from, set whenever a chevron is clicked.
+      //
+      // The chevrons and pills are New Chat's OWN. This block came across with the
+      // unprefixed ids and so wired the original chat's composer, which lives on a hidden
+      // screen: the buttons here did nothing at all, and the pill never showed a count.
+      // The modal, popover and body are deliberately left unprefixed -- they sit outside
+      // every screen (line ~6320), so both chats share one and it is visible from either.
       let activeScheduleKind = 'channel';
       function getTarget(){
         if (activeScheduleKind === 'thread') {
@@ -76751,16 +76763,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             channelId: activeThreadParent ? activeThreadParent.channel_id : null,
             parentId: activeThreadParent ? activeThreadParent.id : null,
             inputEl: threadInput,
-            pillEl: $('threadScheduledPill'),
-            pillTextEl: $('threadScheduledPillText')
+            pillEl: $('nc_threadScheduledPill'),
+            pillTextEl: $('nc_threadScheduledPillText')
           };
         }
         return {
           channelId: activeChannelId,
           parentId: null,
           inputEl: chatInput,
-          pillEl: $('chatScheduledPill'),
-          pillTextEl: $('chatScheduledPillText')
+          pillEl: $('nc_chatScheduledPill'),
+          pillTextEl: $('nc_chatScheduledPillText')
         };
       }
 
@@ -76910,8 +76922,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           setTimeout(() => document.addEventListener('click', onDocClickClosePopover), 30);
         });
       }
-      wireScheduleChevron('chatScheduleBtn', 'channel');
-      wireScheduleChevron('threadScheduleBtn', 'thread');
+      wireScheduleChevron('nc_chatScheduleBtn', 'channel');
+      wireScheduleChevron('nc_threadScheduleBtn', 'thread');
 
       // ── Step 2: "Custom time" — full modal with date/time pickers ──
       let selDate = new Date();       // currently chosen calendar date (Y/M/D matter)
@@ -77200,8 +77212,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           }
         });
       }
-      wireScheduledPillClick('chatScheduledPill', 'channel');
-      wireScheduledPillClick('threadScheduledPill', 'thread');
+      wireScheduledPillClick('nc_chatScheduledPill', 'channel');
+      wireScheduledPillClick('nc_threadScheduledPill', 'thread');
 
       refreshScheduledPill();
     })();

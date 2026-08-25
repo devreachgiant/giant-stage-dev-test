@@ -2176,6 +2176,99 @@ await step('the Clients "+" opens the same form as Teams', async () => {
     JSON.stringify(r));
 });
 
+await step('scheduling a message works from New Chat\'s own composer', async () => {
+  const r = await page.evaluate(async () => {
+    const seen = (el) => {
+      if (!el) return false;
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 40 || rect.height < 20) return false;
+      return typeof el.checkVisibility === 'function'
+        ? el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) : true;
+    };
+    const out = {};
+    document.querySelectorAll('.modal-overlay.on, .nc_modal-overlay.on').forEach(m => m.classList.remove('on'));
+    const input = document.getElementById('nc_chatInput');
+    if (input) { input.value = 'scheduled from the click-through'; input.dispatchEvent(new Event('input', { bubbles: true })); }
+    const chev = document.getElementById('nc_chatScheduleBtn');
+    out.hasChevron = !!chev;
+    if (!chev) return out;
+    chev.click();
+    await new Promise(r => setTimeout(r, 500));
+    const pop = document.getElementById('schedulePopover');
+    out.popoverOpens = seen(pop);
+    const presets = pop ? [...pop.querySelectorAll('.schedule-preset')] : [];
+    out.presets = presets.length;
+    if (!presets.length) return out;
+    const before = window.__mock.db.scheduled_messages ? window.__mock.db.scheduled_messages.length : 0;
+    presets[0].click();
+    for (let i = 0; i < 40; i++) {
+      await new Promise(r => setTimeout(r, 200));
+      const n = window.__mock.db.scheduled_messages ? window.__mock.db.scheduled_messages.length : 0;
+      if (n > before) break;
+    }
+    const rows = window.__mock.db.scheduled_messages || [];
+    out.wrote = rows.length - before;
+    const mine = rows[rows.length - 1];
+    out.forThisChannel = !!mine && mine.channel_id === window.nc_activeChannelId;
+    // The pill is New Chat's own, and must actually show the count.
+    await new Promise(r => setTimeout(r, 900));
+    const pill = document.getElementById('nc_chatScheduledPill');
+    out.pillShows = seen(pill);
+    out.pillText = pill ? (pill.textContent || '').trim() : null;
+    document.querySelectorAll('.modal-overlay.on').forEach(m => m.classList.remove('on'));
+    return out;
+  });
+  check('scheduling a message works from New Chat\'s own composer',
+    r.hasChevron && r.popoverOpens && r.presets > 0 && r.wrote === 1
+      && r.forThisChannel && r.pillShows && /scheduled/i.test(r.pillText || ''),
+    JSON.stringify(r));
+});
+
+await step('the formatting toolbar formats New Chat\'s own composer', async () => {
+  const r = await page.evaluate(async () => {
+    const out = {};
+    const input = document.getElementById('nc_chatInput');
+    if (!input) return { noInput: true };
+    input.value = 'hello';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus();
+    input.setSelectionRange(0, 5);
+    const bold = document.getElementById('nc_chatFmtBold');
+    out.hasBold = !!bold;
+    if (!bold) return out;
+    bold.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    await new Promise(r => setTimeout(r, 200));
+    out.wrapped = input.value;
+    // The other chat's box must be untouched -- it is the one this used to write into.
+    out.otherComposer = (document.getElementById('chatInput') || {}).value || '';
+
+    // And the thread composer must format ITSELF, not the channel box.
+    const t = document.getElementById('nc_threadInput');
+    out.hasThreadInput = !!t;
+    if (t) {
+      const channelBefore = input.value;
+      t.value = 'reply';
+      t.dispatchEvent(new Event('input', { bubbles: true }));
+      t.focus();
+      t.setSelectionRange(0, 5);
+      const tb = document.getElementById('nc_threadFmtBold');
+      out.hasThreadBold = !!tb;
+      if (tb) {
+        tb.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        await new Promise(r => setTimeout(r, 200));
+        out.threadWrapped = t.value;
+        out.channelUntouched = input.value === channelBefore;
+      }
+    }
+    return out;
+  });
+  check('the formatting toolbar formats New Chat\'s own composer',
+    r.hasBold && r.wrapped === '**hello**' && r.otherComposer === ''
+      && r.hasThreadInput && r.hasThreadBold
+      && r.threadWrapped === '**reply**' && r.channelUntouched,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

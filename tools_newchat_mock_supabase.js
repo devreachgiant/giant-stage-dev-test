@@ -501,6 +501,7 @@
             const existing = arr.find(x => keys.every(k => String(x[k]) === String(r[k])));
             if (existing) { Object.assign(existing, r); done.push(existing); return; }
           }
+          applyDefaults(t, r);
           if (r.id === undefined) r.id = newId(t);
           if (r.created_at === undefined && ['messages', 'tasks'].includes(t)) r.created_at = new Date().toISOString();
           arr.push(r); done.push(r);
@@ -552,6 +553,22 @@
   // rows Postgres refuses, and a check-through went green on a build that failed against
   // the database the moment a person tried it -- which is exactly what happened with
   // channels_client_dept_needs_client.
+  // Column DEFAULTs the real schema applies on insert. Without them a row comes back
+  // missing a value the app then filters on -- scheduled_messages.status is 'pending' by
+  // default, so a freshly scheduled message was invisible to the pill's own query and the
+  // count sat at zero on a feature that works perfectly well against the database.
+  const DEFAULTS = {
+    scheduled_messages: { status: 'pending' },
+    messages: { flagged: false },
+    channels: { is_private: false },
+    invitations: { accepted_at: null, revoked_at: null }
+  };
+  function applyDefaults(t, r) {
+    const d = DEFAULTS[t];
+    if (!d || !r) return;
+    for (const k in d) if (r[k] === undefined) r[k] = d[k];
+  }
+
   function checkConstraints(t, r) {
     if (t !== 'channels' || !r) return null;
     const KINDS = ['home', 'team_channel', 'client_dept', 'dm'];

@@ -996,3 +996,31 @@ Two checks encoded the old rule and were rewritten rather than dropped: "all 53 
 listed" became "only clients with a conversation are listed" (counted from the fixture, not
 hardcoded), and "clients without a channel render dimmed" became "no client is listed
 without a conversation".
+
+### The id-mismatch sweep (2026-08-25)
+
+"Schedule message not working" turned out to be the same fault as the modals: the whole
+feature came across with the ORIGINAL chat's ids, so its chevrons and pills wired that
+chat's composer, which sits on a hidden screen. The modal, popover and body are outside
+every screen and deliberately shared; only the triggers were wrong.
+
+Two audit checks now cover the class, and both were verified against the previous commit:
+
+- **12** — any id looked up through `getElementById` / `$()` / `querySelector('#…')` that
+  belongs to another screen. Ids outside every screen are fine and expected.
+- **13** — any bare string literal naming an id that has an `nc_` twin. Check 12 cannot see
+  an id passed as an argument (`wireScheduleChevron('chatScheduleBtn')`), and 13 is what
+  catches those. The twin is what makes it high signal: New Chat was given its own element
+  and the code still names the other one.
+
+Check 13 found **twelve** more on its first run, all real: the entire formatting toolbar,
+both composers. Bold, italic, underline, strike and code were bound to the other chat's
+buttons, the Cmd-B/I/U/E shortcuts listened on the other chat's inputs, and worst of all
+`applyChatFormat` compared `activeElement.id` against `'chatInput'`/`'threadInput'` -- ids
+nothing on this screen can ever have -- so it fell through to the channel composer every
+time and formatting pressed inside a THREAD wrote into the channel box.
+
+Two mock fidelity gaps closed alongside: column DEFAULTs (`scheduled_messages.status` is
+`'pending'`, and without it a freshly scheduled message was invisible to the pill's own
+query, so the count sat at zero on a feature that works), and the channels CHECK
+constraints.
