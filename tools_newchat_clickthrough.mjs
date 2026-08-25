@@ -1848,6 +1848,61 @@ await step('unread badges survive a sidebar rebuild', async () => {
     r.shouldHaveBadge > 0 && r.haveBadge === r.shouldHaveBadge, JSON.stringify(r));
 });
 
+await step('Invite members picks people, and they are actually added', async () => {
+  const r = await page.evaluate(async () => {
+    const out = {};
+    document.querySelectorAll('.modal-overlay.on, .nc_modal-overlay.on').forEach(m => m.classList.remove('on'));
+    document.getElementById('nc_newChannelBtn2')?.click();
+    await new Promise(r => setTimeout(r, 700));
+    out.parentFieldGone = !document.getElementById('nc_newChannelParent');
+    const box = document.getElementById('nc_newChannelSuggest');
+    // An empty suggestion box carries a border and background, so it drew a grey bar.
+    out.suggestHiddenWhenEmpty = !!box && box.getBoundingClientRect().height < 1;
+
+    const input = document.getElementById('nc_newChannelInvite');
+    out.hasInput = !!input;
+    if (!input) return out;
+    input.focus();
+    input.value = 'Team Member 3';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    for (let i = 0; i < 30 && !box.querySelector('.nc_invite-suggest-item'); i++) {
+      await new Promise(r => setTimeout(r, 150));
+    }
+    const first = box.querySelector('.nc_invite-suggest-item');
+    out.suggested = box.querySelectorAll('.nc_invite-suggest-item').length;
+    out.suggestShows = !!box && box.getBoundingClientRect().height > 10;
+    if (!first) return out;
+    const picked = first.dataset.inviteId;
+    first.click();
+    await new Promise(r => setTimeout(r, 300));
+    out.chips = document.querySelectorAll('#nc_newChannelChips .nc_invite-chip').length;
+
+    const name = document.getElementById('nc_newChannelName');
+    name.value = 'invite-flow-test';
+    name.dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('nc_newChannelSubmit')?.click();
+    for (let i = 0; i < 40; i++) {
+      await new Promise(r => setTimeout(r, 200));
+      if (window.__mock.db.channels.some(c => c.name === 'invite-flow-test')) break;
+    }
+    const made = window.__mock.db.channels.find(c => c.name === 'invite-flow-test');
+    out.created = !!made;
+    if (made) {
+      const mem = window.__mock.db.channel_members.filter(m => m.channel_id === made.id);
+      out.memberCount = mem.length;
+      out.inviteeIsMember = mem.some(m => m.profile_id === picked);
+      out.creatorIsMember = mem.some(m => m.profile_id === window.giantSession.user.id);
+    }
+    document.querySelectorAll('.nc_modal-overlay.on').forEach(m => m.classList.remove('on'));
+    return out;
+  });
+  // The field took chips and threw them away on submit before this.
+  check('Invite members picks people, and they are actually added',
+    r.parentFieldGone && r.suggestHiddenWhenEmpty && r.suggested > 0 && r.suggestShows
+      && r.chips === 1 && r.created && r.inviteeIsMember && r.creatorIsMember,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

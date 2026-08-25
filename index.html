@@ -5289,7 +5289,11 @@ body.nc_chat-scope-clients #nc_chatAddSectionBtn{display:none !important;}
 .nc_invite-chips:focus-within{border-color:var(--red);}
 .nc_invite-chips-input{flex:1;min-width:120px;background:transparent;border:none;outline:none;font:inherit;font-size:12px;color:var(--text);padding:2px;}
 .nc_invite-chips-input::placeholder{color:var(--text-3);}
+.nc_invite-chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:3px 8px 3px 4px;font-size:11.5px;font-weight:600;color:var(--text);}
+.nc_invite-chip-x{font-size:14px;color:var(--text-3);cursor:pointer;line-height:1;margin-left:1px;}
+.nc_invite-suggest-item:hover{background:var(--surface-3,var(--line));}
 .nc_invite-suggest{display:flex;flex-direction:column;gap:2px;margin-top:7px;border:1px solid var(--line);border-radius:10px;padding:5px;background:var(--surface-2);}
+.nc_invite-suggest:empty{display:none;}
 .ml-folders.nc_open .ml-folders-chev{transform:rotate(90deg);}
 .ml-folders.nc_open .ml-folders-body{display:block;}
 .fic.nc_sel{border-color:var(--red);background:var(--surface);}
@@ -8647,13 +8651,6 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                 <div class="nc_m-field"><label>Channel name</label><input type="text" id="nc_newChannelName" placeholder="# e.g. q4-campaigns"></div>
                 <div class="nc_m-field"><label>Description <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional)</span></label><input type="text" id="nc_newChannelDesc" placeholder="What is this channel about?"></div>
                 <div class="nc_m-field">
-                  <label>Parent channel <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional — creates a sub-channel)</span></label>
-                  <select id="nc_newChannelParent" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;">
-                    <option value="">None — top-level channel</option>
-                  </select>
-                  <div style="font-size:11px;color:var(--text-3);margin-top:6px;line-height:1.4;">Sub-channels appear indented under their parent in the sidebar.</div>
-                </div>
-                <div class="nc_m-field">
                   <label>Privacy</label>
                   <div class="nc_m-role-grid">
                     <div class="nc_m-role nc_sel" data-priv="public"><div class="nc_mr-name">Public</div><div class="nc_mr-desc">Anyone in the workspace can join</div></div>
@@ -8662,11 +8659,10 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                 </div>
                 <div class="nc_m-field">
                   <label>Invite members <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional)</span></label>
-                  <div class="nc_invite-chips">
-                    <input type="text" class="nc_invite-chips-input" placeholder="Add by name or email…">
+                  <div class="nc_invite-chips" id="nc_newChannelChips">
+                    <input type="text" class="nc_invite-chips-input" id="nc_newChannelInvite" placeholder="Add by name or email…" autocomplete="off">
                   </div>
-                  <div class="nc_invite-suggest">
-                  </div>
+                  <div class="nc_invite-suggest" id="nc_newChannelSuggest"></div>
                 </div>
               </div>
               <div class="nc_modal-foot">
@@ -77243,21 +77239,116 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // button that nothing listened to, because the "+" used to open the OLD chat's modal
     // and let the old chat's handler do the work. That modal lives inside the hidden
     // chat screen, so from New Chat it opened invisibly and the click read as dead.
-    function ncResetChannelModal() {
-      const parent = document.getElementById('nc_newChannelParent');
-      if (parent) {
-        // Only real, top-level team channels can be a parent. Offering a client
-        // department here would produce a sub-channel nothing knows how to route.
-        const opts = (chatChannels || [])
-          .filter(c => !c.is_dm && !c.parent_id && c.kind !== 'client_dept')
-          .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-        parent.innerHTML = '<option value="">None — top-level channel</option>'
-          + opts.map(c => '<option value="' + chatEsc(c.id) + '">#' + chatEsc(c.name || '') + '</option>').join('');
-        parent.value = '';
+    // Who the creator picked to invite. Ids, not chips: the chips are how it looks,
+    // this is what gets written.
+    const ncChannelInvitees = new Set();
+
+    function ncRenderInviteChips() {
+      const chips = document.getElementById('nc_newChannelChips');
+      const input = document.getElementById('nc_newChannelInvite');
+      if (!chips || !input) return;
+      chips.querySelectorAll('.nc_invite-chip').forEach(c => c.remove());
+      [...ncChannelInvitees].forEach(id => {
+        const p = dmTeammatesCache.find(x => x.id === id);
+        if (!p) return;
+        const chip = document.createElement('span');
+        chip.className = 'nc_invite-chip';
+        chip.dataset.inviteId = id;
+        chip.textContent = p.full_name || p.email || 'Member';
+        const x = document.createElement('span');
+        x.className = 'nc_invite-chip-x';
+        x.textContent = '×';
+        x.style.cursor = 'pointer';
+        x.addEventListener('click', (e) => {
+          e.stopPropagation();
+          ncChannelInvitees.delete(id);
+          ncRenderInviteChips();
+          ncRenderInviteSuggest(input.value);
+        });
+        chip.appendChild(x);
+        chips.insertBefore(chip, input);
+      });
+    }
+
+    function ncRenderInviteSuggest(filter) {
+      const box = document.getElementById('nc_newChannelSuggest');
+      if (!box) return;
+      const f = (filter || '').trim().toLowerCase();
+      // Nothing typed means no list. The box carries a border and a background, so
+      // rendering it empty drew a grey bar under the field for no reason.
+      if (!f) { box.innerHTML = ''; return; }
+      const hits = dmTeammatesCache.filter(p =>
+        !p.deactivated_at && !ncChannelInvitees.has(p.id)
+        && ((p.full_name || '').toLowerCase().includes(f) || (p.email || '').toLowerCase().includes(f))
+      ).slice(0, 6);
+      if (!hits.length) {
+        box.innerHTML = '<div style="padding:8px 9px;color:var(--text-3);font-size:11.5px;">No one matches that</div>';
+        return;
       }
+      box.innerHTML = hits.map(p => {
+        const initial = (p.full_name || p.email || '?').charAt(0).toUpperCase();
+        const ava = p.avatar_url
+          ? '<span class="nc_dot-ava" style="background-image:url(' + chatEsc(p.avatar_url) + ');background-size:cover;"></span>'
+          : '<span class="nc_dot-ava" style="background:' + chatEsc(p.avatar_bg || '#4A2424') + ';color:' + chatEsc(p.avatar_fg || '#F0A0A0') + ';">' + chatEsc(initial) + '</span>';
+        return '<div class="nc_invite-suggest-item" data-invite-id="' + chatEsc(p.id) + '"'
+          + ' style="display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:7px;cursor:pointer;font-size:12px;">'
+          + ava + '<span>' + chatEsc(p.full_name || p.email) + '</span></div>';
+      }).join('');
+    }
+
+    (function wireChannelInvite(){
+      const input = document.getElementById('nc_newChannelInvite');
+      const box = document.getElementById('nc_newChannelSuggest');
+      if (!input || !box) return;
+      const withPeople = async () => {
+        // Reset kicks the load off, but someone can type before it lands. Without this the
+        // first keystrokes answer "No one matches that" from an empty cache.
+        if (!dmTeammatesCache.length) {
+          const { data } = await window.giantSupabase.from('profiles')
+            .select('id, full_name, email, avatar_url, avatar_bg, avatar_fg, role, deactivated_at')
+            .neq('id', window.giantSession.user.id).order('full_name');
+          dmTeammatesCache = data || [];
+        }
+        ncRenderInviteSuggest(input.value);
+      };
+      input.addEventListener('input', withPeople);
+      input.addEventListener('focus', withPeople);
+      // Delegated, because the rows are rebuilt on every keystroke.
+      box.addEventListener('click', (e) => {
+        const item = e.target.closest('.nc_invite-suggest-item');
+        if (!item) return;
+        ncChannelInvitees.add(item.dataset.inviteId);
+        input.value = '';
+        ncRenderInviteChips();
+        ncRenderInviteSuggest('');
+        input.focus();
+      });
+      // Backspace on an empty input takes the last chip off, the way every chips field does.
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !input.value && ncChannelInvitees.size) {
+          ncChannelInvitees.delete([...ncChannelInvitees].pop());
+          ncRenderInviteChips();
+        }
+      });
+    })();
+
+    async function ncResetChannelModal() {
+      ncChannelInvitees.clear();
+      const input = document.getElementById('nc_newChannelInvite');
+      if (input) input.value = '';
+      ncRenderInviteChips();
+      ncRenderInviteSuggest('');
       document.querySelectorAll('#nc_newChannelModal .nc_m-role').forEach(el => {
         el.classList.toggle('nc_sel', el.dataset.priv === 'public');
       });
+      // The picker needs people to offer. It is the same list the DM modal uses and is
+      // cached after the first load.
+      if (!dmTeammatesCache.length) {
+        const { data } = await window.giantSupabase.from('profiles')
+          .select('id, full_name, email, avatar_url, avatar_bg, avatar_fg, role, deactivated_at')
+          .neq('id', window.giantSession.user.id).order('full_name');
+        dmTeammatesCache = data || [];
+      }
     }
     document.querySelectorAll('#nc_newChannelModal .nc_m-role').forEach(el => {
       el.addEventListener('click', () => {
@@ -77275,7 +77366,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (!sb || !sess?.user) { if (typeof toast === 'function') toast({ type:'error', message:'Not signed in' }); return; }
       const name = raw.replace(/\s+/g, '-').toLowerCase();
       const isPrivate = document.querySelector('#nc_newChannelModal .nc_m-role.nc_sel')?.dataset.priv === 'private';
-      const parentSel = document.getElementById('nc_newChannelParent');
       const payload = {
         name,
         slug: name + '-' + Math.random().toString(36).slice(2, 5),
@@ -77284,7 +77374,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         position: (chatChannels || []).length,
         created_by: sess.user.id
       };
-      if (parentSel && parentSel.value) payload.parent_id = parentSel.value;
       ncChannelSubmit.disabled = true;
       ncChannelSubmit.textContent = 'Creating…';
       const { data, error } = await sb.from('channels').insert(payload).select().single();
@@ -77293,16 +77382,27 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (error) { if (typeof toast === 'function') toast({ type:'error', message:'Create failed: ' + error.message }); return; }
       // Without a membership row RLS hides the channel from its own creator on the next
       // read, so a private channel would vanish the moment the list reloaded.
+      // The creator, plus anyone picked in Invite members. Written in one insert so a
+      // private channel is usable the moment it exists -- the invite field was decorative
+      // before this: it took chips and threw them away on submit.
+      const memberRows = [{ channel_id: data.id, profile_id: sess.user.id }]
+        .concat([...ncChannelInvitees]
+          .filter(id => id !== sess.user.id)
+          .map(id => ({ channel_id: data.id, profile_id: id })));
       try {
-        const { error: memErr } = await sb.from('channel_members')
-          .insert({ channel_id: data.id, profile_id: sess.user.id });
+        const { error: memErr } = await sb.from('channel_members').insert(memberRows);
         if (memErr && !/duplicate key|unique constraint/i.test(memErr.message || '')) {
-          console.warn('[newchat] creator membership failed:', memErr);
+          console.warn('[newchat] channel membership failed:', memErr);
+          if (typeof toast === 'function') toast({ type:'error', message:'Channel created, but inviting failed: ' + memErr.message });
         }
-      } catch (e) { console.warn('[newchat] creator membership threw:', e); }
+      } catch (e) { console.warn('[newchat] channel membership threw:', e); }
+      const invitedCount = ncChannelInvitees.size;
       closeModal('nc_newChannelModal');
       if (nameEl) nameEl.value = '';
-      if (typeof toast === 'function') toast({ type:'success', message:'Channel <b>#' + name + '</b> created' });
+      if (typeof toast === 'function') toast({ type:'success', message:'Channel <b>#' + name + '</b> created'
+        + (invitedCount ? ' with ' + invitedCount + ' member' + (invitedCount === 1 ? '' : 's') : '') });
+      ncChannelInvitees.clear();
+      ncRenderInviteChips();
       await loadChannels();
       if (data?.id) switchChannel(data.id);
     });

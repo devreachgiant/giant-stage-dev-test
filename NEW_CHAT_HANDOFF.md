@@ -824,3 +824,27 @@ Trap worth keeping: the first version of the badge check compared the count afte
 with the count before it, and PASSED on the broken build -- the "before" figure was itself
 taken after an earlier rebuild had already stripped them. It now counts rows that SHOULD
 carry a badge and requires every one of them to have it: 8 of 8 after, 0 of 8 before.
+
+### Create a channel: the invite field, and two fields that should not be there (2026-08-25)
+
+Three things on `nc_newChannelModal`, all reported from real use.
+
+**Invite members did nothing.** It was markup only: a chips container, an input, and an
+empty suggestion box, with no listener anywhere and nothing read at submit. Worth noting
+the ORIGINAL chat's copy is decorative too -- its suggestions are six hardcoded
+`.invite-suggest-item` rows and the chips it builds are never read when the channel is
+created -- so there was nothing to port and this is written fresh.
+
+It now filters the same `dmTeammatesCache` the DM modal uses (loaded on open, and again on
+first keystroke in case someone types before that lands), excludes deactivated accounts and
+anyone already picked, adds a chip on click, removes on × or Backspace, and writes the
+picked ids as `channel_members` rows in the same insert as the creator. `.nc_invite-chip`
+and `.nc_invite-chip-x` had no CSS at all -- the namespacing pass carried the markup over
+and left the styles behind -- so those were added too.
+
+**Parent channel is gone.** Removed on request, with its helper line. `parent_id` is still
+honoured everywhere else; nothing sets it from this modal any more.
+
+**The "extra empty line"** was `.nc_invite-suggest`, which carries a border, padding and a
+background unconditionally, so an empty box drew a grey bar under the field.
+`.nc_invite-suggest:empty{display:none}` -- which fixes the invite modal's copy as well.
