@@ -1872,8 +1872,35 @@ await step('Invite members picks people, and they are actually added', async () 
     out.suggested = box.querySelectorAll('.nc_invite-suggest-item').length;
     out.suggestShows = !!box && box.getBoundingClientRect().height > 10;
     if (!first) return out;
-    const picked = first.dataset.inviteId;
-    first.click();
+
+    // A broad filter, to see the whole offered set at once.
+    input.value = 'team member';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 500));
+    const offered = [...box.querySelectorAll('.nc_invite-suggest-item')];
+    const dead = new Set(window.__mock.db.profiles.filter(p => p.deactivated_at).map(p => p.id));
+    out.deactivatedInFixture = dead.size;
+    out.deactivatedOffered = offered.filter(el => dead.has(el.dataset.inviteId)).length;
+    // Photos must render as a loaded <img>. background-image on a style attribute loses
+    // an encoded storage filename and draws an empty circle instead.
+    const withPhoto = offered.filter(el => el.querySelector('img'));
+    out.rowsWithPhoto = withPhoto.length;
+    out.photosLoaded = withPhoto.filter(el => {
+      const img = el.querySelector('img');
+      return img.complete && img.naturalWidth > 0;
+    }).length;
+    out.rowsWithName = offered.filter(el => (el.textContent || '').trim().length > 1).length;
+    out.offered = offered.length;
+
+    input.value = 'Team Member 3';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 500));
+    // Re-query: the broad filter above rebuilt the list, so the earlier node is detached
+    // and clicking it does nothing at all.
+    const pick = box.querySelector('.nc_invite-suggest-item');
+    if (!pick) return out;
+    const picked = pick.dataset.inviteId;
+    pick.click();
     await new Promise(r => setTimeout(r, 300));
     out.chips = document.querySelectorAll('#nc_newChannelChips .nc_invite-chip').length;
 
@@ -1899,7 +1926,12 @@ await step('Invite members picks people, and they are actually added', async () 
   // The field took chips and threw them away on submit before this.
   check('Invite members picks people, and they are actually added',
     r.parentFieldGone && r.suggestHiddenWhenEmpty && r.suggested > 0 && r.suggestShows
-      && r.chips === 1 && r.created && r.inviteeIsMember && r.creatorIsMember,
+      && r.chips === 1 && r.created && r.inviteeIsMember && r.creatorIsMember
+      // every offered row names someone, no deactivated account is offered, and a photo
+      // that exists actually renders
+      && r.deactivatedInFixture > 0 && r.deactivatedOffered === 0
+      && r.rowsWithName === r.offered
+      && r.rowsWithPhoto > 0 && r.photosLoaded === r.rowsWithPhoto,
     JSON.stringify(r));
 });
 

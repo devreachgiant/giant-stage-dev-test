@@ -848,3 +848,18 @@ honoured everywhere else; nothing sets it from this modal any more.
 **The "extra empty line"** was `.nc_invite-suggest`, which carries a border, padding and a
 background unconditionally, so an empty box drew a grey bar under the field.
 `.nc_invite-suggest:empty{display:none}` -- which fixes the invite modal's copy as well.
+
+**The suggestion rows themselves.** First cut drew the avatar as
+`background-image:url(...)` on a style attribute, which is the trap
+`c3ProfileMarkHtml` already documents: a storage URL carries an encoded filename and does
+not survive being put inside `url(...)` in an attribute, so everyone WITH a photo rendered
+as an empty circle and everyone without one showed their initial -- the exact inverse of
+what it looks like. Now an `<img>`, and the check asserts the image actually loaded rather
+than that a row exists.
+
+Rows also carry the email under the name and the role on the right, so a bot or a
+client-role account is recognisable before you invite it. Deactivation is checked through
+`ncIsDeactivated`, which accepts `deactivated_at`, `is_active === false` and
+`deactivated === true` -- the cache is shared with other screens and offering a disabled
+account is worse than missing one. The fixture has two deactivated profiles and the check
+requires none of them to be offered.

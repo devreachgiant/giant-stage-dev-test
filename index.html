@@ -77239,6 +77239,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // button that nothing listened to, because the "+" used to open the OLD chat's modal
     // and let the old chat's handler do the work. That modal lives inside the hidden
     // chat screen, so from New Chat it opened invisibly and the click read as dead.
+    // deactivated_at is what this codebase records, but a row that came from a cache
+    // shared with other screens can carry either shape, and offering a disabled account
+    // is worse than missing one.
+    const ncIsDeactivated = (p) => !!(p && (p.deactivated_at || p.is_active === false || p.deactivated === true));
+
     // Who the creator picked to invite. Ids, not chips: the chips are how it looks,
     // this is what gets written.
     const ncChannelInvitees = new Set();
@@ -77278,7 +77283,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // rendering it empty drew a grey bar under the field for no reason.
       if (!f) { box.innerHTML = ''; return; }
       const hits = dmTeammatesCache.filter(p =>
-        !p.deactivated_at && !ncChannelInvitees.has(p.id)
+        !ncIsDeactivated(p) && !ncChannelInvitees.has(p.id)
         && ((p.full_name || '').toLowerCase().includes(f) || (p.email || '').toLowerCase().includes(f))
       ).slice(0, 6);
       if (!hits.length) {
@@ -77287,12 +77292,30 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       }
       box.innerHTML = hits.map(p => {
         const initial = (p.full_name || p.email || '?').charAt(0).toUpperCase();
+        // An <img>, not background-image on a style attribute. A storage URL carries an
+        // encoded filename, and putting one inside url(...) in an attribute loses it --
+        // the row then renders as an empty circle, which reads as "this person has no
+        // photo" rather than as a broken image. Same trap c3ProfileMarkHtml documents.
         const ava = p.avatar_url
-          ? '<span class="nc_dot-ava" style="background-image:url(' + chatEsc(p.avatar_url) + ');background-size:cover;"></span>'
+          ? '<span class="nc_dot-ava" style="overflow:hidden;padding:0;">'
+            + '<img loading="lazy" decoding="async" src="' + chatEsc(p.avatar_url) + '"'
+            + ' alt="" style="width:100%;height:100%;object-fit:cover;display:block;"></span>'
           : '<span class="nc_dot-ava" style="background:' + chatEsc(p.avatar_bg || '#4A2424') + ';color:' + chatEsc(p.avatar_fg || '#F0A0A0') + ';">' + chatEsc(initial) + '</span>';
+        // The role, so a bot or a client account is recognisable before you invite it.
+        const role = (p.role || '').replace(/_/g, ' ');
+        const meta = role
+          ? '<span style="margin-left:auto;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);flex-shrink:0;">' + chatEsc(role) + '</span>'
+          : '';
+        const label = p.full_name || p.email || 'Member';
+        const sub = p.full_name && p.email
+          ? '<span style="color:var(--text-3);font-size:10.5px;">' + chatEsc(p.email) + '</span>'
+          : '';
         return '<div class="nc_invite-suggest-item" data-invite-id="' + chatEsc(p.id) + '"'
           + ' style="display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:7px;cursor:pointer;font-size:12px;">'
-          + ava + '<span>' + chatEsc(p.full_name || p.email) + '</span></div>';
+          + ava
+          + '<span style="display:flex;flex-direction:column;line-height:1.25;min-width:0;">'
+          + '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + chatEsc(label) + '</span>'
+          + sub + '</span>' + meta + '</div>';
       }).join('');
     }
 
