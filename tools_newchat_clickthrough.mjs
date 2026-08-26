@@ -2885,7 +2885,7 @@ await step('deactivated people are filtered by default, everywhere', async () =>
     out.resolvesByEq = (one.data || []).some(p => p.id === deadId);
 
     // 3. The explicit way out, for the screen that manages them.
-    const all = await window.giantProfilesAll().select('id, deactivated_at');
+    const all = await sb.profilesIncludingDeactivated().select('id, deactivated_at');
     out.optOutSeesThem = (all.data || []).some(p => p.id === deadId);
 
     // 4. A WRITE must never carry the filter. On an insert it is meaningless; on an
@@ -2898,7 +2898,14 @@ await step('deactivated people are filtered by default, everywhere', async () =>
     const upd2 = await sb.from('profiles').update({ title: 'by-email' }).eq('email', target.email);
     out.writeByOtherKeySucceeded = !upd2.error;
 
-    // 5. And the filter must not have broken ordinary reads of other tables.
+    // 5. It is installed on createClient, not on one client, because this file builds
+    //    three of them -- so a client made fresh right now inherits it too.
+    const fresh = window.supabase.createClient('https://x.supabase.co', 'anon-key');
+    const freshRead = await fresh.from('profiles').select('id');
+    out.freshClientFiltered = !(freshRead.data || []).some(p => p.id === deadId);
+    out.freshHasOptOut = typeof fresh.profilesIncludingDeactivated === 'function';
+
+    // 6. And the filter must not have broken ordinary reads of other tables.
     const chans = await sb.from('channels').select('id').limit(3);
     out.otherTablesFine = Array.isArray(chans.data) && chans.data.length > 0;
     return out;
@@ -2909,7 +2916,8 @@ await step('deactivated people are filtered by default, everywhere', async () =>
       && r.resolvesById === true && r.resolvesByEq === true
       && r.optOutSeesThem === true && r.otherTablesFine === true
       && r.writeSucceeded === true && r.writeLanded === true
-      && r.writeByOtherKeySucceeded === true,
+      && r.writeByOtherKeySucceeded === true
+      && r.freshClientFiltered === true && r.freshHasOptOut === true,
     JSON.stringify(r));
 });
 

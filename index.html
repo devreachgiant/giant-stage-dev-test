@@ -5507,6 +5507,65 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 <script src="/config.js?_t=20260611u17"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+/* ── Deactivated people are not offered, from any client, anywhere ──────────────────
+   There are 89 places in this file that read `profiles`. Filtering each one by hand is
+   how a deactivated colleague kept turning up in a picker: every new list is a fresh
+   chance to forget. So the DEFAULT is inverted, and it is done HERE -- on createClient
+   itself -- rather than on one client, because this file builds three of them and a
+   guarantee that holds for one of them is not a guarantee.
+
+   Two things are deliberately exempt, because hiding them is the worse bug:
+
+     1. A query that names ids -- .eq('id', x) or .in('id', [...]) -- is RESOLVING people
+        it already knows about, not offering a choice. That is what keeps a message from
+        someone who has since left showing their name rather than going blank.
+     2. client.profilesIncludingDeactivated() is the way out, for the one screen whose job
+        is to manage deactivated accounts and reactivate them.
+
+   Writes are never touched: a filter appended to an insert is meaningless, and on an
+   update it would silently change which rows are written. The chain must have called
+   select(), and no write method, before anything is added -- and the filter goes on at
+   execution, once it is known whether ids were named. */
+(function installProfileFilter(){
+  if (!window.supabase || !window.supabase.createClient || window.supabase.__profileFilterInstalled) return;
+  const rawCreate = window.supabase.createClient.bind(window.supabase);
+  window.supabase.createClient = function(...args){
+    const client = rawCreate(...args);
+    const rawFrom = client.from.bind(client);
+    client.profilesIncludingDeactivated = () => rawFrom('profiles');
+    client.from = (table, ...rest) => {
+      const builder = rawFrom(table, ...rest);
+      if (table !== 'profiles') return builder;
+      let namesIds = false, isWrite = false, isSelect = false, applied = false;
+      const wrap = (b) => new Proxy(b, {
+        get(target, prop, recv){
+          const v = Reflect.get(target, prop, recv);
+          if (prop === 'then') {
+            if (!applied && !namesIds && isSelect && !isWrite && typeof target.is === 'function') {
+              applied = true;
+              const filtered = target.is('deactivated_at', null);
+              return filtered.then.bind(filtered);
+            }
+            return typeof v === 'function' ? v.bind(target) : v;
+          }
+          if (typeof v !== 'function') return v;
+          return (...a) => {
+            if ((prop === 'eq' || prop === 'in') && a[0] === 'id') namesIds = true;
+            if (prop === 'insert' || prop === 'update' || prop === 'upsert' || prop === 'delete') isWrite = true;
+            if (prop === 'select') isSelect = true;
+            const out = v.apply(target, a);
+            return (out && typeof out === 'object' && typeof out.then === 'function') ? wrap(out) : out;
+          };
+        }
+      });
+      return wrap(builder);
+    };
+    return client;
+  };
+  window.supabase.__profileFilterInstalled = true;
+})();
+</script>
+<script>
 // Bootstrap's routing logic normalizes the URL to a bare path (e.g. history.replaceState('', '/app'))
 // as soon as auth resolves, which strips query params like ?task=<id> or ?sop=<id> before the
 // deep-link handlers (which run on a delay, after their screen exists) get a chance to read them.
@@ -35501,62 +35560,6 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
   const SUPABASE_ANON_KEY = window.GIANT_SUPABASE_ANON_KEY || 'sb_publishable_ogf5kmGoZxfBi20v00akRA_ok4_tJvQ';
 
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-  // ── Deactivated people are not offered, anywhere ──────────────────────────────
-  // There are 89 places in this file that read `profiles`, and filtering each one by
-  // hand is how a deactivated colleague kept turning up in a picker: every new list is
-  // a fresh chance to forget. So the DEFAULT is inverted here, once, and a query has to
-  // ask to see them.
-  //
-  // Two things are deliberately left alone, because hiding them would be the worse bug:
-  //
-  //  1. A query that names ids -- .eq('id', x) or .in('id', [...]) -- is RESOLVING people
-  //     it already knows about, not offering a choice. That is how a message written by
-  //     someone who has since left still shows their name instead of going blank.
-  //  2. giantProfilesAll() is the explicit way out, for the one screen whose job is to
-  //     manage deactivated accounts and reactivate them.
-  //
-  // The filter is applied at execution rather than at .from(), so it lands after the
-  // caller has finished building and can be skipped once we know whether ids were named.
-  (function filterDeactivatedByDefault(){
-    const rawFrom = supabase.from.bind(supabase);
-    window.giantProfilesAll = () => rawFrom('profiles');
-    supabase.from = (table, ...rest) => {
-      const builder = rawFrom(table, ...rest);
-      if (table !== 'profiles') return builder;
-      let namesIds = false;
-      let applied = false;
-      // Reads only. A write chain -- insert, update, upsert, delete -- must never have a
-      // filter quietly appended to it: on an insert that is meaningless, and on an update
-      // it would silently change which rows are written.
-      let isWrite = false;
-      let isSelect = false;
-      const wrap = (b) => new Proxy(b, {
-        get(target, prop, recv) {
-          const v = Reflect.get(target, prop, recv);
-          if (prop === 'then') {
-            // Last chance before the request goes out.
-            if (!applied && !namesIds && isSelect && !isWrite && typeof target.is === 'function') {
-              applied = true;
-              const filtered = target.is('deactivated_at', null);
-              return filtered.then.bind(filtered);
-            }
-            return typeof v === 'function' ? v.bind(target) : v;
-          }
-          if (typeof v !== 'function') return v;
-          return (...args) => {
-            if ((prop === 'eq' || prop === 'in') && args[0] === 'id') namesIds = true;
-            if (prop === 'insert' || prop === 'update' || prop === 'upsert' || prop === 'delete') isWrite = true;
-            if (prop === 'select') isSelect = true;
-            const out = v.apply(target, args);
-            // PostgREST builders return themselves; keep the proxy on the chain.
-            return (out && typeof out === 'object' && typeof out.then === 'function') ? wrap(out) : out;
-          };
-        }
-      });
-      return wrap(builder);
-    };
-  })();
 
   // Expose for the auth fetch-wrapper in <head> (security batch 2): lets it read a
   // fresh, auto-refreshed session token when attaching Authorization headers.
@@ -65563,7 +65566,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         rowsEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-3);font-size:12px;">Loading…</div>';
       }
       const [profilesRes, invitationsRes] = await Promise.all([
-        window.giantProfilesAll()   /* the one screen whose job is to manage deactivated accounts, so it opts out of the app-wide filter */.select('id, email, full_name, avatar_url, avatar_bg, avatar_fg, role, joined_at, last_active_at, deactivated_at').order('joined_at', { ascending: true, nullsFirst: false }),
+        supabase.profilesIncludingDeactivated()   /* the one screen whose job is to manage deactivated accounts, so it opts out of the app-wide filter */.select('id, email, full_name, avatar_url, avatar_bg, avatar_fg, role, joined_at, last_active_at, deactivated_at').order('joined_at', { ascending: true, nullsFirst: false }),
         supabase.from('invitations').select('id, email, full_name, role, expires_at, created_at').is('accepted_at', null).is('revoked_at', null).gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false })
       ]);
       const profiles = profilesRes.data || [];
