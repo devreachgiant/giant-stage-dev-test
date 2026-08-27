@@ -62955,7 +62955,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       sessionClose?.addEventListener('click', closeCrewSession);
       // Esc to close
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && overlay.classList.contains('on')) closeCrewSession();
+        // `overlay?.` -- every other line in this block guards it, and this one did not.
+        // The listener is on DOCUMENT, so it runs on every Escape pressed anywhere in the
+        // app, and threw an uncaught error each time on any screen where the crew session
+        // overlay is not in the DOM.
+        if (e.key === 'Escape' && overlay?.classList.contains('on')) closeCrewSession();
       });
       // Click backdrop to close (anywhere outside the grid)
       overlay?.addEventListener('click', (e) => {

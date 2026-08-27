@@ -77,7 +77,13 @@ page.on('console', m => {
   if (m.type() === 'error') consoleErrors.push(m.text().slice(0, 400));
   if (m.type() === 'warning' && /newchat/.test(m.text())) consoleErrors.push('WARN ' + m.text().slice(0, 300));
 });
-page.on('pageerror', e => pageErrors.push(String(e.message || e).slice(0, 400)));
+// The message alone says what broke but never where. A stack turns "cannot read
+// properties of null" into a line number, which is the difference between a fix and a
+// hunt -- and this one only appears in some runs, so the run that catches it has to
+// carry enough to act on.
+page.on('pageerror', e => pageErrors.push(
+  String(e.message || e).slice(0, 200)
+  + ' @ ' + String(e.stack || '').split('\n').slice(1, 4).map(l => l.trim()).join(' <- ').slice(0, 300)));
 
 // A bare "Failed to load resource" in the console says nothing about which host. Record
 // the failures themselves so an external dependency is distinguishable from a real bug.
