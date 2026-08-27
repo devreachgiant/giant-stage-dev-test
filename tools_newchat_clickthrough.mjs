@@ -3062,6 +3062,65 @@ await step('scheduling a message writes exactly one row', async () => {
     JSON.stringify(r));
 });
 
+await step('scheduling from inside a thread also writes exactly one row', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const db = window.__mock.db;
+    db.scheduled_messages = db.scheduled_messages || [];
+    const out = {};
+    const team = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item[data-nc-channel-id]')][0];
+    if (team) { team.click(); await wait(1800); }
+    out.channel = window.nc_activeChannelId;
+
+    // Open a thread on a message, which is where it was reported from.
+    const row = [...document.querySelectorAll('#nc_chatMsgs [data-msg-id]')].pop();
+    if (!row) return { noMessage: true };
+    row.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+    await wait(300);
+    row.querySelector('.nc_msg-reply-btn')?.click();
+    await wait(1800);
+    const tInput = document.getElementById('nc_threadInput');
+    out.threadOpen = !!tInput && !!tInput.offsetParent;
+    if (!tInput) return out;
+    tInput.value = 'scheduled from a thread';
+    tInput.dispatchEvent(new Event('input', { bubbles: true }));
+
+    document.querySelectorAll('.toast, [class*="toast"]').forEach(t => t.remove());
+    const before = db.scheduled_messages.length;
+    document.getElementById('nc_threadScheduleBtn')?.click();
+    await wait(700);
+    const custom = document.getElementById('scheduleCustomTimeBtn');
+    out.customFound = !!custom;
+    if (!custom) return out;
+    custom.click();
+    await wait(700);
+    const timeInput = document.getElementById('scheduleTimeInput');
+    if (timeInput) {
+      timeInput.value = '11:59 pm';
+      timeInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await wait(300);
+    }
+    document.getElementById('scheduleMsgCustomBtn')?.click();
+    for (let i = 0; i < 40; i++) {
+      await wait(200);
+      if (db.scheduled_messages.length > before) break;
+    }
+    await wait(1400);              // long enough for a second write to land
+    const made = db.scheduled_messages.slice(before);
+    out.rowsWritten = made.length;
+    out.channels = [...new Set(made.map(m => m.channel_id))];
+    out.parents = [...new Set(made.map(m => m.parent_id || null))];
+    // Two toasts is what a person sees when two handlers ran.
+    out.toasts = document.querySelectorAll('.toast, [class*="toast"]').length;
+    return out;
+  });
+  check('scheduling from inside a thread also writes exactly one row',
+    r.threadOpen && r.customFound && r.rowsWritten === 1
+      && r.channels.length === 1 && r.channels[0] === r.channel
+      && r.parents.length === 1 && r.parents[0] !== null,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
