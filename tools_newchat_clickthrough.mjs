@@ -3030,6 +3030,17 @@ await step('scheduling a message writes exactly one row', async () => {
     if (!custom) return out;
     custom.click();
     await wait(700);
+    // Pick a time that is definitely in the future. combinedDate() reads the picker's
+    // own state, which starts at roughly NOW, so clicking Save without setting one is
+    // rejected as "pick a time in the future" -- and the check then measured zero writes
+    // and blamed the app. Late tonight, which is future for any run before 23:58.
+    const timeInput = document.getElementById('scheduleTimeInput');
+    if (timeInput) {
+      timeInput.value = '11:59 pm';
+      timeInput.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      await wait(300);
+    }
+    out.timeSet = timeInput ? timeInput.value : null;
     const saveBtn = document.getElementById('scheduleMsgCustomBtn');
     out.saveFound = !!saveBtn;
     if (!saveBtn) return out;
