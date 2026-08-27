@@ -71244,13 +71244,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         row.appendChild(dot);
       };
       // cloneNode does not carry listeners, so each clone gets its own.
-      const place = (row, body, id, withStar, jump) => {
+      const place = (row, body, id, withStar, jumpTo, label) => {
         if (!body) return null;
+        if (!matches(label != null ? label : row.textContent)) return null;
+        jumpHits++;
         const cl = row.cloneNode(true);
         // Rows in the Needs you card jump to the message that put them there; everywhere
         // else a row just opens its channel.
         cl.addEventListener('click', () => {
-          const t = jump && ncNeedMsg[id];
+          const t = jumpTo && ncNeedMsg[id];
           if (t) ncJumpToMessage(id, t.id, t.parentId); else switchChannel(id);
         });
         if (withStar) cl.appendChild(starButton(id));
@@ -71261,6 +71263,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const src = document.getElementById('nc_chatChannelList');
       const rowByChannel = new Map();
       const needPlaced = new Set();
+      // The "Jump to channel or DM" box filters the SOURCE lists, and the cards are built
+      // from those -- but the Clients card is built from the client list instead, so it
+      // ignored the query completely and typing a client's name left all 53 sitting
+      // there. Every card is filtered here, on what the row actually says, which also
+      // makes a person's name match their DM.
+      const jump = (window.nc__chatJumpToQuery || '').trim().toLowerCase();
+      const matches = (text) => !jump || String(text || '').toLowerCase().includes(jump);
+      let jumpHits = 0;
       (src ? [...src.querySelectorAll('.nc_ch-item[data-nc-channel-id]')] : []).forEach(row => {
         const c = byId.get(row.dataset.ncChannelId);
         if (!c) return;
@@ -71338,6 +71348,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           row.style.opacity = '.62';
           row.title = 'No conversation yet — click to start one';
           row.addEventListener('click', () => openClientThread(cl.id));
+          if (!matches(cl.name)) return;
+          jumpHits++;
           bodies.clients.appendChild(row);
         });
 
@@ -71407,6 +71419,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           const t = ncNeedMsg[id];
           if (t) ncJumpToMessage(id, t.id, t.parentId); else switchChannel(id);
         });
+        // Built by hand rather than cloned, so place()'s filter never saw it.
+        if (!matches(label)) return;
+        jumpHits++;
         bodies.needs.appendChild(row);
         tagNeed(row, kind);
         needPlaced.add(id);
@@ -71448,14 +71463,55 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // this sidebar has already had -- rows destroyed by a re-render, and rows
       // filtered out upstream. It should report itself rather than look like an
       // empty workspace.
-      if (!shown && (chatChannels.length || (chatDmChannels || []).length)) {
+      // ...unless a search is running, where an empty sidebar is the correct answer to
+      // "nothing matches" rather than a symptom of rows being destroyed.
+      if (!shown && !jump && (chatChannels.length || (chatDmChannels || []).length)) {
         console.warn('[newchat] nav cards empty but %d channels / %d DMs are loaded — '
           + 'the engine list rendered %d rows',
           chatChannels.length, (chatDmChannels || []).length,
           (document.getElementById('nc_chatChannelList') || { querySelectorAll: () => [] })
             .querySelectorAll('.nc_ch-item').length);
       }
-    }
+    
+      // While searching, every card with a hit is opened and every card without one is
+      // put away. The cards are an accordion the rest of the time -- one open, the others
+      // shut -- and leaving that in place during a search means the answer is usually
+      // inside a collapsed card, which reads as "no results".
+      const cards = [...document.querySelectorAll('.nc_navcard')];
+      if (jump) {
+        cards.forEach(card => {
+          const body = card.querySelector('.nc_navcard-body');
+          // No card is exempt. Needs you and Starred were left alone at first, and their
+          // rows then sat there through a search that had filtered everything else,
+          // which reads as the search not working.
+          if (!body) return;
+          const hits = body.querySelectorAll('.nc_ch-item').length;
+          card.style.display = hits ? '' : 'none';
+          if (hits) {
+            body.style.display = '';
+            body.style.height = 'auto';
+            card.classList.add('nc_card-open');
+          }
+          const count = card.querySelector('.nc_navcard-count');
+          if (count && hits) count.textContent = String(hits);
+        });
+        let empty = document.getElementById('nc_jumpEmpty');
+        if (!jumpHits) {
+          if (!empty) {
+            empty = document.createElement('div');
+            empty.id = 'nc_jumpEmpty';
+            empty.style.cssText = 'padding:18px 12px;text-align:center;color:var(--c3-t5);font-size:12px;';
+            (bodies.clients && bodies.clients.parentElement && bodies.clients.parentElement.parentElement || document.body).prepend(empty);
+          }
+          empty.textContent = 'Nothing matches “' + jump + '”';
+          empty.style.display = '';
+        } else if (empty) { empty.style.display = 'none'; }
+      } else {
+        cards.forEach(card => { card.style.display = ''; });
+        const empty = document.getElementById('nc_jumpEmpty');
+        if (empty) empty.style.display = 'none';
+      }
+}
     window.nc_renderNavCards = renderNavCards;
 
     // renderDmChannelList is async and unread badges are stamped onto rows after the

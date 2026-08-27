@@ -2921,6 +2921,61 @@ await step('deactivated people are filtered by default, everywhere', async () =>
     JSON.stringify(r));
 });
 
+await step('the sidebar search finds a client, a channel and a person', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const inp = document.getElementById('nc_chatJumpToInput');
+    const out = { hasInput: !!inp };
+    if (!inp) return out;
+    const rowsIn = (id) => [...document.querySelectorAll('#nc_card' + id + 'Body .nc_ch-item')];
+    const type = async (t) => {
+      inp.value = t;
+      inp.dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(900);
+    };
+    const visibleRows = () => [...document.querySelectorAll('.nc_navcard')]
+      .filter(c => c.style.display !== 'none')
+      .flatMap(c => [...c.querySelectorAll('.nc_navcard-body .nc_ch-item')]);
+
+    // a CLIENT by name -- the card that used to ignore the query entirely
+    const client = window.__mock.db.clients.find(c => c.status !== 'churned');
+    await type(client.name.split(' ')[0]);
+    const afterClient = visibleRows().map(e => e.textContent.trim());
+    out.clientTerm = client.name.split(' ')[0];
+    out.clientFound = afterClient.some(t => t.toLowerCase().includes(out.clientTerm.toLowerCase()));
+    out.clientNarrowed = afterClient.length < window.__mock.db.clients.length;
+    // ...and every row shown actually matches, rather than the list simply not filtering
+    out.clientAllMatch = afterClient.every(t => t.toLowerCase().includes(out.clientTerm.toLowerCase()));
+
+    // a CHANNEL by name
+    await type('general');
+    out.channelFound = visibleRows().some(e => /general/i.test(e.textContent));
+
+    // a PERSON by name -- their DM should be findable by who it is with
+    const person = window.__mock.db.profiles.find(p => !p.deactivated_at && p.full_name && p.id !== window.__mock.me);
+    const first = (person.full_name || '').split(' ')[0];
+    await type(first);
+    out.personTerm = first;
+    out.personFound = visibleRows().some(e => e.textContent.toLowerCase().includes(first.toLowerCase()));
+
+    // nothing at all says so, rather than showing an untouched list
+    await type('zzzzz-no-such-thing');
+    out.emptyShown = !!document.getElementById('nc_jumpEmpty')
+      && document.getElementById('nc_jumpEmpty').style.display !== 'none';
+    out.emptyRows = visibleRows().length;
+
+    // clearing puts everything back
+    await type('');
+    out.restored = visibleRows().length > 10;
+    return out;
+  });
+  check('the sidebar search finds a client, a channel and a person',
+    r.hasInput && r.clientFound && r.clientNarrowed && r.clientAllMatch
+      && r.channelFound && r.personFound
+      && r.emptyShown && r.emptyRows === 0 && r.restored,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
