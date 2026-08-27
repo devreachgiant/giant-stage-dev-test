@@ -71213,6 +71213,148 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (ready < pairs.length) setTimeout(wireCardActions, 600);
     })();
 
+    // ── Quick switcher ────────────────────────────────────────────────────────────
+    // Type a name, see what matches, press Enter. Channels, clients and people in one
+    // list, under the box, the way a jump-to control is expected to behave.
+    let ncJumpSel = 0;
+    let ncJumpRows = [];
+    function ncJumpPanel(){
+      let el = document.getElementById('nc_jumpResults');
+      if (el) return el;
+      const box = document.getElementById('nc_chatJumpToInput');
+      if (!box) return null;
+      const anchorEl = box.closest('div') || box.parentElement;
+      if (anchorEl && getComputedStyle(anchorEl).position === 'static') anchorEl.style.position = 'relative';
+      el = document.createElement('div');
+      el.id = 'nc_jumpResults';
+      el.style.cssText = 'position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:80;'
+        + 'background:var(--surface);border:1px solid var(--line-2);border-radius:11px;'
+        + 'box-shadow:0 18px 40px -12px rgba(0,0,0,.6);padding:5px;max-height:340px;'
+        + 'overflow-y:auto;display:none;';
+      (anchorEl || document.body).appendChild(el);
+      return el;
+    }
+    function ncJumpCandidates(q){
+      const t = q.trim().toLowerCase();
+      if (!t) return [];
+      const seen = new Set();
+      const out = [];
+      const add = (o) => { if (o && !seen.has(o.key)) { seen.add(o.key); out.push(o); } };
+      const hit = (s) => String(s || '').toLowerCase().includes(t);
+
+      (chatChannels || []).forEach(c => {
+        if (c.is_dm) return;
+        const cl = c.client_id ? ncClients[c.client_id] : null;
+        const name = cl ? cl.name : c.name;
+        const dept = c.department && c.department !== 'general'
+          ? (NC_DEPTS.find(d => d.key === c.department) || {}).label : null;
+        const label = (name || c.name) + (dept ? ' · ' + dept : '');
+        // Matched on the LABEL, which is what the row shows. Matching the underlying
+        // channel name as well put rows in the list whose visible text did not contain
+        // what was typed -- a result you cannot explain is worse than one you do not get.
+        if (!hit(label)) return;
+        add({ key: 'ch:' + c.id, kind: cl ? 'Client' : 'Channel', label,
+              go: () => switchChannel(c.id) });
+      });
+      Object.values(ncClients || {}).forEach(cl => {
+        if (!hit(cl.name)) return;
+        if ((chatChannels || []).some(c => c.client_id === cl.id)) return;   // already listed
+        add({ key: 'cl:' + cl.id, kind: 'Client', label: cl.name,
+              go: () => openClientThread(cl.id) });
+      });
+      (chatDmChannels || []).forEach(c => {
+        const others = (c.dm_pair || '').split(':').filter(x => x && x !== ncMyId());
+        const names = others.map(id => (chatProfilesCache[id] || {}).full_name
+                                    || (chatProfilesCache[id] || {}).email || '').filter(Boolean);
+        const label = names.join(', ') || c.name || 'Conversation';
+        if (!hit(label)) return;
+        add({ key: 'dm:' + c.id, kind: others.length > 1 ? 'Group' : 'Direct',
+              label, go: () => switchChannel(c.id) });
+      });
+      Object.values(chatProfilesCache || {}).forEach(p => {
+        if (!p || !p.id || p.id === ncMyId() || ncIsDeactivated(p)) return;
+        const label = p.full_name || p.email || '';
+        if (!hit(label)) return;
+        add({ key: 'p:' + p.id, kind: 'Person', label,
+              go: () => {
+                const src = document.querySelector('#nc_chatDmList [data-start-dm="' + p.id + '"]');
+                if (src) src.click();
+                else if (typeof toast === 'function') toast({ type:'info', message:'Open Direct to start a conversation with ' + label });
+              } });
+      });
+      return out.slice(0, 12);
+    }
+    function ncRenderJump(q){
+      const el = ncJumpPanel();
+      if (!el) return;
+      ncJumpRows = ncJumpCandidates(q);
+      ncJumpSel = 0;
+      if (!q.trim()) { el.style.display = 'none'; el.innerHTML = ''; return; }
+      el.style.display = '';
+      if (!ncJumpRows.length) {
+        el.innerHTML = '<div style="padding:14px;text-align:center;color:var(--c3-t5);font-size:12px;">Nothing matches “'
+          + chatEsc(q.trim()) + '”</div>';
+        return;
+      }
+      el.innerHTML = ncJumpRows.map((r, i) =>
+        '<div class="nc_jump-row" data-i="' + i + '" style="display:flex;align-items:center;gap:9px;'
+        + 'padding:8px 9px;border-radius:8px;cursor:pointer;font-size:12.5px;'
+        + (i === 0 ? 'background:var(--surface-2);' : '') + '">'
+        + '<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
+        + chatEsc(r.label) + '</span>'
+        + '<span style="font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;'
+        + 'color:var(--text-3);flex-shrink:0;">' + chatEsc(r.kind) + '</span></div>').join('');
+      el.querySelectorAll('.nc_jump-row').forEach(row => {
+        row.addEventListener('mouseenter', () => ncJumpHighlight(Number(row.dataset.i)));
+        row.addEventListener('click', () => ncJumpGo(Number(row.dataset.i)));
+      });
+    }
+    function ncJumpHighlight(i){
+      const el = document.getElementById('nc_jumpResults');
+      if (!el) return;
+      ncJumpSel = Math.max(0, Math.min(i, ncJumpRows.length - 1));
+      el.querySelectorAll('.nc_jump-row').forEach((r, n) => {
+        r.style.background = n === ncJumpSel ? 'var(--surface-2)' : '';
+      });
+      const sel = el.querySelector('.nc_jump-row[data-i="' + ncJumpSel + '"]');
+      if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: 'nearest' });
+    }
+    function ncJumpGo(i){
+      const r = ncJumpRows[i];
+      if (!r) return;
+      ncJumpClose();
+      r.go();
+    }
+    function ncJumpClose(){
+      const el = document.getElementById('nc_jumpResults');
+      if (el) { el.style.display = 'none'; el.innerHTML = ''; }
+      ncJumpRows = [];
+      const box = document.getElementById('nc_chatJumpToInput');
+      if (box) box.value = '';
+      window.nc__chatJumpToQuery = '';
+      const clear = document.getElementById('nc_chatJumpToClear');
+      if (clear) clear.style.display = 'none';
+    }
+    window.nc_renderJump = ncRenderJump;
+    window.nc_jumpRowCount = () => ncJumpRows.length;
+    (function wireJumpKeys(){
+      const box = document.getElementById('nc_chatJumpToInput');
+      if (!box || box._ncJumpWired) { if (!box) setTimeout(wireJumpKeys, 500); return; }
+      box._ncJumpWired = true;
+      box.addEventListener('keydown', (e) => {
+        if (!ncJumpRows.length) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); ncJumpHighlight(ncJumpSel + 1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); ncJumpHighlight(ncJumpSel - 1); }
+        else if (e.key === 'Enter') { e.preventDefault(); ncJumpGo(ncJumpSel); }
+        else if (e.key === 'Escape') { e.preventDefault(); ncJumpClose(); }
+      });
+      document.addEventListener('click', (e) => {
+        const panel = document.getElementById('nc_jumpResults');
+        if (!panel || panel.style.display === 'none') return;
+        if (!panel.contains(e.target) && e.target !== box) ncJumpClose();
+      });
+    })();
+
     function renderNavCards(){
       const bodies = {
         needs:   document.getElementById('nc_cardNeedsBody'),
@@ -75341,7 +75483,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           window.nc__chatJumpToWired = true;
           let debounce = null;
           const applyFilter = () => {
-            window.nc__chatJumpToQuery = jumpEl.value || '';
+            // The jump box drives the quick switcher below, not the sidebar. Filtering the
+            // sidebar in place looked like nothing happening -- the answer was usually in
+            // a collapsed card -- and reshuffling the list under the results panel while
+            // someone is reading it is worse than leaving it alone.
+            window.nc__chatJumpToQuery = '';
+            if (typeof ncRenderJump === 'function') ncRenderJump(jumpEl.value || '');
             if (clearEl) clearEl.style.display = window.nc__chatJumpToQuery ? '' : 'none';
             // Re-render both lists with the new filter
             renderChannelList();

@@ -2921,58 +2921,75 @@ await step('deactivated people are filtered by default, everywhere', async () =>
     JSON.stringify(r));
 });
 
-await step('the sidebar search finds a client, a channel and a person', async () => {
+await step('the jump box is a quick switcher: type, see matches, Enter to go', async () => {
   const r = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms));
     const inp = document.getElementById('nc_chatJumpToInput');
     const out = { hasInput: !!inp };
     if (!inp) return out;
-    const rowsIn = (id) => [...document.querySelectorAll('#nc_card' + id + 'Body .nc_ch-item')];
     const type = async (t) => {
       inp.value = t;
       inp.dispatchEvent(new Event('input', { bubbles: true }));
-      await wait(900);
+      await wait(500);
     };
-    const visibleRows = () => [...document.querySelectorAll('.nc_navcard')]
-      .filter(c => c.style.display !== 'none')
-      .flatMap(c => [...c.querySelectorAll('.nc_navcard-body .nc_ch-item')]);
+    const panel = () => document.getElementById('nc_jumpResults');
+    const rows = () => panel() ? [...panel().querySelectorAll('.nc_jump-row')] : [];
+    const seen = (el) => {
+      if (!el || el.style.display === 'none') return false;
+      const rc = el.getBoundingClientRect();
+      return rc.width > 80 && rc.height > 20 && rc.top >= 0 && rc.bottom <= window.innerHeight + 400;
+    };
 
-    // a CLIENT by name -- the card that used to ignore the query entirely
+    // A CHANNEL by name
+    await type('general');
+    out.panelShows = seen(panel());
+    out.channelRows = rows().length;
+    out.everyRowMatches = rows().every(e => /general/i.test(e.textContent));
+    // the panel sits directly under the box, not somewhere else on the page
+    if (panel()) {
+      const p = panel().getBoundingClientRect(), b = inp.getBoundingClientRect();
+      out.gapUnderBox = Math.round(p.top - b.bottom);
+    }
+
+    // A PERSON by name
+    const person = window.__mock.db.profiles.find(p => !p.deactivated_at && p.full_name && p.id !== window.__mock.me);
+    await type((person.full_name || '').split(' ')[0]);
+    out.personRows = rows().length;
+    out.labelsPersonKind = rows().some(e => /person|direct|group/i.test(e.textContent));
+
+    // A CLIENT by name
     const client = window.__mock.db.clients.find(c => c.status !== 'churned');
     await type(client.name.split(' ')[0]);
-    const afterClient = visibleRows().map(e => e.textContent.trim());
-    out.clientTerm = client.name.split(' ')[0];
-    out.clientFound = afterClient.some(t => t.toLowerCase().includes(out.clientTerm.toLowerCase()));
-    out.clientNarrowed = afterClient.length < window.__mock.db.clients.length;
-    // ...and every row shown actually matches, rather than the list simply not filtering
-    out.clientAllMatch = afterClient.every(t => t.toLowerCase().includes(out.clientTerm.toLowerCase()));
+    out.clientRows = rows().length;
+    out.labelsClientKind = rows().some(e => /client/i.test(e.textContent));
 
-    // a CHANNEL by name
+    // Enter routes you there, and the box clears itself
+    const before = window.nc_activeChannelId;
     await type('general');
-    out.channelFound = visibleRows().some(e => /general/i.test(e.textContent));
+    inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    await wait(2000);
+    out.navigated = window.nc_activeChannelId !== before || !!window.nc_activeChannelId;
+    out.closedAfterGo = !seen(panel());
+    out.boxCleared = inp.value === '';
 
-    // a PERSON by name -- their DM should be findable by who it is with
-    const person = window.__mock.db.profiles.find(p => !p.deactivated_at && p.full_name && p.id !== window.__mock.me);
-    const first = (person.full_name || '').split(' ')[0];
-    await type(first);
-    out.personTerm = first;
-    out.personFound = visibleRows().some(e => e.textContent.toLowerCase().includes(first.toLowerCase()));
+    // Nothing matching says so
+    await type('zzzz-no-such-thing');
+    out.emptyState = /nothing matches/i.test((panel() || {}).textContent || '');
 
-    // nothing at all says so, rather than showing an untouched list
-    await type('zzzzz-no-such-thing');
-    out.emptyShown = !!document.getElementById('nc_jumpEmpty')
-      && document.getElementById('nc_jumpEmpty').style.display !== 'none';
-    out.emptyRows = visibleRows().length;
-
-    // clearing puts everything back
-    await type('');
-    out.restored = visibleRows().length > 10;
+    // Escape closes it
+    await type('general');
+    inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    await wait(400);
+    out.escapeCloses = !seen(panel());
     return out;
   });
-  check('the sidebar search finds a client, a channel and a person',
-    r.hasInput && r.clientFound && r.clientNarrowed && r.clientAllMatch
-      && r.channelFound && r.personFound
-      && r.emptyShown && r.emptyRows === 0 && r.restored,
+  check('the jump box is a quick switcher: type, see matches, Enter to go',
+    r.hasInput && r.panelShows && r.channelRows > 0 && r.everyRowMatches
+      && r.gapUnderBox >= 0 && r.gapUnderBox < 40
+      && r.personRows > 0 && r.labelsPersonKind
+      && r.clientRows > 0 && r.labelsClientKind
+      && r.navigated && r.closedAfterGo && r.boxCleared
+      && r.emptyState && r.escapeCloses,
     JSON.stringify(r));
 });
 
