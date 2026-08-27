@@ -46,7 +46,25 @@ AFTER_SPLIT = (
     "      // pinned in tools_newchat_isolation.py; the only other one is the member count.\n"
     "      const allChannels = (data || []).filter(c => c.kind !== 'client_dept');\n")
 
-ALLOWED = [(1, BEFORE_HEAD_MEMBERS, AFTER_HEAD_MEMBERS,
+BEFORE_SCHED_FOR = "    async function scheduleFor(date){\n"
+AFTER_SCHED_FOR = (
+    "    async function scheduleFor(date){\n"
+    "      // Shared with New Chat: one modal, one Save button, two modules listening. Without\n"
+    "      // this, scheduling from either screen wrote two rows into two different channels.\n"
+    "      if (!document.querySelector('.screen[data-screen=\"chat\"].on')) return;\n")
+
+BEFORE_SCHED_SAVE = "    async function saveCustomSchedule(date){\n"
+AFTER_SCHED_SAVE = (
+    "    async function saveCustomSchedule(date){\n"
+    "      if (!document.querySelector('.screen[data-screen=\"chat\"].on')) return;\n")
+
+ALLOWED = [(1, BEFORE_SCHED_FOR, AFTER_SCHED_FOR,
+            'the schedule modal is one set of elements shared by both chats and both '
+            'modules listen to it, so one click scheduled the message twice, into two '
+            'different channels; each module now acts only while its own screen is on'),
+           (1, BEFORE_SCHED_SAVE, AFTER_SCHED_SAVE,
+            'the same double-send through the custom Save button'),
+           (1, BEFORE_HEAD_MEMBERS, AFTER_HEAD_MEMBERS,
             'the channel header counted every workspace profile instead of the channel\'s '
             'members; fixed in both chats by explicit decision, not a leak'),
            (1, BEFORE_CLIENT_CHANNELS, AFTER_CLIENT_CHANNELS,

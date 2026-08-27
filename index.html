@@ -45374,6 +45374,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       }
 
       async function scheduleFor(date){
+      // Shared with New Chat: one modal, one Save button, two modules listening. Without
+      // this, scheduling from either screen wrote two rows into two different channels.
+      if (!document.querySelector('.screen[data-screen="chat"].on')) return;
         const target = getTarget();
         const body = (target.inputEl.value || '').trim();
         if (!body){ if (typeof toast==='function') toast({type:'error', message:'Type a message first'}); return; }
@@ -45401,6 +45404,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       // Used by the "Custom time" modal — supports both creating a new scheduled
       // message and saving edits to an existing one (editingScheduleId).
       async function saveCustomSchedule(date){
+      if (!document.querySelector('.screen[data-screen="chat"].on')) return;
         const target = getTarget();
         const body = ($('scheduleMsgBody').value || '').trim();
         if (!body){ if (typeof toast==='function') toast({type:'error', message:'Message can\'t be empty'}); return; }
@@ -77303,6 +77307,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       }
 
       async function scheduleFor(date){
+        // The schedule modal, its presets and its Save button are ONE set of elements,
+        // shared by both chat screens -- and both modules attach handlers to them. A
+        // single click therefore ran both, and the message was scheduled twice: once
+        // into this screen's channel and once into whatever the other screen had open.
+        // Each module now acts only while its own screen is the one on.
+        if (!document.querySelector('.screen[data-screen="newchat"].on')) return;
         const target = getTarget();
         const body = (target.inputEl.value || '').trim();
         if (!body){ if (typeof toast==='function') toast({type:'error', message:'Type a message first'}); return; }
@@ -77330,6 +77340,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // Used by the "Custom time" modal — supports both creating a new scheduled
       // message and saving edits to an existing one (editingScheduleId).
       async function saveCustomSchedule(date){
+        if (!document.querySelector('.screen[data-screen="newchat"].on')) return;
         const target = getTarget();
         const body = ($('scheduleMsgBody').value || '').trim();
         if (!body){ if (typeof toast==='function') toast({type:'error', message:'Message can\'t be empty'}); return; }

@@ -2999,6 +2999,58 @@ await step('the jump box is a quick switcher: type, see matches, Enter to go', a
     JSON.stringify(r));
 });
 
+await step('scheduling a message writes exactly one row', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const db = window.__mock.db;
+    db.scheduled_messages = db.scheduled_messages || [];
+    const out = {};
+    const team = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item[data-nc-channel-id]')][0];
+    if (team) { team.click(); await wait(1800); }
+    out.here = window.nc_activeChannelId;
+    // The other screen has its own open channel, and its module listens to the same
+    // modal. That is the whole bug: one click, two writes, two different channels.
+    out.otherScreenChannel = window.activeChannelId || null;
+
+    const input = document.getElementById('nc_chatInput');
+    input.value = 'scheduled once, not twice';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+
+    const before = db.scheduled_messages.length;
+    document.getElementById('nc_chatScheduleBtn')?.click();
+    await wait(600);
+    // The CUSTOM path, not a preset. The preset buttons are rebuilt by whichever module
+    // opened the popover, which destroys the other module's listeners and hides the bug
+    // by accident. #scheduleMsgCustomBtn is never rebuilt, so both modules' listeners sit
+    // on it and one click writes twice.
+    const custom = document.getElementById('scheduleCustomTimeBtn')
+      || document.querySelector('#schedulePopover [id*="ustom"]');
+    out.presetFound = !!document.querySelector('#schedulePopover .schedule-preset');
+    out.customEntryFound = !!custom;
+    if (!custom) return out;
+    custom.click();
+    await wait(700);
+    const saveBtn = document.getElementById('scheduleMsgCustomBtn');
+    out.saveFound = !!saveBtn;
+    if (!saveBtn) return out;
+    saveBtn.click();
+    for (let i = 0; i < 40; i++) {
+      await wait(200);
+      if (db.scheduled_messages.length > before) break;
+    }
+    await wait(1200);            // long enough for a second write to land if one is coming
+    const made = db.scheduled_messages.slice(before);
+    out.rowsWritten = made.length;
+    out.channels = [...new Set(made.map(m => m.channel_id))];
+    out.allInThisChannel = made.every(m => m.channel_id === out.here);
+    return out;
+  });
+  check('scheduling a message writes exactly one row',
+    r.customEntryFound && r.saveFound && r.rowsWritten === 1
+      && r.allInThisChannel && r.channels.length === 1,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
