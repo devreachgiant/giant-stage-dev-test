@@ -10135,14 +10135,311 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       <!-- ===== NOTES ===== -->
       <!-- ===== PROJECTS 2.0 ===== -->
       <div class="screen fullbleed" data-screen="projects2" data-role-min="manager" data-client-hidden>
+        <!-- A copy of the Projects screen, ids prefixed p2_. Classes are deliberately NOT
+             prefixed: the existing stylesheet then styles this without duplicating 67 rules,
+             and the redesign will replace them anyway. The hazard that buys is the one Chat
+             spent days on -- code elsewhere selecting by class document-wide can reach in
+             here -- so everything this screen's module does is scoped to #p2_root. -->
         <div id="p2_root" style="display:flex;flex-direction:column;height:100%;min-height:0;">
-          <div style="padding:22px 24px 0;">
-            <h1 style="font-size:19px;font-weight:800;letter-spacing:-.02em;color:var(--text);margin:0;">Projects 2.0</h1>
-            <div style="font-size:12.5px;color:var(--text-3);margin-top:4px;">
-              Being rebuilt beside the original. The Projects screen is untouched and still where the work is.
+<div id="p2_screenBody" style="display:flex;flex-direction:column;height:100%;min-height:0;">
+        <div class="topbar"><h1>Master Projects</h1>
+          <div class="topbar-right">
+            <div class="prj-search-wrap">
+              <div class="prj-search">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                <input type="text" class="bare-input" id="p2_prjSearchInput" placeholder="Search tasks across all projects…" autocomplete="off">
+                <kbd class="prj-search-kbd">⌘K</kbd>
+              </div>
+              <div class="prj-search-results" id="p2_prjSearchResults"></div>
             </div>
           </div>
-          <div id="p2_body" style="flex:1;min-height:0;padding:20px 24px 24px;"></div>
+        </div>
+        <div class="content">
+
+          <!-- Projects top bar (level 1: project switcher) -->
+          <div class="prj-projects-bar" id="p2_prjProjectsBar">
+            <div class="prj-proj prj-proj-icon"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="8.5" y="2" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.4"/></svg></div>
+            <!-- dynamic project tabs injected here -->
+            <div class="prj-proj prj-proj-add" id="p2_prjProjAdd" title="Create project"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+          </div>
+
+          <!-- view tabs (level 2: per-project sub-views) -->
+          <div style="font-size:10.5px;font-weight:800;color:var(--text-3);text-transform:uppercase;letter-spacing:.10em;margin:6px 0 6px;display:flex;align-items:center;gap:7px;">
+            <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 4h4l1 1.2h5v6.8a1 1 0 01-1 1H3a1 1 0 01-1-1V5a1 1 0 011-1Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
+            Subprojects
+          </div>
+          <div class="prj-vtabs" id="p2_prjVtabs">
+            <div class="prj-vtab active" data-vtab="daily">Daily</div>
+            <div class="prj-vtab prj-vtab-plus" id="p2_prjVtabPlus">+</div>
+          </div>
+
+          <!-- controls bar -->
+          <div class="prj-controls">
+            <div class="prj-spacer"></div>
+            <div class="prj-status-toggle" id="p2_prjStatusToggle" style="display:flex;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px;margin-right:8px;">
+              <button class="prj-st-btn active" data-status="active" style="background:var(--surface-2);color:var(--text);border:none;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">Active <span class="prj-st-count" id="p2_prjStCountActive" style="opacity:.6;margin-left:3px;">0</span></button>
+              <button class="prj-st-btn" data-status="done" style="background:transparent;color:var(--text-2);border:none;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">Done <span class="prj-st-count" id="p2_prjStCountDone" style="opacity:.6;margin-left:3px;">0</span></button>
+            </div>
+            <button id="p2_prjFilterBtn" title="Filter tasks" style="background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:6px 11px;color:var(--text-2);cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;margin-right:8px;position:relative;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M2 3h12M4 8h8M7 13h2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              <span>Filter</span>
+              <span id="p2_prjFilterCount" style="display:none;background:var(--red);color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;font-weight:800;align-items:center;justify-content:center;line-height:1;">0</span>
+            </button>
+            <button id="p2_prjMembersBtn" title="Invite teammates to this project" style="background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:6px 11px;color:var(--text-2);cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;margin-right:8px;">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="6" cy="5" r="2.5" stroke="currentColor" stroke-width="1.4"/><path d="M2 14c0-2.2 1.8-4 4-4s4 1.8 4 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M11 7l2 2M13 7l-2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+              Members
+            </button>
+            <!-- View mode (list/board) is now chosen at view creation via the New View modal —
+                 the global toggle was confusing because each vtab keeps its own mode. -->
+            <div class="prj-view-toggle" id="p2_prjViewToggle" style="display:none;">
+              <button class="prj-vt-btn active" data-mode="list"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>List</button>
+              <button class="prj-vt-btn" data-mode="board"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="3.5" height="10" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="6.5" y="3" width="3.5" height="7" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="3" width="3" height="9" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>Board</button>
+            </div>
+          </div>
+
+          <!-- table -->
+          <div class="prj-table" id="p2_prjTable" style="--prj-cols:minmax(220px,1.6fr) 130px 150px 150px 130px minmax(200px,1.4fr) 38px;">
+            <div class="prj-thead">
+              <div class="prj-th" data-col="name">Task name</div>
+              <div class="prj-th" data-col="priority">Priority</div>
+              <div class="prj-th" data-col="assignee">Assignee</div>
+              <div class="prj-th" data-col="client">Client</div>
+              <div class="prj-th" data-col="department">Department</div>
+              <div class="prj-th" data-col="task_details">Task Infos</div>
+              <div class="prj-th" data-col="pad" style="opacity:0;pointer-events:none;"></div>
+              <!-- Hardcoded columns only - no dynamic columns -->
+            </div>
+
+            <!-- Daily view container -->
+            <div class="prj-view active" data-view="daily" id="p2_prjDailyView">
+              <div id="p2_prjDailyBody"></div>
+              <div id="p2_prjDailyLoading" style="padding:32px 16px;color:var(--text-3);font-size:12.5px;text-align:center;">Loading tasks…</div>
+              <div id="p2_prjDailyEmpty" style="display:none;padding:48px 16px;text-align:center;">
+                <div style="font-size:14px;font-weight:700;color:var(--text);margin-bottom:6px;">No tasks yet</div>
+                <div style="font-size:12px;color:var(--text-3);margin-bottom:14px;">Add your first task to start tracking your work.</div>
+                <button class="prj-add-btn" id="p2_prjEmptyAddTaskBtn" style="margin:0 auto;"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Add task</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Add Task modal -->
+          <div class="modal-overlay" id="p2_addTaskModal">
+            <div class="modal" style="max-width:540px;">
+              <div class="modal-head">
+                <div><h3>Add task</h3><div class="m-sub">Create a new task in your project</div></div>
+                <div class="m-close" data-close="nc_deleteChannelModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+              </div>
+              <div class="modal-body">
+                <div class="auth-alert" id="p2_atAlert"></div>
+                <!-- Destination toggle: hidden — Board view is temporarily disabled, so all tasks go to List -->
+                <div class="m-field" style="display:none;">
+                  <label>Add to</label>
+                  <div id="p2_atDestToggle" style="display:flex;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px;">
+                    <button type="button" class="at-dest-btn active" data-dest="list" style="flex:1;background:var(--surface-2);color:var(--text);border:none;border-radius:6px;padding:8px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+                      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>List view
+                    </button>
+                    <button type="button" class="at-dest-btn" data-dest="board" style="flex:1;background:transparent;color:var(--text-2);border:none;border-radius:6px;padding:8px 11px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;justify-content:center;gap:6px;">
+                      <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="3.5" height="10" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="6.5" y="3" width="3.5" height="7" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="3" width="3" height="9" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>Board view
+                    </button>
+                  </div>
+                  <div style="font-size:10.5px;color:var(--text-3);margin-top:5px;line-height:1.5;" id="p2_atDestHint">The task will be added to the active view.</div>
+                </div>
+                <div class="m-field"><label>Task name</label><input type="text" id="p2_atName" placeholder="What needs to be done?" autofocus></div>
+                <div class="m-field">
+                  <label style="display:flex;align-items:center;justify-content:space-between;">
+                    <span>Priority</span>
+                    <button type="button" id="p2_atPrioAddBtn" style="background:transparent;border:none;color:var(--text-3);cursor:pointer;font-size:11px;font-weight:600;letter-spacing:0;text-transform:none;display:inline-flex;align-items:center;gap:4px;padding:0;font-family:inherit;">
+                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                      Customize
+                    </button>
+                  </label>
+                  <div class="at-priogrid" id="p2_atPriorityGrid">
+                    <div style="grid-column:1/-1;color:var(--text-3);font-size:11px;padding:6px 0;">Loading priorities…</div>
+                  </div>
+                </div>
+                <div class="m-field m-2col">
+                  <div><label>Resistance Rank</label><input type="number" id="p2_atResistance" min="1" max="10" placeholder="1–10"></div>
+                  <div><label>Importance Rank</label><input type="number" id="p2_atImportance" min="1" max="10" placeholder="1–10"></div>
+                </div>
+                <div class="m-field"><label>Category <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional)</span></label><input type="text" id="p2_atCategory" placeholder="e.g. Financial Strength"></div>
+                <div class="m-field"><label>Due date <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional)</span></label><input type="date" id="p2_atDueDate"></div>
+                <div class="m-field">
+                  <label>Description <span style="color:var(--text-3);font-weight:500;text-transform:none;letter-spacing:0;">(optional)</span></label>
+                  <div style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:1px;transition:border-color .15s;" id="p2_atDescWrap">
+                    <textarea id="p2_atDescription" rows="4" placeholder="Add more context, links, or notes…" style="width:100%;border:none;outline:none;background:transparent;padding:12px 14px;font-size:13px;color:var(--text);font-family:inherit;resize:vertical;line-height:1.55;min-height:90px;"></textarea>
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;border-top:1px solid var(--line);font-size:10.5px;color:var(--text-3);">
+                      <div style="display:flex;gap:10px;">
+                        <span>Markdown supported</span>
+                      </div>
+                      <span id="p2_atDescCount">0</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="modal-foot">
+                <button class="m-cancel" data-close="p2_addTaskModal">Cancel</button>
+                <button class="m-submit" id="p2_atSubmit">
+                  <span class="auth-spinner"></span>
+                  <span class="auth-btn-text">Create task</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Manage priorities modal -->
+          <div class="modal-overlay" id="p2_prjPriorityModal">
+            <div class="modal" style="max-width:480px;">
+              <div class="modal-head">
+                <div><h3>Customize priorities</h3><div class="m-sub">Add, edit, or remove priority labels for this project</div></div>
+                <div class="m-close" data-close="p2_prjPriorityModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+              </div>
+              <div class="modal-body">
+                <div id="p2_prjPriorityList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;"></div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <input type="text" id="p2_prjPriorityNewLabel" placeholder="New priority label (e.g. Urgent)" style="flex:1;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;color:var(--text);font-family:inherit;outline:none;">
+                  <input type="text" id="p2_prjPriorityNewEmoji" maxlength="2" placeholder="🔥" style="width:48px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px;font-size:14px;text-align:center;color:var(--text);font-family:inherit;outline:none;">
+                  <input type="color" id="p2_prjPriorityNewColor" value="#D00400" style="width:36px;height:36px;border:1px solid var(--line);border-radius:8px;background:transparent;cursor:pointer;">
+                  <button id="p2_prjPriorityAdd" style="background:var(--red);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;">Add</button>
+                </div>
+              </div>
+              <div class="modal-foot">
+                <button class="m-cancel" data-close="p2_prjPriorityModal">Done</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- New view modal -->
+          <div class="modal-overlay" id="p2_prjNewViewModal">
+            <div class="modal">
+              <div class="modal-head">
+                <div><h3>New view</h3><div class="m-sub">Create a fresh table for a different project</div></div>
+                <div class="m-close" data-close="p2_prjNewViewModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+              </div>
+              <div class="modal-body">
+                <div class="m-field"><label>View name</label><input type="text" id="p2_newViewName" placeholder="e.g. Q4 planning"></div>
+                <div class="m-field">
+                  <label>View type</label>
+                  <div id="p2_newViewTypeChooser" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                    <button type="button" class="nv-type-btn active" data-view-type="list" style="background:var(--surface);border:1.5px solid var(--red);border-radius:10px;padding:12px;text-align:left;cursor:pointer;font-family:inherit;">
+                      <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="color:var(--red);"><path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        <div style="font-size:13px;font-weight:700;color:var(--text);">Table view</div>
+                      </div>
+                      <div style="font-size:11px;color:var(--text-3);line-height:1.4;">Rows + sortable/filterable columns (default)</div>
+                    </button>
+                    <button type="button" class="nv-type-btn" data-view-type="board" style="background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:12px;text-align:left;cursor:pointer;font-family:inherit;">
+                      <div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;">
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="color:var(--text-2);"><rect x="2" y="3" width="3.5" height="10" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="6.5" y="3" width="3.5" height="7" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="3" width="3" height="9" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>
+                        <div style="font-size:13px;font-weight:700;color:var(--text);">Board view</div>
+                      </div>
+                      <div style="font-size:11px;color:var(--text-3);line-height:1.4;">Kanban columns grouped by category</div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="modal-foot">
+                <button class="m-cancel" data-close="p2_prjNewViewModal">Cancel</button>
+                <button class="m-submit" id="p2_newViewSubmit">Create view</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- new project modal -->
+          <div class="modal-overlay" id="p2_prjNewProjectModal">
+            <div class="modal">
+              <div class="modal-head">
+                <div><h3>New project</h3><div class="m-sub">A fresh project with its own views, sections and fields</div></div>
+                <div class="m-close" data-close="p2_prjNewProjectModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+              </div>
+              <div class="modal-body">
+                <div class="m-field"><label>Project name</label><input type="text" id="p2_newProjName" placeholder="e.g. Q4 Launch"></div>
+                <div class="m-field">
+                  <label>Color</label>
+                  <div class="prj-color-grid" id="p2_prjColorGrid">
+                    <div class="prj-color sel" style="background:#D00400;" data-color="#D00400"></div>
+                    <div class="prj-color" style="background:#F2A93B;" data-color="#F2A93B"></div>
+                    <div class="prj-color" style="background:#3DCB7F;" data-color="#3DCB7F"></div>
+                    <div class="prj-color" style="background:#5BA0E8;" data-color="#5BA0E8"></div>
+                    <div class="prj-color" style="background:#C46BF5;" data-color="#C46BF5"></div>
+                    <div class="prj-color" style="background:#FF7B5B;" data-color="#FF7B5B"></div>
+                    <div class="prj-color" style="background:#929296;" data-color="#929296"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="modal-foot">
+                <button class="m-cancel" data-close="p2_prjNewProjectModal">Cancel</button>
+                <button class="m-submit" id="p2_newProjSubmit">Create project</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- new field menu -->
+          <div class="prj-newfield-menu" id="p2_prjNewFieldMenu">
+            <div class="prj-nfm-header">Field types</div>
+            <div class="prj-nfm-item prj-nfm-active"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2.5" y="2.5" width="11" height="11" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Single-select</div>
+            <div class="prj-nfm-item"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2.5" width="6.5" height="6.5" rx="1.5" stroke="currentColor" stroke-width="1.3"/><rect x="6" y="6.5" width="6.5" height="6.5" rx="1.5" stroke="currentColor" stroke-width="1.3"/></svg>Multi-select</div>
+            <div class="prj-nfm-item"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M2 6.5h12M5.5 1.5V4M10.5 1.5V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Date</div>
+            <div class="prj-nfm-item"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5.5" r="2.4" stroke="currentColor" stroke-width="1.4"/><path d="M3 13c.6-2.4 2.6-3.6 5-3.6s4.4 1.2 5 3.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>People</div>
+            <div class="prj-nfm-item"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M9.5 3l3.5 3.5L9.5 10M13 6.5H6.5a3 3 0 100 6H8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Reference</div>
+            <div class="prj-nfm-item"><span style="font-weight:800;font-size:13px;display:inline-flex;width:13px;justify-content:center;">A</span>Text</div>
+            <div class="prj-nfm-item"><span style="font-weight:800;font-size:13px;display:inline-flex;width:13px;justify-content:center;">#</span>Number</div>
+            <div class="prj-nfm-item"><span style="font-style:italic;font-weight:700;font-size:13px;display:inline-flex;width:13px;justify-content:center;">ƒ</span>Formula<span class="prj-nfm-badge">✦</span></div>
+            <div class="prj-nfm-item"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="1.8" fill="currentColor"/></svg>ID</div>
+            <div class="prj-nfm-item"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3.2l2 1.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Timer<span class="prj-nfm-badge">✦</span></div>
+            <div class="prj-nfm-item"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 10l3-3 3 3 4-5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>Rollup</div>
+            <div class="prj-nfm-sep"></div>
+            <div class="prj-nfm-item prj-nfm-special"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.6 4.3 4.4 1.7-4.4 1.7L8 13.5 6.4 9.2 2 7.5l4.4-1.7L8 1.5Z" fill="currentColor"/></svg>Fields with AI Studio</div>
+            <div class="prj-nfm-item"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2 3h12v10H2V3Zm2 2h8M4 8h6M4 11h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>Choose from library</div>
+          </div>
+
+          <!-- Add task modal -->
+          <div class="modal-overlay" id="p2_prjAddTaskModal">
+            <div class="modal">
+              <div class="modal-head">
+                <div><h3>Add task</h3><div class="m-sub">Create a new task in the selected section</div></div>
+                <div class="m-close" data-close="p2_prjAddTaskModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+              </div>
+              <div class="modal-body">
+                <div class="m-field"><label>Task name</label><input type="text" id="p2_atTaskName" placeholder="What needs to be done?"></div>
+                <div class="m-field">
+                  <label>Section</label>
+                  <select class="m-input" id="p2_atTaskSection">
+                    <option value="reachgiant">ReachGiant</option>
+                    <option value="goals">GOALS</option>
+                    <option value="daily">Daily</option>
+                    <option value="webpay">Web Payment Tracker</option>
+                    <option value="portugal">Portugal List</option>
+                    <option value="goog">Google Reviews</option>
+                    <option value="clutch">Clutch Reviews</option>
+                    <option value="team">Team Check In</option>
+                  </select>
+                </div>
+                <div class="m-field">
+                  <label>Priority</label>
+                  <div class="m-prio-grid">
+                    <div class="m-prio" data-prio-cls="pp-fire" data-prio-lbl="🔥 Fire"><span class="prj-pp pp-fire">🔥 Fire</span></div>
+                    <div class="m-prio" data-prio-cls="pp-motivation" data-prio-lbl="Motivation"><span class="prj-pp pp-motivation">Motivation</span></div>
+                    <div class="m-prio" data-prio-cls="pp-everyday" data-prio-lbl="Everyday"><span class="prj-pp pp-everyday">Everyday</span></div>
+                    <div class="m-prio" data-prio-cls="pp-pending" data-prio-lbl="Pending Billing Issue"><span class="prj-pp pp-pending">Pending Billing Issue</span></div>
+                    <div class="m-prio" data-prio-cls="pp-today" data-prio-lbl="Today 100%"><span class="prj-pp pp-today">Today 100%</span></div>
+                    <div class="m-prio" data-prio-cls="pp-nextweek" data-prio-lbl="Next Week"><span class="prj-pp pp-nextweek">Next Week</span></div>
+                  </div>
+                </div>
+                <div class="m-field m-row-2">
+                  <div><label>Resistance Rank</label><input type="number" id="p2_atResRank" min="1" max="10" placeholder="1-10"></div>
+                  <div><label>Importance Rank</label><input type="number" id="p2_atImpRank" min="1" max="10" placeholder="1-10"></div>
+                </div>
+                <div class="m-field"><label>Category</label><input type="text" id="p2_prjAtCategory" placeholder="e.g. Financial Strength"></div>
+              </div>
+              <div class="modal-foot">
+                <button class="m-cancel" data-close="p2_prjAddTaskModal">Cancel</button>
+                <button class="m-submit" id="p2_atSubmitBtn">Create task</button>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
         </div>
       </div>
 
