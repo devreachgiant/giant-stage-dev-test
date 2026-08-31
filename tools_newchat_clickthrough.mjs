@@ -3121,6 +3121,66 @@ await step('scheduling from inside a thread also writes exactly one row', async 
     JSON.stringify(r));
 });
 
+await step('the Projects table tracks time on a task row', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const vis = (el) => { if (!el) return false; const b = el.getBoundingClientRect();
+      return el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && b.width > 4 && b.height > 4; };
+    const out = {};
+    const grp = document.querySelector('.nav-group-toggle[data-navgroup="work"]');
+    if (grp && grp.classList.contains('nav-group-collapsed')) { grp.click(); await wait(500); }
+    document.querySelector('.nav-item[data-screen="tasks"]').click();
+    for (let i = 0; i < 40; i++) { await wait(300);
+      if (document.querySelectorAll('.prj-row[data-task-id]').length) break; }
+    await wait(1900);   // the injector sweeps every 1.5s; a row it has not reached has none
+    out.rows = document.querySelectorAll('.prj-row[data-task-id]').length;
+    // Every row, not just the ones that happened to exist when the screen first painted.
+    out.controls = document.querySelectorAll('.prj-row[data-task-id] .prj-timer').length;
+    out.onEveryRow = out.rows > 0 && out.controls === out.rows;
+    const btn = document.querySelector('.prj-row[data-task-id] .prj-timer');
+    out.visible = vis(btn);
+    out.inNameCell = !!(btn && btn.closest('.prj-cell-name'));
+    if (!btn) return out;
+    const row = btn.closest('.prj-row');
+    const id = btn.dataset.prjTimer;
+    const sessions = window.__mock.db.time_sessions = window.__mock.db.time_sessions || [];
+    const before = sessions.length;
+    btn.click(); await wait(1700);
+    out.rowsWritten = sessions.length - before;
+    const s = window.giantTaskTimer && window.giantTaskTimer.session();
+    out.onRightTask = !!(s && s.task_id === id);
+    out.running = !!(s && s.status === 'running');
+    // The session is labelled with the task, not left blank -- that label is what the
+    // time report shows a person afterwards.
+    out.labelled = !!(s && s.task_label && s.task_label.trim());
+    out.stopVisible = vis(document.querySelector('[data-prj-stop="' + id + '"]'));
+    await wait(1400);
+    const el = document.querySelector('[data-prj-elapsed="' + id + '"]');
+    out.elapsed = el ? el.textContent : null;
+    out.elapsedIsClock = /^\d+:[0-5]\d(:[0-5]\d)?$/.test(out.elapsed || '');
+    // A sweep runs every 1.5s and rebuilds these controls; a running timer has to survive it.
+    out.survivesSweep = !!document.querySelector('.prj-timer.on');
+    const again = document.querySelector('[data-prj-timer="' + id + '"]');
+    if (again) { again.click(); await wait(1100); }
+    out.pausedStatus = (window.giantTaskTimer.session() || {}).status;
+    const stop = document.querySelector('[data-prj-stop="' + id + '"]');
+    if (stop) { stop.click(); await wait(1300); }
+    out.sessionCleared = window.giantTaskTimer.session() == null;
+    out.loggedStatus = sessions.length ? sessions[sessions.length - 1].status : null;
+    // and the row it sits in is still a row: same cells, name intact.
+    out.nameIntact = !!(row.querySelector('.prj-name') && row.querySelector('.prj-name').textContent.trim());
+    out.cells = row.querySelectorAll(':scope > .prj-cell').length;
+    return out;
+  });
+  check('the Projects table tracks time on a task row',
+    r.rows > 0 && r.onEveryRow && r.visible && r.inNameCell && r.rowsWritten === 1
+      && r.onRightTask && r.running && r.labelled && r.stopVisible
+      && r.elapsedIsClock && r.survivesSweep && r.pausedStatus === 'paused'
+      && r.sessionCleared && r.loggedStatus === 'completed'
+      && r.nameIntact && r.cells === 7,
+    JSON.stringify(r));
+});
+
 await step('Projects 2.0 tracks time on a task row', async () => {
   const r = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms));

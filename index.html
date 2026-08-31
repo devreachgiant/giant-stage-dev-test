@@ -716,6 +716,14 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 .prj-cell-input{flex:1;border:none;background:transparent;outline:none;font:inherit;color:inherit;width:100%;padding:0;}
 .prj-cell-input::placeholder{color:var(--text-3);}
 .prj-cell-name{gap:7px;padding-left:20px;}
+.prj-timer{margin-left:auto;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;padding:2px 7px;border-radius:7px;cursor:pointer;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--text-3);opacity:.34;transition:opacity .12s var(--ease),background .12s;}
+.prj-row:hover .prj-timer{opacity:.85;}
+.prj-timer:hover{opacity:1!important;background:var(--surface-2);color:var(--text);}
+.prj-timer.on{opacity:1!important;background:rgba(208,4,0,.13);color:var(--red);}
+.prj-timer.paused{opacity:1!important;background:var(--surface-2);color:var(--text-2);}
+.prj-timer-stop{display:none;align-items:center;cursor:pointer;color:var(--text-3);flex-shrink:0;margin-left:4px;}
+.prj-timer-stop:hover{color:var(--red);}
+.prj-timer.on + .prj-timer-stop,.prj-timer.paused + .prj-timer-stop{display:inline-flex;}
 .prj-cell-pad{padding:0;}
 .prj-tick{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--line-2);cursor:pointer;flex-shrink:0;transition:.14s;position:relative;}
 .prj-tick:hover{border-color:var(--green);}
@@ -67390,6 +67398,100 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (typeof window._prjApplySavedColWidths === 'function') window._prjApplySavedColWidths();
   }
 
+  // Time tracking, on the row itself. Rows are built in half a dozen places and
+  // re-rendered constantly, so the control is injected by the same sweep that injects the
+  // red headers rather than added to every builder -- a row that appears later gets one
+  // on the next pass, and nothing has to remember to add it.
+  //
+  // It drives the app's existing timer (window.giantTaskTimer -> time_sessions). That
+  // table allows one active session per person, so a second implementation here would
+  // fight the Workspace one over the same row.
+  const PRJ_ICON_PLAY  = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M5 3.5l7 4.5-7 4.5v-9Z" fill="currentColor"/></svg>';
+  const PRJ_ICON_PAUSE = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="4" y="3" width="3" height="10" rx="1" fill="currentColor"/><rect x="9" y="3" width="3" height="10" rx="1" fill="currentColor"/></svg>';
+  const PRJ_ICON_STOP  = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="4" y="4" width="8" height="8" rx="1.5" fill="currentColor"/></svg>';
+  let _prjTimerTick = null, _prjTimerRefreshed = false;
+
+  function _prjTimerSession() {
+    return window.giantTaskTimer ? window.giantTaskTimer.session() : null;
+  }
+  function _prjInjectRowTimers() {
+    if (!window.giantTaskTimer) return;
+    if (!_prjTimerRefreshed) {
+      // The session may have been started on another screen, or before this tab opened.
+      _prjTimerRefreshed = true;
+      try { window.giantTaskTimer.refresh(); } catch (_) {}
+    }
+    const s = _prjTimerSession();
+    document.querySelectorAll('.prj-row[data-task-id]').forEach(row => {
+      const id = row.dataset.taskId;
+      const nameCell = row.querySelector(':scope > .prj-cell-name');
+      if (!id || !nameCell) return;
+      let btn = nameCell.querySelector(':scope > .prj-timer');
+      if (!btn) {
+        btn = document.createElement('span');
+        btn.className = 'prj-timer';
+        btn.setAttribute('contenteditable', 'false');   // the name cell is editable
+        btn.dataset.prjTimer = id;
+        const stop = document.createElement('span');
+        stop.className = 'prj-timer-stop';
+        stop.setAttribute('contenteditable', 'false');
+        stop.dataset.prjStop = id;
+        stop.title = 'Stop and log this session';
+        stop.innerHTML = PRJ_ICON_STOP;
+        nameCell.appendChild(btn);
+        nameCell.appendChild(stop);
+      }
+      const mine    = !!(s && s.task_id === id);
+      const running = mine && s.status === 'running';
+      btn.classList.toggle('on', running);
+      btn.classList.toggle('paused', mine && !running);
+      btn.title = running ? 'Pause tracking' : (mine ? 'Resume tracking' : 'Track time on this task');
+      const elapsed = mine ? window.giantTaskTimer.format(window.giantTaskTimer.elapsed(s)) : '';
+      btn.innerHTML = (running ? PRJ_ICON_PAUSE : PRJ_ICON_PLAY)
+        + (mine ? '<span data-prj-elapsed="' + id + '">' + elapsed + '</span>' : '');
+    });
+    _prjStartTimerTick();
+  }
+  // Writes to the one elapsed span rather than re-rendering: a re-render every second
+  // would take the caret out of a task name somebody is renaming.
+  function _prjStartTimerTick() {
+    if (_prjTimerTick) return;
+    _prjTimerTick = setInterval(() => {
+      const cur = _prjTimerSession();
+      if (!cur || cur.status !== 'running') return;
+      const el = document.querySelector('[data-prj-elapsed="' + cur.task_id + '"]');
+      if (el) el.textContent = window.giantTaskTimer.format(window.giantTaskTimer.elapsed(cur));
+    }, 1000);
+  }
+  // Delegated, because the rows these live in are replaced whenever the table reloads.
+  document.addEventListener('click', async (e) => {
+    const stop = e.target.closest('[data-prj-stop]');
+    if (stop) {
+      e.preventDefault(); e.stopPropagation();
+      if (window.giantTaskTimer) await window.giantTaskTimer.complete();
+      _prjInjectRowTimers();
+      return;
+    }
+    const btn = e.target.closest('[data-prj-timer]');
+    if (!btn || !window.giantTaskTimer) return;
+    e.preventDefault(); e.stopPropagation();
+    const id = btn.dataset.prjTimer;
+    const s = _prjTimerSession();
+    if (s && s.task_id === id) {
+      await (s.status === 'running' ? window.giantTaskTimer.pause() : window.giantTaskTimer.resume());
+    } else {
+      const row = btn.closest('.prj-row');
+      const cached = (window._prjAllTasksCache || []).find(t => t.id === id);
+      const nameEl = row && row.querySelector('.prj-name');
+      await window.giantTaskTimer.start({
+        id,
+        name: (cached && cached.name) || (nameEl ? nameEl.textContent.trim() : 'Task'),
+        client_id: (cached && cached.client_id) || null
+      });
+    }
+    _prjInjectRowTimers();
+  }, true);
+
   // Section options menu (Rename / Delete) — replaces the hidden section header controls
   function _prjOpenSectionMenu(btn, group) {
     document.getElementById('prjSectMenu')?.remove();
@@ -67461,9 +67563,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
   window._prjInjectSectionHeaders = _prjInjectSectionHeaders;
   // Run once after initial DOM ready + observe for new sections
-  setTimeout(() => _prjInjectSectionHeaders(), 800);
+  setTimeout(() => { _prjInjectSectionHeaders(); _prjInjectRowTimers(); }, 800);
   // Re-run periodically (cheap, idempotent) so new sections get headers too
-  setInterval(() => _prjInjectSectionHeaders(), 1500);
+  setInterval(() => { _prjInjectSectionHeaders(); _prjInjectRowTimers(); }, 1500);
 
   // Wire the Filter button
   setTimeout(() => {

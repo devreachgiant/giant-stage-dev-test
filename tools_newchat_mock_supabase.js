@@ -182,8 +182,13 @@
     { channel_id: 'ch-team-0', content: '<p>Team notes.</p>', updated_at: iso(4, 0), updated_by: ME, cards: [] }
   ];
 
-  DB.projects = [{ id: 'p-1', name: 'Maribou — Q3 SEO', client_id: 'c-1' },
-                 { id: 'p-2', name: 'Fortess DG — Site rebuild', client_id: 'c-2' }];
+  // created_by matters: the Projects screen loads projects this person OWNS plus ones
+  // shared through project_members, so without an owner it showed "No projects yet" and
+  // that whole screen -- table, rows, everything on them -- was untestable.
+  DB.projects = [{ id: 'p-1', name: 'Maribou — Q3 SEO', client_id: 'c-1', created_by: ME,
+                   position: 1, color: '#D00400', created_at: iso(30, 0) },
+                 { id: 'p-2', name: 'Fortess DG — Site rebuild', client_id: 'c-2', created_by: ME,
+                   position: 2, color: '#5aa8d6', created_at: iso(20, 0) }];
   DB.tasks = [];
   ['todo', 'in_progress', 'review', 'done'].forEach((st, si) => {
     for (let i = 0; i < 3; i++) DB.tasks.push({
