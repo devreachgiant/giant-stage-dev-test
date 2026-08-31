@@ -699,6 +699,16 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 .prj-row.prj-row-hl:hover{background:rgba(91,160,232,.16);}
 .prj-row.new-row{animation:rowFadeIn .25s var(--ease);}
 .prj-cell{padding:9px 14px;border-right:1px solid var(--line);display:flex;align-items:center;font-size:13px;color:var(--text);min-height:38px;gap:7px;min-width:0;overflow-wrap:anywhere;word-break:break-word;}
+/* Projects 2.0 rows are one line. .prj-cell above sets overflow-wrap:anywhere and
+   word-break:break-word, so a long task name wraps and the row becomes two lines tall --
+   which makes a list of them hard to scan. Scoped to #p2_root so the original screen,
+   where wrapping is the established behaviour, is untouched. */
+#p2_root .prj-cell{overflow-wrap:normal;word-break:normal;white-space:nowrap;overflow:hidden;}
+#p2_root .prj-cell > *{min-width:0;}
+#p2_root .prj-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;}
+#p2_root .prj-cell[data-col="task_details"],
+#p2_root .prj-cell[data-col="department"],
+#p2_root .prj-cell[data-col="client"]{text-overflow:ellipsis;}
 .prj-cell:last-child{border-right:none;}
 .prj-cell.editable{cursor:text;transition:background .14s,box-shadow .14s;}
 .prj-cell.editable:hover{background:var(--surface-2);}
