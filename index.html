@@ -81819,6 +81819,23 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         + '</div>';
     };
 
+    // The original's red column header, one per folder. It is .prj-section-thead --
+    // display:grid on the same --prj-cols, background var(--red), white uppercase
+    // columns -- and the original injects it per section rather than using the static
+    // .prj-thead, which is display:none. Written out here rather than calling the
+    // original's injector: that one walks .prj-section document-wide on a 1.5s interval,
+    // and borrowing it would put this screen's rendering on the other screen's timer.
+    const th = (col, label) => '<div class="prj-th" data-col="' + col + '">' + label + '</div>';
+    const headerHtml = '<div class="prj-section-thead">'
+      + th('name', 'Task name')
+      + th('priority', 'Priority')
+      + th('assignee', 'Assignee')
+      + th('client', 'Client')
+      + th('department', 'Department')
+      + th('task_details', 'Task infos')
+      + '<div class="prj-th" data-col="pad"></div>'
+      + '</div>';
+
     // Folders, in client-name order, with anything unfiled last -- it is 355 of 458 tasks
     // and would otherwise sit at the top and bury the folders that were the point.
     const byFolder = new Map();
@@ -81857,6 +81874,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         +   '<span style="font-size:11px;font-weight:700;color:var(--text-3);">' + rows.length + '</span>'
         + '</div>'
         + '<div data-p2-folder-body="' + esc(k) + '"' + (shut ? ' style="display:none;"' : '') + '>'
+        + headerHtml
         + rows.map(rowHtml).join('')
         + '<div style="padding:7px 14px 9px 34px;border-bottom:1px solid var(--line);">'
         +   '<input type="text" data-p2-add-in="' + esc(k) + '" placeholder="+ Add a task"'
