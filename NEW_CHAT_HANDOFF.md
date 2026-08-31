@@ -1317,3 +1317,31 @@ document-wide) but in the other direction -- New Chat reaching into the original
 nothing caught it for four days. The click-through had a check for a message arriving over
 realtime reaching **Needs you**, which passed, because that path reads the data rather than
 the DOM. Nothing asserted the message appeared in the message list.
+
+## Reversal record — Maribou General merge (2026-08-26)
+
+Applied by `20260826120000_merge_maribou_general.sql`. Kept so the move can be undone.
+
+Deleted channel row:
+    id         e74ec15e-74f5-456e-be6b-055a827ce65e
+    name/slug  maribou / maribou-zq8
+    kind       client_dept   client 738aeb31-0de7-44ea-aa71-e67ee76eda45   department general
+    is_private false         created 2026-07-13 12:21:10.966106+00
+
+Its 12 messages, now on 87885346-6b50-4431-a59b-6187cd27fd32:
+    c4c150e1-3d3f-4030-b0ff-01f1c2a74c74   2026-07-13 12:21:58
+    8d011050-0865-4e7c-8d73-26216f9449e1   2026-07-13 13:19:49
+    559f683c-977a-4d97-a6a8-bac0d05841ee   2026-07-13 13:29:46
+    aef77dc6-5d22-42c6-a1e4-b575b4df8bf1   2026-07-21 18:26:31
+    9bb2a664-aa72-484c-b1b0-96b27284b527   2026-07-22 05:18:32
+    1ee1949b-1526-47aa-bcc4-9b7be1545090   2026-07-22 05:18:39
+    f5f0bcab-224a-4427-918e-8344a07d2ece   2026-07-24 18:21:37
+    ebd9ab6c-a7bf-435f-90b3-bfec6fa66190   2026-07-27 02:55:07
+    c391745e-011b-47c5-8320-8a528b2656d0   2026-07-27 07:18:04
+    39ea1e99-3ac9-40d6-adad-b4a2051841d8   2026-07-27 07:57:08
+    d1d61f5b-7c7c-4223-b5b7-8932447e93a4   2026-07-27 12:15:31
+    b477e72e-17c2-4807-b5f9-7230bd765102   2026-07-27 12:19:45
+
+To undo: recreate the channel with that id and those columns, then move exactly those
+twelve message ids back to it. Its 13 members were all already members of the destination,
+so nothing was lost when the row was deleted.
