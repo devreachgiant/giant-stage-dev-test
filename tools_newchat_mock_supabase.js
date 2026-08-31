@@ -561,12 +561,15 @@
     scheduled_messages: { status: 'pending' },
     messages: { flagged: false },
     channels: { is_private: false },
-    invitations: { accepted_at: null, revoked_at: null }
+    invitations: { accepted_at: null, revoked_at: null },
+    // time_sessions.started_at is "DEFAULT now() NOT NULL" -- the timer never sends it,
+    // so without this the elapsed clock reads a missing date and shows NaN:NaN.
+    time_sessions: { started_at: '@now', total_paused_ms: 0 }
   };
   function applyDefaults(t, r) {
     const d = DEFAULTS[t];
     if (!d || !r) return;
-    for (const k in d) if (r[k] === undefined) r[k] = d[k];
+    for (const k in d) if (r[k] === undefined) r[k] = (d[k] === '@now' ? new Date().toISOString() : d[k]);
   }
 
   function checkConstraints(t, r) {

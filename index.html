@@ -18899,6 +18899,20 @@ window.addEventListener('popstate', (e) => {
     renderTasksContent();
     startWsTaskTimerTick();
   }
+  // Exposed so Projects 2.0 drives THIS timer rather than writing a second one. The
+  // table has a one-active-session-per-user constraint, so two implementations would
+  // fight over the same row and one of them would lose a session.
+  window.giantTaskTimer = {
+    start:    (task) => startTaskTimer(task),
+    pause:    () => pauseTaskTimer(),
+    resume:   () => resumeTaskTimer(),
+    complete: () => completeTaskTimer(),
+    session:  () => wsMySession,
+    elapsed:  (s) => wsTaskElapsedSeconds(s || wsMySession),
+    format:   (secs) => wsFormatHms(secs),
+    refresh:  () => refreshWsMySession()
+  };
+
   async function completeTaskTimer(){
     if (!wsMySession) return;
     const seconds = wsTaskElapsedSeconds(wsMySession);
@@ -81663,6 +81677,48 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 // thing. It cannot diverge. The rebuilt module below is left intact and dormant behind
 // window.p2UseRebuild for when it should.
 (function projects2Alias(){
+  // Which of the two Projects 2.0 is showing, remembered per person. The clone is the
+  // live Projects screen moved into this container; the rebuild is the new module. A
+  // switch rather than a code edit, because the whole point of having both is being able
+  // to look at one and then the other.
+  try {
+    const saved = localStorage.getItem('giant_p2_mode');
+    if (saved === 'rebuild') window.p2UseRebuild = true;
+    if (saved === 'clone') window.p2UseRebuild = false;
+  } catch (_) {}
+
+  (function addModeSwitch(){
+    const screen = document.querySelector('.screen[data-screen="projects2"]');
+    if (!screen) { setTimeout(addModeSwitch, 400); return; }
+    if (document.getElementById('p2_modeSwitch')) return;
+    const bar = document.createElement('div');
+    bar.id = 'p2_modeSwitch';
+    // Bottom-right rather than top-right: the top of this container belongs to whichever
+    // header is showing -- the clone brings its own, complete with the search box the
+    // switch was sitting on top of -- and the bottom corner is empty in both.
+    bar.style.cssText = 'position:absolute;bottom:20px;right:18px;z-index:60;display:flex;gap:4px;'
+      + 'background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:3px;'
+      + 'box-shadow:0 6px 20px rgba(0,0,0,.28);';
+    const mk = (mode, label) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = label;
+      const on = (mode === 'rebuild') === !!window.p2UseRebuild;
+      b.style.cssText = 'border:none;border-radius:7px;padding:5px 10px;font-size:11px;font-weight:700;'
+        + 'cursor:pointer;font-family:inherit;'
+        + (on ? 'background:var(--surface-2);color:var(--text);' : 'background:transparent;color:var(--text-3);');
+      b.addEventListener('click', () => {
+        try { localStorage.setItem('giant_p2_mode', mode); } catch (_) {}
+        location.reload();
+      });
+      return b;
+    };
+    bar.appendChild(mk('clone', 'Clone'));
+    bar.appendChild(mk('rebuild', 'Rebuild'));
+    if (getComputedStyle(screen).position === 'static') screen.style.position = 'relative';
+    screen.appendChild(bar);
+  })();
+
   if (window.p2UseRebuild) return;
   const P2  = () => document.getElementById('p2_root');
   const SRC = () => document.querySelector('.screen[data-screen="tasks"]');
@@ -81670,6 +81726,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   let borrowed = false;
 
   function borrow(){
+    // Checked here and not only at load: the mode switch reloads, but a check (or a
+    // console) can flip the flag live, and the alias must stop lending the screen the
+    // moment the rebuild is the one meant to be showing.
+    if (window.p2UseRebuild) return;
     const src = SRC(), host = P2();
     if (!src || !host || borrowed) return;
     if (!anchor) {
@@ -81700,6 +81760,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   function sync(){
     const on = document.querySelector('.screen[data-screen="projects2"]');
     if (!on) return;
+    if (window.p2UseRebuild) { giveBack(); return; }
     if (on.classList.contains('on')) borrow(); else giveBack();
   }
 
@@ -81865,6 +81926,35 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // read as a row, and the renderers know how a priority chip, an assignee, a client
     // and a department are meant to look.
     const cell = (fn, val) => (typeof window[fn] === 'function' ? window[fn](val) : '');
+
+    // Per-task time tracking, driven by the timer the app already has: time_sessions,
+    // one active session per user enforced by the database. Writing a second timer here
+    // would mean two things fighting over the same row, so this drives that one through
+    // window.giantTaskTimer and shows its state per row.
+    const T = () => window.giantTaskTimer;
+    const liveSession = () => (T() ? T().session() : null);
+    const fmt = (secs) => (T() ? T().format(secs) : '0:00');
+    const timerHtml = (t) => {
+      const s = liveSession();
+      const mine = s && s.task_id === t.id;
+      const running = mine && s.status === 'running';
+      const icon = running
+        ? '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="4" y="3" width="3" height="10" rx="1" fill="currentColor"/><rect x="9" y="3" width="3" height="10" rx="1" fill="currentColor"/></svg>'
+        : '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M5 3.5l7 4.5-7 4.5v-9Z" fill="currentColor"/></svg>';
+      return '<span class="p2-timer" data-p2-timer="' + esc(t.id) + '"'
+        + ' title="' + (running ? 'Pause' : (mine ? 'Resume' : 'Start')) + ' tracking this task"'
+        + ' style="margin-left:auto;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;'
+        + 'padding:2px 7px;border-radius:7px;cursor:pointer;font-size:11px;font-weight:700;'
+        + 'font-variant-numeric:tabular-nums;'
+        + (mine ? 'background:rgba(208,4,0,.12);color:var(--red);' : 'color:var(--text-3);') + '">'
+        + icon
+        + (mine ? '<span data-p2-elapsed="' + esc(t.id) + '">' + esc(fmt(T().elapsed(s))) + '</span>' : '')
+        + '</span>'
+        + (mine ? '<span class="p2-timer-stop" data-p2-stop="' + esc(t.id) + '" title="Stop and log this session"'
+            + ' style="display:inline-flex;align-items:center;cursor:pointer;color:var(--text-3);flex-shrink:0;">'
+            + '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="4" y="4" width="8" height="8" rx="1.5" fill="currentColor"/></svg></span>'
+          : '');
+    };
     const rowHtml = (t) => {
       const isDone = done(t);
       return '<div class="prj-row" data-p2-task="' + esc(t.id) + '"'
@@ -81874,6 +81964,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         +   '" style="cursor:pointer;"></span>'
         +   '<span class="prj-name"' + (isDone ? ' style="text-decoration:line-through;"' : '') + '>'
         +   esc(t.name) + '</span>'
+        +   timerHtml(t)
         + '</div>'
         + '<div class="prj-cell" data-col="priority">' + cell('_renderPrjPriorityCell', t.priority_label || t.priority) + '</div>'
         + '<div class="prj-cell" data-col="assignee">' + cell('_renderPrjAssigneeCell', assignees(t)) + '</div>'
@@ -81950,6 +82041,31 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }).join('');
     // Type and press Enter. The folder decides the client, so a task created inside one
     // belongs to it without anybody choosing a client from a dropdown afterwards.
+    body.querySelectorAll('[data-p2-timer]').forEach(el => {
+      el.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!T()) return;
+        const id = el.dataset.p2Timer;
+        const t = p2.tasks.find(x => x.id === id);
+        const s = liveSession();
+        if (s && s.task_id === id) {
+          await (s.status === 'running' ? T().pause() : T().resume());
+        } else if (t) {
+          await T().start(t);
+        }
+        renderTasks();
+        startTick();
+      });
+    });
+    body.querySelectorAll('[data-p2-stop]').forEach(el => {
+      el.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!T()) return;
+        await T().complete();
+        renderTasks();
+      });
+    });
+    startTick();
     body.querySelectorAll('[data-p2-add-in]').forEach(inp => {
       inp.addEventListener('keydown', async (e) => {
         if (e.key !== 'Enter') return;
@@ -82065,6 +82181,23 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }, 10);
   }
 
+  // One interval, only while something is running, and it writes to the elapsed span
+  // rather than re-rendering -- a re-render every second would take the caret out of the
+  // add-task box someone is typing in.
+  let tick = null;
+  function startTick(){
+    if (tick) { clearInterval(tick); tick = null; }
+    const s = liveSessionSafe();
+    if (!s || s.status !== 'running') return;
+    tick = setInterval(() => {
+      const cur = liveSessionSafe();
+      if (!cur || cur.status !== 'running') { clearInterval(tick); tick = null; return; }
+      const el = document.querySelector('[data-p2-elapsed="' + cur.task_id + '"]');
+      if (el && window.giantTaskTimer) el.textContent = window.giantTaskTimer.format(window.giantTaskTimer.elapsed(cur));
+    }, 1000);
+  }
+  function liveSessionSafe(){ return window.giantTaskTimer ? window.giantTaskTimer.session() : null; }
+
   async function toggleDone(taskId){
     const t = p2.tasks.find(x => x.id === taskId);
     if (!t) return;
@@ -82128,6 +82261,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (!sb() || !me()) { setTimeout(open, 600); return; }
     wireStatusToggle();
     wireAddButtons();
+    if (window.giantTaskTimer) { try { await window.giantTaskTimer.refresh(); } catch (_) {} }
     if (!started) { started = true; await loadProjects(); }
     await loadTasks();
   }

@@ -3121,6 +3121,85 @@ await step('scheduling from inside a thread also writes exactly one row', async 
     JSON.stringify(r));
 });
 
+await step('Projects 2.0 tracks time on a task row', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const vis = (el) => { if (!el) return false; const b = el.getBoundingClientRect();
+      return el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && b.width > 4 && b.height > 4; };
+    const out = {};
+    const grp = document.querySelector('.nav-group-toggle[data-navgroup="work"]');
+    if (grp && grp.classList.contains('nav-group-collapsed')) { grp.click(); await wait(500); }
+    const p2Nav = document.querySelector('.nav-item[data-screen="projects2"]');
+    if (!p2Nav) return { noNav: true };
+    p2Nav.click(); await wait(1200);
+    // The clone and the rebuild are two views of one screen; the switch is how a person
+    // gets from one to the other, so it has to be on screen and say both words.
+    const sw = document.getElementById('p2_modeSwitch');
+    out.switchVisible = vis(sw);
+    // Fully on screen, and clear of the header: it was overlapping the search box.
+    const sr = sw ? sw.getBoundingClientRect() : null;
+    out.switchOnScreen = !!(sr && sr.bottom <= innerHeight && sr.right <= innerWidth && sr.top >= 0);
+    const search = document.getElementById('p2_prjSearchInput');
+    const hr = search ? search.getBoundingClientRect() : null;
+    out.switchClearOfSearch = !sr || !hr || sr.top > hr.bottom || sr.bottom < hr.top
+      || sr.left > hr.right || sr.right < hr.left;
+    out.switchLabels = [...(sw ? sw.children : [])].map(b => b.textContent).join('/');
+    // The switch itself reloads; the check flips the flag in place instead, because a
+    // reload here would throw away the evidence every earlier step collected.
+    const tasksNav = document.querySelector('.nav-item[data-screen="tasks"]');
+    if (tasksNav) { tasksNav.click(); await wait(900); }
+    window.p2UseRebuild = true;
+    p2Nav.click(); await wait(900);
+    if (typeof window.p2Open === 'function') await window.p2Open();
+    for (let i = 0; i < 30; i++) { await wait(250);
+      if (document.querySelector('#p2_prjProjectsBar [data-p2-project]')) break; }
+    // The fixture's first project by position carries no tasks; pick one that does.
+    const withTasks = (window.__mock.db.tasks || []).map(t => t.project_id).find(Boolean);
+    const chip = document.querySelector('#p2_prjProjectsBar [data-p2-project="' + withTasks + '"]');
+    if (chip) { chip.click(); }
+    for (let i = 0; i < 30; i++) { await wait(250);
+      if (document.querySelectorAll('#p2_prjDailyBody [data-p2-task]').length) break; }
+    out.rows = document.querySelectorAll('#p2_prjDailyBody [data-p2-task]').length;
+    const btn = document.querySelector('#p2_prjDailyBody [data-p2-timer]');
+    out.timerVisible = vis(btn);
+    out.timerInsideRow = !!(btn && btn.closest('.prj-row'));
+    if (!btn) { window.p2UseRebuild = false; return out; }
+    const taskId = btn.dataset.p2Timer;
+    const sessions = window.__mock.db.time_sessions = window.__mock.db.time_sessions || [];
+    const before = sessions.length;
+    btn.click(); await wait(1600);
+    out.rowsWritten = sessions.length - before;
+    const s = window.giantTaskTimer && window.giantTaskTimer.session();
+    out.onRightTask = !!(s && s.task_id === taskId);
+    out.running = !!(s && s.status === 'running');
+    // Elapsed has to READ as a clock -- it showed NaN:NaN while the fixture was not
+    // filling in the started_at the database supplies.
+    await wait(1400);
+    const el = document.querySelector('[data-p2-elapsed="' + taskId + '"]');
+    out.elapsed = el ? el.textContent : null;
+    out.elapsedIsClock = /^\d+:[0-5]\d(:[0-5]\d)?$/.test(out.elapsed || '');
+    out.elapsedTicked = out.elapsed !== '0:00';
+    const again = document.querySelector('[data-p2-timer="' + taskId + '"]');
+    if (again) { again.click(); await wait(1100); }
+    out.pausedStatus = (window.giantTaskTimer.session() || {}).status;
+    const stop = document.querySelector('[data-p2-stop="' + taskId + '"]');
+    if (stop) { stop.click(); await wait(1400); }
+    out.sessionCleared = window.giantTaskTimer.session() == null;
+    out.loggedStatus = sessions.length ? sessions[sessions.length - 1].status : null;
+    // The original Projects screen never grows this control.
+    out.originalUntouched = document.querySelectorAll('.screen[data-screen="tasks"] [data-p2-timer]').length === 0;
+    window.p2UseRebuild = false;
+    return out;
+  });
+  check('Projects 2.0 tracks time on a task row',
+    r.switchVisible && r.switchOnScreen && r.switchClearOfSearch
+      && r.switchLabels === 'Clone/Rebuild' && r.rows > 0
+      && r.timerVisible && r.timerInsideRow && r.rowsWritten === 1 && r.onRightTask && r.running
+      && r.elapsedIsClock && r.elapsedTicked && r.pausedStatus === 'paused'
+      && r.sessionCleared && r.loggedStatus === 'completed' && r.originalUntouched,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
