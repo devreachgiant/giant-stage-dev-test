@@ -81625,6 +81625,213 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     })();
   }
 })();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PROJECTS 2.0
+// ═══════════════════════════════════════════════════════════════════════════════
+// Its own module, not an extraction. The original Projects code is 12,401 lines of
+// function bodies whose largest cluster sits INSIDE initApp, sharing that closure --
+// so it cannot be lifted out without threading every dependency through by hand. What
+// is duplicated is the SCREEN; the behaviour is rebuilt here against the same tables,
+// which is what New Chat ended up being too.
+//
+// Everything is scoped to #p2_root. The markup copy kept the original's class names so
+// the stylesheet still applies, which means a bare class selector here would reach into
+// the original screen -- the fault that cost days on Chat. Scope, always.
+(function projects2Module(){
+  const P2 = () => document.getElementById('p2_root');
+  const $  = (id) => document.getElementById('p2_' + id);
+  const sb = () => window.giantSupabase;
+  const me = () => window.giantSession && window.giantSession.user && window.giantSession.user.id;
+  const esc = (s) => String(s == null ? '' : s)
+    .replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+
+  const p2 = { projects: [], activeId: null, tasks: [], people: {}, status: 'active', loading: false };
+  window.p2State = p2;   // for the checks, and for reading state without guessing
+
+  function activeProject(){ return p2.projects.find(p => p.id === p2.activeId) || null; }
+
+  // assigned_to is a uuid[]. PostgREST usually hands that back as a real array, but not
+  // always -- a Postgres array literal arrives as the string "{a,b}", and calling .map on
+  // that throws and takes the whole render with it. Normalised once, here, so no caller
+  // has to know which shape turned up.
+  function assignees(t){
+    const v = t && t.assigned_to;
+    if (Array.isArray(v)) return v.filter(Boolean);
+    if (typeof v === 'string') {
+      const s = v.trim();
+      if (!s || s === '{}') return [];
+      try { const j = JSON.parse(s); if (Array.isArray(j)) return j.filter(Boolean); } catch (_) {}
+      return s.replace(/^\{|\}$/g, '').split(',').map(x => x.trim().replace(/^"|"$/g, '')).filter(Boolean);
+    }
+    return [];
+  }
+
+  async function loadProjects(){
+    const { data, error } = await sb().from('projects')
+      .select('id, name, color, status, deadline, client_id, position')
+      .order('position', { ascending: true }).order('name', { ascending: true });
+    if (error) { console.warn('[p2] projects', error.message); return; }
+    p2.projects = data || [];
+    if (!p2.activeId && p2.projects.length) p2.activeId = p2.projects[0].id;
+    renderProjectsBar();
+  }
+
+  function renderProjectsBar(){
+    const bar = $('prjProjectsBar');
+    if (!bar) return;
+    bar.innerHTML = p2.projects.map(p =>
+      '<button class="prj-proj-chip' + (p.id === p2.activeId ? ' active' : '') + '"'
+      + ' data-p2-project="' + esc(p.id) + '"'
+      + ' style="display:inline-flex;align-items:center;gap:7px;background:'
+      + (p.id === p2.activeId ? 'var(--surface-2)' : 'transparent')
+      + ';border:1px solid var(--line);border-radius:9px;padding:6px 11px;margin:0 6px 6px 0;'
+      + 'font-size:12px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;">'
+      + '<span style="width:8px;height:8px;border-radius:50%;background:' + esc(p.color || 'var(--red)') + ';"></span>'
+      + esc(p.name) + '</button>').join('');
+    bar.querySelectorAll('[data-p2-project]').forEach(el => {
+      el.addEventListener('click', () => selectProject(el.dataset.p2Project));
+    });
+    const head = document.querySelector('.screen[data-screen="projects2"] h1, #p2_root h1');
+    const ap = activeProject();
+    if (head && ap) head.textContent = ap.name;
+  }
+
+  async function selectProject(id){
+    if (!id || id === p2.activeId) { if (id) await loadTasks(); return; }
+    p2.activeId = id;
+    renderProjectsBar();
+    await loadTasks();
+  }
+
+  async function hydratePeople(ids){
+    const want = [...new Set(ids)].filter(x => x && !p2.people[x]);
+    if (!want.length) return;
+    // Named ids, so the app-wide filter deliberately does not hide anyone here: a task
+    // assigned to someone who has since left must still show their name.
+    const { data } = await sb().from('profiles')
+      .select('id, full_name, email, avatar_url, avatar_bg, avatar_fg').in('id', want);
+    (data || []).forEach(p => { p2.people[p.id] = p; });
+  }
+
+  async function loadTasks(){
+    const body = $('prjDailyBody'), loading = $('prjDailyLoading'), empty = $('prjDailyEmpty');
+    if (!body) return;
+    if (!p2.activeId) { if (loading) loading.style.display = 'none'; return; }
+    p2.loading = true;
+    if (loading) { loading.style.display = ''; loading.textContent = 'Loading tasks…'; }
+    if (empty) empty.style.display = 'none';
+    const { data, error } = await sb().from('tasks')
+      .select('id, name, status, priority, assigned_to, due_at, client_id, category, position, created_at')
+      .eq('project_id', p2.activeId)
+      .order('position', { ascending: true }).order('created_at', { ascending: false });
+    p2.loading = false;
+    if (error) {
+      if (loading) { loading.style.display = ''; loading.textContent = 'Could not load tasks: ' + error.message; }
+      return;
+    }
+    p2.tasks = data || [];
+    await hydratePeople(p2.tasks.flatMap(assignees));
+    renderTasks();
+  }
+
+  function renderTasks(){
+    const body = $('prjDailyBody'), loading = $('prjDailyLoading'), empty = $('prjDailyEmpty');
+    if (!body) return;
+    if (loading) loading.style.display = 'none';
+    const done = (t) => t.status === 'done' || t.status === 'complete' || t.status === 'completed';
+    const shown = p2.tasks.filter(t => p2.status === 'done' ? done(t) : !done(t));
+    const a = $('prjStCountActive'), d = $('prjStCountDone');
+    if (a) a.textContent = String(p2.tasks.filter(t => !done(t)).length);
+    if (d) d.textContent = String(p2.tasks.filter(done).length);
+    if (!shown.length) {
+      body.innerHTML = '';
+      if (empty) empty.style.display = '';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+    body.innerHTML = shown.map(t => {
+      const who = assignees(t).map(id => p2.people[id]).filter(Boolean);
+      const avatars = who.slice(0, 3).map(p => {
+        const initial = esc((p.full_name || p.email || '?').charAt(0).toUpperCase());
+        return p.avatar_url
+          ? '<span style="width:22px;height:22px;border-radius:50%;overflow:hidden;display:inline-flex;flex-shrink:0;">'
+            + '<img src="' + esc(p.avatar_url) + '" alt="" style="width:22px;height:22px;object-fit:cover;display:block;"></span>'
+          : '<span style="width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;'
+            + 'font-size:9px;font-weight:800;flex-shrink:0;background:' + esc(p.avatar_bg || '#4A2424')
+            + ';color:' + esc(p.avatar_fg || '#F0A0A0') + ';">' + initial + '</span>';
+      }).join('');
+      const due = t.due_at ? new Date(t.due_at).toLocaleDateString(undefined, { month:'short', day:'numeric' }) : '';
+      return '<div class="prj-row" data-p2-task="' + esc(t.id) + '"'
+        + ' style="display:grid;grid-template-columns:var(--prj-cols);align-items:center;gap:8px;'
+        + 'padding:9px 12px;border-bottom:1px solid var(--line);font-size:12.5px;">'
+        + '<div style="display:flex;align-items:center;gap:9px;min-width:0;">'
+        +   '<span data-p2-toggle="' + esc(t.id) + '" title="Mark done"'
+        +   ' style="width:15px;height:15px;border-radius:4px;flex-shrink:0;cursor:pointer;border:1.5px solid '
+        +   (done(t) ? 'var(--green);background:var(--green)' : 'var(--line-2)') + ';"></span>'
+        +   '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'
+        +   (done(t) ? 'text-decoration:line-through;color:var(--text-3);' : '') + '">' + esc(t.name) + '</span>'
+        + '</div>'
+        + '<div style="color:var(--text-2);">' + esc(t.priority || '') + '</div>'
+        + '<div style="display:flex;gap:4px;">' + (avatars || '<span style="color:var(--text-3);">—</span>') + '</div>'
+        + '<div style="color:var(--text-3);">' + esc(due) + '</div>'
+        + '<div style="color:var(--text-3);">' + esc(t.category || '') + '</div>'
+        + '<div style="color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(t.status || '') + '</div>'
+        + '<div></div>'
+        + '</div>';
+    }).join('');
+    body.querySelectorAll('[data-p2-toggle]').forEach(el => {
+      el.addEventListener('click', (e) => { e.stopPropagation(); toggleDone(el.dataset.p2Toggle); });
+    });
+  }
+
+  async function toggleDone(taskId){
+    const t = p2.tasks.find(x => x.id === taskId);
+    if (!t) return;
+    const isDone = t.status === 'done';
+    t.status = isDone ? 'todo' : 'done';
+    renderTasks();
+    const { error } = await sb().from('tasks').update({ status: t.status }).eq('id', taskId);
+    if (error) {
+      t.status = isDone ? 'done' : 'todo';
+      renderTasks();
+      if (window.toast) toast({ type:'error', message:'Could not update that task: ' + error.message });
+    }
+  }
+
+  // Status toggle (Active / Done), scoped -- a bare .prj-st-btn would also grab the
+  // original screen's buttons, which are the same markup on a hidden screen.
+  function wireStatusToggle(){
+    const root = P2();
+    if (!root) return;
+    root.querySelectorAll('[data-status]').forEach(btn => {
+      if (btn._p2Wired) return;
+      btn._p2Wired = true;
+      btn.addEventListener('click', () => {
+        p2.status = btn.dataset.status === 'done' ? 'done' : 'active';
+        root.querySelectorAll('[data-status]').forEach(b => b.classList.toggle('active', b === btn));
+        renderTasks();
+      });
+    });
+  }
+
+  let started = false;
+  async function open(){
+    if (!sb() || !me()) { setTimeout(open, 600); return; }
+    wireStatusToggle();
+    if (!started) { started = true; await loadProjects(); }
+    await loadTasks();
+  }
+  window.p2Open = open;
+
+  // Opens when its nav item is clicked, and again if the screen is already on at load.
+  (function wireNav(){
+    const item = document.querySelector('.nav-item[data-screen="projects2"]');
+    if (!item) { setTimeout(wireNav, 500); return; }
+    item.addEventListener('click', () => setTimeout(open, 250));
+    if (document.querySelector('.screen[data-screen="projects2"].on')) setTimeout(open, 800);
+  })();
+})();
 </script>
 </body>
 </html>
