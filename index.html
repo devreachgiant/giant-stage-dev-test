@@ -81723,7 +81723,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (loading) { loading.style.display = ''; loading.textContent = 'Loading tasks…'; }
     if (empty) empty.style.display = 'none';
     const { data, error } = await sb().from('tasks')
-      .select('id, name, status, priority, assigned_to, due_at, client_id, category, position, created_at')
+      .select('id, name, description, status, priority, assigned_to, due_at, client_id, department, category, position, created_at')
       .eq('project_id', p2.activeId)
       .order('position', { ascending: true }).order('created_at', { ascending: false });
     p2.loading = false;
@@ -81751,34 +81751,28 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       return;
     }
     if (empty) empty.style.display = 'none';
+    // The original's own row structure and its own cell renderers, which it exposes on
+    // window. Hand-rolling a grid here is what made the columns drift out of line with
+    // the table: .prj-cell carries the padding, borders and min-height that make a row
+    // read as a row, and the renderers know how a priority chip, an assignee, a client
+    // and a department are meant to look.
+    const cell = (fn, val) => (typeof window[fn] === 'function' ? window[fn](val) : '');
     body.innerHTML = shown.map(t => {
-      const who = assignees(t).map(id => p2.people[id]).filter(Boolean);
-      const avatars = who.slice(0, 3).map(p => {
-        const initial = esc((p.full_name || p.email || '?').charAt(0).toUpperCase());
-        return p.avatar_url
-          ? '<span style="width:22px;height:22px;border-radius:50%;overflow:hidden;display:inline-flex;flex-shrink:0;">'
-            + '<img src="' + esc(p.avatar_url) + '" alt="" style="width:22px;height:22px;object-fit:cover;display:block;"></span>'
-          : '<span style="width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;'
-            + 'font-size:9px;font-weight:800;flex-shrink:0;background:' + esc(p.avatar_bg || '#4A2424')
-            + ';color:' + esc(p.avatar_fg || '#F0A0A0') + ';">' + initial + '</span>';
-      }).join('');
-      const due = t.due_at ? new Date(t.due_at).toLocaleDateString(undefined, { month:'short', day:'numeric' }) : '';
+      const isDone = done(t);
       return '<div class="prj-row" data-p2-task="' + esc(t.id) + '"'
-        + ' style="display:grid;grid-template-columns:var(--prj-cols);align-items:center;gap:8px;'
-        + 'padding:9px 12px;border-bottom:1px solid var(--line);font-size:12.5px;">'
-        + '<div style="display:flex;align-items:center;gap:9px;min-width:0;">'
-        +   '<span data-p2-toggle="' + esc(t.id) + '" title="Mark done"'
-        +   ' style="width:15px;height:15px;border-radius:4px;flex-shrink:0;cursor:pointer;border:1.5px solid '
-        +   (done(t) ? 'var(--green);background:var(--green)' : 'var(--line-2)') + ';"></span>'
-        +   '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;'
-        +   (done(t) ? 'text-decoration:line-through;color:var(--text-3);' : '') + '">' + esc(t.name) + '</span>'
+        + (isDone ? ' style="opacity:.5;"' : '') + '>'
+        + '<div class="prj-cell prj-cell-name" data-col="name">'
+        +   '<span class="prj-tick' + (isDone ? ' done' : '') + '" data-p2-toggle="' + esc(t.id)
+        +   '" style="cursor:pointer;"></span>'
+        +   '<span class="prj-name"' + (isDone ? ' style="text-decoration:line-through;"' : '') + '>'
+        +   esc(t.name) + '</span>'
         + '</div>'
-        + '<div style="color:var(--text-2);">' + esc(t.priority || '') + '</div>'
-        + '<div style="display:flex;gap:4px;">' + (avatars || '<span style="color:var(--text-3);">—</span>') + '</div>'
-        + '<div style="color:var(--text-3);">' + esc(due) + '</div>'
-        + '<div style="color:var(--text-3);">' + esc(t.category || '') + '</div>'
-        + '<div style="color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(t.status || '') + '</div>'
-        + '<div></div>'
+        + '<div class="prj-cell" data-col="priority">' + cell('_renderPrjPriorityCell', t.priority_label || t.priority) + '</div>'
+        + '<div class="prj-cell" data-col="assignee">' + cell('_renderPrjAssigneeCell', assignees(t)) + '</div>'
+        + '<div class="prj-cell" data-col="client">' + cell('_renderPrjClientCell', t.client_id) + '</div>'
+        + '<div class="prj-cell" data-col="department">' + cell('_renderPrjDepartmentCell', t.department) + '</div>'
+        + '<div class="prj-cell" data-col="task_details">' + cell('_renderPrjTaskDetailsCell', t.description) + '</div>'
+        + '<div class="prj-cell prj-cell-pad" data-col="pad"></div>'
         + '</div>';
     }).join('');
     body.querySelectorAll('[data-p2-toggle]').forEach(el => {
