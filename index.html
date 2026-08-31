@@ -81647,7 +81647,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   const esc = (s) => String(s == null ? '' : s)
     .replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
 
-  const p2 = { projects: [], activeId: null, tasks: [], people: {}, status: 'active', loading: false };
+  const p2 = { projects: [], activeId: null, tasks: [], people: {}, clients: {},
+               status: 'active', loading: false, collapsed: {}, extraFolders: [] };
   window.p2State = p2;   // for the checks, and for reading state without guessing
 
   function activeProject(){ return p2.projects.find(p => p.id === p2.activeId) || null; }
@@ -81681,6 +81682,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   function renderProjectsBar(){
     const bar = $('prjProjectsBar');
     if (!bar) return;
+    // The "create project" button lives INSIDE this bar. Replacing innerHTML destroyed
+    // it, which is why nothing could be created -- take it out first and put it back.
+    const addBtn = $('prjProjAdd');
+    if (addBtn && addBtn.parentElement === bar) bar.removeChild(addBtn);
     bar.innerHTML = p2.projects.map(p =>
       '<button class="prj-proj-chip' + (p.id === p2.activeId ? ' active' : '') + '"'
       + ' data-p2-project="' + esc(p.id) + '"'
@@ -81690,6 +81695,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       + 'font-size:12px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;">'
       + '<span style="width:8px;height:8px;border-radius:50%;background:' + esc(p.color || 'var(--red)') + ';"></span>'
       + esc(p.name) + '</button>').join('');
+    if (addBtn) bar.appendChild(addBtn);
     bar.querySelectorAll('[data-p2-project]').forEach(el => {
       el.addEventListener('click', () => selectProject(el.dataset.p2Project));
     });
@@ -81715,6 +81721,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     (data || []).forEach(p => { p2.people[p.id] = p; });
   }
 
+  // A folder IS a client. tasks.client_id already carries this -- 103 of 458 tasks have
+  // one -- so grouping by it turns the existing data into folders without inventing a
+  // table to hold what is already recorded. A folder that is not a client (an "Admin"
+  // or "Internal") has nowhere to live in this model; that wants a project_folders
+  // table, and is worth adding only once something actually needs it.
+  async function loadClients(){
+    if (Object.keys(p2.clients).length) return;
+    const { data } = await sb().from('clients')
+      .select('id, name, avatar_bg, avatar_fg, status').neq('status', 'churned').order('name');
+    (data || []).forEach(c => { p2.clients[c.id] = c; });
+  }
+
+  function folderOf(t){ return t.client_id || '__none__'; }
+  function folderName(key){
+    if (key === '__none__') return 'Unfiled';
+    const c = p2.clients[key];
+    return (c && c.name) || 'Client';
+  }
+
   async function loadTasks(){
     const body = $('prjDailyBody'), loading = $('prjDailyLoading'), empty = $('prjDailyEmpty');
     if (!body) return;
@@ -81732,7 +81757,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       return;
     }
     p2.tasks = data || [];
-    await hydratePeople(p2.tasks.flatMap(assignees));
+    await Promise.all([hydratePeople(p2.tasks.flatMap(assignees)), loadClients()]);
     renderTasks();
   }
 
@@ -81757,7 +81782,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // read as a row, and the renderers know how a priority chip, an assignee, a client
     // and a department are meant to look.
     const cell = (fn, val) => (typeof window[fn] === 'function' ? window[fn](val) : '');
-    body.innerHTML = shown.map(t => {
+    const rowHtml = (t) => {
       const isDone = done(t);
       return '<div class="prj-row" data-p2-task="' + esc(t.id) + '"'
         + (isDone ? ' style="opacity:.5;"' : '') + '>'
@@ -81774,10 +81799,169 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         + '<div class="prj-cell" data-col="task_details">' + cell('_renderPrjTaskDetailsCell', t.description) + '</div>'
         + '<div class="prj-cell prj-cell-pad" data-col="pad"></div>'
         + '</div>';
+    };
+
+    // Folders, in client-name order, with anything unfiled last -- it is 355 of 458 tasks
+    // and would otherwise sit at the top and bury the folders that were the point.
+    const byFolder = new Map();
+    shown.forEach(t => {
+      const k = folderOf(t);
+      if (!byFolder.has(k)) byFolder.set(k, []);
+      byFolder.get(k).push(t);
+    });
+    // Folders added from the picker that have no tasks yet. Without this an empty folder
+    // vanishes the moment it is created, which reads as the button not working.
+    p2.extraFolders.forEach(k => { if (!byFolder.has(k)) byFolder.set(k, []); });
+    const keys = [...byFolder.keys()].sort((a, b) => {
+      if (a === '__none__') return 1;
+      if (b === '__none__') return -1;
+      return folderName(a).localeCompare(folderName(b));
+    });
+    body.innerHTML = keys.map(k => {
+      const rows = byFolder.get(k);
+      const shut = !!p2.collapsed[k];
+      const c = k === '__none__' ? null : p2.clients[k];
+      const mark = c
+        ? '<span style="width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;'
+          + 'justify-content:center;font-size:8.5px;font-weight:800;flex-shrink:0;background:'
+          + esc(c.avatar_bg || 'var(--c3-avatar-bg)') + ';color:' + esc(c.avatar_fg || 'var(--c3-avatar-fg)') + ';">'
+          + esc((c.name || '?').trim().charAt(0).toUpperCase()) + '</span>'
+        : '<span style="width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;'
+          + 'color:var(--text-3);flex-shrink:0;">—</span>';
+      return '<div class="p2-folder" data-p2-folder="' + esc(k) + '">'
+        + '<div data-p2-folder-head="' + esc(k) + '"'
+        + ' style="display:flex;align-items:center;gap:9px;padding:10px 14px;cursor:pointer;'
+        + 'background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2;">'
+        +   '<span style="color:var(--text-3);font-size:10px;width:10px;flex-shrink:0;">'
+        +   (shut ? '&#9654;' : '&#9660;') + '</span>'
+        +   mark
+        +   '<span style="font-size:12.5px;font-weight:700;color:var(--text);">' + esc(folderName(k)) + '</span>'
+        +   '<span style="font-size:11px;font-weight:700;color:var(--text-3);">' + rows.length + '</span>'
+        + '</div>'
+        + '<div data-p2-folder-body="' + esc(k) + '"' + (shut ? ' style="display:none;"' : '') + '>'
+        + rows.map(rowHtml).join('')
+        + '<div style="padding:7px 14px 9px 34px;border-bottom:1px solid var(--line);">'
+        +   '<input type="text" data-p2-add-in="' + esc(k) + '" placeholder="+ Add a task"'
+        +   ' style="width:100%;background:transparent;border:none;outline:none;font:inherit;'
+        +   'font-size:12.5px;color:var(--text);padding:2px 0;">'
+        + '</div>'
+        + '</div></div>';
     }).join('');
+    // Type and press Enter. The folder decides the client, so a task created inside one
+    // belongs to it without anybody choosing a client from a dropdown afterwards.
+    body.querySelectorAll('[data-p2-add-in]').forEach(inp => {
+      inp.addEventListener('keydown', async (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const name = (inp.value || '').trim();
+        if (!name) return;
+        inp.value = '';
+        inp.disabled = true;
+        await addTask(name, inp.dataset.p2AddIn);
+        inp.disabled = false;
+        const again = document.querySelector('[data-p2-add-in="' + inp.dataset.p2AddIn + '"]');
+        if (again) again.focus();
+      });
+    });
+    body.querySelectorAll('[data-p2-folder-head]').forEach(h => {
+      h.addEventListener('click', () => {
+        const k = h.dataset.p2FolderHead;
+        p2.collapsed[k] = !p2.collapsed[k];
+        renderTasks();
+      });
+    });
     body.querySelectorAll('[data-p2-toggle]').forEach(el => {
       el.addEventListener('click', (e) => { e.stopPropagation(); toggleDone(el.dataset.p2Toggle); });
     });
+  }
+
+  async function addProject(){
+    const name = (window.prompt('Name the project') || '').trim();
+    if (!name) return;
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) + '-' + Math.random().toString(36).slice(2, 5);
+    const { data, error } = await sb().from('projects')
+      .insert({ name, slug, created_by: me(), status: 'active', position: p2.projects.length })
+      .select('id, name, color, status, deadline, client_id, position').single();
+    if (error) {
+      if (window.toast) toast({ type:'error', message:'Could not create that project: ' + error.message });
+      return;
+    }
+    p2.projects.push(data);
+    p2.activeId = data.id;
+    p2.extraFolders = [];
+    renderProjectsBar();
+    await loadTasks();
+  }
+
+  async function addTask(name, folderKey){
+    if (!p2.activeId) return;
+    const row = {
+      project_id: p2.activeId,
+      name,
+      status: 'todo',
+      created_by: me(),
+      assigned_to: [],
+      client_id: folderKey === '__none__' ? null : folderKey
+    };
+    const { data, error } = await sb().from('tasks').insert(row)
+      .select('id, name, description, status, priority, assigned_to, due_at, client_id, department, category, position, created_at')
+      .single();
+    if (error) {
+      if (window.toast) toast({ type:'error', message:'Could not add that task: ' + error.message });
+      return;
+    }
+    p2.tasks.unshift(data);
+    renderTasks();
+  }
+
+  // "New folder" is choosing which client this project should show a folder for. The
+  // folder is the client -- there is no folder record to create -- so this only decides
+  // what is on screen until a task lands in it.
+  function openFolderPicker(){
+    const root = P2();
+    if (!root) return;
+    document.querySelectorAll('.p2-folder-pop').forEach(e => e.remove());
+    const used = new Set(p2.tasks.map(folderOf).concat(p2.extraFolders));
+    const pick = Object.values(p2.clients)
+      .filter(c => !used.has(c.id))
+      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    const pop = document.createElement('div');
+    pop.className = 'p2-folder-pop';
+    pop.style.cssText = 'position:absolute;z-index:90;background:var(--surface);border:1px solid var(--line-2);'
+      + 'border-radius:11px;padding:6px;box-shadow:0 18px 40px -12px rgba(0,0,0,.6);max-height:320px;'
+      + 'overflow-y:auto;width:250px;';
+    pop.innerHTML = '<input type="text" class="p2-folder-filter" placeholder="Find a client…"'
+      + ' style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;'
+      + 'padding:7px 9px;font:inherit;font-size:12px;color:var(--text);outline:none;margin-bottom:5px;">'
+      + (pick.length ? pick.map(c => '<div class="p2-folder-opt" data-p2-pick="' + esc(c.id) + '"'
+          + ' style="padding:7px 9px;border-radius:7px;cursor:pointer;font-size:12.5px;">'
+          + esc(c.name) + '</div>').join('')
+        : '<div style="padding:10px;color:var(--text-3);font-size:12px;">Every client already has a folder here.</div>');
+    const btn = document.getElementById('p2_addFolderBtn') || $('prjProjectsBar');
+    const r = btn.getBoundingClientRect();
+    pop.style.left = Math.round(r.left) + 'px';
+    pop.style.top  = Math.round(r.bottom + 6) + 'px';
+    pop.style.position = 'fixed';
+    document.body.appendChild(pop);
+    const filter = pop.querySelector('.p2-folder-filter');
+    filter.addEventListener('input', () => {
+      const q = filter.value.toLowerCase();
+      pop.querySelectorAll('.p2-folder-opt').forEach(o => {
+        o.style.display = o.textContent.toLowerCase().includes(q) ? '' : 'none';
+      });
+    });
+    pop.querySelectorAll('[data-p2-pick]').forEach(o => {
+      o.addEventListener('click', () => {
+        p2.extraFolders.push(o.dataset.p2Pick);
+        pop.remove();
+        renderTasks();
+      });
+    });
+    setTimeout(() => {
+      const close = (e) => { if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('click', close); } };
+      document.addEventListener('click', close);
+      filter.focus();
+    }, 10);
   }
 
   async function toggleDone(taskId){
@@ -81810,10 +81994,36 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     });
   }
 
+  function wireAddButtons(){
+    const projBtn = $('prjProjAdd');
+    if (projBtn && !projBtn._p2Wired) {
+      projBtn._p2Wired = true;
+      projBtn.title = 'Create a project';
+      projBtn.addEventListener('click', (e) => { e.stopPropagation(); addProject(); });
+    }
+    // Folders get their own control rather than borrowing the project one: they are a
+    // different level of the same tree, and one button that means two things is how a
+    // person ends up creating the wrong thing.
+    const toggle = $('prjStatusToggle');
+    if (toggle && !document.getElementById('p2_addFolderBtn')) {
+      const b = document.createElement('button');
+      b.id = 'p2_addFolderBtn';
+      b.type = 'button';
+      b.textContent = '+ Folder';
+      b.title = 'Add a client folder to this project';
+      b.style.cssText = 'background:transparent;border:1px solid var(--line);border-radius:8px;'
+        + 'padding:6px 11px;font-size:11.5px;font-weight:600;color:var(--text-2);cursor:pointer;'
+        + 'font-family:inherit;margin-right:8px;';
+      b.addEventListener('click', (e) => { e.stopPropagation(); openFolderPicker(); });
+      toggle.parentElement.insertBefore(b, toggle);
+    }
+  }
+
   let started = false;
   async function open(){
     if (!sb() || !me()) { setTimeout(open, 600); return; }
     wireStatusToggle();
+    wireAddButtons();
     if (!started) { started = true; await loadProjects(); }
     await loadTasks();
   }
