@@ -81649,6 +81649,71 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 // Everything is scoped to #p2_root. The markup copy kept the original's class names so
 // the stylesheet still applies, which means a bare class selector here would reach into
 // the original screen -- the fault that cost days on Chat. Scope, always.
+// ── Projects 2.0 as a true clone ──────────────────────────────────────────────
+// The Projects screen's code cannot be copied: initApp is 7,147 lines and the Projects
+// parts are 150 lines scattered through it in a dozen runs, interleaved with the rest of
+// the app's startup. So rather than copy the code, this MOVES the live screen.
+//
+// Opening Projects 2.0 relocates the real .screen[data-screen="tasks"] node into this
+// screen's container; leaving puts it back where it was. Every listener, every picker and
+// every interval comes with it, because it is the same node -- which is what makes this a
+// clone rather than a likeness.
+//
+// The catch, stated plainly: there is one screen, so the two nav items show the same
+// thing. It cannot diverge. The rebuilt module below is left intact and dormant behind
+// window.p2UseRebuild for when it should.
+(function projects2Alias(){
+  if (window.p2UseRebuild) return;
+  const P2  = () => document.getElementById('p2_root');
+  const SRC = () => document.querySelector('.screen[data-screen="tasks"]');
+  let anchor = null;      // where the node lives when it is not borrowed
+  let borrowed = false;
+
+  function borrow(){
+    const src = SRC(), host = P2();
+    if (!src || !host || borrowed) return;
+    if (!anchor) {
+      anchor = document.createComment('projects-screen-home');
+      src.parentNode.insertBefore(anchor, src);
+    }
+    // The copied markup steps aside rather than being deleted -- it is the rebuild's
+    // canvas and this is meant to be reversible.
+    [...host.children].forEach(c => { if (c !== src) c.style.display = 'none'; });
+    host.appendChild(src);
+    // Nested inside another screen it loses .on, and .screen without .on is display:none.
+    src.style.display = 'block';
+    src.style.height = '100%';
+    borrowed = true;
+  }
+
+  function giveBack(){
+    const src = SRC();
+    if (!src || !borrowed || !anchor) return;
+    src.style.removeProperty('display');
+    src.style.removeProperty('height');
+    anchor.parentNode.insertBefore(src, anchor);
+    const host = P2();
+    if (host) [...host.children].forEach(c => c.style.removeProperty('display'));
+    borrowed = false;
+  }
+
+  function sync(){
+    const on = document.querySelector('.screen[data-screen="projects2"]');
+    if (!on) return;
+    if (on.classList.contains('on')) borrow(); else giveBack();
+  }
+
+  (function start(){
+    const screen = document.querySelector('.screen[data-screen="projects2"]');
+    if (!screen) { setTimeout(start, 400); return; }
+    new MutationObserver(sync).observe(screen, { attributes: true, attributeFilter: ['class'] });
+    // Navigating to Projects itself has to hand the node back before that screen paints.
+    document.querySelectorAll('.nav-item[data-screen="tasks"]').forEach(n =>
+      n.addEventListener('click', () => giveBack(), true));
+    sync();
+  })();
+})();
+
 (function projects2Module(){
   const P2 = () => document.getElementById('p2_root');
   const $  = (id) => document.getElementById('p2_' + id);
@@ -82057,6 +82122,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   let started = false;
   async function open(){
+    // Dormant while the alias is showing the real screen. Set window.p2UseRebuild = true
+    // before load to work on the rebuild instead.
+    if (!window.p2UseRebuild) return;
     if (!sb() || !me()) { setTimeout(open, 600); return; }
     wireStatusToggle();
     wireAddButtons();
