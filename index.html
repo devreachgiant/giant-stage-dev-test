@@ -81699,13 +81699,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     bar.innerHTML = p2.projects.map(p =>
       '<button class="prj-proj-chip' + (p.id === p2.activeId ? ' active' : '') + '"'
       + ' data-p2-project="' + esc(p.id) + '"'
-      + ' style="display:inline-flex;align-items:center;gap:7px;background:'
+      // nowrap: the chip was sizing to the bar and breaking "Master List" over two lines,
+      // which made a row of projects twice as tall as it needed to be and hard to scan.
+      + ' style="display:inline-flex;align-items:center;gap:7px;white-space:nowrap;flex-shrink:0;background:'
       + (p.id === p2.activeId ? 'var(--surface-2)' : 'transparent')
-      + ';border:1px solid var(--line);border-radius:9px;padding:6px 11px;margin:0 6px 6px 0;'
+      + ';border:1px solid var(--line);border-radius:9px;padding:6px 11px;margin:0 6px 0 0;'
       + 'font-size:12px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;">'
       + '<span style="width:8px;height:8px;border-radius:50%;background:' + esc(p.color || 'var(--red)') + ';"></span>'
       + esc(p.name) + '</button>').join('');
-    if (addBtn) bar.appendChild(addBtn);
+    if (addBtn) { addBtn.style.flexShrink = '0'; bar.appendChild(addBtn); }
+    // One line that scrolls, rather than a block that grows downward.
+    bar.style.display = 'flex';
+    bar.style.flexWrap = 'nowrap';
+    bar.style.alignItems = 'center';
+    bar.style.overflowX = 'auto';
+    bar.style.overflowY = 'hidden';
     bar.querySelectorAll('[data-p2-project]').forEach(el => {
       el.addEventListener('click', () => selectProject(el.dataset.p2Project));
     });
