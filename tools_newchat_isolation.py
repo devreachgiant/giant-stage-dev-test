@@ -122,7 +122,40 @@ _PAGING_WHY = ('"Load earlier messages" scrolled to the newest message, the oppo
                'the button; fixed in both chats by explicit decision, since Old Chat is '
                'what people were told to fall back to during the beta')
 
-ALLOWED = [(1, BEFORE_PAGE_RENDER, AFTER_PAGE_RENDER, _PAGING_WHY),
+# A message's text node carries data-msg-id as well as the message itself, so
+# '#chatMsgsList [data-msg-id]' matched both and attached a second reaction bar INSIDE the
+# text. Double-clicking to edit then read the bar as part of the message and typed
+# 👍❤️🔥😂🎉 into the edit box. Fixed in both chats by explicit decision.
+BEFORE_BAR_SELECTOR = '''    function reattachReactBarsForChannel(channelId) {
+      const msgEls = document.querySelectorAll('#chatMsgsList [data-msg-id]');'''
+AFTER_BAR_SELECTOR = '''    function reattachReactBarsForChannel(channelId) {
+      // .msg, not any [data-msg-id]: the message's text node carries data-msg-id too, so
+      // a bare selector attached a SECOND reaction bar inside the text, and double-clicking
+      // to edit then typed \U0001F44D\u2764\uFE0F\U0001F525\U0001F602\U0001F389 into the edit box.
+      const msgEls = document.querySelectorAll('#chatMsgsList .msg[data-msg-id]');'''
+
+BEFORE_BAR_GUARD = '''    function attachReactBarToMsg(msgEl, messageId, isMine) {
+      if (msgEl.querySelector('.msg-react-bar')) return;'''
+AFTER_BAR_GUARD = '''    function attachReactBarToMsg(msgEl, messageId, isMine) {
+      // Never inside the text of a message: anything in the body element becomes part of
+      // what the message says as far as innerText, editing and copying are concerned.
+      if (!msgEl || msgEl.hasAttribute('data-msg-body')) return;
+      if (msgEl.querySelector('.msg-react-bar')) return;'''
+
+BEFORE_ATT_SELECTOR = '''        // Load attachments + render
+        const msgEls = document.querySelectorAll('#chatMsgsList [data-msg-id]');'''
+AFTER_ATT_SELECTOR = '''        // Load attachments + render. .msg, not any [data-msg-id]: the text node carries
+        // the id too, so this rendered every attachment a second time inside the text.
+        const msgEls = document.querySelectorAll('#chatMsgsList .msg[data-msg-id]');'''
+
+_BAR_WHY = ('a bare [data-msg-id] selector also matched the message text node, so a second '
+            'reaction bar was attached inside the message body and double-clicking to edit '
+            'typed the emoji bar into the edit box; fixed in both chats by explicit decision')
+
+ALLOWED = [(1, BEFORE_BAR_SELECTOR, AFTER_BAR_SELECTOR, _BAR_WHY),
+           (1, BEFORE_BAR_GUARD, AFTER_BAR_GUARD, _BAR_WHY),
+           (1, BEFORE_ATT_SELECTOR, AFTER_ATT_SELECTOR, _BAR_WHY + ' (same selector, attachments)'),
+           (1, BEFORE_PAGE_RENDER, AFTER_PAGE_RENDER, _PAGING_WHY),
            (1, BEFORE_PAGE_TRUNC, AFTER_PAGE_TRUNC, _PAGING_WHY + ' (the cap drops the oldest, which is what paging just fetched)'),
            (1, BEFORE_PAGE_SCROLL, AFTER_PAGE_SCROLL, _PAGING_WHY),
            (1, BEFORE_PAGE_ANCHOR, AFTER_PAGE_ANCHOR, _PAGING_WHY),

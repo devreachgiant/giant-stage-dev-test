@@ -516,7 +516,7 @@ await step('a message with replies shows exactly one reply badge', async () => {
     () => document.querySelectorAll('#nc_chatMsgsList .nc_msg-reply-cta, #nc_chatMsgsList .msg-reply-cta').length > 0,
     null, { timeout: 20000 }).catch(() => {});
   const count = async () => page.evaluate(() => {
-    const rows = [...document.querySelectorAll('#nc_chatMsgsList [data-msg-id], #nc_chatMsgsList [data-message-id]')];
+    const rows = [...document.querySelectorAll('#nc_chatMsgsList .nc_msg[data-msg-id], #nc_chatMsgsList [data-message-id]')];
     let worst = 0, total = 0;
     rows.forEach(r => {
       const n = r.querySelectorAll('.nc_msg-reply-cta, .msg-reply-cta').length;
@@ -2516,7 +2516,9 @@ await step('a message reacts, opens a thread, and the channel searches', async (
     const out = {};
     const team = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item[data-nc-channel-id]')][0];
     if (team) { team.click(); await wait(2000); }
-    const msgs = () => [...document.querySelectorAll('#nc_chatMsgs [data-msg-id]')];
+    // .nc_msg, not any [data-msg-id]: a message's text node carries the id as well, and
+    // the controls live on the message, not inside its text.
+    const msgs = () => [...document.querySelectorAll('#nc_chatMsgs .nc_msg[data-msg-id]')];
     out.messagesPainted = msgs().length;
     if (!msgs().length) return out;
     const row = msgs()[msgs().length - 1];
@@ -3079,7 +3081,7 @@ await step('scheduling from inside a thread also writes exactly one row', async 
     out.channel = window.nc_activeChannelId;
 
     // Open a thread on a message, which is where it was reported from.
-    const row = [...document.querySelectorAll('#nc_chatMsgs [data-msg-id]')].pop();
+    const row = [...document.querySelectorAll('#nc_chatMsgs .nc_msg[data-msg-id]')].pop();
     if (!row) return { noMessage: true };
     row.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
     await wait(300);
@@ -3406,6 +3408,58 @@ await step('history loads itself as you scroll up, without the view moving', asy
       && r.frames > 60 && r.worstJumpWhileStill === 0
       && r.renderedAtEnd === r.total
       && r.topNote === 'This is the beginning of the conversation',
+    JSON.stringify(r));
+});
+
+await step('double-clicking a message opens the message, not the reaction bar', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2500); }
+    const close = document.getElementById('nc_threadClose');
+    if (close) { close.click(); await wait(700); }
+    const list = document.getElementById('nc_chatMsgsList');
+    if (!list) return out;
+    const mine = [...list.querySelectorAll('[data-msg-body][data-msg-mine="1"]')];
+    out.editableMessages = mine.length;
+    if (!mine.length) return out;
+    const body = mine[mine.length - 1];
+    const root = body.closest('.nc_msg');
+    out.msgId = body.dataset.msgId;
+
+    // One reaction bar per message, and none of it inside the text. A bar in the body is
+    // part of the message as far as innerText, editing and copying are concerned.
+    out.barsOnMessage = root.querySelectorAll('.nc_msg-react-bar').length;
+    out.barsInsideText = body.querySelectorAll('.nc_msg-react-bar').length;
+    out.emojiNodesInText = body.querySelectorAll('.nc_msg-react-bar-emoji').length;
+    out.textReads = body.innerText;
+
+    body.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+    await wait(900);
+    const ta = root.querySelector('textarea');
+    out.editorOpened = !!ta;
+    out.editorValue = ta ? ta.value : null;
+    out.editorClean = ta ? !/👍|❤️|🔥|😂|🎉|\(edited\)/.test(ta.value) : null;
+    if (ta) {
+      ta.value = 'edited by the check';
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+      ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await wait(1400);
+    }
+    out.saved = (window.__mock.db.messages.find(m => m.id === out.msgId) || {}).body;
+    out.stillRendered = !!document.querySelector(`.nc_msg[data-msg-id="${out.msgId}"]`);
+    return out;
+  });
+  check('double-clicking a message opens the message, not the reaction bar',
+    r.editableMessages > 0 && r.barsOnMessage === 1 && r.barsInsideText === 0
+      && r.emojiNodesInText === 0 && !/👍|❤️|🔥|😂|🎉/.test(r.textReads || '')
+      && r.editorOpened && r.editorClean && r.editorValue === r.textReads
+      && r.saved === 'edited by the check' && r.stillRendered,
     JSON.stringify(r));
 });
 
