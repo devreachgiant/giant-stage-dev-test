@@ -3330,6 +3330,66 @@ await step('a recording can be linked, shared publicly and deleted', async () =>
     JSON.stringify(r));
 });
 
+await step('"Load earlier messages" keeps your place instead of jumping to the newest', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    // Earlier checks wander off to other screens, so this one puts itself back in Chat
+    // rather than assuming where it starts.
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const chatNav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (chatNav) { chatNav.click(); await wait(2500); }
+    // Earlier checks leave a thread open, and the main timeline is hidden behind it --
+    // every rectangle then measures zero and this check would "fail" on nothing.
+    const close = document.getElementById('nc_threadClose');
+    if (close) { close.click(); await wait(700); }
+    // A channel with far more than the 50 a channel opens with, so the button is there.
+    const CH = 'ch-cd-seo-10';
+    let opened = false;
+    for (let i = 0; i < 30; i++) {
+      const row = document.querySelector(`[data-nc-channel-id="${CH}"]`);
+      if (row) { row.click(); opened = true; break; }
+      await wait(300);
+    }
+    out.opened = opened;
+    await wait(3000);
+    const list = document.getElementById('nc_chatMsgsList');
+    const sc = document.getElementById('nc_chatMsgs');
+    if (!list || !sc) return out;
+    out.listVisible = list.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+      && sc.getBoundingClientRect().height > 50;
+    if (!out.listVisible) return out;
+    out.rendered = list.querySelectorAll('.nc_msg[data-msg-id]').length;
+    sc.scrollTop = 0; await wait(900);          // up to where the button lives
+    const btn = document.getElementById('nc_chatLoadEarlierBtn');
+    out.buttonFound = !!btn;
+    if (!btn) return out;
+    // The message you are looking at, and exactly where it sits on screen.
+    const top = sc.getBoundingClientRect().top;
+    const anchor = [...list.querySelectorAll('.nc_msg[data-msg-id]')]
+      .find(m => m.getBoundingClientRect().bottom > top + 4);
+    out.anchorId = anchor ? anchor.dataset.msgId : null;
+    const before = anchor ? anchor.getBoundingClientRect().top - top : null;
+    btn.click();
+    await wait(3500);
+    out.loadedMore = list.querySelectorAll('.nc_msg[data-msg-id]').length > out.rendered;
+    const again = list.querySelector(`.nc_msg[data-msg-id="${out.anchorId}"]`);
+    out.anchorStillThere = !!again;
+    // Still in the same spot, to the pixel, and nowhere near the bottom.
+    out.drift = again ? Math.round((again.getBoundingClientRect().top - sc.getBoundingClientRect().top) - before) : null;
+    out.distanceFromBottom = Math.round(sc.scrollHeight - sc.scrollTop - sc.clientHeight);
+    out.jumpedToNewest = out.distanceFromBottom < 80;
+    return out;
+  });
+  check('"Load earlier messages" keeps your place instead of jumping to the newest',
+    r.opened && r.listVisible && r.buttonFound && r.loadedMore && r.anchorStillThere
+      && Math.abs(r.drift) <= 2 && !r.jumpedToNewest,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

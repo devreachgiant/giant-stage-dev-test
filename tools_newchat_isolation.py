@@ -58,7 +58,77 @@ AFTER_SCHED_SAVE = (
     "    async function saveCustomSchedule(date){\n"
     "      if (!document.querySelector('.screen[data-screen=\"chat\"].on')) return;\n")
 
-ALLOWED = [(1, BEFORE_SCHED_FOR, AFTER_SCHED_FOR,
+# "Load earlier messages" scrolled you to the newest message -- the opposite of the button
+# -- because every render ended by scrolling to the bottom, paging included. Fixed in both
+# chats by explicit decision: people are told Old Chat is still there during the beta, so
+# leaving the same bug in it would be leaving it for whoever took that advice.
+BEFORE_PAGE_RENDER = '''    async function renderMessages(msgs) {
+      // Mark as bulk render so the CSS animation rule is bypassed during this bulk insertion'''
+AFTER_PAGE_RENDER = '''    // opts.preserveScroll -- older messages being added ABOVE what you are reading, so
+    // this render must not touch the scroll. Same fix as Chat: every render scrolled to
+    // the newest message unconditionally, so "Load earlier messages" sent you to the
+    // bottom, the opposite of what the button says.
+    async function renderMessages(msgs, opts) {
+      const preserveScroll = !!(opts && opts.preserveScroll);
+      // Mark as bulk render so the CSS animation rule is bypassed during this bulk insertion'''
+
+BEFORE_PAGE_TRUNC = '''      if (msgs.length > 500) {'''
+AFTER_PAGE_TRUNC = '''      if (!preserveScroll && msgs.length > 500) {'''
+
+BEFORE_PAGE_SCROLL = '''      requestAnimationFrame(() => requestAnimationFrame(doScroll));
+      // Also retry after 100ms in case avatars load late
+      setTimeout(doScroll, 120);'''
+AFTER_PAGE_SCROLL = '''      if (!preserveScroll) {
+        requestAnimationFrame(() => requestAnimationFrame(doScroll));
+        // Also retry after 100ms in case avatars load late
+        setTimeout(doScroll, 120);
+      }'''
+
+BEFORE_PAGE_ANCHOR = '''      const prevTop = msgsContainer ? msgsContainer.scrollTop : 0;'''
+AFTER_PAGE_ANCHOR = '''      const prevTop = msgsContainer ? msgsContainer.scrollTop : 0;
+      window._chatStickToBottom = false;
+      // Anchored on the message at the top of the view rather than a height difference,
+      // which is still settling while avatars and images load.
+      const firstEl = chatMsgsList ? chatMsgsList.querySelector('.msg[data-msg-id]') : null;
+      const anchorId = firstEl ? firstEl.dataset.msgId : null;
+      const anchorTop = (firstEl && msgsContainer)
+        ? firstEl.getBoundingClientRect().top - msgsContainer.getBoundingClientRect().top
+        : 0;'''
+
+BEFORE_PAGE_CALL = '''      await renderMessages(cache.msgs);'''
+AFTER_PAGE_CALL = '''      await renderMessages(cache.msgs, { preserveScroll: true });'''
+
+BEFORE_PAGE_RESTORE = '''      // Preserve scroll position so the view doesn't jump
+      requestAnimationFrame(() => {
+        if (!msgsContainer) return;
+        const newHeight = msgsContainer.scrollHeight;
+        msgsContainer.scrollTop = newHeight - prevHeight + prevTop;
+      });'''
+AFTER_PAGE_RESTORE = '''      // Put the message you were reading back where it was, and keep putting it back as
+      // avatars and images above it finish loading.
+      const keepPlace = () => {
+        if (!msgsContainer) return;
+        window._chatStickToBottom = false;
+        const el = anchorId ? chatMsgsList.querySelector(`.msg[data-msg-id="${anchorId}"]`) : null;
+        if (!el) { msgsContainer.scrollTop = msgsContainer.scrollHeight - prevHeight + prevTop; return; }
+        const delta = (el.getBoundingClientRect().top - msgsContainer.getBoundingClientRect().top) - anchorTop;
+        if (Math.abs(delta) > 1) msgsContainer.scrollTop += delta;
+      };
+      keepPlace();
+      requestAnimationFrame(keepPlace);
+      [60, 160, 320, 600].forEach(ms => setTimeout(keepPlace, ms));'''
+
+_PAGING_WHY = ('"Load earlier messages" scrolled to the newest message, the opposite of '
+               'the button; fixed in both chats by explicit decision, since Old Chat is '
+               'what people were told to fall back to during the beta')
+
+ALLOWED = [(1, BEFORE_PAGE_RENDER, AFTER_PAGE_RENDER, _PAGING_WHY),
+           (1, BEFORE_PAGE_TRUNC, AFTER_PAGE_TRUNC, _PAGING_WHY + ' (the cap drops the oldest, which is what paging just fetched)'),
+           (1, BEFORE_PAGE_SCROLL, AFTER_PAGE_SCROLL, _PAGING_WHY),
+           (1, BEFORE_PAGE_ANCHOR, AFTER_PAGE_ANCHOR, _PAGING_WHY),
+           (1, BEFORE_PAGE_CALL, AFTER_PAGE_CALL, _PAGING_WHY),
+           (1, BEFORE_PAGE_RESTORE, AFTER_PAGE_RESTORE, _PAGING_WHY),
+           (1, BEFORE_SCHED_FOR, AFTER_SCHED_FOR,
             'the schedule modal is one set of elements shared by both chats and both '
             'modules listen to it, so one click scheduled the message twice, into two '
             'different channels; each module now acts only while its own screen is on'),
