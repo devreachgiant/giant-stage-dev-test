@@ -35,15 +35,18 @@ CREATE UNIQUE INDEX IF NOT EXISTS "recordings_share_token_key"
 
 -- Every recording gets a token up front, so "copy link" never has to write to the row
 -- first -- one less thing to fail at the moment someone is trying to hand over a link.
+-- gen_random_uuid() rather than pgcrypto's gen_random_bytes: pgcrypto lives in the
+-- extensions schema here and is not on the search path, and a v4 uuid with its hyphens
+-- stripped is 32 hex characters of the same unguessability.
 UPDATE "public"."recordings"
-   SET "share_token" = encode(gen_random_bytes(16), 'hex')
+   SET "share_token" = replace(gen_random_uuid()::text, '-', '')
  WHERE "share_token" IS NULL;
 
 CREATE OR REPLACE FUNCTION "public"."recordings_set_share_token"()
 RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
   IF NEW."share_token" IS NULL THEN
-    NEW."share_token" := encode(gen_random_bytes(16), 'hex');
+    NEW."share_token" := replace(gen_random_uuid()::text, '-', '');
   END IF;
   RETURN NEW;
 END $$;
