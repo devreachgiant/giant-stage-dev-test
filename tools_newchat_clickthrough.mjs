@@ -2491,9 +2491,11 @@ await step('the header controls all do something', async () => {
     out.privacyFlipped = document.getElementById('nc_chatHeadPrivacyLabel')?.textContent !== before;
     document.getElementById('nc_chatHeadPrivacyBtn')?.click(); await wait(1200);
 
-    // load earlier asks the database for more
+    // Reading upwards asks the database for more -- there is no button to click now.
     const q0 = window.__mock.log.queries.length;
-    document.getElementById('nc_chatLoadEarlierBtn')?.click(); await wait(1400);
+    const _sc = document.getElementById('nc_chatMsgs');
+    if (_sc) { _sc.scrollTop = 0; }
+    await wait(1800);
     out.loadEarlierQueried = window.__mock.log.queries.length > q0;
 
     // "Add card" is gone: custom sections do not exist here, so it could only have made
@@ -3330,23 +3332,18 @@ await step('a recording can be linked, shared publicly and deleted', async () =>
     JSON.stringify(r));
 });
 
-await step('"Load earlier messages" keeps your place instead of jumping to the newest', async () => {
+await step('history loads itself as you scroll up, without the view moving', async () => {
   const r = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms));
     const out = {};
-    // Earlier checks wander off to other screens, so this one puts itself back in Chat
-    // rather than assuming where it starts.
     document.querySelectorAll('.nav-group-toggle').forEach(t => {
       if (t.classList.contains('nav-group-collapsed')) t.click();
     });
     await wait(500);
     const chatNav = document.querySelector('.nav-item[data-screen="newchat"]');
     if (chatNav) { chatNav.click(); await wait(2500); }
-    // Earlier checks leave a thread open, and the main timeline is hidden behind it --
-    // every rectangle then measures zero and this check would "fail" on nothing.
     const close = document.getElementById('nc_threadClose');
     if (close) { close.click(); await wait(700); }
-    // A channel with far more than the 50 a channel opens with, so the button is there.
     const CH = 'ch-cd-seo-10';
     let opened = false;
     for (let i = 0; i < 30; i++) {
@@ -3363,30 +3360,52 @@ await step('"Load earlier messages" keeps your place instead of jumping to the n
       && sc.getBoundingClientRect().height > 50;
     if (!out.listVisible) return out;
     out.rendered = list.querySelectorAll('.nc_msg[data-msg-id]').length;
-    sc.scrollTop = 0; await wait(900);          // up to where the button lives
-    const btn = document.getElementById('nc_chatLoadEarlierBtn');
-    out.buttonFound = !!btn;
-    if (!btn) return out;
-    // The message you are looking at, and exactly where it sits on screen.
-    const top = sc.getBoundingClientRect().top;
+    // Nothing to click any more: reading upwards is the whole interaction.
+    out.noButton = !document.getElementById('nc_chatLoadEarlierBtn');
+
+    sc.scrollTop = Math.round(sc.scrollHeight * 0.5); await wait(800);
+    const top = () => sc.getBoundingClientRect().top;
     const anchor = [...list.querySelectorAll('.nc_msg[data-msg-id]')]
-      .find(m => m.getBoundingClientRect().bottom > top + 4);
+      .find(m => m.getBoundingClientRect().bottom > top() + 4);
     out.anchorId = anchor ? anchor.dataset.msgId : null;
-    const before = anchor ? anchor.getBoundingClientRect().top - top : null;
-    btn.click();
-    await wait(3500);
-    out.loadedMore = list.querySelectorAll('.nc_msg[data-msg-id]').length > out.rendered;
-    const again = list.querySelector(`.nc_msg[data-msg-id="${out.anchorId}"]`);
-    out.anchorStillThere = !!again;
-    // Still in the same spot, to the pixel, and nowhere near the bottom.
-    out.drift = again ? Math.round((again.getBoundingClientRect().top - sc.getBoundingClientRect().top) - before) : null;
+    if (!out.anchorId) return out;
+
+    // Every frame: where the message sits, and where the reader has scrolled. A flicker is
+    // the first moving while the second does not -- which is exactly what people saw.
+    const samples = [];
+    let stop = false;
+    const sample = () => {
+      if (stop) return;
+      const el = list.querySelector(`.nc_msg[data-msg-id="${out.anchorId}"]`);
+      if (el) samples.push([Math.round(el.getBoundingClientRect().top - top()), Math.round(sc.scrollTop)]);
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+    sc.scrollTop = 0;                       // read upwards; the page should arrive by itself
+    await wait(4000);
+    stop = true;
+
+    const settled = [];
+    let seenTop = false;
+    for (const [y, st] of samples) { if (st <= 1) seenTop = true; if (seenTop) settled.push(y); }
+    out.frames = settled.length;
+    out.worstJumpWhileStill = settled.length ? Math.max(...settled.map(y => Math.abs(y - settled[0]))) : null;
+    out.loadedByItself = list.querySelectorAll('.nc_msg[data-msg-id]').length > out.rendered;
     out.distanceFromBottom = Math.round(sc.scrollHeight - sc.scrollTop - sc.clientHeight);
     out.jumpedToNewest = out.distanceFromBottom < 80;
+
+    // and it keeps going, to the start of the conversation, still without a button
+    for (let i = 0; i < 6; i++) { sc.scrollTop = 0; await wait(1800); }
+    out.renderedAtEnd = list.querySelectorAll('.nc_msg[data-msg-id]').length;
+    out.total = (window.__mock.db.messages || []).filter(m => m.channel_id === CH && !m.parent_id).length;
+    out.topNote = (document.getElementById('nc_chatHistoryTop') || {}).textContent;
     return out;
   });
-  check('"Load earlier messages" keeps your place instead of jumping to the newest',
-    r.opened && r.listVisible && r.buttonFound && r.loadedMore && r.anchorStillThere
-      && Math.abs(r.drift) <= 2 && !r.jumpedToNewest,
+  check('history loads itself as you scroll up, without the view moving',
+    r.opened && r.listVisible && r.noButton && r.loadedByItself && !r.jumpedToNewest
+      && r.frames > 60 && r.worstJumpWhileStill === 0
+      && r.renderedAtEnd === r.total
+      && r.topNote === 'This is the beginning of the conversation',
     JSON.stringify(r));
 });
 
