@@ -76694,14 +76694,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const page = window.nc__chatPage[channelId];
       if (!page || !page.hasMore || page.loading || !page.oldestTs) return;
       page.loading = true;
-      const btn = document.getElementById('nc_chatLoadEarlierBtn');
-      if (btn) { btn.textContent = 'Loading…'; btn.disabled = true; }
+      const setTop = (text) => {
+        const el = document.getElementById('nc_chatHistoryTop');
+        if (el) el.textContent = text;
+      };
+      setTop('Loading earlier messages…');
       const msgsContainer = chatMsgsList ? chatMsgsList.parentElement : null;
       const prevHeight = msgsContainer ? msgsContainer.scrollHeight : 0;
       const prevTop = msgsContainer ? msgsContainer.scrollTop : 0;
-      // Clicking "Load earlier messages" is an unambiguous statement that you do not want
-      // to be at the bottom. The sticky-scroll observers re-snap on any size change while
-      // this is true, and 50 new messages is a size change.
+      // Loading history is an unambiguous statement that you do not want to be at the
+      // bottom. The sticky-scroll observers re-snap on any size change while this is true,
+      // and 50 new messages is a size change.
       window.nc__chatStickToBottom = false;
       // Anchored on the message currently at the top of the view, not on a height
       // difference: heights are still settling while avatars and images load, and a
@@ -76721,14 +76724,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         .limit(50);
       page.loading = false;
       if (error) {
-        if (btn) { btn.textContent = '↑ Load earlier messages'; btn.disabled = false; }
+        // Said out loud rather than blanked: a channel that quietly stops loading history
+        // looks like a channel that has none.
+        setTop('Could not load earlier messages — scroll up to try again');
         return;
       }
       const older = (data || []).reverse();
       page.hasMore = (data || []).length >= 50;
       const cache = chatMsgsCache[channelId];
       if (!older.length) {
-        if (cache && channelId === activeChannelId) renderMessages(cache.msgs);
+        setTop(page.hasMore ? '' : 'This is the beginning of the conversation');
         return;
       }
       page.oldestTs = older[0].created_at;
@@ -76739,36 +76744,67 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const fresh = older.filter(m => !existing.has(m.id));
       cache.msgs = fresh.concat(cache.msgs);
       if (channelId !== activeChannelId) return;
-      await renderMessages(cache.msgs, { preserveScroll: true });
+      // Only the new messages are rendered, plus the one that used to be first so the day
+      // divider and the sender grouping at the seam come out right. Re-rendering the whole
+      // list is what made this flicker, and it got slower the further back you went.
+      const boundaryId = anchorId;
+      await renderMessages(fresh.concat(cache.msgs.filter(m => m.id === boundaryId)),
+                           { prepend: true, replaceBoundaryId: boundaryId,
+                             keepAnchor: anchorId ? { id: anchorId, top: anchorTop } : null });
       // Render attachments for the freshly-added messages (renderMessages handles reply CTAs)
       try {
-        const msgEls = document.querySelectorAll('#nc_chatMsgsList [data-msg-id]');
+        // Only the freshly added ones: re-running this over the whole list every page is
+        // work that grows with how far back you have read, and it re-lays-out messages
+        // that were already settled.
+        const freshIds = new Set(fresh.map(m => m.id));
+        const msgEls = [...document.querySelectorAll('#nc_chatMsgsList [data-msg-id]')]
+          .filter(el => freshIds.has(el.dataset.msgId));
         const ids = [...msgEls].map(el => el.dataset.msgId);
         if (ids.length && typeof loadAttachmentsForMessages === 'function') {
           await loadAttachmentsForMessages(ids);
           msgEls.forEach(el => renderAttachmentsForMsg(el, el.dataset.msgId));
         }
       } catch(_) {}
-      // Put the message you were reading back where it was, and keep putting it back:
-      // avatars, images and link previews above it finish loading over the next few
-      // hundred milliseconds, and each one moves everything below it down.
-      const keepPlace = () => {
-        if (!msgsContainer) return;
+      // One correction, synchronous, in the same task as the insert, so it lands before
+      // the browser paints and there is nothing to see. The repeated corrections this
+      // replaces are what people saw flickering: each one was a real jump, drawn.
+      //
+      // Nothing corrects it after this, deliberately. Images and avatars above the
+      // viewport finish loading over the next second or so, and the browser's own scroll
+      // anchoring holds the view still through that -- as long as scrollTop is left alone.
+      // Fighting it with timers is what moved the page under people.
+      if (msgsContainer) {
         window.nc__chatStickToBottom = false;
         const el = anchorId ? chatMsgsList.querySelector(`.nc_msg[data-msg-id="${anchorId}"]`) : null;
-        if (!el) {
-          // No anchor to hold (it was deleted, say) -- fall back to the height difference,
-          // which is at least in the right direction.
+        if (el) {
+          const delta = (el.getBoundingClientRect().top - msgsContainer.getBoundingClientRect().top) - anchorTop;
+          if (Math.abs(delta) > 1) msgsContainer.scrollTop += delta;
+        } else {
           msgsContainer.scrollTop = msgsContainer.scrollHeight - prevHeight + prevTop;
-          return;
         }
-        const delta = (el.getBoundingClientRect().top - msgsContainer.getBoundingClientRect().top) - anchorTop;
-        if (Math.abs(delta) > 1) msgsContainer.scrollTop += delta;
-      };
-      keepPlace();
-      requestAnimationFrame(keepPlace);
-      [60, 160, 320, 600].forEach(ms => setTimeout(keepPlace, ms));
+      }
     }
+
+    // Reading upwards loads the rest by itself. The button this replaces asked people to
+    // notice it, click it, and then find their place again; scrolling up in a chat already
+    // means "show me more".
+    (function autoLoadHistory(){
+      const container = document.getElementById('nc_chatMsgs');
+      if (!container) { setTimeout(autoLoadHistory, 400); return; }
+      if (container.dataset.autoHistoryWired) return;
+      container.dataset.autoHistoryWired = '1';
+      const maybe = () => {
+        if (!activeChannelId) return;
+        const page = window.nc__chatPage && window.nc__chatPage[activeChannelId];
+        if (!page || !page.hasMore || page.loading) return;
+        // Three quarters of a screen of runway, so the next page is usually already there
+        // by the time the top is.
+        if (container.scrollTop < container.clientHeight * 0.75) loadOlderMessages(activeChannelId);
+      };
+      container.addEventListener('scroll', maybe, { passive: true });
+      // A conversation can open already at its top, with no scroll to fire on.
+      setInterval(() => { if (container.isConnected && container.scrollTop < 40) maybe(); }, 1200);
+    })();
 
     // Hydrate profiles with microbatching: multiple simultaneous hydrate calls within 50ms
     // are coalesced into a single DB query. This helps when many messages arrive together
@@ -76826,12 +76862,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // Fire it on app init — non-blocking but the re-render above ensures we paint mentions correctly
     setTimeout(() => hydrateAllWorkspaceProfiles(), 100);
 
-    // opts.preserveScroll -- this render is older messages being added ABOVE what you are
-    // reading, so it must not touch the scroll position. Every render used to scroll to
-    // the newest message unconditionally, which is why "Load earlier messages" sent you to
-    // the bottom: the exact opposite of what the button says.
+    // opts.prepend -- these messages go ABOVE what is already on screen, so the list is
+    // added to rather than rebuilt. Rebuilding it was what made loading history flicker:
+    // replacing every node throws the scroll position away for a frame, and putting it
+    // back afterwards is a correction you can see happen.
+    // opts.replaceBoundaryId -- the message that was first before this batch. It is
+    // re-rendered as part of the batch so the day divider and the sender grouping at the
+    // seam come out right, and its old node is removed here.
     async function renderMessages(msgs, opts) {
-      const preserveScroll = !!(opts && opts.preserveScroll);
+      const prepend = !!(opts && opts.prepend);
+      const preserveScroll = prepend || !!(opts && opts.preserveScroll);
       // Mark as bulk render so the CSS animation rule is bypassed during this bulk insertion
       chatMsgsList.classList.add('nc_bulk-render');
       // Performance: cap rendered messages to last 500 to keep DOM light.
@@ -76905,16 +76945,54 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             ${deleteBtn}
           </div>`;
       }).join('');
-      // Prepend a "Load earlier" button when older messages exist server-side (pagination).
+      // No button any more: scrolling towards the top loads the rest, the way every chat
+      // app people already use behaves. What sits up there is a status line -- it says
+      // when history is loading, and says where the conversation starts once it is all
+      // here -- so nothing is ever asked of you to keep reading upwards.
       const _page = (window.nc__chatPage && activeChannelId) ? window.nc__chatPage[activeChannelId] : null;
-      const loadEarlierHtml = (_page && _page.hasMore)
-        ? `<div id="nc_chatLoadEarlierWrap" style="display:flex;justify-content:center;padding:4px 0 14px;"><button id="nc_chatLoadEarlierBtn" style="background:var(--surface);border:1px solid var(--line-2);color:var(--text-2);font-size:11.5px;font-weight:600;padding:6px 16px;border-radius:16px;cursor:pointer;font-family:inherit;transition:.15s;">↑ Load earlier messages</button></div>`
-        : (truncated
-            ? `<div style="text-align:center;padding:14px;color:var(--text-3);font-size:11px;border-bottom:1px solid var(--line-2);margin-bottom:6px;">↑ ${truncatedCount} older message${truncatedCount > 1 ? 's' : ''} hidden for performance</div>`
-            : '');
-      chatMsgsList.innerHTML = loadEarlierHtml + html;
-      const _leBtn = document.getElementById('nc_chatLoadEarlierBtn');
-      if (_leBtn) _leBtn.addEventListener('click', () => loadOlderMessages(activeChannelId));
+      const topNote = (text) => `<div id="nc_chatHistoryTop" style="display:flex;justify-content:center;`
+        + `padding:10px 0 14px;color:var(--text-3);font-size:11px;font-weight:600;">${text}</div>`;
+      const loadEarlierHtml = (_page && _page.loading)
+        ? topNote('Loading earlier messages…')
+        : (_page && _page.hasMore)
+          // There is more, and scrolling up fetches it before you get there. Saying
+          // "loading" while nothing is loading is a lie sitting on the screen.
+          ? topNote('')
+          : (truncated
+              ? topNote(`↑ ${truncatedCount} older message${truncatedCount > 1 ? 's' : ''} hidden for performance`)
+              : topNote('This is the beginning of the conversation'));
+      if (prepend) {
+        // Everything in this block happens in one go, with no await between the insert
+        // and the scroll fix, so the browser never paints the in-between state.
+        const oldWrap = document.getElementById('nc_chatHistoryTop');
+        if (oldWrap) oldWrap.remove();
+        const boundary = opts.replaceBoundaryId
+          ? chatMsgsList.querySelector(`.nc_msg[data-msg-id="${opts.replaceBoundaryId}"]`)
+          : null;
+        if (boundary) {
+          // Its day divider is a sibling in front of it, and the batch renders a fresh
+          // one -- left behind, it shows the same date twice.
+          const sep = boundary.previousElementSibling;
+          if (sep && sep.classList.contains('nc_day-sep')) sep.remove();
+          boundary.remove();
+        }
+        chatMsgsList.insertAdjacentHTML('afterbegin', loadEarlierHtml + html);
+        // The scroll fix belongs HERE, in the same synchronous block as the insert, not in
+        // the caller: renderMessages is async and the caller has several awaits left, so a
+        // correction made there is a frame or more later -- and the browser has already
+        // painted the list shoved down by everything just added. That paint is the flicker.
+        const keep = opts.keepAnchor;
+        const host = chatMsgsList.parentElement;
+        if (keep && host) {
+          const el = chatMsgsList.querySelector(`.nc_msg[data-msg-id="${keep.id}"]`);
+          if (el) {
+            const delta = (el.getBoundingClientRect().top - host.getBoundingClientRect().top) - keep.top;
+            if (Math.abs(delta) > 1) host.scrollTop += delta;
+          }
+        }
+      } else {
+        chatMsgsList.innerHTML = loadEarlierHtml + html;
+      }
 
       // ── DELEGATED EVENTS for wire performance ──
       // Instead of attaching 200 individual listeners per render, we attach ONE delegated handler
