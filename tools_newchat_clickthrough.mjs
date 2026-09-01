@@ -3121,6 +3121,141 @@ await step('scheduling from inside a thread also writes exactly one row', async 
     JSON.stringify(r));
 });
 
+await step('a Needs you row lands on the message that put it there', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const db = window.__mock.db;
+    // A mention far enough back that the channel's opening page of 50 will not contain
+    // it -- which is the case that used to silently do nothing.
+    const CH = 'ch-cd-seo-8';
+    const inCh = db.messages.filter(m => m.channel_id === CH && !m.parent_id)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    out.channelSize = inCh.length;
+    if (inCh.length < 70) return out;
+    const deepAt = new Date(new Date(inCh[70].created_at).getTime() - 60000).toISOString();
+    db.messages.push({ id: 'm-deep-mention', channel_id: CH, author_id: 'u-3',
+      body: '@Nishchay can you look at this one please', created_at: deepAt, parent_id: null,
+      reply_count: 0, flagged: false, edited_at: null, pinned_at: null, pinned_by: null,
+      voice_note_url: null, voice_note_duration_ms: null });
+    // and a mention that is a reply inside a thread, which the timeline never renders
+    const CH2 = 'ch-cd-seo-9';
+    const in2 = db.messages.filter(m => m.channel_id === CH2 && !m.parent_id)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const parent = in2[40];
+    parent.reply_count = (parent.reply_count || 0) + 2;
+    const base = new Date(parent.created_at).getTime();
+    db.messages.push({ id: 'm-thr-a', channel_id: CH2, author_id: 'u-4', body: 'Another reply',
+      created_at: new Date(base + 60000).toISOString(), parent_id: parent.id, reply_count: 0,
+      flagged: false, edited_at: null, pinned_at: null, pinned_by: null,
+      voice_note_url: null, voice_note_duration_ms: null });
+    db.messages.push({ id: 'm-thr-b', channel_id: CH2, author_id: 'u-4',
+      body: '@Nishchay please review the last point',
+      created_at: new Date(base + 120000).toISOString(), parent_id: parent.id, reply_count: 0,
+      flagged: false, edited_at: null, pinned_at: null, pinned_by: null,
+      voice_note_url: null, voice_note_duration_ms: null });
+
+    if (window.nc_refreshNeedsYou) await window.nc_refreshNeedsYou(true);
+    await wait(2500);
+    const body = document.getElementById('nc_cardNeedsBody');
+    if (!body) return out;
+    if (getComputedStyle(body).display === 'none') {
+      const head = body.closest('.nc_navcard').querySelector('.nc_navcard-head');
+      if (head) { head.click(); await wait(500); }
+    }
+    // The row must be pointed at the mention, not at whatever arrived most recently --
+    // being sent to the newest message is indistinguishable from not jumping at all.
+    const t1 = (window.__ncNeedTargets || {})[CH];
+    out.target1 = t1 ? t1.id : null;
+    const t2 = (window.__ncNeedTargets || {})[CH2];
+    out.target2 = t2 ? t2.id : null;
+    out.target2Parent = t2 ? t2.parentId : null;
+
+    const land = async (row, id) => {
+      row.click();
+      let sawId = null;
+      for (let i = 0; i < 90; i++) {           // ~13s: switch, page back, then land
+        await wait(150);
+        const hit = [...document.querySelectorAll('.nc_msg[data-msg-id]')].find(e => e.style.outline);
+        if (hit) { sawId = hit.dataset.msgId; break; }
+      }
+      await wait(700);
+      const el = document.querySelector(`.nc_msg[data-msg-id="${id}"]`);
+      const res = { highlighted: sawId };
+      if (el) {
+        const host = el.closest('[id$="MsgsList"]') ? el.closest('[id$="MsgsList"]').parentElement
+                   : el.parentElement;
+        const a = el.getBoundingClientRect(), b = host.getBoundingClientRect();
+        res.rendered = true;
+        res.onScreen = a.top < b.bottom - 8 && a.bottom > b.top + 8;
+      }
+      return res;
+    };
+
+    const row1 = body.querySelector(`[data-nc-channel-id="${CH}"]`);
+    out.row1Found = !!row1;
+    if (row1) out.case1 = await land(row1, 'm-deep-mention');
+
+    const row2 = body.querySelector(`[data-nc-channel-id="${CH2}"]`);
+    out.row2Found = !!row2;
+    if (row2) {
+      out.case2 = await land(row2, 'm-thr-b');
+      const panel = document.getElementById('nc_threadPanel') || document.querySelector('.nc_thread-panel');
+      out.threadOpen = !!(panel && getComputedStyle(panel).display !== 'none');
+    }
+    return out;
+  });
+  check('a Needs you row lands on the message that put it there',
+    r.target1 === 'm-deep-mention' && r.row1Found
+      && r.case1 && r.case1.highlighted === 'm-deep-mention' && r.case1.rendered && r.case1.onScreen
+      && r.target2 === 'm-thr-b' && r.target2Parent && r.row2Found
+      && r.case2 && r.case2.highlighted === 'm-thr-b' && r.case2.onScreen,
+    JSON.stringify(r));
+});
+
+await step('a notification deep link opens Chat, not the archive', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    out.hasJump = typeof window.jumpToChatMessage;
+    if (out.hasJump !== 'function') return out;
+    // The previous check's highlight is still on screen and would be mistaken for this
+    // one's landing.
+    document.querySelectorAll('[data-msg-id]').forEach(e => { e.style.outline = ''; });
+    const CH = 'ch-cd-seo-10';
+    const db = window.__mock.db;
+    const inCh = db.messages.filter(m => m.channel_id === CH && !m.parent_id)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    if (inCh.length < 70) return out;
+    db.messages.push({ id: 'm-bell-mention', channel_id: CH, author_id: 'u-3',
+      body: '@Nishchay please check this',
+      created_at: new Date(new Date(inCh[70].created_at).getTime() - 60000).toISOString(),
+      parent_id: null, reply_count: 0, flagged: false, edited_at: null,
+      pinned_at: null, pinned_by: null, voice_note_url: null, voice_note_duration_ms: null });
+    // This is the call behind the bell, the Inbox and a missed push notification.
+    window.jumpToChatMessage(CH, 'm-bell-mention');
+    for (let i = 0; i < 110; i++) {
+      await wait(150);
+      const hit = [...document.querySelectorAll('.nc_msg[data-msg-id]')].find(e => e.style.outline);
+      if (hit) { out.highlighted = hit.dataset.msgId; break; }
+    }
+    await wait(600);
+    const on = document.querySelector('.screen.on');
+    out.screen = on ? on.dataset.screen : null;     // "chat" is the archived Old Chat
+    const el = document.querySelector('.nc_msg[data-msg-id="m-bell-mention"]');
+    out.rendered = !!el;
+    if (el) {
+      const host = document.getElementById('nc_chatMsgsList').parentElement;
+      const a = el.getBoundingClientRect(), b = host.getBoundingClientRect();
+      out.onScreen = a.top < b.bottom - 8 && a.bottom > b.top + 8;
+    }
+    return out;
+  });
+  check('a notification deep link opens Chat, not the archive',
+    r.screen === 'newchat' && r.rendered && r.onScreen && r.highlighted === 'm-bell-mention',
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

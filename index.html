@@ -68722,7 +68722,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     refreshDerived();
   }
 
-  // Navigates to the old Chat & Huddles screen, switches to the mentioned channel, then
+  // Navigates to Chat, switches to the mentioned channel, then
   // waits for its messages to render (channel switch + message fetch are both async) before
   // scrolling to and briefly highlighting the specific message — same "wait then scroll"
   // shape as the mention itself, since the message list doesn't exist in the DOM yet at click time.
@@ -68759,6 +68759,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     });
   }
   async function jumpToChatMessage(channelId, messageId){
+    // Chat is New Chat now -- the original screen moved to Archive as "Old Chat". This
+    // function still opened that one, so every notification, Inbox item and missed-push
+    // deep link landed people in an archived copy of their workspace, on a message their
+    // real Chat had never scrolled to. New Chat's own jump also knows how to page back
+    // through history and how to open a thread for a reply, which is the whole job here.
+    const chatNav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (chatNav) {
+      chatNav.click();
+      // Chat builds itself the first time it is opened, so on a fresh load its jump does
+      // not exist yet at click time -- which is how a notification ended up falling
+      // through to the archived screen. Wait for it, briefly, rather than test for it.
+      for (let i = 0; i < 40 && typeof window.nc_jumpToMessage !== 'function'; i++) {
+        await new Promise(res => setTimeout(res, 150));
+      }
+      if (typeof window.nc_jumpToMessage === 'function') {
+        return window.nc_jumpToMessage(channelId, messageId, null);
+      }
+    }
     const navItem = document.querySelector('.nav-item[data-screen="chat"]');
     if (navItem) navItem.click();
     if (typeof window.switchChannel === 'function') window.switchChannel(channelId);
@@ -68896,8 +68914,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // back through history if the message is older than the loaded window, opens the
       // thread if it is a reply, then scrolls to it and flashes it red.
       if (d.channel && typeof window.jumpToChatMessage === 'function'){ window.jumpToChatMessage(d.channel, d.message || null); return true; }
-      // Chat 3.0 lives in different tables, so its mentions carry chat2_* ids and
-      // jumpToChatMessage -- which only knows about old chat -- cannot route them.
+      // Chat 3.0 lives in different tables, so its mentions carry chat2_* ids that
+      // jumpToChatMessage -- which routes into Chat -- cannot resolve.
       if (d.c3thread && typeof window.chat3OpenThread === 'function'){ window.chat3OpenThread(d.c3thread, d.c3message || null); return true; }
       if (d.screen){ const nav = document.querySelector(`.nav-item[data-screen="${d.screen}"]`); if (nav){ nav.click(); return true; } }
       return false;
@@ -70907,6 +70925,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // in the main list, so without it the jump would scroll to a message that is not on
     // screen and look broken.
     let ncNeedMsg = {};
+    // When the message ncNeedMsg points at was sent, and why it was picked. Kept apart
+    // from ncNeedAt, which is "latest activity in this channel" and is what the card
+    // sorts by -- the newest message and the thing you are being sent to are usually not
+    // the same message, and sending someone to the newest one is what made a mention feel
+    // like being dropped in the middle of a conversation.
+    let ncNeedMsgAt = {};
+    let ncNeedMsgRank = {};
+    // Lower wins. A mention beats a flag beats "the newest thing you have not read".
+    const NC_NEED_RANK = { mention: 0, flagged: 1, unread: 2 };
     const ncSetNeedAt = (cid, at) => {
       if (!cid || !at) return;
       if (!ncNeedAt[cid] || new Date(at) > new Date(ncNeedAt[cid])) ncNeedAt[cid] = at;
@@ -70940,6 +70967,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (!idList.length) { ncNeeds = {}; return; }
       const done = new Set((actRes.data || []).filter(a => a.done && a.message_id).map(a => a.message_id));
       const next = {};
+      // Rebuilt from scratch every run. Kept across runs, a target set on an earlier pass
+      // survived -- so a channel whose newest message was recorded first went on pointing
+      // at that message even after a mention arrived, and the jump landed at the bottom.
+      const nextMsg = {}, nextMsgAt = {}, nextMsgRank = {};
+      const claimTarget = (m, kind) => {
+        const rank = NC_NEED_RANK[kind] == null ? 2 : NC_NEED_RANK[kind];
+        const ch = m.channel_id;
+        const curRank = nextMsgRank[ch];
+        if (curRank != null) {
+          if (rank > curRank) return;                                   // weaker reason
+          if (rank === curRank && new Date(m.created_at) < new Date(nextMsgAt[ch])) return;
+        }
+        nextMsgRank[ch] = rank;
+        nextMsgAt[ch] = m.created_at;
+        nextMsg[ch] = { id: m.id, parentId: m.parent_id || null };
+      };
 
       // Unread comes from the unread_counts view, which the database computes per
       // (channel, member) against last_read_at. Working it out here from the 600 newest
@@ -70967,11 +71010,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         ]);
         // Applied in rank order so the stronger reason wins: a flag may replace unread,
         // and a mention may replace either.
-        (flagged.data || []).forEach(m => { if (!done.has(m.id)) { next[m.channel_id] = 'flagged'; ncSetNeedAt(m.channel_id, m.created_at); ncNeedMsg[m.channel_id] = { id: m.id, parentId: m.parent_id || null }; } });
-        (mentions.data || []).forEach(m => { if (!done.has(m.id)) { next[m.channel_id] = 'mention'; ncSetNeedAt(m.channel_id, m.created_at); ncNeedMsg[m.channel_id] = { id: m.id, parentId: m.parent_id || null }; } });
+        // Unordered, whichever row the database happened to return last won the jump, so
+        // a channel with three mentions could send you to the oldest one. Ranked and
+        // ordered: the strongest reason wins, and the newest of that reason.
+        const claim = (rows, kind) => (rows || [])
+          .filter(m => !done.has(m.id))
+          .forEach(m => { next[m.channel_id] = kind; claimTarget(m, kind); ncSetNeedAt(m.channel_id, m.created_at); });
+        claim(flagged.data, 'flagged');
+        claim(mentions.data, 'mention');
       }
       ncNeeds = next;
-      Object.keys(ncNeedMsg).forEach(k => { if (!next[k]) delete ncNeedMsg[k]; });
       // Newest-first needs a time for every row, and unread_counts has none. Asked for
       // here, once the list is known, so it covers exactly the channels on it -- a
       // "newest N messages everywhere" query is the sampling trap that hid an old unread
@@ -70994,11 +71042,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         (recent || []).forEach(m => {
           // Only claim the jump target if this message is actually the newest thing we
           // know about; a mention already recorded stays the thing you are being sent to.
-          const isNewest = !ncNeedAt[m.channel_id] || new Date(m.created_at) >= new Date(ncNeedAt[m.channel_id]);
           ncSetNeedAt(m.channel_id, m.created_at);
-          if (isNewest && !ncNeedMsg[m.channel_id]) ncNeedMsg[m.channel_id] = { id: m.id, parentId: m.parent_id || null };
+          // Only ever the fallback for an unread row: claimTarget drops it the moment a
+          // mention or a flag has claimed this channel.
+          claimTarget(m, 'unread');
         });
       }
+      Object.keys(nextMsg).forEach(k => { if (!next[k]) { delete nextMsg[k]; delete nextMsgAt[k]; delete nextMsgRank[k]; } });
+      ncNeedMsg = nextMsg; ncNeedMsgAt = nextMsgAt; ncNeedMsgRank = nextMsgRank;
       renderNavCards();
     }
     // Reading one clears it. The card is a queue you work through, so a row that stays
@@ -71017,6 +71068,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       delete ncNeeds[channelId];
       delete ncNeedAt[channelId];
       delete ncNeedMsg[channelId];
+      delete ncNeedMsgAt[channelId];
+      delete ncNeedMsgRank[channelId];
       renderNavCards();                       // immediately, before any write
       if (kind === 'unread') return;          // last_read_at already covers this one
       const me = ncMyId();
@@ -71083,7 +71136,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (cur && rank[cur] <= rank[kind]) return;   // a stronger reason already stands
       ncNeeds[m.channel_id] = kind;
       ncSetNeedAt(m.channel_id, m.created_at || new Date().toISOString());
-      ncNeedMsg[m.channel_id] = { id: m.id, parentId: m.parent_id || null };
+      // Same rule as a recompute: a live unread must not take over a channel whose
+      // mention you have not read yet.
+      const at = m.created_at || new Date().toISOString();
+      const r = NC_NEED_RANK[kind] == null ? 2 : NC_NEED_RANK[kind];
+      const cr = ncNeedMsgRank[m.channel_id];
+      if (cr == null || r < cr || (r === cr && new Date(at) >= new Date(ncNeedMsgAt[m.channel_id]))) {
+        ncNeedMsg[m.channel_id] = { id: m.id, parentId: m.parent_id || null };
+        ncNeedMsgAt[m.channel_id] = at;
+        ncNeedMsgRank[m.channel_id] = r;
+      }
       renderNavCards();
     }
     // Land on the message, not just the channel. Opening a busy channel at the bottom and
@@ -71096,39 +71158,121 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     async function ncJumpToMessage(channelId, msgId, parentId){
       if (!channelId) return;
       if (channelId !== activeChannelId) {
+        // switchChannel returns silently for a channel it has not loaded yet, and on a
+        // cold start -- a notification clicked before Chat has ever been opened -- the
+        // list is still being assembled. That looked like the deep link opening Chat and
+        // then just sitting on whatever channel happened to be there.
+        for (let i = 0; i < 40; i++) {
+          if (chatChannels.some(x => x.id === channelId)
+              || chatDmChannels.some(x => x.id === channelId)) break;
+          await new Promise(res => setTimeout(res, 150));
+        }
         switchChannel(channelId);
-        // loadMessages is async and paints after; wait for the row rather than guessing.
-        await new Promise(res => setTimeout(res, 700));
       }
       if (!msgId) return;
-      const find = (id) => document.querySelector(`.nc_msg[data-msg-id="${id}"]`);
-      const settle = async (id) => {
-        for (let i = 0; i < 12; i++) {
-          const el = find(id);
+      // Scoped to .nc_msg: a bare [data-msg-id] matches the original chat's hidden DOM
+      // first, and this would "find" the message on a screen nobody is looking at.
+      const settle = async (id, tries, ms) => {
+        for (let i = 0; i < (tries || 12); i++) {
+          const el = document.querySelector(`.nc_msg[data-msg-id="${id}"]`);
           if (el) return el;
-          await new Promise(res => setTimeout(res, 250));
+          await new Promise(res => setTimeout(res, ms || 250));
         }
         return null;
       };
-      if (parentId) {
-        const parentEl = await settle(parentId);
-        if (typeof openThread === 'function') { try { await openThread(parentId); } catch (_) {} }
-        // The reply lives in the thread panel, which renders its own rows.
-        const inThread = await settle(msgId);
-        ncFlashMessage(inThread || parentEl);
-        return;
+
+      // A reply only ever renders in the thread panel -- the main timeline will never
+      // hold it, so waiting for it there is waiting forever.
+      const intoThread = async (pid) => {
+        if (!pid || typeof openThread !== 'function') return false;
+        try { await openThread(pid); } catch (_) { return false; }
+        const inThread = await settle(msgId, 20, 150);
+        if (inThread) { await ncLandOn(msgId); return true; }
+        return false;
+      };
+      if (parentId && await intoThread(parentId)) return;
+
+      let el = await settle(msgId, 16, 150);
+      if (el) { await ncLandOn(msgId); return; }
+
+      // Not on screen, and this is the whole bug: a channel opens with its newest 50
+      // messages, so a mention any further back than that was never in the DOM. The jump
+      // quietly did nothing and left you at the bottom of the channel to scroll for it.
+      // Page back through real history -- the same "Load earlier messages" mechanism as
+      // the button -- until the message is actually there.
+      let target = null;
+      try {
+        const { data } = await NCSB().from('messages')
+          .select('created_at, parent_id').eq('id', msgId).maybeSingle();
+        target = data || null;
+      } catch (_) {}
+      // The caller may not have known it was a reply (a flag or an unread row carries no
+      // parent), in which case paging the timeline would never reach it.
+      if (target && target.parent_id && !parentId && await intoThread(target.parent_id)) return;
+
+      for (let p = 0; p < 20; p++) {
+        if (typeof window.nc_loadOlderMessages !== 'function') break;
+        const st = window.nc__chatPage && window.nc__chatPage[channelId];
+        if (!st || !st.hasMore) break;
+        await window.nc_loadOlderMessages(channelId);
+        el = await settle(msgId, 4, 100);
+        if (el) { await ncLandOn(msgId); return; }
+        // Past it in time and still not rendered: it is deleted, or in a thread, and
+        // paging further only loads history nobody asked for.
+        const now = window.nc__chatPage && window.nc__chatPage[channelId];
+        if (now && now.oldestTs && target && new Date(now.oldestTs) <= new Date(target.created_at)) break;
       }
-      ncFlashMessage(await settle(msgId));
+      el = await settle(msgId, 8, 150);
+      if (el) await ncLandOn(msgId);
+    }
+    // Landing is not one scroll. Paging in older history re-renders the whole list and
+    // then restores the previous scroll position a frame later -- which threw away the
+    // scroll that had just put the mention on screen, leaving the message loaded but
+    // hundreds of pixels above the viewport. So the scroll is re-asserted a few times,
+    // and the element is looked up again each time because the re-render replaces it.
+    async function ncLandOn(id){
+      const q = () => document.querySelector(`.nc_msg[data-msg-id="${id}"]`);
+      let el = q();
+      if (!el) return null;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      for (let i = 0; i < 5; i++) {
+        await new Promise(res => setTimeout(res, 160));
+        const cur = q();
+        if (!cur) return null;
+        el = cur;
+        el.scrollIntoView({ block: 'center' });
+      }
+      ncFlashMessage(el);
+      return el;
     }
     // Same treatment the search jump uses, so a jump looks the same wherever it came from.
+    // An outline as well as a tint, and long enough to still be there once the smooth
+    // scroll finishes: landing on a wall of messages with a faint background for a second
+    // and a half is how someone ends up scrolling to find their own mention anyway.
     function ncFlashMessage(el){
       if (!el) return;
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.style.transition = 'background .3s';
-      el.style.background = 'rgba(208,4,0,.15)';
-      setTimeout(() => { el.style.background = ''; }, 1800);
+      const prev = { bg: el.style.background, tr: el.style.transition,
+                     ol: el.style.outline, oo: el.style.outlineOffset, br: el.style.borderRadius };
+      el.style.transition = 'background .3s, outline-color .3s';
+      el.style.background = 'rgba(208,4,0,.16)';
+      el.style.outline = '2px solid #d90400';
+      el.style.outlineOffset = '2px';
+      el.style.borderRadius = el.style.borderRadius || '8px';
+      setTimeout(() => {
+        el.style.background = prev.bg;
+        el.style.outline = prev.ol;
+        setTimeout(() => {
+          el.style.transition = prev.tr;
+          el.style.outlineOffset = prev.oo;
+          el.style.borderRadius = prev.br;
+        }, 320);
+      }, 3000);
     }
     window.nc_jumpToMessage = ncJumpToMessage;
+    // Read-only views, so a check can see what a click is about to do.
+    Object.defineProperty(window, '__ncNeedTargets', { get: () => ncNeedMsg });
+    Object.defineProperty(window, '__ncNeedKinds',   { get: () => ncNeeds });
 
     window.nc_noteNeed = ncNoteNeed;
 
