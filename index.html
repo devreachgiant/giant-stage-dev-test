@@ -46346,6 +46346,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     }
 
     function attachReactBarToMsg(msgEl, messageId, isMine) {
+      // Never inside the text of a message: anything in the body element becomes part of
+      // what the message says as far as innerText, editing and copying are concerned.
+      if (!msgEl || msgEl.hasAttribute('data-msg-body')) return;
       if (msgEl.querySelector('.msg-react-bar')) return;
       // messageId is captured once here, but the bar is only built ONCE per DOM node
       // (guard above) and reused for the message's whole lifetime — including the moment
@@ -47031,7 +47034,10 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     // (e.g. after editing a message) would silently strip delete/edit/react/pin from every
     // message in the channel until the next real channel switch.
     function reattachReactBarsForChannel(channelId) {
-      const msgEls = document.querySelectorAll('#chatMsgsList [data-msg-id]');
+      // .msg, not any [data-msg-id]: the message's text node carries data-msg-id too, so
+      // a bare selector attached a SECOND reaction bar inside the text, and double-clicking
+      // to edit then typed 👍❤️🔥😂🎉 into the edit box.
+      const msgEls = document.querySelectorAll('#chatMsgsList .msg[data-msg-id]');
       const msgIds = [...msgEls].map(el => el.dataset.msgId).filter(Boolean);
       if (!msgIds.length) return;
       loadReactionsForMessages(msgIds, channelId).then(() => {
@@ -48748,8 +48754,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const _origLoadMessages = loadMessages;
       loadMessages = async function(channelId) {
         await _origLoadMessages(channelId);
-        // Load attachments + render
-        const msgEls = document.querySelectorAll('#chatMsgsList [data-msg-id]');
+        // Load attachments + render. .msg, not any [data-msg-id]: the text node carries
+        // the id too, so this rendered every attachment a second time inside the text.
+        const msgEls = document.querySelectorAll('#chatMsgsList .msg[data-msg-id]');
         const msgIds = [...msgEls].map(el => el.dataset.msgId);
         if (msgIds.length) {
           await loadAttachmentsForMessages(msgIds);
@@ -76757,7 +76764,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // work that grows with how far back you have read, and it re-lays-out messages
         // that were already settled.
         const freshIds = new Set(fresh.map(m => m.id));
-        const msgEls = [...document.querySelectorAll('#nc_chatMsgsList [data-msg-id]')]
+        const msgEls = [...document.querySelectorAll('#nc_chatMsgsList .nc_msg[data-msg-id]')]
           .filter(el => freshIds.has(el.dataset.msgId));
         const ids = [...msgEls].map(el => el.dataset.msgId);
         if (ids.length && typeof loadAttachmentsForMessages === 'function') {
@@ -77052,6 +77059,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         chatMsgsList.addEventListener('dblclick', (e) => {
           const bodyEl = e.target.closest('[data-msg-body][data-msg-mine="1"]');
           if (!bodyEl) return;
+          // Double-clicking a reaction, or the hover bar, is not a request to edit.
+          if (e.target.closest('.nc_msg-react-bar, .nc_msg-reactions')) return;
           // Find the msg from the current renderMessages msgs cache via dataset, then synthesize a one-element ref array
           // (the wireEditMessage's msgsRef.find() will find it)
           const id = bodyEl.dataset.msgId;
@@ -77061,7 +77070,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           // .replace(/\n/g,'<br>') in the message renderer), and textContent silently drops <br>
           // entirely (it has no text content), collapsing every line break. innerText walks the
           // rendered layout and turns <br> back into '\n', which is exactly what's needed here.
-          const fakeRef = [{ id, body: bodyEl.innerText }];
+          // The stored message first. What is rendered is not the message: it also holds
+          // the "(edited)" marker, a voice note's player, and anything else drawn inside
+          // the body, and each would be typed into the edit box as if the author had
+          // written it. The DOM is a fallback, and a cleaned one.
+          const cached = ((chatMsgsCache[activeChannelId] || {}).msgs || []).find(m => m.id === id);
+          const fakeRef = [{ id, body: cached ? cached.body : ncMessageText(bodyEl) }];
           // Reuse wireEditMessage's internal edit-mode logic by calling it once with this element
           // (it's idempotent — second call just adds another dblclick handler, but we skip via wired flag)
           if (!bodyEl.dataset.editWired) {
@@ -77266,6 +77280,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     }
 
+    // What the message actually says, with the interface taken out of it. Read from a
+    // clone, so asking disturbs nothing on screen.
+    function ncMessageText(bodyEl){
+      if (!bodyEl) return '';
+      const copy = bodyEl.cloneNode(true);
+      copy.querySelectorAll('.nc_msg-react-bar, .nc_msg-reactions, .nc_voice-note, '
+        + '.nc_link-preview, .nc_msg-attachments').forEach(el => el.remove());
+      // The "(edited)" marker is a bare span with no class of its own.
+      copy.querySelectorAll('span').forEach(el => {
+        if (el.textContent.trim() === '(edited)') el.remove();
+      });
+      return copy.innerText.trim();
+    }
+
     function wireEditMessage(textEl, msgsRef) {
       textEl.title = 'Double-click to edit';
       textEl.addEventListener('dblclick', (e) => {
@@ -77273,7 +77301,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const id = textEl.dataset.msgId;
         const msg = msgsRef ? msgsRef.find(m => m.id === id) : null;
         // Same textContent-drops-<br> issue as the fakeRef fallback above — innerText preserves line breaks.
-        const currentBody = msg ? msg.body : textEl.innerText;
+        const currentBody = msg ? msg.body : ncMessageText(textEl);
         const msgEl = textEl.closest('.nc_msg');
         if (msgEl) msgEl.classList.add('nc_editing');
         const input = document.createElement('textarea');
@@ -78817,6 +78845,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
 
     function attachReactBarToMsg(msgEl, messageId, isMine) {
+      // Never inside the text of a message. The bar is chrome; anything that lands in the
+      // body element becomes part of what the message says as far as innerText, editing
+      // and copying are concerned.
+      if (!msgEl || msgEl.hasAttribute('data-msg-body')) return;
       if (msgEl.querySelector('.nc_msg-react-bar')) return;
       // messageId is captured once here, but the bar is only built ONCE per DOM node
       // (guard above) and reused for the message's whole lifetime — including the moment
@@ -79511,7 +79543,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // (e.g. after editing a message) would silently strip delete/edit/react/pin from every
     // message in the channel until the next real channel switch.
     function reattachReactBarsForChannel(channelId) {
-      const msgEls = document.querySelectorAll('#nc_chatMsgsList [data-msg-id]');
+      // .nc_msg, not any [data-msg-id]: the message's own text node carries data-msg-id
+      // too, so a bare selector matched it as well and attached a SECOND reaction bar
+      // inside the text -- which then read as part of the message. Double-clicking to edit
+      // put the whole hover bar, 👍❤️🔥😂🎉, into the edit box.
+      const msgEls = document.querySelectorAll('#nc_chatMsgsList .nc_msg[data-msg-id]');
       const msgIds = [...msgEls].map(el => el.dataset.msgId).filter(Boolean);
       if (!msgIds.length) return;
       loadReactionsForMessages(msgIds, channelId).then(() => {
@@ -81272,7 +81308,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       loadMessages = async function(channelId) {
         await _origLoadMessages(channelId);
         // Load attachments + render
-        const msgEls = document.querySelectorAll('#nc_chatMsgsList [data-msg-id]');
+        // .nc_msg, not any [data-msg-id]: the text node carries the id too, so this
+        // rendered every attachment twice -- once into the message, once into its text.
+        const msgEls = document.querySelectorAll('#nc_chatMsgsList .nc_msg[data-msg-id]');
         const msgIds = [...msgEls].map(el => el.dataset.msgId);
         if (msgIds.length) {
           await loadAttachmentsForMessages(msgIds);
