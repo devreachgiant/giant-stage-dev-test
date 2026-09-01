@@ -10390,6 +10390,8 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               <button class="rec-btn rec-btn-stop" id="recStopBtn" style="display:none;"><span class="rec-stop-sq"></span>Stop</button>
               <button class="rec-btn rec-btn-ghost" id="recDownloadBtn" style="display:none;">⤓ Download</button>
               <button class="rec-btn rec-btn-start" id="recSaveBtn" style="display:none;">↑ Save to Giant</button>
+              <button class="rec-btn rec-btn-ghost" id="recCopyLinkBtn" style="display:none;">🔗 Copy link</button>
+              <button class="rec-btn rec-btn-ghost" id="recShareBtn" style="display:none;">Share…</button>
               <button class="rec-btn rec-btn-ghost" id="recNewBtn" style="display:none;">New recording</button>
             </div>
             <div class="rec-hint" id="recHint"></div>
@@ -29586,6 +29588,13 @@ Rules:
 /* ===== SCREEN RECORDING (feature #6) ===== */
 (function recordModule(){
   const $ = id => document.getElementById(id);
+  // Read now, not when the handler runs: the bootstrap normalises the address to /app
+  // during sign-in, so by the time the library is ready the ?rec= that brought someone
+  // here is already gone from the URL.
+  const RECORDING_DEEP_LINK = (() => {
+    try { return new URLSearchParams(window.location.search).get('rec') || null; }
+    catch (_) { return null; }
+  })();
   let mediaRecorder = null, recChunks = [], recBlob = null;
   let displayStream = null, micStream = null, audioCtx = null;
   let timerInt = null, startTs = 0;
@@ -29711,20 +29720,32 @@ Rules:
       const { data: pub } = sb().storage.from('recordings').getPublicUrl(path);
       const url = pub?.publicUrl || null;
       const title = 'Recording ' + new Date().toLocaleString();
-      const { error: insErr } = await sb().from('recordings').insert({ profile_id: uid, title, storage_path: path, url, duration_secs: durationSecs });
+      // The saved row comes back, because its share token is what a link is made of.
+      const { data: saved, error: insErr } = await sb().from('recordings')
+        .insert({ profile_id: uid, title, storage_path: path, url, duration_secs: durationSecs })
+        .select().single();
       if (insErr && !/relation|does not exist/i.test(insErr.message||'')) { /* metadata table optional */ }
       btn.disabled = false; btn.style.opacity = '1';
       btn.style.display = 'none';
-      if (url) {
-        try { await navigator.clipboard.writeText(url); setHint('Saved ✓ Link copied to clipboard.'); }
-        catch(_) { setHint('Saved ✓ Link: ' + url); }
-        if (typeof toast === 'function') toast({type:'success', message:'Recording saved — link copied', duration:2200});
+      if (saved) {
+        // A link you can still get a minute later. Copying on save is convenient, but the
+        // clipboard fails quietly often enough that it cannot be the only way to reach it
+        // -- which is exactly how a saved recording ended up with no link at all.
+        recJustSaved = saved;
+        const copyBtn = $('recCopyLinkBtn'), shareBtn = $('recShareBtn');
+        if (copyBtn) copyBtn.style.display = '';
+        if (shareBtn) shareBtn.style.display = '';
+        setHint('Saved to your library. Copy link to share it, or Share to let people outside Giant watch.');
+        recCopy(recShareLink(saved), 'Recording saved — link copied');
+      } else if (url) {
+        setHint('Saved ✓');
       } else { setHint('Saved ✓'); }
       loadRecentRecordings();
     } catch(e){ btn.disabled = false; btn.style.opacity = '1'; setHint('Upload error: ' + e.message); }
   }
 
   let recRecentCache = [];
+  let recJustSaved = null;      // the recording this session just saved, for the two buttons
   let recActiveFolder = null; // null = All
   async function loadRecentRecordings(){
     if (!sb() || !$('recGrid')) return;
@@ -29770,6 +29791,8 @@ Rules:
           <div class="rec-card-sub">${recEsc(sub)}</div>
         </div>
         <div class="rec-card-acts">
+          <button class="rec-recent-act" data-act="copy" title="Copy a link to this recording">Copy link</button>
+          <button class="rec-recent-act" data-act="shareopts" title="Choose who can watch this">Share${r.visibility === 'public' ? ' · public' : ''}</button>
           <button class="rec-recent-act" data-act="ai">${aiLabel}</button>
           <span style="flex:1;"></span>
           <button class="rec-recent-act rec-card-more" data-act="more" title="More actions"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="3" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="13" r="1.3" fill="currentColor"/></svg></button>
@@ -29778,11 +29801,119 @@ Rules:
     }).join('');
   }
 
-  async function _recDeleteRecording(id, item){
-    if (!confirm('Delete this recording?')) return;
+  // The address someone can be given. A public recording gets the standalone /rec/<token>
+  // page, which plays without an account; a workspace one gets a link into the app that
+  // opens this library on that recording. Both are stable and both are worth pasting into
+  // a message -- which the raw .webm in storage never was.
+  function recShareLink(rec){
+    const origin = window.location.origin;
+    if (rec.visibility === 'public' && rec.share_token) return origin + '/rec/' + rec.share_token;
+    return origin + '/?rec=' + rec.id;
+  }
+  async function recCopy(text, okMsg){
     try {
-      await sb().from('recordings').delete().eq('id', id);
-    } catch(_){}
+      await navigator.clipboard.writeText(text);
+      if (typeof toast === 'function') toast({ type:'success', message: okMsg || 'Link copied', duration:1800 });
+      return true;
+    } catch (_) {
+      // Clipboard is blocked more often than anyone expects -- an unfocused tab is enough.
+      // Falling back to a prompt means the link is still gettable rather than lost to a
+      // toast that never appeared.
+      try { window.prompt('Copy this link:', text); } catch (_) {}
+      return false;
+    }
+  }
+  async function _recMyId(){
+    try { const { data } = await sb().auth.getUser(); return data?.user?.id || null; } catch(_){ return null; }
+  }
+
+  // Who can watch, and the link to hand over. Only the owner can change visibility -- the
+  // table's own policy says so, and showing a toggle that silently fails is worse than
+  // not showing one.
+  async function _recShareDialog(rec){
+    const uid = await _recMyId();
+    const mine = uid && rec.profile_id === uid;
+    document.getElementById('recShareOverlay')?.remove();
+    const ov = document.createElement('div');
+    ov.id = 'recShareOverlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9000;'
+      + 'display:flex;align-items:center;justify-content:center;padding:20px;';
+    const opt = (val, label, sub) =>
+      '<label style="display:flex;gap:10px;align-items:flex-start;padding:11px 12px;border:1px solid var(--line-2);'
+      + 'border-radius:10px;margin-bottom:8px;cursor:' + (mine ? 'pointer' : 'default') + ';'
+      + (rec.visibility === val ? 'background:var(--surface-2);border-color:var(--red);' : '') + '">'
+      + '<input type="radio" name="recVis" value="' + val + '"' + (rec.visibility === val ? ' checked' : '')
+      + (mine ? '' : ' disabled') + ' style="margin-top:2px;">'
+      + '<span><span style="display:block;font-size:12.5px;font-weight:700;color:var(--text);">' + label + '</span>'
+      + '<span style="display:block;font-size:11.5px;color:var(--text-3);margin-top:2px;">' + sub + '</span></span></label>';
+    ov.innerHTML = '<div id="recShareBox" style="background:var(--surface);border:1px solid var(--line-2);'
+      + 'border-radius:14px;width:100%;max-width:480px;padding:20px;box-shadow:0 24px 70px rgba(0,0,0,.45);">'
+      + '<div style="font-size:15px;font-weight:800;color:var(--text);margin-bottom:3px;">Share recording</div>'
+      + '<div style="font-size:12px;color:var(--text-3);margin-bottom:14px;">' + recEsc(rec.title || 'Recording') + '</div>'
+      + opt('workspace', 'Anyone in Giant', 'Everyone signed in to the workspace can watch it.')
+      + opt('public', 'Anyone with the link', 'No account needed. Use this for clients and people outside Giant.')
+      + '<div style="display:flex;gap:8px;margin-top:14px;">'
+      +   '<input id="recShareUrl" readonly value="' + recEsc(recShareLink(rec)) + '"'
+      +     ' style="flex:1;min-width:0;background:var(--surface-2);border:1px solid var(--line-2);border-radius:9px;'
+      +     'padding:9px 11px;font-size:12px;color:var(--text);font-family:inherit;">'
+      +   '<button id="recShareCopy" class="btn-red" style="border-radius:9px;padding:9px 14px;font-size:12.5px;'
+      +     'font-weight:700;white-space:nowrap;">Copy link</button>'
+      + '</div>'
+      + (mine ? '' : '<div style="font-size:11px;color:var(--text-3);margin-top:9px;">Only the person who recorded this can change who it is shared with.</div>')
+      + '<div style="display:flex;justify-content:flex-end;margin-top:16px;">'
+      +   '<button id="recShareClose" class="rec-recent-act">Done</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    const urlEl = ov.querySelector('#recShareUrl');
+    ov.querySelector('#recShareCopy').addEventListener('click', () => {
+      urlEl.select();
+      recCopy(urlEl.value, rec.visibility === 'public' ? 'Public link copied' : 'Link copied');
+    });
+    ov.querySelectorAll('input[name="recVis"]').forEach(r => {
+      r.addEventListener('change', async () => {
+        if (!mine) return;
+        const visibility = r.value;
+        const { error } = await sb().from('recordings').update({ visibility }).eq('id', rec.id);
+        if (error) {
+          if (typeof toast === 'function') toast({ type:'error', message:'Could not change sharing: ' + error.message, duration:4000 });
+          return;
+        }
+        rec.visibility = visibility;
+        const c = recRecentCache.find(x => x.id === rec.id); if (c) c.visibility = visibility;
+        urlEl.value = recShareLink(rec);
+        renderRecGrid();
+        if (typeof toast === 'function') {
+          toast({ type:'success', duration:2000,
+            message: visibility === 'public' ? 'Anyone with the link can watch this' : 'Back to people in Giant only' });
+        }
+      });
+    });
+    const close = () => ov.remove();
+    ov.querySelector('#recShareClose').addEventListener('click', close);
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    document.addEventListener('keydown', function esc(e){
+      if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc); }
+    });
+  }
+
+  async function _recDeleteRecording(id, item){
+    const rec = recRecentCache.find(r => r.id === id) || { id };
+    const ok = await window.giantConfirmWarn('Delete this recording?',
+      'The video file is deleted too, and any link you have shared stops working. This cannot be undone.',
+      'Delete', 'warning');
+    if (!ok) return;
+    // The file first, then the row: the row is what tells us where the file is, so
+    // deleting it first leaves an orphan nobody can find, quietly paid for forever.
+    if (rec.storage_path) {
+      try { await sb().storage.from('recordings').remove([rec.storage_path]); } catch (_) {}
+    }
+    const { error } = await sb().from('recordings').delete().eq('id', id);
+    if (error) {
+      if (typeof toast === 'function') toast({ type:'error', duration:4000,
+        message: /policy|permission/i.test(error.message) ? 'Only the person who recorded this can delete it' : 'Delete failed: ' + error.message });
+      return;
+    }
+    if (typeof toast === 'function') toast({ type:'success', message:'Recording deleted', duration:1800 });
     loadRecentRecordings();
   }
 
@@ -29800,15 +29931,16 @@ Rules:
     window.location.href = 'mailto:?subject='+subj+'&body='+bod;
   }
   function _recCopy(rec){
-    if (!rec.url) return;
-    navigator.clipboard.writeText(rec.url).then(()=>{ if(typeof toast==='function') toast({type:'success', message:'Link copied', duration:1500}); });
+    // The share link, not the raw .webm: a storage URL plays but says nothing about what
+    // it is, cannot be revoked, and is the reason "copy link" felt like it did nothing.
+    recCopy(recShareLink(rec), rec.visibility === 'public' ? 'Public link copied' : 'Link copied');
   }
   function _recCardMenu(btn, rec){
     document.getElementById('recCardMenu')?.remove();
     const menu = document.createElement('div');
     menu.id = 'recCardMenu';
     menu.className = 'note-item-menu-pop';
-    menu.innerHTML = [['share','→ Share to chat'],['rename','Rename'],['folder','Move to folder…'],['copy','Copy link'],['download','Download'],['email','Email'],['del','Delete']]
+    menu.innerHTML = [['share','→ Share to chat'],['shareopts','Who can watch…'],['rename','Rename'],['folder','Move to folder…'],['copy','Copy link'],['download','Download'],['email','Email'],['del','Delete']]
       .map(([a,l]) => `<button type="button" data-m="${a}"${a==='del'?' class="danger"':''}>${l}</button>`).join('');
     document.body.appendChild(menu);
     const r = btn.getBoundingClientRect();
@@ -29818,6 +29950,7 @@ Rules:
       const mb = e.target.closest('[data-m]'); if (!mb) return;
       const act = mb.dataset.m; menu.remove();
       if (act==='share') _recShareToChat(rec);
+      else if (act==='shareopts') _recShareDialog(rec);
       else if (act==='rename') _recRename(rec);
       else if (act==='folder') _recMoveToFolder(rec);
       else if (act==='copy') _recCopy(rec);
@@ -29962,8 +30095,42 @@ Rules:
     $('recDownloadBtn').style.display='none';
     $('recSaveBtn').style.display='none';
     $('recNewBtn').style.display='none';
+    if ($('recCopyLinkBtn')) $('recCopyLinkBtn').style.display='none';
+    if ($('recShareBtn')) $('recShareBtn').style.display='none';
+    recJustSaved = null;
     $('recLiveBadge').style.display='none';
     setHint('');
+  }
+
+  // /?rec=<id> -- where a workspace share link lands. Opens this screen on that recording
+  // rather than the top of a library that may be a hundred cards long.
+  async function _recOpenFromLink(){
+    const id = RECORDING_DEEP_LINK;
+    if (!id) return;
+    const nav = document.querySelector('.nav-item[data-screen="record"]');
+    if (!nav) return;
+    await loadRecentRecordings();
+    for (let i = 0; i < 20; i++) {
+      // Re-asserted each pass: the app restores the screen you were last on during boot,
+      // and a single click at the wrong moment is simply overwritten by that.
+      const on = document.querySelector('.screen.on');
+      if (!on || on.dataset.screen !== 'record') nav.click();
+      const card = document.querySelector(`.rec-card-item[data-id="${id}"]`);
+      if (card && on && on.dataset.screen === 'record') {
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.style.transition = 'box-shadow .3s';
+        card.style.boxShadow = '0 0 0 2px var(--red)';
+        setTimeout(() => { card.style.boxShadow = ''; }, 3000);
+        const v = card.querySelector('video');
+        if (v) { try { await v.play(); } catch (_) {} }
+        // Taken out of the address bar so a refresh does not keep re-opening it.
+        try { history.replaceState(null, '', window.location.pathname); } catch (_) {}
+        return;
+      }
+      await new Promise(res => setTimeout(res, 250));
+    }
+    if (typeof toast === 'function') toast({ type:'error', duration:4000,
+      message:'That recording is not in the library — it may have been deleted.' });
   }
 
   function wireRecord(){
@@ -29975,6 +30142,13 @@ Rules:
     $('recDownloadBtn') && $('recDownloadBtn').addEventListener('click', downloadRecording);
     $('recSaveBtn') && $('recSaveBtn').addEventListener('click', saveToGiant);
     $('recNewBtn') && $('recNewBtn').addEventListener('click', resetRecorder);
+    $('recCopyLinkBtn') && $('recCopyLinkBtn').addEventListener('click', () => {
+      if (recJustSaved) recCopy(recShareLink(recJustSaved),
+        recJustSaved.visibility === 'public' ? 'Public link copied' : 'Link copied');
+    });
+    $('recShareBtn') && $('recShareBtn').addEventListener('click', () => {
+      if (recJustSaved) _recShareDialog(recJustSaved);
+    });
     $('qrFab') && $('qrFab').addEventListener('click', startRecording);
     $('qrPillStop') && $('qrPillStop').addEventListener('click', stopRecording);
     $('recGrid') && $('recGrid').addEventListener('click', (e) => {
@@ -29983,6 +30157,8 @@ Rules:
       const rec = recRecentCache.find(x => x.id === id);
       if (!rec) return;
       if (e.target.closest('[data-act="ai"]')) { _recSummarize(rec); }
+      else if (e.target.closest('[data-act="copy"]')) { _recCopy(rec); }
+      else if (e.target.closest('[data-act="shareopts"]')) { _recShareDialog(rec); }
       else if (e.target.closest('[data-act="more"]')) { _recCardMenu(e.target.closest('[data-act="more"]'), rec); }
     });
     $('recFolders') && $('recFolders').addEventListener('click', (e) => {
@@ -29995,6 +30171,7 @@ Rules:
   }
   wireRecord();
   setTimeout(wireRecord, 1200);
+  if (RECORDING_DEEP_LINK) setTimeout(_recOpenFromLink, 2200);
 })();
 
 /* ===== PERSONAL MEETING ROOM (feature #10) ===== */

@@ -68,7 +68,11 @@ const results = [];
 const check = (name, pass, detail) => { results.push({ name, pass: !!pass, detail }); return !!pass; };
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+// Clipboard permission, because "copy link" is a feature now and a check that cannot read
+// the clipboard can only assert that a button was clicked.
+const context = await browser.newContext({ viewport: { width: 1600, height: 1000 },
+  permissions: ['clipboard-read', 'clipboard-write'] });
+const page = await context.newPage();
 
 const consoleErrors = [];
 const pageErrors = [];
@@ -3253,6 +3257,76 @@ await step('a notification deep link opens Chat, not the archive', async () => {
   });
   check('a notification deep link opens Chat, not the archive',
     r.screen === 'newchat' && r.rendered && r.onScreen && r.highlighted === 'm-bell-mention',
+    JSON.stringify(r));
+});
+
+await step('a recording can be linked, shared publicly and deleted', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const vis = (el) => { if (!el) return false; const b = el.getBoundingClientRect();
+      return el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && b.width > 4 && b.height > 4; };
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => { if (t.classList.contains('nav-group-collapsed')) t.click(); });
+    await wait(600);
+    const nav = document.querySelector('.nav-item[data-screen="record"]');
+    if (!nav) return out;
+    nav.click(); await wait(2500);
+    // Re-queried every time: changing visibility re-renders the grid, and a card captured
+    // before that is a detached node whose clicks go nowhere.
+    const card = (id) => document.querySelector(`.rec-card-item[data-id="${id}"]`);
+    const cards = [...document.querySelectorAll('.rec-card-item')];
+    out.cards = cards.length;
+    if (!card('rec-1')) return out;
+    // The two things the recorder screen never offered: a link, without opening a menu.
+    out.copyOnEveryCard = cards.every(c => vis(c.querySelector('[data-act="copy"]')));
+    out.shareOnEveryCard = cards.every(c => vis(c.querySelector('[data-act="shareopts"]')));
+
+    card('rec-1').querySelector('[data-act="copy"]').click(); await wait(600);
+    out.copiedWorkspace = await navigator.clipboard.readText().catch(() => 'ERR');
+
+    card('rec-1').querySelector('[data-act="shareopts"]').click(); await wait(700);
+    out.dialogOpen = vis(document.getElementById('recShareBox'));
+    out.dialogUrl = (document.getElementById('recShareUrl') || {}).value;
+    const pub = [...document.querySelectorAll('input[name="recVis"]')].find(x => x.value === 'public');
+    out.bothOptionsOffered = [...document.querySelectorAll('input[name="recVis"]')].length === 2;
+    pub.click(); await wait(900);
+    out.urlWentPublic = (document.getElementById('recShareUrl') || {}).value;
+    out.rowVisibility = (window.__mock.db.recordings.find(x => x.id === 'rec-1') || {}).visibility;
+    document.getElementById('recShareCopy').click(); await wait(500);
+    out.copiedPublic = await navigator.clipboard.readText().catch(() => 'ERR');
+    document.getElementById('recShareClose').click(); await wait(300);
+    out.dialogClosed = !document.getElementById('recShareOverlay');
+
+    // Someone else's recording: still linkable, but not yours to make public.
+    card('rec-2').querySelector('[data-act="shareopts"]').click(); await wait(800);
+    out.otherRadios = [...document.querySelectorAll('input[name="recVis"]')].map(x => x.value + (x.disabled ? ':disabled' : ''));
+    out.otherUrlIsPublicPage = /\/rec\//.test((document.getElementById('recShareUrl') || {}).value || '');
+    document.getElementById('recShareClose').click(); await wait(300);
+
+    // Delete takes the video with it -- a row on its own leaves a file nobody can find.
+    const before = window.__mock.db.recordings.length;
+    card('rec-1').querySelector('[data-act="more"]').click(); await wait(400);
+    out.menuOffersSharing = [...document.querySelectorAll('#recCardMenu [data-m]')].some(b => b.dataset.m === 'shareopts');
+    [...document.querySelectorAll('#recCardMenu [data-m]')].find(b => b.dataset.m === 'del').click();
+    await wait(800);
+    const del = [...document.querySelectorAll('body > div button')].filter(b => b.textContent.trim() === 'Delete');
+    out.confirmAsked = del.length > 0;
+    if (del.length) { del[del.length - 1].click(); await wait(1600); }
+    out.rowsRemoved = before - window.__mock.db.recordings.length;
+    out.fileRemoved = (window.__mock.log.storage || []).some(x => x.startsWith('remove:recordings/'));
+    return out;
+  });
+  const origin = new URL(page.url()).origin;
+  check('a recording can be linked, shared publicly and deleted',
+    r.cards >= 2 && r.copyOnEveryCard && r.shareOnEveryCard
+      && r.copiedWorkspace === origin + '/?rec=rec-1'
+      && r.dialogOpen && r.bothOptionsOffered
+      && r.rowVisibility === 'public'
+      && /^https?:\/\/[^/]+\/rec\/[a-f0-9]{32}$/.test(r.urlWentPublic || '')
+      && r.copiedPublic === r.urlWentPublic && r.dialogClosed
+      && r.otherRadios.join(',') === 'workspace:disabled,public:disabled'
+      && r.otherUrlIsPublicPage && r.menuOffersSharing
+      && r.confirmAsked && r.rowsRemoved === 1 && r.fileRemoved,
     JSON.stringify(r));
 });
 

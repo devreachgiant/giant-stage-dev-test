@@ -195,6 +195,16 @@
     });
   });
 
+  // Screen recordings, so the share-link work on that screen is testable at all.
+  DB.recordings = [
+    { id: 'rec-1', profile_id: ME, title: 'Client walkthrough', storage_path: ME + '/a.webm',
+      url: 'https://example.test/storage/a.webm', duration_secs: 95, folder: null,
+      visibility: 'workspace', share_token: 'a'.repeat(32), view_count: 0, created_at: iso(2, 0) },
+    { id: 'rec-2', profile_id: 'u-2', title: 'Someone else\'s recording', storage_path: 'u-2/b.webm',
+      url: 'https://example.test/storage/b.webm', duration_secs: 40, folder: 'Handovers',
+      visibility: 'public', share_token: 'b'.repeat(32), view_count: 3, created_at: iso(5, 0) }
+  ];
+
   DB.time_sessions = [{ client_id: 'c-1', duration_seconds: 5400, status: 'stopped' },
                       { client_id: 'c-1', duration_seconds: 1800, status: 'stopped' }];
   // Keyed by the client's own id, not a separate one: the management panel selects
@@ -653,7 +663,7 @@
           // this harness exists to keep clean.
           getPublicUrl: (path) => ({ data: { publicUrl: PLACEHOLDER_IMG } }),
           createSignedUrl: (path) => Promise.resolve({ data: { signedUrl: 'https://mock.local/' + bucket + '/' + path }, error: null }),
-          remove: () => Promise.resolve({ data: [], error: null }),
+          remove: (paths) => { log.storage.push('remove:' + bucket + '/' + [].concat(paths || []).join(',')); return Promise.resolve({ data: [], error: null }); },
           list: () => Promise.resolve({ data: [], error: null }),
           download: () => Promise.resolve({ data: new Blob(['mock']), error: null })
         })
