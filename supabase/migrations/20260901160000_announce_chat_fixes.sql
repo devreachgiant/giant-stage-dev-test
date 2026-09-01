@@ -47,8 +47,6 @@ BEGIN
     'along with your text. It opens with just your words now. The "(edited)" marker could ',
     'get typed in the same way; that is fixed too, and double-clicking a reaction no longer ',
     'opens the editor.', chr(10), chr(10),
-    'Both are fixed in **Old Chat** as well, so it does not matter which one you are in.',
-    chr(10), chr(10),
     'Thank you for reporting these - please keep them coming, it is how they get found.'
   );
 
