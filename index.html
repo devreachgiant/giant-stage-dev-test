@@ -44617,6 +44617,14 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const msgsContainer = chatMsgsList ? chatMsgsList.parentElement : null;
       const prevHeight = msgsContainer ? msgsContainer.scrollHeight : 0;
       const prevTop = msgsContainer ? msgsContainer.scrollTop : 0;
+      window._chatStickToBottom = false;
+      // Anchored on the message at the top of the view rather than a height difference,
+      // which is still settling while avatars and images load.
+      const firstEl = chatMsgsList ? chatMsgsList.querySelector('.msg[data-msg-id]') : null;
+      const anchorId = firstEl ? firstEl.dataset.msgId : null;
+      const anchorTop = (firstEl && msgsContainer)
+        ? firstEl.getBoundingClientRect().top - msgsContainer.getBoundingClientRect().top
+        : 0;
       const { data, error } = await supabase
         .from('messages')
         .select('id, body, created_at, edited_at, author_id, channel_id, parent_id, reply_count, voice_note_url, voice_note_duration_ms')
@@ -44645,7 +44653,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const fresh = older.filter(m => !existing.has(m.id));
       cache.msgs = fresh.concat(cache.msgs);
       if (channelId !== activeChannelId) return;
-      await renderMessages(cache.msgs);
+      await renderMessages(cache.msgs, { preserveScroll: true });
       // Render attachments for the freshly-added messages (renderMessages handles reply CTAs)
       try {
         const msgEls = document.querySelectorAll('#chatMsgsList [data-msg-id]');
@@ -44655,12 +44663,19 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           msgEls.forEach(el => renderAttachmentsForMsg(el, el.dataset.msgId));
         }
       } catch(_) {}
-      // Preserve scroll position so the view doesn't jump
-      requestAnimationFrame(() => {
+      // Put the message you were reading back where it was, and keep putting it back as
+      // avatars and images above it finish loading.
+      const keepPlace = () => {
         if (!msgsContainer) return;
-        const newHeight = msgsContainer.scrollHeight;
-        msgsContainer.scrollTop = newHeight - prevHeight + prevTop;
-      });
+        window._chatStickToBottom = false;
+        const el = anchorId ? chatMsgsList.querySelector(`.msg[data-msg-id="${anchorId}"]`) : null;
+        if (!el) { msgsContainer.scrollTop = msgsContainer.scrollHeight - prevHeight + prevTop; return; }
+        const delta = (el.getBoundingClientRect().top - msgsContainer.getBoundingClientRect().top) - anchorTop;
+        if (Math.abs(delta) > 1) msgsContainer.scrollTop += delta;
+      };
+      keepPlace();
+      requestAnimationFrame(keepPlace);
+      [60, 160, 320, 600].forEach(ms => setTimeout(keepPlace, ms));
     }
 
     // Hydrate profiles with microbatching: multiple simultaneous hydrate calls within 50ms
@@ -44719,14 +44734,19 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     // Fire it on app init — non-blocking but the re-render above ensures we paint mentions correctly
     setTimeout(() => hydrateAllWorkspaceProfiles(), 100);
 
-    async function renderMessages(msgs) {
+    // opts.preserveScroll -- older messages being added ABOVE what you are reading, so
+    // this render must not touch the scroll. Same fix as Chat: every render scrolled to
+    // the newest message unconditionally, so "Load earlier messages" sent you to the
+    // bottom, the opposite of what the button says.
+    async function renderMessages(msgs, opts) {
+      const preserveScroll = !!(opts && opts.preserveScroll);
       // Mark as bulk render so the CSS animation rule is bypassed during this bulk insertion
       chatMsgsList.classList.add('bulk-render');
       // Performance: cap rendered messages to last 200 to keep DOM light.
       // (Older messages can be fetched via scroll-up if needed in the future.)
       let truncated = false;
       let truncatedCount = 0;
-      if (msgs.length > 500) {
+      if (!preserveScroll && msgs.length > 500) {
         truncatedCount = msgs.length - 500;
         msgs = msgs.slice(-500);
         truncated = true;
@@ -45018,9 +45038,11 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         const scrollEl = document.getElementById('chatMsgs');
         if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
       };
-      requestAnimationFrame(() => requestAnimationFrame(doScroll));
-      // Also retry after 100ms in case avatars load late
-      setTimeout(doScroll, 120);
+      if (!preserveScroll) {
+        requestAnimationFrame(() => requestAnimationFrame(doScroll));
+        // Also retry after 100ms in case avatars load late
+        setTimeout(doScroll, 120);
+      }
       // Remove bulk-render class so future single-message appends DO animate
       setTimeout(() => chatMsgsList.classList.remove('bulk-render'), 200);
     }
@@ -76677,6 +76699,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const msgsContainer = chatMsgsList ? chatMsgsList.parentElement : null;
       const prevHeight = msgsContainer ? msgsContainer.scrollHeight : 0;
       const prevTop = msgsContainer ? msgsContainer.scrollTop : 0;
+      // Clicking "Load earlier messages" is an unambiguous statement that you do not want
+      // to be at the bottom. The sticky-scroll observers re-snap on any size change while
+      // this is true, and 50 new messages is a size change.
+      window.nc__chatStickToBottom = false;
+      // Anchored on the message currently at the top of the view, not on a height
+      // difference: heights are still settling while avatars and images load, and a
+      // number computed one frame too early is wrong by however much loaded after it.
+      const firstEl = chatMsgsList ? chatMsgsList.querySelector('.nc_msg[data-msg-id]') : null;
+      const anchorId = firstEl ? firstEl.dataset.msgId : null;
+      const anchorTop = (firstEl && msgsContainer)
+        ? firstEl.getBoundingClientRect().top - msgsContainer.getBoundingClientRect().top
+        : 0;
       const { data, error } = await window.giantSupabase
         .from('messages')
         .select('id, body, created_at, edited_at, author_id, channel_id, parent_id, reply_count, voice_note_url, voice_note_duration_ms, flagged')
@@ -76705,7 +76739,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const fresh = older.filter(m => !existing.has(m.id));
       cache.msgs = fresh.concat(cache.msgs);
       if (channelId !== activeChannelId) return;
-      await renderMessages(cache.msgs);
+      await renderMessages(cache.msgs, { preserveScroll: true });
       // Render attachments for the freshly-added messages (renderMessages handles reply CTAs)
       try {
         const msgEls = document.querySelectorAll('#nc_chatMsgsList [data-msg-id]');
@@ -76715,12 +76749,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           msgEls.forEach(el => renderAttachmentsForMsg(el, el.dataset.msgId));
         }
       } catch(_) {}
-      // Preserve scroll position so the view doesn't jump
-      requestAnimationFrame(() => {
+      // Put the message you were reading back where it was, and keep putting it back:
+      // avatars, images and link previews above it finish loading over the next few
+      // hundred milliseconds, and each one moves everything below it down.
+      const keepPlace = () => {
         if (!msgsContainer) return;
-        const newHeight = msgsContainer.scrollHeight;
-        msgsContainer.scrollTop = newHeight - prevHeight + prevTop;
-      });
+        window.nc__chatStickToBottom = false;
+        const el = anchorId ? chatMsgsList.querySelector(`.nc_msg[data-msg-id="${anchorId}"]`) : null;
+        if (!el) {
+          // No anchor to hold (it was deleted, say) -- fall back to the height difference,
+          // which is at least in the right direction.
+          msgsContainer.scrollTop = msgsContainer.scrollHeight - prevHeight + prevTop;
+          return;
+        }
+        const delta = (el.getBoundingClientRect().top - msgsContainer.getBoundingClientRect().top) - anchorTop;
+        if (Math.abs(delta) > 1) msgsContainer.scrollTop += delta;
+      };
+      keepPlace();
+      requestAnimationFrame(keepPlace);
+      [60, 160, 320, 600].forEach(ms => setTimeout(keepPlace, ms));
     }
 
     // Hydrate profiles with microbatching: multiple simultaneous hydrate calls within 50ms
@@ -76779,14 +76826,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // Fire it on app init — non-blocking but the re-render above ensures we paint mentions correctly
     setTimeout(() => hydrateAllWorkspaceProfiles(), 100);
 
-    async function renderMessages(msgs) {
+    // opts.preserveScroll -- this render is older messages being added ABOVE what you are
+    // reading, so it must not touch the scroll position. Every render used to scroll to
+    // the newest message unconditionally, which is why "Load earlier messages" sent you to
+    // the bottom: the exact opposite of what the button says.
+    async function renderMessages(msgs, opts) {
+      const preserveScroll = !!(opts && opts.preserveScroll);
       // Mark as bulk render so the CSS animation rule is bypassed during this bulk insertion
       chatMsgsList.classList.add('nc_bulk-render');
-      // Performance: cap rendered messages to last 200 to keep DOM light.
-      // (Older messages can be fetched via scroll-up if needed in the future.)
+      // Performance: cap rendered messages to last 500 to keep DOM light.
+      // Paging is exempt: the cap drops the OLDEST, which are precisely the ones just
+      // asked for, so a long history would silently stop going back.
       let truncated = false;
       let truncatedCount = 0;
-      if (msgs.length > 500) {
+      if (!preserveScroll && msgs.length > 500) {
         truncatedCount = msgs.length - 500;
         msgs = msgs.slice(-500);
         truncated = true;
@@ -77083,9 +77136,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const scrollEl = document.getElementById('nc_chatMsgs');
         if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
       };
-      requestAnimationFrame(() => requestAnimationFrame(doScroll));
-      // Also retry after 100ms in case avatars load late
-      setTimeout(doScroll, 120);
+      if (!preserveScroll) {
+        requestAnimationFrame(() => requestAnimationFrame(doScroll));
+        // Also retry after 100ms in case avatars load late
+        setTimeout(doScroll, 120);
+      }
       // Remove bulk-render class so future single-message appends DO animate
       setTimeout(() => chatMsgsList.classList.remove('nc_bulk-render'), 200);
     }
