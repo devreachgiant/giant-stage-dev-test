@@ -71107,13 +71107,36 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // Unset stars stay out of the way until the row is hovered, so a list of 11
       // clients does not read as a column of eleven stars.
       b.className = 'nc_star' + (on ? ' nc_star-on' : '');
-      b.style.cssText = 'margin-left:auto;display:inline-flex;cursor:pointer;flex-shrink:0;'
-        + 'opacity:' + (on ? '1' : '0') + ';transition:opacity .12s ease;';
+      // Always on screen, in the same place on every row. It used to appear only on
+      // hover, which meant you could not see what you had starred without running the
+      // mouse down the list, and on a touchpad you could not find the control at all.
+      // Unset stars are drawn quietly enough that a column of them reads as a column of
+      // slots, not a column of stars.
+      b.style.cssText = 'margin-left:auto;display:inline-flex;align-items:center;cursor:pointer;'
+        + 'flex-shrink:0;opacity:' + (on ? '1' : '.55') + ';transition:opacity .12s ease;';
       b.title = on ? 'Unstar' : 'Star';
       b.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="' + (on ? 'var(--c3-amber)' : 'none')
-        + '"><path d="M8 2.4l1.7 3.6 3.9.5-2.9 2.8.7 3.9L8 11.3 4.6 13.2l.7-3.9L2.4 6.5l3.9-.5z" stroke="var(--c3-amber)" stroke-width="1.3" stroke-linejoin="round"/></svg>';
+        + '"><path d="M8 2.4l1.7 3.6 3.9.5-2.9 2.8.7 3.9L8 11.3 4.6 13.2l.7-3.9L2.4 6.5l3.9-.5z" stroke="'
+        + (on ? 'var(--c3-amber)' : 'var(--c3-t5)') + '" stroke-width="1.3" stroke-linejoin="round"/></svg>';
       b.addEventListener('click', (e) => { e.stopPropagation(); toggleStarChannel(id); });
       return b;
+    }
+    // Always the same slot: just before the row's "..." menu, so the star is in one place
+    // down the whole card rather than wherever the row happened to end.
+    function placeStar(row, id){
+      const star = starButton(id);
+      const menu = row.querySelector('.nc_row-menu');
+      if (menu) {
+        row.insertBefore(star, menu);
+        // The menu carries margin-left:auto of its own. Two auto margins SPLIT the free
+        // space between them, so the star landed at a different x on every row depending
+        // on how long the name was -- eleven stars, eleven columns. One auto margin, on
+        // the star, puts every star in the same place and the menu right after it.
+        menu.style.marginLeft = '0';
+      } else {
+        row.appendChild(star);
+      }
+      return star;
     }
     // ── Needs you ───────────────────────────────────────────────────────────────
     // Chat 3.0 ranks mention > flagged > unread, because those are three different
@@ -71883,7 +71906,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         countEl.title = n > 0 ? n + ' unread' : '';
         row.appendChild(countEl);
 
-        row.appendChild(starButton(id));
+        placeStar(row, id);
 
         row.addEventListener('click', () => {
           const t = ncNeedMsg[id];
@@ -71904,7 +71927,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           const t = jumpTo && ncNeedMsg[id];
           if (t) ncJumpToMessage(id, t.id, t.parentId); else switchChannel(id);
         });
-        if (withStar) cl.appendChild(starButton(id));
+        if (withStar) placeStar(cl, id);
         body.appendChild(cl);
         return cl;
       };
@@ -72018,7 +72041,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const c = dmById.get(id);
         const isGroup = row.dataset.ncDmGroup === '1' || !!(c && c.is_group);
         rowByChannel.set(id, row);   // so the needs builder can borrow this person's photo
-        place(row, isGroup ? bodies.groups : bodies.direct, id, false);
+        place(row, isGroup ? bodies.groups : bodies.direct, id, true);
         // DMs that need you are built by the same builder as everything else, below --
         // a clone here would put a second, differently-shaped row on the same card.
       });
@@ -72306,7 +72329,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // The message list needs the same horizontal rhythm as the strip above it,
         // or the two read as belonging to different panes.
         '#nc_chatMsgsList{padding-left:12px;padding-right:12px;}',
-        '.nc_navcard .nc_ch-item:hover .nc_star{opacity:.55 !important;}',
         '.nc_navcard .nc_ch-item .nc_star:hover{opacity:1 !important;}',
         '.nc_navcard .nc_ch-item .nc_star-on{opacity:1 !important;}',
       ].join('\n');

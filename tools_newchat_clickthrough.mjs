@@ -3535,6 +3535,70 @@ await step('Needs you rows say who, what kind, how long and how much', async () 
     JSON.stringify(r));
 });
 
+await step('every card offers a star, in one column, without hovering', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2200); }
+    const cards = { clients: 'nc_cardClientsBody', teams: 'nc_cardTeamsBody',
+                    direct: 'nc_cardDirectBody', groups: 'nc_cardGroupsBody',
+                    needs: 'nc_cardNeedsBody' };
+    out.perCard = {};
+    for (const [key, id] of Object.entries(cards)) {
+      const body = document.getElementById(id);
+      if (!body) continue;
+      const head = body.closest('.nc_navcard').querySelector('.nc_navcard-head');
+      if (head && getComputedStyle(body).display === 'none') { head.click(); await wait(700); }
+      const rows = [...body.querySelectorAll('.nc_ch-item')];
+      const starred = rows.filter(x => x.querySelector('.nc_star'));
+      // Visible with no mouse anywhere near it: the star used to appear on hover only,
+      // so you could not see what you had starred without running down the list.
+      const visible = starred.filter(x => {
+        const s = x.querySelector('.nc_star');
+        return s.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+          && s.getBoundingClientRect().width > 4;
+      });
+      // Always in the slot before the row's "..." menu, and always the same slot: two
+      // competing auto margins used to split the space and put every star at a different x.
+      const beforeMenu = starred.filter(x => {
+        const s = x.querySelector('.nc_star'), m = x.querySelector('.nc_row-menu');
+        return !m || (s.compareDocumentPosition(m) & Node.DOCUMENT_POSITION_FOLLOWING);
+      });
+      out.perCard[key] = {
+        rows: rows.length, withStar: starred.length, visible: visible.length,
+        beforeMenu: beforeMenu.length,
+        columns: new Set(starred.map(x => Math.round(x.querySelector('.nc_star').getBoundingClientRect().right))).size
+      };
+    }
+    // and it stars without opening the conversation
+    const cb = document.getElementById('nc_cardClientsBody');
+    const row = [...cb.querySelectorAll('.nc_ch-item')].find(x => x.querySelector('.nc_star'));
+    if (row) {
+      const id = row.dataset.ncChannelId;
+      const before = (window.__mock.db.channel_stars || []).length;
+      const wasOpen = window.nc_activeChannelId;
+      row.querySelector('.nc_star').click();
+      await wait(1600);
+      out.starWrote = (window.__mock.db.channel_stars || []).length !== before;
+      out.starDidNotOpen = window.nc_activeChannelId === wasOpen;
+      out.inStarredCard = !!document.querySelector(`#nc_cardStarredBody [data-nc-channel-id="${id}"]`);
+    }
+    return out;
+  });
+  const cards = Object.values(r.perCard || {});
+  check('every card offers a star, in one column, without hovering',
+    cards.length >= 4
+      && cards.every(c => c.withStar > 0 && c.visible === c.withStar
+                       && c.beforeMenu === c.withStar && c.columns === 1)
+      && r.starWrote && r.starDidNotOpen && r.inStarredCard,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
