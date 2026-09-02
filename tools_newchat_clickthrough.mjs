@@ -344,11 +344,13 @@ const sidebar = await page.evaluate(() => {
       return db.clients.filter(c => c.status !== 'churned')
         .filter(cl => !db.channels.some(c => c.kind === 'client_dept' && c.client_id === cl.id)).length;
     })(),
-    // One row per client on the books. Their departments are threads inside the
-    // conversation, reached from the strip, not rows of their own.
-    expectedClients: (() => {
+    // One row per client that HAS a conversation. Their departments are threads inside
+    // it, reached from the strip, not rows of their own.
+    clientsWithConversation: (() => {
       const db = window.__mock.db;
-      return db.clients.filter(c => c.status !== 'churned').length;
+      const withChan = new Set(db.channels.filter(c => c.kind === 'client_dept' && c.client_id)
+        .map(c => c.client_id));
+      return db.clients.filter(c => c.status !== 'churned' && withChan.has(c.id)).length;
     })(),
     groups: document.querySelectorAll('#nc_cardGroupsBody .nc_ch-item').length,
     // truth from the data: a DM with more than one other member, or is_group set
@@ -364,23 +366,21 @@ const sidebar = await page.evaluate(() => {
 check('sidebar renders its six nav cards', sidebar.cards === 6, 'cards=' + sidebar.cards);
 check('sidebar behaves as an accordion (one card open)', sidebar.openCards === 1,
   'open=' + sidebar.openCards + ' heights=' + sidebar.heights.join(','));
-// This has moved twice today, so the rule is stated plainly: ONE row per client.
-// Departments -- General, Google Ads, Meta Ads, SEO, Web -- are threads inside the
-// conversation, on the strip at the top, which is the shape the screen was designed
-// around; a row each read as five separate clients. A client with no conversation is
-// still listed, dimmed, and starts one on click. Nothing is pre-created: channels is
-// shared with old chat, so empty public rows would flood its sidebar and private ones
-// would be invisible to non-member managers.
-check('one row per client, departments live inside the conversation',
-  sidebar.clients > 0 && sidebar.clients === sidebar.expectedClients,
-  'listed=' + sidebar.clients + ' clients=' + sidebar.expectedClients);
-// The inverse of what this asserted a few hours ago. A client with no conversation IS
-// listed again, dimmed, because the card is a client list and every client on the books
-// belongs on it -- it just has nothing to open until someone starts it.
-check('a client with no conversation is still listed, dimmed',
-  sidebar.dimmedClients > 0
-    && sidebar.dimmedClients === sidebar.expectedDimmed,
-  'dimmed=' + sidebar.dimmedClients + ' expected=' + sidebar.expectedDimmed);
+// ONE row per client that HAS a conversation. Departments -- General, Google Ads, Meta
+// Ads, SEO, Web -- are threads inside it, on the strip at the top, which is the shape the
+// screen was designed around; a row each read as five separate clients.
+//
+// A client with NO conversation is not listed at all. That has moved more than once: it
+// was listed, dimmed, on the reasoning that the card is a client list. It is not -- it is
+// the list of conversations you have, and a dimmed row with nothing behind it made a
+// deleted conversation look like it had come back. Clients without one are reached by
+// name in the jump box, which is asserted further down.
+check('one row per client that has a conversation',
+  sidebar.clients > 0 && sidebar.clients === sidebar.clientsWithConversation,
+  'listed=' + sidebar.clients + ' withConversation=' + sidebar.clientsWithConversation);
+check('a client with no conversation is not listed',
+  sidebar.dimmedClients === 0,
+  'dimmed=' + sidebar.dimmedClients);
 check('11 team channels + home are listed', sidebar.teams === 12, 'teams=' + sidebar.teams);
 // Group conversations belong under GROUP DMS, one-to-ones under DIRECT. The card used to
 // route on channels.is_group alone while the list treated "more than one other person" as a
@@ -2057,8 +2057,11 @@ await step('deleting a client conversation removes it', async () => {
     return out;
   });
   check('deleting a client conversation removes it',
-    r.hasMenu && r.hasDelete && r.deleted === r.siblings.length && r.remaining.length === 0
-      && r.rowsStillOnDeletedChannels === 0 && r.rowIsDimmedPlaceholder,
+    r.hasMenu && r.hasDelete && r.deleted > 0 && !r.rowRemains
+      // Gone from the card entirely, not left behind as a dimmed client row. That
+      // placeholder is what made a deleted conversation look like it had come back.
+      && r.rowIsDimmedPlaceholder === false
+      && r.rowsStillOnDeletedChannels === 0,
     JSON.stringify(r));
 });
 
@@ -2164,7 +2167,8 @@ await step('the Clients "+" opens the same form as Teams', async () => {
       && r.shape.client === null && r.shape.dept === null
       && r.rejectsDeptWithoutClient
       && r.inClientsCard && !r.inTeamsCard
-      && r.positionInCard === 0 && r.markText === 'F' && r.markIsCircle,
+      // Two initials now, not one: "FD" tells two Fortress rows apart where "F" does not.
+      && r.positionInCard === 0 && /^[A-Z]{2}$/.test(r.markText || '') && r.markIsCircle,
     JSON.stringify(r));
 });
 
@@ -2293,7 +2297,9 @@ await step('Start huddle is wired to New Chat\'s own button', async () => {
 await step('a new client channel is public, with the whole team in it', async () => {
   const r = await page.evaluate(async () => {
     const db = window.__mock.db;
-    // A client with no conversation yet: its dimmed row starts one on click.
+    // A client with no conversation yet. Clicking its row no longer creates one -- that
+    // is deliberate, so a deleted conversation stays deleted -- so this presses the
+    // "Start conversation" button the row opens.
     const withChan = new Set(db.channels.filter(c => c.kind === 'client_dept').map(c => c.client_id));
     const target = db.clients.find(c => c.status !== 'churned' && !withChan.has(c.id));
     if (!target) return { noEmptyClient: true };
@@ -2302,12 +2308,26 @@ await step('a new client channel is public, with the whole team in it', async ()
       card.querySelector('.nc_navcard-head').click();
       await new Promise(r => setTimeout(r, 700));
     }
-    const row = [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')]
-      .find(e => e.dataset.clientId === target.id);
-    const out = { client: target.name, foundRow: !!row };
-    if (!row) return out;
+    // Clients with no conversation are no longer listed in the card, so this reaches the
+    // one it wants by name, the way a person does.
+    const out = { client: target.name };
+    const jump = document.getElementById('nc_chatJumpToInput');
+    if (jump) {
+      jump.value = target.name.slice(0, 6);
+      jump.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 1300));
+    }
+    const results = document.getElementById('nc_jumpResults');
+    const hit = results ? [...results.querySelectorAll('*')]
+      .find(e => e.children.length === 0 && e.textContent.trim() === target.name) : null;
+    out.foundRow = !!hit;
+    if (!hit) return out;
     const before = db.channels.length;
-    row.click();
+    hit.click();
+    await new Promise(r => setTimeout(r, 1800));
+    const startBtn = document.getElementById('nc_startConvoBtn');
+    out.startButtonShown = !!startBtn;
+    if (startBtn) startBtn.click();
     for (let i = 0; i < 40; i++) {
       await new Promise(r => setTimeout(r, 200));
       if (db.channels.length > before) break;
@@ -2328,7 +2348,7 @@ await step('a new client channel is public, with the whole team in it', async ()
     return out;
   });
   check('a new client channel is public, with the whole team in it',
-    r.foundRow && r.created && r.isPublic && r.teamSize > 1
+    r.foundRow && r.startButtonShown && r.created && r.isPublic && r.teamSize > 1
       && r.everyoneAdded && r.noClientsAdded && r.noDeactivatedAdded,
     JSON.stringify(r));
 });
@@ -3460,6 +3480,395 @@ await step('double-clicking a message opens the message, not the reaction bar', 
       && r.emojiNodesInText === 0 && !/👍|❤️|🔥|😂|🎉/.test(r.textReads || '')
       && r.editorOpened && r.editorClean && r.editorValue === r.textReads
       && r.saved === 'edited by the check' && r.stillRendered,
+    JSON.stringify(r));
+});
+
+await step('Needs you rows say who, what kind, how long and how much', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2000); }
+    if (window.nc_refreshNeedsYou) await window.nc_refreshNeedsYou(true);
+    await wait(2500);
+    const body = document.getElementById('nc_cardNeedsBody');
+    if (!body) return out;
+    const card = body.closest('.nc_navcard');
+    if (getComputedStyle(body).display === 'none') {
+      card.querySelector('.nc_navcard-head').click(); await wait(700);
+    }
+    await wait(600);
+    const rows = [...body.querySelectorAll('.nc_need-row')];
+    out.rows = rows.length;
+    if (!rows.length) return out;
+    // One shape of row on the card. It used to be built two ways -- cloned sidebar rows
+    // and hand-built fallbacks -- which could not agree on what a row shows.
+    out.allRowsNewShape = body.querySelectorAll('.nc_ch-item').length === rows.length;
+    out.headCountMatches = (card.querySelector('.nc_navcard-count') || {}).textContent === String(rows.length);
+    out.everyRowHasTick = rows.every(r => !!r.querySelector('.nc_need-tick'));
+    out.everyRowHasName = rows.every(r => (r.querySelector('.nc_need-name') || {}).textContent);
+    out.everyRowHasStar = rows.every(r => !!r.querySelector('.nc_star'));
+    out.everyRowHasAge = rows.every(r => /^(now|\d+[mhdw])$/.test((r.querySelector('.nc_need-age') || {}).textContent || ''));
+    // One count per row, and it is the same circular badge every other card uses -- these
+    // rows briefly had a second, differently-shaped number of their own.
+    out.doubledCounts = rows.filter(r => r.querySelectorAll('.nc_ch-unread-badge, .nc_need-count').length > 1).length;
+    out.badgeShape = rows.filter(r => r.querySelector('.nc_need-count')).length;
+    // and nothing anywhere in Chat is a bare "#" any more
+    const screen = document.querySelector('.screen[data-screen="newchat"]');
+    out.bareHashes = [...screen.querySelectorAll('*')]
+      .filter(e => e.children.length === 0 && e.textContent.trim() === '#').length;
+    // A DM reads as the person, not as "Channel": the channel row has no name of its own.
+    out.placeholderNames = rows.filter(r => /^(Channel|Direct message)$/.test(r.querySelector('.nc_need-name').textContent)).length;
+    // Names on one line, and the row never wider than the card.
+    out.anyNameWrapped = rows.some(r => r.querySelector('.nc_need-name').getBoundingClientRect().height > 22);
+    out.anyRowOverflows = rows.some(r => r.scrollWidth > r.clientWidth + 2);
+    // Ticks and stars each line up in one column.
+    out.tickColumns = new Set(rows.map(r => Math.round(r.querySelector('.nc_need-tick').getBoundingClientRect().left))).size;
+    out.starColumns = new Set(rows.map(r => Math.round(r.querySelector('.nc_star').getBoundingClientRect().right))).size;
+    // The chip appears when there is room for it and steps aside when there is not,
+    // because with it in, 41 of 50 names truncated at this sidebar's width.
+    const width = body.clientWidth;
+    out.narrowHidesChip = width < 320
+      ? rows.every(r => r.querySelector('.nc_need-chip').getBoundingClientRect().width < 2)
+      : rows.every(r => r.querySelector('.nc_need-chip').getBoundingClientRect().width > 2);
+    out.chipTextsAreKinds = [...new Set(rows.map(r => r.querySelector('.nc_need-chip').textContent))]
+      .every(t => ['Client', 'Team', 'DM', 'Group'].includes(t));
+
+    // The tick clears a row without opening the conversation.
+    const first = rows[0];
+    const firstId = first.dataset.ncChannelId;
+    const channelBefore = window.nc_activeChannelId;
+    first.querySelector('.nc_need-tick').click();
+    await wait(1600);
+    out.tickCleared = !body.querySelector(`.nc_need-row[data-nc-channel-id="${firstId}"]`);
+    out.tickDidNotNavigate = window.nc_activeChannelId === channelBefore;
+    // and the row itself still opens its conversation.
+    const next = body.querySelector('.nc_need-row');
+    const nextId = next && next.dataset.ncChannelId;
+    if (next) { next.click(); await wait(2500); }
+    out.rowOpensConversation = window.nc_activeChannelId === nextId;
+    return out;
+  });
+  check('Needs you rows say who, what kind, how long and how much',
+    r.rows > 0 && r.allRowsNewShape && r.headCountMatches
+      && r.everyRowHasTick && r.everyRowHasName && r.everyRowHasStar && r.everyRowHasAge
+      && r.placeholderNames <= 2 && !r.anyNameWrapped && !r.anyRowOverflows
+      && r.doubledCounts === 0 && r.badgeShape === 0 && r.bareHashes === 0
+      && r.tickColumns === 1 && r.starColumns === 1
+      && r.narrowHidesChip && r.chipTextsAreKinds
+      && r.tickCleared && r.tickDidNotNavigate && r.rowOpensConversation,
+    JSON.stringify(r));
+});
+
+await step('every card offers a star, in one column, without hovering', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2200); }
+    const cards = { clients: 'nc_cardClientsBody', teams: 'nc_cardTeamsBody',
+                    direct: 'nc_cardDirectBody', groups: 'nc_cardGroupsBody',
+                    needs: 'nc_cardNeedsBody' };
+    out.perCard = {};
+    for (const [key, id] of Object.entries(cards)) {
+      const body = document.getElementById(id);
+      if (!body) continue;
+      const head = body.closest('.nc_navcard').querySelector('.nc_navcard-head');
+      if (head && getComputedStyle(body).display === 'none') { head.click(); await wait(700); }
+      const rows = [...body.querySelectorAll('.nc_ch-item')];
+      const starred = rows.filter(x => x.querySelector('.nc_star'));
+      // Visible with no mouse anywhere near it: the star used to appear on hover only,
+      // so you could not see what you had starred without running down the list.
+      const visible = starred.filter(x => {
+        const s = x.querySelector('.nc_star');
+        return s.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+          && s.getBoundingClientRect().width > 4;
+      });
+      // Always in the slot before the row's "..." menu, and always the same slot: two
+      // competing auto margins used to split the space and put every star at a different x.
+      // Measured on screen, not in the DOM: the sequence is set by CSS `order` precisely
+      // so that a badge painted later cannot land in the middle of the group.
+      const beforeMenu = starred.filter(x => {
+        const s = x.querySelector('.nc_star'), m = x.querySelector('.nc_row-menu');
+        if (!m) return true;
+        return s.getBoundingClientRect().right <= m.getBoundingClientRect().left + 1;
+      });
+      // One avatar on every row, the same size everywhere, and never a bare "#": a list
+      // used to mix "#" for a channel, a coloured initial for a client, a photo for a
+      // person and a glyph for a group, so nothing lined up.
+      const avas = rows.map(x => x.querySelector('.nc_ava')).filter(Boolean);
+      const sizes = new Set(avas.map(a => Math.round(a.getBoundingClientRect().width)
+        + 'x' + Math.round(a.getBoundingClientRect().height)));
+      out.perCard[key] = {
+        rows: rows.length, withStar: starred.length, visible: visible.length,
+        beforeMenu: beforeMenu.length,
+        avatars: avas.length, avatarSizes: [...sizes],
+        bareHash: rows.filter(x => {
+          const a = x.querySelector('.nc_hash');
+          return a && !a.classList.contains('nc_ava') && a.textContent.trim() === '#';
+        }).length,
+        columns: new Set(starred.map(x => Math.round(x.querySelector('.nc_star').getBoundingClientRect().right))).size
+      };
+    }
+    // Every kind of conversation reaches the Starred card. It used to be filled from the
+    // channel list alone, so starring a DM or a group wrote the row to the database and
+    // then had nowhere to show it.
+    out.starrable = {};
+    for (const [label, id] of Object.entries({ team: 'nc_cardTeamsBody', client: 'nc_cardClientsBody',
+                                               dm: 'nc_cardDirectBody', group: 'nc_cardGroupsBody' })) {
+      const body = document.getElementById(id);
+      if (!body) continue;
+      const head = body.closest('.nc_navcard').querySelector('.nc_navcard-head');
+      if (head && getComputedStyle(body).display === 'none') { head.click(); await wait(700); }
+      const row = [...body.querySelectorAll('.nc_ch-item')].find(x => x.querySelector('.nc_star:not(.nc_star-on)'));
+      if (!row) { out.starrable[label] = 'no unstarred row'; continue; }
+      const cid = row.dataset.ncChannelId || row.dataset.ncDmChannelId;
+      row.querySelector('.nc_star').click();
+      await wait(1700);
+      const sb = document.getElementById('nc_cardStarredBody');
+      const sh = sb.closest('.nc_navcard').querySelector('.nc_navcard-head');
+      if (sh && getComputedStyle(sb).display === 'none') { sh.click(); await wait(600); }
+      out.starrable[label] = sb.querySelector(`[data-nc-channel-id="${cid}"],[data-nc-dm-channel-id="${cid}"]`)
+        ? 'in starred' : 'MISSING';
+    }
+
+    // and it stars without opening the conversation
+    const cb = document.getElementById('nc_cardClientsBody');
+    // One that is not starred yet: the loop above has starred some, and clicking a set
+    // star UNSETS it, which would take the row straight back out of the Starred card.
+    const row = [...cb.querySelectorAll('.nc_ch-item')].find(x => x.querySelector('.nc_star:not(.nc_star-on)'));
+    if (row) {
+      const id = row.dataset.ncChannelId;
+      const before = (window.__mock.db.channel_stars || []).length;
+      const wasOpen = window.nc_activeChannelId;
+      row.querySelector('.nc_star').click();
+      await wait(1600);
+      out.starWrote = (window.__mock.db.channel_stars || []).length !== before;
+      out.starDidNotOpen = window.nc_activeChannelId === wasOpen;
+      out.inStarredCard = !!document.querySelector(`#nc_cardStarredBody [data-nc-channel-id="${id}"]`);
+    }
+    return out;
+  });
+  // and starring works for every kind of conversation, not only the ones the Starred card
+  // happened to be built from
+  const kinds = r.starrable || {};
+  const cards = Object.values(r.perCard || {});
+  check('every card offers a star, in one column, without hovering',
+    cards.length >= 4
+      && cards.every(c => c.withStar > 0 && c.visible === c.withStar
+                       && c.beforeMenu === c.withStar && c.columns === 1)
+      // and one standard avatar throughout
+      && cards.every(c => c.avatars === c.rows && c.bareHash === 0
+                       && c.avatarSizes.length === 1 && c.avatarSizes[0] === '20x20')
+      && ['team', 'client', 'dm', 'group'].every(k => kinds[k] === 'in starred')
+      && r.starWrote && r.starDidNotOpen && r.inStarredCard,
+    JSON.stringify(r));
+});
+
+await step('the chat sidebar can be resized, and remembers it', async () => {
+  const before = await page.evaluate(() => {
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) nav.click();
+    return null;
+  });
+  await page.waitForTimeout(2000);
+  const width = () => page.evaluate(() =>
+    Math.round(document.getElementById('nc_chatChannels').getBoundingClientRect().width));
+  const r = {};
+  r.start = await width();
+  const handle = await page.$('.nc_col-resize[data-resize="channels"]');
+  r.handleFound = !!handle;
+  if (!handle) { check('the chat sidebar can be resized, and remembers it', false, JSON.stringify(r)); return; }
+  const box = await handle.boundingBox();
+  // A real drag, with a real mouse: the handle was in the markup for months with nothing
+  // listening to it, which no assertion about the element's existence would have caught.
+  await page.mouse.move(box.x + box.width / 2, box.y + 150);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 120, box.y + 150, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  r.afterDrag = await width();
+  r.saved = await page.evaluate(() => localStorage.getItem('giant_nc_sidebar_w'));
+  // dragged past the minimum, it stops rather than collapsing
+  const h2 = await page.$('.nc_col-resize[data-resize="channels"]');
+  const b2 = await h2.boundingBox();
+  await page.mouse.move(b2.x + b2.width / 2, b2.y + 150);
+  await page.mouse.down();
+  await page.mouse.move(b2.x + b2.width / 2 - 600, b2.y + 150, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  r.afterSquash = await width();
+  // double-click puts it back
+  await page.dblclick('.nc_col-resize[data-resize="channels"]');
+  await page.waitForTimeout(500);
+  r.afterReset = await width();
+  r.savedAfterReset = await page.evaluate(() => localStorage.getItem('giant_nc_sidebar_w'));
+  check('the chat sidebar can be resized, and remembers it',
+    r.handleFound && r.start === 300
+      && r.afterDrag > r.start + 80 && String(r.saved) === String(r.afterDrag)
+      && r.afterSquash >= 205 && r.afterSquash <= 215
+      && r.afterReset === 300 && r.savedAfterReset === '300',
+    JSON.stringify(r));
+});
+
+await step('a long card scrolls, and still scrolls after a render and a search', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2200); }
+    // Direct, not Clients: the Clients card lists only conversations now and comfortably
+    // fits, and a card that fits proves nothing about scrolling.
+    const card = document.querySelector('.nc_navcard[data-nccard="direct"]');
+    const body = document.getElementById('nc_cardDirectBody');
+    if (!card || !body) return out;
+    if (getComputedStyle(body).display === 'none') {
+      card.querySelector('.nc_navcard-head').click(); await wait(900);
+    }
+    // A card taller than the space it has must scroll INSIDE itself. It is laid out as a
+    // flex column for that; when something resets its display the body takes its natural
+    // height and overflow:hidden simply cuts the list off with no way to reach the rest.
+    const state = (label) => {
+      const cs = getComputedStyle(card);
+      return { label, rows: body.querySelectorAll('.nc_ch-item').length,
+        display: cs.display, canScroll: body.scrollHeight > body.clientHeight + 2,
+        unreachable: Math.max(0, body.scrollHeight - body.clientHeight - (body.scrollHeight - body.clientHeight)) };
+    };
+    out.fresh = state('just opened');
+    body.scrollTop = 300; await wait(250);
+    out.scrolledTo = body.scrollTop;
+    // a re-render must not undo it
+    if (window.nc_refreshNeedsYou) await window.nc_refreshNeedsYou(true);
+    await wait(2000);
+    out.afterRender = state('after a re-render');
+    // and neither must a search that hides cards and then clears
+    const jump = document.getElementById('nc_chatJumpTo');
+    if (jump) {
+      jump.value = 'a'; jump.dispatchEvent(new Event('input', { bubbles: true })); await wait(1200);
+      jump.value = ''; jump.dispatchEvent(new Event('input', { bubbles: true })); await wait(1400);
+    }
+    if (getComputedStyle(body).display === 'none') {
+      card.querySelector('.nc_navcard-head').click(); await wait(900);
+    }
+    out.afterSearch = state('after a search and clear');
+    out.heightLeftBehind = body.style.height || '';
+    return out;
+  });
+  const ok = (s) => s && s.rows > 20 && s.display === 'flex' && s.canScroll;
+  check('a long card scrolls, and still scrolls after a render and a search',
+    ok(r.fresh) && ok(r.afterRender) && ok(r.afterSearch)
+      && r.scrolledTo === 300 && r.heightLeftBehind === '',
+    JSON.stringify(r));
+});
+
+await step('the Clients card lists conversations, and a client without one is still reachable', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2500); }
+    const body = document.getElementById('nc_cardClientsBody');
+    if (!body) return out;
+    const card = body.closest('.nc_navcard');
+    if (getComputedStyle(body).display === 'none') { card.querySelector('.nc_navcard-head').click(); await wait(900); }
+    const db = window.__mock.db;
+    const withChan = new Set(db.channels.filter(c => c.kind === 'client_dept' && c.client_id).map(c => c.client_id));
+    out.clientsTotal = db.clients.filter(c => c.status !== 'churned').length;
+    out.withConversation = withChan.size;
+    out.rows = body.querySelectorAll('.nc_ch-item').length;
+    // The card is the list of conversations you HAVE. A client sitting in it with nothing
+    // behind it reads as one, and made a deleted conversation look like it had come back.
+    out.placeholderRows = body.querySelectorAll('.nc_ch-item[data-client-id]:not([data-nc-channel-id])').length;
+    // ...but a client without a conversation must still be reachable, or you could never
+    // start one. The jump box lists every client by name.
+    const none = db.clients.find(c => c.status !== 'churned' && !withChan.has(c.id));
+    out.clientWithout = none ? none.name : null;
+    if (!none) return out;
+    const jump = document.getElementById('nc_chatJumpToInput');
+    if (jump) { jump.value = none.name.slice(0, 6); jump.dispatchEvent(new Event('input', { bubbles: true })); await wait(1300); }
+    const results = document.getElementById('nc_jumpResults');
+    out.jumpFindsIt = !!(results && results.textContent.includes(none.name));
+    const before = db.channels.length;
+    const hit = results ? [...results.querySelectorAll('*')]
+      .find(e => e.children.length === 0 && e.textContent.trim() === none.name) : null;
+    if (hit) { hit.click(); await wait(2200); }
+    out.createdNothing = db.channels.length - before === 0;
+    out.offersStart = !!document.getElementById('nc_startConvo');
+    return out;
+  });
+  check('the Clients card lists conversations, and a client without one is still reachable',
+    r.rows > 0 && r.rows <= r.withConversation + 2 && r.placeholderRows === 0
+      && r.clientsTotal > r.withConversation
+      && r.jumpFindsIt && r.createdNothing && r.offersStart,
+    JSON.stringify(r));
+});
+
+await step('clicking a client does not create a conversation; starting one does', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2500); }
+    const body = document.getElementById('nc_cardClientsBody');
+    if (!body) return out;
+    const card = body.closest('.nc_navcard');
+    if (getComputedStyle(body).display === 'none') { card.querySelector('.nc_navcard-head').click(); await wait(900); }
+    const db = window.__mock.db;
+    const before = (db.channels || []).length;
+    // A client with no conversation is not in the card at all now, so it is reached by
+    // name -- which is the path that used to create a channel just for looking.
+    const withChan = new Set(db.channels.filter(c => c.kind === 'client_dept' && c.client_id)
+      .map(c => c.client_id));
+    const target = db.clients.find(c => c.status !== 'churned' && !withChan.has(c.id));
+    const jump = document.getElementById('nc_chatJumpToInput');
+    if (target && jump) {
+      jump.value = target.name.slice(0, 6);
+      jump.dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(1300);
+    }
+    const results = document.getElementById('nc_jumpResults');
+    const hit = results ? [...results.querySelectorAll('*')]
+      .find(e => e.children.length === 0 && e.textContent.trim() === (target || {}).name) : null;
+    out.foundPlaceholder = !!hit;
+    if (!hit) return out;
+    hit.click(); await wait(2200);
+    // Nothing created. Clicking a client used to make the channel on the spot, which is
+    // why deleting one appeared to do nothing -- the click you make to check it is gone
+    // silently made another -- and why the workspace filled with empty channels.
+    out.createdOnClick = (window.__mock.db.channels || []).length - before;
+    out.startPanel = !!document.getElementById('nc_startConvo');
+    out.topic = (document.getElementById('nc_chatHeadTopic') || {}).textContent;
+    const btn = document.getElementById('nc_startConvoBtn');
+    out.buttonShown = !!btn;
+    if (btn) { btn.click(); await wait(3000); }
+    out.createdOnStart = (window.__mock.db.channels || []).length - before;
+    out.opened = !!window.nc_activeChannelId;
+    return out;
+  });
+  check('clicking a client does not create a conversation; starting one does',
+    r.foundPlaceholder && r.createdOnClick === 0 && r.startPanel
+      && r.topic === 'No conversation yet' && r.buttonShown
+      && r.createdOnStart === 1 && r.opened,
     JSON.stringify(r));
 });
 

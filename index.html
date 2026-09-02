@@ -5122,7 +5122,7 @@ body[data-focus="2"] .screen.on > .nc_fb-grid > .nc_col-resize{display:none !imp
 .nc_col-resize:hover,.nc_col-resize.dragging{background:rgba(208,4,0,.18);}
 .nc_col-resize:hover::before,.nc_col-resize.dragging::before{background:var(--red);width:2px;left:1px;}
 /* --- chat: channel list --- */
-.nc_channels{background:var(--pane);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:14px 10px;width:250px;flex-shrink:0;transition:background .3s var(--ease),border-color .3s var(--ease);box-sizing:border-box;overflow-y:auto;overflow-x:hidden;min-height:0;}
+.nc_channels{background:var(--pane);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:14px 10px;width:300px;flex-shrink:0;transition:background .3s var(--ease),border-color .3s var(--ease);box-sizing:border-box;overflow-y:auto;overflow-x:hidden;min-height:0;}
 .nc_channels::-webkit-scrollbar{width:7px;}
 .nc_channels::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:4px;}
 .nc_channels::-webkit-scrollbar-track{background:transparent;}
@@ -5138,6 +5138,11 @@ html[data-theme="light"] .nc_ch-item:hover .nc_hash{color:#0A0A0A;opacity:.7;}
 .nc_ch-item .unread{margin-left:auto;width:7px;height:7px;border-radius:50%;background:var(--red);}
 .nc_ch-item.active .unread{background:#fff;}
 .nc_ch-item .nc_dot-ava{width:18px;height:18px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700;}
+/* One avatar for every row on every card. A list used to mix four marks -- "#" for a
+   channel, a coloured initial for a client, a photo for a person, a glyph for a group --
+   so nothing lined up and nothing read as the same kind of thing. */
+#nc_chatHeadAva{width:22px;height:22px;min-width:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;font-style:normal;overflow:hidden;background-size:cover;background-position:center;flex-shrink:0;}
+.nc_ch-item .nc_ava,.nc_need-row .nc_ava{width:20px;height:20px;min-width:20px;border-radius:50%;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;font-style:normal;letter-spacing:.01em;overflow:hidden;background-size:cover;background-position:center;}
 .nc_ch-item .auto-ico{color:var(--text-3);display:flex;}
 .nc_ch-item.active .auto-ico{color:rgba(255,255,255,.8);}
 /* channel three-dots menu */
@@ -8459,7 +8464,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
           <main class="nc_thread">
             <div class="nc_thread-head">
               <div>
-                <div class="nc_title" id="nc_chatHeadTitle"><span class="nc_hash">#</span><span id="nc_chatHeadName">general</span></div>
+                <div class="nc_title" id="nc_chatHeadTitle"><span class="nc_hash nc_ava" id="nc_chatHeadAva"></span><span id="nc_chatHeadName">general</span></div>
                 <div class="nc_topic" id="nc_chatHeadTopic">Loading…</div>
               </div>
               <div class="nc_members" id="nc_chatHeadMembers"></div>
@@ -70509,6 +70514,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (!host || !host.classList.contains('on')) return;
     const msg = String((e.reason && (e.reason.message || e.reason)) || 'unknown');
     console.error('[newchat] unhandled rejection:', e.reason);
+    // The message alone is not enough to find anything -- "Maximum call stack size
+    // exceeded" says a loop happened, not where. The first few frames of the stack say
+    // where, so they go on the banner and into the clipboard, rather than only into a
+    // console nobody had open at the time.
+    const stack = String((e.reason && e.reason.stack) || '');
+    const frames = stack.split('\n').slice(1, 4)
+      .map(l => l.trim().replace(/^at\s+/, '').replace(/\s*\(.*?(:\d+:\d+)\)$/, ' $1'))
+      .filter(Boolean);
     if (!_banner) {
       _banner = document.createElement('div');
       _banner.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:10000;max-width:70vw;'
@@ -70518,9 +70531,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       _banner.addEventListener('click', () => { _banner.remove(); _banner = null; });
       document.body.appendChild(_banner);
     }
+    const esc = (t) => String(t).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
     _banner.innerHTML = '<b style="color:var(--c3-salmon);">New Chat — async error</b><br>'
-      + msg.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))
-      + '<br><span style="color:var(--c3-t5);font-size:11px;">May originate in another module. Click to dismiss.</span>';
+      + esc(msg)
+      + (frames.length
+          ? '<br><span style="color:var(--c3-t4);font-size:11px;font-family:ui-monospace,monospace;">'
+            + frames.map(esc).join('<br>') + '</span>'
+          : '')
+      + '<br><span style="color:var(--c3-t5);font-size:11px;">May originate in another module.'
+      + ' Click to copy the full stack and dismiss.</span>';
+    _banner.title = 'Click to copy the full details';
+    _banner.onclick = () => {
+      const details = msg + '\n\n' + (stack || '(no stack)');
+      try { navigator.clipboard.writeText(details); } catch (_) {}
+      if (_banner) { _banner.remove(); _banner = null; }
+    };
   });
   window.newChatInit = function(){
     if (_inited) return;
@@ -70988,12 +71013,42 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (typeof toast === 'function') toast({ type:'error', message:'Only managers can start a client conversation.' });
         return;
       }
-      const id = await ensureClientDeptThread(clientId, 'general');
-      if (!id) return;
-      await NCSB().from('channel_members')
-        .upsert({ channel_id: id, profile_id: ncMyId() }, { onConflict: 'channel_id,profile_id' });
-      await loadChannels();
-      switchChannel(id);
+      // Clicking a client used to CREATE the conversation there and then. Two things came
+      // of that: deleting a client's conversation appeared to do nothing, because the next
+      // click -- the one you make to check it is gone -- silently made a new one; and the
+      // workspace accumulated fifty empty channels from people scrolling the client list.
+      // So starting a conversation is now something you decide to do.
+      ncShowStartConversation(clientId);
+    }
+
+    // The centre pane for a client with no conversation yet: who it is, and one button.
+    function ncShowStartConversation(clientId){
+      const cl = ncClients[clientId];
+      const list = document.getElementById('nc_chatMsgsList');
+      const name = (cl && cl.name) || 'this client';
+      if (chatHeadName) chatHeadName.textContent = name;
+      if (chatHeadTopic) chatHeadTopic.textContent = 'No conversation yet';
+      ncSetHeadAvatar(cl ? { name: cl.name, bg: cl.avatar_bg, fg: cl.avatar_fg } : { name });
+      if (chatInput) chatInput.placeholder = 'Start the conversation to send a message…';
+      if (!list) return;
+      list.innerHTML = '<div id="nc_startConvo" style="display:flex;flex-direction:column;align-items:center;'
+        + 'justify-content:center;gap:12px;padding:80px 20px;text-align:center;color:var(--text-3);">'
+        + '<div style="font-size:14px;font-weight:700;color:var(--text);">No conversation with '
+        + chatEsc(name) + ' yet</div>'
+        + '<div style="font-size:12.5px;max-width:340px;line-height:1.5;">Nothing has been sent here. '
+        + 'Starting one creates the channel and adds the team to it.</div>'
+        + '<button id="nc_startConvoBtn" class="btn-red" style="border-radius:9px;padding:9px 16px;'
+        + 'font-size:12.5px;font-weight:700;">Start conversation</button></div>';
+      const btn = document.getElementById('nc_startConvoBtn');
+      if (btn) btn.addEventListener('click', async () => {
+        btn.disabled = true; btn.textContent = 'Starting…';
+        const id = await ensureClientDeptThread(clientId, 'general');
+        if (!id) { btn.disabled = false; btn.textContent = 'Start conversation'; return; }
+        await NCSB().from('channel_members')
+          .upsert({ channel_id: id, profile_id: ncMyId() }, { onConflict: 'channel_id,profile_id' });
+        await loadChannels();
+        switchChannel(id);
+      });
     }
     window.nc_openClientThread = openClientThread;
     window.nc_syncMgmtTab = () => syncMgmtTab();
@@ -71101,19 +71156,156 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (typeof toast === 'function') toast({ type:'error', message:'Could not save that star: ' + error.message });
       }
     }
+    // ── One avatar, everywhere ──────────────────────────────────────────────────
+    // Initials, not a first letter: "FD" tells two Fortress rows apart where "F" does not.
+    function ncInitials(name){
+      const parts = String(name || '').trim().split(/[\s\-_.·]+/).filter(Boolean);
+      if (!parts.length) return '?';
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    // One neutral circle, not a colour per name. A hue derived from the text gives every
+    // channel its own tint, which turns a list of fifty into confetti and means nothing --
+    // colour here should carry identity, and a channel has none to carry. Clients and
+    // people pass their own colours in; everything else gets this.
+    function ncTint(){
+      return { bg: 'var(--c3-s2)', fg: 'var(--c3-t3)' };
+    }
+    // opts: { name, bg, fg, url, glyph, extra }
+    function ncAvatarHtml(opts){
+      const o = opts || {};
+      const tint = ncTint();
+      const bg = o.bg || tint.bg;
+      const fg = o.fg || tint.fg;
+      const inner = o.glyph != null ? o.glyph : chatEsc(ncInitials(o.name));
+      const bgImg = o.url ? 'background-image:url(' + chatEsc(o.url) + ');' : '';
+      return '<span class="nc_hash nc_ava" title="' + chatEsc(o.name || '') + '" style="'
+        + bgImg + 'background-color:' + chatEsc(bg) + ';color:' + chatEsc(fg) + ';">'
+        + (o.url ? '' : inner) + (o.extra || '') + '</span>';
+    }
+
+    // The conversation header wears the same mark as the row that opened it, rather than
+    // a "#" for a channel, an "@" for a DM and nothing at all for a client thread.
+    function ncSetHeadAvatar(opts){
+      const el = document.getElementById('nc_chatHeadAva');
+      if (!el) return;
+      const holder = document.createElement('div');
+      holder.innerHTML = ncAvatarHtml(opts || {});
+      const fresh = holder.firstElementChild;
+      el.setAttribute('style', fresh.getAttribute('style') || '');
+      el.innerHTML = fresh.innerHTML;
+      el.title = fresh.title || '';
+    }
+
+    // ── The sidebar is yours to size ────────────────────────────────────────────
+    // The handle was in the markup but nothing was listening to it, so the width was
+    // whatever the stylesheet said and names ran out of room. Drag it, and it stays where
+    // you put it -- across reloads and across screens. Double-click to put it back.
+    const NC_SIDEBAR_KEY = 'giant_nc_sidebar_w';
+    const NC_SIDEBAR_DEFAULT = 300, NC_SIDEBAR_MIN = 210, NC_SIDEBAR_MAX = 560;
+    function ncApplySidebarWidth(px){
+      const el = document.getElementById('nc_chatChannels');
+      if (!el) return;
+      const w = Math.max(NC_SIDEBAR_MIN, Math.min(NC_SIDEBAR_MAX, Math.round(px)));
+      el.style.width = w + 'px';
+      el.style.flexShrink = '0';
+      // The cards decide what fits from their own width, so tell them it changed rather
+      // than waiting for the next full render.
+      const body = document.getElementById('nc_cardNeedsBody');
+      if (body && typeof window.nc__fitNeeds === 'function') window.nc__fitNeeds(body);
+      return w;
+    }
+    (function wireSidebarResize(){
+      const handle = document.querySelector('.nc_col-resize[data-resize="channels"]');
+      const panel = document.getElementById('nc_chatChannels');
+      if (!handle || !panel) { setTimeout(wireSidebarResize, 500); return; }
+      if (handle.dataset.wired) return;
+      handle.dataset.wired = '1';
+      handle.title = 'Drag to resize · double-click to reset';
+      try {
+        const saved = parseInt(localStorage.getItem(NC_SIDEBAR_KEY) || '', 10);
+        if (saved) ncApplySidebarWidth(saved);
+      } catch (_) {}
+      handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const startW = panel.getBoundingClientRect().width;
+        handle.classList.add('dragging');
+        document.body.classList.add('col-resizing');
+        const move = (ev) => { ncApplySidebarWidth(startW + (ev.clientX - startX)); };
+        const up = () => {
+          handle.classList.remove('dragging');
+          document.body.classList.remove('col-resizing');
+          window.removeEventListener('mousemove', move);
+          window.removeEventListener('mouseup', up);
+          try { localStorage.setItem(NC_SIDEBAR_KEY, String(Math.round(panel.getBoundingClientRect().width))); } catch (_) {}
+        };
+        window.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', up);
+      });
+      handle.addEventListener('dblclick', () => {
+        ncApplySidebarWidth(NC_SIDEBAR_DEFAULT);
+        try { localStorage.setItem(NC_SIDEBAR_KEY, String(NC_SIDEBAR_DEFAULT)); } catch (_) {}
+      });
+    })();
+
     function starButton(id){
       const on = getStarredChannels().has(id);
       const b = document.createElement('span');
       // Unset stars stay out of the way until the row is hovered, so a list of 11
       // clients does not read as a column of eleven stars.
       b.className = 'nc_star' + (on ? ' nc_star-on' : '');
-      b.style.cssText = 'margin-left:auto;display:inline-flex;cursor:pointer;flex-shrink:0;'
-        + 'opacity:' + (on ? '1' : '0') + ';transition:opacity .12s ease;';
+      // Always on screen, in the same place on every row. It used to appear only on
+      // hover, which meant you could not see what you had starred without running the
+      // mouse down the list, and on a touchpad you could not find the control at all.
+      // Unset stars are drawn quietly enough that a column of them reads as a column of
+      // slots, not a column of stars.
+      b.style.cssText = 'margin-left:auto;display:inline-flex;align-items:center;cursor:pointer;'
+        + 'flex-shrink:0;opacity:' + (on ? '1' : '.55') + ';transition:opacity .12s ease;';
       b.title = on ? 'Unstar' : 'Star';
       b.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="' + (on ? 'var(--c3-amber)' : 'none')
-        + '"><path d="M8 2.4l1.7 3.6 3.9.5-2.9 2.8.7 3.9L8 11.3 4.6 13.2l.7-3.9L2.4 6.5l3.9-.5z" stroke="var(--c3-amber)" stroke-width="1.3" stroke-linejoin="round"/></svg>';
+        + '"><path d="M8 2.4l1.7 3.6 3.9.5-2.9 2.8.7 3.9L8 11.3 4.6 13.2l.7-3.9L2.4 6.5l3.9-.5z" stroke="'
+        + (on ? 'var(--c3-amber)' : 'var(--c3-t5)') + '" stroke-width="1.3" stroke-linejoin="round"/></svg>';
       b.addEventListener('click', (e) => { e.stopPropagation(); toggleStarChannel(id); });
       return b;
+    }
+    // Always the same slot: just before the row's "..." menu, so the star is in one place
+    // down the whole card rather than wherever the row happened to end.
+    function placeStar(row, id){
+      const star = starButton(id);
+      // A spacer does the pushing, and CSS `order` fixes the sequence -- so nothing here
+      // depends on the order things were added in. Auto margins could not do this job:
+      // flexbox SPLITS free space between every auto margin it finds, and this row has
+      // several (the "..." menu, the mute icon, and the unread badge, which is painted
+      // later still by the unread pass). That is why a column of stars came out as a
+      // staircase, and why a row with an unread badge sat 4px off from the rest.
+      // A row's name is a bare text node, and a bare text node inside a flex row becomes
+      // an anonymous item that will NOT shrink below its own width. So the longest name in
+      // a card pushed the star and the menu past the right edge -- one row out of twelve
+      // sitting 12px off, and its menu clipped. Wrapped, it ellipsizes instead.
+      if (!row.querySelector('.nc_row-name')) {
+        const textNodes = [...row.childNodes].filter(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+        if (textNodes.length) {
+          const wrap = document.createElement('span');
+          wrap.className = 'nc_row-name';
+          row.insertBefore(wrap, textNodes[0]);
+          textNodes.forEach(n => wrap.appendChild(n));
+        }
+      }
+      // A needs row already has a name that grows to fill the row, so a spacer here would
+      // be a SECOND flexible element and the two would split the space between them --
+      // halving the room for the name, which is the one thing on the row that needs it.
+      if (!row.classList.contains('nc_need-row') && !row.querySelector('.nc_row-fill')) {
+        const fill = document.createElement('span');
+        fill.className = 'nc_row-fill';
+        const menuEl = row.querySelector('.nc_row-menu');
+        if (menuEl) row.insertBefore(fill, menuEl); else row.appendChild(fill);
+      }
+      row.appendChild(star);
+      [...row.children].forEach(el => {
+        if (el.style && el.style.marginLeft === 'auto') el.style.marginLeft = '0';
+      });
+      return star;
     }
     // ── Needs you ───────────────────────────────────────────────────────────────
     // Chat 3.0 ranks mention > flagged > unread, because those are three different
@@ -71739,10 +71931,158 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const tagNeed = (row, kind) => {
         row.dataset.needKind = kind;
         const dot = document.createElement('span');
-        dot.style.cssText = 'width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-left:auto;background:' + NEED_COLOR[kind] + ';';
+        // No margin-left:auto on a needs row: that row lays itself out, and an auto margin
+        // here would shove the chip, the age and the count over to the right edge.
+        const pushRight = row.classList.contains('nc_need-row') ? '' : 'margin-left:auto;';
+        dot.style.cssText = 'width:6px;height:6px;border-radius:50%;flex-shrink:0;' + pushRight
+          + 'background:' + NEED_COLOR[kind] + ';';
         dot.title = kind === 'mention' ? 'Mentioned you' : kind === 'flagged' ? 'Flagged for reply' : 'New activity';
+        // A needs row shows the reason on its tick ring instead: a dot here would cost the
+        // width that the name needs, and say the same thing twice.
+        if (row.classList.contains('nc_need-row')) return;
         row.appendChild(dot);
       };
+      // Everything on a needs row has a fixed width and only the name can give, so on a
+      // narrow sidebar the chip steps aside first, then the age -- rather than squeezing
+      // every name down to "Team Me...".
+      const ncFitNeeds = window.nc__fitNeeds = (body) => {
+        const w = body.clientWidth || 0;
+        if (!w) return;
+        // Measured at each width, not guessed. At the default sidebar the chip costs 12
+        // of 50 names their last few characters; a little wider and it costs none. So it
+        // appears once the sidebar is wide enough to carry the chip AND the name -- a
+        // short drag from the default -- and until then the name wins, because the avatar
+        // already says client from team from person.
+        body.classList.toggle('nc_need-narrow', w < 320);
+        body.classList.toggle('nc_need-tiny', w < 205);
+      };
+      if (bodies.needs && !bodies.needs.dataset.fitWired && typeof ResizeObserver !== 'undefined') {
+        bodies.needs.dataset.fitWired = '1';
+        new ResizeObserver(() => ncFitNeeds(bodies.needs)).observe(bodies.needs);
+      }
+
+      // How long it has been waiting. The whole point of the card is that it is a
+      // queue, and "4h" is the difference between glancing at it and working it.
+      const ncAgo = (iso) => {
+        if (!iso) return '';
+        const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+        if (mins < 1) return 'now';
+        if (mins < 60) return mins + 'm';
+        const hrs = Math.floor(mins / 60);
+        if (hrs < 24) return hrs + 'h';
+        const days = Math.floor(hrs / 24);
+        return days < 7 ? days + 'd' : Math.floor(days / 7) + 'w';
+      };
+      const ncNeedKindLabel = (c) => {
+        if (!c) return '';
+        if (c.is_dm) return (c.is_group || c.kind === 'group_dm') ? 'Group' : 'DM';
+        if (c.kind === 'client_dept') return 'Client';
+        return 'Team';
+      };
+
+      // ONE builder for every row on this card. It used to be two -- a clone of whatever
+      // the sidebar had painted, plus a hand-built fallback for anything the sidebar had
+      // not -- which meant the two halves of the same list could never agree on what a
+      // row shows.
+      const buildNeedRow = (id, kind) => {
+        const c = byId.get(id) || dmById.get(id);
+        if (!c) return null;
+        const cl = c.client_id ? ncClients[c.client_id] : null;
+        const painted = rowByChannel.get(id);
+        let label = cl
+          ? (cl.name || 'Client') + (c.department && c.department !== 'general' ? ' · ' + c.department : '')
+          : (c.name || '');
+        if (!label && painted) {
+          // A DM channel row has no name of its own -- the person's name is worked out
+          // from its members by the list that painted it. Taking the text off that row is
+          // how this reads "Joven" instead of "Channel".
+          label = [...painted.childNodes]
+            .filter(n => n.nodeType === Node.TEXT_NODE)
+            .map(n => n.textContent).join('').trim();
+        }
+        if (!label) label = c.is_dm ? 'Direct message' : 'Channel';
+        if (!matches(label)) return null;
+
+        const row = document.createElement('div');
+        row.className = 'nc_ch-item nc_need-row';
+        row.dataset.ncChannelId = id;
+        row.dataset.needKind = kind;
+
+        // Clear it without opening it. Reading a conversation already clears it; this is
+        // for the ones you have decided need nothing from you.
+        const tick = document.createElement('span');
+        tick.className = 'nc_need-tick';
+        // The ring carries WHY this is on the list -- a mention is not the same as new
+        // activity -- so the reason needs no separate dot of its own. On a sidebar this
+        // narrow, every 14px is a word of somebody's name.
+        const reason = kind === 'mention' ? 'Mentioned you'
+                     : kind === 'flagged' ? 'Flagged for reply' : 'New activity';
+        const ring = kind === 'mention' ? 'var(--c3-blue)'
+                   : kind === 'flagged' ? 'var(--c3-amber)' : 'var(--c3-t6)';
+        tick.style.borderColor = ring;
+        tick.title = reason + ' — click to mark as handled';
+        tick.innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none">'
+          + '<path d="M3.5 8.5l3 3 6-6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        tick.addEventListener('click', (e) => { e.stopPropagation(); ncClearNeeds(id); });
+        row.appendChild(tick);
+
+        // The sidebar's own icon where there is one: it already resolves a client's
+        // colours, a channel's emoji, a private channel's lock and a person's photo.
+        const iconSrc = painted && painted.firstElementChild;
+        if (iconSrc) {
+          row.appendChild(iconSrc.cloneNode(true));
+        } else {
+          const holder = document.createElement('span');
+          holder.innerHTML = cl
+            ? ncAvatarHtml({ name: cl.name, bg: cl.avatar_bg, fg: cl.avatar_fg })
+            : ncAvatarHtml({ name: label });
+          row.appendChild(holder.firstElementChild);
+        }
+
+        const name = document.createElement('span');
+        name.className = 'nc_need-name';
+        name.textContent = label;
+        name.title = label;
+        row.appendChild(name);
+
+        const chipText = ncNeedKindLabel(c);
+        if (chipText) {
+          const chip = document.createElement('span');
+          chip.className = 'nc_need-chip';
+          chip.textContent = chipText;
+          row.appendChild(chip);
+        }
+
+        const age = ncAgo(ncNeedAt[id]);
+        if (age) {
+          const ageEl = document.createElement('span');
+          ageEl.className = 'nc_need-age';
+          ageEl.textContent = age;
+          ageEl.title = 'Waiting since ' + new Date(ncNeedAt[id]).toLocaleString();
+          row.appendChild(ageEl);
+        }
+
+        // The same circular badge every other card uses, not a second style of count.
+        // This card builds its own rows, and the unread painter only refreshes badges that
+        // already exist -- so without this a needs row is the one row in the sidebar with
+        // no count on it.
+        const n = (chatUnreadCounts && chatUnreadCounts[id]) || 0;
+        if (n > 0) {
+          const badge = document.createElement('span');
+          badge.className = 'nc_ch-unread-badge';
+          badge.textContent = n > 99 ? '99+' : String(n);
+          badge.title = n + ' unread';
+          row.appendChild(badge);
+        }
+        placeStar(row, id);
+
+        row.addEventListener('click', () => {
+          const t = ncNeedMsg[id];
+          if (t) ncJumpToMessage(id, t.id, t.parentId); else switchChannel(id);
+        });
+        return row;
+      };
+
       // cloneNode does not carry listeners, so each clone gets its own.
       const place = (row, body, id, withStar, jumpTo, label) => {
         if (!body) return null;
@@ -71755,7 +72095,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           const t = jumpTo && ncNeedMsg[id];
           if (t) ncJumpToMessage(id, t.id, t.parentId); else switchChannel(id);
         });
-        if (withStar) cl.appendChild(starButton(id));
+        if (withStar) placeStar(cl, id);
         body.appendChild(cl);
         return cl;
       };
@@ -71779,11 +72119,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // straight through here.
         if (c.kind !== 'client_dept') place(row, bodies.teams, c.id, true);
         if (starred.has(c.id)) place(row, bodies.starred, c.id, true);
-        const need = ncNeeds[c.id];
-        if (need) {
-          const cl2 = place(row, bodies.needs, c.id, false, true);
-          if (cl2) { tagNeed(cl2, need); needPlaced.add(c.id); }
-        }
+        // Needs rows are built below, in one pass, from ncNeeds -- so a channel the
+        // sidebar happens not to paint is on the card just the same.
+
       });
 
       // Client conversations with no client record behind them. The channel loop skips
@@ -71836,21 +72174,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             place(primary.row, bodies.clients, primary.c.id, true);
             return;
           }
-          const row = document.createElement('div');
-          row.className = 'nc_ch-item';
-          row.dataset.clientId = cl.id;
-          row.innerHTML =
-            `<span class="nc_hash" style="font-style:normal;width:20px;height:20px;border-radius:50%;`
-            + `display:inline-flex;align-items:center;justify-content:center;`
-            + `background:${chatEsc(cl.avatar_bg || 'var(--c3-avatar-bg)')};color:${chatEsc(cl.avatar_fg || 'var(--c3-avatar-fg)')};`
-            + `font-size:8.5px;font-weight:800;flex-shrink:0;">${chatEsc((cl.name || '?').trim().charAt(0).toUpperCase())}</span>`
-            + chatEsc(cl.name || 'Client');
-          row.style.opacity = '.62';
-          row.title = 'No conversation yet — click to start one';
-          row.addEventListener('click', () => openClientThread(cl.id));
-          if (!matches(cl.name)) return;
-          jumpHits++;
-          bodies.clients.appendChild(row);
+          // A client with no conversation is not listed here. The card is the list of
+          // conversations you have; a client sitting in it with nothing behind it reads
+          // as one, and made a deleted conversation look like it had come back. Starting
+          // one is still a search away: the jump box lists every client by name, whether
+          // or not there is a conversation yet, and opens the Start conversation panel.
         });
 
       const dmSrc = document.getElementById('nc_chatDmList');
@@ -71870,12 +72198,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // real group conversations, and re-deriving it here is how the two disagreed.
         const c = dmById.get(id);
         const isGroup = row.dataset.ncDmGroup === '1' || !!(c && c.is_group);
-        place(row, isGroup ? bodies.groups : bodies.direct, id, false);
-        const needDm = ncNeeds[id];
-        if (needDm) {
-          const cl3 = place(row, bodies.needs, id, false, true);
-          if (cl3) { tagNeed(cl3, needDm); needPlaced.add(id); }
-        }
+        rowByChannel.set(id, row);   // so the needs builder can borrow this person's photo
+        place(row, isGroup ? bodies.groups : bodies.direct, id, true);
+        // Starring a DM or a group wrote the row to the database and then had nowhere to
+        // show it: the Starred card was filled from the channel list alone, so only team
+        // and client conversations ever reached it. A star that appears to do nothing is
+        // worse than no star.
+        if (starred.has(id)) place(row, bodies.starred, id, true);
+        // DMs that need you are built by the same builder as everything else, below --
+        // a clone here would put a second, differently-shaped row on the same card.
       });
 
       // Anything that needs you but had no row to clone. This card used to be built
@@ -71889,43 +72220,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       //
       // Synthesised from the channel record instead, so the card is driven by ncNeeds --
       // the data -- and the painted rows are only an optimisation for the common case.
-      Object.keys(ncNeeds).forEach(id => {
-        if (needPlaced.has(id) || !bodies.needs) return;
-        const c = byId.get(id) || dmById.get(id);
-        if (!c) return;                                   // not a channel we know about
-        const kind = ncNeeds[id];
-        const cl = c.client_id ? ncClients[c.client_id] : null;
-        const row = document.createElement('div');
-        row.className = 'nc_ch-item';
-        row.dataset.ncChannelId = id;
-        // Labelled the way the sidebar labels it: a client's conversation reads as the
-        // client, with the department after it so two needy departments of one client
-        // are still tellable apart.
-        const label = cl
-          ? (cl.name || 'Client') + (c.department && c.department !== 'general' ? ' · ' + c.department : '')
-          : (c.name || 'Channel');
-        const icon = cl
-          ? '<span class="nc_hash" style="font-style:normal;width:20px;height:20px;border-radius:50%;'
-            + 'display:inline-flex;align-items:center;justify-content:center;'
-            + 'background:' + chatEsc(cl.avatar_bg || 'var(--c3-avatar-bg)') + ';color:' + chatEsc(cl.avatar_fg || 'var(--c3-avatar-fg)') + ';'
-            + 'font-size:8.5px;font-weight:800;flex-shrink:0;">' + chatEsc((cl.name || '?').trim().charAt(0).toUpperCase()) + '</span>'
-          : '<span class="nc_hash">#</span>';
-        const n = (chatUnreadCounts && chatUnreadCounts[id]) || 0;
-        const badge = n > 0
-          ? '<span class="nc_ch-unread-badge">' + (n > 99 ? '99+' : n) + '</span>'
-          : '';
-        row.innerHTML = icon + chatEsc(label) + badge;
-        row.addEventListener('click', () => {
-          const t = ncNeedMsg[id];
-          if (t) ncJumpToMessage(id, t.id, t.parentId); else switchChannel(id);
+      // Every row on the card, in one pass, newest first -- the order the card has always
+      // used, and the one the head count counts.
+      Object.keys(ncNeeds)
+        .sort((a, b) => new Date(ncNeedAt[b] || 0) - new Date(ncNeedAt[a] || 0))
+        .forEach(id => {
+          if (!bodies.needs || needPlaced.has(id)) return;
+          const row = buildNeedRow(id, ncNeeds[id]);
+          if (!row) return;                    // unknown channel, or filtered by the jump box
+          jumpHits++;
+          bodies.needs.appendChild(row);
+          tagNeed(row, ncNeeds[id]);
+          needPlaced.add(id);
         });
-        // Built by hand rather than cloned, so place()'s filter never saw it.
-        if (!matches(label)) return;
-        jumpHits++;
-        bodies.needs.appendChild(row);
-        tagNeed(row, kind);
-        needPlaced.add(id);
-      });
 
       const empty = (b, msg) => { if (b && !b.children.length) b.innerHTML = '<div style="padding:7px 9px;font-size:11px;color:var(--c3-t6);font-style:italic;">' + msg + '</div>'; };
       if (bodies.needs) {
@@ -71944,9 +72251,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           || ((NEED_RANK[a.dataset.needKind] ?? 9) - (NEED_RANK[b.dataset.needKind] ?? 9)));
         rows.forEach(r => bodies.needs.appendChild(r));
       }
+      // What fits depends on how wide the sidebar actually is, which CSS cannot ask here:
+      // the card sits in a panel, not the viewport. Measured, and re-measured whenever the
+      // body changes size -- including the moment a collapsed card opens, where its width
+      // is zero and every answer would otherwise be wrong for the life of the render.
+      if (bodies.needs) ncFitNeeds(bodies.needs);
       empty(bodies.needs, 'Nothing needs you.');
       empty(bodies.starred, 'Star a channel to pin it here.');
-      empty(bodies.clients, 'No client threads.');
+      empty(bodies.clients, 'No client conversations yet — find a client in the jump box to start one.');
       empty(bodies.teams, 'No team channels.');
       empty(bodies.direct, 'No direct messages.');
       empty(bodies.groups, 'No group DMs.');
@@ -72007,7 +72319,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           empty.style.display = '';
         } else if (empty) { empty.style.display = 'none'; }
       } else {
-        cards.forEach(card => { card.style.display = ''; });
+        cards.forEach(card => {
+          card.style.display = '';
+          card.classList.remove('nc_card-open');
+          // The search set height:auto so a matching card could show all its hits. Left
+          // behind, it is a body that can never scroll again, however long the list gets.
+          const body = card.querySelector('.nc_navcard-body');
+          if (body) body.style.height = '';
+        });
+        applyCardAccordion();   // this ran BEFORE the block above, which then undid it
         const empty = document.getElementById('nc_jumpEmpty');
         if (empty) empty.style.display = 'none';
       }
@@ -72123,6 +72443,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // The badge reserved 26px on the right for that menu. With the menu gone the
         // gap just looks like a mistake, and the star needs the space instead.
         '.nc_navcard .nc_ch-unread-badge{margin-right:6px;}',
+        // The right-hand group of a card row, in a fixed sequence whatever order the
+        // pieces were added in: the spacer takes the slack, then the unread count, the
+        // star and the "..." menu.
+        '.nc_navcard .nc_ch-item .nc_row-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+        '.nc_navcard .nc_ch-item .nc_row-fill{flex:1 1 auto;min-width:0;order:0;}',
+        '.nc_navcard .nc_ch-item .nc_ch-unread-badge{order:1;margin-left:0;}',
+        '.nc_navcard .nc_ch-item .nc_star{order:2;}',
+        '.nc_navcard .nc_ch-item .nc_row-menu{order:3;margin-left:0;}',
         // Chat 3.0 marks the open thread with a tinted row, not a solid red pill --
         // a full-bleed red row per card reads as six competing selections.
         '.nc_navcard .nc_ch-item.active{background:color-mix(in srgb, var(--c3-brand) 16%, transparent);color:var(--c3-t0);box-shadow:none;font-weight:700;}',
@@ -72132,9 +72460,38 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '.nc_navcard .nc_ch-item > span:last-child{flex-shrink:0;}',
         '.nc_navcard .nc_ch-item:hover{background:var(--c3-s3);}',
         '.nc_navcard-body{padding:2px 5px 6px;}',
+        // ── Needs you rows ──────────────────────────────────────────────────────
+        // A queue you work through, so a row says who, what kind of conversation, how
+        // long it has been waiting and how much is unread -- and carries a tick to
+        // clear it without opening it. Built as its own row rather than a copy of a
+        // sidebar row, which could only ever carry an icon and a name.
+        '.nc_need-row{display:flex;align-items:center;gap:7px;padding:6px 7px;border-radius:8px;cursor:pointer;min-height:34px;}',
+        // The sidebar is about 210px wide inside its padding. Everything on the row has a
+        // fixed cost and only the name can give, so below those widths the chip and then
+        // the age step aside rather than squeezing the name down to "Chan...".
+        '.nc_need-narrow .nc_need-chip{display:none;}',
+        '.nc_need-tiny .nc_need-age{display:none;}',
+        '.nc_need-row:hover{background:color-mix(in srgb, var(--c3-green) 8%, transparent);}',
+        '.nc_need-tick{width:17px;height:17px;border-radius:50%;border:1.5px solid var(--c3-t6);flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;color:transparent;transition:border-color .12s ease,color .12s ease,background .12s ease;}',
+        '.nc_need-tick:hover{border-color:var(--c3-green);color:var(--c3-green);background:color-mix(in srgb, var(--c3-green) 16%, transparent);}',
+        '.nc_need-row .nc_hash{flex-shrink:0;}',
+        '.nc_need-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;font-weight:700;color:var(--c3-t1);}',
+        '.nc_need-chip{flex-shrink:0;font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--c3-t5);background:var(--c3-s2);border-radius:5px;padding:2px 6px;line-height:1.5;}',
+        '.nc_need-age{flex-shrink:0;font-size:10.5px;font-weight:600;color:var(--c3-t5);font-variant-numeric:tabular-nums;}',
+        '.nc_need-row .nc_star{margin-left:0 !important;}',
+        // The head count reads as a total rather than a number loose beside a chevron.
+        '.nc_navcard[data-nccard="needs"] .nc_navcard-count{background:color-mix(in srgb, var(--c3-green) 16%, transparent);color:var(--c3-green);border-radius:999px;padding:2px 8px;font-size:10px;font-weight:800;}',
         '.nc_navcard-head:hover{background:var(--c3-s3);}',
         '.nc_channels{display:flex;flex-direction:column;min-height:0;}',
-        '.nc_navcard{min-height:0;}',
+        // display:flex lives HERE, not in an inline style. The card is laid out as a
+        // column so its open body can be given the leftover height and scroll inside it --
+        // and the search filter, which hides and re-shows cards with style.display='none'
+        // and style.display='', was wiping that inline flex on every render. The card fell
+        // back to display:block, the body took its natural height, and overflow:hidden on
+        // the card cut the list off with no way to scroll to the rest. Fifty-three clients,
+        // sixteen reachable. Toggling the card fixed it until the next render, which is why
+        // it looked intermittent.
+        '.nc_navcard{min-height:0;display:flex;flex-direction:column;}',
         '.nc_navcard-head{flex-shrink:0;}',
 
         // ── Thread area, matched to Chat 3.0 ────────────────────────────────────
@@ -72158,7 +72515,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // The message list needs the same horizontal rhythm as the strip above it,
         // or the two read as belonging to different panes.
         '#nc_chatMsgsList{padding-left:12px;padding-right:12px;}',
-        '.nc_navcard .nc_ch-item:hover .nc_star{opacity:.55 !important;}',
         '.nc_navcard .nc_ch-item .nc_star:hover{opacity:1 !important;}',
         '.nc_navcard .nc_ch-item .nc_star-on{opacity:1 !important;}',
       ].join('\n');
@@ -73469,7 +73825,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // Sized against the real pane, not by eye: eleven flex children at gap:8 spent
         // 80px on gaps alone, which was most of the overflow. The cells are 80 wide with
         // a 26px box centred in them, so the gap was never doing visual work anyway.
-        const COL = 80;   // one width for the header cell and the tick cell under it
+        // 77, not 80: nine of these plus the Remove column and the member name have to fit
+        // the pane, and the chat sidebar beside it is wider now. Three pixels a column is
+        // what that cost -- taken here rather than letting the last two columns slide off
+        // the right edge, where nobody would find them.
+        const COL = 77;   // one width for the header cell and the tick cell under it
         const ACT = 68;   // the Remove column, which needs less
         const cell = (inner, extra, attrs, w) => `<div ${attrs || ''} style="width:${w || COL}px;flex-shrink:0;display:flex;align-items:center;justify-content:center;${extra || ''}">${inner}</div>`;
 
@@ -73497,7 +73857,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         };
         const colHead = (label) => cell(`<span style="font-size:11.5px;color:var(--c3-t4);white-space:nowrap;">${chatEsc(label)}</span>`);
         const head = `<div style="display:flex;align-items:center;gap:2px;padding:13px 18px;background:var(--c3-s2);border-bottom:1px solid var(--c3-b1);">
-          <div style="flex:1;min-width:140px;font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);">Member</div>
+          <div style="flex:1;min-width:116px;font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);">Member</div>
           ${NC_DEPTS.map(d => colHead(d.label)).join('')}
           ${AREAS.length ? split : ''}
           ${AREAS.map(a => colHead(a.label)).join('')}
@@ -73508,7 +73868,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           const isMe = pr.id === ncMyId();
           const busyAll = mg.mgmtMatrixBusy === pr.id + ':*';
           return `<div data-nc-member="${chatEsc(pr.id)}" style="display:flex;align-items:center;gap:2px;padding:11px 18px;border-top:1px solid var(--c3-b0);opacity:${busyAll ? '0.45' : '1'};">
-            <div style="flex:1;min-width:140px;display:flex;align-items:center;gap:10px;">
+            <!-- 116, not 140: the chat sidebar is wider now, and this grid's nine columns
+                 have to keep fitting without the last two sliding off screen. The member
+                 name is the one column that can give, and it ellipsizes. -->
+            <div style="flex:1;min-width:116px;display:flex;align-items:center;gap:10px;">
               ${c3ProfileMarkHtml(pr, false)}
               <div style="min-width:0;">
                 <div title="${chatEsc(nameOf(pr))}${pr.email ? ' · ' + chatEsc(pr.email) : ''}" style="font-size:13px;font-weight:600;color:var(--c3-t0);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(nameOf(pr))}${isMe ? ' <span style="font-size:9.5px;font-weight:800;color:var(--c3-t5);">YOU</span>' : ''}</div>
@@ -75776,7 +76139,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           const label = (c.name && c.name.trim()) ? c.name : (names.join(', ') || 'Group');
           if (query && !label.toLowerCase().includes(query)) return;
           const isActive = c.id === activeChannelId ? ' active' : '';
-          const gava = `<span class="nc_dot-ava" style="background:var(--surface-3);color:var(--text-2);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><circle cx="10.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><path d="M2 12.5c0-1.7 1.4-2.8 3.5-2.8M14 12.5c0-1.7-1.4-2.8-3.5-2.8M6 13c0-1.6 1-2.6 2-2.6s2 1 2 2.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></span>`;
+          const gava = ncAvatarHtml({ name: label, bg: 'var(--surface-3)', fg: 'var(--text-2)',
+            glyph: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><circle cx="10.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><path d="M2 12.5c0-1.7 1.4-2.8 3.5-2.8M14 12.5c0-1.7-1.4-2.8-3.5-2.8M6 13c0-1.6 1-2.6 2-2.6s2 1 2 2.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>' });
           // Marked here rather than re-derived in renderNavCards. The card used to route on
           // c.is_group alone while this line treats a conversation with more than one other
           // person as a group either way -- so every multi-person DM whose is_group was
@@ -75803,9 +76167,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const isActive = c.id === activeChannelId ? ' active' : '';
         const initial = (p.full_name || p.email || '?').charAt(0).toUpperCase();
         const presClass = (window.giantOnlineProfiles && window.giantOnlineProfiles.has(p.id)) ? 'presence-online' : 'presence-offline';
-        const ava = p.avatar_url
-          ? `<span class="nc_dot-ava" style="background-image:url(${chatEsc(p.avatar_url)});background-size:cover;"><span class="presence-dot ${presClass}" data-presence-for="${chatEsc(p.id)}"></span></span>`
-          : `<span class="nc_dot-ava" style="background:${chatEsc(p.avatar_bg||'#4A2424')};color:${chatEsc(p.avatar_fg||'#F0A0A0')};">${chatEsc(initial)}<span class="presence-dot ${presClass}" data-presence-for="${chatEsc(p.id)}"></span></span>`;
+        // The same circle as every other row: the person's photo when there is one, their
+        // initials when there is not, and the presence dot riding inside it.
+        const presenceDot = `<span class="presence-dot ${presClass}" data-presence-for="${chatEsc(p.id)}"></span>`;
+        const ava = ncAvatarHtml({
+          name: p.full_name || p.email, url: p.avatar_url || '',
+          bg: p.avatar_bg, fg: p.avatar_fg, extra: presenceDot
+        }).replace('class="nc_hash nc_ava"', 'class="nc_hash nc_ava nc_dot-ava"');
         html.push(`<div class="nc_ch-item${isActive}" data-nc-dm-channel-id="${chatEsc(c.id)}">${ava}${chatEsc(p.full_name || p.email)}<span class="nc_row-menu" title="More" style="margin-left:auto;flex-shrink:0;opacity:1;width:22px;height:22px;border-radius:6px;background:var(--surface-2);display:inline-flex;align-items:center;justify-content:center;color:var(--text-3);cursor:pointer;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3.5" cy="8" r="1.15" fill="currentColor"/><circle cx="8" cy="8" r="1.15" fill="currentColor"/><circle cx="12.5" cy="8" r="1.15" fill="currentColor"/></svg></span></div>`);
       });
 
@@ -76002,18 +76370,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // A client conversation with no client record gets the same mark, drawn from its
         // own name. It used to fall through to "#", so the one row in the Clients card
         // that was not a client looked like a team channel that had wandered in.
-        const initialMark = (name, bg, fg) =>
-          `<span class="nc_hash" style="font-style:normal;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;`
-          + `background:${chatEsc(bg || 'var(--c3-avatar-bg)')};color:${chatEsc(fg || 'var(--c3-avatar-fg)')};`
-          + `font-size:8.5px;font-weight:800;flex-shrink:0;">`
-          + chatEsc((name || '?').trim().charAt(0).toUpperCase()) + `</span>`;
+        const initialMark = (name, bg, fg) => ncAvatarHtml({ name, bg, fg });
+        // Every row gets the same mark: a circle with the initials in it. A channel used
+        // to be "#", which is not a thing you can recognise at a glance in a list of
+        // fifty, and sat at a different width from the client and person avatars beside
+        // it. A private channel keeps its lock and a channel with an emoji keeps that --
+        // both now INSIDE the circle, so the column still lines up.
         const hashIcon = ncCl
-          ? initialMark(ncCl.name, ncCl.avatar_bg, ncCl.avatar_fg)
-          : (c.kind === 'client_dept'
-            ? initialMark(c.name)
-            : c.is_private
-              ? '<span class="nc_hash nc_hash-lock"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.5"/></svg></span>'
-              : (c.emoji ? `<span class="nc_hash" style="font-style:normal;">${chatEsc(c.emoji)}</span>` : '<span class="nc_hash">#</span>'));
+          ? ncAvatarHtml({ name: ncCl.name, bg: ncCl.avatar_bg, fg: ncCl.avatar_fg })
+          : (c.is_private
+              ? ncAvatarHtml({ name: c.name, glyph: '<svg width="9" height="9" viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.7"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.7"/></svg>' })
+              : (c.emoji
+                  ? ncAvatarHtml({ name: c.name, glyph: chatEsc(c.emoji) })
+                  : ncAvatarHtml({ name: c.name })));
         const mutedIcon = isMuted ? '<span style="margin-left:auto;color:var(--text-3);display:inline-flex;align-items:center;" title="Muted"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M2 6.5v3h2.5L8 12V4L4.5 6.5H2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M11 5.5L14 8.5M14 5.5L11 8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>' : '';
         const opacityStyle = isMuted ? 'opacity:.55;' : '';
         // Indentation: 14px per level + a thin vertical bar so the hierarchy is visible
@@ -76371,11 +76740,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (!c) return;
       if (isDm) {
         // Show a placeholder DM head immediately — fetch real name in background
-        const headTitle = document.getElementById('nc_chatHeadTitle');
-        if (headTitle) {
-          const hash = headTitle.querySelector('.nc_hash');
-          if (hash) hash.textContent = '@';
-        }
+        ncSetHeadAvatar({ name: '…' });
         // Fire DM resolve in background — doesn't block the channel switch
         chatHeadName.textContent = '…';
         chatHeadTopic.textContent = 'Direct message';
@@ -76397,7 +76762,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               chatHeadName.textContent = label;
               chatHeadTopic.textContent = (otherIds.length + 1) + ' members';
               chatInput.placeholder = `Message ${label}…`;
-              if (headTitle) { const hash = headTitle.querySelector('.nc_hash'); if (hash) hash.textContent = '#'; }
+              ncSetHeadAvatar({ name: label, bg: 'var(--surface-3)', fg: 'var(--text-2)',
+                glyph: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><circle cx="10.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><path d="M2 12.5c0-1.7 1.4-2.8 3.5-2.8M14 12.5c0-1.7-1.4-2.8-3.5-2.8M6 13c0-1.6 1-2.6 2-2.6s2 1 2 2.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>' });
             }
             return;
           }
@@ -76406,12 +76772,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             // Use cached profile if present (instant), else fetch
             let prof = chatProfilesCache[otherId];
             if (!prof) {
-              const { data } = await window.giantSupabase.from('profiles').select('full_name, email').eq('id', otherId).single();
+              // avatar_url and the colours come too, so the header can wear the same face
+              // the sidebar row does instead of a placeholder.
+              const { data } = await window.giantSupabase.from('profiles')
+                .select('id, full_name, email, avatar_url, avatar_bg, avatar_fg').eq('id', otherId).single();
               prof = data;
+              if (prof) chatProfilesCache[otherId] = prof;
             }
             if (channelId === activeChannelId && prof) {
               chatHeadName.textContent = prof.full_name || prof.email;
               chatInput.placeholder = `Message ${prof.full_name || prof.email}…`;
+              ncSetHeadAvatar({ name: prof.full_name || prof.email, url: prof.avatar_url || '',
+                                bg: prof.avatar_bg, fg: prof.avatar_fg });
             }
           }
         })();
@@ -76423,12 +76795,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const hdrClient = c.kind === 'client_dept' && c.client_id ? ncClients[c.client_id] : null;
         const hdrDept = hdrClient ? (NC_DEPTS.find(d => d.key === (c.department || 'general')) || null) : null;
         chatHeadName.textContent = hdrClient ? hdrClient.name : c.name;
-        const headTitle = document.getElementById('nc_chatHeadTitle');
-        if (headTitle) {
-          const hash = headTitle.querySelector('.nc_hash');
-          // The # is a channel affordance and reads as wrong on a client thread.
-          if (hash) hash.textContent = hdrClient ? '' : '#';
-        }
+        ncSetHeadAvatar(hdrClient
+          ? { name: hdrClient.name, bg: hdrClient.avatar_bg, fg: hdrClient.avatar_fg }
+          : { name: c.name });
         chatHeadTopic.textContent = ncHeadTopicBase(c);
         chatInput.placeholder = hdrClient
           ? `Message ${hdrClient.name}${hdrDept ? ' · ' + hdrDept.label : ''}…`
