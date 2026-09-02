@@ -5122,7 +5122,7 @@ body[data-focus="2"] .screen.on > .nc_fb-grid > .nc_col-resize{display:none !imp
 .nc_col-resize:hover,.nc_col-resize.dragging{background:rgba(208,4,0,.18);}
 .nc_col-resize:hover::before,.nc_col-resize.dragging::before{background:var(--red);width:2px;left:1px;}
 /* --- chat: channel list --- */
-.nc_channels{background:var(--pane);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:14px 10px;width:250px;flex-shrink:0;transition:background .3s var(--ease),border-color .3s var(--ease);box-sizing:border-box;overflow-y:auto;overflow-x:hidden;min-height:0;}
+.nc_channels{background:var(--pane);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:14px 10px;width:300px;flex-shrink:0;transition:background .3s var(--ease),border-color .3s var(--ease);box-sizing:border-box;overflow-y:auto;overflow-x:hidden;min-height:0;}
 .nc_channels::-webkit-scrollbar{width:7px;}
 .nc_channels::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:4px;}
 .nc_channels::-webkit-scrollbar-track{background:transparent;}
@@ -71147,6 +71147,58 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       el.title = fresh.title || '';
     }
 
+    // ── The sidebar is yours to size ────────────────────────────────────────────
+    // The handle was in the markup but nothing was listening to it, so the width was
+    // whatever the stylesheet said and names ran out of room. Drag it, and it stays where
+    // you put it -- across reloads and across screens. Double-click to put it back.
+    const NC_SIDEBAR_KEY = 'giant_nc_sidebar_w';
+    const NC_SIDEBAR_DEFAULT = 300, NC_SIDEBAR_MIN = 210, NC_SIDEBAR_MAX = 560;
+    function ncApplySidebarWidth(px){
+      const el = document.getElementById('nc_chatChannels');
+      if (!el) return;
+      const w = Math.max(NC_SIDEBAR_MIN, Math.min(NC_SIDEBAR_MAX, Math.round(px)));
+      el.style.width = w + 'px';
+      el.style.flexShrink = '0';
+      // The cards decide what fits from their own width, so tell them it changed rather
+      // than waiting for the next full render.
+      const body = document.getElementById('nc_cardNeedsBody');
+      if (body && typeof window.nc__fitNeeds === 'function') window.nc__fitNeeds(body);
+      return w;
+    }
+    (function wireSidebarResize(){
+      const handle = document.querySelector('.nc_col-resize[data-resize="channels"]');
+      const panel = document.getElementById('nc_chatChannels');
+      if (!handle || !panel) { setTimeout(wireSidebarResize, 500); return; }
+      if (handle.dataset.wired) return;
+      handle.dataset.wired = '1';
+      handle.title = 'Drag to resize · double-click to reset';
+      try {
+        const saved = parseInt(localStorage.getItem(NC_SIDEBAR_KEY) || '', 10);
+        if (saved) ncApplySidebarWidth(saved);
+      } catch (_) {}
+      handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const startW = panel.getBoundingClientRect().width;
+        handle.classList.add('dragging');
+        document.body.classList.add('col-resizing');
+        const move = (ev) => { ncApplySidebarWidth(startW + (ev.clientX - startX)); };
+        const up = () => {
+          handle.classList.remove('dragging');
+          document.body.classList.remove('col-resizing');
+          window.removeEventListener('mousemove', move);
+          window.removeEventListener('mouseup', up);
+          try { localStorage.setItem(NC_SIDEBAR_KEY, String(Math.round(panel.getBoundingClientRect().width))); } catch (_) {}
+        };
+        window.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', up);
+      });
+      handle.addEventListener('dblclick', () => {
+        ncApplySidebarWidth(NC_SIDEBAR_DEFAULT);
+        try { localStorage.setItem(NC_SIDEBAR_KEY, String(NC_SIDEBAR_DEFAULT)); } catch (_) {}
+      });
+    })();
+
     function starButton(id){
       const on = getStarredChannels().has(id);
       const b = document.createElement('span');
@@ -71190,7 +71242,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           textNodes.forEach(n => wrap.appendChild(n));
         }
       }
-      if (!row.querySelector('.nc_row-fill')) {
+      // A needs row already has a name that grows to fill the row, so a spacer here would
+      // be a SECOND flexible element and the two would split the space between them --
+      // halving the room for the name, which is the one thing on the row that needs it.
+      if (!row.classList.contains('nc_need-row') && !row.querySelector('.nc_row-fill')) {
         const fill = document.createElement('span');
         fill.className = 'nc_row-fill';
         const menuEl = row.querySelector('.nc_row-menu');
@@ -71840,13 +71895,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // Everything on a needs row has a fixed width and only the name can give, so on a
       // narrow sidebar the chip steps aside first, then the age -- rather than squeezing
       // every name down to "Team Me...".
-      const ncFitNeeds = (body) => {
+      const ncFitNeeds = window.nc__fitNeeds = (body) => {
         const w = body.clientWidth || 0;
         if (!w) return;
-        // Measured, not guessed: with the chip in, 41 of 50 names truncated at this
-        // sidebar's width and the list stopped being readable. The avatar already says
-        // client from team from person, so the chip is what gives.
-        body.classList.toggle('nc_need-narrow', w < 250);
+        // Measured at each width, not guessed. At the default sidebar the chip costs 12
+        // of 50 names their last few characters; a little wider and it costs none. So it
+        // appears once the sidebar is wide enough to carry the chip AND the name -- a
+        // short drag from the default -- and until then the name wins, because the avatar
+        // already says client from team from person.
+        body.classList.toggle('nc_need-narrow', w < 320);
         body.classList.toggle('nc_need-tiny', w < 205);
       };
       if (bodies.needs && !bodies.needs.dataset.fitWired && typeof ResizeObserver !== 'undefined') {
@@ -72099,6 +72156,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const isGroup = row.dataset.ncDmGroup === '1' || !!(c && c.is_group);
         rowByChannel.set(id, row);   // so the needs builder can borrow this person's photo
         place(row, isGroup ? bodies.groups : bodies.direct, id, true);
+        // Starring a DM or a group wrote the row to the database and then had nowhere to
+        // show it: the Starred card was filled from the channel list alone, so only team
+        // and client conversations ever reached it. A star that appears to do nothing is
+        // worse than no star.
+        if (starred.has(id)) place(row, bodies.starred, id, true);
         // DMs that need you are built by the same builder as everything else, below --
         // a clone here would put a second, differently-shaped row on the same card.
       });
@@ -73703,7 +73765,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // Sized against the real pane, not by eye: eleven flex children at gap:8 spent
         // 80px on gaps alone, which was most of the overflow. The cells are 80 wide with
         // a 26px box centred in them, so the gap was never doing visual work anyway.
-        const COL = 80;   // one width for the header cell and the tick cell under it
+        // 77, not 80: nine of these plus the Remove column and the member name have to fit
+        // the pane, and the chat sidebar beside it is wider now. Three pixels a column is
+        // what that cost -- taken here rather than letting the last two columns slide off
+        // the right edge, where nobody would find them.
+        const COL = 77;   // one width for the header cell and the tick cell under it
         const ACT = 68;   // the Remove column, which needs less
         const cell = (inner, extra, attrs, w) => `<div ${attrs || ''} style="width:${w || COL}px;flex-shrink:0;display:flex;align-items:center;justify-content:center;${extra || ''}">${inner}</div>`;
 
@@ -73731,7 +73797,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         };
         const colHead = (label) => cell(`<span style="font-size:11.5px;color:var(--c3-t4);white-space:nowrap;">${chatEsc(label)}</span>`);
         const head = `<div style="display:flex;align-items:center;gap:2px;padding:13px 18px;background:var(--c3-s2);border-bottom:1px solid var(--c3-b1);">
-          <div style="flex:1;min-width:140px;font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);">Member</div>
+          <div style="flex:1;min-width:116px;font-size:10.5px;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;color:var(--c3-t5);">Member</div>
           ${NC_DEPTS.map(d => colHead(d.label)).join('')}
           ${AREAS.length ? split : ''}
           ${AREAS.map(a => colHead(a.label)).join('')}
@@ -73742,7 +73808,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           const isMe = pr.id === ncMyId();
           const busyAll = mg.mgmtMatrixBusy === pr.id + ':*';
           return `<div data-nc-member="${chatEsc(pr.id)}" style="display:flex;align-items:center;gap:2px;padding:11px 18px;border-top:1px solid var(--c3-b0);opacity:${busyAll ? '0.45' : '1'};">
-            <div style="flex:1;min-width:140px;display:flex;align-items:center;gap:10px;">
+            <!-- 116, not 140: the chat sidebar is wider now, and this grid's nine columns
+                 have to keep fitting without the last two sliding off screen. The member
+                 name is the one column that can give, and it ellipsizes. -->
+            <div style="flex:1;min-width:116px;display:flex;align-items:center;gap:10px;">
               ${c3ProfileMarkHtml(pr, false)}
               <div style="min-width:0;">
                 <div title="${chatEsc(nameOf(pr))}${pr.email ? ' · ' + chatEsc(pr.email) : ''}" style="font-size:13px;font-weight:600;color:var(--c3-t0);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(nameOf(pr))}${isMe ? ' <span style="font-size:9.5px;font-weight:800;color:var(--c3-t5);">YOU</span>' : ''}</div>

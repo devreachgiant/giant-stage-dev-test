@@ -3513,7 +3513,7 @@ await step('Needs you rows say who, what kind, how long and how much', async () 
     // The chip appears when there is room for it and steps aside when there is not,
     // because with it in, 41 of 50 names truncated at this sidebar's width.
     const width = body.clientWidth;
-    out.narrowHidesChip = width < 250
+    out.narrowHidesChip = width < 320
       ? rows.every(r => r.querySelector('.nc_need-chip').getBoundingClientRect().width < 2)
       : rows.every(r => r.querySelector('.nc_need-chip').getBoundingClientRect().width > 2);
     out.chipTextsAreKinds = [...new Set(rows.map(r => r.querySelector('.nc_need-chip').textContent))]
@@ -3599,9 +3599,33 @@ await step('every card offers a star, in one column, without hovering', async ()
         columns: new Set(starred.map(x => Math.round(x.querySelector('.nc_star').getBoundingClientRect().right))).size
       };
     }
+    // Every kind of conversation reaches the Starred card. It used to be filled from the
+    // channel list alone, so starring a DM or a group wrote the row to the database and
+    // then had nowhere to show it.
+    out.starrable = {};
+    for (const [label, id] of Object.entries({ team: 'nc_cardTeamsBody', client: 'nc_cardClientsBody',
+                                               dm: 'nc_cardDirectBody', group: 'nc_cardGroupsBody' })) {
+      const body = document.getElementById(id);
+      if (!body) continue;
+      const head = body.closest('.nc_navcard').querySelector('.nc_navcard-head');
+      if (head && getComputedStyle(body).display === 'none') { head.click(); await wait(700); }
+      const row = [...body.querySelectorAll('.nc_ch-item')].find(x => x.querySelector('.nc_star:not(.nc_star-on)'));
+      if (!row) { out.starrable[label] = 'no unstarred row'; continue; }
+      const cid = row.dataset.ncChannelId || row.dataset.ncDmChannelId;
+      row.querySelector('.nc_star').click();
+      await wait(1700);
+      const sb = document.getElementById('nc_cardStarredBody');
+      const sh = sb.closest('.nc_navcard').querySelector('.nc_navcard-head');
+      if (sh && getComputedStyle(sb).display === 'none') { sh.click(); await wait(600); }
+      out.starrable[label] = sb.querySelector(`[data-nc-channel-id="${cid}"],[data-nc-dm-channel-id="${cid}"]`)
+        ? 'in starred' : 'MISSING';
+    }
+
     // and it stars without opening the conversation
     const cb = document.getElementById('nc_cardClientsBody');
-    const row = [...cb.querySelectorAll('.nc_ch-item')].find(x => x.querySelector('.nc_star'));
+    // One that is not starred yet: the loop above has starred some, and clicking a set
+    // star UNSETS it, which would take the row straight back out of the Starred card.
+    const row = [...cb.querySelectorAll('.nc_ch-item')].find(x => x.querySelector('.nc_star:not(.nc_star-on)'));
     if (row) {
       const id = row.dataset.ncChannelId;
       const before = (window.__mock.db.channel_stars || []).length;
@@ -3614,6 +3638,9 @@ await step('every card offers a star, in one column, without hovering', async ()
     }
     return out;
   });
+  // and starring works for every kind of conversation, not only the ones the Starred card
+  // happened to be built from
+  const kinds = r.starrable || {};
   const cards = Object.values(r.perCard || {});
   check('every card offers a star, in one column, without hovering',
     cards.length >= 4
@@ -3622,7 +3649,54 @@ await step('every card offers a star, in one column, without hovering', async ()
       // and one standard avatar throughout
       && cards.every(c => c.avatars === c.rows && c.bareHash === 0
                        && c.avatarSizes.length === 1 && c.avatarSizes[0] === '20x20')
+      && ['team', 'client', 'dm', 'group'].every(k => kinds[k] === 'in starred')
       && r.starWrote && r.starDidNotOpen && r.inStarredCard,
+    JSON.stringify(r));
+});
+
+await step('the chat sidebar can be resized, and remembers it', async () => {
+  const before = await page.evaluate(() => {
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) nav.click();
+    return null;
+  });
+  await page.waitForTimeout(2000);
+  const width = () => page.evaluate(() =>
+    Math.round(document.getElementById('nc_chatChannels').getBoundingClientRect().width));
+  const r = {};
+  r.start = await width();
+  const handle = await page.$('.nc_col-resize[data-resize="channels"]');
+  r.handleFound = !!handle;
+  if (!handle) { check('the chat sidebar can be resized, and remembers it', false, JSON.stringify(r)); return; }
+  const box = await handle.boundingBox();
+  // A real drag, with a real mouse: the handle was in the markup for months with nothing
+  // listening to it, which no assertion about the element's existence would have caught.
+  await page.mouse.move(box.x + box.width / 2, box.y + 150);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 120, box.y + 150, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  r.afterDrag = await width();
+  r.saved = await page.evaluate(() => localStorage.getItem('giant_nc_sidebar_w'));
+  // dragged past the minimum, it stops rather than collapsing
+  const h2 = await page.$('.nc_col-resize[data-resize="channels"]');
+  const b2 = await h2.boundingBox();
+  await page.mouse.move(b2.x + b2.width / 2, b2.y + 150);
+  await page.mouse.down();
+  await page.mouse.move(b2.x + b2.width / 2 - 600, b2.y + 150, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  r.afterSquash = await width();
+  // double-click puts it back
+  await page.dblclick('.nc_col-resize[data-resize="channels"]');
+  await page.waitForTimeout(500);
+  r.afterReset = await width();
+  r.savedAfterReset = await page.evaluate(() => localStorage.getItem('giant_nc_sidebar_w'));
+  check('the chat sidebar can be resized, and remembers it',
+    r.handleFound && r.start === 300
+      && r.afterDrag > r.start + 80 && String(r.saved) === String(r.afterDrag)
+      && r.afterSquash >= 205 && r.afterSquash <= 215
+      && r.afterReset === 300 && r.savedAfterReset === '300',
     JSON.stringify(r));
 });
 
