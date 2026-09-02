@@ -5138,6 +5138,10 @@ html[data-theme="light"] .nc_ch-item:hover .nc_hash{color:#0A0A0A;opacity:.7;}
 .nc_ch-item .unread{margin-left:auto;width:7px;height:7px;border-radius:50%;background:var(--red);}
 .nc_ch-item.active .unread{background:#fff;}
 .nc_ch-item .nc_dot-ava{width:18px;height:18px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700;}
+/* One avatar for every row on every card. A list used to mix four marks -- "#" for a
+   channel, a coloured initial for a client, a photo for a person, a glyph for a group --
+   so nothing lined up and nothing read as the same kind of thing. */
+.nc_ch-item .nc_ava,.nc_need-row .nc_ava{width:20px;height:20px;min-width:20px;border-radius:50%;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;font-style:normal;letter-spacing:.01em;overflow:hidden;background-size:cover;background-position:center;}
 .nc_ch-item .auto-ico{color:var(--text-3);display:flex;}
 .nc_ch-item.active .auto-ico{color:rgba(255,255,255,.8);}
 /* channel three-dots menu */
@@ -71101,6 +71105,34 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (typeof toast === 'function') toast({ type:'error', message:'Could not save that star: ' + error.message });
       }
     }
+    // ── One avatar, everywhere ──────────────────────────────────────────────────
+    // Initials, not a first letter: "FD" tells two Fortress rows apart where "F" does not.
+    function ncInitials(name){
+      const parts = String(name || '').trim().split(/[\s\-_.·]+/).filter(Boolean);
+      if (!parts.length) return '?';
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    // One neutral circle, not a colour per name. A hue derived from the text gives every
+    // channel its own tint, which turns a list of fifty into confetti and means nothing --
+    // colour here should carry identity, and a channel has none to carry. Clients and
+    // people pass their own colours in; everything else gets this.
+    function ncTint(){
+      return { bg: 'var(--c3-s2)', fg: 'var(--c3-t3)' };
+    }
+    // opts: { name, bg, fg, url, glyph, extra }
+    function ncAvatarHtml(opts){
+      const o = opts || {};
+      const tint = ncTint();
+      const bg = o.bg || tint.bg;
+      const fg = o.fg || tint.fg;
+      const inner = o.glyph != null ? o.glyph : chatEsc(ncInitials(o.name));
+      const bgImg = o.url ? 'background-image:url(' + chatEsc(o.url) + ');' : '';
+      return '<span class="nc_hash nc_ava" title="' + chatEsc(o.name || '') + '" style="'
+        + bgImg + 'background-color:' + chatEsc(bg) + ';color:' + chatEsc(fg) + ';">'
+        + (o.url ? '' : inner) + (o.extra || '') + '</span>';
+    }
+
     function starButton(id){
       const on = getStarredChannels().has(id);
       const b = document.createElement('span');
@@ -71125,17 +71157,35 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // down the whole card rather than wherever the row happened to end.
     function placeStar(row, id){
       const star = starButton(id);
-      const menu = row.querySelector('.nc_row-menu');
-      if (menu) {
-        row.insertBefore(star, menu);
-        // The menu carries margin-left:auto of its own. Two auto margins SPLIT the free
-        // space between them, so the star landed at a different x on every row depending
-        // on how long the name was -- eleven stars, eleven columns. One auto margin, on
-        // the star, puts every star in the same place and the menu right after it.
-        menu.style.marginLeft = '0';
-      } else {
-        row.appendChild(star);
+      // A spacer does the pushing, and CSS `order` fixes the sequence -- so nothing here
+      // depends on the order things were added in. Auto margins could not do this job:
+      // flexbox SPLITS free space between every auto margin it finds, and this row has
+      // several (the "..." menu, the mute icon, and the unread badge, which is painted
+      // later still by the unread pass). That is why a column of stars came out as a
+      // staircase, and why a row with an unread badge sat 4px off from the rest.
+      // A row's name is a bare text node, and a bare text node inside a flex row becomes
+      // an anonymous item that will NOT shrink below its own width. So the longest name in
+      // a card pushed the star and the menu past the right edge -- one row out of twelve
+      // sitting 12px off, and its menu clipped. Wrapped, it ellipsizes instead.
+      if (!row.querySelector('.nc_row-name')) {
+        const textNodes = [...row.childNodes].filter(n => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+        if (textNodes.length) {
+          const wrap = document.createElement('span');
+          wrap.className = 'nc_row-name';
+          row.insertBefore(wrap, textNodes[0]);
+          textNodes.forEach(n => wrap.appendChild(n));
+        }
       }
+      if (!row.querySelector('.nc_row-fill')) {
+        const fill = document.createElement('span');
+        fill.className = 'nc_row-fill';
+        const menuEl = row.querySelector('.nc_row-menu');
+        if (menuEl) row.insertBefore(fill, menuEl); else row.appendChild(fill);
+      }
+      row.appendChild(star);
+      [...row.children].forEach(el => {
+        if (el.style && el.style.marginLeft === 'auto') el.style.marginLeft = '0';
+      });
       return star;
     }
     // ── Needs you ───────────────────────────────────────────────────────────────
@@ -71861,17 +71911,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (iconSrc) {
           row.appendChild(iconSrc.cloneNode(true));
         } else {
-          const icon = document.createElement('span');
-          icon.className = 'nc_hash';
-          if (cl) {
-            icon.style.cssText = 'font-style:normal;width:20px;height:20px;border-radius:50%;'
-              + 'display:inline-flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;'
-              + 'background:' + (cl.avatar_bg || 'var(--c3-avatar-bg)') + ';color:' + (cl.avatar_fg || 'var(--c3-avatar-fg)') + ';';
-            icon.textContent = (cl.name || '?').trim().charAt(0).toUpperCase();
-          } else {
-            icon.textContent = '#';
-          }
-          row.appendChild(icon);
+          const holder = document.createElement('span');
+          holder.innerHTML = cl
+            ? ncAvatarHtml({ name: cl.name, bg: cl.avatar_bg, fg: cl.avatar_fg })
+            : ncAvatarHtml({ name: label });
+          row.appendChild(holder.firstElementChild);
         }
 
         const name = document.createElement('span');
@@ -72009,11 +72053,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           const row = document.createElement('div');
           row.className = 'nc_ch-item';
           row.dataset.clientId = cl.id;
-          row.innerHTML =
-            `<span class="nc_hash" style="font-style:normal;width:20px;height:20px;border-radius:50%;`
-            + `display:inline-flex;align-items:center;justify-content:center;`
-            + `background:${chatEsc(cl.avatar_bg || 'var(--c3-avatar-bg)')};color:${chatEsc(cl.avatar_fg || 'var(--c3-avatar-fg)')};`
-            + `font-size:8.5px;font-weight:800;flex-shrink:0;">${chatEsc((cl.name || '?').trim().charAt(0).toUpperCase())}</span>`
+          row.innerHTML = ncAvatarHtml({ name: cl.name, bg: cl.avatar_bg, fg: cl.avatar_fg })
             + chatEsc(cl.name || 'Client');
           row.style.opacity = '.62';
           row.title = 'No conversation yet — click to start one';
@@ -72272,6 +72312,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // The badge reserved 26px on the right for that menu. With the menu gone the
         // gap just looks like a mistake, and the star needs the space instead.
         '.nc_navcard .nc_ch-unread-badge{margin-right:6px;}',
+        // The right-hand group of a card row, in a fixed sequence whatever order the
+        // pieces were added in: the spacer takes the slack, then the unread count, the
+        // star and the "..." menu.
+        '.nc_navcard .nc_ch-item .nc_row-name{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}',
+        '.nc_navcard .nc_ch-item .nc_row-fill{flex:1 1 auto;min-width:0;order:0;}',
+        '.nc_navcard .nc_ch-item .nc_ch-unread-badge{order:1;margin-left:0;}',
+        '.nc_navcard .nc_ch-item .nc_star{order:2;}',
+        '.nc_navcard .nc_ch-item .nc_row-menu{order:3;margin-left:0;}',
         // Chat 3.0 marks the open thread with a tinted row, not a solid red pill --
         // a full-bleed red row per card reads as six competing selections.
         '.nc_navcard .nc_ch-item.active{background:color-mix(in srgb, var(--c3-brand) 16%, transparent);color:var(--c3-t0);box-shadow:none;font-weight:700;}',
@@ -75946,7 +75994,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           const label = (c.name && c.name.trim()) ? c.name : (names.join(', ') || 'Group');
           if (query && !label.toLowerCase().includes(query)) return;
           const isActive = c.id === activeChannelId ? ' active' : '';
-          const gava = `<span class="nc_dot-ava" style="background:var(--surface-3);color:var(--text-2);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><circle cx="10.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><path d="M2 12.5c0-1.7 1.4-2.8 3.5-2.8M14 12.5c0-1.7-1.4-2.8-3.5-2.8M6 13c0-1.6 1-2.6 2-2.6s2 1 2 2.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></span>`;
+          const gava = ncAvatarHtml({ name: label, bg: 'var(--surface-3)', fg: 'var(--text-2)',
+            glyph: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><circle cx="10.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><path d="M2 12.5c0-1.7 1.4-2.8 3.5-2.8M14 12.5c0-1.7-1.4-2.8-3.5-2.8M6 13c0-1.6 1-2.6 2-2.6s2 1 2 2.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>' });
           // Marked here rather than re-derived in renderNavCards. The card used to route on
           // c.is_group alone while this line treats a conversation with more than one other
           // person as a group either way -- so every multi-person DM whose is_group was
@@ -75973,9 +76022,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const isActive = c.id === activeChannelId ? ' active' : '';
         const initial = (p.full_name || p.email || '?').charAt(0).toUpperCase();
         const presClass = (window.giantOnlineProfiles && window.giantOnlineProfiles.has(p.id)) ? 'presence-online' : 'presence-offline';
-        const ava = p.avatar_url
-          ? `<span class="nc_dot-ava" style="background-image:url(${chatEsc(p.avatar_url)});background-size:cover;"><span class="presence-dot ${presClass}" data-presence-for="${chatEsc(p.id)}"></span></span>`
-          : `<span class="nc_dot-ava" style="background:${chatEsc(p.avatar_bg||'#4A2424')};color:${chatEsc(p.avatar_fg||'#F0A0A0')};">${chatEsc(initial)}<span class="presence-dot ${presClass}" data-presence-for="${chatEsc(p.id)}"></span></span>`;
+        // The same circle as every other row: the person's photo when there is one, their
+        // initials when there is not, and the presence dot riding inside it.
+        const presenceDot = `<span class="presence-dot ${presClass}" data-presence-for="${chatEsc(p.id)}"></span>`;
+        const ava = ncAvatarHtml({
+          name: p.full_name || p.email, url: p.avatar_url || '',
+          bg: p.avatar_bg, fg: p.avatar_fg, extra: presenceDot
+        }).replace('class="nc_hash nc_ava"', 'class="nc_hash nc_ava nc_dot-ava"');
         html.push(`<div class="nc_ch-item${isActive}" data-nc-dm-channel-id="${chatEsc(c.id)}">${ava}${chatEsc(p.full_name || p.email)}<span class="nc_row-menu" title="More" style="margin-left:auto;flex-shrink:0;opacity:1;width:22px;height:22px;border-radius:6px;background:var(--surface-2);display:inline-flex;align-items:center;justify-content:center;color:var(--text-3);cursor:pointer;"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3.5" cy="8" r="1.15" fill="currentColor"/><circle cx="8" cy="8" r="1.15" fill="currentColor"/><circle cx="12.5" cy="8" r="1.15" fill="currentColor"/></svg></span></div>`);
       });
 
@@ -76172,18 +76225,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // A client conversation with no client record gets the same mark, drawn from its
         // own name. It used to fall through to "#", so the one row in the Clients card
         // that was not a client looked like a team channel that had wandered in.
-        const initialMark = (name, bg, fg) =>
-          `<span class="nc_hash" style="font-style:normal;width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;`
-          + `background:${chatEsc(bg || 'var(--c3-avatar-bg)')};color:${chatEsc(fg || 'var(--c3-avatar-fg)')};`
-          + `font-size:8.5px;font-weight:800;flex-shrink:0;">`
-          + chatEsc((name || '?').trim().charAt(0).toUpperCase()) + `</span>`;
+        const initialMark = (name, bg, fg) => ncAvatarHtml({ name, bg, fg });
+        // Every row gets the same mark: a circle with the initials in it. A channel used
+        // to be "#", which is not a thing you can recognise at a glance in a list of
+        // fifty, and sat at a different width from the client and person avatars beside
+        // it. A private channel keeps its lock and a channel with an emoji keeps that --
+        // both now INSIDE the circle, so the column still lines up.
         const hashIcon = ncCl
-          ? initialMark(ncCl.name, ncCl.avatar_bg, ncCl.avatar_fg)
-          : (c.kind === 'client_dept'
-            ? initialMark(c.name)
-            : c.is_private
-              ? '<span class="nc_hash nc_hash-lock"><svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.5"/></svg></span>'
-              : (c.emoji ? `<span class="nc_hash" style="font-style:normal;">${chatEsc(c.emoji)}</span>` : '<span class="nc_hash">#</span>'));
+          ? ncAvatarHtml({ name: ncCl.name, bg: ncCl.avatar_bg, fg: ncCl.avatar_fg })
+          : (c.is_private
+              ? ncAvatarHtml({ name: c.name, glyph: '<svg width="9" height="9" viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.7"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" stroke="currentColor" stroke-width="1.7"/></svg>' })
+              : (c.emoji
+                  ? ncAvatarHtml({ name: c.name, glyph: chatEsc(c.emoji) })
+                  : ncAvatarHtml({ name: c.name })));
         const mutedIcon = isMuted ? '<span style="margin-left:auto;color:var(--text-3);display:inline-flex;align-items:center;" title="Muted"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M2 6.5v3h2.5L8 12V4L4.5 6.5H2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M11 5.5L14 8.5M14 5.5L11 8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>' : '';
         const opacityStyle = isMuted ? 'opacity:.55;' : '';
         // Indentation: 14px per level + a thin vertical bar so the hierarchy is visible

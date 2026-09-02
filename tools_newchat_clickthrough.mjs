@@ -2164,7 +2164,8 @@ await step('the Clients "+" opens the same form as Teams', async () => {
       && r.shape.client === null && r.shape.dept === null
       && r.rejectsDeptWithoutClient
       && r.inClientsCard && !r.inTeamsCard
-      && r.positionInCard === 0 && r.markText === 'F' && r.markIsCircle,
+      // Two initials now, not one: "FD" tells two Fortress rows apart where "F" does not.
+      && r.positionInCard === 0 && /^[A-Z]{2}$/.test(r.markText || '') && r.markIsCircle,
     JSON.stringify(r));
 });
 
@@ -3565,13 +3566,27 @@ await step('every card offers a star, in one column, without hovering', async ()
       });
       // Always in the slot before the row's "..." menu, and always the same slot: two
       // competing auto margins used to split the space and put every star at a different x.
+      // Measured on screen, not in the DOM: the sequence is set by CSS `order` precisely
+      // so that a badge painted later cannot land in the middle of the group.
       const beforeMenu = starred.filter(x => {
         const s = x.querySelector('.nc_star'), m = x.querySelector('.nc_row-menu');
-        return !m || (s.compareDocumentPosition(m) & Node.DOCUMENT_POSITION_FOLLOWING);
+        if (!m) return true;
+        return s.getBoundingClientRect().right <= m.getBoundingClientRect().left + 1;
       });
+      // One avatar on every row, the same size everywhere, and never a bare "#": a list
+      // used to mix "#" for a channel, a coloured initial for a client, a photo for a
+      // person and a glyph for a group, so nothing lined up.
+      const avas = rows.map(x => x.querySelector('.nc_ava')).filter(Boolean);
+      const sizes = new Set(avas.map(a => Math.round(a.getBoundingClientRect().width)
+        + 'x' + Math.round(a.getBoundingClientRect().height)));
       out.perCard[key] = {
         rows: rows.length, withStar: starred.length, visible: visible.length,
         beforeMenu: beforeMenu.length,
+        avatars: avas.length, avatarSizes: [...sizes],
+        bareHash: rows.filter(x => {
+          const a = x.querySelector('.nc_hash');
+          return a && !a.classList.contains('nc_ava') && a.textContent.trim() === '#';
+        }).length,
         columns: new Set(starred.map(x => Math.round(x.querySelector('.nc_star').getBoundingClientRect().right))).size
       };
     }
@@ -3595,6 +3610,9 @@ await step('every card offers a star, in one column, without hovering', async ()
     cards.length >= 4
       && cards.every(c => c.withStar > 0 && c.visible === c.withStar
                        && c.beforeMenu === c.withStar && c.columns === 1)
+      // and one standard avatar throughout
+      && cards.every(c => c.avatars === c.rows && c.bareHash === 0
+                       && c.avatarSizes.length === 1 && c.avatarSizes[0] === '20x20')
       && r.starWrote && r.starDidNotOpen && r.inStarredCard,
     JSON.stringify(r));
 });
