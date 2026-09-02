@@ -344,11 +344,13 @@ const sidebar = await page.evaluate(() => {
       return db.clients.filter(c => c.status !== 'churned')
         .filter(cl => !db.channels.some(c => c.kind === 'client_dept' && c.client_id === cl.id)).length;
     })(),
-    // One row per client on the books. Their departments are threads inside the
-    // conversation, reached from the strip, not rows of their own.
-    expectedClients: (() => {
+    // One row per client that HAS a conversation. Their departments are threads inside
+    // it, reached from the strip, not rows of their own.
+    clientsWithConversation: (() => {
       const db = window.__mock.db;
-      return db.clients.filter(c => c.status !== 'churned').length;
+      const withChan = new Set(db.channels.filter(c => c.kind === 'client_dept' && c.client_id)
+        .map(c => c.client_id));
+      return db.clients.filter(c => c.status !== 'churned' && withChan.has(c.id)).length;
     })(),
     groups: document.querySelectorAll('#nc_cardGroupsBody .nc_ch-item').length,
     // truth from the data: a DM with more than one other member, or is_group set
@@ -364,23 +366,21 @@ const sidebar = await page.evaluate(() => {
 check('sidebar renders its six nav cards', sidebar.cards === 6, 'cards=' + sidebar.cards);
 check('sidebar behaves as an accordion (one card open)', sidebar.openCards === 1,
   'open=' + sidebar.openCards + ' heights=' + sidebar.heights.join(','));
-// This has moved twice today, so the rule is stated plainly: ONE row per client.
-// Departments -- General, Google Ads, Meta Ads, SEO, Web -- are threads inside the
-// conversation, on the strip at the top, which is the shape the screen was designed
-// around; a row each read as five separate clients. A client with no conversation is
-// still listed, dimmed, and starts one on click. Nothing is pre-created: channels is
-// shared with old chat, so empty public rows would flood its sidebar and private ones
-// would be invisible to non-member managers.
-check('one row per client, departments live inside the conversation',
-  sidebar.clients > 0 && sidebar.clients === sidebar.expectedClients,
-  'listed=' + sidebar.clients + ' clients=' + sidebar.expectedClients);
-// The inverse of what this asserted a few hours ago. A client with no conversation IS
-// listed again, dimmed, because the card is a client list and every client on the books
-// belongs on it -- it just has nothing to open until someone starts it.
-check('a client with no conversation is still listed, dimmed',
-  sidebar.dimmedClients > 0
-    && sidebar.dimmedClients === sidebar.expectedDimmed,
-  'dimmed=' + sidebar.dimmedClients + ' expected=' + sidebar.expectedDimmed);
+// ONE row per client that HAS a conversation. Departments -- General, Google Ads, Meta
+// Ads, SEO, Web -- are threads inside it, on the strip at the top, which is the shape the
+// screen was designed around; a row each read as five separate clients.
+//
+// A client with NO conversation is not listed at all. That has moved more than once: it
+// was listed, dimmed, on the reasoning that the card is a client list. It is not -- it is
+// the list of conversations you have, and a dimmed row with nothing behind it made a
+// deleted conversation look like it had come back. Clients without one are reached by
+// name in the jump box, which is asserted further down.
+check('one row per client that has a conversation',
+  sidebar.clients > 0 && sidebar.clients === sidebar.clientsWithConversation,
+  'listed=' + sidebar.clients + ' withConversation=' + sidebar.clientsWithConversation);
+check('a client with no conversation is not listed',
+  sidebar.dimmedClients === 0,
+  'dimmed=' + sidebar.dimmedClients);
 check('11 team channels + home are listed', sidebar.teams === 12, 'teams=' + sidebar.teams);
 // Group conversations belong under GROUP DMS, one-to-ones under DIRECT. The card used to
 // route on channels.is_group alone while the list treated "more than one other person" as a
@@ -2057,8 +2057,11 @@ await step('deleting a client conversation removes it', async () => {
     return out;
   });
   check('deleting a client conversation removes it',
-    r.hasMenu && r.hasDelete && r.deleted === r.siblings.length && r.remaining.length === 0
-      && r.rowsStillOnDeletedChannels === 0 && r.rowIsDimmedPlaceholder,
+    r.hasMenu && r.hasDelete && r.deleted > 0 && !r.rowRemains
+      // Gone from the card entirely, not left behind as a dimmed client row. That
+      // placeholder is what made a deleted conversation look like it had come back.
+      && r.rowIsDimmedPlaceholder === false
+      && r.rowsStillOnDeletedChannels === 0,
     JSON.stringify(r));
 });
 
@@ -2305,13 +2308,23 @@ await step('a new client channel is public, with the whole team in it', async ()
       card.querySelector('.nc_navcard-head').click();
       await new Promise(r => setTimeout(r, 700));
     }
-    const row = [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')]
-      .find(e => e.dataset.clientId === target.id);
-    const out = { client: target.name, foundRow: !!row };
-    if (!row) return out;
+    // Clients with no conversation are no longer listed in the card, so this reaches the
+    // one it wants by name, the way a person does.
+    const out = { client: target.name };
+    const jump = document.getElementById('nc_chatJumpToInput');
+    if (jump) {
+      jump.value = target.name.slice(0, 6);
+      jump.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 1300));
+    }
+    const results = document.getElementById('nc_jumpResults');
+    const hit = results ? [...results.querySelectorAll('*')]
+      .find(e => e.children.length === 0 && e.textContent.trim() === target.name) : null;
+    out.foundRow = !!hit;
+    if (!hit) return out;
     const before = db.channels.length;
-    row.click();
-    await new Promise(r => setTimeout(r, 1500));
+    hit.click();
+    await new Promise(r => setTimeout(r, 1800));
     const startBtn = document.getElementById('nc_startConvoBtn');
     out.startButtonShown = !!startBtn;
     if (startBtn) startBtn.click();
@@ -3716,8 +3729,10 @@ await step('a long card scrolls, and still scrolls after a render and a search',
     await wait(500);
     const nav = document.querySelector('.nav-item[data-screen="newchat"]');
     if (nav) { nav.click(); await wait(2200); }
-    const card = document.querySelector('.nc_navcard[data-nccard="clients"]');
-    const body = document.getElementById('nc_cardClientsBody');
+    // Direct, not Clients: the Clients card lists only conversations now and comfortably
+    // fits, and a card that fits proves nothing about scrolling.
+    const card = document.querySelector('.nc_navcard[data-nccard="direct"]');
+    const body = document.getElementById('nc_cardDirectBody');
     if (!card || !body) return out;
     if (getComputedStyle(body).display === 'none') {
       card.querySelector('.nc_navcard-head').click(); await wait(900);
@@ -3758,42 +3773,49 @@ await step('a long card scrolls, and still scrolls after a render and a search',
     JSON.stringify(r));
 });
 
-await step('the Clients card lists every client the Clients module does', async () => {
+await step('the Clients card lists conversations, and a client without one is still reachable', async () => {
   const r = await page.evaluate(async () => {
     const wait = (ms) => new Promise(r => setTimeout(r, ms));
     const out = {};
     document.querySelectorAll('.nav-group-toggle').forEach(t => {
       if (t.classList.contains('nav-group-collapsed')) t.click();
     });
-    await wait(600);
-    // What the Clients module itself lists, straight from its own screen.
-    const nav = document.querySelector('.nav-item[data-screen="clients"]');
-    if (nav) { nav.click(); await wait(3500); }
-    out.moduleCount = new Set([...document.querySelectorAll('[data-client-id]')]
-      .map(x => x.dataset.clientId)).size;
-    // and what Chat shows beside it. These are two different queries against the same
-    // table, and a client that exists in one list and not the other is a client somebody
-    // cannot start a conversation with.
-    document.querySelector('.nav-item[data-screen="newchat"]').click(); await wait(2800);
+    await wait(500);
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2500); }
     const body = document.getElementById('nc_cardClientsBody');
     if (!body) return out;
     const card = body.closest('.nc_navcard');
     if (getComputedStyle(body).display === 'none') { card.querySelector('.nc_navcard-head').click(); await wait(900); }
-    out.chatCount = body.querySelectorAll('.nc_ch-item').length;
-    // By name, and as a superset rather than an exact count: the card also lists client
-    // CONVERSATIONS that have no client record behind them, which is deliberate -- one
-    // gets created by an earlier check in this very run. What matters is that no client
-    // from the module is missing here.
-    const shown = body.textContent;
-    const names = (window.__mock.db.clients || [])
-      .filter(c => c.status !== 'churned').map(c => c.name).filter(Boolean);
-    out.dbCount = names.length;
-    out.missing = names.filter(n => !shown.includes(n)).slice(0, 5);
+    const db = window.__mock.db;
+    const withChan = new Set(db.channels.filter(c => c.kind === 'client_dept' && c.client_id).map(c => c.client_id));
+    out.clientsTotal = db.clients.filter(c => c.status !== 'churned').length;
+    out.withConversation = withChan.size;
+    out.rows = body.querySelectorAll('.nc_ch-item').length;
+    // The card is the list of conversations you HAVE. A client sitting in it with nothing
+    // behind it reads as one, and made a deleted conversation look like it had come back.
+    out.placeholderRows = body.querySelectorAll('.nc_ch-item[data-client-id]:not([data-nc-channel-id])').length;
+    // ...but a client without a conversation must still be reachable, or you could never
+    // start one. The jump box lists every client by name.
+    const none = db.clients.find(c => c.status !== 'churned' && !withChan.has(c.id));
+    out.clientWithout = none ? none.name : null;
+    if (!none) return out;
+    const jump = document.getElementById('nc_chatJumpToInput');
+    if (jump) { jump.value = none.name.slice(0, 6); jump.dispatchEvent(new Event('input', { bubbles: true })); await wait(1300); }
+    const results = document.getElementById('nc_jumpResults');
+    out.jumpFindsIt = !!(results && results.textContent.includes(none.name));
+    const before = db.channels.length;
+    const hit = results ? [...results.querySelectorAll('*')]
+      .find(e => e.children.length === 0 && e.textContent.trim() === none.name) : null;
+    if (hit) { hit.click(); await wait(2200); }
+    out.createdNothing = db.channels.length - before === 0;
+    out.offersStart = !!document.getElementById('nc_startConvo');
     return out;
   });
-  check('the Clients card lists every client the Clients module does',
-    r.moduleCount > 10 && r.chatCount >= r.moduleCount
-      && Array.isArray(r.missing) && r.missing.length === 0,
+  check('the Clients card lists conversations, and a client without one is still reachable',
+    r.rows > 0 && r.rows <= r.withConversation + 2 && r.placeholderRows === 0
+      && r.clientsTotal > r.withConversation
+      && r.jumpFindsIt && r.createdNothing && r.offersStart,
     JSON.stringify(r));
 });
 
@@ -3811,12 +3833,25 @@ await step('clicking a client does not create a conversation; starting one does'
     if (!body) return out;
     const card = body.closest('.nc_navcard');
     if (getComputedStyle(body).display === 'none') { card.querySelector('.nc_navcard-head').click(); await wait(900); }
-    const before = (window.__mock.db.channels || []).length;
-    // A client with no conversation yet: carries a client id and no channel id.
-    const row = [...body.querySelectorAll('.nc_ch-item[data-client-id]')].find(x => !x.dataset.ncChannelId);
-    out.foundPlaceholder = !!row;
-    if (!row) return out;
-    row.click(); await wait(2200);
+    const db = window.__mock.db;
+    const before = (db.channels || []).length;
+    // A client with no conversation is not in the card at all now, so it is reached by
+    // name -- which is the path that used to create a channel just for looking.
+    const withChan = new Set(db.channels.filter(c => c.kind === 'client_dept' && c.client_id)
+      .map(c => c.client_id));
+    const target = db.clients.find(c => c.status !== 'churned' && !withChan.has(c.id));
+    const jump = document.getElementById('nc_chatJumpToInput');
+    if (target && jump) {
+      jump.value = target.name.slice(0, 6);
+      jump.dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(1300);
+    }
+    const results = document.getElementById('nc_jumpResults');
+    const hit = results ? [...results.querySelectorAll('*')]
+      .find(e => e.children.length === 0 && e.textContent.trim() === (target || {}).name) : null;
+    out.foundPlaceholder = !!hit;
+    if (!hit) return out;
+    hit.click(); await wait(2200);
     // Nothing created. Clicking a client used to make the channel on the spot, which is
     // why deleting one appeared to do nothing -- the click you make to check it is gone
     // silently made another -- and why the workspace filled with empty channels.

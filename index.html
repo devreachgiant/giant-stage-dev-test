@@ -72174,17 +72174,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             place(primary.row, bodies.clients, primary.c.id, true);
             return;
           }
-          const row = document.createElement('div');
-          row.className = 'nc_ch-item';
-          row.dataset.clientId = cl.id;
-          row.innerHTML = ncAvatarHtml({ name: cl.name, bg: cl.avatar_bg, fg: cl.avatar_fg })
-            + chatEsc(cl.name || 'Client');
-          row.style.opacity = '.62';
-          row.title = 'No conversation yet — click to start one';
-          row.addEventListener('click', () => openClientThread(cl.id));
-          if (!matches(cl.name)) return;
-          jumpHits++;
-          bodies.clients.appendChild(row);
+          // A client with no conversation is not listed here. The card is the list of
+          // conversations you have; a client sitting in it with nothing behind it reads
+          // as one, and made a deleted conversation look like it had come back. Starting
+          // one is still a search away: the jump box lists every client by name, whether
+          // or not there is a conversation yet, and opens the Start conversation panel.
         });
 
       const dmSrc = document.getElementById('nc_chatDmList');
@@ -72264,7 +72258,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (bodies.needs) ncFitNeeds(bodies.needs);
       empty(bodies.needs, 'Nothing needs you.');
       empty(bodies.starred, 'Star a channel to pin it here.');
-      empty(bodies.clients, 'No client threads.');
+      empty(bodies.clients, 'No client conversations yet — find a client in the jump box to start one.');
       empty(bodies.teams, 'No team channels.');
       empty(bodies.direct, 'No direct messages.');
       empty(bodies.groups, 'No group DMs.');
