@@ -3463,6 +3463,78 @@ await step('double-clicking a message opens the message, not the reaction bar', 
     JSON.stringify(r));
 });
 
+await step('Needs you rows say who, what kind, how long and how much', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2000); }
+    if (window.nc_refreshNeedsYou) await window.nc_refreshNeedsYou(true);
+    await wait(2500);
+    const body = document.getElementById('nc_cardNeedsBody');
+    if (!body) return out;
+    const card = body.closest('.nc_navcard');
+    if (getComputedStyle(body).display === 'none') {
+      card.querySelector('.nc_navcard-head').click(); await wait(700);
+    }
+    await wait(600);
+    const rows = [...body.querySelectorAll('.nc_need-row')];
+    out.rows = rows.length;
+    if (!rows.length) return out;
+    // One shape of row on the card. It used to be built two ways -- cloned sidebar rows
+    // and hand-built fallbacks -- which could not agree on what a row shows.
+    out.allRowsNewShape = body.querySelectorAll('.nc_ch-item').length === rows.length;
+    out.headCountMatches = (card.querySelector('.nc_navcard-count') || {}).textContent === String(rows.length);
+    out.everyRowHasTick = rows.every(r => !!r.querySelector('.nc_need-tick'));
+    out.everyRowHasName = rows.every(r => (r.querySelector('.nc_need-name') || {}).textContent);
+    out.everyRowHasStar = rows.every(r => !!r.querySelector('.nc_star'));
+    out.everyRowHasAge = rows.every(r => /^(now|\d+[mhdw])$/.test((r.querySelector('.nc_need-age') || {}).textContent || ''));
+    // A DM reads as the person, not as "Channel": the channel row has no name of its own.
+    out.placeholderNames = rows.filter(r => /^(Channel|Direct message)$/.test(r.querySelector('.nc_need-name').textContent)).length;
+    // Names on one line, and the row never wider than the card.
+    out.anyNameWrapped = rows.some(r => r.querySelector('.nc_need-name').getBoundingClientRect().height > 22);
+    out.anyRowOverflows = rows.some(r => r.scrollWidth > r.clientWidth + 2);
+    // Ticks and stars each line up in one column.
+    out.tickColumns = new Set(rows.map(r => Math.round(r.querySelector('.nc_need-tick').getBoundingClientRect().left))).size;
+    out.starColumns = new Set(rows.map(r => Math.round(r.querySelector('.nc_star').getBoundingClientRect().right))).size;
+    // The chip appears when there is room for it and steps aside when there is not,
+    // because with it in, 41 of 50 names truncated at this sidebar's width.
+    const width = body.clientWidth;
+    out.narrowHidesChip = width < 250
+      ? rows.every(r => r.querySelector('.nc_need-chip').getBoundingClientRect().width < 2)
+      : rows.every(r => r.querySelector('.nc_need-chip').getBoundingClientRect().width > 2);
+    out.chipTextsAreKinds = [...new Set(rows.map(r => r.querySelector('.nc_need-chip').textContent))]
+      .every(t => ['Client', 'Team', 'DM', 'Group'].includes(t));
+
+    // The tick clears a row without opening the conversation.
+    const first = rows[0];
+    const firstId = first.dataset.ncChannelId;
+    const channelBefore = window.nc_activeChannelId;
+    first.querySelector('.nc_need-tick').click();
+    await wait(1600);
+    out.tickCleared = !body.querySelector(`.nc_need-row[data-nc-channel-id="${firstId}"]`);
+    out.tickDidNotNavigate = window.nc_activeChannelId === channelBefore;
+    // and the row itself still opens its conversation.
+    const next = body.querySelector('.nc_need-row');
+    const nextId = next && next.dataset.ncChannelId;
+    if (next) { next.click(); await wait(2500); }
+    out.rowOpensConversation = window.nc_activeChannelId === nextId;
+    return out;
+  });
+  check('Needs you rows say who, what kind, how long and how much',
+    r.rows > 0 && r.allRowsNewShape && r.headCountMatches
+      && r.everyRowHasTick && r.everyRowHasName && r.everyRowHasStar && r.everyRowHasAge
+      && r.placeholderNames <= 2 && !r.anyNameWrapped && !r.anyRowOverflows
+      && r.tickColumns === 1 && r.starColumns === 1
+      && r.narrowHidesChip && r.chipTextsAreKinds
+      && r.tickCleared && r.tickDidNotNavigate && r.rowOpensConversation,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

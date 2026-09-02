@@ -71739,10 +71739,159 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const tagNeed = (row, kind) => {
         row.dataset.needKind = kind;
         const dot = document.createElement('span');
-        dot.style.cssText = 'width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-left:auto;background:' + NEED_COLOR[kind] + ';';
+        // No margin-left:auto on a needs row: that row lays itself out, and an auto margin
+        // here would shove the chip, the age and the count over to the right edge.
+        const pushRight = row.classList.contains('nc_need-row') ? '' : 'margin-left:auto;';
+        dot.style.cssText = 'width:6px;height:6px;border-radius:50%;flex-shrink:0;' + pushRight
+          + 'background:' + NEED_COLOR[kind] + ';';
         dot.title = kind === 'mention' ? 'Mentioned you' : kind === 'flagged' ? 'Flagged for reply' : 'New activity';
+        // A needs row shows the reason on its tick ring instead: a dot here would cost the
+        // width that the name needs, and say the same thing twice.
+        if (row.classList.contains('nc_need-row')) return;
         row.appendChild(dot);
       };
+      // Everything on a needs row has a fixed width and only the name can give, so on a
+      // narrow sidebar the chip steps aside first, then the age -- rather than squeezing
+      // every name down to "Team Me...".
+      const ncFitNeeds = (body) => {
+        const w = body.clientWidth || 0;
+        if (!w) return;
+        // Measured, not guessed: with the chip in, 41 of 50 names truncated at this
+        // sidebar's width and the list stopped being readable. The avatar already says
+        // client from team from person, so the chip is what gives.
+        body.classList.toggle('nc_need-narrow', w < 250);
+        body.classList.toggle('nc_need-tiny', w < 205);
+      };
+      if (bodies.needs && !bodies.needs.dataset.fitWired && typeof ResizeObserver !== 'undefined') {
+        bodies.needs.dataset.fitWired = '1';
+        new ResizeObserver(() => ncFitNeeds(bodies.needs)).observe(bodies.needs);
+      }
+
+      // How long it has been waiting. The whole point of the card is that it is a
+      // queue, and "4h" is the difference between glancing at it and working it.
+      const ncAgo = (iso) => {
+        if (!iso) return '';
+        const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+        if (mins < 1) return 'now';
+        if (mins < 60) return mins + 'm';
+        const hrs = Math.floor(mins / 60);
+        if (hrs < 24) return hrs + 'h';
+        const days = Math.floor(hrs / 24);
+        return days < 7 ? days + 'd' : Math.floor(days / 7) + 'w';
+      };
+      const ncNeedKindLabel = (c) => {
+        if (!c) return '';
+        if (c.is_dm) return (c.is_group || c.kind === 'group_dm') ? 'Group' : 'DM';
+        if (c.kind === 'client_dept') return 'Client';
+        return 'Team';
+      };
+
+      // ONE builder for every row on this card. It used to be two -- a clone of whatever
+      // the sidebar had painted, plus a hand-built fallback for anything the sidebar had
+      // not -- which meant the two halves of the same list could never agree on what a
+      // row shows.
+      const buildNeedRow = (id, kind) => {
+        const c = byId.get(id) || dmById.get(id);
+        if (!c) return null;
+        const cl = c.client_id ? ncClients[c.client_id] : null;
+        const painted = rowByChannel.get(id);
+        let label = cl
+          ? (cl.name || 'Client') + (c.department && c.department !== 'general' ? ' · ' + c.department : '')
+          : (c.name || '');
+        if (!label && painted) {
+          // A DM channel row has no name of its own -- the person's name is worked out
+          // from its members by the list that painted it. Taking the text off that row is
+          // how this reads "Joven" instead of "Channel".
+          label = [...painted.childNodes]
+            .filter(n => n.nodeType === Node.TEXT_NODE)
+            .map(n => n.textContent).join('').trim();
+        }
+        if (!label) label = c.is_dm ? 'Direct message' : 'Channel';
+        if (!matches(label)) return null;
+
+        const row = document.createElement('div');
+        row.className = 'nc_ch-item nc_need-row';
+        row.dataset.ncChannelId = id;
+        row.dataset.needKind = kind;
+
+        // Clear it without opening it. Reading a conversation already clears it; this is
+        // for the ones you have decided need nothing from you.
+        const tick = document.createElement('span');
+        tick.className = 'nc_need-tick';
+        // The ring carries WHY this is on the list -- a mention is not the same as new
+        // activity -- so the reason needs no separate dot of its own. On a sidebar this
+        // narrow, every 14px is a word of somebody's name.
+        const reason = kind === 'mention' ? 'Mentioned you'
+                     : kind === 'flagged' ? 'Flagged for reply' : 'New activity';
+        const ring = kind === 'mention' ? 'var(--c3-blue)'
+                   : kind === 'flagged' ? 'var(--c3-amber)' : 'var(--c3-t6)';
+        tick.style.borderColor = ring;
+        tick.title = reason + ' — click to mark as handled';
+        tick.innerHTML = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none">'
+          + '<path d="M3.5 8.5l3 3 6-6.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        tick.addEventListener('click', (e) => { e.stopPropagation(); ncClearNeeds(id); });
+        row.appendChild(tick);
+
+        // The sidebar's own icon where there is one: it already resolves a client's
+        // colours, a channel's emoji, a private channel's lock and a person's photo.
+        const iconSrc = painted && painted.firstElementChild;
+        if (iconSrc) {
+          row.appendChild(iconSrc.cloneNode(true));
+        } else {
+          const icon = document.createElement('span');
+          icon.className = 'nc_hash';
+          if (cl) {
+            icon.style.cssText = 'font-style:normal;width:20px;height:20px;border-radius:50%;'
+              + 'display:inline-flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;'
+              + 'background:' + (cl.avatar_bg || 'var(--c3-avatar-bg)') + ';color:' + (cl.avatar_fg || 'var(--c3-avatar-fg)') + ';';
+            icon.textContent = (cl.name || '?').trim().charAt(0).toUpperCase();
+          } else {
+            icon.textContent = '#';
+          }
+          row.appendChild(icon);
+        }
+
+        const name = document.createElement('span');
+        name.className = 'nc_need-name';
+        name.textContent = label;
+        name.title = label;
+        row.appendChild(name);
+
+        const chipText = ncNeedKindLabel(c);
+        if (chipText) {
+          const chip = document.createElement('span');
+          chip.className = 'nc_need-chip';
+          chip.textContent = chipText;
+          row.appendChild(chip);
+        }
+
+        const age = ncAgo(ncNeedAt[id]);
+        if (age) {
+          const ageEl = document.createElement('span');
+          ageEl.className = 'nc_need-age';
+          ageEl.textContent = age;
+          ageEl.title = 'Waiting since ' + new Date(ncNeedAt[id]).toLocaleString();
+          row.appendChild(ageEl);
+        }
+
+        const n = (chatUnreadCounts && chatUnreadCounts[id]) || 0;
+        const countEl = document.createElement('span');
+        countEl.className = 'nc_need-count';
+        // Kept in the layout even at zero so the stars stay in one column: a mention you
+        // have already scrolled past is still on this list with nothing unread behind it.
+        countEl.textContent = n > 0 ? (n > 99 ? '99+' : String(n)) : '';
+        countEl.title = n > 0 ? n + ' unread' : '';
+        row.appendChild(countEl);
+
+        row.appendChild(starButton(id));
+
+        row.addEventListener('click', () => {
+          const t = ncNeedMsg[id];
+          if (t) ncJumpToMessage(id, t.id, t.parentId); else switchChannel(id);
+        });
+        return row;
+      };
+
       // cloneNode does not carry listeners, so each clone gets its own.
       const place = (row, body, id, withStar, jumpTo, label) => {
         if (!body) return null;
@@ -71779,11 +71928,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // straight through here.
         if (c.kind !== 'client_dept') place(row, bodies.teams, c.id, true);
         if (starred.has(c.id)) place(row, bodies.starred, c.id, true);
-        const need = ncNeeds[c.id];
-        if (need) {
-          const cl2 = place(row, bodies.needs, c.id, false, true);
-          if (cl2) { tagNeed(cl2, need); needPlaced.add(c.id); }
-        }
+        // Needs rows are built below, in one pass, from ncNeeds -- so a channel the
+        // sidebar happens not to paint is on the card just the same.
+
       });
 
       // Client conversations with no client record behind them. The channel loop skips
@@ -71870,12 +72017,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // real group conversations, and re-deriving it here is how the two disagreed.
         const c = dmById.get(id);
         const isGroup = row.dataset.ncDmGroup === '1' || !!(c && c.is_group);
+        rowByChannel.set(id, row);   // so the needs builder can borrow this person's photo
         place(row, isGroup ? bodies.groups : bodies.direct, id, false);
-        const needDm = ncNeeds[id];
-        if (needDm) {
-          const cl3 = place(row, bodies.needs, id, false, true);
-          if (cl3) { tagNeed(cl3, needDm); needPlaced.add(id); }
-        }
+        // DMs that need you are built by the same builder as everything else, below --
+        // a clone here would put a second, differently-shaped row on the same card.
       });
 
       // Anything that needs you but had no row to clone. This card used to be built
@@ -71889,43 +72034,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       //
       // Synthesised from the channel record instead, so the card is driven by ncNeeds --
       // the data -- and the painted rows are only an optimisation for the common case.
-      Object.keys(ncNeeds).forEach(id => {
-        if (needPlaced.has(id) || !bodies.needs) return;
-        const c = byId.get(id) || dmById.get(id);
-        if (!c) return;                                   // not a channel we know about
-        const kind = ncNeeds[id];
-        const cl = c.client_id ? ncClients[c.client_id] : null;
-        const row = document.createElement('div');
-        row.className = 'nc_ch-item';
-        row.dataset.ncChannelId = id;
-        // Labelled the way the sidebar labels it: a client's conversation reads as the
-        // client, with the department after it so two needy departments of one client
-        // are still tellable apart.
-        const label = cl
-          ? (cl.name || 'Client') + (c.department && c.department !== 'general' ? ' · ' + c.department : '')
-          : (c.name || 'Channel');
-        const icon = cl
-          ? '<span class="nc_hash" style="font-style:normal;width:20px;height:20px;border-radius:50%;'
-            + 'display:inline-flex;align-items:center;justify-content:center;'
-            + 'background:' + chatEsc(cl.avatar_bg || 'var(--c3-avatar-bg)') + ';color:' + chatEsc(cl.avatar_fg || 'var(--c3-avatar-fg)') + ';'
-            + 'font-size:8.5px;font-weight:800;flex-shrink:0;">' + chatEsc((cl.name || '?').trim().charAt(0).toUpperCase()) + '</span>'
-          : '<span class="nc_hash">#</span>';
-        const n = (chatUnreadCounts && chatUnreadCounts[id]) || 0;
-        const badge = n > 0
-          ? '<span class="nc_ch-unread-badge">' + (n > 99 ? '99+' : n) + '</span>'
-          : '';
-        row.innerHTML = icon + chatEsc(label) + badge;
-        row.addEventListener('click', () => {
-          const t = ncNeedMsg[id];
-          if (t) ncJumpToMessage(id, t.id, t.parentId); else switchChannel(id);
+      // Every row on the card, in one pass, newest first -- the order the card has always
+      // used, and the one the head count counts.
+      Object.keys(ncNeeds)
+        .sort((a, b) => new Date(ncNeedAt[b] || 0) - new Date(ncNeedAt[a] || 0))
+        .forEach(id => {
+          if (!bodies.needs || needPlaced.has(id)) return;
+          const row = buildNeedRow(id, ncNeeds[id]);
+          if (!row) return;                    // unknown channel, or filtered by the jump box
+          jumpHits++;
+          bodies.needs.appendChild(row);
+          tagNeed(row, ncNeeds[id]);
+          needPlaced.add(id);
         });
-        // Built by hand rather than cloned, so place()'s filter never saw it.
-        if (!matches(label)) return;
-        jumpHits++;
-        bodies.needs.appendChild(row);
-        tagNeed(row, kind);
-        needPlaced.add(id);
-      });
 
       const empty = (b, msg) => { if (b && !b.children.length) b.innerHTML = '<div style="padding:7px 9px;font-size:11px;color:var(--c3-t6);font-style:italic;">' + msg + '</div>'; };
       if (bodies.needs) {
@@ -71944,6 +72065,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           || ((NEED_RANK[a.dataset.needKind] ?? 9) - (NEED_RANK[b.dataset.needKind] ?? 9)));
         rows.forEach(r => bodies.needs.appendChild(r));
       }
+      // What fits depends on how wide the sidebar actually is, which CSS cannot ask here:
+      // the card sits in a panel, not the viewport. Measured, and re-measured whenever the
+      // body changes size -- including the moment a collapsed card opens, where its width
+      // is zero and every answer would otherwise be wrong for the life of the render.
+      if (bodies.needs) ncFitNeeds(bodies.needs);
       empty(bodies.needs, 'Nothing needs you.');
       empty(bodies.starred, 'Star a channel to pin it here.');
       empty(bodies.clients, 'No client threads.');
@@ -72132,6 +72258,28 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '.nc_navcard .nc_ch-item > span:last-child{flex-shrink:0;}',
         '.nc_navcard .nc_ch-item:hover{background:var(--c3-s3);}',
         '.nc_navcard-body{padding:2px 5px 6px;}',
+        // ── Needs you rows ──────────────────────────────────────────────────────
+        // A queue you work through, so a row says who, what kind of conversation, how
+        // long it has been waiting and how much is unread -- and carries a tick to
+        // clear it without opening it. Built as its own row rather than a copy of a
+        // sidebar row, which could only ever carry an icon and a name.
+        '.nc_need-row{display:flex;align-items:center;gap:7px;padding:6px 7px;border-radius:8px;cursor:pointer;min-height:34px;}',
+        // The sidebar is about 210px wide inside its padding. Everything on the row has a
+        // fixed cost and only the name can give, so below those widths the chip and then
+        // the age step aside rather than squeezing the name down to "Chan...".
+        '.nc_need-narrow .nc_need-chip{display:none;}',
+        '.nc_need-tiny .nc_need-age{display:none;}',
+        '.nc_need-row:hover{background:color-mix(in srgb, var(--c3-green) 8%, transparent);}',
+        '.nc_need-tick{width:17px;height:17px;border-radius:50%;border:1.5px solid var(--c3-t6);flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;color:transparent;transition:border-color .12s ease,color .12s ease,background .12s ease;}',
+        '.nc_need-tick:hover{border-color:var(--c3-green);color:var(--c3-green);background:color-mix(in srgb, var(--c3-green) 16%, transparent);}',
+        '.nc_need-row .nc_hash{flex-shrink:0;}',
+        '.nc_need-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;font-weight:700;color:var(--c3-t1);}',
+        '.nc_need-chip{flex-shrink:0;font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--c3-t5);background:var(--c3-s2);border-radius:5px;padding:2px 6px;line-height:1.5;}',
+        '.nc_need-age{flex-shrink:0;font-size:10.5px;font-weight:600;color:var(--c3-t5);font-variant-numeric:tabular-nums;}',
+        '.nc_need-count{flex-shrink:0;font-size:11px;font-weight:800;color:var(--red);font-variant-numeric:tabular-nums;}',
+        '.nc_need-row .nc_star{margin-left:0 !important;}',
+        // The head count reads as a total rather than a number loose beside a chevron.
+        '.nc_navcard[data-nccard="needs"] .nc_navcard-count{background:color-mix(in srgb, var(--c3-green) 16%, transparent);color:var(--c3-green);border-radius:999px;padding:2px 8px;font-size:10px;font-weight:800;}',
         '.nc_navcard-head:hover{background:var(--c3-s3);}',
         '.nc_channels{display:flex;flex-direction:column;min-height:0;}',
         '.nc_navcard{min-height:0;}',
