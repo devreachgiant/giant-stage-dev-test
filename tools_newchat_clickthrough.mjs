@@ -3872,6 +3872,71 @@ await step('clicking a client does not create a conversation; starting one does'
     JSON.stringify(r));
 });
 
+await step('the Chat nav badges are one group, not two odd shapes', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    // An earlier check leaves the app in focus mode, which hides the sidebar outright,
+    // so this puts the layout back before measuring anything. Every number below is zero
+    // otherwise, and a check that measures nothing passes for the wrong reason.
+    out.focusWas = document.body.dataset.focus || '0';
+    document.body.dataset.focus = '0';
+    document.querySelectorAll('.sidebar').forEach(s => s.classList.remove('collapsed'));
+    // The rail carries its group's name in data-navgroup-body and the toggle carries the
+    // same name in data-navgroup; they are not siblings, so this pairs them by name. The
+    // nav is an accordion, so open the one holding Chat rather than all of them.
+    const chatRail = document.querySelector('.nav-rail[data-navgroup-body]:has(.nav-item[data-screen="newchat"])')
+      || [...document.querySelectorAll('.nav-rail[data-navgroup-body]')]
+           .find(r => r.querySelector('.nav-item[data-screen="newchat"]'));
+    if (chatRail && chatRail.classList.contains('nav-rail-collapsed')) {
+      const toggle = document.querySelector('.nav-group-toggle[data-navgroup="'
+        + chatRail.dataset.navgroupBody + '"]');
+      if (toggle) toggle.click();
+    }
+    await wait(900);
+    const item = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (!item) return out;
+    const ir = item.getBoundingClientRect();
+    out.itemVisible = ir.width > 40;
+    out.itemBox = Math.round(ir.width) + 'x' + Math.round(ir.height);
+    const sb = document.querySelector('.sidebar');
+    out.sidebarBox = sb ? Math.round(sb.getBoundingClientRect().width) + 'x'
+      + Math.round(sb.getBoundingClientRect().height) : null;
+    out.sidebarClass = sb ? sb.className : null;
+    out.railClass = item.parentElement ? item.parentElement.className : null;
+    out.railBox = item.parentElement
+      ? Math.round(item.parentElement.getBoundingClientRect().width) + 'x'
+        + Math.round(item.parentElement.getBoundingClientRect().height) : null;
+    out.screenOn = (document.querySelector('.screen.on') || {}).dataset?.screen;
+    const count = document.getElementById('nc_sidebarBadgeChat');
+    if (count) { count.textContent = '36'; count.style.display = ''; }
+    await wait(400);
+    const badges = [...item.querySelectorAll('.badge')]
+      .filter(b => b.getBoundingClientRect().width > 2);
+    out.badges = badges.map(b => b.textContent.trim());
+    if (badges.length < 2) return out;
+    const boxes = badges.map(b => b.getBoundingClientRect());
+    // Same height and same corner radius: they were 15px and 11px, which is what made
+    // them read as two unrelated things stuck to the word rather than one group.
+    out.heights = [...new Set(boxes.map(b => Math.round(b.height)))];
+    out.radii = [...new Set(badges.map(b => getComputedStyle(b).borderRadius))];
+    // Sitting together, not spread by the nav row's 11px gap.
+    out.gap = Math.round(boxes[1].left - boxes[0].right);
+    // and to the right of the label, on the same centre line
+    const label = item.getBoundingClientRect();
+    out.rightOfLabel = boxes[0].left > label.left + 40;
+    out.centred = boxes.every(b =>
+      Math.abs((b.top + b.height / 2) - (label.top + label.height / 2)) <= 1.5);
+    return out;
+  });
+  check('the Chat nav badges are one group, not two odd shapes',
+    r.badges && r.badges.length === 2
+      && r.heights.length === 1 && r.radii.length === 1
+      && r.gap >= 2 && r.gap <= 6
+      && r.rightOfLabel && r.centred,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
