@@ -5141,6 +5141,7 @@ html[data-theme="light"] .nc_ch-item:hover .nc_hash{color:#0A0A0A;opacity:.7;}
 /* One avatar for every row on every card. A list used to mix four marks -- "#" for a
    channel, a coloured initial for a client, a photo for a person, a glyph for a group --
    so nothing lined up and nothing read as the same kind of thing. */
+#nc_chatHeadAva{width:22px;height:22px;min-width:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;font-style:normal;overflow:hidden;background-size:cover;background-position:center;flex-shrink:0;}
 .nc_ch-item .nc_ava,.nc_need-row .nc_ava{width:20px;height:20px;min-width:20px;border-radius:50%;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;font-style:normal;letter-spacing:.01em;overflow:hidden;background-size:cover;background-position:center;}
 .nc_ch-item .auto-ico{color:var(--text-3);display:flex;}
 .nc_ch-item.active .auto-ico{color:rgba(255,255,255,.8);}
@@ -8463,7 +8464,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
           <main class="nc_thread">
             <div class="nc_thread-head">
               <div>
-                <div class="nc_title" id="nc_chatHeadTitle"><span class="nc_hash">#</span><span id="nc_chatHeadName">general</span></div>
+                <div class="nc_title" id="nc_chatHeadTitle"><span class="nc_hash nc_ava" id="nc_chatHeadAva"></span><span id="nc_chatHeadName">general</span></div>
                 <div class="nc_topic" id="nc_chatHeadTopic">Loading…</div>
               </div>
               <div class="nc_members" id="nc_chatHeadMembers"></div>
@@ -71133,6 +71134,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         + (o.url ? '' : inner) + (o.extra || '') + '</span>';
     }
 
+    // The conversation header wears the same mark as the row that opened it, rather than
+    // a "#" for a channel, an "@" for a DM and nothing at all for a client thread.
+    function ncSetHeadAvatar(opts){
+      const el = document.getElementById('nc_chatHeadAva');
+      if (!el) return;
+      const holder = document.createElement('div');
+      holder.innerHTML = ncAvatarHtml(opts || {});
+      const fresh = holder.firstElementChild;
+      el.setAttribute('style', fresh.getAttribute('style') || '');
+      el.innerHTML = fresh.innerHTML;
+      el.title = fresh.title || '';
+    }
+
     function starButton(id){
       const on = getStarredChannels().has(id);
       const b = document.createElement('span');
@@ -71941,15 +71955,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           row.appendChild(ageEl);
         }
 
+        // The same circular badge every other card uses, not a second style of count.
+        // This card builds its own rows, and the unread painter only refreshes badges that
+        // already exist -- so without this a needs row is the one row in the sidebar with
+        // no count on it.
         const n = (chatUnreadCounts && chatUnreadCounts[id]) || 0;
-        const countEl = document.createElement('span');
-        countEl.className = 'nc_need-count';
-        // Kept in the layout even at zero so the stars stay in one column: a mention you
-        // have already scrolled past is still on this list with nothing unread behind it.
-        countEl.textContent = n > 0 ? (n > 99 ? '99+' : String(n)) : '';
-        countEl.title = n > 0 ? n + ' unread' : '';
-        row.appendChild(countEl);
-
+        if (n > 0) {
+          const badge = document.createElement('span');
+          badge.className = 'nc_ch-unread-badge';
+          badge.textContent = n > 99 ? '99+' : String(n);
+          badge.title = n + ' unread';
+          row.appendChild(badge);
+        }
         placeStar(row, id);
 
         row.addEventListener('click', () => {
@@ -72347,7 +72364,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '.nc_need-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;font-weight:700;color:var(--c3-t1);}',
         '.nc_need-chip{flex-shrink:0;font-size:8.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--c3-t5);background:var(--c3-s2);border-radius:5px;padding:2px 6px;line-height:1.5;}',
         '.nc_need-age{flex-shrink:0;font-size:10.5px;font-weight:600;color:var(--c3-t5);font-variant-numeric:tabular-nums;}',
-        '.nc_need-count{flex-shrink:0;font-size:11px;font-weight:800;color:var(--red);font-variant-numeric:tabular-nums;}',
         '.nc_need-row .nc_star{margin-left:0 !important;}',
         // The head count reads as a total rather than a number loose beside a chevron.
         '.nc_navcard[data-nccard="needs"] .nc_navcard-count{background:color-mix(in srgb, var(--c3-green) 16%, transparent);color:var(--c3-green);border-radius:999px;padding:2px 8px;font-size:10px;font-weight:800;}',
@@ -76595,11 +76611,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (!c) return;
       if (isDm) {
         // Show a placeholder DM head immediately — fetch real name in background
-        const headTitle = document.getElementById('nc_chatHeadTitle');
-        if (headTitle) {
-          const hash = headTitle.querySelector('.nc_hash');
-          if (hash) hash.textContent = '@';
-        }
+        ncSetHeadAvatar({ name: '…' });
         // Fire DM resolve in background — doesn't block the channel switch
         chatHeadName.textContent = '…';
         chatHeadTopic.textContent = 'Direct message';
@@ -76621,7 +76633,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               chatHeadName.textContent = label;
               chatHeadTopic.textContent = (otherIds.length + 1) + ' members';
               chatInput.placeholder = `Message ${label}…`;
-              if (headTitle) { const hash = headTitle.querySelector('.nc_hash'); if (hash) hash.textContent = '#'; }
+              ncSetHeadAvatar({ name: label, bg: 'var(--surface-3)', fg: 'var(--text-2)',
+                glyph: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><circle cx="10.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><path d="M2 12.5c0-1.7 1.4-2.8 3.5-2.8M14 12.5c0-1.7-1.4-2.8-3.5-2.8M6 13c0-1.6 1-2.6 2-2.6s2 1 2 2.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>' });
             }
             return;
           }
@@ -76630,12 +76643,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             // Use cached profile if present (instant), else fetch
             let prof = chatProfilesCache[otherId];
             if (!prof) {
-              const { data } = await window.giantSupabase.from('profiles').select('full_name, email').eq('id', otherId).single();
+              // avatar_url and the colours come too, so the header can wear the same face
+              // the sidebar row does instead of a placeholder.
+              const { data } = await window.giantSupabase.from('profiles')
+                .select('id, full_name, email, avatar_url, avatar_bg, avatar_fg').eq('id', otherId).single();
               prof = data;
+              if (prof) chatProfilesCache[otherId] = prof;
             }
             if (channelId === activeChannelId && prof) {
               chatHeadName.textContent = prof.full_name || prof.email;
               chatInput.placeholder = `Message ${prof.full_name || prof.email}…`;
+              ncSetHeadAvatar({ name: prof.full_name || prof.email, url: prof.avatar_url || '',
+                                bg: prof.avatar_bg, fg: prof.avatar_fg });
             }
           }
         })();
@@ -76647,12 +76666,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const hdrClient = c.kind === 'client_dept' && c.client_id ? ncClients[c.client_id] : null;
         const hdrDept = hdrClient ? (NC_DEPTS.find(d => d.key === (c.department || 'general')) || null) : null;
         chatHeadName.textContent = hdrClient ? hdrClient.name : c.name;
-        const headTitle = document.getElementById('nc_chatHeadTitle');
-        if (headTitle) {
-          const hash = headTitle.querySelector('.nc_hash');
-          // The # is a channel affordance and reads as wrong on a client thread.
-          if (hash) hash.textContent = hdrClient ? '' : '#';
-        }
+        ncSetHeadAvatar(hdrClient
+          ? { name: hdrClient.name, bg: hdrClient.avatar_bg, fg: hdrClient.avatar_fg }
+          : { name: c.name });
         chatHeadTopic.textContent = ncHeadTopicBase(c);
         chatInput.placeholder = hdrClient
           ? `Message ${hdrClient.name}${hdrDept ? ' · ' + hdrDept.label : ''}…`

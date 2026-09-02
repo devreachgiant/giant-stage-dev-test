@@ -3494,6 +3494,14 @@ await step('Needs you rows say who, what kind, how long and how much', async () 
     out.everyRowHasName = rows.every(r => (r.querySelector('.nc_need-name') || {}).textContent);
     out.everyRowHasStar = rows.every(r => !!r.querySelector('.nc_star'));
     out.everyRowHasAge = rows.every(r => /^(now|\d+[mhdw])$/.test((r.querySelector('.nc_need-age') || {}).textContent || ''));
+    // One count per row, and it is the same circular badge every other card uses -- these
+    // rows briefly had a second, differently-shaped number of their own.
+    out.doubledCounts = rows.filter(r => r.querySelectorAll('.nc_ch-unread-badge, .nc_need-count').length > 1).length;
+    out.badgeShape = rows.filter(r => r.querySelector('.nc_need-count')).length;
+    // and nothing anywhere in Chat is a bare "#" any more
+    const screen = document.querySelector('.screen[data-screen="newchat"]');
+    out.bareHashes = [...screen.querySelectorAll('*')]
+      .filter(e => e.children.length === 0 && e.textContent.trim() === '#').length;
     // A DM reads as the person, not as "Channel": the channel row has no name of its own.
     out.placeholderNames = rows.filter(r => /^(Channel|Direct message)$/.test(r.querySelector('.nc_need-name').textContent)).length;
     // Names on one line, and the row never wider than the card.
@@ -3530,6 +3538,7 @@ await step('Needs you rows say who, what kind, how long and how much', async () 
     r.rows > 0 && r.allRowsNewShape && r.headCountMatches
       && r.everyRowHasTick && r.everyRowHasName && r.everyRowHasStar && r.everyRowHasAge
       && r.placeholderNames <= 2 && !r.anyNameWrapped && !r.anyRowOverflows
+      && r.doubledCounts === 0 && r.badgeShape === 0 && r.bareHashes === 0
       && r.tickColumns === 1 && r.starColumns === 1
       && r.narrowHidesChip && r.chipTextsAreKinds
       && r.tickCleared && r.tickDidNotNavigate && r.rowOpensConversation,
