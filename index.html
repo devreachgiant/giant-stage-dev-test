@@ -71013,12 +71013,42 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (typeof toast === 'function') toast({ type:'error', message:'Only managers can start a client conversation.' });
         return;
       }
-      const id = await ensureClientDeptThread(clientId, 'general');
-      if (!id) return;
-      await NCSB().from('channel_members')
-        .upsert({ channel_id: id, profile_id: ncMyId() }, { onConflict: 'channel_id,profile_id' });
-      await loadChannels();
-      switchChannel(id);
+      // Clicking a client used to CREATE the conversation there and then. Two things came
+      // of that: deleting a client's conversation appeared to do nothing, because the next
+      // click -- the one you make to check it is gone -- silently made a new one; and the
+      // workspace accumulated fifty empty channels from people scrolling the client list.
+      // So starting a conversation is now something you decide to do.
+      ncShowStartConversation(clientId);
+    }
+
+    // The centre pane for a client with no conversation yet: who it is, and one button.
+    function ncShowStartConversation(clientId){
+      const cl = ncClients[clientId];
+      const list = document.getElementById('nc_chatMsgsList');
+      const name = (cl && cl.name) || 'this client';
+      if (chatHeadName) chatHeadName.textContent = name;
+      if (chatHeadTopic) chatHeadTopic.textContent = 'No conversation yet';
+      ncSetHeadAvatar(cl ? { name: cl.name, bg: cl.avatar_bg, fg: cl.avatar_fg } : { name });
+      if (chatInput) chatInput.placeholder = 'Start the conversation to send a message…';
+      if (!list) return;
+      list.innerHTML = '<div id="nc_startConvo" style="display:flex;flex-direction:column;align-items:center;'
+        + 'justify-content:center;gap:12px;padding:80px 20px;text-align:center;color:var(--text-3);">'
+        + '<div style="font-size:14px;font-weight:700;color:var(--text);">No conversation with '
+        + chatEsc(name) + ' yet</div>'
+        + '<div style="font-size:12.5px;max-width:340px;line-height:1.5;">Nothing has been sent here. '
+        + 'Starting one creates the channel and adds the team to it.</div>'
+        + '<button id="nc_startConvoBtn" class="btn-red" style="border-radius:9px;padding:9px 16px;'
+        + 'font-size:12.5px;font-weight:700;">Start conversation</button></div>';
+      const btn = document.getElementById('nc_startConvoBtn');
+      if (btn) btn.addEventListener('click', async () => {
+        btn.disabled = true; btn.textContent = 'Starting…';
+        const id = await ensureClientDeptThread(clientId, 'general');
+        if (!id) { btn.disabled = false; btn.textContent = 'Start conversation'; return; }
+        await NCSB().from('channel_members')
+          .upsert({ channel_id: id, profile_id: ncMyId() }, { onConflict: 'channel_id,profile_id' });
+        await loadChannels();
+        switchChannel(id);
+      });
     }
     window.nc_openClientThread = openClientThread;
     window.nc_syncMgmtTab = () => syncMgmtTab();

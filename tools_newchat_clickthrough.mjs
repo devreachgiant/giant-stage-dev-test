@@ -2294,7 +2294,9 @@ await step('Start huddle is wired to New Chat\'s own button', async () => {
 await step('a new client channel is public, with the whole team in it', async () => {
   const r = await page.evaluate(async () => {
     const db = window.__mock.db;
-    // A client with no conversation yet: its dimmed row starts one on click.
+    // A client with no conversation yet. Clicking its row no longer creates one -- that
+    // is deliberate, so a deleted conversation stays deleted -- so this presses the
+    // "Start conversation" button the row opens.
     const withChan = new Set(db.channels.filter(c => c.kind === 'client_dept').map(c => c.client_id));
     const target = db.clients.find(c => c.status !== 'churned' && !withChan.has(c.id));
     if (!target) return { noEmptyClient: true };
@@ -2309,6 +2311,10 @@ await step('a new client channel is public, with the whole team in it', async ()
     if (!row) return out;
     const before = db.channels.length;
     row.click();
+    await new Promise(r => setTimeout(r, 1500));
+    const startBtn = document.getElementById('nc_startConvoBtn');
+    out.startButtonShown = !!startBtn;
+    if (startBtn) startBtn.click();
     for (let i = 0; i < 40; i++) {
       await new Promise(r => setTimeout(r, 200));
       if (db.channels.length > before) break;
@@ -2329,7 +2335,7 @@ await step('a new client channel is public, with the whole team in it', async ()
     return out;
   });
   check('a new client channel is public, with the whole team in it',
-    r.foundRow && r.created && r.isPublic && r.teamSize > 1
+    r.foundRow && r.startButtonShown && r.created && r.isPublic && r.teamSize > 1
       && r.everyoneAdded && r.noClientsAdded && r.noDeactivatedAdded,
     JSON.stringify(r));
 });
@@ -3788,6 +3794,46 @@ await step('the Clients card lists every client the Clients module does', async 
   check('the Clients card lists every client the Clients module does',
     r.moduleCount > 10 && r.chatCount >= r.moduleCount
       && Array.isArray(r.missing) && r.missing.length === 0,
+    JSON.stringify(r));
+});
+
+await step('clicking a client does not create a conversation; starting one does', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2500); }
+    const body = document.getElementById('nc_cardClientsBody');
+    if (!body) return out;
+    const card = body.closest('.nc_navcard');
+    if (getComputedStyle(body).display === 'none') { card.querySelector('.nc_navcard-head').click(); await wait(900); }
+    const before = (window.__mock.db.channels || []).length;
+    // A client with no conversation yet: carries a client id and no channel id.
+    const row = [...body.querySelectorAll('.nc_ch-item[data-client-id]')].find(x => !x.dataset.ncChannelId);
+    out.foundPlaceholder = !!row;
+    if (!row) return out;
+    row.click(); await wait(2200);
+    // Nothing created. Clicking a client used to make the channel on the spot, which is
+    // why deleting one appeared to do nothing -- the click you make to check it is gone
+    // silently made another -- and why the workspace filled with empty channels.
+    out.createdOnClick = (window.__mock.db.channels || []).length - before;
+    out.startPanel = !!document.getElementById('nc_startConvo');
+    out.topic = (document.getElementById('nc_chatHeadTopic') || {}).textContent;
+    const btn = document.getElementById('nc_startConvoBtn');
+    out.buttonShown = !!btn;
+    if (btn) { btn.click(); await wait(3000); }
+    out.createdOnStart = (window.__mock.db.channels || []).length - before;
+    out.opened = !!window.nc_activeChannelId;
+    return out;
+  });
+  check('clicking a client does not create a conversation; starting one does',
+    r.foundPlaceholder && r.createdOnClick === 0 && r.startPanel
+      && r.topic === 'No conversation yet' && r.buttonShown
+      && r.createdOnStart === 1 && r.opened,
     JSON.stringify(r));
 });
 
