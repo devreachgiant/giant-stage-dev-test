@@ -3700,6 +3700,58 @@ await step('the chat sidebar can be resized, and remembers it', async () => {
     JSON.stringify(r));
 });
 
+await step('a long card scrolls, and still scrolls after a render and a search', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2200); }
+    const card = document.querySelector('.nc_navcard[data-nccard="clients"]');
+    const body = document.getElementById('nc_cardClientsBody');
+    if (!card || !body) return out;
+    if (getComputedStyle(body).display === 'none') {
+      card.querySelector('.nc_navcard-head').click(); await wait(900);
+    }
+    // A card taller than the space it has must scroll INSIDE itself. It is laid out as a
+    // flex column for that; when something resets its display the body takes its natural
+    // height and overflow:hidden simply cuts the list off with no way to reach the rest.
+    const state = (label) => {
+      const cs = getComputedStyle(card);
+      return { label, rows: body.querySelectorAll('.nc_ch-item').length,
+        display: cs.display, canScroll: body.scrollHeight > body.clientHeight + 2,
+        unreachable: Math.max(0, body.scrollHeight - body.clientHeight - (body.scrollHeight - body.clientHeight)) };
+    };
+    out.fresh = state('just opened');
+    body.scrollTop = 300; await wait(250);
+    out.scrolledTo = body.scrollTop;
+    // a re-render must not undo it
+    if (window.nc_refreshNeedsYou) await window.nc_refreshNeedsYou(true);
+    await wait(2000);
+    out.afterRender = state('after a re-render');
+    // and neither must a search that hides cards and then clears
+    const jump = document.getElementById('nc_chatJumpTo');
+    if (jump) {
+      jump.value = 'a'; jump.dispatchEvent(new Event('input', { bubbles: true })); await wait(1200);
+      jump.value = ''; jump.dispatchEvent(new Event('input', { bubbles: true })); await wait(1400);
+    }
+    if (getComputedStyle(body).display === 'none') {
+      card.querySelector('.nc_navcard-head').click(); await wait(900);
+    }
+    out.afterSearch = state('after a search and clear');
+    out.heightLeftBehind = body.style.height || '';
+    return out;
+  });
+  const ok = (s) => s && s.rows > 20 && s.display === 'flex' && s.canScroll;
+  check('a long card scrolls, and still scrolls after a render and a search',
+    ok(r.fresh) && ok(r.afterRender) && ok(r.afterSearch)
+      && r.scrolledTo === 300 && r.heightLeftBehind === '',
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

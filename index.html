@@ -72295,7 +72295,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           empty.style.display = '';
         } else if (empty) { empty.style.display = 'none'; }
       } else {
-        cards.forEach(card => { card.style.display = ''; });
+        cards.forEach(card => {
+          card.style.display = '';
+          card.classList.remove('nc_card-open');
+          // The search set height:auto so a matching card could show all its hits. Left
+          // behind, it is a body that can never scroll again, however long the list gets.
+          const body = card.querySelector('.nc_navcard-body');
+          if (body) body.style.height = '';
+        });
+        applyCardAccordion();   // this ran BEFORE the block above, which then undid it
         const empty = document.getElementById('nc_jumpEmpty');
         if (empty) empty.style.display = 'none';
       }
@@ -72451,7 +72459,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '.nc_navcard[data-nccard="needs"] .nc_navcard-count{background:color-mix(in srgb, var(--c3-green) 16%, transparent);color:var(--c3-green);border-radius:999px;padding:2px 8px;font-size:10px;font-weight:800;}',
         '.nc_navcard-head:hover{background:var(--c3-s3);}',
         '.nc_channels{display:flex;flex-direction:column;min-height:0;}',
-        '.nc_navcard{min-height:0;}',
+        // display:flex lives HERE, not in an inline style. The card is laid out as a
+        // column so its open body can be given the leftover height and scroll inside it --
+        // and the search filter, which hides and re-shows cards with style.display='none'
+        // and style.display='', was wiping that inline flex on every render. The card fell
+        // back to display:block, the body took its natural height, and overflow:hidden on
+        // the card cut the list off with no way to scroll to the rest. Fifty-three clients,
+        // sixteen reachable. Toggling the card fixed it until the next render, which is why
+        // it looked intermittent.
+        '.nc_navcard{min-height:0;display:flex;flex-direction:column;}',
         '.nc_navcard-head{flex-shrink:0;}',
 
         // ── Thread area, matched to Chat 3.0 ────────────────────────────────────
