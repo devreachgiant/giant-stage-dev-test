@@ -70514,6 +70514,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (!host || !host.classList.contains('on')) return;
     const msg = String((e.reason && (e.reason.message || e.reason)) || 'unknown');
     console.error('[newchat] unhandled rejection:', e.reason);
+    // The message alone is not enough to find anything -- "Maximum call stack size
+    // exceeded" says a loop happened, not where. The first few frames of the stack say
+    // where, so they go on the banner and into the clipboard, rather than only into a
+    // console nobody had open at the time.
+    const stack = String((e.reason && e.reason.stack) || '');
+    const frames = stack.split('\n').slice(1, 4)
+      .map(l => l.trim().replace(/^at\s+/, '').replace(/\s*\(.*?(:\d+:\d+)\)$/, ' $1'))
+      .filter(Boolean);
     if (!_banner) {
       _banner = document.createElement('div');
       _banner.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:10000;max-width:70vw;'
@@ -70523,9 +70531,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       _banner.addEventListener('click', () => { _banner.remove(); _banner = null; });
       document.body.appendChild(_banner);
     }
+    const esc = (t) => String(t).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
     _banner.innerHTML = '<b style="color:var(--c3-salmon);">New Chat — async error</b><br>'
-      + msg.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))
-      + '<br><span style="color:var(--c3-t5);font-size:11px;">May originate in another module. Click to dismiss.</span>';
+      + esc(msg)
+      + (frames.length
+          ? '<br><span style="color:var(--c3-t4);font-size:11px;font-family:ui-monospace,monospace;">'
+            + frames.map(esc).join('<br>') + '</span>'
+          : '')
+      + '<br><span style="color:var(--c3-t5);font-size:11px;">May originate in another module.'
+      + ' Click to copy the full stack and dismiss.</span>';
+    _banner.title = 'Click to copy the full details';
+    _banner.onclick = () => {
+      const details = msg + '\n\n' + (stack || '(no stack)');
+      try { navigator.clipboard.writeText(details); } catch (_) {}
+      if (_banner) { _banner.remove(); _banner = null; }
+    };
   });
   window.newChatInit = function(){
     if (_inited) return;
