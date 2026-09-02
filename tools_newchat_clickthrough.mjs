@@ -3752,6 +3752,45 @@ await step('a long card scrolls, and still scrolls after a render and a search',
     JSON.stringify(r));
 });
 
+await step('the Clients card lists every client the Clients module does', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(600);
+    // What the Clients module itself lists, straight from its own screen.
+    const nav = document.querySelector('.nav-item[data-screen="clients"]');
+    if (nav) { nav.click(); await wait(3500); }
+    out.moduleCount = new Set([...document.querySelectorAll('[data-client-id]')]
+      .map(x => x.dataset.clientId)).size;
+    // and what Chat shows beside it. These are two different queries against the same
+    // table, and a client that exists in one list and not the other is a client somebody
+    // cannot start a conversation with.
+    document.querySelector('.nav-item[data-screen="newchat"]').click(); await wait(2800);
+    const body = document.getElementById('nc_cardClientsBody');
+    if (!body) return out;
+    const card = body.closest('.nc_navcard');
+    if (getComputedStyle(body).display === 'none') { card.querySelector('.nc_navcard-head').click(); await wait(900); }
+    out.chatCount = body.querySelectorAll('.nc_ch-item').length;
+    // By name, and as a superset rather than an exact count: the card also lists client
+    // CONVERSATIONS that have no client record behind them, which is deliberate -- one
+    // gets created by an earlier check in this very run. What matters is that no client
+    // from the module is missing here.
+    const shown = body.textContent;
+    const names = (window.__mock.db.clients || [])
+      .filter(c => c.status !== 'churned').map(c => c.name).filter(Boolean);
+    out.dbCount = names.length;
+    out.missing = names.filter(n => !shown.includes(n)).slice(0, 5);
+    return out;
+  });
+  check('the Clients card lists every client the Clients module does',
+    r.moduleCount > 10 && r.chatCount >= r.moduleCount
+      && Array.isArray(r.missing) && r.missing.length === 0,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
