@@ -75761,7 +75761,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const INBOX_SINCE = () => new Date(Date.now() - 90 * 864e5).toISOString();
       const INBOX_MSG_COLS = 'id, body, flagged, created_at, author_id, channel_id, thread:channels(id, name, client_id, department, kind, is_group, dm_pair)';
       async function loadInboxItems(){
-        mg.inboxLoading = true; renderMagnus();
+        mg.inboxLoading = true;
+        // Every name on an Inbox card comes from profileName -> mg.profilesById, and the
+        // only thing that filled it was openTasksForChannel -- which the Inbox never
+        // calls. Opened on its own, every card read "Someone assigned you a task" even
+        // though the creator was sitting in chatProfilesCache the whole time.
+        mg.profilesById = chatProfilesCache || {};
+        renderMagnus();
         const myLower = (mg.myName || '').trim().toLowerCase();
         const [membershipsRes, actionsRes, recentRes, mentionRes, flaggedRes, tasksRes] = await Promise.all([
           NCSB().from('channel_members').select('channel_id, last_read_at').eq('profile_id', ncMyId()),
@@ -75911,7 +75917,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const cardHtml = (i) => {
           const act = inboxAction(i.key);
           const isTask = i.kind === 'task';
-          const kindLabel = i.notifKind === 'mention' ? 'Mentioned you' : i.notifKind === 'flagged' ? 'Flagged for reply' : i.notifKind === 'task' ? 'New task assigned' : 'New activity';
+          const mine = i.authorId === ncMyId();
+          const kindLabel = i.notifKind === 'mention' ? 'Mentioned you' : i.notifKind === 'flagged' ? 'Flagged for reply' : i.notifKind === 'task' ? (mine ? 'Your task' : 'New task assigned') : 'New activity';
           const kindColor = i.notifKind === 'mention' ? 'var(--c3-blue)' : i.notifKind === 'flagged' ? 'var(--c3-amber)' : i.notifKind === 'task' ? 'var(--c3-green)' : 'var(--c3-t3)';
           const jumpAttr = isTask ? `data-c3-inbox-task-open="${chatEsc(i.taskId)}"` : `data-c3-inbox-jump="${chatEsc(i.targetKind)}::${chatEsc(i.targetId)}::${chatEsc(i.dept||'')}::${chatEsc(i.threadId||'')}::${chatEsc(i.id)}"`;
           return `<div style="background:${act.done?'var(--c3-s0)':'var(--c3-s1)'};border:1px solid ${act.done?'rgba(62,207,142,0.22)':act.saved?'rgba(217,31,15,0.4)':'var(--c3-s4)'};border-radius:13px;padding:15px 17px;${act.done?'opacity:0.72;':''}">
@@ -75919,7 +75926,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               <div data-c3-inbox-done="${chatEsc(i.key)}" style="width:24px;height:24px;border-radius:50%;flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--c3-t0);background:${act.done?'var(--c3-green)':'transparent'};border:2px solid ${act.done?'var(--c3-green)':'var(--c3-s7)'};">${act.done?'✓':''}</div>
               <div style="min-width:0;flex:1;">
                 <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-                  <span style="font-size:13px;font-weight:700;color:var(--c3-t0);">${isTask ? chatEsc(profileName(i.authorId)) + ' assigned you a task' : chatEsc(profileName(i.authorId))}</span>
+                  <span style="font-size:13px;font-weight:700;color:var(--c3-t0);">${isTask ? (mine ? 'You added this task' : chatEsc(profileName(i.authorId)) + ' assigned you a task') : chatEsc(profileName(i.authorId))}</span>
                   <div style="font-size:10px;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;padding:3px 8px;border-radius:7px;background:rgba(${hexToRgbC3(kindColor)},0.14);color:${kindColor};">${kindLabel}</div>
                   <span style="font-size:11.5px;color:var(--c3-t6);margin-left:auto;">${chatEsc(fmtTime(i.createdAt))}</span>
                 </div>

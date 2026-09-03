@@ -1686,15 +1686,46 @@ await step('every Inbox tab lists what its badge claims', async () => {
     }
     return out;
   });
-  const one = (k, label) => r[k] && r[k].listed > 0 && r[k].kinds.length === 1 && r[k].kinds[0] === label;
+  const one = (k, ...labels) => r[k] && r[k].listed > 0
+    && r[k].kinds.every(x => labels.includes(x)) && r[k].kinds.length >= 1;
   check('each tab lists exactly as many items as its badge counts',
     Object.values(r).every(t => t.claimed === t.listed), JSON.stringify(r));
   check('Mentions, Flagged, New activity and Tasks each hold one kind of item',
     one('mention', 'Mentioned you') && one('flagged', 'Flagged for reply')
-    && one('unread', 'New activity') && one('task', 'New task assigned'), JSON.stringify(r));
+    && one('unread', 'New activity') && one('task', 'New task assigned', 'Your task'), JSON.stringify(r));
   check('All is the union, and is bigger than any single kind it contains',
     r.all.listed >= r.mention.listed + r.flagged.listed + r.unread.listed + r.task.listed,
     JSON.stringify({ all: r.all.listed, parts: [r.mention.listed, r.flagged.listed, r.unread.listed, r.task.listed] }));
+});
+
+// Every card read "Someone assigned you a task": profileName goes through mg.profilesById,
+// and the only thing that ever filled it was the per-channel tasks view, which the Inbox
+// does not open. The names were in chatProfilesCache the whole time.
+await step('Inbox cards name the person, not "Someone"', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    // seeded tasks are all created by me; this one has a creator to look up
+    db.tasks.push({ id: 't-named-creator', name: 'Task from someone else', description: null,
+      status: 'todo', priority: 'high', assigned_to: ['u-me'], department: 'general',
+      due_at: null, project_id: 'p-1', client_id: 'c-1', created_by: 'u-3',
+      created_at: new Date().toISOString(), completed_at: null });
+    window.nc_openInbox();
+    await w(2500);
+    // the step before this leaves whichever tab it checked last selected
+    document.querySelector('[data-c3-inbox-filter="task"]').click();
+    await w(600);
+    const pane = document.getElementById('nc_inboxPane');
+    const lines = [...pane.querySelectorAll('span[style*="font-weight:700"]')].map(e => e.textContent.trim());
+    return {
+      saysSomeone: /Someone/.test(pane.innerText),
+      namesCreator: lines.some(t => /^Team Member \d+ assigned you a task$/.test(t)),
+      ownTaskReadsAsMine: lines.includes('You added this task'),
+      sample: lines.filter(t => /task$/.test(t)).slice(0, 4)
+    };
+  });
+  check('a task names whoever assigned it, and my own reads as mine',
+    !r.saysSomeone && r.namesCreator && r.ownTaskReadsAsMine, JSON.stringify(r));
 });
 
 // Save, clear and jump: the three things a row is for.
