@@ -3937,6 +3937,305 @@ await step('the Chat nav badges are one group, not two odd shapes', async () => 
     JSON.stringify(r));
 });
 
+await step('global search finds conversations by name, not only what was said in them', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const db = window.__mock.db;
+    const team = db.channels.find(c => c.kind === 'team_channel');
+    const dm = db.channels.find(c => c.is_dm && !c.is_group);
+    const stamp = (id, txt, who) => db.messages.push({ id: 'm-gs-' + Math.random().toString(36).slice(2, 8),
+      channel_id: id, author_id: who, body: txt, created_at: new Date().toISOString(), parent_id: null,
+      reply_count: 0, flagged: false, edited_at: null, pinned_at: null, pinned_by: null,
+      voice_note_url: null, voice_note_duration_ms: null });
+    stamp(team.id, 'quokka sighting in the team channel', 'u-2');
+    stamp(dm.id, 'quokka sighting in a direct message', 'u-3');
+
+    document.getElementById('globalSearchBox').click();
+    await wait(700);
+    const input = document.getElementById('cmdkInput');
+    out.opened = !!input;
+    if (!input) return out;
+    const run = async (q) => {
+      input.focus(); input.value = q;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(2600);
+      const res = document.getElementById('cmdkResults');
+      return (res ? res.innerText : '').split('\n').map(l => l.trim()).filter(Boolean);
+    };
+    // A channel BY NAME. The search only ever looked inside message bodies, so this was
+    // findable only if somebody had typed its name in a message.
+    const byName = await run(team.name.slice(0, 5));
+    // The first SECTION, not the first line -- a row of result tabs sits above them now.
+    const SECTIONS = ['CHATS', 'MESSAGES', 'TASKS', 'CLIENTS'];
+    out.chatsSectionFirst = byName.filter(l => SECTIONS.includes(l))[0] === 'CHATS';
+    out.findsChannelByName = byName.some(l => l === '#' + team.name);
+    // Sections, in the order asked for, and the ones that were noise are gone.
+    const all = await run('a');
+    out.sectionOrder = all.filter(l => ['CHATS', 'MESSAGES', 'TASKS', 'CLIENTS', 'PEOPLE', 'INVOICES', 'EMAILS', 'CHAT & HUDDLES', 'CHAT 2.0'].includes(l));
+    // A message in a DM used to be labelled "in #" -- a DM channel has no name.
+    const byBody = await run('quokka');
+    out.dmLabelled = byBody.some(l => /in\s+\S/.test(l) && !/in\s*#\s*$/.test(l));
+    out.noEmptyHash = !byBody.some(l => /in #$/.test(l));
+    // from: with a name that has spaces in it
+    const filtered = await run('from:"Team Member 2" quokka');
+    out.fromFiltered = filtered.filter(l => /quokka/.test(l)).length;
+    out.fromFilterKeptOne = out.fromFiltered === 1;
+    // and the filter buttons write the chip for you
+    input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true }));
+    await wait(400);
+    document.querySelector('#cmdkFilters [data-cmdk-filter="from:"]').click();
+    await wait(400);
+    out.buttonWrote = input.value.trim();
+    out.hint = (document.getElementById('cmdkFilterHint') || {}).textContent;
+    document.getElementById('cmdkOverlay').style.display = 'none';
+    return out;
+  });
+  check('global search finds conversations by name, not only what was said in them',
+    r.opened && r.chatsSectionFirst && r.findsChannelByName
+      && r.sectionOrder.join(',') === 'CHATS,MESSAGES,TASKS,CLIENTS'
+      && r.dmLabelled && r.noEmptyHash
+      && r.fromFilterKeptOne
+      && r.buttonWrote === 'from:' && /from whom/.test(r.hint || ''),
+    JSON.stringify(r));
+});
+
+await step('the sidebar search finds messages, with names still first', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2200); }
+    const db = window.__mock.db;
+    const team = db.channels.find(c => c.kind === 'team_channel');
+    db.messages.push({ id: 'm-jump-probe', channel_id: team.id, author_id: 'u-3',
+      body: 'pangolin migration notes', created_at: new Date().toISOString(), parent_id: null,
+      reply_count: 0, flagged: false, edited_at: null, pinned_at: null, pinned_by: null,
+      voice_note_url: null, voice_note_duration_ms: null });
+    const input = document.getElementById('nc_chatJumpToInput');
+    out.hasInput = !!input;
+    if (!input) return out;
+    input.value = 'pangolin';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await wait(2600);
+    const panel = document.getElementById('nc_jumpResults');
+    const rows = [...panel.querySelectorAll('.nc_jump-row')];
+    out.rows = rows.map(x => x.innerText.replace(/\n/g, ' | '));
+    // The box next to the conversations could find the room but never a word said in it.
+    const msgRow = rows.find(x => /pangolin/i.test(x.textContent));
+    out.foundMessage = !!msgRow;
+    out.saysWhoAndWhere = !!(msgRow && /in #/.test(msgRow.innerText));
+    if (msgRow) {
+      msgRow.click();
+      for (let i = 0; i < 40; i++) {
+        await wait(200);
+        const el = document.querySelector('.nc_msg[data-msg-id="m-jump-probe"]');
+        if (el && el.style.outline) { out.landedOnTheMessage = true; break; }
+      }
+    }
+    // A name still comes first: the room you are looking for is usually the room.
+    input.value = team.name.slice(0, 5);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await wait(2200);
+    const first = document.querySelector('#nc_jumpResults .nc_jump-row');
+    out.firstIsAName = !!first && first.innerText.split('\n')[0].trim() === team.name;
+    input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true }));
+    return out;
+  });
+  check('the sidebar search finds messages, with names still first',
+    r.hasInput && r.foundMessage && r.saysWhoAndWhere
+      && r.landedOnTheMessage && r.firstIsAName,
+    JSON.stringify(r));
+});
+
+await step('typing in: or from: offers what you can filter by, and picking one applies it', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const db = window.__mock.db;
+    const team = db.channels.find(c => c.kind === 'team_channel');
+    document.getElementById('globalSearchBox').click();
+    await wait(700);
+    const input = document.getElementById('cmdkInput');
+    out.opened = !!input;
+    if (!input) return out;
+    const type = async (v) => {
+      input.focus(); input.value = v;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(2300);
+    };
+    // Half-typed chip: offer the conversations it could mean, rather than running a
+    // search for a value that is not finished and answering "No results".
+    await type('in:' + team.name.slice(0, 4));
+    out.header = (document.querySelector('#cmdkResults div') || {}).textContent;
+    out.suggestions = [...document.querySelectorAll('.cmdk-suggest')].map(x => x.innerText.split('\n')[0]);
+    out.offersTheChannel = out.suggestions.some(l => l === '#' + team.name);
+    out.enterHintOnFirst = /Enter/.test((document.querySelector('.cmdk-suggest') || {}).innerText || '');
+    // Enter takes the first one and writes it into the box.
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await wait(2000);
+    out.afterEnter = input.value.trim();
+    // A person's name with a space in it, which the old parser could not carry at all.
+    await type('from:Team Mem');
+    out.peopleOffered = [...document.querySelectorAll('.cmdk-suggest')].map(x => x.innerText.split('\n')[0]);
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await wait(2400);
+    out.afterPersonPick = input.value.trim();
+    const picked = (out.peopleOffered[0] || '').trim();
+    const lines = (document.getElementById('cmdkResults') || {}).innerText.split('\n').map(l => l.trim()).filter(Boolean);
+    // and every result really is from that person. "Team Member 1" as a substring also
+    // matches Team Member 10 through 19, so an exact name has to win.
+    const subs = lines.filter(l => / in /.test(l));
+    out.resultAuthors = [...new Set(subs.map(l => l.split(' in ')[0]))];
+    out.onlyThatPerson = subs.length > 0 && out.resultAuthors.every(a => a === picked);
+    document.getElementById('cmdkOverlay').style.display = 'none';
+    return out;
+  });
+  check('typing in: or from: offers what you can filter by, and picking one applies it',
+    r.opened && /which conversation/i.test(r.header || '')
+      && r.offersTheChannel && r.enterHintOnFirst
+      && /^in:\S+$/.test(r.afterEnter)
+      && r.peopleOffered.length > 0
+      && /^from:"[^"]+"$/.test(r.afterPersonPick)
+      && r.onlyThatPerson,
+    JSON.stringify(r));
+});
+
+await step('search: tabs with counts, recent searches, and a zero state that helps', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    try { localStorage.removeItem('giant_search_recent'); } catch (e) {}
+    const db = window.__mock.db;
+    const team = db.channels.find(c => c.kind === 'team_channel');
+    db.messages.push({ id: 'm-tabs-1', channel_id: team.id, author_id: 'u-2',
+      body: 'narwhal sighting logged', created_at: new Date().toISOString(), parent_id: null,
+      reply_count: 0, flagged: false, edited_at: null, pinned_at: null, pinned_by: null,
+      voice_note_url: null, voice_note_duration_ms: null });
+    document.getElementById('globalSearchBox').click();
+    await wait(700);
+    const input = document.getElementById('cmdkInput');
+    if (!input) return out;
+    const type = async (v) => {
+      input.focus(); input.value = v;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(2200);
+    };
+    await type('narwhal');
+    // Tabs carry the counts the search already returned -- no second round trip.
+    const tabs = [...document.querySelectorAll('[data-cmdk-tab]')].map(b => b.innerText.replace(/\s+/g, ' ').trim());
+    out.tabs = tabs;
+    out.hasAllTab = tabs.some(t => /^All \d+/.test(t));
+    out.hasMessagesTab = tabs.some(t => /^Messages \d+/.test(t));
+    // Clicking one narrows to that section.
+    const msgTab = [...document.querySelectorAll('[data-cmdk-tab]')].find(b => /^Messages/.test(b.innerText));
+    if (msgTab) { msgTab.click(); await wait(2200); }
+    const headers = (document.getElementById('cmdkResults') || {}).innerText
+      .split('\n').map(l => l.trim()).filter(l => ['CHATS','MESSAGES','TASKS','CLIENTS'].includes(l));
+    out.afterTabClick = headers;
+    out.onlyMessages = headers.length === 1 && headers[0] === 'MESSAGES';
+    // A search that found something is remembered, and offered when the box is emptied.
+    await type('');
+    out.recentShown = [...document.querySelectorAll('.cmdk-recent')].map(x => x.innerText.trim());
+    out.remembersIt = out.recentShown.some(x => /narwhal/.test(x));
+    // Zero results says what it looked for and offers to drop the narrowest part.
+    // A COMPLETED chip: a query ending mid-chip correctly shows the picker instead of
+    // running a search, which is what this asserted by accident the first time.
+    await type('from:"Team Member 1" "a phrase that appears nowhere at all"');
+    const zero = (document.getElementById('cmdkResults') || {}).innerText;
+    out.zeroEchoesFilters = /Looking for/.test(zero);
+    const drop = document.getElementById('cmdkDropNarrowest');
+    out.offersToDrop = !!drop;
+    if (drop) {
+      out.dropLabel = drop.innerText.trim();
+      drop.click(); await wait(2300);
+      out.afterDrop = input.value.trim();
+    }
+    // and clearing empties the list
+    await type('');
+    const clear = document.getElementById('cmdkClearRecent');
+    if (clear) { clear.click(); await wait(500); }
+    out.recentAfterClear = [...document.querySelectorAll('.cmdk-recent')].length;
+    document.getElementById('cmdkOverlay').style.display = 'none';
+    return out;
+  });
+  check('search: tabs with counts, recent searches, and a zero state that helps',
+    r.hasAllTab && r.hasMessagesTab && r.onlyMessages
+      && r.remembersIt && r.recentAfterClear === 0
+      && r.zeroEchoesFilters && r.offersToDrop
+      && /a phrase that appears nowhere/.test(r.dropLabel || '')
+      && !/a phrase that appears nowhere/.test(r.afterDrop || 'x'),
+    JSON.stringify(r));
+});
+
+await step('search: a name typed without spaces, your own conversations, and the keyboard', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const db = window.__mock.db;
+    const cl = db.clients.find(c => /\s/.test(c.name));
+    const squashed = cl.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    out.client = cl.name; out.typed = squashed;
+    const team = db.channels.find(c => c.kind === 'team_channel');
+    for (let i = 0; i < 3; i++) db.messages.push({ id: 'm-kbd-' + i, channel_id: team.id,
+      author_id: 'u-2', body: 'kiwi bird note ' + i, created_at: new Date().toISOString(),
+      parent_id: null, reply_count: 0, flagged: false, edited_at: null, pinned_at: null,
+      pinned_by: null, voice_note_url: null, voice_note_duration_ms: null });
+    document.getElementById('globalSearchBox').click();
+    await wait(700);
+    const input = document.getElementById('cmdkInput');
+    if (!input) return out;
+    const type = async (v) => { input.focus(); input.value = v;
+      input.dispatchEvent(new Event('input', { bubbles: true })); await wait(2300); };
+    const text = () => (document.getElementById('cmdkResults') || {}).innerText || '';
+
+    // "mangovans" is how people type "Mango Vans" and "mango-vans-seo". Matching the raw
+    // string against the raw name finds neither.
+    await type(squashed);
+    out.findsChats = /CHATS/.test(text());
+    out.findsTheConversation = text().includes(cl.name);
+
+    // from: lists people by name. An email on every row is noise -- it is only worth the
+    // line when two people share a name and it is the only thing telling them apart.
+    await type('from:');
+    const fromRows = [...document.querySelectorAll('.cmdk-suggest')].map(x => x.innerText);
+    out.fromCount = fromRows.length;
+    out.fromShowsNoEmails = !fromRows.some(x => /@/.test(x));
+    // (Two people sharing a name still get their email as the tie-breaker. Not asserted
+    // here: the directory is cached for a minute, so renaming a fixture mid-run changes
+    // nothing and the assertion would pass without testing anything.)
+
+    // An empty in: offers YOUR conversations, not whichever eight the database returned
+    // first -- which is what made the list look arbitrary.
+    await type('in:');
+    const sugg = [...document.querySelectorAll('.cmdk-suggest')];
+    out.suggestionCount = sugg.length;
+    out.noStrangersOffered = !sugg.some(x => /not a member/.test(x.innerText));
+
+    // The keyboard: the first result is already selected, arrows move, Enter opens.
+    await type('kiwi');
+    out.results = document.querySelectorAll('.cmdk-item').length;
+    out.firstSelected = !!(document.querySelector('.cmdk-item') || {}).style?.background;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    await wait(300);
+    out.arrowMoves = !!([...document.querySelectorAll('.cmdk-item')][1] || {}).style?.background;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    await wait(200);
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await wait(2500);
+    out.enterClosedIt = (document.getElementById('cmdkOverlay') || {}).style.display !== 'flex';
+    out.enterWentSomewhere = (document.querySelector('.screen.on') || {}).dataset?.screen;
+    return out;
+  });
+  check('search: a name typed without spaces, your own conversations, and the keyboard',
+    r.findsChats && r.findsTheConversation
+      && r.suggestionCount > 0 && r.noStrangersOffered
+      && r.fromCount > 0 && r.fromShowsNoEmails
+      && r.results >= 3 && r.firstSelected && r.arrowMoves
+      && r.enterClosedIt && r.enterWentSomewhere === 'newchat',
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
