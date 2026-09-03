@@ -4168,6 +4168,63 @@ await step('search: tabs with counts, recent searches, and a zero state that hel
     JSON.stringify(r));
 });
 
+await step('search: a name typed without spaces, your own conversations, and the keyboard', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const db = window.__mock.db;
+    const cl = db.clients.find(c => /\s/.test(c.name));
+    const squashed = cl.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    out.client = cl.name; out.typed = squashed;
+    const team = db.channels.find(c => c.kind === 'team_channel');
+    for (let i = 0; i < 3; i++) db.messages.push({ id: 'm-kbd-' + i, channel_id: team.id,
+      author_id: 'u-2', body: 'kiwi bird note ' + i, created_at: new Date().toISOString(),
+      parent_id: null, reply_count: 0, flagged: false, edited_at: null, pinned_at: null,
+      pinned_by: null, voice_note_url: null, voice_note_duration_ms: null });
+    document.getElementById('globalSearchBox').click();
+    await wait(700);
+    const input = document.getElementById('cmdkInput');
+    if (!input) return out;
+    const type = async (v) => { input.focus(); input.value = v;
+      input.dispatchEvent(new Event('input', { bubbles: true })); await wait(2300); };
+    const text = () => (document.getElementById('cmdkResults') || {}).innerText || '';
+
+    // "mangovans" is how people type "Mango Vans" and "mango-vans-seo". Matching the raw
+    // string against the raw name finds neither.
+    await type(squashed);
+    out.findsChats = /CHATS/.test(text());
+    out.findsTheConversation = text().includes(cl.name);
+
+    // An empty in: offers YOUR conversations, not whichever eight the database returned
+    // first -- which is what made the list look arbitrary.
+    await type('in:');
+    const sugg = [...document.querySelectorAll('.cmdk-suggest')];
+    out.suggestionCount = sugg.length;
+    out.noStrangersOffered = !sugg.some(x => /not a member/.test(x.innerText));
+
+    // The keyboard: the first result is already selected, arrows move, Enter opens.
+    await type('kiwi');
+    out.results = document.querySelectorAll('.cmdk-item').length;
+    out.firstSelected = !!(document.querySelector('.cmdk-item') || {}).style?.background;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    await wait(300);
+    out.arrowMoves = !!([...document.querySelectorAll('.cmdk-item')][1] || {}).style?.background;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    await wait(200);
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await wait(2500);
+    out.enterClosedIt = (document.getElementById('cmdkOverlay') || {}).style.display !== 'flex';
+    out.enterWentSomewhere = (document.querySelector('.screen.on') || {}).dataset?.screen;
+    return out;
+  });
+  check('search: a name typed without spaces, your own conversations, and the keyboard',
+    r.findsChats && r.findsTheConversation
+      && r.suggestionCount > 0 && r.noStrangersOffered
+      && r.results >= 3 && r.firstSelected && r.arrowMoves
+      && r.enterClosedIt && r.enterWentSomewhere === 'newchat',
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

@@ -58163,58 +58163,29 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       // LABEL a message it had already found, so a channel, a DM or a group could not be
       // found by its own name -- you had to remember something somebody said in it.
       if (!hasChips) {
+        const dir = await cmdkDirectory();
         const meId = window.giantSession?.user?.id;
-        const chatItems = [];
-        const seen = new Set();
-        // named channels: team channels, and client conversations under the client's name
-        const namedClientIds = [...new Set((chans || []).map(c => c.client_id).filter(Boolean))];
-        const nameRes = namedClientIds.length
-          ? await safe(supabase.from('clients').select('id, name').in('id', namedClientIds)) : [];
-        const nameById = {}; nameRes.forEach(c => nameById[c.id] = c.name);
-        (chans || []).filter(c => !c.is_dm).forEach(c => {
-          if (seen.has(c.id)) return; seen.add(c.id);
-          const isClient = c.kind === 'client_dept';
-          const label = isClient
-            ? (nameById[c.client_id] || c.name)
-              + (c.department && c.department !== 'general'
-                  ? ' · ' + (CMDK_DEPT_LABEL[c.department] || c.department) : '')
-            : '#' + c.name;
-          chatItems.push({ label, sub: isClient ? 'Client conversation' : 'Team channel', id: c.id });
-        });
-        // people: their DM if there is one, so searching a name gets you the conversation
-        // rather than a profile page
-        const dmByPerson = {};
-        (memberRows || []).forEach(m => {
-          (dmByPerson[m.channel_id] = dmByPerson[m.channel_id] || []).push(m.profile_id);
-        });
-        (dmChans || []).forEach(p => {
-          if (p.id === meId) return;
-          const dmId = Object.keys(dmByPerson).find(cid => {
-            const ids = dmByPerson[cid];
-            return ids.length === 2 && ids.includes(p.id) && ids.includes(meId);
-          });
-          const name = p.full_name || p.email;
-          if (dmId && !seen.has(dmId)) {
-            seen.add(dmId);
-            chatItems.push({ label: name, sub: 'Direct message', id: dmId });
-          } else if (!dmId) {
-            chatItems.push({ label: name, sub: 'Start a direct message', person: p.id });
-          }
-        });
-        // group DMs, found through the people in them
-        const q = (freeText || query).toLowerCase();
-        Object.keys(dmByPerson).forEach(cid => {
-          if (seen.has(cid)) return;
-          const ids = dmByPerson[cid].filter(id => id !== meId);
-          if (ids.length < 2) return;
-          const names = ids.map(id => {
-            const p = (dmChans || []).find(x => x.id === id);
-            return p ? (p.full_name || p.email) : null;
-          }).filter(Boolean);
-          if (!names.some(n => n.toLowerCase().includes(q))) return;
-          seen.add(cid);
-          chatItems.push({ label: names.slice(0, 3).join(', '), sub: 'Group conversation', id: cid });
-        });
+        const mine = new Set(dir.myMemberships.filter(m => m.profile_id === meId).map(m => m.channel_id));
+        const term = freeText || query;
+        // Matched on the squashed name, so "mangovans" finds "Mango Vans" and
+        // "mango-vans-seo". An exact ilike found neither, which is why searching a
+        // client's name returned tasks and messages but not the conversation itself.
+        const hits = dir.channels.map(ch => {
+          const { label, sub } = cmdkConvoLabel(ch, dir);
+          return { ch, label, sub, mine: mine.has(ch.id) };
+        }).filter(x => cmdkLooseMatch(x.label, term)
+                    || cmdkLooseMatch(x.ch.name, term));
+        hits.sort((a, b) => (b.mine - a.mine)
+          || (a.ch.is_dm - b.ch.is_dm)
+          || String(a.label).localeCompare(String(b.label)));
+        // People with no conversation yet, so a name still gets you somewhere.
+        const peopleHits = dir.people
+          .filter(p => p.id !== meId && cmdkLooseMatch((p.full_name || '') + ' ' + (p.email || ''), term))
+          .filter(p => !hits.some(h => h.ch.is_dm && cmdkSquash(h.label) === cmdkSquash(p.full_name || p.email)))
+          .slice(0, 3)
+          .map(p => ({ label: p.full_name || p.email, sub: 'Start a direct message', person: p.id }));
+        const chatItems = hits.slice(0, 8).map(x => ({ label: x.label, sub: x.sub, id: x.ch.id }))
+          .concat(peopleHits);
         if (chatItems.length) {
           sections.push({ title: 'Chats', items: chatItems.slice(0, 8).map(it => ({
             icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M14 8.5a5.5 5.5 0 01-5.5 5.5 5.7 5.7 0 01-2.5-.6L2 15l1.2-3.4A5.5 5.5 0 018.5 3 5.5 5.5 0 0114 8.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>',
@@ -58273,6 +58244,7 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       }
 
       if (!sections.length) {
+        cmdkItems = [];
         cmdkRenderZero(parsed, query);
         return;
       }
@@ -58321,11 +58293,13 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       });
       const allItems = [];
       shown.forEach(s => s.items.forEach((it, idx) => allItems.push({ section: s.title, idx, action: it.action })));
-      cmdkResults.querySelectorAll('[data-cmdk-section]').forEach(el => {
-        el.addEventListener('mouseenter', () => {
-          cmdkResults.querySelectorAll('[data-cmdk-section]').forEach(x => x.style.background = '');
-          el.style.background = 'var(--surface)';
-        });
+      // Enter opens the highlighted result. The panel had no keyboard model at all: you
+      // could type a search and then had to reach for the mouse to use it.
+      cmdkItems = allItems;
+      cmdkItemSel = 0;
+      cmdkHighlightItem(0);
+      cmdkResults.querySelectorAll('[data-cmdk-section]').forEach((el, n) => {
+        el.addEventListener('mouseenter', () => cmdkHighlightItem(n));
         el.addEventListener('click', () => {
           const sec = el.dataset.cmdkSection;
           const idx = parseInt(el.dataset.cmdkIdx, 10);
@@ -58362,6 +58336,51 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
     // people type almost never matches a real name exactly -- "mangovans" is not
     // "mango-vans-seo", and "nishchay" is not "Nishchay Pandya".
     let cmdkSuggestions = [], cmdkSuggestSel = 0;
+    // "mangovans" is how people type "Mango Vans" and "mango-vans-seo". Matching the raw
+    // string against the raw name finds neither, which is why searching a client's name
+    // returned no conversations at all. Both sides are squashed to letters and digits
+    // before they are compared.
+    const cmdkSquash = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cmdkLooseMatch = (name, q) => {
+      const n = cmdkSquash(name), t = cmdkSquash(q);
+      return !t || n.includes(t);
+    };
+    // The directory is small (about 150 channels, 50 clients, 15 people) and the matching
+    // has to happen in the browser to be forgiving, so it is fetched once and reused for a
+    // minute rather than re-queried on every keystroke.
+    let cmdkDir = null, cmdkDirAt = 0;
+    async function cmdkDirectory(){
+      if (cmdkDir && Date.now() - cmdkDirAt < 60000) return cmdkDir;
+      const [channels, clients, people, myMemberships] = await Promise.all([
+        cmdkSafe(supabase.from('channels').select('id, name, kind, client_id, department, is_dm, is_group').limit(500)),
+        cmdkSafe(supabase.from('clients').select('id, name, status').limit(500)),
+        cmdkSafe(supabase.from('profiles').select('id, full_name, email').limit(300)),
+        cmdkSafe(supabase.from('channel_members').select('channel_id, profile_id').limit(4000))
+      ]);
+      cmdkDir = { channels, clients, people, myMemberships };
+      cmdkDirAt = Date.now();
+      return cmdkDir;
+    }
+    // What a person calls a conversation: the client for a client thread, the other person
+    // for a DM, everyone for a group, the # name for a channel.
+    function cmdkConvoLabel(ch, dir){
+      const meId = window.giantSession?.user?.id;
+      if (ch.is_dm) {
+        const others = dir.myMemberships.filter(m => m.channel_id === ch.id && m.profile_id !== meId)
+          .map(m => (dir.people.find(p => p.id === m.profile_id) || {}))
+          .map(p => p.full_name || p.email).filter(Boolean);
+        if (!others.length) return { label: ch.name || 'Direct message', sub: 'Direct message' };
+        return { label: others.slice(0, 3).join(', '),
+                 sub: others.length > 1 ? 'Group conversation' : 'Direct message' };
+      }
+      if (ch.kind === 'client_dept') {
+        const cl = dir.clients.find(c => c.id === ch.client_id);
+        const dept = ch.department && ch.department !== 'general'
+          ? ' · ' + (CMDK_DEPT_LABEL[ch.department] || ch.department) : '';
+        return { label: (cl ? cl.name : (ch.name || 'Client')) + dept, sub: 'Client conversation' };
+      }
+      return { label: '#' + (ch.name || 'channel'), sub: 'Team channel' };
+    }
     // Its own, because the search's `safe` is a local inside cmdkSearch and these run
     // from the keystroke handler instead.
     const cmdkSafe = async (p) => { try { const r = await p; return r.data || []; } catch (e) { return []; } };
@@ -58384,27 +58403,35 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       return { label, partial: after.trim().toLowerCase(), start: idx };
     }
     async function cmdkFetchSuggestions(chip){
-      const like = '%' + chip.partial + '%';
+      const dir = await cmdkDirectory();
+      const meId = window.giantSession?.user?.id;
       if (chip.label === 'from') {
-        const people = await cmdkSafe(supabase.from('profiles').select('id, full_name, email, avatar_url')
-          .or(`full_name.ilike.${like},email.ilike.${like}`).limit(8));
-        return (people || []).map(p => ({ kind: 'Person', value: p.full_name || p.email,
-                                          label: p.full_name || p.email, sub: p.email || '' }));
+        const people = dir.people.filter(p => cmdkLooseMatch((p.full_name || '') + ' ' + (p.email || ''), chip.partial));
+        return people.slice(0, 8).map(p => ({ kind: 'Person', value: p.full_name || p.email,
+                                              label: p.full_name || p.email, sub: p.email || '' }));
       }
-      const [chans, clientRows, people] = await Promise.all([
-        cmdkSafe(supabase.from('channels').select('id, name, kind, client_id, is_dm')
-          .ilike('name', like).limit(8)),
-        cmdkSafe(supabase.from('clients').select('id, name').ilike('name', like).limit(6)),
-        cmdkSafe(supabase.from('profiles').select('id, full_name, email')
-          .or(`full_name.ilike.${like},email.ilike.${like}`).limit(5))
-      ]);
-      const out = [];
-      (chans || []).filter(c => !c.is_dm && c.kind !== 'client_dept')
-        .forEach(c => out.push({ kind: 'Channel', value: c.name, label: '#' + c.name, sub: 'Team channel' }));
-      (clientRows || []).forEach(c => out.push({ kind: 'Client', value: c.name, label: c.name, sub: 'Client conversation' }));
-      (people || []).forEach(p => out.push({ kind: 'Person', value: p.full_name || p.email,
-                                             label: p.full_name || p.email, sub: 'Direct message' }));
-      return out.slice(0, 8);
+      // An empty in: is not "any eight conversations the database happens to return
+      // first" -- which is what it was doing, and why the list looked arbitrary and full
+      // of test clients. With nothing typed yet, offer YOUR conversations.
+      const mine = new Set(dir.myMemberships.filter(m => m.profile_id === meId).map(m => m.channel_id));
+      const scored = dir.channels.map(ch => {
+        const { label, sub } = cmdkConvoLabel(ch, dir);
+        return { ch, label, sub, mine: mine.has(ch.id) };
+      }).filter(x => chip.partial ? cmdkLooseMatch(x.label, chip.partial) : x.mine);
+      // yours first, then channels before DMs, then alphabetically -- a stable order, so
+      // the same keystrokes always offer the same first choice
+      scored.sort((a, b) => (b.mine - a.mine)
+        || (a.ch.is_dm - b.ch.is_dm)
+        || String(a.label).localeCompare(String(b.label)));
+      return scored.slice(0, 8).map(x => ({
+        kind: x.ch.is_dm ? 'Person' : 'Channel',
+        // The value written into the box is what the search resolves later, so it is the
+        // conversation's own name, not the pretty label.
+        value: x.ch.is_dm ? x.label : (x.ch.kind === 'client_dept'
+          ? (dir.clients.find(c => c.id === x.ch.client_id) || {}).name || x.ch.name
+          : x.ch.name),
+        label: x.label, sub: x.sub + (x.mine ? '' : ' · not a member')
+      }));
     }
     function cmdkRenderSuggestions(chip, list){
       cmdkSuggestions = list; cmdkSuggestSel = 0;
@@ -58542,6 +58569,23 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       });
     }
 
+    // ── keyboard over results ─────────────────────────────────────────────────
+    let cmdkItems = [], cmdkItemSel = 0;
+    function cmdkHighlightItem(i){
+      if (!cmdkResults || !cmdkItems.length) return;
+      cmdkItemSel = Math.max(0, Math.min(i, cmdkItems.length - 1));
+      const rows = [...cmdkResults.querySelectorAll('.cmdk-item')];
+      rows.forEach((r, n) => { r.style.background = n === cmdkItemSel ? 'var(--surface)' : ''; });
+      const sel = rows[cmdkItemSel];
+      if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: 'nearest' });
+    }
+    function cmdkActivate(i){
+      const it = cmdkItems[i];
+      if (!it || !it.action) return;
+      it.action();
+      cmdkClose();
+    }
+
     function cmdkSafeHeadline(text){
       return raiEscLocal(String(text || ''))
         .replace(/&lt;mark&gt;/g, '<mark style="background:rgba(208,4,0,.28);color:inherit;border-radius:3px;padding:0 2px;">')
@@ -58571,10 +58615,17 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
 
     if (cmdkInput) {
       cmdkInput.addEventListener('keydown', (e) => {
-        if (!cmdkSuggestions.length) return;
-        if (e.key === 'ArrowDown') { e.preventDefault(); cmdkHighlightSuggestion(cmdkSuggestSel + 1); }
-        else if (e.key === 'ArrowUp') { e.preventDefault(); cmdkHighlightSuggestion(cmdkSuggestSel - 1); }
-        else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); cmdkPickSuggestion(cmdkSuggestSel); }
+        // A half-typed chip owns the keyboard: Enter there means "take this suggestion".
+        if (cmdkSuggestions.length) {
+          if (e.key === 'ArrowDown') { e.preventDefault(); cmdkHighlightSuggestion(cmdkSuggestSel + 1); }
+          else if (e.key === 'ArrowUp') { e.preventDefault(); cmdkHighlightSuggestion(cmdkSuggestSel - 1); }
+          else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); cmdkPickSuggestion(cmdkSuggestSel); }
+          return;
+        }
+        if (!cmdkItems.length) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); cmdkHighlightItem(cmdkItemSel + 1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); cmdkHighlightItem(cmdkItemSel - 1); }
+        else if (e.key === 'Enter') { e.preventDefault(); cmdkActivate(cmdkItemSel); }
       });
       cmdkInput.addEventListener('input', () => {
         cmdkUpdateFilterHint();
