@@ -155,6 +155,12 @@
   [122, 121, 122, 121].forEach((n, i) => seed('ch-cd-seo-' + [8, 9, 10, 11][i], n, 'seo'));
   DB.channels.filter(c => c.is_dm).forEach(c => seed(c.id, 4 + Math.floor(rnd() * 12)));
 
+  // Messages that actually name me, so the Inbox's Mentions tab (and the mention half of
+  // Needs you) has something to find. Without these both read zero and every assertion
+  // about them passes by measuring nothing.
+  DB.messages.filter(m => m.author_id !== ME && m.channel_id.startsWith('ch-team-')).slice(0, 7)
+    .forEach((m, i) => { m.body = '@Nishchay ' + m.body; m.created_at = iso(i + 1, i); });
+
   // a few threaded replies, so reply badges have something to render
   DB.messages.filter(m => m.reply_count > 0).slice(0, 40).forEach((m, i) => {
     for (let k = 0; k < m.reply_count; k++)
@@ -188,7 +194,7 @@
   ['todo', 'in_progress', 'review', 'done'].forEach((st, si) => {
     for (let i = 0; i < 3; i++) DB.tasks.push({
       id: 't-' + si + '-' + i, name: 'Task ' + si + '.' + i, description: 'Detail for task ' + si + '.' + i,
-      status: st, priority: pick(['low', 'medium', 'high']), assigned_to: i === 0 ? ME : 'u-' + (i + 1),
+      status: st, priority: pick(['low', 'medium', 'high']), assigned_to: [i === 0 ? ME : 'u-' + (i + 1)],
       department: pick(['seo', 'general', 'web']), due_at: iso(-3 - i, 0), project_id: 'p-1',
       client_id: 'c-1', created_by: ME, created_at: iso(10 + i, 0),
       completed_at: st === 'done' ? iso(1, i) : null
@@ -268,7 +274,7 @@
     ['todo', 'in_progress', 'done'].map((st, n) => ({
       id: 't-' + cl.id + '-' + n, name: 'Task for ' + cl.name + ' #' + (n + 1),
       description: null, status: st, priority: ['low', 'medium', 'fire'][n],
-      assigned_to: 'u-' + (1 + n), department: 'general', due_at: iso(-2 - n, 0),
+      assigned_to: ['u-' + (1 + n)], department: 'general', due_at: iso(-2 - n, 0),
       project_id: null, client_id: cl.id, created_by: ME, created_at: iso(10 + n, 0),
       completed_at: st === 'done' ? iso(1, n) : null }))));
   // The four non-department grants (migration 20260824120000). Seeded unevenly on

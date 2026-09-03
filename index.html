@@ -76267,6 +76267,42 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       window.nc__chatSubtab = 'inbox';
       pane.style.display = 'block';
       renderDeptStrip();   // the Inbox is not about a department either
+      // The Inbox is not a conversation, so the conversation's furniture goes with the
+      // messages: its header -- the client's name, its members, Public, Start huddle --
+      // and the row of per-conversation tabs. Left up, they described whichever channel
+      // happened to be open behind the Inbox, and every control on them acted on that
+      // channel rather than on anything you could see.
+      const thread0 = document.querySelector('main.nc_thread');
+      const head0 = thread0 && thread0.querySelector('.nc_thread-head:not(#nc_inboxHead)');
+      if (head0) head0.style.display = 'none';
+      const subTabs0 = document.getElementById('nc_chatSubTabs');
+      if (subTabs0) subTabs0.style.display = 'none';
+      const strip0 = document.getElementById('nc_deptStrip');
+      if (strip0) strip0.style.display = 'none';
+      // Its own header instead, so the pane says what it is and how to leave it.
+      let ih = document.getElementById('nc_inboxHead');
+      if (!ih) {
+        ih = document.createElement('div');
+        ih.id = 'nc_inboxHead';
+        ih.className = 'nc_thread-head';
+        ih.innerHTML = '<div style="display:flex;align-items:center;gap:11px;flex:1;min-width:0;">'
+          + '<span style="width:26px;height:26px;border-radius:8px;display:inline-flex;align-items:center;'
+          + 'justify-content:center;background:color-mix(in srgb, var(--c3-green) 16%, transparent);'
+          + 'color:var(--c3-green);flex-shrink:0;">'
+          + '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 9.5h3.2l.9 1.6h3.8l.9-1.6H14M2 9.5l1.8-5.6A1 1 0 014.75 3.2h6.5a1 1 0 01.95.7L14 9.5v2.4a1.1 1.1 0 01-1.1 1.1H3.1A1.1 1.1 0 012 11.9V9.5Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></span>'
+          + '<div style="min-width:0;"><div style="font-size:14.5px;font-weight:800;color:var(--text);">Master Inbox</div>'
+          + '<div style="font-size:11.5px;color:var(--text-3);">Everything waiting on you, across every conversation</div></div>'
+          + '</div>'
+          + '<button type="button" id="nc_inboxClose" style="background:var(--surface);border:1px solid var(--line-2);'
+          + 'border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--text-2);'
+          + 'cursor:pointer;font-family:inherit;">Back to chat</button>';
+        if (thread0) thread0.insertBefore(ih, thread0.firstChild);
+        ih.querySelector('#nc_inboxClose').addEventListener('click', () => {
+          if (typeof window.nc_switchChatSubtab === 'function') window.nc_switchChatSubtab('messages');
+          else if (activeChannelId) switchChannel(activeChannelId);
+        });
+      }
+      ih.style.display = '';
       mg.myName = (window.giantCurrentProfile && (window.giantCurrentProfile.full_name || window.giantCurrentProfile.email)) || '';
       mg.clients = Object.values(ncClients);
       renderInbox();
@@ -82430,6 +82466,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       let _canvasTimer=null, _canvasCid=null, _canvasSub=null, _canvasLoading=false;
 
       window.nc_switchChatSubtab = function(tab){
+        // Leaving the Inbox puts the conversation's furniture back. openInbox hides the
+        // header, the sub-tabs and the department strip; every route out of the Inbox
+        // comes through here, so this is the one place that has to undo it.
+        const inboxHead = document.getElementById('nc_inboxHead');
+        if (inboxHead) inboxHead.style.display = 'none';
+        const inboxPane0 = document.getElementById('nc_inboxPane');
+        if (inboxPane0) inboxPane0.style.display = 'none';
+        const th = document.querySelector('main.nc_thread');
+        const realHead = th && th.querySelector('.nc_thread-head:not(#nc_inboxHead)');
+        if (realHead) realHead.style.display = '';
+        const st = document.getElementById('nc_chatSubTabs');
+        if (st) st.style.display = '';
+        if (typeof window.nc_renderDeptStrip === 'function') { try { window.nc_renderDeptStrip(); } catch (_) {} }
         document.querySelectorAll('#nc_chatSubTabs .nc_chat-subtab').forEach(b=>b.classList.toggle('active', b.dataset.subtab===tab));
         const msgs=document.getElementById('nc_chatMsgs'), media=document.getElementById('nc_chatMediaPane'), canvas=document.getElementById('nc_chatCanvasPane');
         const composer=thread()&&thread().querySelector('.nc_composer'), typing=document.getElementById('nc_typingIndicator');

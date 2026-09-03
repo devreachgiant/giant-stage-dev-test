@@ -1607,6 +1607,141 @@ await step('Needs you finds an old unread message behind a busy channel', async 
     JSON.stringify(opened));
 });
 
+// The Inbox used to open UNDER the conversation you were reading: its own header, its own
+// sub-tabs and the department strip all stayed on screen, so a screen about everything
+// waiting on you was topped by the bar for one unrelated channel. It is its own place now,
+// and every piece of that chat furniture has to come back when you leave.
+await step('the Inbox replaces the chat bar, and gives it back on the way out', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const vis = el => !!el && el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+      && el.getBoundingClientRect().height > 4;
+    const thread = document.querySelector('main.nc_thread');
+    const chatHead = () => thread.querySelector('.nc_thread-head:not(#nc_inboxHead)');
+    // read a channel first, so there IS a chat bar to displace
+    const row = document.querySelector('#nc_cardClientsBody .nc_ch-item[data-nc-channel-id]');
+    if (row) { row.click(); await w(1800); }
+    const hadChatBar = vis(chatHead());
+
+    document.querySelector('.nc_open-inbox-btn').click();
+    await w(2000);
+    const inside = {
+      pane: vis(document.getElementById('nc_inboxPane')),
+      chatHeadGone: !vis(chatHead()),
+      subTabsGone: !vis(document.getElementById('nc_chatSubTabs')),
+      deptStripGone: !vis(document.getElementById('nc_deptStrip')),
+      composerGone: !vis(thread.querySelector('.nc_composer')),
+      ownHeader: vis(document.getElementById('nc_inboxHead'))
+    };
+    document.getElementById('nc_inboxClose').click();
+    await w(1500);
+    const after = {
+      chatHeadBack: vis(chatHead()),
+      subTabsBack: vis(document.getElementById('nc_chatSubTabs')),
+      composerBack: vis(thread.querySelector('.nc_composer')),
+      paneGone: !vis(document.getElementById('nc_inboxPane')),
+      ownHeaderGone: !vis(document.getElementById('nc_inboxHead'))
+    };
+    return { hadChatBar, inside, after };
+  });
+  check('opening the Inbox hides the conversation header, sub-tabs, strip and composer',
+    r.hadChatBar && Object.values(r.inside).every(Boolean), JSON.stringify(r.inside));
+  check('leaving the Inbox restores the conversation it covered',
+    Object.values(r.after).every(Boolean), JSON.stringify(r.after));
+});
+
+// Each chip has to list exactly what it counts, and only items of that kind. Both halves
+// matter: a count and a list can agree while both are wrong, and a tab that filters on the
+// wrong axis still returns a plausible number.
+await step('every Inbox tab lists what its badge claims', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    // Earlier steps clear the Inbox as they go, so by now every mention seeded at load is
+    // marked done. Without fresh ones the Mentions tab reads zero and "holds one kind of
+    // item" would pass by checking nothing.
+    const db = window.__mock.db;
+    const mine = db.channel_members.filter(m => m.profile_id === 'u-me'
+      && (db.channels.find(c => c.id === m.channel_id) || {}).kind === 'team_channel');
+    for (let i = 0; i < 4; i++) db.messages.push({
+      id: 'm-tabcheck-mention-' + i, channel_id: mine[i % mine.length].channel_id,
+      author_id: 'u-9', body: '@nishchay tab check ' + i, created_at: new Date(Date.now() - i * 6e4).toISOString(),
+      parent_id: null, reply_count: 0, flagged: false, pinned_at: null });
+    window.nc_openInbox();
+    await w(2500);
+    const out = {};
+    for (const btn of [...document.querySelectorAll('[data-c3-inbox-filter]')]) {
+      const key = btn.dataset.c3InboxFilter;
+      const claimed = parseInt(btn.innerText.replace(/[^0-9]+/g, ''), 10);
+      btn.click(); await w(350);
+      const ticks = [...document.querySelectorAll('#nc_inboxPane [data-c3-inbox-done]')];
+      // a cleared card carries the key twice: the tick and its Undo link
+      const listed = new Set(ticks.map(e => e.dataset.c3InboxDone)).size;
+      const cards = ticks.filter(e => e.style.borderRadius === '50%')
+        .map(e => e.closest('div[style*="border-radius:13px"]'));
+      const kinds = [...new Set(cards.map(c => {
+        const b = c && c.querySelector('div[style*="text-transform:uppercase"]');
+        return b ? b.textContent.trim() : '?';
+      }))];
+      out[key] = { claimed, listed, kinds };
+    }
+    return out;
+  });
+  const one = (k, label) => r[k] && r[k].listed > 0 && r[k].kinds.length === 1 && r[k].kinds[0] === label;
+  check('each tab lists exactly as many items as its badge counts',
+    Object.values(r).every(t => t.claimed === t.listed), JSON.stringify(r));
+  check('Mentions, Flagged, New activity and Tasks each hold one kind of item',
+    one('mention', 'Mentioned you') && one('flagged', 'Flagged for reply')
+    && one('unread', 'New activity') && one('task', 'New task assigned'), JSON.stringify(r));
+  check('All is the union, and is bigger than any single kind it contains',
+    r.all.listed >= r.mention.listed + r.flagged.listed + r.unread.listed + r.task.listed,
+    JSON.stringify({ all: r.all.listed, parts: [r.mention.listed, r.flagged.listed, r.unread.listed, r.task.listed] }));
+});
+
+// Save, clear and jump: the three things a row is for.
+await step('Inbox rows save, clear and open the conversation they came from', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const vis = el => !!el && el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+      && el.getBoundingClientRect().height > 4;
+    const rows = () => new Set([...document.querySelectorAll('#nc_inboxPane [data-c3-inbox-done]')]
+      .map(e => e.dataset.c3InboxDone)).size;
+    const tab = k => document.querySelector('[data-c3-inbox-filter="' + k + '"]').click();
+    tab('all'); await w(400);
+    const saveEl = document.querySelector('[data-c3-inbox-save]');
+    const savedKey = saveEl && saveEl.dataset.c3InboxSave;
+    if (saveEl) saveEl.click();
+    await w(900);
+    tab('saved'); await w(500);
+    const savedShows = !!document.querySelector('[data-c3-inbox-save="' + savedKey + '"]');
+
+    tab('all'); await w(400);
+    const before = rows();
+    const tick = document.querySelector('[data-c3-inbox-done]');
+    const doneKey = tick && tick.dataset.c3InboxDone;
+    if (tick) tick.click();
+    await w(900);
+    const leftAll = rows() === before - 1;
+    tab('done'); await w(500);
+    const doneShows = !!document.querySelector('[data-c3-inbox-done="' + doneKey + '"]');
+
+    tab('mention'); await w(500);
+    // fall back to All: the tick above may have cleared the last open mention
+    if (!document.querySelector('[data-c3-inbox-jump]')) { tab('all'); await w(500); }
+    const jump = document.querySelector('[data-c3-inbox-jump]');
+    const target = jump && jump.dataset.c3InboxJump.split('::')[1];
+    if (jump) jump.click();
+    await w(2200);
+    const landed = !vis(document.getElementById('nc_inboxPane'))
+      && vis(document.querySelector('main.nc_thread .nc_thread-head:not(#nc_inboxHead)'));
+    return { savedShows, leftAll, doneShows, target, landed,
+             wrote: (window.__mock.log.writes || []).filter(x => /inbox_actions/.test(x)).length };
+  });
+  check('saving a row moves it into Saved, and clearing one moves it into Done',
+    r.savedShows && r.leftAll && r.doneShows && r.wrote > 0, JSON.stringify(r));
+  check('clicking a row leaves the Inbox and opens that conversation',
+    !!r.target && r.landed, JSON.stringify(r));
+});
+
 // The four area columns need a table that ships in migration 20260824120000. Between
 // writing that migration and applying it PostgREST answers PGRST205, so the screen has to
 // degrade rather than error -- it shipped as a red toast on every open plus four columns
