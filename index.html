@@ -57921,7 +57921,22 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
                       || (ast.partial && ['in','from'].includes(ast.partial.key)))
           };
         }
-        return legacyParseCmdkQuery(raw);
+        // The shared parser did not load -- a cache miss, a bad deploy, anything. Fall
+        // back to the old regex, but hand back an AST-shaped object anyway: the message
+        // search is driven off the AST, so returning none of one would silently turn
+        // message search off altogether rather than degrade it.
+        const legacy = legacyParseCmdkQuery(raw);
+        const words = String(legacy.freeText || '').split(/\s+/).filter(Boolean);
+        legacy.ast = {
+          text: { words, phrases: [], prefixes: [] },
+          exclude: { words: [], phrases: [] },
+          filters: { in: legacy.inFilter ? [legacy.inFilter] : [],
+                     from: legacy.fromFilter ? [legacy.fromFilter] : [],
+                     with: [], creator: [], has: [], hasMy: [], is: [], dateRange: null },
+          excludeFilters: { in: [], from: [], with: [], creator: [], has: [], hasMy: [], is: [] },
+          partial: null, raw: String(raw || '')
+        };
+        return legacy;
       }
       function legacyParseCmdkQuery(raw) {
         let text = raw;
