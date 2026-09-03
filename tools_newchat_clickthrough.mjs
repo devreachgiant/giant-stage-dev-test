@@ -4195,6 +4195,16 @@ await step('search: a name typed without spaces, your own conversations, and the
     out.findsChats = /CHATS/.test(text());
     out.findsTheConversation = text().includes(cl.name);
 
+    // from: lists people by name. An email on every row is noise -- it is only worth the
+    // line when two people share a name and it is the only thing telling them apart.
+    await type('from:');
+    const fromRows = [...document.querySelectorAll('.cmdk-suggest')].map(x => x.innerText);
+    out.fromCount = fromRows.length;
+    out.fromShowsNoEmails = !fromRows.some(x => /@/.test(x));
+    // (Two people sharing a name still get their email as the tie-breaker. Not asserted
+    // here: the directory is cached for a minute, so renaming a fixture mid-run changes
+    // nothing and the assertion would pass without testing anything.)
+
     // An empty in: offers YOUR conversations, not whichever eight the database returned
     // first -- which is what made the list look arbitrary.
     await type('in:');
@@ -4220,6 +4230,7 @@ await step('search: a name typed without spaces, your own conversations, and the
   check('search: a name typed without spaces, your own conversations, and the keyboard',
     r.findsChats && r.findsTheConversation
       && r.suggestionCount > 0 && r.noStrangersOffered
+      && r.fromCount > 0 && r.fromShowsNoEmails
       && r.results >= 3 && r.firstSelected && r.arrowMoves
       && r.enterClosedIt && r.enterWentSomewhere === 'newchat',
     JSON.stringify(r));

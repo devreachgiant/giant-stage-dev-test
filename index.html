@@ -58406,9 +58406,22 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       const dir = await cmdkDirectory();
       const meId = window.giantSession?.user?.id;
       if (chip.label === 'from') {
-        const people = dir.people.filter(p => cmdkLooseMatch((p.full_name || '') + ' ' + (p.email || ''), chip.partial));
-        return people.slice(0, 8).map(p => ({ kind: 'Person', value: p.full_name || p.email,
-                                              label: p.full_name || p.email, sub: p.email || '' }));
+        const people = dir.people
+          .filter(p => cmdkLooseMatch((p.full_name || '') + ' ' + (p.email || ''), chip.partial))
+          .sort((a, b) => String(a.full_name || a.email).localeCompare(String(b.full_name || b.email)));
+        // Names, not addresses. The email is only worth the line when two people share a
+        // name and it is the only thing telling them apart.
+        const nameCount = {};
+        people.forEach(p => {
+          const n = (p.full_name || '').trim().toLowerCase();
+          if (n) nameCount[n] = (nameCount[n] || 0) + 1;
+        });
+        return people.slice(0, 12).map(p => {
+          const name = p.full_name || p.email;
+          const dup = (nameCount[(p.full_name || '').trim().toLowerCase()] || 0) > 1;
+          return { kind: 'Person', value: name, label: name,
+                   sub: (dup || !p.full_name) ? (p.email || '') : '' };
+        });
       }
       // An empty in: is not "any eight conversations the database happens to return
       // first" -- which is what it was doing, and why the list looked arbitrary and full
