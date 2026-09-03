@@ -643,6 +643,55 @@
         if (name === 'ensure_dm_channel') data = 'ch-dm-1';
         else if (name === 'create_group_dm') data = 'ch-dm-1';
         else if (name === 'generate_onboarding_token') data = 'tok-generated';
+        // The real search_messages is a Postgres function over a tsvector. This stands in
+        // for it closely enough to exercise the UI: the same arguments, the same row
+        // shape, the same <mark> highlighting, and the same AND / OR / NOT semantics --
+        // words AND together, repeated filters OR, exclusions subtract.
+        else if (name === 'search_messages' || name === 'search_messages_count') {
+          const a = args || {};
+          const arr = (x) => Array.isArray(x) ? x : [];
+          const hay = (m) => String(m.body || '').toLowerCase();
+          let rows = (DB.messages || []).filter(m => {
+            const b = hay(m);
+            if (!arr(a.p_words).every(w => b.includes(String(w).toLowerCase()))) return false;
+            if (!arr(a.p_phrases).every(w => b.includes(String(w).toLowerCase()))) return false;
+            if (!arr(a.p_prefixes).every(w => new RegExp('\\b' + String(w).toLowerCase()).test(b))) return false;
+            if (arr(a.p_exclude_words).some(w => b.includes(String(w).toLowerCase()))) return false;
+            if (arr(a.p_exclude_phrases).some(w => b.includes(String(w).toLowerCase()))) return false;
+            if (arr(a.p_channels).length && !arr(a.p_channels).includes(m.channel_id)) return false;
+            if (arr(a.p_exclude_channels).includes(m.channel_id)) return false;
+            if (arr(a.p_authors).length && !arr(a.p_authors).includes(m.author_id)) return false;
+            if (arr(a.p_exclude_authors).includes(m.author_id)) return false;
+            if (a.p_after && new Date(m.created_at) < new Date(a.p_after)) return false;
+            if (a.p_before && new Date(m.created_at) >= new Date(a.p_before)) return false;
+            if (arr(a.p_is).includes('thread') && !m.parent_id && !(m.reply_count > 0)) return false;
+            if (arr(a.p_is).includes('pinned') && !m.pinned_at) return false;
+            if (arr(a.p_has).includes('pin') && !m.pinned_at) return false;
+            if (arr(a.p_has).includes('link') && !/https?:\/\//i.test(m.body || '')) return false;
+            if (arr(a.p_has).includes('file')
+                && !(DB.message_attachments || []).some(x => x.message_id === m.id)) return false;
+            return true;
+          });
+          rows.sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
+          if (name === 'search_messages_count') { data = rows.length; }
+          else {
+            const term = (arr(a.p_words)[0] || arr(a.p_phrases)[0] || arr(a.p_prefixes)[0] || '');
+            data = rows.slice(0, a.p_limit || 20).map(m => {
+              const body = String(m.body || '');
+              let snippet = body.slice(0, 160);
+              if (term) {
+                const i = body.toLowerCase().indexOf(String(term).toLowerCase());
+                if (i >= 0) {
+                  const s = Math.max(0, i - 40);
+                  snippet = (s ? '… ' : '') + body.slice(s, i) + '<mark>' + body.slice(i, i + String(term).length)
+                    + '</mark>' + body.slice(i + String(term).length, i + 120);
+                }
+              }
+              return { id: m.id, channel_id: m.channel_id, author_id: m.author_id,
+                       created_at: m.created_at, body, snippet, rank: 0.5 };
+            });
+          }
+        }
         const p = Promise.resolve({ data, error: null });
         p.single = () => Promise.resolve({ data, error: null });
         p.maybeSingle = () => Promise.resolve({ data, error: null });

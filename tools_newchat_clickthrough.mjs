@@ -3966,7 +3966,9 @@ await step('global search finds conversations by name, not only what was said in
     // A channel BY NAME. The search only ever looked inside message bodies, so this was
     // findable only if somebody had typed its name in a message.
     const byName = await run(team.name.slice(0, 5));
-    out.chatsSectionFirst = byName[0] === 'CHATS';
+    // The first SECTION, not the first line -- a row of result tabs sits above them now.
+    const SECTIONS = ['CHATS', 'MESSAGES', 'TASKS', 'CLIENTS'];
+    out.chatsSectionFirst = byName.filter(l => SECTIONS.includes(l))[0] === 'CHATS';
     out.findsChannelByName = byName.some(l => l === '#' + team.name);
     // Sections, in the order asked for, and the ones that were noise are gone.
     const all = await run('a');
@@ -4096,6 +4098,73 @@ await step('typing in: or from: offers what you can filter by, and picking one a
       && r.peopleOffered.length > 0
       && /^from:"[^"]+"$/.test(r.afterPersonPick)
       && r.onlyThatPerson,
+    JSON.stringify(r));
+});
+
+await step('search: tabs with counts, recent searches, and a zero state that helps', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    try { localStorage.removeItem('giant_search_recent'); } catch (e) {}
+    const db = window.__mock.db;
+    const team = db.channels.find(c => c.kind === 'team_channel');
+    db.messages.push({ id: 'm-tabs-1', channel_id: team.id, author_id: 'u-2',
+      body: 'narwhal sighting logged', created_at: new Date().toISOString(), parent_id: null,
+      reply_count: 0, flagged: false, edited_at: null, pinned_at: null, pinned_by: null,
+      voice_note_url: null, voice_note_duration_ms: null });
+    document.getElementById('globalSearchBox').click();
+    await wait(700);
+    const input = document.getElementById('cmdkInput');
+    if (!input) return out;
+    const type = async (v) => {
+      input.focus(); input.value = v;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(2200);
+    };
+    await type('narwhal');
+    // Tabs carry the counts the search already returned -- no second round trip.
+    const tabs = [...document.querySelectorAll('[data-cmdk-tab]')].map(b => b.innerText.replace(/\s+/g, ' ').trim());
+    out.tabs = tabs;
+    out.hasAllTab = tabs.some(t => /^All \d+/.test(t));
+    out.hasMessagesTab = tabs.some(t => /^Messages \d+/.test(t));
+    // Clicking one narrows to that section.
+    const msgTab = [...document.querySelectorAll('[data-cmdk-tab]')].find(b => /^Messages/.test(b.innerText));
+    if (msgTab) { msgTab.click(); await wait(2200); }
+    const headers = (document.getElementById('cmdkResults') || {}).innerText
+      .split('\n').map(l => l.trim()).filter(l => ['CHATS','MESSAGES','TASKS','CLIENTS'].includes(l));
+    out.afterTabClick = headers;
+    out.onlyMessages = headers.length === 1 && headers[0] === 'MESSAGES';
+    // A search that found something is remembered, and offered when the box is emptied.
+    await type('');
+    out.recentShown = [...document.querySelectorAll('.cmdk-recent')].map(x => x.innerText.trim());
+    out.remembersIt = out.recentShown.some(x => /narwhal/.test(x));
+    // Zero results says what it looked for and offers to drop the narrowest part.
+    // A COMPLETED chip: a query ending mid-chip correctly shows the picker instead of
+    // running a search, which is what this asserted by accident the first time.
+    await type('from:"Team Member 1" "a phrase that appears nowhere at all"');
+    const zero = (document.getElementById('cmdkResults') || {}).innerText;
+    out.zeroEchoesFilters = /Looking for/.test(zero);
+    const drop = document.getElementById('cmdkDropNarrowest');
+    out.offersToDrop = !!drop;
+    if (drop) {
+      out.dropLabel = drop.innerText.trim();
+      drop.click(); await wait(2300);
+      out.afterDrop = input.value.trim();
+    }
+    // and clearing empties the list
+    await type('');
+    const clear = document.getElementById('cmdkClearRecent');
+    if (clear) { clear.click(); await wait(500); }
+    out.recentAfterClear = [...document.querySelectorAll('.cmdk-recent')].length;
+    document.getElementById('cmdkOverlay').style.display = 'none';
+    return out;
+  });
+  check('search: tabs with counts, recent searches, and a zero state that helps',
+    r.hasAllTab && r.hasMessagesTab && r.onlyMessages
+      && r.remembersIt && r.recentAfterClear === 0
+      && r.zeroEchoesFilters && r.offersToDrop
+      && /a phrase that appears nowhere/.test(r.dropLabel || '')
+      && !/a phrase that appears nowhere/.test(r.afterDrop || 'x'),
     JSON.stringify(r));
 });
 
