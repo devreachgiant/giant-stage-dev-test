@@ -3937,6 +3937,115 @@ await step('the Chat nav badges are one group, not two odd shapes', async () => 
     JSON.stringify(r));
 });
 
+await step('global search finds conversations by name, not only what was said in them', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const db = window.__mock.db;
+    const team = db.channels.find(c => c.kind === 'team_channel');
+    const dm = db.channels.find(c => c.is_dm && !c.is_group);
+    const stamp = (id, txt, who) => db.messages.push({ id: 'm-gs-' + Math.random().toString(36).slice(2, 8),
+      channel_id: id, author_id: who, body: txt, created_at: new Date().toISOString(), parent_id: null,
+      reply_count: 0, flagged: false, edited_at: null, pinned_at: null, pinned_by: null,
+      voice_note_url: null, voice_note_duration_ms: null });
+    stamp(team.id, 'quokka sighting in the team channel', 'u-2');
+    stamp(dm.id, 'quokka sighting in a direct message', 'u-3');
+
+    document.getElementById('globalSearchBox').click();
+    await wait(700);
+    const input = document.getElementById('cmdkInput');
+    out.opened = !!input;
+    if (!input) return out;
+    const run = async (q) => {
+      input.focus(); input.value = q;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(2600);
+      const res = document.getElementById('cmdkResults');
+      return (res ? res.innerText : '').split('\n').map(l => l.trim()).filter(Boolean);
+    };
+    // A channel BY NAME. The search only ever looked inside message bodies, so this was
+    // findable only if somebody had typed its name in a message.
+    const byName = await run(team.name.slice(0, 5));
+    out.chatsSectionFirst = byName[0] === 'CHATS';
+    out.findsChannelByName = byName.some(l => l === '#' + team.name);
+    // Sections, in the order asked for, and the ones that were noise are gone.
+    const all = await run('a');
+    out.sectionOrder = all.filter(l => ['CHATS', 'MESSAGES', 'TASKS', 'CLIENTS', 'PEOPLE', 'INVOICES', 'EMAILS', 'CHAT & HUDDLES', 'CHAT 2.0'].includes(l));
+    // A message in a DM used to be labelled "in #" -- a DM channel has no name.
+    const byBody = await run('quokka');
+    out.dmLabelled = byBody.some(l => /in\s+\S/.test(l) && !/in\s*#\s*$/.test(l));
+    out.noEmptyHash = !byBody.some(l => /in #$/.test(l));
+    // from: with a name that has spaces in it
+    const filtered = await run('from:"Team Member 2" quokka');
+    out.fromFiltered = filtered.filter(l => /quokka/.test(l)).length;
+    out.fromFilterKeptOne = out.fromFiltered === 1;
+    // and the filter buttons write the chip for you
+    input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true }));
+    await wait(400);
+    document.querySelector('#cmdkFilters [data-cmdk-filter="from:"]').click();
+    await wait(400);
+    out.buttonWrote = input.value.trim();
+    out.hint = (document.getElementById('cmdkFilterHint') || {}).textContent;
+    document.getElementById('cmdkOverlay').style.display = 'none';
+    return out;
+  });
+  check('global search finds conversations by name, not only what was said in them',
+    r.opened && r.chatsSectionFirst && r.findsChannelByName
+      && r.sectionOrder.join(',') === 'CHATS,MESSAGES,TASKS,CLIENTS'
+      && r.dmLabelled && r.noEmptyHash
+      && r.fromFilterKeptOne
+      && r.buttonWrote === 'from:' && /from whom/.test(r.hint || ''),
+    JSON.stringify(r));
+});
+
+await step('the sidebar search finds messages, with names still first', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2200); }
+    const db = window.__mock.db;
+    const team = db.channels.find(c => c.kind === 'team_channel');
+    db.messages.push({ id: 'm-jump-probe', channel_id: team.id, author_id: 'u-3',
+      body: 'pangolin migration notes', created_at: new Date().toISOString(), parent_id: null,
+      reply_count: 0, flagged: false, edited_at: null, pinned_at: null, pinned_by: null,
+      voice_note_url: null, voice_note_duration_ms: null });
+    const input = document.getElementById('nc_chatJumpToInput');
+    out.hasInput = !!input;
+    if (!input) return out;
+    input.value = 'pangolin';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await wait(2600);
+    const panel = document.getElementById('nc_jumpResults');
+    const rows = [...panel.querySelectorAll('.nc_jump-row')];
+    out.rows = rows.map(x => x.innerText.replace(/\n/g, ' | '));
+    // The box next to the conversations could find the room but never a word said in it.
+    const msgRow = rows.find(x => /pangolin/i.test(x.textContent));
+    out.foundMessage = !!msgRow;
+    out.saysWhoAndWhere = !!(msgRow && /in #/.test(msgRow.innerText));
+    if (msgRow) {
+      msgRow.click();
+      for (let i = 0; i < 40; i++) {
+        await wait(200);
+        const el = document.querySelector('.nc_msg[data-msg-id="m-jump-probe"]');
+        if (el && el.style.outline) { out.landedOnTheMessage = true; break; }
+      }
+    }
+    // A name still comes first: the room you are looking for is usually the room.
+    input.value = team.name.slice(0, 5);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await wait(2200);
+    const first = document.querySelector('#nc_jumpResults .nc_jump-row');
+    out.firstIsAName = !!first && first.innerText.split('\n')[0].trim() === team.name;
+    input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true }));
+    return out;
+  });
+  check('the sidebar search finds messages, with names still first',
+    r.hasInput && r.foundMessage && r.saysWhoAndWhere
+      && r.landedOnTheMessage && r.firstIsAName,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

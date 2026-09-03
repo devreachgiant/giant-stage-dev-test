@@ -6476,8 +6476,16 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
   <div class="cmdk-panel" style="background:var(--pane);border:1px solid var(--line);border-radius:14px;width:min(640px,92vw);max-height:70vh;display:flex;flex-direction:column;box-shadow:0 24px 70px -10px rgba(0,0,0,.55);">
     <div style="padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;">
       <svg width="15" height="15" viewBox="0 0 16 16" fill="none" style="color:var(--text-3);flex-shrink:0;"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-      <input type="text" id="cmdkInput" placeholder="Search clients, tasks, invoices, emails…" style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:14px;font-family:inherit;">
+      <input type="text" id="cmdkInput" placeholder="Search chats, messages, tasks, clients…" style="flex:1;background:transparent;border:none;outline:none;color:var(--text);font-size:14px;font-family:inherit;">
       <kbd style="background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:2px 6px;font-size:10px;color:var(--text-3);">ESC</kbd>
+    </div>
+    <!-- The filters were there before, but only if you knew to type them. Pressing one
+         writes it into the box and puts the caret after it, ready for a name. -->
+    <div id="cmdkFilters" style="display:flex;align-items:center;gap:7px;padding:9px 18px;border-bottom:1px solid var(--line);flex-wrap:wrap;">
+      <span style="font-size:10.5px;color:var(--text-3);font-weight:600;">Narrow it down</span>
+      <button type="button" data-cmdk-filter="from:" style="background:var(--surface);border:1px solid var(--line-2);border-radius:7px;padding:3px 9px;font-size:11px;font-weight:700;color:var(--text-2);cursor:pointer;font-family:inherit;">from: person</button>
+      <button type="button" data-cmdk-filter="in:" style="background:var(--surface);border:1px solid var(--line-2);border-radius:7px;padding:3px 9px;font-size:11px;font-weight:700;color:var(--text-2);cursor:pointer;font-family:inherit;">in: conversation</button>
+      <span id="cmdkFilterHint" style="font-size:10.5px;color:var(--text-3);"></span>
     </div>
     <div id="cmdkResults" style="flex:1;overflow-y:auto;padding:8px 0;min-height:0;">
       <div id="cmdkEmpty" style="padding:32px;text-align:center;color:var(--text-3);font-size:12px;">Type to search across all your Giant data.</div>
@@ -57886,15 +57894,28 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
     // the raw query, leaving whatever's left as the free-text body search. Chips are chat-only:
     // when present, the search skips Clients/Tasks/Invoices/Emails/People entirely and only
     // searches messages, since "in a channel" / "from a person" doesn't mean anything for those.
-    function parseCmdkQuery(raw) {
-      let text = raw;
-      let inFilter = null, fromFilter = null;
-      const inMatch = text.match(/\bin:(\S+)/i);
-      if (inMatch) { inFilter = inMatch[1].toLowerCase(); text = text.replace(inMatch[0], '').trim(); }
-      const fromMatch = text.match(/\bfrom:@?(\S+)/i);
-      if (fromMatch) { fromFilter = fromMatch[1].toLowerCase(); text = text.replace(fromMatch[0], '').trim(); }
-      return { freeText: text.trim(), inFilter, fromFilter, hasChips: !!(inMatch || fromMatch) };
-    }
+      function parseCmdkQuery(raw) {
+        let text = raw;
+        let inFilter = null, fromFilter = null, pendingIn = false, pendingFrom = false;
+        // Quoted values, because the names people search for have spaces in them:
+        // from:"Team Member 2" used to capture "Team and leave the rest as body text, so
+        // the filter looked broken for every teammate whose name is not one word.
+        const take = (label) => {
+          const m = text.match(new RegExp('\\b' + label + ':@?("[^"]*"|\'[^\']*\'|\\S*)', 'i'));
+          if (!m) return null;
+          text = text.replace(m[0], '').trim();
+          const val = String(m[1] || '').replace(/^["\']|["\']$/g, '').trim().toLowerCase();
+          return { val };
+        };
+        const fromHit = take('from');
+        if (fromHit) { fromFilter = fromHit.val || null; pendingFrom = !fromHit.val; }
+        const inHit = take('in');
+        if (inHit) { inFilter = inHit.val || null; pendingIn = !inHit.val; }
+        // A chip still being typed ("from:" with nothing after it) is not a filter yet,
+        // but it must still stop the other sections from answering.
+        return { freeText: text.trim(), inFilter, fromFilter, pendingIn, pendingFrom,
+                 hasChips: !!(fromHit || inHit) };
+      }
     const CMDK_DEPT_LABEL = { googleAds:'Google Ads', metaAds:'Meta Ads', seo:'SEO', web:'Web' };
     // Long messages matched on a phrase buried well past the first 80 characters were showing
     // a preview from the very start of the body instead — a correct match looked like a wrong
@@ -57923,105 +57944,182 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       cmdkResults.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-3);font-size:12px;">Searching…</div>';
       const safe = async (p) => { try { const r = await p; return r.data || []; } catch(e){ return []; } };
       const { freeText, inFilter, fromFilter, hasChips } = parseCmdkQuery(query);
-      const chatLimit = hasChips ? 15 : 5; // fetch more when a chip needs to narrow it down client-side
-      const [clients, tasks, invoices, emails, profiles, chatMsgsRaw, chat2MsgsRaw] = await Promise.all([
-        hasChips ? Promise.resolve([]) : safe(supabase.from('clients').select('id, name, status, mrr_cents').ilike('name', `%${query}%`).limit(5)),
-        hasChips ? Promise.resolve([]) : safe(supabase.from('tasks').select('id, name, status').ilike('name', `%${query}%`).limit(5)),
-        hasChips ? Promise.resolve([]) : safe(supabase.from('invoices').select('id, number, amount_cents, currency, status').or(`number.ilike.%${query}%,description.ilike.%${query}%`).limit(5)),
-        (hasChips || window._inboxLoadFailed) ? Promise.resolve([]) : safe(supabase.from('emails').select('id, subject, from_email, from_name').ilike('subject', `%${query}%`).limit(5)),
-        hasChips ? Promise.resolve([]) : safe(supabase.from('profiles').select('id, full_name, email').or(`full_name.ilike.%${query}%,email.ilike.%${query}%`).limit(5)),
-        safe(supabase.from('messages').select('id, body, channel_id, author_id, created_at').ilike('body', `%${freeText}%`).order('created_at', { ascending:false }).limit(chatLimit)),
-        safe(supabase.from('chat2_messages').select('id, body, thread_id, author_id, created_at, thread:chat2_threads(client_id, department, kind)').ilike('body', `%${freeText}%`).order('created_at', { ascending:false }).limit(chatLimit))
+      const chatLimit = hasChips ? 40 : 12; // fetch more when a chip needs to narrow it down client-side
+      // What people look for here is a conversation or something somebody said. Invoices,
+      // emails and a People list that opened Team Pulse were three sections of noise
+      // between them, and Chat 2.0 competed with live Chat for the same words on a screen
+      // that is archived. Four things now: chats, messages, tasks, clients.
+      const [clients, tasks, chans, dmChans, memberRows, chatMsgsRaw] = await Promise.all([
+        hasChips ? Promise.resolve([]) : safe(supabase.from('clients').select('id, name, status').ilike('name', `%${query}%`).limit(6)),
+        hasChips ? Promise.resolve([]) : safe(supabase.from('tasks').select('id, name, status').ilike('name', `%${query}%`).limit(6)),
+        // Conversations BY NAME. The search only ever looked inside message bodies, so a
+        // channel you knew the name of could not be found unless somebody had typed that
+        // name in a message.
+        hasChips ? Promise.resolve([]) : safe(supabase.from('channels')
+          .select('id, name, kind, client_id, department, is_dm, is_group')
+          .ilike('name', `%${query}%`).limit(12)),
+        // DMs and groups carry no name of their own; they are found through the people in
+        // them, which is how anyone would look for them.
+        hasChips ? Promise.resolve([]) : safe(supabase.from('profiles')
+          .select('id, full_name, email, avatar_url, avatar_bg, avatar_fg')
+          .or(`full_name.ilike.%${query}%,email.ilike.%${query}%`).limit(8)),
+        hasChips ? Promise.resolve([]) : safe(supabase.from('channel_members').select('channel_id, profile_id').limit(4000)),
+        safe(supabase.from('messages')
+          .select('id, body, channel_id, author_id, created_at')
+          .ilike('body', `%${freeText}%`).order('created_at', { ascending:false }).limit(chatLimit)),
       ]);
+      const chat2MsgsRaw = [];
       // Resolve display names for chat results — messages/chat2_messages only carry ids, and
       // (deliberately, matching how the rest of the app already does this) no embedded-join
       // guessing at FK constraint names for a table this central.
-      const authorIds = [...new Set([...chatMsgsRaw, ...chat2MsgsRaw].map(m => m.author_id).filter(Boolean))];
-      const channelIds = [...new Set(chatMsgsRaw.map(m => m.channel_id).filter(Boolean))];
-      const cdClientIds = [...new Set(chat2MsgsRaw.filter(m => m.thread && m.thread.kind === 'client_dept').map(m => m.thread.client_id).filter(Boolean))];
-      const [authorsRes, channelsRes, cdClientsRes] = await Promise.all([
+      const authorIds = [...new Set(chatMsgsRaw.map(m => m.author_id).filter(Boolean))];
+      const channelIds = [...new Set([
+        ...chatMsgsRaw.map(m => m.channel_id),
+        ...(chans || []).map(c => c.id)
+      ].filter(Boolean))];
+      const cdClientIds = [];
+      const [authorsRes, channelsRes] = await Promise.all([
         authorIds.length ? safe(supabase.from('profiles').select('id, full_name, email').in('id', authorIds)) : Promise.resolve([]),
-        channelIds.length ? safe(supabase.from('channels').select('id, name').in('id', channelIds)) : Promise.resolve([]),
-        cdClientIds.length ? safe(supabase.from('clients').select('id, name').in('id', cdClientIds)) : Promise.resolve([])
+        channelIds.length ? safe(supabase.from('channels')
+          .select('id, name, kind, client_id, department, is_dm, is_group').in('id', channelIds)) : Promise.resolve([])
       ]);
-      const authorsById = {}; authorsRes.forEach(p => authorsById[p.id] = p);
       const channelsById = {}; channelsRes.forEach(c => channelsById[c.id] = c);
-      const cdClientsById = {}; cdClientsRes.forEach(c => cdClientsById[c.id] = c);
+      // A DM has no name and a client conversation is named after its channel, not its
+      // client -- so a result read "in #" for a DM and "#burrus-seo" for a client. Both
+      // are resolved to what a person would call the place.
+      const needClientIds = [...new Set(channelsRes.map(c => c.client_id).filter(Boolean))];
+      const dmChannelIds = channelsRes.filter(c => c.is_dm).map(c => c.id);
+      const [clientNamesRes, dmMemberRes] = await Promise.all([
+        needClientIds.length ? safe(supabase.from('clients').select('id, name').in('id', needClientIds)) : Promise.resolve([]),
+        dmChannelIds.length ? safe(supabase.from('channel_members').select('channel_id, profile_id').in('channel_id', dmChannelIds)) : Promise.resolve([])
+      ]);
+      const clientNameById = {}; clientNamesRes.forEach(c => clientNameById[c.id] = c.name);
+      const dmPeopleIds = [...new Set(dmMemberRes.map(m => m.profile_id).filter(id => id && id !== window.giantSession?.user?.id))];
+      const extraPeople = dmPeopleIds.filter(id => !authorIds.includes(id));
+      const extraPeopleRes = extraPeople.length
+        ? await safe(supabase.from('profiles').select('id, full_name, email').in('id', extraPeople))
+        : [];
+      const authorsById = {};
+      [...authorsRes, ...extraPeopleRes, ...(dmChans || [])].forEach(p => { if (p && p.id) authorsById[p.id] = p; });
+      const dmNamesByChannel = {};
+      dmMemberRes.forEach(m => {
+        if (m.profile_id === window.giantSession?.user?.id) return;
+        const p = authorsById[m.profile_id];
+        (dmNamesByChannel[m.channel_id] = dmNamesByChannel[m.channel_id] || [])
+          .push(p ? (p.full_name || p.email) : 'Someone');
+      });
+      // What a person calls the place a message is in.
+      const cmdkPlaceName = (ch) => {
+        if (!ch) return 'a conversation';
+        if (ch.is_dm) {
+          const names = dmNamesByChannel[ch.id] || [];
+          if (!names.length) return 'Direct message';
+          return names.length > 1 ? names.slice(0, 3).join(', ') : names[0];
+        }
+        if (ch.kind === 'client_dept') {
+          const cn = clientNameById[ch.client_id] || ch.name || 'Client';
+          const dept = ch.department && ch.department !== 'general'
+            ? ' · ' + (CMDK_DEPT_LABEL[ch.department] || ch.department) : '';
+          return cn + dept;
+        }
+        return '#' + (ch.name || 'channel');
+      };
       let chatMsgs = chatMsgsRaw.map(m => {
         const author = authorsById[m.author_id];
         const channel = channelsById[m.channel_id];
-        return { id: m.id, channelId: m.channel_id, body: m.body,
-          authorName: author ? (author.full_name || author.email) : 'Someone',
-          channelName: channel ? channel.name : 'a channel' };
+        return { id: m.id, channelId: m.channel_id, body: m.body, at: m.created_at,
+                 authorName: author ? (author.full_name || author.email) : 'Someone',
+                 channelName: cmdkPlaceName(channel) };
       });
-      let chat2Msgs = chat2MsgsRaw.map(m => {
-        const author = authorsById[m.author_id];
-        const t = m.thread || {};
-        let placeName;
-        if (t.kind === 'client_dept') { const c = cdClientsById[t.client_id]; placeName = `${c ? c.name : 'Client'} · ${CMDK_DEPT_LABEL[t.department] || t.department}`; }
-        else if (t.kind === 'home') placeName = 'ReachGiant Home';
-        else if (t.kind === 'dm') placeName = 'Direct message';
-        else if (t.kind === 'team_channel') placeName = 'Team channel';
-        else placeName = 'Chat 2.0';
-        return { id: m.id, threadId: m.thread_id, clientId: t.client_id, dept: t.department, kind: t.kind, body: m.body,
-          authorName: author ? (author.full_name || author.email) : 'Someone', placeName };
-      });
+      let chat2Msgs = [];
       if (inFilter) {
         chatMsgs = chatMsgs.filter(m => m.channelName.toLowerCase().includes(inFilter));
-        chat2Msgs = chat2Msgs.filter(m => m.placeName.toLowerCase().includes(inFilter));
       }
       if (fromFilter) {
         chatMsgs = chatMsgs.filter(m => m.authorName.toLowerCase().includes(fromFilter));
-        chat2Msgs = chat2Msgs.filter(m => m.authorName.toLowerCase().includes(fromFilter));
       }
-      chatMsgs = chatMsgs.slice(0, 5);
-      chat2Msgs = chat2Msgs.slice(0, 5);
+      chatMsgs = chatMsgs.slice(0, 8);
+
       const sections = [];
-      if (clients.length) {
-        sections.push({ title: 'Clients', items: clients.map(c => ({
-          icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="6" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 14c.7-2.5 3-4 5.5-4s4.8 1.5 5.5 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
-          label: c.name, sub: `${c.status}${c.mrr_cents?` · $${(c.mrr_cents/100).toLocaleString()}/mo`:''}`,
-          action: () => { document.querySelector('.nav-item[data-screen="clients"]')?.click(); cmdkScrollHighlight(`[data-client-id="${c.id}"]`); }
-        })) });
+
+      // ── CHATS first: the conversation itself, by name ─────────────────────────
+      // This is what the search could never do. Channels were only ever queried to
+      // LABEL a message it had already found, so a channel, a DM or a group could not be
+      // found by its own name -- you had to remember something somebody said in it.
+      if (!hasChips) {
+        const meId = window.giantSession?.user?.id;
+        const chatItems = [];
+        const seen = new Set();
+        // named channels: team channels, and client conversations under the client's name
+        const namedClientIds = [...new Set((chans || []).map(c => c.client_id).filter(Boolean))];
+        const nameRes = namedClientIds.length
+          ? await safe(supabase.from('clients').select('id, name').in('id', namedClientIds)) : [];
+        const nameById = {}; nameRes.forEach(c => nameById[c.id] = c.name);
+        (chans || []).filter(c => !c.is_dm).forEach(c => {
+          if (seen.has(c.id)) return; seen.add(c.id);
+          const isClient = c.kind === 'client_dept';
+          const label = isClient
+            ? (nameById[c.client_id] || c.name)
+              + (c.department && c.department !== 'general'
+                  ? ' · ' + (CMDK_DEPT_LABEL[c.department] || c.department) : '')
+            : '#' + c.name;
+          chatItems.push({ label, sub: isClient ? 'Client conversation' : 'Team channel', id: c.id });
+        });
+        // people: their DM if there is one, so searching a name gets you the conversation
+        // rather than a profile page
+        const dmByPerson = {};
+        (memberRows || []).forEach(m => {
+          (dmByPerson[m.channel_id] = dmByPerson[m.channel_id] || []).push(m.profile_id);
+        });
+        (dmChans || []).forEach(p => {
+          if (p.id === meId) return;
+          const dmId = Object.keys(dmByPerson).find(cid => {
+            const ids = dmByPerson[cid];
+            return ids.length === 2 && ids.includes(p.id) && ids.includes(meId);
+          });
+          const name = p.full_name || p.email;
+          if (dmId && !seen.has(dmId)) {
+            seen.add(dmId);
+            chatItems.push({ label: name, sub: 'Direct message', id: dmId });
+          } else if (!dmId) {
+            chatItems.push({ label: name, sub: 'Start a direct message', person: p.id });
+          }
+        });
+        // group DMs, found through the people in them
+        const q = (freeText || query).toLowerCase();
+        Object.keys(dmByPerson).forEach(cid => {
+          if (seen.has(cid)) return;
+          const ids = dmByPerson[cid].filter(id => id !== meId);
+          if (ids.length < 2) return;
+          const names = ids.map(id => {
+            const p = (dmChans || []).find(x => x.id === id);
+            return p ? (p.full_name || p.email) : null;
+          }).filter(Boolean);
+          if (!names.some(n => n.toLowerCase().includes(q))) return;
+          seen.add(cid);
+          chatItems.push({ label: names.slice(0, 3).join(', '), sub: 'Group conversation', id: cid });
+        });
+        if (chatItems.length) {
+          sections.push({ title: 'Chats', items: chatItems.slice(0, 8).map(it => ({
+            icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M14 8.5a5.5 5.5 0 01-5.5 5.5 5.7 5.7 0 01-2.5-.6L2 15l1.2-3.4A5.5 5.5 0 018.5 3 5.5 5.5 0 0114 8.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>',
+            label: it.label, sub: it.sub,
+            action: () => {
+              document.querySelector('.nav-item[data-screen="newchat"]')?.click();
+              setTimeout(() => {
+                if (it.id && window.nc_jumpToMessage) window.nc_jumpToMessage(it.id, null, null);
+                else if (it.person && window.nc_startDm) window.nc_startDm(it.person);
+              }, 400);
+            }
+          })) });
+        }
       }
-      if (tasks.length) {
-        sections.push({ title: 'Tasks', items: tasks.map(t => ({
-          icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M5.5 8.5l2 2 4-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
-          label: t.name || t.label || 'Untitled', sub: t.status || '',
-          // Not the "Projects" nav item (data-screen="tasks") — that only shows tasks with a
-          // project attached. The real flat list of every task, regardless of assignee/status,
-          // is Workspace's own Tasks tab.
-          action: () => { if (window.wsJumpToTask) window.wsJumpToTask(t.id, t.status); cmdkScrollHighlight(`[data-ws-task-row="${t.id}"]`); }
-        })) });
-      }
-      if (invoices.length) {
-        sections.push({ title: 'Invoices', items: invoices.map(i => ({
-          icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 1.5h7l3 3v10H3V1.5Z" stroke="currentColor" stroke-width="1.4"/></svg>',
-          label: i.number || 'Invoice', sub: `${i.status} · ${(i.amount_cents/100||0).toFixed(2)} ${(i.currency||'usd').toUpperCase()}`,
-          action: () => { document.querySelector('.nav-item[data-screen="finance"]')?.click(); cmdkScrollHighlight(`[data-inv-row="${i.id}"]`); }
-        })) });
-      }
-      if (emails.length) {
-        sections.push({ title: 'Emails', items: emails.map(e => ({
-          icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 4.5L8 8.5L13.5 4.5" stroke="currentColor" stroke-width="1.4"/></svg>',
-          label: e.subject || '(no subject)', sub: e.from_name || e.from_email || '',
-          action: () => { document.querySelector('.nav-item[data-screen="inbox"]')?.click(); cmdkScrollHighlight(`[data-mail-id="${e.id}"]`); }
-        })) });
-      }
-      if (profiles.length) {
-        sections.push({ title: 'People', items: profiles.map(p => ({
-          icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="6" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 14c.7-2.5 3-4 5.5-4s4.8 1.5 5.5 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
-          label: p.full_name || p.email, sub: p.email || '',
-          // Not data-profile-id — that belongs to a different Team Pulse sub-view. The default
-          // card grid identifies each teammate via data-tpmember.
-          action: () => { document.querySelector('.nav-item[data-screen="pulse"]')?.click(); cmdkScrollHighlight(`[data-tpmember="${p.id}"]`); }
-        })) });
-      }
+
+      // ── then what was said in them ────────────────────────────────────────────
       if (chatMsgs.length) {
-        sections.push({ title: 'Chat & Huddles', items: chatMsgs.map(m => ({
+        sections.push({ title: 'Messages', items: chatMsgs.map(m => ({
           icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3" width="12.4" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 15v-2.7h-1a1 1 0 01-1-1V3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
-          label: cmdkSnippet(m.body, freeText), sub: `${m.authorName} in #${m.channelName}`,
-          // Older messages aren't loaded up front — jumpToChatMessage pages back through real
+          label: cmdkSnippet(m.body, freeText), sub: `${m.authorName} in ${m.channelName}`,
+          // Older messages aren't loaded up front — the jump pages back through real
           // history to find them, which can take several seconds with zero visual feedback
           // otherwise (looks frozen/broken rather than working). Toast bridges that gap.
           action: () => {
@@ -58031,31 +58129,29 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
           }
         })) });
       }
-      if (chat2Msgs.length) {
-        sections.push({ title: 'Chat 2.0', items: chat2Msgs.map(m => ({
-          icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3" width="12.4" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 15v-2.7h-1a1 1 0 01-1-1V3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
-          label: cmdkSnippet(m.body, freeText), sub: `${m.authorName} · ${m.placeName}`,
+
+      // ── then tasks, then clients ──────────────────────────────────────────────
+      if (tasks.length) {
+        sections.push({ title: 'Tasks', items: tasks.map(t => ({
+          icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M5 8.2l2 2 4-4.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+          label: t.name || 'Untitled', sub: t.status || '',
           action: () => {
-            const nav = document.querySelector('.nav-item[data-screen="chat2"]');
-            if (nav) nav.click();
-            if (m.kind === 'client_dept' && m.clientId && m.dept) {
-              let tries = 0;
-              const poll = setInterval(() => {
-                tries++;
-                if (typeof window.chat2OpenClientThread === 'function' && document.getElementById('c2SearchInput')) {
-                  clearInterval(poll);
-                  window.chat2OpenClientThread(m.clientId, m.dept);
-                  cmdkScrollHighlight(`[data-c2-msg-id="${m.id}"]`);
-                } else if (tries > 40) clearInterval(poll);
-              }, 100);
-            } else {
-              // Home/DM/team-channel threads have no exposed deep-link opener yet — land on
-              // Chat 2.0's default view and highlight the row if it happens to already be open.
-              cmdkScrollHighlight(`[data-c2-msg-id="${m.id}"]`);
-            }
+            document.querySelector('.nav-item[data-screen="tasks"]')?.click();
+            cmdkScrollHighlight(`[data-task-id="${t.id}"]`);
           }
         })) });
       }
+      if (clients.length) {
+        sections.push({ title: 'Clients', items: clients.map(c => ({
+          icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="6" r="3" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 14c.6-3 2.8-4.2 5.5-4.2S13 11 13.5 14" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+          label: c.name, sub: c.status || '',
+          action: () => {
+            document.querySelector('.nav-item[data-screen="clients"]')?.click();
+            cmdkScrollHighlight(`[data-client-id="${c.id}"]`);
+          }
+        })) });
+      }
+
       if (!sections.length) {
         cmdkResults.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-3);font-size:12px;">No results for "'+raiEscLocal(query)+'"</div>';
         return;
@@ -58090,8 +58186,49 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       });
     }
 
+    // The filter buttons write the chip and hand the caret back, so the next thing you
+    // type is the name. The hint underneath says what a chip is doing while it is on --
+    // "from:" alone looks like a search that found nothing rather than one still being
+    // written.
+    (function wireCmdkFilters(){
+      const row = document.getElementById('cmdkFilters');
+      if (!row) return;
+      row.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-cmdk-filter]');
+        if (!btn || !cmdkInput) return;
+        const chip = btn.dataset.cmdkFilter;
+        const cur = cmdkInput.value;
+        if (new RegExp('\\b' + chip.replace(':', '') + ':', 'i').test(cur)) return;  // already there
+        cmdkInput.value = (cur ? cur.replace(/\s+$/, '') + ' ' : '') + chip;
+        cmdkInput.focus();
+        cmdkInput.setSelectionRange(cmdkInput.value.length, cmdkInput.value.length);
+        cmdkUpdateFilterHint();
+      });
+    })();
+    function cmdkUpdateFilterHint(){
+      const hint = document.getElementById('cmdkFilterHint');
+      if (!hint || !cmdkInput) return;
+      const { inFilter, fromFilter, pendingIn, pendingFrom, freeText } = parseCmdkQuery(cmdkInput.value || '');
+      const bits = [];
+      if (fromFilter) bits.push('from ' + fromFilter);
+      if (inFilter) bits.push('in ' + inFilter);
+      if (pendingFrom) bits.push('from whom?');
+      if (pendingIn) bits.push('in which conversation?');
+      hint.textContent = bits.length
+        ? ((pendingFrom || pendingIn) ? 'searching messages · ' + bits.join(' · ')
+            : (freeText ? 'messages ' + bits.join(' and ')
+                        : 'type what to look for — ' + bits.join(' and ')))
+        : '';
+      document.querySelectorAll('#cmdkFilters [data-cmdk-filter]').forEach(b => {
+        const on = b.dataset.cmdkFilter === 'from:' ? !!(fromFilter || pendingFrom) : !!(inFilter || pendingIn);
+        b.style.borderColor = on ? 'var(--red)' : 'var(--line-2)';
+        b.style.color = on ? 'var(--text)' : 'var(--text-2)';
+      });
+    }
+
     if (cmdkInput) {
       cmdkInput.addEventListener('input', () => {
+        cmdkUpdateFilterHint();
         clearTimeout(cmdkSearchTimeout);
         cmdkSearchTimeout = setTimeout(() => cmdkSearch(cmdkInput.value), 220);
       });
@@ -71845,13 +71982,55 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       });
       return out.slice(0, 12);
     }
+    // Messages, in the sidebar search too. It matched names only, so the box that is
+    // right next to the conversations could find the room but never a word said in it --
+    // and people were going to the global search for something they were already looking at.
+    let ncJumpMsgSeq = 0;
+    async function ncJumpMessages(q){
+      const term = String(q || '').trim();
+      if (term.length < 3) return [];
+      const seq = ++ncJumpMsgSeq;
+      const { data } = await NCSB().from('messages')
+        .select('id, body, channel_id, author_id, created_at')
+        .ilike('body', '%' + term + '%')
+        .order('created_at', { ascending: false }).limit(6);
+      if (seq !== ncJumpMsgSeq) return [];            // a later keystroke already won
+      const rows = data || [];
+      if (!rows.length) return [];
+      await hydrateProfiles(rows.map(m => m.author_id));
+      return rows.map(m => {
+        const c = (chatChannels || []).find(x => x.id === m.channel_id)
+               || (chatDmChannels || []).find(x => x.id === m.channel_id);
+        const cl = c && c.client_id ? ncClients[c.client_id] : null;
+        const where = cl ? cl.name : (c && c.name ? '#' + c.name : 'a conversation');
+        const who = (chatProfilesCache[m.author_id] || {});
+        return { kind: 'Message',
+                 label: String(m.body || '').replace(/\s+/g, ' ').slice(0, 70),
+                 sub: (who.full_name || who.email || 'Someone') + ' in ' + where,
+                 go: () => ncJumpToMessage(m.channel_id, m.id, null) };
+      });
+    }
+
     function ncRenderJump(q){
       const el = ncJumpPanel();
       if (!el) return;
       ncJumpRows = ncJumpCandidates(q);
       ncJumpSel = 0;
+      // Names first, then what was said -- the room you are looking for is usually the
+      // room, and a message result should never push it off the list.
+      ncJumpMessages(q).then(msgs => {
+        if (!msgs.length) return;
+        const box = ncJumpPanel();
+        if (!box || box.style.display === 'none') return;
+        if ((document.getElementById('nc_chatJumpToInput') || {}).value !== q) return;
+        ncJumpRows = ncJumpRows.concat(msgs);
+        ncRenderJumpRows(box, q);
+      }).catch(() => {});
       if (!q.trim()) { el.style.display = 'none'; el.innerHTML = ''; return; }
       el.style.display = '';
+      ncRenderJumpRows(el, q);
+    }
+    function ncRenderJumpRows(el, q){
       if (!ncJumpRows.length) {
         el.innerHTML = '<div style="padding:14px;text-align:center;color:var(--c3-t5);font-size:12px;">Nothing matches “'
           + chatEsc(q.trim()) + '”</div>';
@@ -71861,8 +72040,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<div class="nc_jump-row" data-i="' + i + '" style="display:flex;align-items:center;gap:9px;'
         + 'padding:8px 9px;border-radius:8px;cursor:pointer;font-size:12.5px;'
         + (i === 0 ? 'background:var(--surface-2);' : '') + '">'
-        + '<span style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
+        + '<span style="flex:1;min-width:0;">'
+        + '<span style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'
         + chatEsc(r.label) + '</span>'
+        // A message result needs to say who said it and where, or it is a line of text
+        // with no way to tell which conversation you are about to be taken to.
+        + (r.sub ? '<span style="display:block;font-size:10.5px;color:var(--c3-t5);white-space:nowrap;'
+                   + 'overflow:hidden;text-overflow:ellipsis;">' + chatEsc(r.sub) + '</span>' : '')
+        + '</span>'
         + '<span style="font-size:9.5px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;'
         + 'color:var(--text-3);flex-shrink:0;">' + chatEsc(r.kind) + '</span></div>').join('');
       el.querySelectorAll('.nc_jump-row').forEach(row => {
