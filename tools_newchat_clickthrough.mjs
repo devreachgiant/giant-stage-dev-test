@@ -1607,6 +1607,63 @@ await step('Needs you finds an old unread message behind a busy channel', async 
     JSON.stringify(opened));
 });
 
+// A search hit in a long conversation. The jump paged back 20 times at 50 a page and gave
+// up 1,000 messages short -- and the three busiest conversations in the real workspace are
+// all deeper than that, so an older hit left you somewhere near the message with nothing
+// highlighted. Seeded past the old ceiling on purpose: at 1,200 the old code loads exactly
+// 1,050 messages and stops.
+await step('a search hit deep in a long conversation is actually reached', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    // chosen at runtime: earlier steps create, rename and delete channels, so a
+    // hardcoded id is not necessarily one that still exists or that I am still in
+    const mineIds = new Set(db.channel_members.filter(m => m.profile_id === 'u-me').map(m => m.channel_id));
+    const target = db.channels.find(c => mineIds.has(c.id) && c.kind === 'team_channel');
+    if (!target) return { skipped: 'no channel of mine' };
+    const ch = target.id, base = Date.now() - 400 * 864e5;
+    for (let i = 0; i < 1300; i++) db.messages.push({
+      id: 'deep-' + i, channel_id: ch, author_id: 'u-7',
+      body: i === 40 ? 'pangolin ledger anomaly' : 'deep filler ' + i,
+      created_at: new Date(base + i * 36e5).toISOString(), edited_at: null, parent_id: null,
+      reply_count: 0, voice_note_url: null, voice_note_duration_ms: null,
+      flagged: false, pinned_at: null, pinned_by: null });
+    // start from Chat, on the messages sub-tab: earlier steps leave other screens up
+    document.querySelector('.nav-item[data-screen="newchat"]').click();
+    await w(800);
+    if (typeof window.nc_switchChatSubtab === 'function') window.nc_switchChatSubtab('messages');
+    await w(1200);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
+    await w(600);
+    const inp = document.querySelector('#cmdkInput, .cmdk-input, input[placeholder*="Search"]');
+    if (!inp) return { skipped: 'no search input' };
+    inp.focus(); inp.value = 'pangolin';
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    await w(2500);
+    const hit = [...document.querySelectorAll('.cmdk-item, [data-cmdk-item]')]
+      .find(e => /pangolin ledger/i.test(e.innerText));
+    if (!hit) return { skipped: 'no result' };
+    hit.click();
+    // the flash is the only thing that says "this is the one you asked for"
+    for (let i = 0; i < 60; i++) {
+      await w(400);
+      const el = document.querySelector('.nc_msg[data-msg-id="deep-40"]');
+      const st = el && el.getAttribute('style') || '';
+      if (el && /outline/.test(st) && /solid/.test(st)) {
+        const b = el.getBoundingClientRect();
+        return { depth: 1260, flashed: true, inView: b.top > 0 && b.bottom < window.innerHeight,
+                 loaded: document.querySelectorAll('.nc_msg[data-msg-id]').length };
+      }
+    }
+    return { depth: 1260, flashed: false, screen: document.querySelector('.nav-item.on') && document.querySelector('.nav-item.on').dataset.screen,
+             ch, anyDeep: document.querySelectorAll('.nc_msg[data-msg-id^="deep-"]').length,
+             loaded: document.querySelectorAll('.nc_msg[data-msg-id]').length };
+  });
+  check('a message 1,260 back is reached, highlighted and on screen',
+    !r.skipped && r.flashed && r.inView && r.loaded > 1050, JSON.stringify(r));
+  await page.evaluate(() => { const e = document.getElementById('cmdkOverlay'); if (e) e.classList.remove('on'); });
+});
+
 // The Inbox used to open UNDER the conversation you were reading: its own header, its own
 // sub-tabs and the department strip all stayed on screen, so a screen about everything
 // waiting on you was topped by the bar for one unrelated channel. It is its own place now,

@@ -72201,11 +72201,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // parent), in which case paging the timeline would never reach it.
       if (target && target.parent_id && !parentId && await intoThread(target.parent_id)) return;
 
-      for (let p = 0; p < 20; p++) {
+      // 20 pages of 50 stopped 1,000 messages back. The busiest DMs here hold more than
+      // that, so an older hit landed you somewhere near it with nothing highlighted --
+      // reported as the jump being inaccurate. The timestamp check below is the real
+      // terminator; this count only has to be big enough never to be what stops us.
+      for (let p = 0; p < 80; p++) {
         if (typeof window.nc_loadOlderMessages !== 'function') break;
         const st = window.nc__chatPage && window.nc__chatPage[channelId];
         if (!st || !st.hasMore) break;
-        await window.nc_loadOlderMessages(channelId);
+        await window.nc_loadOlderMessages(channelId, { limit: 200 });
         el = await settle(msgId, 4, 100);
         if (el) { await ncLandOn(msgId); return; }
         // Past it in time and still not rendered: it is deleted, or in a thread, and
@@ -77749,7 +77753,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // back far enough to reach an old message instead of only ever searching the most
     // recently loaded 50.
     window.nc_loadOlderMessages = loadOlderMessages;
-    async function loadOlderMessages(channelId) {
+    // pageSize is 50 for a person scrolling up -- one screenful, cheap, no jank. A jump
+    // knows exactly which message it wants, so it asks for much larger bites: at 50 a
+    // message 1,200 back needs 25 sequential round trips, which is why the jump used to
+    // give up before ever reaching it.
+    async function loadOlderMessages(channelId, opts) {
+      const pageSize = (opts && opts.limit) || 50;
       window.nc__chatPage = window.nc__chatPage || {};
       const page = window.nc__chatPage[channelId];
       if (!page || !page.hasMore || page.loading || !page.oldestTs) return;
@@ -77781,7 +77790,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         .is('parent_id', null)
         .lt('created_at', page.oldestTs)
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(pageSize);
       page.loading = false;
       if (error) {
         // Said out loud rather than blanked: a channel that quietly stops loading history
@@ -77790,7 +77799,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         return;
       }
       const older = (data || []).reverse();
-      page.hasMore = (data || []).length >= 50;
+      page.hasMore = (data || []).length >= pageSize;
       const cache = chatMsgsCache[channelId];
       if (!older.length) {
         setTop(page.hasMore ? '' : 'This is the beginning of the conversation');
