@@ -1607,6 +1607,44 @@ await step('Needs you finds an old unread message behind a busy channel', async 
     JSON.stringify(opened));
 });
 
+// A mention that lands in the conversation you are READING was never marked handled --
+// only opening a channel does that, and you are already in it -- so the next recompute put
+// that conversation straight back on the Needs you card, and no amount of reading could
+// shift it. Reported as "it keeps the chat in the list even after I read it".
+await step('a mention read as it arrives does not come back on the card', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    const needs = () => Object.keys(window.__ncNeedTargets || {});
+    const mineIds = new Set(db.channel_members.filter(m => m.profile_id === 'u-me').map(m => m.channel_id));
+    const ch = db.channels.find(c => mineIds.has(c.id) && c.kind === 'team_channel');
+    if (!ch) return { skipped: 'no channel of mine' };
+    // open it first, so it starts CLEAR -- at boot it already needs me, and asserting
+    // against that baseline would prove nothing at all
+    await window.nc_jumpToMessage(ch.id, null, null);
+    await w(2500);
+    const baselineClear = !needs().includes(ch.id);
+    const m = { id: 'm-read-in-place', channel_id: ch.id, author_id: 'u-4',
+      body: '@nishchay while you are here', created_at: new Date().toISOString(),
+      edited_at: null, parent_id: null, reply_count: 0, voice_note_url: null,
+      voice_note_duration_ms: null, flagged: false, pinned_at: null, pinned_by: null };
+    db.messages.push(m);
+    window.__mock.emit('messages', 'INSERT', m);
+    await w(1800);
+    const whileReading = !needs().includes(ch.id);
+    // leave, then force the recompute that fires on focus / re-entering the screen
+    const other = db.channels.find(c => mineIds.has(c.id) && c.kind === 'team_channel' && c.id !== ch.id);
+    if (other) { await window.nc_jumpToMessage(other.id, null, null); await w(1200); }
+    await window.nc_refreshNeedsYou(true);
+    await w(2500);
+    return { baselineClear, whileReading, afterRecompute: !needs().includes(ch.id),
+             markedDone: (db.inbox_actions || []).some(a => a.message_id === 'm-read-in-place' && a.done) };
+  });
+  check('a mention arriving in the channel on screen is marked handled, and stays cleared',
+    !r.skipped && r.baselineClear && r.whileReading && r.afterRecompute && r.markedDone,
+    JSON.stringify(r));
+});
+
 // A search hit in a long conversation. The jump paged back 20 times at 50 a page and gave
 // up 1,000 messages short -- and the three busiest conversations in the real workspace are
 // all deeper than that, so an older hit left you somewhere near the message with nothing

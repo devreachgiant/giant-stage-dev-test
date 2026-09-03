@@ -72079,6 +72079,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       ]);
       const ids = [...new Set([...(flagged.data || []), ...(mentions.data || [])].map(m => m.id))];
       if (!ids.length) return;
+      const err = await ncMarkHandled(ids);
+      if (err) {
+        // Put it back rather than leave the card lying about what has been handled.
+        ncNeeds[channelId] = kind; renderNavCards();
+        if (typeof toast === 'function') toast({ type:'error', message:'Could not clear that: ' + err.message });
+      }
+    }
+    // Marking messages handled is the same job wherever it is done -- opening a channel,
+    // or a mention landing in the one already on screen -- so it lives in one place.
+    async function ncMarkHandled(ids){
+      const me = ncMyId();
+      if (!me || !ids || !ids.length) return null;
       // Read the existing rows first and merge. A blind upsert would write saved:false
       // over anything the user had saved from the Inbox, and losing that is worse than
       // leaving a row on the card.
@@ -72089,14 +72101,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const { error } = await NCSB().from('inbox_actions').upsert(
         ids.map(id => ({ message_id: id, profile_id: me, done: true, saved: !!savedBy[id] })),
         { onConflict: 'message_id,profile_id' });
-      if (error) {
-        // Put it back rather than leave the card lying about what has been handled.
-        ncNeeds[channelId] = kind; renderNavCards();
-        if (typeof toast === 'function') toast({ type:'error', message:'Could not clear that: ' + error.message });
-        return;
-      }
+      if (error) return error;
       // Keep the Inbox's own copy in step if it happens to be loaded.
       ids.forEach(id => { mg.inboxActions['msg:' + id] = { done: true, saved: !!savedBy[id] }; });
+      return null;
     }
 
     // computeNeedsYou runs once, at boot. Everything that arrives afterwards -- which is
@@ -72108,7 +72116,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // Incremental on purpose: the rules match computeNeedsYou exactly, so a message can be
     // placed without asking the database anything.
     function ncNoteNeed(m){
-      if (!m || !m.channel_id || m.channel_id === activeChannelId) return;
+      if (!m || !m.channel_id) return;
       const me = ncMyId();
       if (!me || m.author_id === me) return;
       // Same reach as computeNeedsYou and the Inbox: my channels, plus every client
@@ -72122,6 +72130,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         .trim().split(/\s+/)[0].toLowerCase();
       const kind = (first && m.body && String(m.body).toLowerCase().includes('@' + first)) ? 'mention'
                  : m.flagged ? 'flagged' : 'unread';
+      if (m.channel_id === activeChannelId) return;
       const rank = { mention: 0, flagged: 1, unread: 2 };
       const cur = ncNeeds[m.channel_id];
       if (cur && rank[cur] <= rank[kind]) return;   // a stronger reason already stands
@@ -72270,6 +72279,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     Object.defineProperty(window, '__ncNeedKinds',   { get: () => ncNeeds });
 
     window.nc_noteNeed = ncNoteNeed;
+    // A mention or a flag that lands in the conversation you are READING is read the
+    // moment it arrives -- but nothing said so. Opening a channel is what marks its
+    // mentions handled, and you are already in it, so the next recompute put the channel
+    // straight back on the Needs you card and no amount of reading could shift it. Only
+    // while the tab is visible and Chat is the screen on top: a message arriving behind a
+    // backgrounded tab has not been read by anyone.
+    async function ncNoteReadInPlace(m){
+      if (!m || m.channel_id !== activeChannelId) return;
+      const me = ncMyId();
+      if (!me || m.author_id === me) return;
+      if (document.hidden || !document.querySelector('.screen[data-screen="newchat"].on')) return;
+      const first = String((window.giantCurrentProfile
+        && (window.giantCurrentProfile.full_name || window.giantCurrentProfile.email)) || '')
+        .trim().split(/\s+/)[0].toLowerCase();
+      const mentioned = !!(first && m.body && String(m.body).toLowerCase().includes('@' + first));
+      if (!mentioned && !m.flagged) return;
+      await ncMarkHandled([m.id]);
+    }
+    window.nc_noteReadInPlace = ncNoteReadInPlace;
 
     // Realtime keeps the card current while the app is open -- ncNoteNeed places each
     // message as it lands. What it cannot do is tell you what you MISSED: a subscription
@@ -80652,6 +80680,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         } else if (m.channel_id === activeChannelId) {
           // I'm viewing this channel; mark as read
           markChannelAsRead(activeChannelId);
+          // ...and if it mentioned or flagged me, say so, or the Needs you card puts
+          // this conversation back the next time it recomputes.
+          if (window.nc_noteReadInPlace) window.nc_noteReadInPlace(m);
         }
       }
     };
