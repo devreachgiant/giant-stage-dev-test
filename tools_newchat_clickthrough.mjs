@@ -4046,6 +4046,59 @@ await step('the sidebar search finds messages, with names still first', async ()
     JSON.stringify(r));
 });
 
+await step('typing in: or from: offers what you can filter by, and picking one applies it', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const db = window.__mock.db;
+    const team = db.channels.find(c => c.kind === 'team_channel');
+    document.getElementById('globalSearchBox').click();
+    await wait(700);
+    const input = document.getElementById('cmdkInput');
+    out.opened = !!input;
+    if (!input) return out;
+    const type = async (v) => {
+      input.focus(); input.value = v;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(2300);
+    };
+    // Half-typed chip: offer the conversations it could mean, rather than running a
+    // search for a value that is not finished and answering "No results".
+    await type('in:' + team.name.slice(0, 4));
+    out.header = (document.querySelector('#cmdkResults div') || {}).textContent;
+    out.suggestions = [...document.querySelectorAll('.cmdk-suggest')].map(x => x.innerText.split('\n')[0]);
+    out.offersTheChannel = out.suggestions.some(l => l === '#' + team.name);
+    out.enterHintOnFirst = /Enter/.test((document.querySelector('.cmdk-suggest') || {}).innerText || '');
+    // Enter takes the first one and writes it into the box.
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await wait(2000);
+    out.afterEnter = input.value.trim();
+    // A person's name with a space in it, which the old parser could not carry at all.
+    await type('from:Team Mem');
+    out.peopleOffered = [...document.querySelectorAll('.cmdk-suggest')].map(x => x.innerText.split('\n')[0]);
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await wait(2400);
+    out.afterPersonPick = input.value.trim();
+    const picked = (out.peopleOffered[0] || '').trim();
+    const lines = (document.getElementById('cmdkResults') || {}).innerText.split('\n').map(l => l.trim()).filter(Boolean);
+    // and every result really is from that person. "Team Member 1" as a substring also
+    // matches Team Member 10 through 19, so an exact name has to win.
+    const subs = lines.filter(l => / in /.test(l));
+    out.resultAuthors = [...new Set(subs.map(l => l.split(' in ')[0]))];
+    out.onlyThatPerson = subs.length > 0 && out.resultAuthors.every(a => a === picked);
+    document.getElementById('cmdkOverlay').style.display = 'none';
+    return out;
+  });
+  check('typing in: or from: offers what you can filter by, and picking one applies it',
+    r.opened && /which conversation/i.test(r.header || '')
+      && r.offersTheChannel && r.enterHintOnFirst
+      && /^in:\S+$/.test(r.afterEnter)
+      && r.peopleOffered.length > 0
+      && /^from:"[^"]+"$/.test(r.afterPersonPick)
+      && r.onlyThatPerson,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

@@ -57943,6 +57943,16 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       }
       cmdkResults.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-3);font-size:12px;">Searching…</div>';
       const safe = async (p) => { try { const r = await p; return r.data || []; } catch(e){ return []; } };
+      // Mid-chip: offer what can be filtered by, rather than running a search for a value
+      // that is still half typed.
+      const partial = cmdkPartialChip(q);
+      if (partial) {
+        const list = await cmdkFetchSuggestions(partial);
+        if (cmdkInput && cmdkInput.value !== q) return;   // a later keystroke already won
+        cmdkRenderSuggestions(partial, list);
+        return;
+      }
+      cmdkSuggestions = [];
       const { freeText, inFilter, fromFilter, hasChips } = parseCmdkQuery(query);
       const chatLimit = hasChips ? 40 : 12; // fetch more when a chip needs to narrow it down client-side
       // What people look for here is a conversation or something somebody said. Invoices,
@@ -57964,17 +57974,78 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
           .select('id, full_name, email, avatar_url, avatar_bg, avatar_fg')
           .or(`full_name.ilike.%${query}%,email.ilike.%${query}%`).limit(8)),
         hasChips ? Promise.resolve([]) : safe(supabase.from('channel_members').select('channel_id, profile_id').limit(4000)),
-        safe(supabase.from('messages')
+        // Chips are resolved to ids and applied in the QUERY, below. Filtering the newest
+        // 40 messages client-side meant "everything from Nishchay in mango-vans" searched
+        // the 40 newest messages in the whole workspace and then threw away anything that
+        // did not match -- which is almost always all of them.
+        hasChips ? Promise.resolve([]) : safe(supabase.from('messages')
           .select('id, body, channel_id, author_id, created_at')
           .ilike('body', `%${freeText}%`).order('created_at', { ascending:false }).limit(chatLimit)),
       ]);
+      let chipMsgs = [];
+      if (hasChips) {
+        // An exact name wins outright. "Team Member 1" as a substring also matches Team
+        // Member 10 through 19, so picking a person from the list and then seeing someone
+        // else's messages is the search quietly ignoring the choice that was just made.
+        const exactFirst = async (table, cols, col, value, extra) => {
+          if (!value) return [];
+          let q = supabase.from(table).select(cols).ilike(col, value).limit(30);
+          const hit = await safe(q);
+          if (hit.length) return hit;
+          return safe(supabase.from(table).select(cols)[extra ? 'or' : 'ilike'](
+            extra ? extra(value) : col, extra ? undefined : `%${value}%`).limit(30));
+        };
+        const [fromPeople, inChans, inClients] = await Promise.all([
+          fromFilter ? exactFirst('profiles', 'id, full_name, email', 'full_name', fromFilter,
+            (v) => `full_name.ilike.%${v}%,email.ilike.%${v}%`) : Promise.resolve([]),
+          inFilter ? exactFirst('channels', 'id, name, client_id, is_dm', 'name', inFilter) : Promise.resolve([]),
+          // "in:maribou" should find the client's conversation, whose channel is named
+          // something else entirely.
+          inFilter ? exactFirst('clients', 'id, name', 'name', inFilter) : Promise.resolve([])
+        ]);
+        let chanIds = (inChans || []).map(c => c.id);
+        if (inClients && inClients.length) {
+          const byClient = await safe(supabase.from('channels').select('id')
+            .in('client_id', inClients.map(c => c.id)));
+          chanIds = chanIds.concat((byClient || []).map(c => c.id));
+        }
+        // A DM is found through the person in it.
+        if (inFilter) {
+          const people = await safe(supabase.from('profiles').select('id')
+            .or(`full_name.ilike.%${inFilter}%,email.ilike.%${inFilter}%`).limit(10));
+          if (people && people.length) {
+            const mem = await safe(supabase.from('channel_members').select('channel_id')
+              .in('profile_id', people.map(p => p.id)).limit(500));
+            const dmCandidates = [...new Set((mem || []).map(m => m.channel_id))];
+            if (dmCandidates.length) {
+              const dms = await safe(supabase.from('channels').select('id').in('id', dmCandidates).eq('is_dm', true));
+              chanIds = chanIds.concat((dms || []).map(c => c.id));
+            }
+          }
+        }
+        chanIds = [...new Set(chanIds)];
+        const authorIdsChip = (fromPeople || []).map(p => p.id);
+        // A chip that matches nobody and nothing is an answer in itself: no results,
+        // rather than every recent message in the workspace.
+        const impossible = (fromFilter && !authorIdsChip.length) || (inFilter && !chanIds.length);
+        if (!impossible) {
+          let qy = supabase.from('messages')
+            .select('id, body, channel_id, author_id, created_at')
+            .order('created_at', { ascending: false }).limit(25);
+          if (freeText) qy = qy.ilike('body', `%${freeText}%`);
+          if (authorIdsChip.length) qy = qy.in('author_id', authorIdsChip);
+          if (chanIds.length) qy = qy.in('channel_id', chanIds);
+          chipMsgs = await safe(qy);
+        }
+      }
       const chat2MsgsRaw = [];
       // Resolve display names for chat results — messages/chat2_messages only carry ids, and
       // (deliberately, matching how the rest of the app already does this) no embedded-join
       // guessing at FK constraint names for a table this central.
-      const authorIds = [...new Set(chatMsgsRaw.map(m => m.author_id).filter(Boolean))];
+      const msgRows = hasChips ? chipMsgs : chatMsgsRaw;
+      const authorIds = [...new Set(msgRows.map(m => m.author_id).filter(Boolean))];
       const channelIds = [...new Set([
-        ...chatMsgsRaw.map(m => m.channel_id),
+        ...msgRows.map(m => m.channel_id),
         ...(chans || []).map(c => c.id)
       ].filter(Boolean))];
       const cdClientIds = [];
@@ -58024,7 +58095,7 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
         }
         return '#' + (ch.name || 'channel');
       };
-      let chatMsgs = chatMsgsRaw.map(m => {
+      let chatMsgs = msgRows.map(m => {
         const author = authorsById[m.author_id];
         const channel = channelsById[m.channel_id];
         return { id: m.id, channelId: m.channel_id, body: m.body, at: m.created_at,
@@ -58032,12 +58103,6 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
                  channelName: cmdkPlaceName(channel) };
       });
       let chat2Msgs = [];
-      if (inFilter) {
-        chatMsgs = chatMsgs.filter(m => m.channelName.toLowerCase().includes(inFilter));
-      }
-      if (fromFilter) {
-        chatMsgs = chatMsgs.filter(m => m.authorName.toLowerCase().includes(fromFilter));
-      }
       chatMsgs = chatMsgs.slice(0, 8);
 
       const sections = [];
@@ -58205,6 +58270,106 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
         cmdkUpdateFilterHint();
       });
     })();
+    // ── The chip picker, the way Slack does it ────────────────────────────────────
+    // Typing "in:mango" and getting "No results" is the search telling you it does not
+    // know what you meant. It should be showing you what it DOES know: the conversations
+    // and people whose names start that way, one keypress from being chosen. The value
+    // people type almost never matches a real name exactly -- "mangovans" is not
+    // "mango-vans-seo", and "nishchay" is not "Nishchay Pandya".
+    let cmdkSuggestions = [], cmdkSuggestSel = 0;
+    // Its own, because the search's `safe` is a local inside cmdkSearch and these run
+    // from the keystroke handler instead.
+    const cmdkSafe = async (p) => { try { const r = await p; return r.data || []; } catch (e) { return []; } };
+    // The chip being typed right now: at the end of the box, nothing after it yet.
+    function cmdkPartialChip(raw){
+      const s = String(raw || '');
+      const low = s.toLowerCase();
+      // The LAST chip in the box is the one being typed, and its value may contain
+      // spaces -- "from:Team Mem" is someone halfway through a name, not a finished
+      // filter. Matching only up to the first space is why a two-word name offered
+      // nothing at all.
+      const iFrom = low.lastIndexOf('from:'), iIn = low.lastIndexOf('in:');
+      const idx = Math.max(iFrom, iIn);
+      if (idx < 0) return null;
+      const label = iFrom > iIn ? 'from' : 'in';
+      const after = s.slice(idx + label.length + 1);
+      // A quoted value that has been closed is a decision already made -- picking a
+      // suggestion writes exactly that -- so stop offering and let the search run.
+      if (/^\s*"[^"]*"/.test(after) || /^\s*'[^']*'/.test(after)) return null;
+      return { label, partial: after.trim().toLowerCase(), start: idx };
+    }
+    async function cmdkFetchSuggestions(chip){
+      const like = '%' + chip.partial + '%';
+      if (chip.label === 'from') {
+        const people = await cmdkSafe(supabase.from('profiles').select('id, full_name, email, avatar_url')
+          .or(`full_name.ilike.${like},email.ilike.${like}`).limit(8));
+        return (people || []).map(p => ({ kind: 'Person', value: p.full_name || p.email,
+                                          label: p.full_name || p.email, sub: p.email || '' }));
+      }
+      const [chans, clientRows, people] = await Promise.all([
+        cmdkSafe(supabase.from('channels').select('id, name, kind, client_id, is_dm')
+          .ilike('name', like).limit(8)),
+        cmdkSafe(supabase.from('clients').select('id, name').ilike('name', like).limit(6)),
+        cmdkSafe(supabase.from('profiles').select('id, full_name, email')
+          .or(`full_name.ilike.${like},email.ilike.${like}`).limit(5))
+      ]);
+      const out = [];
+      (chans || []).filter(c => !c.is_dm && c.kind !== 'client_dept')
+        .forEach(c => out.push({ kind: 'Channel', value: c.name, label: '#' + c.name, sub: 'Team channel' }));
+      (clientRows || []).forEach(c => out.push({ kind: 'Client', value: c.name, label: c.name, sub: 'Client conversation' }));
+      (people || []).forEach(p => out.push({ kind: 'Person', value: p.full_name || p.email,
+                                             label: p.full_name || p.email, sub: 'Direct message' }));
+      return out.slice(0, 8);
+    }
+    function cmdkRenderSuggestions(chip, list){
+      cmdkSuggestions = list; cmdkSuggestSel = 0;
+      if (!cmdkResults) return;
+      if (!list.length) {
+        cmdkResults.innerHTML = '<div style="padding:26px;text-align:center;color:var(--text-3);font-size:12px;">'
+          + 'Nothing matching “' + raiEscLocal(chip.partial) + '” to filter by</div>';
+        return;
+      }
+      cmdkResults.innerHTML =
+        '<div style="padding:6px 12px 4px;font-size:10px;font-weight:700;color:var(--text-3);'
+        + 'text-transform:uppercase;letter-spacing:.06em;">'
+        + (chip.label === 'from' ? 'From whom' : 'In which conversation') + '</div>'
+        + list.map((s, i) =>
+          '<div class="cmdk-suggest" data-i="' + i + '" style="display:flex;align-items:center;gap:10px;'
+          + 'padding:9px 14px;cursor:pointer;' + (i === 0 ? 'background:var(--surface);' : '') + '">'
+          + '<div style="flex:1;min-width:0;">'
+          + '<div style="font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap;'
+          + 'overflow:hidden;text-overflow:ellipsis;">' + raiEscLocal(s.label) + '</div>'
+          + (s.sub ? '<div style="font-size:11px;color:var(--text-3);">' + raiEscLocal(s.sub) + '</div>' : '')
+          + '</div>'
+          + (i === 0 ? '<kbd style="background:var(--surface-2);border:1px solid var(--line);border-radius:5px;'
+              + 'padding:2px 6px;font-size:10px;color:var(--text-3);">Enter</kbd>' : '')
+          + '</div>').join('');
+      cmdkResults.querySelectorAll('.cmdk-suggest').forEach(row => {
+        row.addEventListener('mouseenter', () => cmdkHighlightSuggestion(Number(row.dataset.i)));
+        row.addEventListener('click', () => cmdkPickSuggestion(Number(row.dataset.i)));
+      });
+    }
+    function cmdkHighlightSuggestion(i){
+      if (!cmdkSuggestions.length) return;
+      cmdkSuggestSel = Math.max(0, Math.min(i, cmdkSuggestions.length - 1));
+      cmdkResults.querySelectorAll('.cmdk-suggest').forEach((r, n) => {
+        r.style.background = n === cmdkSuggestSel ? 'var(--surface)' : '';
+      });
+    }
+    function cmdkPickSuggestion(i){
+      const s = cmdkSuggestions[i];
+      const chip = cmdkPartialChip(cmdkInput.value);
+      if (!s || !chip) return;
+      // Quoted, because the names worth filtering by have spaces in them.
+      const value = /\s/.test(s.value) ? '"' + s.value + '"' : s.value;
+      cmdkInput.value = cmdkInput.value.slice(0, chip.start) + chip.label + ':' + value + ' ';
+      cmdkSuggestions = [];
+      cmdkInput.focus();
+      cmdkInput.setSelectionRange(cmdkInput.value.length, cmdkInput.value.length);
+      cmdkUpdateFilterHint();
+      cmdkSearch(cmdkInput.value);
+    }
+
     function cmdkUpdateFilterHint(){
       const hint = document.getElementById('cmdkFilterHint');
       if (!hint || !cmdkInput) return;
@@ -58227,6 +58392,12 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
     }
 
     if (cmdkInput) {
+      cmdkInput.addEventListener('keydown', (e) => {
+        if (!cmdkSuggestions.length) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); cmdkHighlightSuggestion(cmdkSuggestSel + 1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); cmdkHighlightSuggestion(cmdkSuggestSel - 1); }
+        else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); cmdkPickSuggestion(cmdkSuggestSel); }
+      });
       cmdkInput.addEventListener('input', () => {
         cmdkUpdateFilterHint();
         clearTimeout(cmdkSearchTimeout);
