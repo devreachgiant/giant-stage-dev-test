@@ -28,6 +28,9 @@ BUILT|={'MouseEvent','DragEvent','ClipboardEvent','DataTransfer'}
 # label like 'Password (optional)' is prose. Both read as a call to the tokenizer once the
 # surrounding string escapes its stripping. Neither is a name this module could call.
 CSSNOISE|={'channels','projects','clients','profiles','messages','Password','THREAD'}
+# ':not(#nc_inboxHead)' -- the Inbox tells the conversation header apart from its own by
+# excluding it. A CSS pseudo-class, not a function this module defines.
+CSSNOISE|={'not'}
 fail=0
 
 calls=set(re.findall(r'(?<![\w.$])([A-Za-z_$][\w$]*)\s*\(', body))

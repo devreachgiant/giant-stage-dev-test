@@ -155,6 +155,12 @@
   [122, 121, 122, 121].forEach((n, i) => seed('ch-cd-seo-' + [8, 9, 10, 11][i], n, 'seo'));
   DB.channels.filter(c => c.is_dm).forEach(c => seed(c.id, 4 + Math.floor(rnd() * 12)));
 
+  // Messages that actually name me, so the Inbox's Mentions tab (and the mention half of
+  // Needs you) has something to find. Without these both read zero and every assertion
+  // about them passes by measuring nothing.
+  DB.messages.filter(m => m.author_id !== ME && m.channel_id.startsWith('ch-team-')).slice(0, 7)
+    .forEach((m, i) => { m.body = '@Nishchay ' + m.body; m.created_at = iso(i + 1, i); });
+
   // a few threaded replies, so reply badges have something to render
   DB.messages.filter(m => m.reply_count > 0).slice(0, 40).forEach((m, i) => {
     for (let k = 0; k < m.reply_count; k++)
@@ -193,12 +199,22 @@
   ['todo', 'in_progress', 'review', 'done'].forEach((st, si) => {
     for (let i = 0; i < 3; i++) DB.tasks.push({
       id: 't-' + si + '-' + i, name: 'Task ' + si + '.' + i, description: 'Detail for task ' + si + '.' + i,
-      status: st, priority: pick(['low', 'medium', 'high']), assigned_to: i === 0 ? ME : 'u-' + (i + 1),
+      status: st, priority: pick(['low', 'medium', 'high']), assigned_to: [i === 0 ? ME : 'u-' + (i + 1)],
       department: pick(['seo', 'general', 'web']), due_at: iso(-3 - i, 0), project_id: 'p-1',
       client_id: 'c-1', created_by: ME, created_at: iso(10 + i, 0),
       completed_at: st === 'done' ? iso(1, i) : null
     });
   });
+
+  // Screen recordings, so the share-link work on that screen is testable at all.
+  DB.recordings = [
+    { id: 'rec-1', profile_id: ME, title: 'Client walkthrough', storage_path: ME + '/a.webm',
+      url: 'https://example.test/storage/a.webm', duration_secs: 95, folder: null,
+      visibility: 'workspace', share_token: 'a'.repeat(32), view_count: 0, created_at: iso(2, 0) },
+    { id: 'rec-2', profile_id: 'u-2', title: 'Someone else\'s recording', storage_path: 'u-2/b.webm',
+      url: 'https://example.test/storage/b.webm', duration_secs: 40, folder: 'Handovers',
+      visibility: 'public', share_token: 'b'.repeat(32), view_count: 3, created_at: iso(5, 0) }
+  ];
 
   DB.time_sessions = [{ client_id: 'c-1', duration_seconds: 5400, status: 'stopped' },
                       { client_id: 'c-1', duration_seconds: 1800, status: 'stopped' }];
@@ -263,7 +279,7 @@
     ['todo', 'in_progress', 'done'].map((st, n) => ({
       id: 't-' + cl.id + '-' + n, name: 'Task for ' + cl.name + ' #' + (n + 1),
       description: null, status: st, priority: ['low', 'medium', 'fire'][n],
-      assigned_to: 'u-' + (1 + n), department: 'general', due_at: iso(-2 - n, 0),
+      assigned_to: ['u-' + (1 + n)], department: 'general', due_at: iso(-2 - n, 0),
       project_id: null, client_id: cl.id, created_by: ME, created_at: iso(10 + n, 0),
       completed_at: st === 'done' ? iso(1, n) : null }))));
   // The four non-department grants (migration 20260824120000). Seeded unevenly on
@@ -641,6 +657,55 @@
         if (name === 'ensure_dm_channel') data = 'ch-dm-1';
         else if (name === 'create_group_dm') data = 'ch-dm-1';
         else if (name === 'generate_onboarding_token') data = 'tok-generated';
+        // The real search_messages is a Postgres function over a tsvector. This stands in
+        // for it closely enough to exercise the UI: the same arguments, the same row
+        // shape, the same <mark> highlighting, and the same AND / OR / NOT semantics --
+        // words AND together, repeated filters OR, exclusions subtract.
+        else if (name === 'search_messages' || name === 'search_messages_count') {
+          const a = args || {};
+          const arr = (x) => Array.isArray(x) ? x : [];
+          const hay = (m) => String(m.body || '').toLowerCase();
+          let rows = (DB.messages || []).filter(m => {
+            const b = hay(m);
+            if (!arr(a.p_words).every(w => b.includes(String(w).toLowerCase()))) return false;
+            if (!arr(a.p_phrases).every(w => b.includes(String(w).toLowerCase()))) return false;
+            if (!arr(a.p_prefixes).every(w => new RegExp('\\b' + String(w).toLowerCase()).test(b))) return false;
+            if (arr(a.p_exclude_words).some(w => b.includes(String(w).toLowerCase()))) return false;
+            if (arr(a.p_exclude_phrases).some(w => b.includes(String(w).toLowerCase()))) return false;
+            if (arr(a.p_channels).length && !arr(a.p_channels).includes(m.channel_id)) return false;
+            if (arr(a.p_exclude_channels).includes(m.channel_id)) return false;
+            if (arr(a.p_authors).length && !arr(a.p_authors).includes(m.author_id)) return false;
+            if (arr(a.p_exclude_authors).includes(m.author_id)) return false;
+            if (a.p_after && new Date(m.created_at) < new Date(a.p_after)) return false;
+            if (a.p_before && new Date(m.created_at) >= new Date(a.p_before)) return false;
+            if (arr(a.p_is).includes('thread') && !m.parent_id && !(m.reply_count > 0)) return false;
+            if (arr(a.p_is).includes('pinned') && !m.pinned_at) return false;
+            if (arr(a.p_has).includes('pin') && !m.pinned_at) return false;
+            if (arr(a.p_has).includes('link') && !/https?:\/\//i.test(m.body || '')) return false;
+            if (arr(a.p_has).includes('file')
+                && !(DB.message_attachments || []).some(x => x.message_id === m.id)) return false;
+            return true;
+          });
+          rows.sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
+          if (name === 'search_messages_count') { data = rows.length; }
+          else {
+            const term = (arr(a.p_words)[0] || arr(a.p_phrases)[0] || arr(a.p_prefixes)[0] || '');
+            data = rows.slice(0, a.p_limit || 20).map(m => {
+              const body = String(m.body || '');
+              let snippet = body.slice(0, 160);
+              if (term) {
+                const i = body.toLowerCase().indexOf(String(term).toLowerCase());
+                if (i >= 0) {
+                  const s = Math.max(0, i - 40);
+                  snippet = (s ? '… ' : '') + body.slice(s, i) + '<mark>' + body.slice(i, i + String(term).length)
+                    + '</mark>' + body.slice(i + String(term).length, i + 120);
+                }
+              }
+              return { id: m.id, channel_id: m.channel_id, author_id: m.author_id,
+                       created_at: m.created_at, body, snippet, rank: 0.5 };
+            });
+          }
+        }
         const p = Promise.resolve({ data, error: null });
         p.single = () => Promise.resolve({ data, error: null });
         p.maybeSingle = () => Promise.resolve({ data, error: null });
@@ -661,7 +726,7 @@
           // this harness exists to keep clean.
           getPublicUrl: (path) => ({ data: { publicUrl: PLACEHOLDER_IMG } }),
           createSignedUrl: (path) => Promise.resolve({ data: { signedUrl: 'https://mock.local/' + bucket + '/' + path }, error: null }),
-          remove: () => Promise.resolve({ data: [], error: null }),
+          remove: (paths) => { log.storage.push('remove:' + bucket + '/' + [].concat(paths || []).join(',')); return Promise.resolve({ data: [], error: null }); },
           list: () => Promise.resolve({ data: [], error: null }),
           download: () => Promise.resolve({ data: new Blob(['mock']), error: null })
         })

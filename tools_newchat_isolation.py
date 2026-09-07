@@ -58,7 +58,110 @@ AFTER_SCHED_SAVE = (
     "    async function saveCustomSchedule(date){\n"
     "      if (!document.querySelector('.screen[data-screen=\"chat\"].on')) return;\n")
 
-ALLOWED = [(1, BEFORE_SCHED_FOR, AFTER_SCHED_FOR,
+# "Load earlier messages" scrolled you to the newest message -- the opposite of the button
+# -- because every render ended by scrolling to the bottom, paging included. Fixed in both
+# chats by explicit decision: people are told Old Chat is still there during the beta, so
+# leaving the same bug in it would be leaving it for whoever took that advice.
+BEFORE_PAGE_RENDER = '''    async function renderMessages(msgs) {
+      // Mark as bulk render so the CSS animation rule is bypassed during this bulk insertion'''
+AFTER_PAGE_RENDER = '''    // opts.preserveScroll -- older messages being added ABOVE what you are reading, so
+    // this render must not touch the scroll. Same fix as Chat: every render scrolled to
+    // the newest message unconditionally, so "Load earlier messages" sent you to the
+    // bottom, the opposite of what the button says.
+    async function renderMessages(msgs, opts) {
+      const preserveScroll = !!(opts && opts.preserveScroll);
+      // Mark as bulk render so the CSS animation rule is bypassed during this bulk insertion'''
+
+BEFORE_PAGE_TRUNC = '''      if (msgs.length > 500) {'''
+AFTER_PAGE_TRUNC = '''      if (!preserveScroll && msgs.length > 500) {'''
+
+BEFORE_PAGE_SCROLL = '''      requestAnimationFrame(() => requestAnimationFrame(doScroll));
+      // Also retry after 100ms in case avatars load late
+      setTimeout(doScroll, 120);'''
+AFTER_PAGE_SCROLL = '''      if (!preserveScroll) {
+        requestAnimationFrame(() => requestAnimationFrame(doScroll));
+        // Also retry after 100ms in case avatars load late
+        setTimeout(doScroll, 120);
+      }'''
+
+BEFORE_PAGE_ANCHOR = '''      const prevTop = msgsContainer ? msgsContainer.scrollTop : 0;'''
+AFTER_PAGE_ANCHOR = '''      const prevTop = msgsContainer ? msgsContainer.scrollTop : 0;
+      window._chatStickToBottom = false;
+      // Anchored on the message at the top of the view rather than a height difference,
+      // which is still settling while avatars and images load.
+      const firstEl = chatMsgsList ? chatMsgsList.querySelector('.msg[data-msg-id]') : null;
+      const anchorId = firstEl ? firstEl.dataset.msgId : null;
+      const anchorTop = (firstEl && msgsContainer)
+        ? firstEl.getBoundingClientRect().top - msgsContainer.getBoundingClientRect().top
+        : 0;'''
+
+BEFORE_PAGE_CALL = '''      await renderMessages(cache.msgs);'''
+AFTER_PAGE_CALL = '''      await renderMessages(cache.msgs, { preserveScroll: true });'''
+
+BEFORE_PAGE_RESTORE = '''      // Preserve scroll position so the view doesn't jump
+      requestAnimationFrame(() => {
+        if (!msgsContainer) return;
+        const newHeight = msgsContainer.scrollHeight;
+        msgsContainer.scrollTop = newHeight - prevHeight + prevTop;
+      });'''
+AFTER_PAGE_RESTORE = '''      // Put the message you were reading back where it was, and keep putting it back as
+      // avatars and images above it finish loading.
+      const keepPlace = () => {
+        if (!msgsContainer) return;
+        window._chatStickToBottom = false;
+        const el = anchorId ? chatMsgsList.querySelector(`.msg[data-msg-id="${anchorId}"]`) : null;
+        if (!el) { msgsContainer.scrollTop = msgsContainer.scrollHeight - prevHeight + prevTop; return; }
+        const delta = (el.getBoundingClientRect().top - msgsContainer.getBoundingClientRect().top) - anchorTop;
+        if (Math.abs(delta) > 1) msgsContainer.scrollTop += delta;
+      };
+      keepPlace();
+      requestAnimationFrame(keepPlace);
+      [60, 160, 320, 600].forEach(ms => setTimeout(keepPlace, ms));'''
+
+_PAGING_WHY = ('"Load earlier messages" scrolled to the newest message, the opposite of '
+               'the button; fixed in both chats by explicit decision, since Old Chat is '
+               'what people were told to fall back to during the beta')
+
+# A message's text node carries data-msg-id as well as the message itself, so
+# '#chatMsgsList [data-msg-id]' matched both and attached a second reaction bar INSIDE the
+# text. Double-clicking to edit then read the bar as part of the message and typed
+# 👍❤️🔥😂🎉 into the edit box. Fixed in both chats by explicit decision.
+BEFORE_BAR_SELECTOR = '''    function reattachReactBarsForChannel(channelId) {
+      const msgEls = document.querySelectorAll('#chatMsgsList [data-msg-id]');'''
+AFTER_BAR_SELECTOR = '''    function reattachReactBarsForChannel(channelId) {
+      // .msg, not any [data-msg-id]: the message's text node carries data-msg-id too, so
+      // a bare selector attached a SECOND reaction bar inside the text, and double-clicking
+      // to edit then typed \U0001F44D\u2764\uFE0F\U0001F525\U0001F602\U0001F389 into the edit box.
+      const msgEls = document.querySelectorAll('#chatMsgsList .msg[data-msg-id]');'''
+
+BEFORE_BAR_GUARD = '''    function attachReactBarToMsg(msgEl, messageId, isMine) {
+      if (msgEl.querySelector('.msg-react-bar')) return;'''
+AFTER_BAR_GUARD = '''    function attachReactBarToMsg(msgEl, messageId, isMine) {
+      // Never inside the text of a message: anything in the body element becomes part of
+      // what the message says as far as innerText, editing and copying are concerned.
+      if (!msgEl || msgEl.hasAttribute('data-msg-body')) return;
+      if (msgEl.querySelector('.msg-react-bar')) return;'''
+
+BEFORE_ATT_SELECTOR = '''        // Load attachments + render
+        const msgEls = document.querySelectorAll('#chatMsgsList [data-msg-id]');'''
+AFTER_ATT_SELECTOR = '''        // Load attachments + render. .msg, not any [data-msg-id]: the text node carries
+        // the id too, so this rendered every attachment a second time inside the text.
+        const msgEls = document.querySelectorAll('#chatMsgsList .msg[data-msg-id]');'''
+
+_BAR_WHY = ('a bare [data-msg-id] selector also matched the message text node, so a second '
+            'reaction bar was attached inside the message body and double-clicking to edit '
+            'typed the emoji bar into the edit box; fixed in both chats by explicit decision')
+
+ALLOWED = [(1, BEFORE_BAR_SELECTOR, AFTER_BAR_SELECTOR, _BAR_WHY),
+           (1, BEFORE_BAR_GUARD, AFTER_BAR_GUARD, _BAR_WHY),
+           (1, BEFORE_ATT_SELECTOR, AFTER_ATT_SELECTOR, _BAR_WHY + ' (same selector, attachments)'),
+           (1, BEFORE_PAGE_RENDER, AFTER_PAGE_RENDER, _PAGING_WHY),
+           (1, BEFORE_PAGE_TRUNC, AFTER_PAGE_TRUNC, _PAGING_WHY + ' (the cap drops the oldest, which is what paging just fetched)'),
+           (1, BEFORE_PAGE_SCROLL, AFTER_PAGE_SCROLL, _PAGING_WHY),
+           (1, BEFORE_PAGE_ANCHOR, AFTER_PAGE_ANCHOR, _PAGING_WHY),
+           (1, BEFORE_PAGE_CALL, AFTER_PAGE_CALL, _PAGING_WHY),
+           (1, BEFORE_PAGE_RESTORE, AFTER_PAGE_RESTORE, _PAGING_WHY),
+           (1, BEFORE_SCHED_FOR, AFTER_SCHED_FOR,
             'the schedule modal is one set of elements shared by both chats and both '
             'modules listen to it, so one click scheduled the message twice, into two '
             'different channels; each module now acts only while its own screen is on'),

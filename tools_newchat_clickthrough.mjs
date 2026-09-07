@@ -68,7 +68,11 @@ const results = [];
 const check = (name, pass, detail) => { results.push({ name, pass: !!pass, detail }); return !!pass; };
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+// Clipboard permission, because "copy link" is a feature now and a check that cannot read
+// the clipboard can only assert that a button was clicked.
+const context = await browser.newContext({ viewport: { width: 1600, height: 1000 },
+  permissions: ['clipboard-read', 'clipboard-write'] });
+const page = await context.newPage();
 
 const consoleErrors = [];
 const pageErrors = [];
@@ -340,11 +344,13 @@ const sidebar = await page.evaluate(() => {
       return db.clients.filter(c => c.status !== 'churned')
         .filter(cl => !db.channels.some(c => c.kind === 'client_dept' && c.client_id === cl.id)).length;
     })(),
-    // One row per client on the books. Their departments are threads inside the
-    // conversation, reached from the strip, not rows of their own.
-    expectedClients: (() => {
+    // One row per client that HAS a conversation. Their departments are threads inside
+    // it, reached from the strip, not rows of their own.
+    clientsWithConversation: (() => {
       const db = window.__mock.db;
-      return db.clients.filter(c => c.status !== 'churned').length;
+      const withChan = new Set(db.channels.filter(c => c.kind === 'client_dept' && c.client_id)
+        .map(c => c.client_id));
+      return db.clients.filter(c => c.status !== 'churned' && withChan.has(c.id)).length;
     })(),
     groups: document.querySelectorAll('#nc_cardGroupsBody .nc_ch-item').length,
     // truth from the data: a DM with more than one other member, or is_group set
@@ -360,23 +366,21 @@ const sidebar = await page.evaluate(() => {
 check('sidebar renders its six nav cards', sidebar.cards === 6, 'cards=' + sidebar.cards);
 check('sidebar behaves as an accordion (one card open)', sidebar.openCards === 1,
   'open=' + sidebar.openCards + ' heights=' + sidebar.heights.join(','));
-// This has moved twice today, so the rule is stated plainly: ONE row per client.
-// Departments -- General, Google Ads, Meta Ads, SEO, Web -- are threads inside the
-// conversation, on the strip at the top, which is the shape the screen was designed
-// around; a row each read as five separate clients. A client with no conversation is
-// still listed, dimmed, and starts one on click. Nothing is pre-created: channels is
-// shared with old chat, so empty public rows would flood its sidebar and private ones
-// would be invisible to non-member managers.
-check('one row per client, departments live inside the conversation',
-  sidebar.clients > 0 && sidebar.clients === sidebar.expectedClients,
-  'listed=' + sidebar.clients + ' clients=' + sidebar.expectedClients);
-// The inverse of what this asserted a few hours ago. A client with no conversation IS
-// listed again, dimmed, because the card is a client list and every client on the books
-// belongs on it -- it just has nothing to open until someone starts it.
-check('a client with no conversation is still listed, dimmed',
-  sidebar.dimmedClients > 0
-    && sidebar.dimmedClients === sidebar.expectedDimmed,
-  'dimmed=' + sidebar.dimmedClients + ' expected=' + sidebar.expectedDimmed);
+// ONE row per client that HAS a conversation. Departments -- General, Google Ads, Meta
+// Ads, SEO, Web -- are threads inside it, on the strip at the top, which is the shape the
+// screen was designed around; a row each read as five separate clients.
+//
+// A client with NO conversation is not listed at all. That has moved more than once: it
+// was listed, dimmed, on the reasoning that the card is a client list. It is not -- it is
+// the list of conversations you have, and a dimmed row with nothing behind it made a
+// deleted conversation look like it had come back. Clients without one are reached by
+// name in the jump box, which is asserted further down.
+check('one row per client that has a conversation',
+  sidebar.clients > 0 && sidebar.clients === sidebar.clientsWithConversation,
+  'listed=' + sidebar.clients + ' withConversation=' + sidebar.clientsWithConversation);
+check('a client with no conversation is not listed',
+  sidebar.dimmedClients === 0,
+  'dimmed=' + sidebar.dimmedClients);
 check('11 team channels + home are listed', sidebar.teams === 12, 'teams=' + sidebar.teams);
 // Group conversations belong under GROUP DMS, one-to-ones under DIRECT. The card used to
 // route on channels.is_group alone while the list treated "more than one other person" as a
@@ -512,7 +516,7 @@ await step('a message with replies shows exactly one reply badge', async () => {
     () => document.querySelectorAll('#nc_chatMsgsList .nc_msg-reply-cta, #nc_chatMsgsList .msg-reply-cta').length > 0,
     null, { timeout: 20000 }).catch(() => {});
   const count = async () => page.evaluate(() => {
-    const rows = [...document.querySelectorAll('#nc_chatMsgsList [data-msg-id], #nc_chatMsgsList [data-message-id]')];
+    const rows = [...document.querySelectorAll('#nc_chatMsgsList .nc_msg[data-msg-id], #nc_chatMsgsList [data-message-id]')];
     let worst = 0, total = 0;
     rows.forEach(r => {
       const n = r.querySelectorAll('.nc_msg-reply-cta, .msg-reply-cta').length;
@@ -1603,6 +1607,267 @@ await step('Needs you finds an old unread message behind a busy channel', async 
     JSON.stringify(opened));
 });
 
+// A mention that lands in the conversation you are READING was never marked handled --
+// only opening a channel does that, and you are already in it -- so the next recompute put
+// that conversation straight back on the Needs you card, and no amount of reading could
+// shift it. Reported as "it keeps the chat in the list even after I read it".
+await step('a mention read as it arrives does not come back on the card', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    const needs = () => Object.keys(window.__ncNeedTargets || {});
+    const mineIds = new Set(db.channel_members.filter(m => m.profile_id === 'u-me').map(m => m.channel_id));
+    const ch = db.channels.find(c => mineIds.has(c.id) && c.kind === 'team_channel');
+    if (!ch) return { skipped: 'no channel of mine' };
+    // open it first, so it starts CLEAR -- at boot it already needs me, and asserting
+    // against that baseline would prove nothing at all
+    await window.nc_jumpToMessage(ch.id, null, null);
+    await w(2500);
+    const baselineClear = !needs().includes(ch.id);
+    const m = { id: 'm-read-in-place', channel_id: ch.id, author_id: 'u-4',
+      body: '@nishchay while you are here', created_at: new Date().toISOString(),
+      edited_at: null, parent_id: null, reply_count: 0, voice_note_url: null,
+      voice_note_duration_ms: null, flagged: false, pinned_at: null, pinned_by: null };
+    db.messages.push(m);
+    window.__mock.emit('messages', 'INSERT', m);
+    await w(1800);
+    const whileReading = !needs().includes(ch.id);
+    // leave, then force the recompute that fires on focus / re-entering the screen
+    const other = db.channels.find(c => mineIds.has(c.id) && c.kind === 'team_channel' && c.id !== ch.id);
+    if (other) { await window.nc_jumpToMessage(other.id, null, null); await w(1200); }
+    await window.nc_refreshNeedsYou(true);
+    await w(2500);
+    return { baselineClear, whileReading, afterRecompute: !needs().includes(ch.id),
+             markedDone: (db.inbox_actions || []).some(a => a.message_id === 'm-read-in-place' && a.done) };
+  });
+  check('a mention arriving in the channel on screen is marked handled, and stays cleared',
+    !r.skipped && r.baselineClear && r.whileReading && r.afterRecompute && r.markedDone,
+    JSON.stringify(r));
+});
+
+// A search hit in a long conversation. The jump paged back 20 times at 50 a page and gave
+// up 1,000 messages short -- and the three busiest conversations in the real workspace are
+// all deeper than that, so an older hit left you somewhere near the message with nothing
+// highlighted. Seeded past the old ceiling on purpose: at 1,200 the old code loads exactly
+// 1,050 messages and stops.
+await step('a search hit deep in a long conversation is actually reached', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    // chosen at runtime: earlier steps create, rename and delete channels, so a
+    // hardcoded id is not necessarily one that still exists or that I am still in
+    const mineIds = new Set(db.channel_members.filter(m => m.profile_id === 'u-me').map(m => m.channel_id));
+    const target = db.channels.find(c => mineIds.has(c.id) && c.kind === 'team_channel');
+    if (!target) return { skipped: 'no channel of mine' };
+    const ch = target.id, base = Date.now() - 400 * 864e5;
+    for (let i = 0; i < 1300; i++) db.messages.push({
+      id: 'deep-' + i, channel_id: ch, author_id: 'u-7',
+      body: i === 40 ? 'pangolin ledger anomaly' : 'deep filler ' + i,
+      created_at: new Date(base + i * 36e5).toISOString(), edited_at: null, parent_id: null,
+      reply_count: 0, voice_note_url: null, voice_note_duration_ms: null,
+      flagged: false, pinned_at: null, pinned_by: null });
+    // start from Chat, on the messages sub-tab: earlier steps leave other screens up
+    document.querySelector('.nav-item[data-screen="newchat"]').click();
+    await w(800);
+    if (typeof window.nc_switchChatSubtab === 'function') window.nc_switchChatSubtab('messages');
+    await w(1200);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
+    await w(600);
+    const inp = document.querySelector('#cmdkInput, .cmdk-input, input[placeholder*="Search"]');
+    if (!inp) return { skipped: 'no search input' };
+    inp.focus(); inp.value = 'pangolin';
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    await w(2500);
+    const hit = [...document.querySelectorAll('.cmdk-item, [data-cmdk-item]')]
+      .find(e => /pangolin ledger/i.test(e.innerText));
+    if (!hit) return { skipped: 'no result' };
+    hit.click();
+    // the flash is the only thing that says "this is the one you asked for"
+    for (let i = 0; i < 60; i++) {
+      await w(400);
+      const el = document.querySelector('.nc_msg[data-msg-id="deep-40"]');
+      const st = el && el.getAttribute('style') || '';
+      if (el && /outline/.test(st) && /solid/.test(st)) {
+        const b = el.getBoundingClientRect();
+        return { depth: 1260, flashed: true, inView: b.top > 0 && b.bottom < window.innerHeight,
+                 loaded: document.querySelectorAll('.nc_msg[data-msg-id]').length };
+      }
+    }
+    return { depth: 1260, flashed: false, screen: document.querySelector('.nav-item.on') && document.querySelector('.nav-item.on').dataset.screen,
+             ch, anyDeep: document.querySelectorAll('.nc_msg[data-msg-id^="deep-"]').length,
+             loaded: document.querySelectorAll('.nc_msg[data-msg-id]').length };
+  });
+  check('a message 1,260 back is reached, highlighted and on screen',
+    !r.skipped && r.flashed && r.inView && r.loaded > 1050, JSON.stringify(r));
+  await page.evaluate(() => { const e = document.getElementById('cmdkOverlay'); if (e) e.classList.remove('on'); });
+});
+
+// The Inbox used to open UNDER the conversation you were reading: its own header, its own
+// sub-tabs and the department strip all stayed on screen, so a screen about everything
+// waiting on you was topped by the bar for one unrelated channel. It is its own place now,
+// and every piece of that chat furniture has to come back when you leave.
+await step('the Inbox replaces the chat bar, and gives it back on the way out', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const vis = el => !!el && el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+      && el.getBoundingClientRect().height > 4;
+    const thread = document.querySelector('main.nc_thread');
+    const chatHead = () => thread.querySelector('.nc_thread-head:not(#nc_inboxHead)');
+    // read a channel first, so there IS a chat bar to displace
+    const row = document.querySelector('#nc_cardClientsBody .nc_ch-item[data-nc-channel-id]');
+    if (row) { row.click(); await w(1800); }
+    const hadChatBar = vis(chatHead());
+
+    document.querySelector('.nc_open-inbox-btn').click();
+    await w(2000);
+    const inside = {
+      pane: vis(document.getElementById('nc_inboxPane')),
+      chatHeadGone: !vis(chatHead()),
+      subTabsGone: !vis(document.getElementById('nc_chatSubTabs')),
+      deptStripGone: !vis(document.getElementById('nc_deptStrip')),
+      composerGone: !vis(thread.querySelector('.nc_composer')),
+      ownHeader: vis(document.getElementById('nc_inboxHead'))
+    };
+    document.getElementById('nc_inboxClose').click();
+    await w(1500);
+    const after = {
+      chatHeadBack: vis(chatHead()),
+      subTabsBack: vis(document.getElementById('nc_chatSubTabs')),
+      composerBack: vis(thread.querySelector('.nc_composer')),
+      paneGone: !vis(document.getElementById('nc_inboxPane')),
+      ownHeaderGone: !vis(document.getElementById('nc_inboxHead'))
+    };
+    return { hadChatBar, inside, after };
+  });
+  check('opening the Inbox hides the conversation header, sub-tabs, strip and composer',
+    r.hadChatBar && Object.values(r.inside).every(Boolean), JSON.stringify(r.inside));
+  check('leaving the Inbox restores the conversation it covered',
+    Object.values(r.after).every(Boolean), JSON.stringify(r.after));
+});
+
+// Each chip has to list exactly what it counts, and only items of that kind. Both halves
+// matter: a count and a list can agree while both are wrong, and a tab that filters on the
+// wrong axis still returns a plausible number.
+await step('every Inbox tab lists what its badge claims', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    // Earlier steps clear the Inbox as they go, so by now every mention seeded at load is
+    // marked done. Without fresh ones the Mentions tab reads zero and "holds one kind of
+    // item" would pass by checking nothing.
+    const db = window.__mock.db;
+    const mine = db.channel_members.filter(m => m.profile_id === 'u-me'
+      && (db.channels.find(c => c.id === m.channel_id) || {}).kind === 'team_channel');
+    for (let i = 0; i < 4; i++) db.messages.push({
+      id: 'm-tabcheck-mention-' + i, channel_id: mine[i % mine.length].channel_id,
+      author_id: 'u-9', body: '@nishchay tab check ' + i, created_at: new Date(Date.now() - i * 6e4).toISOString(),
+      parent_id: null, reply_count: 0, flagged: false, pinned_at: null });
+    window.nc_openInbox();
+    await w(2500);
+    const out = {};
+    for (const btn of [...document.querySelectorAll('[data-c3-inbox-filter]')]) {
+      const key = btn.dataset.c3InboxFilter;
+      const claimed = parseInt(btn.innerText.replace(/[^0-9]+/g, ''), 10);
+      btn.click(); await w(350);
+      const ticks = [...document.querySelectorAll('#nc_inboxPane [data-c3-inbox-done]')];
+      // a cleared card carries the key twice: the tick and its Undo link
+      const listed = new Set(ticks.map(e => e.dataset.c3InboxDone)).size;
+      const cards = ticks.filter(e => e.style.borderRadius === '50%')
+        .map(e => e.closest('div[style*="border-radius:13px"]'));
+      const kinds = [...new Set(cards.map(c => {
+        const b = c && c.querySelector('div[style*="text-transform:uppercase"]');
+        return b ? b.textContent.trim() : '?';
+      }))];
+      out[key] = { claimed, listed, kinds };
+    }
+    return out;
+  });
+  const one = (k, ...labels) => r[k] && r[k].listed > 0
+    && r[k].kinds.every(x => labels.includes(x)) && r[k].kinds.length >= 1;
+  check('each tab lists exactly as many items as its badge counts',
+    Object.values(r).every(t => t.claimed === t.listed), JSON.stringify(r));
+  check('Mentions, Flagged, New activity and Tasks each hold one kind of item',
+    one('mention', 'Mentioned you') && one('flagged', 'Flagged for reply')
+    && one('unread', 'New activity') && one('task', 'New task assigned', 'Your task'), JSON.stringify(r));
+  check('All is the union, and is bigger than any single kind it contains',
+    r.all.listed >= r.mention.listed + r.flagged.listed + r.unread.listed + r.task.listed,
+    JSON.stringify({ all: r.all.listed, parts: [r.mention.listed, r.flagged.listed, r.unread.listed, r.task.listed] }));
+});
+
+// Every card read "Someone assigned you a task": profileName goes through mg.profilesById,
+// and the only thing that ever filled it was the per-channel tasks view, which the Inbox
+// does not open. The names were in chatProfilesCache the whole time.
+await step('Inbox cards name the person, not "Someone"', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    // seeded tasks are all created by me; this one has a creator to look up
+    db.tasks.push({ id: 't-named-creator', name: 'Task from someone else', description: null,
+      status: 'todo', priority: 'high', assigned_to: ['u-me'], department: 'general',
+      due_at: null, project_id: 'p-1', client_id: 'c-1', created_by: 'u-3',
+      created_at: new Date().toISOString(), completed_at: null });
+    window.nc_openInbox();
+    await w(2500);
+    // the step before this leaves whichever tab it checked last selected
+    document.querySelector('[data-c3-inbox-filter="task"]').click();
+    await w(600);
+    const pane = document.getElementById('nc_inboxPane');
+    const lines = [...pane.querySelectorAll('span[style*="font-weight:700"]')].map(e => e.textContent.trim());
+    return {
+      saysSomeone: /Someone/.test(pane.innerText),
+      namesCreator: lines.some(t => /^Team Member \d+ assigned you a task$/.test(t)),
+      ownTaskReadsAsMine: lines.includes('You added this task'),
+      sample: lines.filter(t => /task$/.test(t)).slice(0, 4)
+    };
+  });
+  check('a task names whoever assigned it, and my own reads as mine',
+    !r.saysSomeone && r.namesCreator && r.ownTaskReadsAsMine, JSON.stringify(r));
+});
+
+// Save, clear and jump: the three things a row is for.
+await step('Inbox rows save, clear and open the conversation they came from', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const vis = el => !!el && el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+      && el.getBoundingClientRect().height > 4;
+    const rows = () => new Set([...document.querySelectorAll('#nc_inboxPane [data-c3-inbox-done]')]
+      .map(e => e.dataset.c3InboxDone)).size;
+    const tab = k => document.querySelector('[data-c3-inbox-filter="' + k + '"]').click();
+    tab('all'); await w(400);
+    const saveEl = document.querySelector('[data-c3-inbox-save]');
+    const savedKey = saveEl && saveEl.dataset.c3InboxSave;
+    if (saveEl) saveEl.click();
+    await w(900);
+    tab('saved'); await w(500);
+    const savedShows = !!document.querySelector('[data-c3-inbox-save="' + savedKey + '"]');
+
+    tab('all'); await w(400);
+    const before = rows();
+    const tick = document.querySelector('[data-c3-inbox-done]');
+    const doneKey = tick && tick.dataset.c3InboxDone;
+    if (tick) tick.click();
+    await w(900);
+    const leftAll = rows() === before - 1;
+    tab('done'); await w(500);
+    const doneShows = !!document.querySelector('[data-c3-inbox-done="' + doneKey + '"]');
+
+    tab('mention'); await w(500);
+    // fall back to All: the tick above may have cleared the last open mention
+    if (!document.querySelector('[data-c3-inbox-jump]')) { tab('all'); await w(500); }
+    const jump = document.querySelector('[data-c3-inbox-jump]');
+    const target = jump && jump.dataset.c3InboxJump.split('::')[1];
+    if (jump) jump.click();
+    await w(2200);
+    const landed = !vis(document.getElementById('nc_inboxPane'))
+      && vis(document.querySelector('main.nc_thread .nc_thread-head:not(#nc_inboxHead)'));
+    return { savedShows, leftAll, doneShows, target, landed,
+             wrote: (window.__mock.log.writes || []).filter(x => /inbox_actions/.test(x)).length };
+  });
+  check('saving a row moves it into Saved, and clearing one moves it into Done',
+    r.savedShows && r.leftAll && r.doneShows && r.wrote > 0, JSON.stringify(r));
+  check('clicking a row leaves the Inbox and opens that conversation',
+    !!r.target && r.landed, JSON.stringify(r));
+});
+
 // The four area columns need a table that ships in migration 20260824120000. Between
 // writing that migration and applying it PostgREST answers PGRST205, so the screen has to
 // degrade rather than error -- it shipped as a red toast on every open plus four columns
@@ -2053,8 +2318,11 @@ await step('deleting a client conversation removes it', async () => {
     return out;
   });
   check('deleting a client conversation removes it',
-    r.hasMenu && r.hasDelete && r.deleted === r.siblings.length && r.remaining.length === 0
-      && r.rowsStillOnDeletedChannels === 0 && r.rowIsDimmedPlaceholder,
+    r.hasMenu && r.hasDelete && r.deleted > 0 && !r.rowRemains
+      // Gone from the card entirely, not left behind as a dimmed client row. That
+      // placeholder is what made a deleted conversation look like it had come back.
+      && r.rowIsDimmedPlaceholder === false
+      && r.rowsStillOnDeletedChannels === 0,
     JSON.stringify(r));
 });
 
@@ -2160,7 +2428,8 @@ await step('the Clients "+" opens the same form as Teams', async () => {
       && r.shape.client === null && r.shape.dept === null
       && r.rejectsDeptWithoutClient
       && r.inClientsCard && !r.inTeamsCard
-      && r.positionInCard === 0 && r.markText === 'F' && r.markIsCircle,
+      // Two initials now, not one: "FD" tells two Fortress rows apart where "F" does not.
+      && r.positionInCard === 0 && /^[A-Z]{2}$/.test(r.markText || '') && r.markIsCircle,
     JSON.stringify(r));
 });
 
@@ -2289,7 +2558,9 @@ await step('Start huddle is wired to New Chat\'s own button', async () => {
 await step('a new client channel is public, with the whole team in it', async () => {
   const r = await page.evaluate(async () => {
     const db = window.__mock.db;
-    // A client with no conversation yet: its dimmed row starts one on click.
+    // A client with no conversation yet. Clicking its row no longer creates one -- that
+    // is deliberate, so a deleted conversation stays deleted -- so this presses the
+    // "Start conversation" button the row opens.
     const withChan = new Set(db.channels.filter(c => c.kind === 'client_dept').map(c => c.client_id));
     const target = db.clients.find(c => c.status !== 'churned' && !withChan.has(c.id));
     if (!target) return { noEmptyClient: true };
@@ -2298,12 +2569,26 @@ await step('a new client channel is public, with the whole team in it', async ()
       card.querySelector('.nc_navcard-head').click();
       await new Promise(r => setTimeout(r, 700));
     }
-    const row = [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')]
-      .find(e => e.dataset.clientId === target.id);
-    const out = { client: target.name, foundRow: !!row };
-    if (!row) return out;
+    // Clients with no conversation are no longer listed in the card, so this reaches the
+    // one it wants by name, the way a person does.
+    const out = { client: target.name };
+    const jump = document.getElementById('nc_chatJumpToInput');
+    if (jump) {
+      jump.value = target.name.slice(0, 6);
+      jump.dispatchEvent(new Event('input', { bubbles: true }));
+      await new Promise(r => setTimeout(r, 1300));
+    }
+    const results = document.getElementById('nc_jumpResults');
+    const hit = results ? [...results.querySelectorAll('*')]
+      .find(e => e.children.length === 0 && e.textContent.trim() === target.name) : null;
+    out.foundRow = !!hit;
+    if (!hit) return out;
     const before = db.channels.length;
-    row.click();
+    hit.click();
+    await new Promise(r => setTimeout(r, 1800));
+    const startBtn = document.getElementById('nc_startConvoBtn');
+    out.startButtonShown = !!startBtn;
+    if (startBtn) startBtn.click();
     for (let i = 0; i < 40; i++) {
       await new Promise(r => setTimeout(r, 200));
       if (db.channels.length > before) break;
@@ -2324,7 +2609,7 @@ await step('a new client channel is public, with the whole team in it', async ()
     return out;
   });
   check('a new client channel is public, with the whole team in it',
-    r.foundRow && r.created && r.isPublic && r.teamSize > 1
+    r.foundRow && r.startButtonShown && r.created && r.isPublic && r.teamSize > 1
       && r.everyoneAdded && r.noClientsAdded && r.noDeactivatedAdded,
     JSON.stringify(r));
 });
@@ -2487,9 +2772,11 @@ await step('the header controls all do something', async () => {
     out.privacyFlipped = document.getElementById('nc_chatHeadPrivacyLabel')?.textContent !== before;
     document.getElementById('nc_chatHeadPrivacyBtn')?.click(); await wait(1200);
 
-    // load earlier asks the database for more
+    // Reading upwards asks the database for more -- there is no button to click now.
     const q0 = window.__mock.log.queries.length;
-    document.getElementById('nc_chatLoadEarlierBtn')?.click(); await wait(1400);
+    const _sc = document.getElementById('nc_chatMsgs');
+    if (_sc) { _sc.scrollTop = 0; }
+    await wait(1800);
     out.loadEarlierQueried = window.__mock.log.queries.length > q0;
 
     // "Add card" is gone: custom sections do not exist here, so it could only have made
@@ -2510,7 +2797,9 @@ await step('a message reacts, opens a thread, and the channel searches', async (
     const out = {};
     const team = [...document.querySelectorAll('#nc_cardTeamsBody .nc_ch-item[data-nc-channel-id]')][0];
     if (team) { team.click(); await wait(2000); }
-    const msgs = () => [...document.querySelectorAll('#nc_chatMsgs [data-msg-id]')];
+    // .nc_msg, not any [data-msg-id]: a message's text node carries the id as well, and
+    // the controls live on the message, not inside its text.
+    const msgs = () => [...document.querySelectorAll('#nc_chatMsgs .nc_msg[data-msg-id]')];
     out.messagesPainted = msgs().length;
     if (!msgs().length) return out;
     const row = msgs()[msgs().length - 1];
@@ -3073,7 +3362,7 @@ await step('scheduling from inside a thread also writes exactly one row', async 
     out.channel = window.nc_activeChannelId;
 
     // Open a thread on a message, which is where it was reported from.
-    const row = [...document.querySelectorAll('#nc_chatMsgs [data-msg-id]')].pop();
+    const row = [...document.querySelectorAll('#nc_chatMsgs .nc_msg[data-msg-id]')].pop();
     if (!row) return { noMessage: true };
     row.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
     await wait(300);
@@ -3118,6 +3407,1093 @@ await step('scheduling from inside a thread also writes exactly one row', async 
     r.threadOpen && r.customFound && r.rowsWritten === 1
       && r.channels.length === 1 && r.channels[0] === r.channel
       && r.parents.length === 1 && r.parents[0] !== null,
+    JSON.stringify(r));
+});
+
+await step('a Needs you row lands on the message that put it there', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const db = window.__mock.db;
+    // A mention far enough back that the channel's opening page of 50 will not contain
+    // it -- which is the case that used to silently do nothing.
+    const CH = 'ch-cd-seo-8';
+    const inCh = db.messages.filter(m => m.channel_id === CH && !m.parent_id)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    out.channelSize = inCh.length;
+    if (inCh.length < 70) return out;
+    const deepAt = new Date(new Date(inCh[70].created_at).getTime() - 60000).toISOString();
+    db.messages.push({ id: 'm-deep-mention', channel_id: CH, author_id: 'u-3',
+      body: '@Nishchay can you look at this one please', created_at: deepAt, parent_id: null,
+      reply_count: 0, flagged: false, edited_at: null, pinned_at: null, pinned_by: null,
+      voice_note_url: null, voice_note_duration_ms: null });
+    // and a mention that is a reply inside a thread, which the timeline never renders
+    const CH2 = 'ch-cd-seo-9';
+    const in2 = db.messages.filter(m => m.channel_id === CH2 && !m.parent_id)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const parent = in2[40];
+    parent.reply_count = (parent.reply_count || 0) + 2;
+    const base = new Date(parent.created_at).getTime();
+    db.messages.push({ id: 'm-thr-a', channel_id: CH2, author_id: 'u-4', body: 'Another reply',
+      created_at: new Date(base + 60000).toISOString(), parent_id: parent.id, reply_count: 0,
+      flagged: false, edited_at: null, pinned_at: null, pinned_by: null,
+      voice_note_url: null, voice_note_duration_ms: null });
+    db.messages.push({ id: 'm-thr-b', channel_id: CH2, author_id: 'u-4',
+      body: '@Nishchay please review the last point',
+      created_at: new Date(base + 120000).toISOString(), parent_id: parent.id, reply_count: 0,
+      flagged: false, edited_at: null, pinned_at: null, pinned_by: null,
+      voice_note_url: null, voice_note_duration_ms: null });
+
+    if (window.nc_refreshNeedsYou) await window.nc_refreshNeedsYou(true);
+    await wait(2500);
+    const body = document.getElementById('nc_cardNeedsBody');
+    if (!body) return out;
+    if (getComputedStyle(body).display === 'none') {
+      const head = body.closest('.nc_navcard').querySelector('.nc_navcard-head');
+      if (head) { head.click(); await wait(500); }
+    }
+    // The row must be pointed at the mention, not at whatever arrived most recently --
+    // being sent to the newest message is indistinguishable from not jumping at all.
+    const t1 = (window.__ncNeedTargets || {})[CH];
+    out.target1 = t1 ? t1.id : null;
+    const t2 = (window.__ncNeedTargets || {})[CH2];
+    out.target2 = t2 ? t2.id : null;
+    out.target2Parent = t2 ? t2.parentId : null;
+
+    const land = async (row, id) => {
+      row.click();
+      let sawId = null;
+      for (let i = 0; i < 90; i++) {           // ~13s: switch, page back, then land
+        await wait(150);
+        const hit = [...document.querySelectorAll('.nc_msg[data-msg-id]')].find(e => e.style.outline);
+        if (hit) { sawId = hit.dataset.msgId; break; }
+      }
+      await wait(700);
+      const el = document.querySelector(`.nc_msg[data-msg-id="${id}"]`);
+      const res = { highlighted: sawId };
+      if (el) {
+        const host = el.closest('[id$="MsgsList"]') ? el.closest('[id$="MsgsList"]').parentElement
+                   : el.parentElement;
+        const a = el.getBoundingClientRect(), b = host.getBoundingClientRect();
+        res.rendered = true;
+        res.onScreen = a.top < b.bottom - 8 && a.bottom > b.top + 8;
+      }
+      return res;
+    };
+
+    const row1 = body.querySelector(`[data-nc-channel-id="${CH}"]`);
+    out.row1Found = !!row1;
+    if (row1) out.case1 = await land(row1, 'm-deep-mention');
+
+    const row2 = body.querySelector(`[data-nc-channel-id="${CH2}"]`);
+    out.row2Found = !!row2;
+    if (row2) {
+      out.case2 = await land(row2, 'm-thr-b');
+      const panel = document.getElementById('nc_threadPanel') || document.querySelector('.nc_thread-panel');
+      out.threadOpen = !!(panel && getComputedStyle(panel).display !== 'none');
+    }
+    return out;
+  });
+  check('a Needs you row lands on the message that put it there',
+    r.target1 === 'm-deep-mention' && r.row1Found
+      && r.case1 && r.case1.highlighted === 'm-deep-mention' && r.case1.rendered && r.case1.onScreen
+      && r.target2 === 'm-thr-b' && r.target2Parent && r.row2Found
+      && r.case2 && r.case2.highlighted === 'm-thr-b' && r.case2.onScreen,
+    JSON.stringify(r));
+});
+
+await step('a notification deep link opens Chat, not the archive', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    out.hasJump = typeof window.jumpToChatMessage;
+    if (out.hasJump !== 'function') return out;
+    // The previous check's highlight is still on screen and would be mistaken for this
+    // one's landing.
+    document.querySelectorAll('[data-msg-id]').forEach(e => { e.style.outline = ''; });
+    const CH = 'ch-cd-seo-10';
+    const db = window.__mock.db;
+    const inCh = db.messages.filter(m => m.channel_id === CH && !m.parent_id)
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    if (inCh.length < 70) return out;
+    db.messages.push({ id: 'm-bell-mention', channel_id: CH, author_id: 'u-3',
+      body: '@Nishchay please check this',
+      created_at: new Date(new Date(inCh[70].created_at).getTime() - 60000).toISOString(),
+      parent_id: null, reply_count: 0, flagged: false, edited_at: null,
+      pinned_at: null, pinned_by: null, voice_note_url: null, voice_note_duration_ms: null });
+    // This is the call behind the bell, the Inbox and a missed push notification.
+    window.jumpToChatMessage(CH, 'm-bell-mention');
+    for (let i = 0; i < 110; i++) {
+      await wait(150);
+      const hit = [...document.querySelectorAll('.nc_msg[data-msg-id]')].find(e => e.style.outline);
+      if (hit) { out.highlighted = hit.dataset.msgId; break; }
+    }
+    await wait(600);
+    const on = document.querySelector('.screen.on');
+    out.screen = on ? on.dataset.screen : null;     // "chat" is the archived Old Chat
+    const el = document.querySelector('.nc_msg[data-msg-id="m-bell-mention"]');
+    out.rendered = !!el;
+    if (el) {
+      const host = document.getElementById('nc_chatMsgsList').parentElement;
+      const a = el.getBoundingClientRect(), b = host.getBoundingClientRect();
+      out.onScreen = a.top < b.bottom - 8 && a.bottom > b.top + 8;
+    }
+    return out;
+  });
+  check('a notification deep link opens Chat, not the archive',
+    r.screen === 'newchat' && r.rendered && r.onScreen && r.highlighted === 'm-bell-mention',
+    JSON.stringify(r));
+});
+
+await step('a recording can be linked, shared publicly and deleted', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const vis = (el) => { if (!el) return false; const b = el.getBoundingClientRect();
+      return el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && b.width > 4 && b.height > 4; };
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => { if (t.classList.contains('nav-group-collapsed')) t.click(); });
+    await wait(600);
+    const nav = document.querySelector('.nav-item[data-screen="record"]');
+    if (!nav) return out;
+    nav.click(); await wait(2500);
+    // Re-queried every time: changing visibility re-renders the grid, and a card captured
+    // before that is a detached node whose clicks go nowhere.
+    const card = (id) => document.querySelector(`.rec-card-item[data-id="${id}"]`);
+    const cards = [...document.querySelectorAll('.rec-card-item')];
+    out.cards = cards.length;
+    if (!card('rec-1')) return out;
+    // The two things the recorder screen never offered: a link, without opening a menu.
+    out.copyOnEveryCard = cards.every(c => vis(c.querySelector('[data-act="copy"]')));
+    out.shareOnEveryCard = cards.every(c => vis(c.querySelector('[data-act="shareopts"]')));
+
+    card('rec-1').querySelector('[data-act="copy"]').click(); await wait(600);
+    out.copiedWorkspace = await navigator.clipboard.readText().catch(() => 'ERR');
+
+    card('rec-1').querySelector('[data-act="shareopts"]').click(); await wait(700);
+    out.dialogOpen = vis(document.getElementById('recShareBox'));
+    out.dialogUrl = (document.getElementById('recShareUrl') || {}).value;
+    const pub = [...document.querySelectorAll('input[name="recVis"]')].find(x => x.value === 'public');
+    out.bothOptionsOffered = [...document.querySelectorAll('input[name="recVis"]')].length === 2;
+    pub.click(); await wait(900);
+    out.urlWentPublic = (document.getElementById('recShareUrl') || {}).value;
+    out.rowVisibility = (window.__mock.db.recordings.find(x => x.id === 'rec-1') || {}).visibility;
+    document.getElementById('recShareCopy').click(); await wait(500);
+    out.copiedPublic = await navigator.clipboard.readText().catch(() => 'ERR');
+    document.getElementById('recShareClose').click(); await wait(300);
+    out.dialogClosed = !document.getElementById('recShareOverlay');
+
+    // Someone else's recording: still linkable, but not yours to make public.
+    card('rec-2').querySelector('[data-act="shareopts"]').click(); await wait(800);
+    out.otherRadios = [...document.querySelectorAll('input[name="recVis"]')].map(x => x.value + (x.disabled ? ':disabled' : ''));
+    out.otherUrlIsPublicPage = /\/rec\//.test((document.getElementById('recShareUrl') || {}).value || '');
+    document.getElementById('recShareClose').click(); await wait(300);
+
+    // Delete takes the video with it -- a row on its own leaves a file nobody can find.
+    const before = window.__mock.db.recordings.length;
+    card('rec-1').querySelector('[data-act="more"]').click(); await wait(400);
+    out.menuOffersSharing = [...document.querySelectorAll('#recCardMenu [data-m]')].some(b => b.dataset.m === 'shareopts');
+    [...document.querySelectorAll('#recCardMenu [data-m]')].find(b => b.dataset.m === 'del').click();
+    await wait(800);
+    const del = [...document.querySelectorAll('body > div button')].filter(b => b.textContent.trim() === 'Delete');
+    out.confirmAsked = del.length > 0;
+    if (del.length) { del[del.length - 1].click(); await wait(1600); }
+    out.rowsRemoved = before - window.__mock.db.recordings.length;
+    out.fileRemoved = (window.__mock.log.storage || []).some(x => x.startsWith('remove:recordings/'));
+    return out;
+  });
+  const origin = new URL(page.url()).origin;
+  check('a recording can be linked, shared publicly and deleted',
+    r.cards >= 2 && r.copyOnEveryCard && r.shareOnEveryCard
+      && r.copiedWorkspace === origin + '/?rec=rec-1'
+      && r.dialogOpen && r.bothOptionsOffered
+      && r.rowVisibility === 'public'
+      && /^https?:\/\/[^/]+\/rec\/[a-f0-9]{32}$/.test(r.urlWentPublic || '')
+      && r.copiedPublic === r.urlWentPublic && r.dialogClosed
+      && r.otherRadios.join(',') === 'workspace:disabled,public:disabled'
+      && r.otherUrlIsPublicPage && r.menuOffersSharing
+      && r.confirmAsked && r.rowsRemoved === 1 && r.fileRemoved,
+    JSON.stringify(r));
+});
+
+await step('history loads itself as you scroll up, without the view moving', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const chatNav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (chatNav) { chatNav.click(); await wait(2500); }
+    const close = document.getElementById('nc_threadClose');
+    if (close) { close.click(); await wait(700); }
+    const CH = 'ch-cd-seo-10';
+    let opened = false;
+    for (let i = 0; i < 30; i++) {
+      const row = document.querySelector(`[data-nc-channel-id="${CH}"]`);
+      if (row) { row.click(); opened = true; break; }
+      await wait(300);
+    }
+    out.opened = opened;
+    await wait(3000);
+    const list = document.getElementById('nc_chatMsgsList');
+    const sc = document.getElementById('nc_chatMsgs');
+    if (!list || !sc) return out;
+    out.listVisible = list.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+      && sc.getBoundingClientRect().height > 50;
+    if (!out.listVisible) return out;
+    out.rendered = list.querySelectorAll('.nc_msg[data-msg-id]').length;
+    // Nothing to click any more: reading upwards is the whole interaction.
+    out.noButton = !document.getElementById('nc_chatLoadEarlierBtn');
+
+    sc.scrollTop = Math.round(sc.scrollHeight * 0.5); await wait(800);
+    const top = () => sc.getBoundingClientRect().top;
+    const anchor = [...list.querySelectorAll('.nc_msg[data-msg-id]')]
+      .find(m => m.getBoundingClientRect().bottom > top() + 4);
+    out.anchorId = anchor ? anchor.dataset.msgId : null;
+    if (!out.anchorId) return out;
+
+    // Every frame: where the message sits, and where the reader has scrolled. A flicker is
+    // the first moving while the second does not -- which is exactly what people saw.
+    const samples = [];
+    let stop = false;
+    const sample = () => {
+      if (stop) return;
+      const el = list.querySelector(`.nc_msg[data-msg-id="${out.anchorId}"]`);
+      if (el) samples.push([Math.round(el.getBoundingClientRect().top - top()), Math.round(sc.scrollTop)]);
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+    sc.scrollTop = 0;                       // read upwards; the page should arrive by itself
+    await wait(4000);
+    stop = true;
+
+    const settled = [];
+    let seenTop = false;
+    for (const [y, st] of samples) { if (st <= 1) seenTop = true; if (seenTop) settled.push(y); }
+    out.frames = settled.length;
+    out.worstJumpWhileStill = settled.length ? Math.max(...settled.map(y => Math.abs(y - settled[0]))) : null;
+    out.loadedByItself = list.querySelectorAll('.nc_msg[data-msg-id]').length > out.rendered;
+    out.distanceFromBottom = Math.round(sc.scrollHeight - sc.scrollTop - sc.clientHeight);
+    out.jumpedToNewest = out.distanceFromBottom < 80;
+
+    // and it keeps going, to the start of the conversation, still without a button
+    for (let i = 0; i < 6; i++) { sc.scrollTop = 0; await wait(1800); }
+    out.renderedAtEnd = list.querySelectorAll('.nc_msg[data-msg-id]').length;
+    out.total = (window.__mock.db.messages || []).filter(m => m.channel_id === CH && !m.parent_id).length;
+    out.topNote = (document.getElementById('nc_chatHistoryTop') || {}).textContent;
+    return out;
+  });
+  check('history loads itself as you scroll up, without the view moving',
+    r.opened && r.listVisible && r.noButton && r.loadedByItself && !r.jumpedToNewest
+      && r.frames > 60 && r.worstJumpWhileStill === 0
+      && r.renderedAtEnd === r.total
+      && r.topNote === 'This is the beginning of the conversation',
+    JSON.stringify(r));
+});
+
+await step('double-clicking a message opens the message, not the reaction bar', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2500); }
+    const close = document.getElementById('nc_threadClose');
+    if (close) { close.click(); await wait(700); }
+    const list = document.getElementById('nc_chatMsgsList');
+    if (!list) return out;
+    const mine = [...list.querySelectorAll('[data-msg-body][data-msg-mine="1"]')];
+    out.editableMessages = mine.length;
+    if (!mine.length) return out;
+    const body = mine[mine.length - 1];
+    const root = body.closest('.nc_msg');
+    out.msgId = body.dataset.msgId;
+
+    // One reaction bar per message, and none of it inside the text. A bar in the body is
+    // part of the message as far as innerText, editing and copying are concerned.
+    out.barsOnMessage = root.querySelectorAll('.nc_msg-react-bar').length;
+    out.barsInsideText = body.querySelectorAll('.nc_msg-react-bar').length;
+    out.emojiNodesInText = body.querySelectorAll('.nc_msg-react-bar-emoji').length;
+    out.textReads = body.innerText;
+
+    body.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+    await wait(900);
+    const ta = root.querySelector('textarea');
+    out.editorOpened = !!ta;
+    out.editorValue = ta ? ta.value : null;
+    out.editorClean = ta ? !/👍|❤️|🔥|😂|🎉|\(edited\)/.test(ta.value) : null;
+    if (ta) {
+      ta.value = 'edited by the check';
+      ta.dispatchEvent(new Event('input', { bubbles: true }));
+      ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      await wait(1400);
+    }
+    out.saved = (window.__mock.db.messages.find(m => m.id === out.msgId) || {}).body;
+    out.stillRendered = !!document.querySelector(`.nc_msg[data-msg-id="${out.msgId}"]`);
+    return out;
+  });
+  check('double-clicking a message opens the message, not the reaction bar',
+    r.editableMessages > 0 && r.barsOnMessage === 1 && r.barsInsideText === 0
+      && r.emojiNodesInText === 0 && !/👍|❤️|🔥|😂|🎉/.test(r.textReads || '')
+      && r.editorOpened && r.editorClean && r.editorValue === r.textReads
+      && r.saved === 'edited by the check' && r.stillRendered,
+    JSON.stringify(r));
+});
+
+await step('Needs you rows say who, what kind, how long and how much', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2000); }
+    if (window.nc_refreshNeedsYou) await window.nc_refreshNeedsYou(true);
+    await wait(2500);
+    const body = document.getElementById('nc_cardNeedsBody');
+    if (!body) return out;
+    const card = body.closest('.nc_navcard');
+    if (getComputedStyle(body).display === 'none') {
+      card.querySelector('.nc_navcard-head').click(); await wait(700);
+    }
+    await wait(600);
+    const rows = [...body.querySelectorAll('.nc_need-row')];
+    out.rows = rows.length;
+    if (!rows.length) return out;
+    // One shape of row on the card. It used to be built two ways -- cloned sidebar rows
+    // and hand-built fallbacks -- which could not agree on what a row shows.
+    out.allRowsNewShape = body.querySelectorAll('.nc_ch-item').length === rows.length;
+    out.headCountMatches = (card.querySelector('.nc_navcard-count') || {}).textContent === String(rows.length);
+    out.everyRowHasTick = rows.every(r => !!r.querySelector('.nc_need-tick'));
+    out.everyRowHasName = rows.every(r => (r.querySelector('.nc_need-name') || {}).textContent);
+    out.everyRowHasStar = rows.every(r => !!r.querySelector('.nc_star'));
+    out.everyRowHasAge = rows.every(r => /^(now|\d+[mhdw])$/.test((r.querySelector('.nc_need-age') || {}).textContent || ''));
+    // One count per row, and it is the same circular badge every other card uses -- these
+    // rows briefly had a second, differently-shaped number of their own.
+    out.doubledCounts = rows.filter(r => r.querySelectorAll('.nc_ch-unread-badge, .nc_need-count').length > 1).length;
+    out.badgeShape = rows.filter(r => r.querySelector('.nc_need-count')).length;
+    // and nothing anywhere in Chat is a bare "#" any more
+    const screen = document.querySelector('.screen[data-screen="newchat"]');
+    out.bareHashes = [...screen.querySelectorAll('*')]
+      .filter(e => e.children.length === 0 && e.textContent.trim() === '#').length;
+    // A DM reads as the person, not as "Channel": the channel row has no name of its own.
+    out.placeholderNames = rows.filter(r => /^(Channel|Direct message)$/.test(r.querySelector('.nc_need-name').textContent)).length;
+    // Names on one line, and the row never wider than the card.
+    out.anyNameWrapped = rows.some(r => r.querySelector('.nc_need-name').getBoundingClientRect().height > 22);
+    out.anyRowOverflows = rows.some(r => r.scrollWidth > r.clientWidth + 2);
+    // Ticks and stars each line up in one column.
+    out.tickColumns = new Set(rows.map(r => Math.round(r.querySelector('.nc_need-tick').getBoundingClientRect().left))).size;
+    out.starColumns = new Set(rows.map(r => Math.round(r.querySelector('.nc_star').getBoundingClientRect().right))).size;
+    // The chip appears when there is room for it and steps aside when there is not,
+    // because with it in, 41 of 50 names truncated at this sidebar's width.
+    const width = body.clientWidth;
+    out.narrowHidesChip = width < 320
+      ? rows.every(r => r.querySelector('.nc_need-chip').getBoundingClientRect().width < 2)
+      : rows.every(r => r.querySelector('.nc_need-chip').getBoundingClientRect().width > 2);
+    out.chipTextsAreKinds = [...new Set(rows.map(r => r.querySelector('.nc_need-chip').textContent))]
+      .every(t => ['Client', 'Team', 'DM', 'Group'].includes(t));
+
+    // The tick clears a row without opening the conversation.
+    const first = rows[0];
+    const firstId = first.dataset.ncChannelId;
+    const channelBefore = window.nc_activeChannelId;
+    first.querySelector('.nc_need-tick').click();
+    await wait(1600);
+    out.tickCleared = !body.querySelector(`.nc_need-row[data-nc-channel-id="${firstId}"]`);
+    out.tickDidNotNavigate = window.nc_activeChannelId === channelBefore;
+    // and the row itself still opens its conversation.
+    const next = body.querySelector('.nc_need-row');
+    const nextId = next && next.dataset.ncChannelId;
+    if (next) { next.click(); await wait(2500); }
+    out.rowOpensConversation = window.nc_activeChannelId === nextId;
+    return out;
+  });
+  check('Needs you rows say who, what kind, how long and how much',
+    r.rows > 0 && r.allRowsNewShape && r.headCountMatches
+      && r.everyRowHasTick && r.everyRowHasName && r.everyRowHasStar && r.everyRowHasAge
+      && r.placeholderNames <= 2 && !r.anyNameWrapped && !r.anyRowOverflows
+      && r.doubledCounts === 0 && r.badgeShape === 0 && r.bareHashes === 0
+      && r.tickColumns === 1 && r.starColumns === 1
+      && r.narrowHidesChip && r.chipTextsAreKinds
+      && r.tickCleared && r.tickDidNotNavigate && r.rowOpensConversation,
+    JSON.stringify(r));
+});
+
+await step('every card offers a star, in one column, without hovering', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2200); }
+    const cards = { clients: 'nc_cardClientsBody', teams: 'nc_cardTeamsBody',
+                    direct: 'nc_cardDirectBody', groups: 'nc_cardGroupsBody',
+                    needs: 'nc_cardNeedsBody' };
+    out.perCard = {};
+    for (const [key, id] of Object.entries(cards)) {
+      const body = document.getElementById(id);
+      if (!body) continue;
+      const head = body.closest('.nc_navcard').querySelector('.nc_navcard-head');
+      if (head && getComputedStyle(body).display === 'none') { head.click(); await wait(700); }
+      const rows = [...body.querySelectorAll('.nc_ch-item')];
+      const starred = rows.filter(x => x.querySelector('.nc_star'));
+      // Visible with no mouse anywhere near it: the star used to appear on hover only,
+      // so you could not see what you had starred without running down the list.
+      const visible = starred.filter(x => {
+        const s = x.querySelector('.nc_star');
+        return s.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+          && s.getBoundingClientRect().width > 4;
+      });
+      // Always in the slot before the row's "..." menu, and always the same slot: two
+      // competing auto margins used to split the space and put every star at a different x.
+      // Measured on screen, not in the DOM: the sequence is set by CSS `order` precisely
+      // so that a badge painted later cannot land in the middle of the group.
+      const beforeMenu = starred.filter(x => {
+        const s = x.querySelector('.nc_star'), m = x.querySelector('.nc_row-menu');
+        if (!m) return true;
+        return s.getBoundingClientRect().right <= m.getBoundingClientRect().left + 1;
+      });
+      // One avatar on every row, the same size everywhere, and never a bare "#": a list
+      // used to mix "#" for a channel, a coloured initial for a client, a photo for a
+      // person and a glyph for a group, so nothing lined up.
+      const avas = rows.map(x => x.querySelector('.nc_ava')).filter(Boolean);
+      const sizes = new Set(avas.map(a => Math.round(a.getBoundingClientRect().width)
+        + 'x' + Math.round(a.getBoundingClientRect().height)));
+      out.perCard[key] = {
+        rows: rows.length, withStar: starred.length, visible: visible.length,
+        beforeMenu: beforeMenu.length,
+        avatars: avas.length, avatarSizes: [...sizes],
+        bareHash: rows.filter(x => {
+          const a = x.querySelector('.nc_hash');
+          return a && !a.classList.contains('nc_ava') && a.textContent.trim() === '#';
+        }).length,
+        columns: new Set(starred.map(x => Math.round(x.querySelector('.nc_star').getBoundingClientRect().right))).size
+      };
+    }
+    // Every kind of conversation reaches the Starred card. It used to be filled from the
+    // channel list alone, so starring a DM or a group wrote the row to the database and
+    // then had nowhere to show it.
+    out.starrable = {};
+    for (const [label, id] of Object.entries({ team: 'nc_cardTeamsBody', client: 'nc_cardClientsBody',
+                                               dm: 'nc_cardDirectBody', group: 'nc_cardGroupsBody' })) {
+      const body = document.getElementById(id);
+      if (!body) continue;
+      const head = body.closest('.nc_navcard').querySelector('.nc_navcard-head');
+      if (head && getComputedStyle(body).display === 'none') { head.click(); await wait(700); }
+      const row = [...body.querySelectorAll('.nc_ch-item')].find(x => x.querySelector('.nc_star:not(.nc_star-on)'));
+      if (!row) { out.starrable[label] = 'no unstarred row'; continue; }
+      const cid = row.dataset.ncChannelId || row.dataset.ncDmChannelId;
+      row.querySelector('.nc_star').click();
+      await wait(1700);
+      const sb = document.getElementById('nc_cardStarredBody');
+      const sh = sb.closest('.nc_navcard').querySelector('.nc_navcard-head');
+      if (sh && getComputedStyle(sb).display === 'none') { sh.click(); await wait(600); }
+      out.starrable[label] = sb.querySelector(`[data-nc-channel-id="${cid}"],[data-nc-dm-channel-id="${cid}"]`)
+        ? 'in starred' : 'MISSING';
+    }
+
+    // and it stars without opening the conversation
+    const cb = document.getElementById('nc_cardClientsBody');
+    // One that is not starred yet: the loop above has starred some, and clicking a set
+    // star UNSETS it, which would take the row straight back out of the Starred card.
+    const row = [...cb.querySelectorAll('.nc_ch-item')].find(x => x.querySelector('.nc_star:not(.nc_star-on)'));
+    if (row) {
+      const id = row.dataset.ncChannelId;
+      const before = (window.__mock.db.channel_stars || []).length;
+      const wasOpen = window.nc_activeChannelId;
+      row.querySelector('.nc_star').click();
+      await wait(1600);
+      out.starWrote = (window.__mock.db.channel_stars || []).length !== before;
+      out.starDidNotOpen = window.nc_activeChannelId === wasOpen;
+      out.inStarredCard = !!document.querySelector(`#nc_cardStarredBody [data-nc-channel-id="${id}"]`);
+    }
+    return out;
+  });
+  // and starring works for every kind of conversation, not only the ones the Starred card
+  // happened to be built from
+  const kinds = r.starrable || {};
+  const cards = Object.values(r.perCard || {});
+  check('every card offers a star, in one column, without hovering',
+    cards.length >= 4
+      && cards.every(c => c.withStar > 0 && c.visible === c.withStar
+                       && c.beforeMenu === c.withStar && c.columns === 1)
+      // and one standard avatar throughout
+      && cards.every(c => c.avatars === c.rows && c.bareHash === 0
+                       && c.avatarSizes.length === 1 && c.avatarSizes[0] === '20x20')
+      && ['team', 'client', 'dm', 'group'].every(k => kinds[k] === 'in starred')
+      && r.starWrote && r.starDidNotOpen && r.inStarredCard,
+    JSON.stringify(r));
+});
+
+await step('the chat sidebar can be resized, and remembers it', async () => {
+  const before = await page.evaluate(() => {
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) nav.click();
+    return null;
+  });
+  await page.waitForTimeout(2000);
+  const width = () => page.evaluate(() =>
+    Math.round(document.getElementById('nc_chatChannels').getBoundingClientRect().width));
+  const r = {};
+  r.start = await width();
+  const handle = await page.$('.nc_col-resize[data-resize="channels"]');
+  r.handleFound = !!handle;
+  if (!handle) { check('the chat sidebar can be resized, and remembers it', false, JSON.stringify(r)); return; }
+  const box = await handle.boundingBox();
+  // A real drag, with a real mouse: the handle was in the markup for months with nothing
+  // listening to it, which no assertion about the element's existence would have caught.
+  await page.mouse.move(box.x + box.width / 2, box.y + 150);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 120, box.y + 150, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  r.afterDrag = await width();
+  r.saved = await page.evaluate(() => localStorage.getItem('giant_nc_sidebar_w'));
+  // dragged past the minimum, it stops rather than collapsing
+  const h2 = await page.$('.nc_col-resize[data-resize="channels"]');
+  const b2 = await h2.boundingBox();
+  await page.mouse.move(b2.x + b2.width / 2, b2.y + 150);
+  await page.mouse.down();
+  await page.mouse.move(b2.x + b2.width / 2 - 600, b2.y + 150, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  r.afterSquash = await width();
+  // double-click puts it back
+  await page.dblclick('.nc_col-resize[data-resize="channels"]');
+  await page.waitForTimeout(500);
+  r.afterReset = await width();
+  r.savedAfterReset = await page.evaluate(() => localStorage.getItem('giant_nc_sidebar_w'));
+  check('the chat sidebar can be resized, and remembers it',
+    r.handleFound && r.start === 300
+      && r.afterDrag > r.start + 80 && String(r.saved) === String(r.afterDrag)
+      && r.afterSquash >= 205 && r.afterSquash <= 215
+      && r.afterReset === 300 && r.savedAfterReset === '300',
+    JSON.stringify(r));
+});
+
+await step('a long card scrolls, and still scrolls after a render and a search', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2200); }
+    // Direct, not Clients: the Clients card lists only conversations now and comfortably
+    // fits, and a card that fits proves nothing about scrolling.
+    const card = document.querySelector('.nc_navcard[data-nccard="direct"]');
+    const body = document.getElementById('nc_cardDirectBody');
+    if (!card || !body) return out;
+    if (getComputedStyle(body).display === 'none') {
+      card.querySelector('.nc_navcard-head').click(); await wait(900);
+    }
+    // A card taller than the space it has must scroll INSIDE itself. It is laid out as a
+    // flex column for that; when something resets its display the body takes its natural
+    // height and overflow:hidden simply cuts the list off with no way to reach the rest.
+    const state = (label) => {
+      const cs = getComputedStyle(card);
+      return { label, rows: body.querySelectorAll('.nc_ch-item').length,
+        display: cs.display, canScroll: body.scrollHeight > body.clientHeight + 2,
+        unreachable: Math.max(0, body.scrollHeight - body.clientHeight - (body.scrollHeight - body.clientHeight)) };
+    };
+    out.fresh = state('just opened');
+    body.scrollTop = 300; await wait(250);
+    out.scrolledTo = body.scrollTop;
+    // a re-render must not undo it
+    if (window.nc_refreshNeedsYou) await window.nc_refreshNeedsYou(true);
+    await wait(2000);
+    out.afterRender = state('after a re-render');
+    // and neither must a search that hides cards and then clears
+    const jump = document.getElementById('nc_chatJumpTo');
+    if (jump) {
+      jump.value = 'a'; jump.dispatchEvent(new Event('input', { bubbles: true })); await wait(1200);
+      jump.value = ''; jump.dispatchEvent(new Event('input', { bubbles: true })); await wait(1400);
+    }
+    if (getComputedStyle(body).display === 'none') {
+      card.querySelector('.nc_navcard-head').click(); await wait(900);
+    }
+    out.afterSearch = state('after a search and clear');
+    out.heightLeftBehind = body.style.height || '';
+    return out;
+  });
+  const ok = (s) => s && s.rows > 20 && s.display === 'flex' && s.canScroll;
+  check('a long card scrolls, and still scrolls after a render and a search',
+    ok(r.fresh) && ok(r.afterRender) && ok(r.afterSearch)
+      && r.scrolledTo === 300 && r.heightLeftBehind === '',
+    JSON.stringify(r));
+});
+
+await step('the Clients card lists conversations, and a client without one is still reachable', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2500); }
+    const body = document.getElementById('nc_cardClientsBody');
+    if (!body) return out;
+    const card = body.closest('.nc_navcard');
+    if (getComputedStyle(body).display === 'none') { card.querySelector('.nc_navcard-head').click(); await wait(900); }
+    const db = window.__mock.db;
+    const withChan = new Set(db.channels.filter(c => c.kind === 'client_dept' && c.client_id).map(c => c.client_id));
+    out.clientsTotal = db.clients.filter(c => c.status !== 'churned').length;
+    out.withConversation = withChan.size;
+    out.rows = body.querySelectorAll('.nc_ch-item').length;
+    // The card is the list of conversations you HAVE. A client sitting in it with nothing
+    // behind it reads as one, and made a deleted conversation look like it had come back.
+    out.placeholderRows = body.querySelectorAll('.nc_ch-item[data-client-id]:not([data-nc-channel-id])').length;
+    // ...but a client without a conversation must still be reachable, or you could never
+    // start one. The jump box lists every client by name.
+    const none = db.clients.find(c => c.status !== 'churned' && !withChan.has(c.id));
+    out.clientWithout = none ? none.name : null;
+    if (!none) return out;
+    const jump = document.getElementById('nc_chatJumpToInput');
+    if (jump) { jump.value = none.name.slice(0, 6); jump.dispatchEvent(new Event('input', { bubbles: true })); await wait(1300); }
+    const results = document.getElementById('nc_jumpResults');
+    out.jumpFindsIt = !!(results && results.textContent.includes(none.name));
+    const before = db.channels.length;
+    const hit = results ? [...results.querySelectorAll('*')]
+      .find(e => e.children.length === 0 && e.textContent.trim() === none.name) : null;
+    if (hit) { hit.click(); await wait(2200); }
+    out.createdNothing = db.channels.length - before === 0;
+    out.offersStart = !!document.getElementById('nc_startConvo');
+    return out;
+  });
+  check('the Clients card lists conversations, and a client without one is still reachable',
+    r.rows > 0 && r.rows <= r.withConversation + 2 && r.placeholderRows === 0
+      && r.clientsTotal > r.withConversation
+      && r.jumpFindsIt && r.createdNothing && r.offersStart,
+    JSON.stringify(r));
+});
+
+await step('clicking a client does not create a conversation; starting one does', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await wait(500);
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2500); }
+    const body = document.getElementById('nc_cardClientsBody');
+    if (!body) return out;
+    const card = body.closest('.nc_navcard');
+    if (getComputedStyle(body).display === 'none') { card.querySelector('.nc_navcard-head').click(); await wait(900); }
+    const db = window.__mock.db;
+    const before = (db.channels || []).length;
+    // A client with no conversation is not in the card at all now, so it is reached by
+    // name -- which is the path that used to create a channel just for looking.
+    const withChan = new Set(db.channels.filter(c => c.kind === 'client_dept' && c.client_id)
+      .map(c => c.client_id));
+    const target = db.clients.find(c => c.status !== 'churned' && !withChan.has(c.id));
+    const jump = document.getElementById('nc_chatJumpToInput');
+    if (target && jump) {
+      jump.value = target.name.slice(0, 6);
+      jump.dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(1300);
+    }
+    const results = document.getElementById('nc_jumpResults');
+    const hit = results ? [...results.querySelectorAll('*')]
+      .find(e => e.children.length === 0 && e.textContent.trim() === (target || {}).name) : null;
+    out.foundPlaceholder = !!hit;
+    if (!hit) return out;
+    hit.click(); await wait(2200);
+    // Nothing created. Clicking a client used to make the channel on the spot, which is
+    // why deleting one appeared to do nothing -- the click you make to check it is gone
+    // silently made another -- and why the workspace filled with empty channels.
+    out.createdOnClick = (window.__mock.db.channels || []).length - before;
+    out.startPanel = !!document.getElementById('nc_startConvo');
+    out.topic = (document.getElementById('nc_chatHeadTopic') || {}).textContent;
+    const btn = document.getElementById('nc_startConvoBtn');
+    out.buttonShown = !!btn;
+    if (btn) { btn.click(); await wait(3000); }
+    out.createdOnStart = (window.__mock.db.channels || []).length - before;
+    out.opened = !!window.nc_activeChannelId;
+    return out;
+  });
+  check('clicking a client does not create a conversation; starting one does',
+    r.foundPlaceholder && r.createdOnClick === 0 && r.startPanel
+      && r.topic === 'No conversation yet' && r.buttonShown
+      && r.createdOnStart === 1 && r.opened,
+    JSON.stringify(r));
+});
+
+await step('the Chat nav badges are one group, not two odd shapes', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    // An earlier check leaves the app in focus mode, which hides the sidebar outright,
+    // so this puts the layout back before measuring anything. Every number below is zero
+    // otherwise, and a check that measures nothing passes for the wrong reason.
+    out.focusWas = document.body.dataset.focus || '0';
+    document.body.dataset.focus = '0';
+    document.querySelectorAll('.sidebar').forEach(s => s.classList.remove('collapsed'));
+    // The rail carries its group's name in data-navgroup-body and the toggle carries the
+    // same name in data-navgroup; they are not siblings, so this pairs them by name. The
+    // nav is an accordion, so open the one holding Chat rather than all of them.
+    const chatRail = document.querySelector('.nav-rail[data-navgroup-body]:has(.nav-item[data-screen="newchat"])')
+      || [...document.querySelectorAll('.nav-rail[data-navgroup-body]')]
+           .find(r => r.querySelector('.nav-item[data-screen="newchat"]'));
+    if (chatRail && chatRail.classList.contains('nav-rail-collapsed')) {
+      const toggle = document.querySelector('.nav-group-toggle[data-navgroup="'
+        + chatRail.dataset.navgroupBody + '"]');
+      if (toggle) toggle.click();
+    }
+    await wait(900);
+    const item = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (!item) return out;
+    const ir = item.getBoundingClientRect();
+    out.itemVisible = ir.width > 40;
+    out.itemBox = Math.round(ir.width) + 'x' + Math.round(ir.height);
+    const sb = document.querySelector('.sidebar');
+    out.sidebarBox = sb ? Math.round(sb.getBoundingClientRect().width) + 'x'
+      + Math.round(sb.getBoundingClientRect().height) : null;
+    out.sidebarClass = sb ? sb.className : null;
+    out.railClass = item.parentElement ? item.parentElement.className : null;
+    out.railBox = item.parentElement
+      ? Math.round(item.parentElement.getBoundingClientRect().width) + 'x'
+        + Math.round(item.parentElement.getBoundingClientRect().height) : null;
+    out.screenOn = (document.querySelector('.screen.on') || {}).dataset?.screen;
+    const count = document.getElementById('nc_sidebarBadgeChat');
+    if (count) { count.textContent = '36'; count.style.display = ''; }
+    await wait(400);
+    const badges = [...item.querySelectorAll('.badge')]
+      .filter(b => b.getBoundingClientRect().width > 2);
+    out.badges = badges.map(b => b.textContent.trim());
+    if (badges.length < 2) return out;
+    const boxes = badges.map(b => b.getBoundingClientRect());
+    // Same height and same corner radius: they were 15px and 11px, which is what made
+    // them read as two unrelated things stuck to the word rather than one group.
+    out.heights = [...new Set(boxes.map(b => Math.round(b.height)))];
+    out.radii = [...new Set(badges.map(b => getComputedStyle(b).borderRadius))];
+    // Sitting together, not spread by the nav row's 11px gap.
+    out.gap = Math.round(boxes[1].left - boxes[0].right);
+    // and to the right of the label, on the same centre line
+    const label = item.getBoundingClientRect();
+    out.rightOfLabel = boxes[0].left > label.left + 40;
+    out.centred = boxes.every(b =>
+      Math.abs((b.top + b.height / 2) - (label.top + label.height / 2)) <= 1.5);
+    return out;
+  });
+  check('the Chat nav badges are one group, not two odd shapes',
+    r.badges && r.badges.length === 2
+      && r.heights.length === 1 && r.radii.length === 1
+      && r.gap >= 2 && r.gap <= 6
+      && r.rightOfLabel && r.centred,
+    JSON.stringify(r));
+});
+
+await step('global search finds conversations by name, not only what was said in them', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const db = window.__mock.db;
+    const team = db.channels.find(c => c.kind === 'team_channel');
+    const dm = db.channels.find(c => c.is_dm && !c.is_group);
+    const stamp = (id, txt, who) => db.messages.push({ id: 'm-gs-' + Math.random().toString(36).slice(2, 8),
+      channel_id: id, author_id: who, body: txt, created_at: new Date().toISOString(), parent_id: null,
+      reply_count: 0, flagged: false, edited_at: null, pinned_at: null, pinned_by: null,
+      voice_note_url: null, voice_note_duration_ms: null });
+    stamp(team.id, 'quokka sighting in the team channel', 'u-2');
+    stamp(dm.id, 'quokka sighting in a direct message', 'u-3');
+
+    document.getElementById('globalSearchBox').click();
+    await wait(700);
+    const input = document.getElementById('cmdkInput');
+    out.opened = !!input;
+    if (!input) return out;
+    const run = async (q) => {
+      input.focus(); input.value = q;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(2600);
+      const res = document.getElementById('cmdkResults');
+      return (res ? res.innerText : '').split('\n').map(l => l.trim()).filter(Boolean);
+    };
+    // A channel BY NAME. The search only ever looked inside message bodies, so this was
+    // findable only if somebody had typed its name in a message.
+    const byName = await run(team.name.slice(0, 5));
+    // The first SECTION, not the first line -- a row of result tabs sits above them now.
+    const SECTIONS = ['CHATS', 'MESSAGES', 'TASKS', 'CLIENTS'];
+    out.chatsSectionFirst = byName.filter(l => SECTIONS.includes(l))[0] === 'CHATS';
+    out.findsChannelByName = byName.some(l => l === '#' + team.name);
+    // Sections, in the order asked for, and the ones that were noise are gone.
+    const all = await run('a');
+    out.sectionOrder = all.filter(l => ['CHATS', 'MESSAGES', 'TASKS', 'CLIENTS', 'PEOPLE', 'INVOICES', 'EMAILS', 'CHAT & HUDDLES', 'CHAT 2.0'].includes(l));
+    // A message in a DM used to be labelled "in #" -- a DM channel has no name.
+    const byBody = await run('quokka');
+    out.dmLabelled = byBody.some(l => /in\s+\S/.test(l) && !/in\s*#\s*$/.test(l));
+    out.noEmptyHash = !byBody.some(l => /in #$/.test(l));
+    // from: with a name that has spaces in it
+    const filtered = await run('from:"Team Member 2" quokka');
+    out.fromFiltered = filtered.filter(l => /quokka/.test(l)).length;
+    out.fromFilterKeptOne = out.fromFiltered === 1;
+    // and the filter buttons write the chip for you
+    input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true }));
+    await wait(400);
+    document.querySelector('#cmdkFilters [data-cmdk-filter="from:"]').click();
+    await wait(400);
+    out.buttonWrote = input.value.trim();
+    out.hint = (document.getElementById('cmdkFilterHint') || {}).textContent;
+    document.getElementById('cmdkOverlay').style.display = 'none';
+    return out;
+  });
+  check('global search finds conversations by name, not only what was said in them',
+    r.opened && r.chatsSectionFirst && r.findsChannelByName
+      && r.sectionOrder.join(',') === 'CHATS,MESSAGES,TASKS,CLIENTS'
+      && r.dmLabelled && r.noEmptyHash
+      && r.fromFilterKeptOne
+      && r.buttonWrote === 'from:' && /from whom/.test(r.hint || ''),
+    JSON.stringify(r));
+});
+
+await step('the sidebar search finds messages, with names still first', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) { nav.click(); await wait(2200); }
+    const db = window.__mock.db;
+    const team = db.channels.find(c => c.kind === 'team_channel');
+    db.messages.push({ id: 'm-jump-probe', channel_id: team.id, author_id: 'u-3',
+      body: 'pangolin migration notes', created_at: new Date().toISOString(), parent_id: null,
+      reply_count: 0, flagged: false, edited_at: null, pinned_at: null, pinned_by: null,
+      voice_note_url: null, voice_note_duration_ms: null });
+    const input = document.getElementById('nc_chatJumpToInput');
+    out.hasInput = !!input;
+    if (!input) return out;
+    input.value = 'pangolin';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await wait(2600);
+    const panel = document.getElementById('nc_jumpResults');
+    const rows = [...panel.querySelectorAll('.nc_jump-row')];
+    out.rows = rows.map(x => x.innerText.replace(/\n/g, ' | '));
+    // The box next to the conversations could find the room but never a word said in it.
+    const msgRow = rows.find(x => /pangolin/i.test(x.textContent));
+    out.foundMessage = !!msgRow;
+    out.saysWhoAndWhere = !!(msgRow && /in #/.test(msgRow.innerText));
+    if (msgRow) {
+      msgRow.click();
+      for (let i = 0; i < 40; i++) {
+        await wait(200);
+        const el = document.querySelector('.nc_msg[data-msg-id="m-jump-probe"]');
+        if (el && el.style.outline) { out.landedOnTheMessage = true; break; }
+      }
+    }
+    // A name still comes first: the room you are looking for is usually the room.
+    input.value = team.name.slice(0, 5);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await wait(2200);
+    const first = document.querySelector('#nc_jumpResults .nc_jump-row');
+    out.firstIsAName = !!first && first.innerText.split('\n')[0].trim() === team.name;
+    input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true }));
+    return out;
+  });
+  check('the sidebar search finds messages, with names still first',
+    r.hasInput && r.foundMessage && r.saysWhoAndWhere
+      && r.landedOnTheMessage && r.firstIsAName,
+    JSON.stringify(r));
+});
+
+await step('typing in: or from: offers what you can filter by, and picking one applies it', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const db = window.__mock.db;
+    const team = db.channels.find(c => c.kind === 'team_channel');
+    document.getElementById('globalSearchBox').click();
+    await wait(700);
+    const input = document.getElementById('cmdkInput');
+    out.opened = !!input;
+    if (!input) return out;
+    const type = async (v) => {
+      input.focus(); input.value = v;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(2300);
+    };
+    // Half-typed chip: offer the conversations it could mean, rather than running a
+    // search for a value that is not finished and answering "No results".
+    await type('in:' + team.name.slice(0, 4));
+    out.header = (document.querySelector('#cmdkResults div') || {}).textContent;
+    out.suggestions = [...document.querySelectorAll('.cmdk-suggest')].map(x => x.innerText.split('\n')[0]);
+    out.offersTheChannel = out.suggestions.some(l => l === '#' + team.name);
+    out.enterHintOnFirst = /Enter/.test((document.querySelector('.cmdk-suggest') || {}).innerText || '');
+    // Enter takes the first one and writes it into the box.
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await wait(2000);
+    out.afterEnter = input.value.trim();
+    // A person's name with a space in it, which the old parser could not carry at all.
+    await type('from:Team Mem');
+    out.peopleOffered = [...document.querySelectorAll('.cmdk-suggest')].map(x => x.innerText.split('\n')[0]);
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await wait(2400);
+    out.afterPersonPick = input.value.trim();
+    const picked = (out.peopleOffered[0] || '').trim();
+    const lines = (document.getElementById('cmdkResults') || {}).innerText.split('\n').map(l => l.trim()).filter(Boolean);
+    // and every result really is from that person. "Team Member 1" as a substring also
+    // matches Team Member 10 through 19, so an exact name has to win.
+    const subs = lines.filter(l => / in /.test(l));
+    out.resultAuthors = [...new Set(subs.map(l => l.split(' in ')[0]))];
+    out.onlyThatPerson = subs.length > 0 && out.resultAuthors.every(a => a === picked);
+    document.getElementById('cmdkOverlay').style.display = 'none';
+    return out;
+  });
+  check('typing in: or from: offers what you can filter by, and picking one applies it',
+    r.opened && /which conversation/i.test(r.header || '')
+      && r.offersTheChannel && r.enterHintOnFirst
+      && /^in:\S+$/.test(r.afterEnter)
+      && r.peopleOffered.length > 0
+      && /^from:"[^"]+"$/.test(r.afterPersonPick)
+      && r.onlyThatPerson,
+    JSON.stringify(r));
+});
+
+await step('search: tabs with counts, recent searches, and a zero state that helps', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    try { localStorage.removeItem('giant_search_recent'); } catch (e) {}
+    const db = window.__mock.db;
+    const team = db.channels.find(c => c.kind === 'team_channel');
+    db.messages.push({ id: 'm-tabs-1', channel_id: team.id, author_id: 'u-2',
+      body: 'narwhal sighting logged', created_at: new Date().toISOString(), parent_id: null,
+      reply_count: 0, flagged: false, edited_at: null, pinned_at: null, pinned_by: null,
+      voice_note_url: null, voice_note_duration_ms: null });
+    document.getElementById('globalSearchBox').click();
+    await wait(700);
+    const input = document.getElementById('cmdkInput');
+    if (!input) return out;
+    const type = async (v) => {
+      input.focus(); input.value = v;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(2200);
+    };
+    await type('narwhal');
+    // Tabs carry the counts the search already returned -- no second round trip.
+    const tabs = [...document.querySelectorAll('[data-cmdk-tab]')].map(b => b.innerText.replace(/\s+/g, ' ').trim());
+    out.tabs = tabs;
+    out.hasAllTab = tabs.some(t => /^All \d+/.test(t));
+    out.hasMessagesTab = tabs.some(t => /^Messages \d+/.test(t));
+    // Clicking one narrows to that section.
+    const msgTab = [...document.querySelectorAll('[data-cmdk-tab]')].find(b => /^Messages/.test(b.innerText));
+    if (msgTab) { msgTab.click(); await wait(2200); }
+    const headers = (document.getElementById('cmdkResults') || {}).innerText
+      .split('\n').map(l => l.trim()).filter(l => ['CHATS','MESSAGES','TASKS','CLIENTS'].includes(l));
+    out.afterTabClick = headers;
+    out.onlyMessages = headers.length === 1 && headers[0] === 'MESSAGES';
+    // A search that found something is remembered, and offered when the box is emptied.
+    await type('');
+    out.recentShown = [...document.querySelectorAll('.cmdk-recent')].map(x => x.innerText.trim());
+    out.remembersIt = out.recentShown.some(x => /narwhal/.test(x));
+    // Zero results says what it looked for and offers to drop the narrowest part.
+    // A COMPLETED chip: a query ending mid-chip correctly shows the picker instead of
+    // running a search, which is what this asserted by accident the first time.
+    await type('from:"Team Member 1" "a phrase that appears nowhere at all"');
+    const zero = (document.getElementById('cmdkResults') || {}).innerText;
+    out.zeroEchoesFilters = /Looking for/.test(zero);
+    const drop = document.getElementById('cmdkDropNarrowest');
+    out.offersToDrop = !!drop;
+    if (drop) {
+      out.dropLabel = drop.innerText.trim();
+      drop.click(); await wait(2300);
+      out.afterDrop = input.value.trim();
+    }
+    // and clearing empties the list
+    await type('');
+    const clear = document.getElementById('cmdkClearRecent');
+    if (clear) { clear.click(); await wait(500); }
+    out.recentAfterClear = [...document.querySelectorAll('.cmdk-recent')].length;
+    document.getElementById('cmdkOverlay').style.display = 'none';
+    return out;
+  });
+  check('search: tabs with counts, recent searches, and a zero state that helps',
+    r.hasAllTab && r.hasMessagesTab && r.onlyMessages
+      && r.remembersIt && r.recentAfterClear === 0
+      && r.zeroEchoesFilters && r.offersToDrop
+      && /a phrase that appears nowhere/.test(r.dropLabel || '')
+      && !/a phrase that appears nowhere/.test(r.afterDrop || 'x'),
+    JSON.stringify(r));
+});
+
+await step('search: a name typed without spaces, your own conversations, and the keyboard', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const db = window.__mock.db;
+    const cl = db.clients.find(c => /\s/.test(c.name));
+    const squashed = cl.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    out.client = cl.name; out.typed = squashed;
+    const team = db.channels.find(c => c.kind === 'team_channel');
+    for (let i = 0; i < 3; i++) db.messages.push({ id: 'm-kbd-' + i, channel_id: team.id,
+      author_id: 'u-2', body: 'kiwi bird note ' + i, created_at: new Date().toISOString(),
+      parent_id: null, reply_count: 0, flagged: false, edited_at: null, pinned_at: null,
+      pinned_by: null, voice_note_url: null, voice_note_duration_ms: null });
+    document.getElementById('globalSearchBox').click();
+    await wait(700);
+    const input = document.getElementById('cmdkInput');
+    if (!input) return out;
+    const type = async (v) => { input.focus(); input.value = v;
+      input.dispatchEvent(new Event('input', { bubbles: true })); await wait(2300); };
+    const text = () => (document.getElementById('cmdkResults') || {}).innerText || '';
+
+    // "mangovans" is how people type "Mango Vans" and "mango-vans-seo". Matching the raw
+    // string against the raw name finds neither.
+    await type(squashed);
+    out.findsChats = /CHATS/.test(text());
+    out.findsTheConversation = text().includes(cl.name);
+
+    // from: lists people by name. An email on every row is noise -- it is only worth the
+    // line when two people share a name and it is the only thing telling them apart.
+    await type('from:');
+    const fromRows = [...document.querySelectorAll('.cmdk-suggest')].map(x => x.innerText);
+    out.fromCount = fromRows.length;
+    out.fromShowsNoEmails = !fromRows.some(x => /@/.test(x));
+    // (Two people sharing a name still get their email as the tie-breaker. Not asserted
+    // here: the directory is cached for a minute, so renaming a fixture mid-run changes
+    // nothing and the assertion would pass without testing anything.)
+
+    // An empty in: offers YOUR conversations, not whichever eight the database returned
+    // first -- which is what made the list look arbitrary.
+    await type('in:');
+    const sugg = [...document.querySelectorAll('.cmdk-suggest')];
+    out.suggestionCount = sugg.length;
+    out.noStrangersOffered = !sugg.some(x => /not a member/.test(x.innerText));
+
+    // The keyboard: the first result is already selected, arrows move, Enter opens.
+    await type('kiwi');
+    out.results = document.querySelectorAll('.cmdk-item').length;
+    out.firstSelected = !!(document.querySelector('.cmdk-item') || {}).style?.background;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    await wait(300);
+    out.arrowMoves = !!([...document.querySelectorAll('.cmdk-item')][1] || {}).style?.background;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true }));
+    await wait(200);
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    await wait(2500);
+    out.enterClosedIt = (document.getElementById('cmdkOverlay') || {}).style.display !== 'flex';
+    out.enterWentSomewhere = (document.querySelector('.screen.on') || {}).dataset?.screen;
+    return out;
+  });
+  check('search: a name typed without spaces, your own conversations, and the keyboard',
+    r.findsChats && r.findsTheConversation
+      && r.suggestionCount > 0 && r.noStrangersOffered
+      && r.fromCount > 0 && r.fromShowsNoEmails
+      && r.results >= 3 && r.firstSelected && r.arrowMoves
+      && r.enterClosedIt && r.enterWentSomewhere === 'newchat',
     JSON.stringify(r));
 });
 
@@ -3178,85 +4554,6 @@ await step('the Projects table tracks time on a task row', async () => {
       && r.elapsedIsClock && r.survivesSweep && r.pausedStatus === 'paused'
       && r.sessionCleared && r.loggedStatus === 'completed'
       && r.nameIntact && r.cells === 7,
-    JSON.stringify(r));
-});
-
-await step('Projects 2.0 tracks time on a task row', async () => {
-  const r = await page.evaluate(async () => {
-    const wait = (ms) => new Promise(r => setTimeout(r, ms));
-    const vis = (el) => { if (!el) return false; const b = el.getBoundingClientRect();
-      return el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && b.width > 4 && b.height > 4; };
-    const out = {};
-    const grp = document.querySelector('.nav-group-toggle[data-navgroup="work"]');
-    if (grp && grp.classList.contains('nav-group-collapsed')) { grp.click(); await wait(500); }
-    const p2Nav = document.querySelector('.nav-item[data-screen="projects2"]');
-    if (!p2Nav) return { noNav: true };
-    p2Nav.click(); await wait(1200);
-    // The clone and the rebuild are two views of one screen; the switch is how a person
-    // gets from one to the other, so it has to be on screen and say both words.
-    const sw = document.getElementById('p2_modeSwitch');
-    out.switchVisible = vis(sw);
-    // Fully on screen, and clear of the header: it was overlapping the search box.
-    const sr = sw ? sw.getBoundingClientRect() : null;
-    out.switchOnScreen = !!(sr && sr.bottom <= innerHeight && sr.right <= innerWidth && sr.top >= 0);
-    const search = document.getElementById('p2_prjSearchInput');
-    const hr = search ? search.getBoundingClientRect() : null;
-    out.switchClearOfSearch = !sr || !hr || sr.top > hr.bottom || sr.bottom < hr.top
-      || sr.left > hr.right || sr.right < hr.left;
-    out.switchLabels = [...(sw ? sw.children : [])].map(b => b.textContent).join('/');
-    // The switch itself reloads; the check flips the flag in place instead, because a
-    // reload here would throw away the evidence every earlier step collected.
-    const tasksNav = document.querySelector('.nav-item[data-screen="tasks"]');
-    if (tasksNav) { tasksNav.click(); await wait(900); }
-    window.p2UseRebuild = true;
-    p2Nav.click(); await wait(900);
-    if (typeof window.p2Open === 'function') await window.p2Open();
-    for (let i = 0; i < 30; i++) { await wait(250);
-      if (document.querySelector('#p2_prjProjectsBar [data-p2-project]')) break; }
-    // The fixture's first project by position carries no tasks; pick one that does.
-    const withTasks = (window.__mock.db.tasks || []).map(t => t.project_id).find(Boolean);
-    const chip = document.querySelector('#p2_prjProjectsBar [data-p2-project="' + withTasks + '"]');
-    if (chip) { chip.click(); }
-    for (let i = 0; i < 30; i++) { await wait(250);
-      if (document.querySelectorAll('#p2_prjDailyBody [data-p2-task]').length) break; }
-    out.rows = document.querySelectorAll('#p2_prjDailyBody [data-p2-task]').length;
-    const btn = document.querySelector('#p2_prjDailyBody [data-p2-timer]');
-    out.timerVisible = vis(btn);
-    out.timerInsideRow = !!(btn && btn.closest('.prj-row'));
-    if (!btn) { window.p2UseRebuild = false; return out; }
-    const taskId = btn.dataset.p2Timer;
-    const sessions = window.__mock.db.time_sessions = window.__mock.db.time_sessions || [];
-    const before = sessions.length;
-    btn.click(); await wait(1600);
-    out.rowsWritten = sessions.length - before;
-    const s = window.giantTaskTimer && window.giantTaskTimer.session();
-    out.onRightTask = !!(s && s.task_id === taskId);
-    out.running = !!(s && s.status === 'running');
-    // Elapsed has to READ as a clock -- it showed NaN:NaN while the fixture was not
-    // filling in the started_at the database supplies.
-    await wait(1400);
-    const el = document.querySelector('[data-p2-elapsed="' + taskId + '"]');
-    out.elapsed = el ? el.textContent : null;
-    out.elapsedIsClock = /^\d+:[0-5]\d(:[0-5]\d)?$/.test(out.elapsed || '');
-    out.elapsedTicked = out.elapsed !== '0:00';
-    const again = document.querySelector('[data-p2-timer="' + taskId + '"]');
-    if (again) { again.click(); await wait(1100); }
-    out.pausedStatus = (window.giantTaskTimer.session() || {}).status;
-    const stop = document.querySelector('[data-p2-stop="' + taskId + '"]');
-    if (stop) { stop.click(); await wait(1400); }
-    out.sessionCleared = window.giantTaskTimer.session() == null;
-    out.loggedStatus = sessions.length ? sessions[sessions.length - 1].status : null;
-    // The original Projects screen never grows this control.
-    out.originalUntouched = document.querySelectorAll('.screen[data-screen="tasks"] [data-p2-timer]').length === 0;
-    window.p2UseRebuild = false;
-    return out;
-  });
-  check('Projects 2.0 tracks time on a task row',
-    r.switchVisible && r.switchOnScreen && r.switchClearOfSearch
-      && r.switchLabels === 'Clone/Rebuild' && r.rows > 0
-      && r.timerVisible && r.timerInsideRow && r.rowsWritten === 1 && r.onRightTask && r.running
-      && r.elapsedIsClock && r.elapsedTicked && r.pausedStatus === 'paused'
-      && r.sessionCleared && r.loggedStatus === 'completed' && r.originalUntouched,
     JSON.stringify(r));
 });
 
