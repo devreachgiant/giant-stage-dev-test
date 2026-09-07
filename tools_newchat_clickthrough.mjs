@@ -4557,6 +4557,98 @@ await step('the Projects table tracks time on a task row', async () => {
     JSON.stringify(r));
 });
 
+// One pool of tasks, three ways of looking at it. The failure the original module kept
+// producing was per-view task ownership -- a task in the board and missing from the list --
+// so the check that matters is that all three views describe the same tasks, and that
+// moving a card writes the status the enum actually accepts.
+await step('Projects 2.0 shows one task pool as table, board and timeline', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const grp = document.querySelector('.nav-group-toggle[data-navgroup="work"]');
+    if (grp && grp.classList.contains('nav-group-collapsed')) { grp.click(); await w(500); }
+    window.p2UseRebuild = true;
+    document.querySelector('.nav-item[data-screen="projects2"]').click();
+    for (let i = 0; i < 40; i++) { await w(300); if (window.p2State && window.p2State.projects.length) break; }
+    await w(1200);
+    const db = window.__mock.db;
+    // the first project alphabetically has no tasks; measuring empty views proves nothing
+    const withTasks = [...new Set(db.tasks.map(t => t.project_id))].filter(Boolean)[0];
+    const chip = document.querySelector('[data-p2-project="' + withTasks + '"]');
+    if (chip) { chip.click(); await w(2000); }
+    if (!window.p2State || !window.p2State.tasks.length) return { skipped: 'no tasks' };
+    // a spread of statuses, so every column has something and none is empty by accident
+    const cols = ['todo', 'in_progress', 'blocked', 'done'];
+    window.p2State.tasks.forEach((t, i) => {
+      t.status = cols[i % 4];
+      const d = db.tasks.find(x => x.id === t.id); if (d) d.status = t.status;
+    });
+    const pool = window.p2State.tasks.length;
+
+    const isDone = t => t.status === 'done' || t.status === 'complete' || t.status === 'completed';
+    const active = window.p2State.tasks.filter(t => !isDone(t)).length;
+
+    window.p2SetView('table'); await w(700);
+    const tableRows = document.querySelectorAll('#p2_prjDailyBody .prj-row[data-p2-task]').length;
+    const statusToggleShown = getComputedStyle(document.getElementById('p2_prjStatusToggle')).display !== 'none';
+
+    window.p2SetView('board'); await w(800);
+    const board = document.getElementById('p2_prjBoard');
+    const headings = [...board.querySelectorAll('[data-p2-col]')].map(c => c.dataset.p2Col);
+    const cards = board.querySelectorAll('[data-p2-card]').length;
+    const tableHidden = getComputedStyle(document.getElementById('p2_prjTable')).display === 'none';
+    const statusToggleHidden = getComputedStyle(document.getElementById('p2_prjStatusToggle')).display === 'none';
+
+    window.p2SetView('timeline'); await w(800);
+    const tl = document.getElementById('p2_prjTimeline');
+    const lanes = tl.querySelectorAll('[data-p2-tl-task]').length;
+    // a scale with one label is not a timeline, it is a row of coloured rectangles
+    const axisLabels = [...tl.querySelectorAll('span')].filter(e =>
+      /^[A-Z][a-z]{2} \d+$/.test(e.textContent.trim())).length;
+
+    window.p2SetView('board'); await w(600);
+    return { pool, active, tableRows, headings, cards, tableHidden, lanes, axisLabels,
+             statusToggleShown, statusToggleHidden,
+             persisted: localStorage.getItem('giant_p2_view') };
+  });
+  check('the board columns are exactly the four statuses the database accepts',
+    !r.skipped && JSON.stringify(r.headings) === JSON.stringify(['todo','in_progress','blocked','done']),
+    JSON.stringify(r));
+  // The table is filtered to Active by default; the board and timeline carry status
+  // themselves, so they show the whole pool. Same tasks either way -- what differs is only
+  // the filter the table is showing, and the control for it is only up while it applies.
+  check('every view describes the same pool, and only one view is on screen at a time',
+    !r.skipped && r.pool > 0 && r.tableRows === r.active && r.cards === r.pool
+      && r.lanes === r.pool && r.tableHidden && r.persisted === 'board',
+    JSON.stringify(r));
+  check('the Active/Done filter is offered on the table and withdrawn on the others',
+    !r.skipped && r.statusToggleShown && r.statusToggleHidden, JSON.stringify(r));
+  check('the timeline draws a real date axis, not one lonely label',
+    !r.skipped && r.axisLabels >= 3, JSON.stringify(r));
+});
+
+// Dropping a card is the whole point of a board, and status is a Postgres enum -- a column
+// heading that is not one of its values is a column nothing can ever be dropped into.
+await step('dragging a card between board columns writes the new status', async () => {
+  const before = await page.evaluate(() => {
+    const c = document.querySelector('#p2_prjBoard [data-p2-drop="todo"] [data-p2-card]');
+    return c ? { id: c.dataset.p2Card } : null;
+  });
+  if (!before) { check('dragging a card between board columns writes the new status', false, 'no card to drag'); return; }
+  await page.dragAndDrop('#p2_prjBoard [data-p2-drop="todo"] [data-p2-card]',
+                         '#p2_prjBoard [data-p2-drop="in_progress"]');
+  await page.waitForTimeout(1200);
+  const r = await page.evaluate((id) => ({
+    state: (window.p2State.tasks.find(t => t.id === id) || {}).status,
+    db: (window.__mock.db.tasks.find(t => t.id === id) || {}).status,
+    inColumn: [...document.querySelectorAll('#p2_prjBoard [data-p2-drop="in_progress"] [data-p2-card]')]
+      .map(e => e.dataset.p2Card).includes(id),
+    writes: (window.__mock.log.writes || []).filter(x => /^tasks\.update/.test(x)).length,
+  }), before.id);
+  check('a dropped card moves, persists, and writes exactly one row',
+    r.state === 'in_progress' && r.db === 'in_progress' && r.inColumn && r.writes === 1,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
