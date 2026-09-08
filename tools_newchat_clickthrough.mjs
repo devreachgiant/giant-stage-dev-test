@@ -4835,6 +4835,7 @@ await step('clicking a task opens it in full, with a per-person time breakdown',
     const w = ms => new Promise(res => setTimeout(res, ms));
     const st = window.p2State;
     const first = st.tasks[0];
+    const db = window.__mock.db;
     const row = document.querySelector('.prj-row[data-p2-task="' + first.id + '"]');
     if (!row) return { skipped: 'no row' };
     // clicking the client cell must NOT open the panel -- that cell means something else
@@ -4846,24 +4847,50 @@ await step('clicking a task opens it in full, with a per-person time breakdown',
     const d = document.getElementById('p2_detail');
     if (!d) return { skipped: 'no panel' };
     const txt = d.innerText;
+    const has = (id) => !!document.getElementById(id);
     const out = {
       open: true, openedByWrongCell,
-      hasName: txt.indexOf(first.name) === 0 || txt.includes(first.name),
-      fields: ['Status', 'Priority', 'Assignees', 'Client', 'Due', 'Created'].filter(f => txt.includes(f)).length,
+      controls: ['p2_dName','p2_dStatus','p2_dPrio','p2_dDue','p2_dAssignees','p2_dDesc',
+                 'p2_dSubIn','p2_dComIn','p2_dCopy','p2_dDelete'].filter(has).length,
+      statusOptions: [...document.getElementById('p2_dStatus').options].map(o2 => o2.value).join(','),
       hasDescription: /DESCRIPTION/.test(txt),
       total: (txt.match(/TIME LOGGED\s*\n?\s*([0-9:]+)/) || [])[1] || null,
       namesBoth: /Team Member 3/.test(txt) && /Nishchay/.test(txt),
       marksLive: /TRACKING/.test(txt),
     };
-    document.getElementById('p2_detailClose').click();
+    // rename, restatus, add a subtask, post a comment -- the four things the old panel did
+    const n2 = document.getElementById('p2_dName');
+    n2.value = 'Renamed in the panel';
+    n2.dispatchEvent(new Event('input', { bubbles: true }));
+    await w(1200);
+    out.nameSaved = (db.tasks.find(x => x.id === first.id) || {}).name === 'Renamed in the panel';
+    const st2 = document.getElementById('p2_dStatus');
+    st2.value = 'in_progress'; st2.dispatchEvent(new Event('change', { bubbles: true }));
+    await w(1200);
+    out.statusSaved = (db.tasks.find(x => x.id === first.id) || {}).status === 'in_progress';
+    document.getElementById('p2_dSubIn').value = 'a step';
+    document.getElementById('p2_dSubAdd').click();
+    await w(1300);
+    out.subtask = (db.subtasks || []).filter(x => x.task_id === first.id).length;
+    document.getElementById('p2_dComIn').value = 'a comment';
+    document.getElementById('p2_dComPost').click();
+    await w(1300);
+    out.comment = (db.task_comments || []).filter(x => x.task_id === first.id).length;
+    out.commentShown = /a comment/.test(document.getElementById('p2_detail').innerText);
+    document.getElementById('p2_dClose').click();
     await w(600);
     out.closes = !document.getElementById('p2_detail');
     return out;
   });
-  check('the task panel shows its fields, its description and who logged what',
-    !r.skipped && r.open && !r.openedByWrongCell && r.hasName && r.fields === 6 && r.hasDescription
-      && r.total === '2:00:00' && r.namesBoth && r.marksLive && r.closes,
+  check('the task panel carries every control the old one had',
+    !r.skipped && r.open && !r.openedByWrongCell && r.controls === 10
+      && r.statusOptions === 'todo,in_progress,blocked,done' && r.hasDescription && r.closes,
     JSON.stringify(r));
+  check('the panel edits the task, and takes subtasks and comments',
+    !r.skipped && r.nameSaved && r.statusSaved && r.subtask === 1
+      && r.comment === 1 && r.commentShown, JSON.stringify(r));
+  check('and it still shows who logged what, which the old panel could not',
+    !r.skipped && r.total === '2:00:00' && r.namesBoth && r.marksLive, JSON.stringify(r));
 });
 
 // Folders were a client grouping wearing the word "folder", under a tree that already has
@@ -4896,7 +4923,10 @@ await step('dragging a card between board columns writes the new status', async 
   await page.waitForTimeout(900);
   const before = await page.evaluate(() => {
     const c = document.querySelector('#p2_prjBoard [data-p2-drop="todo"] [data-p2-card]');
-    return c ? { id: c.dataset.p2Card } : null;
+    // a baseline, not a running total: other steps edit tasks too, and a cumulative count
+    // makes this assertion fail for something that has nothing to do with dragging
+    const writes = (window.__mock.log.writes || []).filter(x => /^tasks\.update/.test(x)).length;
+    return c ? { id: c.dataset.p2Card, writes } : null;
   });
   if (!before) { check('dragging a card between board columns writes the new status', false, 'no card to drag'); return; }
   await page.dragAndDrop('#p2_prjBoard [data-p2-drop="todo"] [data-p2-card]',
@@ -4910,8 +4940,9 @@ await step('dragging a card between board columns writes the new status', async 
     writes: (window.__mock.log.writes || []).filter(x => /^tasks\.update/.test(x)).length,
   }), before.id);
   check('a dropped card moves, persists, and writes exactly one row',
-    r.state === 'in_progress' && r.db === 'in_progress' && r.inColumn && r.writes === 1,
-    JSON.stringify(r));
+    r.state === 'in_progress' && r.db === 'in_progress' && r.inColumn
+      && (r.writes - before.writes) === 1,
+    JSON.stringify({ ...r, delta: r.writes - before.writes }));
 });
 
 // ── what the mock actually served, as evidence the paths ran ─────────────────

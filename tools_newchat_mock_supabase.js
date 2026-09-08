@@ -301,6 +301,11 @@
         created_at: iso(12 + n, i) });
     });
   });
+  DB.subtasks = [];
+  DB.task_comments = [];
+  DB.project_priorities = ['Fire', 'Medium', 'Low'].map((label, i) => ({
+    id: 'pp-' + i, project_id: 'p-1', label, color: ['#FF6B3B', '#F2A93B', '#7C8797'][i],
+    emoji: null, position: i + 1, kind: 'priority', created_at: iso(30, 0) }));
   DB.project_prefs = [];   // migration 20260908130000 -- per-person order and stars
   DB.nav_favorites = [];   // migration 20260824140000
   DB.invitations = [];
@@ -590,6 +595,8 @@
   const DEFAULTS = {
     scheduled_messages: { status: 'pending' },
     messages: { flagged: false },
+    task_comments: { created_at: '@now' },
+    subtasks: { done: false, created_at: '@now' },
     channels: { is_private: false },
     invitations: { accepted_at: null, revoked_at: null },
     // time_sessions.started_at is "DEFAULT now() NOT NULL" -- the timer never sends it,

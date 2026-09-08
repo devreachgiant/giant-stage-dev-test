@@ -83938,24 +83938,69 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   // ── TASK DETAIL ──────────────────────────────────────────────────────────────
-  // A row could be ticked, timed and dragged, but not READ: everything a task carries
-  // beyond its name -- the description, the dates, who is on it, where the hours went --
-  // had nowhere to be shown.
+  // Everything the original panel carried, because a task is not its name: the status, the
+  // priority the project defines for itself, who is on it, when it is due, what it says,
+  // its subtasks and its comments -- plus where the hours went, which the original could
+  // not show.
+  const P2_PRIOS_FALLBACK = [{ label: 'Fire', color: '#FF6B3B' },
+                             { label: 'Medium', color: '#F2A93B' },
+                             { label: 'Low', color: '#7C8797' }];
+
   async function openTask(id){
     const t = p2.tasks.find(x => x.id === id);
     if (!t) return;
     p2.detailId = id;
+    p2.detailSessions = []; p2.subtasks = []; p2.comments = [];
     renderDetail();
-    // The per-person breakdown is the one thing not already in memory.
-    const { data } = await sb().from('time_sessions')
-      .select('profile_id, status, duration_seconds, started_at')
-      .eq('task_id', id).order('started_at', { ascending: false });
-    p2.detailSessions = data || [];
-    await hydratePeople(p2.detailSessions.map(r => r.profile_id));
+    const [sess, subs, coms, prios] = await Promise.all([
+      sb().from('time_sessions').select('profile_id, status, duration_seconds, started_at')
+        .eq('task_id', id).order('started_at', { ascending: false }),
+      sb().from('subtasks').select('id, title, done, position, created_at')
+        .eq('task_id', id).order('position', { ascending: true }).order('created_at', { ascending: true }),
+      sb().from('task_comments').select('id, author_id, body, created_at')
+        .eq('task_id', id).order('created_at', { ascending: true }),
+      p2.prios ? Promise.resolve({ data: p2.prios }) :
+        sb().from('project_priorities').select('label, color, kind, position')
+          .eq('project_id', p2.activeId).eq('kind', 'priority').order('position'),
+    ]);
+    if (p2.detailId !== id) return;
+    p2.detailSessions = sess.data || [];
+    p2.subtasks = subs.data || [];
+    p2.comments = coms.data || [];
+    p2.prios = (prios.data && prios.data.length) ? prios.data : P2_PRIOS_FALLBACK;
+    await hydratePeople([...(p2.detailSessions || []).map(r => r.profile_id),
+                         ...(p2.comments || []).map(r => r.author_id)]);
     if (p2.detailId === id) renderDetail();
   }
   function closeTask(){ p2.detailId = null; renderDetail(); }
   window.p2OpenTask = openTask;
+
+  // Field writes go straight through; typing is debounced. Either way the row behind the
+  // panel is re-rendered, so the table never disagrees with what is open on top of it.
+  let _saveTimer = null;
+  function saveTask(id, patch, opts){
+    const t = p2.tasks.find(x => x.id === id);
+    if (!t) return;
+    Object.assign(t, patch);
+    if (!(opts && opts.quiet)) renderTasks();
+    const go = async () => {
+      const { error } = await sb().from('tasks').update(patch).eq('id', id);
+      const el = document.getElementById('p2_saveNote');
+      if (error) { if (el) { el.textContent = 'Could not save: ' + error.message; el.style.color = 'var(--red)'; } return; }
+      if (el) { el.textContent = 'Changes saved automatically'; el.style.color = ''; }
+    };
+    if (opts && opts.debounce) {
+      const el = document.getElementById('p2_saveNote');
+      if (el) el.textContent = 'Saving…';
+      clearTimeout(_saveTimer);
+      _saveTimer = setTimeout(go, 600);
+    } else go();
+  }
+
+  function prioColor(label){
+    const p = (p2.prios || []).find(x => String(x.label).toLowerCase() === String(label || '').toLowerCase());
+    return p ? p.color : 'var(--text-4)';
+  }
 
   function renderDetail(){
     const root = P2();
@@ -83967,16 +84012,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (!el) {
       el = document.createElement('div');
       el.id = 'p2_detail';
-      el.style.cssText = 'position:absolute;top:0;right:0;bottom:0;width:min(460px,46vw);z-index:70;'
-        + 'background:var(--bg);border-left:1px solid var(--line);box-shadow:-18px 0 40px rgba(0,0,0,.34);'
-        + 'display:flex;flex-direction:column;overflow:auto;';
+      el.style.cssText = 'position:absolute;top:0;right:0;bottom:0;width:min(520px,50vw);z-index:70;'
+        + 'background:var(--bg);border-left:1px solid var(--line);box-shadow:-18px 0 44px rgba(0,0,0,.38);'
+        + 'display:flex;flex-direction:column;';
       root.style.position = root.style.position || 'relative';
       root.appendChild(el);
     }
-    const isDone = t.status === 'done' || t.status === 'completed' || t.status === 'complete';
+    const done = t.status === 'done' || t.status === 'completed' || t.status === 'complete';
     const col = P2_COLS.find(c => c.key === t.status) || P2_COLS[0];
+    const prio = t.priority_label || t.priority || '';
+    const dueVal = t.due_at ? new Date(t.due_at).toISOString().slice(0, 10) : '';
+
     const sessions = p2.detailSessions || [];
-    // Everyone who has ever tracked it, biggest contributor first.
     const byPerson = {};
     sessions.forEach(r => {
       const b = byPerson[r.profile_id] = byPerson[r.profile_id] || { secs: 0, live: false };
@@ -83986,70 +84033,315 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const people = Object.entries(byPerson).sort((a, b) => b[1].secs - a[1].secs);
     const totalSecs = people.reduce((n, [, v]) => n + v.secs, 0);
 
-    const field = (label, value) => '<div style="display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);">'
-      + '<span style="width:96px;flex-shrink:0;font-size:11.5px;color:var(--text-3);">' + label + '</span>'
-      + '<span style="font-size:12.5px;color:var(--text);min-width:0;overflow-wrap:anywhere;">' + value + '</span></div>';
-    const dash = '<span style="color:var(--text-4);">—</span>';
+    const subs = p2.subtasks || [];
+    const subsDone = subs.filter(x => x.done).length;
+    const coms = p2.comments || [];
 
-    el.innerHTML = '<div style="display:flex;align-items:flex-start;gap:10px;padding:16px 18px;'
-      + 'border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:2;">'
-      +   '<span style="font-size:15px;font-weight:700;color:var(--text);line-height:1.35;flex:1;'
-      +   'overflow-wrap:anywhere;' + (isDone ? 'opacity:.6;text-decoration:line-through;' : '') + '">'
-      +   esc(t.name) + '</span>'
-      +   '<span id="p2_detailClose" title="Close" style="cursor:pointer;color:var(--text-3);flex-shrink:0;padding:2px;">'
+    const label = (x) => '<div style="font-size:11px;font-weight:800;letter-spacing:.05em;'
+      + 'text-transform:uppercase;color:var(--text-3);margin-bottom:9px;">' + x + '</div>';
+    const rowF = (name, html) => '<div style="display:grid;grid-template-columns:96px 1fr;gap:12px;'
+      + 'align-items:center;padding:7px 0;">'
+      + '<span style="font-size:11.5px;color:var(--text-3);">' + name + '</span>'
+      + '<div style="min-width:0;">' + html + '</div></div>';
+    const box = 'background:var(--surface);border:1px solid var(--line);border-radius:8px;'
+      + 'padding:6px 10px;font:inherit;font-size:12.5px;color:var(--text);outline:none;';
+
+    el.innerHTML =
+      '<div style="display:flex;align-items:flex-start;gap:10px;padding:16px 18px;border-bottom:1px solid var(--line);flex-shrink:0;">'
+      +   '<span id="p2_dTick" class="prj-tick' + (done ? ' done' : '') + '" title="Mark ' + (done ? 'not done' : 'done')
+      +   '" style="cursor:pointer;flex-shrink:0;margin-top:3px;"></span>'
+      +   '<textarea id="p2_dName" rows="1" style="flex:1;background:transparent;border:none;resize:none;'
+      +   'font:inherit;font-size:15.5px;font-weight:700;color:var(--text);outline:none;line-height:1.35;'
+      +   (done ? 'opacity:.6;text-decoration:line-through;' : '') + '">' + esc(t.name || '') + '</textarea>'
+      +   '<span id="p2_dClose" title="Close" style="cursor:pointer;color:var(--text-3);flex-shrink:0;padding:2px;">'
       +   '<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>'
       + '</div>'
-      + '<div style="padding:14px 18px 20px;">'
-      +   field('Status', '<span style="display:inline-flex;align-items:center;gap:6px;">'
-            + '<span style="width:7px;height:7px;border-radius:50%;background:' + col.tint + ';"></span>'
-            + col.label + '</span>')
-      +   field('Priority', t.priority ? esc(t.priority) : dash)
-      +   field('Assignees', assignees(t).length
-            ? '<span style="display:inline-flex;gap:5px;flex-wrap:wrap;">' + assignees(t).map(personChip).join('') + '</span>'
-            : dash)
-      +   field('Client', t.client_id && p2.clients[t.client_id] ? esc(p2.clients[t.client_id].name) : dash)
-      +   field('Department', t.department ? esc(t.department) : dash)
-      +   field('Due', t.due_at ? esc(new Date(t.due_at).toLocaleDateString(undefined,
-            { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })) : dash)
-      +   field('Created', t.created_at ? esc(new Date(t.created_at).toLocaleDateString(undefined,
-            { month: 'short', day: 'numeric', year: 'numeric' })) : dash)
-      +   '<div style="margin-top:18px;">'
-      +     '<div style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;'
-      +     'color:var(--text-3);margin-bottom:8px;">Description</div>'
-      +     '<div style="font-size:12.5px;line-height:1.55;color:' + (t.description ? 'var(--text-2)' : 'var(--text-4)')
-      +     ';white-space:pre-wrap;overflow-wrap:anywhere;">'
-      +     (t.description ? esc(t.description) : 'Nothing written yet.') + '</div>'
+      + '<div style="flex:1;min-height:0;overflow:auto;padding:12px 18px 18px;">'
+
+      +   rowF('Status', '<select id="p2_dStatus" style="' + box + 'width:100%;">'
+            + P2_COLS.map(c => '<option value="' + c.key + '"' + (c.key === t.status ? ' selected' : '') + '>'
+              + c.label + '</option>').join('') + '</select>')
+
+      +   rowF('Priority', (() => {
+            const opts = (p2.prios || P2_PRIOS_FALLBACK).slice();
+            // A task can carry a label the project no longer offers. Without this the
+            // select silently shows "None" and the next change to any other field writes
+            // that back, quietly losing the priority it already had.
+            if (prio && !opts.some(x => String(x.label).toLowerCase() === String(prio).toLowerCase()))
+              opts.unshift({ label: prio, color: 'var(--text-4)' });
+            return '<select id="p2_dPrio" style="' + box + 'width:100%;">'
+              + '<option value="">— None</option>'
+              + opts.map(x => '<option value="' + esc(x.label) + '"'
+                + (String(x.label).toLowerCase() === String(prio).toLowerCase() ? ' selected' : '') + '>'
+                + esc(x.label) + '</option>').join('') + '</select>';
+          })())
+
+      +   rowF('Due date', '<input id="p2_dDue" type="date" value="' + dueVal + '" style="' + box + '">')
+
+      +   rowF('Assignees', '<div id="p2_dAssignees" style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;">'
+            + assignees(t).map(pid => {
+                const pr = p2.people[pid] || {};
+                const nm = pr.full_name || pr.email || 'Someone';
+                return '<span style="display:inline-flex;align-items:center;gap:5px;background:var(--surface);'
+                  + 'border:1px solid var(--line);border-radius:20px;padding:2px 4px 2px 2px;font-size:11.5px;">'
+                  + personChip(pid) + esc(nm)
+                  + '<span data-p2-unassign="' + esc(pid) + '" title="Remove" style="cursor:pointer;'
+                  + 'color:var(--text-4);padding:0 3px;">×</span></span>';
+              }).join('')
+            + '<span id="p2_dAddPerson" style="cursor:pointer;font-size:11.5px;color:var(--text-4);'
+            + 'border:1px dashed var(--line);border-radius:20px;padding:3px 9px;">+ Add</span>'
+            + '</div><div id="p2_dPersonPick" style="display:none;margin-top:6px;max-height:170px;overflow:auto;'
+            + 'border:1px solid var(--line);border-radius:9px;"></div>')
+
+      +   rowF('Client', '<span style="font-size:12.5px;color:' + (t.client_id ? 'var(--text)' : 'var(--text-4)') + ';">'
+            + (t.client_id && p2.clients[t.client_id] ? esc(p2.clients[t.client_id].name) : '—') + '</span>')
+      +   rowF('Department', '<span style="font-size:12.5px;color:' + (t.department ? 'var(--text)' : 'var(--text-4)') + ';">'
+            + (t.department ? esc(t.department) : '—') + '</span>')
+      +   rowF('Project', '<span style="font-size:12.5px;color:var(--text-2);">'
+            + esc((activeProject() || {}).name || '—') + '</span>')
+      +   rowF('Created', '<span style="font-size:11.5px;color:var(--text-3);">'
+            + (t.created_at ? esc(new Date(t.created_at).toLocaleString()) : '—') + '</span>')
+
+      +   '<div style="margin-top:16px;">' + label('Description')
+      +     '<textarea id="p2_dDesc" rows="4" placeholder="Add more detail to this task…"'
+      +     ' style="width:100%;box-sizing:border-box;background:var(--surface);border:1px solid var(--line);'
+      +     'border-radius:10px;padding:11px 13px;font:inherit;font-size:12.5px;color:var(--text);'
+      +     'resize:vertical;min-height:84px;outline:none;line-height:1.55;">' + esc(t.description || '') + '</textarea>'
       +   '</div>'
+
+      +   '<div style="margin-top:18px;">'
+      +     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">'
+      +       '<span style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3);">Subtasks</span>'
+      +       '<span style="font-size:10.5px;font-weight:700;color:var(--text-3);background:var(--surface-2);'
+      +       'padding:1px 7px;border-radius:8px;">' + subsDone + '/' + subs.length + '</span>'
+      +     '</div>'
+      +     '<div style="height:4px;background:var(--surface-2);border-radius:3px;overflow:hidden;margin-bottom:10px;">'
+      +       '<div style="height:100%;background:#10B981;transition:width .25s;width:'
+      +       (subs.length ? Math.round((subsDone / subs.length) * 100) : 0) + '%;"></div></div>'
+      +     (subs.length ? subs.map(sx => '<div style="display:flex;align-items:center;gap:9px;padding:5px 0;">'
+            + '<span class="prj-tick' + (sx.done ? ' done' : '') + '" data-p2-sub-toggle="' + esc(sx.id)
+            + '" style="cursor:pointer;flex-shrink:0;"></span>'
+            + '<span style="flex:1;font-size:12.5px;color:var(--text);'
+            + (sx.done ? 'opacity:.55;text-decoration:line-through;' : '') + '">' + esc(sx.title) + '</span>'
+            + '<span data-p2-sub-del="' + esc(sx.id) + '" title="Delete" style="cursor:pointer;color:var(--text-4);'
+            + 'font-size:13px;padding:0 3px;">×</span></div>').join('') : '')
+      +     '<div style="display:flex;gap:7px;margin-top:8px;">'
+      +       '<input id="p2_dSubIn" type="text" placeholder="Add a subtask…  (Enter)" autocomplete="off"'
+      +       ' style="flex:1;' + box + '">'
+      +       '<button id="p2_dSubAdd" style="background:var(--red);color:#fff;border:none;border-radius:8px;'
+      +       'padding:6px 13px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer;">Add</button>'
+      +     '</div>'
+      +   '</div>'
+
+      +   '<div style="margin-top:20px;">'
+      +     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;">'
+      +       '<span style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3);">Comments</span>'
+      +       '<span style="font-size:10.5px;font-weight:700;color:var(--text-3);background:var(--surface-2);'
+      +       'padding:1px 7px;border-radius:8px;">' + coms.length + '</span>'
+      +     '</div>'
+      +     (coms.length ? coms.map(c => {
+              const pr = p2.people[c.author_id] || {};
+              const nm = pr.full_name || pr.email || 'Someone';
+              return '<div style="display:flex;gap:9px;padding:7px 0;">' + personChip(c.author_id)
+                + '<div style="min-width:0;flex:1;">'
+                + '<div style="display:flex;align-items:baseline;gap:8px;">'
+                + '<span style="font-size:12px;font-weight:700;color:var(--text);">' + esc(nm) + '</span>'
+                + (c.created_at && !isNaN(new Date(c.created_at))
+                    ? '<span style="font-size:10.5px;color:var(--text-4);">'
+                      + esc(new Date(c.created_at).toLocaleDateString()) + '</span>' : '')
+                + (c.author_id === me() ? '<span data-p2-com-del="' + esc(c.id) + '" title="Delete"'
+                    + ' style="margin-left:auto;cursor:pointer;color:var(--text-4);font-size:12px;">×</span>' : '')
+                + '</div>'
+                + '<div style="font-size:12.5px;color:var(--text-2);line-height:1.5;white-space:pre-wrap;'
+                + 'overflow-wrap:anywhere;">' + esc(c.body) + '</div></div></div>';
+            }).join('') : '<div style="font-size:12px;color:var(--text-4);padding-bottom:4px;">No comments yet.</div>')
+      +     '<div style="display:flex;gap:7px;margin-top:9px;align-items:flex-start;">'
+      +       '<textarea id="p2_dComIn" rows="2" placeholder="Write a comment…  (Cmd/Ctrl+Enter to post)"'
+      +       ' style="flex:1;box-sizing:border-box;' + box + 'resize:vertical;min-height:40px;line-height:1.45;"></textarea>'
+      +       '<button id="p2_dComPost" style="background:var(--red);color:#fff;border:none;border-radius:8px;'
+      +       'padding:7px 14px;font:inherit;font-size:11.5px;font-weight:700;cursor:pointer;">Post</button>'
+      +     '</div>'
+      +   '</div>'
+
       +   '<div style="margin-top:20px;">'
       +     '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:9px;">'
-      +       '<span style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;'
-      +       'color:var(--text-3);">Time logged</span>'
+      +       '<span style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;color:var(--text-3);">Time logged</span>'
       +       '<span style="font-size:12.5px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;">'
       +       esc(fmt(totalSecs)) + '</span>'
       +     '</div>'
-      +     (people.length
-            ? people.map(([pid, v]) => {
-                const pr = p2.people[pid] || {};
-                const nm = pr.full_name || pr.email || 'Someone';
-                const share = totalSecs > 0 ? Math.round((v.secs / totalSecs) * 100) : 0;
-                return '<div style="display:flex;align-items:center;gap:9px;padding:6px 0;">'
-                  + personChip(pid)
-                  + '<span style="font-size:12px;color:var(--text-2);flex:1;min-width:0;overflow:hidden;'
-                  + 'text-overflow:ellipsis;white-space:nowrap;">' + esc(nm)
-                  + (v.live ? '<span style="margin-left:6px;font-size:10px;font-weight:800;color:#3B82F6;">TRACKING</span>' : '')
-                  + '</span>'
-                  + '<span style="width:74px;height:4px;border-radius:3px;background:var(--surface-2);flex-shrink:0;">'
-                  + '<span style="display:block;height:100%;border-radius:3px;background:var(--red);width:'
-                  + share + '%;"></span></span>'
-                  + '<span style="font-size:11.5px;font-weight:700;color:var(--text-3);flex-shrink:0;'
-                  + 'font-variant-numeric:tabular-nums;min-width:52px;text-align:right;">' + esc(fmt(v.secs)) + '</span>'
-                  + '</div>';
-              }).join('')
-            : '<div style="font-size:12px;color:var(--text-4);">Nobody has tracked time on this yet.</div>')
+      +     (people.length ? people.map(([pid, v]) => {
+              const pr = p2.people[pid] || {};
+              const nm = pr.full_name || pr.email || 'Someone';
+              const share = totalSecs > 0 ? Math.round((v.secs / totalSecs) * 100) : 0;
+              return '<div style="display:flex;align-items:center;gap:9px;padding:5px 0;">' + personChip(pid)
+                + '<span style="font-size:12px;color:var(--text-2);flex:1;min-width:0;overflow:hidden;'
+                + 'text-overflow:ellipsis;white-space:nowrap;">' + esc(nm)
+                + (v.live ? '<span style="margin-left:6px;font-size:10px;font-weight:800;color:#3B82F6;">TRACKING</span>' : '')
+                + '</span>'
+                + '<span style="width:70px;height:4px;border-radius:3px;background:var(--surface-2);flex-shrink:0;">'
+                + '<span style="display:block;height:100%;border-radius:3px;background:var(--red);width:' + share + '%;"></span></span>'
+                + '<span style="font-size:11.5px;font-weight:700;color:var(--text-3);flex-shrink:0;'
+                + 'font-variant-numeric:tabular-nums;min-width:52px;text-align:right;">' + esc(fmt(v.secs)) + '</span></div>';
+            }).join('') : '<div style="font-size:12px;color:var(--text-4);">Nobody has tracked time on this yet.</div>')
       +   '</div>'
+      + '</div>'
+
+      + '<div style="display:flex;align-items:center;gap:9px;padding:11px 18px;border-top:1px solid var(--line);flex-shrink:0;">'
+      +   '<span id="p2_saveNote" style="font-size:11px;color:var(--text-4);flex:1;">Changes saved automatically</span>'
+      +   '<button id="p2_dCopy" style="background:transparent;border:1px solid var(--line);color:var(--text-2);'
+      +   'border-radius:8px;padding:5px 11px;font:inherit;font-size:11px;font-weight:600;cursor:pointer;">Copy link</button>'
+      +   '<button id="p2_dDelete" style="background:transparent;border:1px solid var(--line);color:var(--red);'
+      +   'border-radius:8px;padding:5px 11px;font:inherit;font-size:11px;font-weight:600;cursor:pointer;">Delete task</button>'
       + '</div>';
-    const x = document.getElementById('p2_detailClose');
-    if (x) x.addEventListener('click', closeTask);
+
+    wireDetail(t);
+  }
+  // One place that binds the panel, so a re-render never leaves half its controls dead.
+  function wireDetail(t){
+    const id = t.id;
+    const $$ = (x) => document.getElementById(x);
+    const on = (elId, ev, fn) => { const e = $$(elId); if (e) e.addEventListener(ev, fn); };
+
+    on('p2_dClose', 'click', closeTask);
+    on('p2_dTick', 'click', () => {
+      const isDone = t.status === 'done';
+      setTaskStatus(id, isDone ? 'todo' : 'done').then(renderDetail);
+    });
+
+    // A textarea rather than an input, so a long name wraps instead of scrolling sideways.
+    const nameEl = $$('p2_dName');
+    if (nameEl) {
+      const grow = () => { nameEl.style.height = 'auto'; nameEl.style.height = nameEl.scrollHeight + 'px'; };
+      grow();
+      nameEl.addEventListener('input', () => { grow(); saveTask(id, { name: nameEl.value }, { debounce: true, quiet: true }); });
+      nameEl.addEventListener('blur', () => renderTasks());
+      nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); nameEl.blur(); } });
+    }
+
+    on('p2_dStatus', 'change', (e) => setTaskStatus(id, e.target.value).then(renderDetail));
+    on('p2_dPrio', 'change', (e) => {
+      const v = e.target.value;
+      // priority_label is the project's own wording; tasks.priority is an enum that only
+      // knows fire/medium/low, so it is set only when the label happens to be one of them.
+      const patch = { priority_label: v || null };
+      const low = String(v).toLowerCase();
+      if (['fire', 'medium', 'low'].includes(low)) patch.priority = low;
+      saveTask(id, patch);
+    });
+    on('p2_dDue', 'change', (e) => saveTask(id, { due_at: e.target.value ? new Date(e.target.value).toISOString() : null }));
+
+    const desc = $$('p2_dDesc');
+    if (desc) desc.addEventListener('input', () => saveTask(id, { description: desc.value }, { debounce: true, quiet: true }));
+
+    // assignees
+    document.querySelectorAll('#p2_detail [data-p2-unassign]').forEach(x => {
+      x.addEventListener('click', () => {
+        const next = assignees(t).filter(a => a !== x.dataset.p2Unassign);
+        saveTask(id, { assigned_to: next });
+        renderDetail();
+      });
+    });
+    on('p2_dAddPerson', 'click', async () => {
+      const pick = $$('p2_dPersonPick');
+      if (!pick) return;
+      if (pick.style.display !== 'none') { pick.style.display = 'none'; return; }
+      const { data } = await sb().from('profiles')
+        .select('id, full_name, email, avatar_bg, avatar_fg')
+        .neq('role', 'client').is('deactivated_at', null).order('full_name');
+      const have = new Set(assignees(t));
+      const list = (data || []).filter(pp => !have.has(pp.id));
+      (data || []).forEach(pp => { p2.people[pp.id] = pp; });
+      pick.innerHTML = list.length ? list.map(pp => '<div data-p2-assign="' + esc(pp.id) + '"'
+        + ' style="display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer;'
+        + 'border-bottom:1px solid var(--line);font-size:12.5px;color:var(--text);">'
+        + personChipFor(pp) + esc(pp.full_name || pp.email) + '</div>').join('')
+        : '<div style="padding:9px;font-size:12px;color:var(--text-4);">Everyone is already on it.</div>';
+      pick.style.display = '';
+      pick.querySelectorAll('[data-p2-assign]').forEach(row => {
+        row.addEventListener('click', () => {
+          saveTask(id, { assigned_to: [...assignees(t), row.dataset.p2Assign] });
+          renderDetail();
+        });
+      });
+    });
+
+    // subtasks
+    const addSub = async () => {
+      const inp = $$('p2_dSubIn');
+      const title = (inp && inp.value || '').trim();
+      if (!title) return;
+      inp.value = '';
+      const maxPos = (p2.subtasks || []).reduce((n, x) => Math.max(n, x.position || 0), 0);
+      const { data, error } = await sb().from('subtasks')
+        .insert({ task_id: id, title, done: false, position: maxPos + 1, created_by: me() })
+        .select('id, title, done, position, created_at').single();
+      if (error) { if (window.toast) toast({ type:'error', message:'Could not add that: ' + error.message }); return; }
+      p2.subtasks.push(data);
+      renderDetail();
+      const again = document.getElementById('p2_dSubIn');
+      if (again) again.focus();
+    };
+    on('p2_dSubAdd', 'click', addSub);
+    on('p2_dSubIn', 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addSub(); } });
+    document.querySelectorAll('#p2_detail [data-p2-sub-toggle]').forEach(x => {
+      x.addEventListener('click', async () => {
+        const sx = (p2.subtasks || []).find(y => y.id === x.dataset.p2SubToggle);
+        if (!sx) return;
+        sx.done = !sx.done;
+        renderDetail();
+        await sb().from('subtasks').update({ done: sx.done }).eq('id', sx.id);
+      });
+    });
+    document.querySelectorAll('#p2_detail [data-p2-sub-del]').forEach(x => {
+      x.addEventListener('click', async () => {
+        const sid = x.dataset.p2SubDel;
+        p2.subtasks = (p2.subtasks || []).filter(y => y.id !== sid);
+        renderDetail();
+        await sb().from('subtasks').delete().eq('id', sid);
+      });
+    });
+
+    // comments
+    const post = async () => {
+      const inp = $$('p2_dComIn');
+      const body = (inp && inp.value || '').trim();
+      if (!body) return;
+      inp.value = '';
+      const { data, error } = await sb().from('task_comments')
+        .insert({ task_id: id, author_id: me(), body })
+        .select('id, author_id, body, created_at').single();
+      if (error) { if (window.toast) toast({ type:'error', message:'Could not post that: ' + error.message }); return; }
+      p2.comments.push(data);
+      renderDetail();
+    };
+    on('p2_dComPost', 'click', post);
+    on('p2_dComIn', 'keydown', (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); post(); } });
+    document.querySelectorAll('#p2_detail [data-p2-com-del]').forEach(x => {
+      x.addEventListener('click', async () => {
+        const cid = x.dataset.p2ComDel;
+        p2.comments = (p2.comments || []).filter(y => y.id !== cid);
+        renderDetail();
+        await sb().from('task_comments').delete().eq('id', cid);
+      });
+    });
+
+    on('p2_dCopy', 'click', () => {
+      const url = location.origin + location.pathname + '#task=' + id;
+      try { navigator.clipboard.writeText(url); if (window.toast) toast({ type:'success', message:'Link copied' }); }
+      catch (_) { if (window.toast) toast({ type:'error', message:'Could not copy that link' }); }
+    });
+
+    on('p2_dDelete', 'click', async () => {
+      const ok = await window.giantConfirmWarn('Delete "' + (t.name || 'this task') + '"?',
+        'Its subtasks and comments go with it. Time already logged stays on people\'s records. '
+        + 'This cannot be undone.', 'Delete task', 'warning');
+      if (!ok) return;
+      const { error } = await sb().from('tasks').delete().eq('id', id);
+      if (error) { if (window.toast) toast({ type:'error', message:'Could not delete that: ' + error.message }); return; }
+      p2.tasks = p2.tasks.filter(x => x.id !== id);
+      closeTask();
+      renderTasks();
+    });
   }
 
   // ── BOARD ────────────────────────────────────────────────────────────────────
