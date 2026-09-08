@@ -705,6 +705,16 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
    where wrapping is the established behaviour, is untouched. */
 /* A play button on every one of 17 rows is 17 things asking to be pressed. Idle timers
    surface on hover; one that is actually running stays up, because that is information. */
+/* A star on every chip all the time is eleven stars; one that is set stays lit. */
+#p2_root .p2-star{opacity:0;transition:opacity .12s ease,color .12s ease;}
+#p2_root .p2-del{opacity:0;transition:opacity .12s ease,color .12s ease;}
+#p2_root .prj-proj-chip:hover .p2-star,
+#p2_root .prj-proj-chip:hover .p2-del,
+#p2_root .p2-star-on{opacity:1;}
+#p2_root .p2-del:hover{color:var(--red);}
+#p2_root .p2-star:hover{color:var(--amber,#F59E0B);}
+#p2_root .prj-proj-chip{transition:border-color .12s ease,background .12s ease;}
+#p2_root .prj-proj-chip:active{cursor:grabbing;}
 #p2_root .p2-timer{opacity:0;transition:opacity .12s ease,background .12s ease,color .12s ease;}
 #p2_root .prj-row:hover .p2-timer,
 #p2_root .p2-timer-on{opacity:1;}
@@ -83514,7 +83524,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   const p2 = { projects: [], activeId: null, tasks: [], people: {}, clients: {},
                status: 'active', loading: false, collapsed: {},
-               view: 'table', logged: {}, othersOn: {}, detailId: null };
+               view: 'table', logged: {}, othersOn: {}, detailId: null, prefs: {} };
   try { const v = localStorage.getItem('giant_p2_view');
         if (v === 'board' || v === 'timeline' || v === 'table') p2.view = v; } catch (_) {}
 
@@ -83548,14 +83558,71 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     return [];
   }
 
+  // The workspace's shared list goes first, then anything you made yourself, then the rest
+  // by name. projects.position is one number for everybody and is not even distinct --
+  // two projects sit at 1, three at 2 -- so ordering by it left the tail to the planner,
+  // which is the order that reads as random.
+  const P2_MASTER = 'reachgiant master list';
+  function projectRank(p){
+    if (String(p.name || '').trim().toLowerCase() === P2_MASTER) return 0;
+    if (p.created_by && p.created_by === me()) return 1;   // your own lists next
+    return 2;
+  }
+  function orderedProjects(){
+    return p2.projects.slice().sort((a, b) => {
+      const pa = p2.prefs[a.id] || {}, pb = p2.prefs[b.id] || {};
+      // starred pins to the front, whatever else is true
+      if (!!pb.starred !== !!pa.starred) return pb.starred ? 1 : -1;
+      // then anywhere you have dragged it to
+      const ha = pa.position != null, hb = pb.position != null;
+      if (ha && hb && pa.position !== pb.position) return pa.position - pb.position;
+      if (ha !== hb) return ha ? -1 : 1;
+      const ra = projectRank(a), rb = projectRank(b);
+      if (ra !== rb) return ra - rb;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+  }
+
   async function loadProjects(){
-    const { data, error } = await sb().from('projects')
-      .select('id, name, color, status, deadline, client_id, position')
-      .order('position', { ascending: true }).order('name', { ascending: true });
-    if (error) { console.warn('[p2] projects', error.message); return; }
-    p2.projects = data || [];
-    if (!p2.activeId && p2.projects.length) p2.activeId = p2.projects[0].id;
+    const [projRes, prefRes] = await Promise.all([
+      sb().from('projects').select('id, name, color, status, deadline, client_id, position, created_by'),
+      sb().from('project_prefs').select('project_id, position, starred').eq('profile_id', me()),
+    ]);
+    if (projRes.error) { console.warn('[p2] projects', projRes.error.message); return; }
+    p2.projects = projRes.data || [];
+    p2.prefs = {};
+    (prefRes.data || []).forEach(r => { p2.prefs[r.project_id] = { position: r.position, starred: !!r.starred }; });
+    if (!p2.activeId && p2.projects.length) p2.activeId = orderedProjects()[0].id;
     renderProjectsBar();
+  }
+
+  async function savePref(projectId, patch){
+    const cur = p2.prefs[projectId] || { position: null, starred: false };
+    p2.prefs[projectId] = { ...cur, ...patch };
+    const { error } = await sb().from('project_prefs').upsert(
+      { profile_id: me(), project_id: projectId, position: p2.prefs[projectId].position,
+        starred: !!p2.prefs[projectId].starred, updated_at: new Date().toISOString() },
+      { onConflict: 'profile_id,project_id' });
+    if (error && window.toast) toast({ type:'error', message:'Could not save that: ' + error.message });
+  }
+
+  // Dropping one chip onto another rewrites every position from the order now on screen,
+  // rather than nudging one number: gaps and ties are exactly what made the old ordering
+  // unpredictable, and a full rewrite of eleven rows costs nothing.
+  async function reorderProjects(dragId, dropId){
+    if (!dragId || dragId === dropId) return;
+    const list = orderedProjects().map(p => p.id);
+    const from = list.indexOf(dragId), to = list.indexOf(dropId);
+    if (from < 0 || to < 0) return;
+    list.splice(to, 0, list.splice(from, 1)[0]);
+    list.forEach((id, i) => {
+      p2.prefs[id] = { ...(p2.prefs[id] || { starred: false }), position: i };
+    });
+    renderProjectsBar();
+    const rows = list.map((id, i) => ({ profile_id: me(), project_id: id, position: i,
+      starred: !!(p2.prefs[id] || {}).starred, updated_at: new Date().toISOString() }));
+    const { error } = await sb().from('project_prefs').upsert(rows, { onConflict: 'profile_id,project_id' });
+    if (error && window.toast) toast({ type:'error', message:'Could not save that order: ' + error.message });
   }
 
   function renderProjectsBar(){
@@ -83565,17 +83632,34 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // it, which is why nothing could be created -- take it out first and put it back.
     const addBtn = $('prjProjAdd');
     if (addBtn && addBtn.parentElement === bar) bar.removeChild(addBtn);
-    bar.innerHTML = p2.projects.map(p =>
-      '<button class="prj-proj-chip' + (p.id === p2.activeId ? ' active' : '') + '"'
-      + ' data-p2-project="' + esc(p.id) + '"'
-      // nowrap: the chip was sizing to the bar and breaking "Master List" over two lines,
-      // which made a row of projects twice as tall as it needed to be and hard to scan.
-      + ' style="display:inline-flex;align-items:center;gap:7px;white-space:nowrap;flex-shrink:0;background:'
-      + (p.id === p2.activeId ? 'var(--surface-2)' : 'transparent')
-      + ';border:1px solid var(--line);border-radius:9px;padding:6px 11px;margin:0 6px 0 0;'
-      + 'font-size:12px;font-weight:600;color:var(--text);cursor:pointer;font-family:inherit;">'
-      + '<span style="width:8px;height:8px;border-radius:50%;background:' + esc(p.color || 'var(--red)') + ';"></span>'
-      + esc(p.name) + '</button>').join('');
+    const star = (on) => '<svg width="11" height="11" viewBox="0 0 16 16" fill="' + (on ? 'currentColor' : 'none')
+      + '"><path d="M8 1.9l1.83 3.71 4.09.6-2.96 2.88.7 4.08L8 11.24 4.34 13.17l.7-4.08L2.08 6.21l4.09-.6L8 1.9Z"'
+      + ' stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>';
+    bar.innerHTML = orderedProjects().map(p => {
+      const pref = p2.prefs[p.id] || {};
+      const on = p.id === p2.activeId;
+      return '<span class="prj-proj-chip' + (on ? ' active' : '') + '" draggable="true"'
+        + ' data-p2-project="' + esc(p.id) + '" title="Drag to reorder"'
+        // nowrap: the chip was sizing to the bar and breaking "Master List" over two lines,
+        // which made a row of projects twice as tall as it needed to be and hard to scan.
+        + ' style="display:inline-flex;align-items:center;gap:7px;white-space:nowrap;flex-shrink:0;background:'
+        + (on ? 'var(--surface-2)' : 'transparent')
+        + ';border:1px solid ' + (on ? 'var(--red)' : 'var(--line)') + ';border-radius:9px;padding:6px 9px 6px 11px;'
+        + 'margin:0 6px 0 0;font-size:12px;font-weight:600;color:var(--text);cursor:grab;font-family:inherit;">'
+        + '<span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:'
+        + esc(p.color || 'var(--red)') + ';"></span>'
+        + esc(p.name)
+        + '<span class="p2-star' + (pref.starred ? ' p2-star-on' : '') + '" data-p2-star="' + esc(p.id) + '"'
+        + ' title="' + (pref.starred ? 'Unstar' : 'Star, to keep it at the front') + '"'
+        + ' style="display:inline-flex;align-items:center;flex-shrink:0;padding:1px;border-radius:4px;color:'
+        + (pref.starred ? 'var(--amber,#F59E0B)' : 'var(--text-4)') + ';">' + star(!!pref.starred) + '</span>'
+        + (canDelete(p) ? '<span class="p2-del" data-p2-del="' + esc(p.id) + '" title="Delete this project"'
+            + ' style="display:inline-flex;align-items:center;flex-shrink:0;padding:1px;border-radius:4px;'
+            + 'color:var(--text-4);">'
+            + '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8"'
+            + ' stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>' : '')
+        + '</span>';
+    }).join('');
     if (addBtn) { addBtn.style.flexShrink = '0'; bar.appendChild(addBtn); }
     // One line that scrolls, rather than a block that grows downward.
     bar.style.display = 'flex';
@@ -83583,12 +83667,87 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     bar.style.alignItems = 'center';
     bar.style.overflowX = 'auto';
     bar.style.overflowY = 'hidden';
+
+    let dragId = null;
     bar.querySelectorAll('[data-p2-project]').forEach(el => {
-      el.addEventListener('click', () => selectProject(el.dataset.p2Project));
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('[data-p2-star]')) return;   // the star is its own control
+        selectProject(el.dataset.p2Project);
+      });
+      el.addEventListener('dragstart', (e) => {
+        dragId = el.dataset.p2Project;
+        try { e.dataTransfer.setData('text/plain', dragId); } catch (_) {}
+        e.dataTransfer.effectAllowed = 'move';
+        el.style.opacity = '.45';
+      });
+      el.addEventListener('dragend', () => { el.style.opacity = ''; dragId = null;
+        bar.querySelectorAll('[data-p2-project]').forEach(x => { x.style.borderColor = ''; }); });
+      el.addEventListener('dragover', (e) => {
+        e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+        if (el.dataset.p2Project !== dragId) el.style.borderLeft = '2px solid var(--red)';
+      });
+      el.addEventListener('dragleave', () => { el.style.borderLeft = ''; });
+      el.addEventListener('drop', (e) => {
+        e.preventDefault();
+        el.style.borderLeft = '';
+        const id = dragId || (e.dataTransfer && e.dataTransfer.getData('text/plain'));
+        reorderProjects(id, el.dataset.p2Project);
+      });
     });
+    bar.querySelectorAll('[data-p2-del]').forEach(el => {
+      el.addEventListener('click', async (e) => { e.stopPropagation(); await deleteProject(el.dataset.p2Del); });
+    });
+    bar.querySelectorAll('[data-p2-star]').forEach(el => {
+      el.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = el.dataset.p2Star;
+        const now = !((p2.prefs[id] || {}).starred);
+        await savePref(id, { starred: now });
+        renderProjectsBar();
+      });
+    });
+
     const head = document.querySelector('.screen[data-screen="projects2"] h1, #p2_root h1');
     const ap = activeProject();
     if (head && ap) head.textContent = ap.name;
+  }
+
+  // Your own, or anyone's if you manage the place. The database says the same thing --
+  // this only decides whether to draw the control.
+  function canDelete(p){
+    const role = String((window.giantCurrentProfile && window.giantCurrentProfile.role) || '').toLowerCase();
+    return p.created_by === me() || ['owner', 'manager', 'inhouse_dev'].includes(role);
+  }
+
+  async function deleteProject(id){
+    const p = p2.projects.find(x => x.id === id);
+    if (!p) return;
+    // tasks.project_id is ON DELETE CASCADE, so this takes the tasks with it. Say how many
+    // before asking, not after: "delete this project?" is a different question when the
+    // answer is "and 276 tasks".
+    const { count } = await sb().from('tasks')
+      .select('id', { count: 'exact', head: true }).eq('project_id', id);
+    const n = count || 0;
+    const ok = await window.giantConfirmWarn(
+      'Delete "' + p.name + '"?',
+      n ? 'This also deletes ' + n + ' task' + (n === 1 ? '' : 's') + ' in it. Time already logged stays on '
+          + 'people\'s records. This cannot be undone.'
+        : 'It has no tasks in it. This cannot be undone.',
+      'Delete project', 'warning');
+    if (!ok) return;
+    const { error } = await sb().from('projects').delete().eq('id', id);
+    if (error) {
+      if (window.toast) toast({ type:'error', message:'Could not delete that project: ' + error.message });
+      return;
+    }
+    p2.projects = p2.projects.filter(x => x.id !== id);
+    delete p2.prefs[id];
+    if (p2.activeId === id) {
+      const next = orderedProjects()[0];
+      p2.activeId = next ? next.id : null;
+    }
+    renderProjectsBar();
+    await loadTasks();
   }
 
   async function selectProject(id){

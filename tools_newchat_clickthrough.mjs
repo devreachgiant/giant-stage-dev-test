@@ -4626,6 +4626,91 @@ await step('Projects 2.0 shows one task pool as table, board and timeline', asyn
     !r.skipped && r.axisLabels >= 3, JSON.stringify(r));
 });
 
+// projects.position is one number shared by the whole workspace and it is not distinct --
+// two projects sit at 1, three at 2 -- so ordering by it left the tail to whatever the
+// planner returned, which is the order that reads as random.
+await step('the projects bar has an order, and you can rearrange it', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const names = () => [...document.querySelectorAll('[data-p2-project]')].map(e => e.textContent.trim());
+    const out = { order: names() };
+    // master list first, then mine by name, then everyone else's -- "Aardvark" sorts first
+    // alphabetically and must still come last, or the rule is just alphabetical
+    out.masterFirst = /^ReachGiant Master List/.test(out.order[0] || '');
+    out.othersLast = /Aardvark/.test(out.order[out.order.length - 1] || '');
+    out.mineInTheMiddle = /Fortess/.test(out.order[1] || '') && /Maribou/.test(out.order[2] || '');
+
+    // a star pins it to the front, and survives being written
+    const chips = [...document.querySelectorAll('[data-p2-project]')];
+    const last = chips[chips.length - 1];
+    const lastName = last.textContent.trim();
+    const lastId = last.dataset.p2Project;
+    last.querySelector('[data-p2-star]').click();
+    await w(1200);
+    out.starPins = (names()[0] || '') === lastName;
+    out.starStored = (window.__mock.db.project_prefs || [])
+      .some(x => x.project_id === lastId && x.starred);
+    document.querySelector('[data-p2-star="' + lastId + '"]').click();
+    await w(1200);
+    out.unstarReleases = (names()[0] || '') !== lastName;
+
+    // and dragging writes a position for every chip, not just the one moved
+    return out;
+  });
+  check('projects are ordered master-list, then yours, then the rest by name',
+    r.masterFirst && r.mineInTheMiddle && r.othersLast, JSON.stringify(r));
+  check('starring a project pins it to the front and is remembered',
+    r.starPins && r.starStored && r.unstarReleases, JSON.stringify(r));
+
+  await page.dragAndDrop('[data-p2-project]:nth-of-type(3)', '[data-p2-project]:nth-of-type(1)');
+  await page.waitForTimeout(1200);
+  const d = await page.evaluate(() => ({
+    order: [...document.querySelectorAll('[data-p2-project]')].map(e => e.textContent.trim()),
+    // a full rewrite, not a nudge: gaps and ties are what made the old order unpredictable
+    rowsWritten: (window.__mock.db.project_prefs || []).filter(x => x.position != null).length,
+  }));
+  check('dragging a project rewrites the order and stores a position for each',
+    d.rowsWritten >= 4, JSON.stringify(d));
+});
+
+// Deleting takes the tasks with it -- tasks.project_id is ON DELETE CASCADE -- so the
+// count belongs in the question, not in the aftermath.
+await step('a project can be deleted, and says what that costs', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const st = window.p2State;
+    const db = window.__mock.db;
+    const mineProj = st.projects.find(p => p.created_by === 'u-me');
+    if (!mineProj) return { skipped: 'nothing of mine' };
+    const out = { offersOnMine: !!document.querySelector('[data-p2-del="' + mineProj.id + '"]') };
+    // Delete a project nothing else in this suite depends on: the obvious candidate is the
+    // one holding every task, and taking it out leaves every later step measuring nothing.
+    const wasActive = st.activeId;
+    const victim = st.projects.find(p => p.id !== wasActive
+      && !(db.tasks || []).some(t => t.project_id === p.id));
+    if (!victim) return { skipped: 'no spare project' };
+    const before = st.projects.length;
+    let asked = null;
+    const orig = window.giantConfirmWarn;
+    window.giantConfirmWarn = (title, msg) => { asked = title + ' :: ' + msg; return Promise.resolve(true); };
+    document.querySelector('[data-p2-del="' + victim.id + '"]').click();
+    await w(2200);
+    window.giantConfirmWarn = orig;
+    out.asked = asked;
+    out.saysWhatItCosts = /\d+ tasks?|no tasks/.test(asked || '');
+    out.gone = window.p2State.projects.length === before - 1;
+    out.goneFromDb = !(db.projects || []).some(p => p.id === victim.id);
+    out.barUpdated = !document.querySelector('[data-p2-project="' + victim.id + '"]');
+    const back = document.querySelector('[data-p2-project="' + wasActive + '"]');
+    if (back) { back.click(); await w(2000); }
+    out.restored = window.p2State.activeId === wasActive;
+    return out;
+  });
+  check('deleting a project says what it costs, then removes it',
+    !r.skipped && r.offersOnMine && r.saysWhatItCosts && r.gone && r.goneFromDb
+      && r.barUpdated && r.restored, JSON.stringify(r));
+});
+
 // Who a project is for is part of creating it. It used to be a window.prompt for the name
 // and nothing else, so every project was visible to the whole workspace with no way to say
 // otherwise. The database enforces the choice; this records it.

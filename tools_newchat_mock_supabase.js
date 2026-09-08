@@ -194,7 +194,15 @@
   DB.projects = [{ id: 'p-1', name: 'Maribou — Q3 SEO', client_id: 'c-1', created_by: ME,
                    position: 1, color: '#D00400', created_at: iso(30, 0) },
                  { id: 'p-2', name: 'Fortess DG — Site rebuild', client_id: 'c-2', created_by: ME,
-                   position: 2, color: '#5aa8d6', created_at: iso(20, 0) }];
+                   position: 2, color: '#5aa8d6', created_at: iso(20, 0) },
+                 // The bar puts the workspace master list first, then anything you created
+                 // yourself, then the rest by name. Two projects both created by me could
+                 // not tell that rule from no rule at all, so: one master list, and one
+                 // owned by somebody else whose name sorts last.
+                 { id: 'p-master', name: 'ReachGiant Master List', client_id: null, created_by: 'u-4',
+                   position: 3, color: '#3ECF8E', created_at: iso(40, 0) },
+                 { id: 'p-theirs', name: 'Aardvark — someone else\'s', client_id: null, created_by: 'u-4',
+                   position: 4, color: '#F59E0B', created_at: iso(15, 0) }];
   DB.tasks = [];
   ['todo', 'in_progress', 'review', 'done'].forEach((st, si) => {
     for (let i = 0; i < 3; i++) DB.tasks.push({
@@ -293,6 +301,7 @@
         created_at: iso(12 + n, i) });
     });
   });
+  DB.project_prefs = [];   // migration 20260908130000 -- per-person order and stars
   DB.nav_favorites = [];   // migration 20260824140000
   DB.invitations = [];
   DB.channel_stars = [{ profile_id: ME, channel_id: 'ch-team-0' }];
