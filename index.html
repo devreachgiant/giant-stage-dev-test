@@ -703,8 +703,6 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
    word-break:break-word, so a long task name wraps and the row becomes two lines tall --
    which makes a list of them hard to scan. Scoped to #p2_root so the original screen,
    where wrapping is the established behaviour, is untouched. */
-/* A play button on every one of 17 rows is 17 things asking to be pressed. Idle timers
-   surface on hover; one that is actually running stays up, because that is information. */
 /* A star on every chip all the time is eleven stars; one that is set stays lit. */
 #p2_root .p2-star{opacity:0;transition:opacity .12s ease,color .12s ease;}
 #p2_root .p2-del{opacity:0;transition:opacity .12s ease,color .12s ease;}
@@ -715,9 +713,14 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 #p2_root .p2-star:hover{color:var(--amber,#F59E0B);}
 #p2_root .prj-proj-chip{transition:border-color .12s ease,background .12s ease;}
 #p2_root .prj-proj-chip:active{cursor:grabbing;}
-#p2_root .p2-timer{opacity:0;transition:opacity .12s ease,background .12s ease,color .12s ease;}
-#p2_root .prj-row:hover .p2-timer,
-#p2_root .p2-timer-on{opacity:1;}
+/* The timer has a column of its own now, so it no longer has to hide to stay clear of the
+   task name -- it sits in its own space and is always there to be pressed. */
+#p2_root .p2-timer{transition:background .12s ease,color .12s ease;}
+/* The last column was being drawn and left empty; the original puts delete there. */
+#p2_root .prj-row .p2-row-del{opacity:0;cursor:pointer;display:inline-flex;align-items:center;
+  justify-content:center;color:var(--text-4);transition:opacity .12s ease,color .12s ease;}
+#p2_root .prj-row:hover .p2-row-del{opacity:1;}
+#p2_root .prj-row .p2-row-del:hover{color:var(--red);}
 #p2_root .p2-timer:hover{background:var(--surface-2);color:var(--text);}
 #p2_root .p2-timer-on:hover{background:rgba(208,4,0,.2);}
 #p2_root .p2-timer-stop{opacity:.6;transition:opacity .12s ease,color .12s ease;}
@@ -10266,9 +10269,10 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
           <div id="p2_prjTimeline" style="display:none;flex:1;min-height:0;overflow:auto;padding:0 0 20px;"></div>
 
           <!-- table -->
-          <div class="prj-table" id="p2_prjTable" style="--prj-cols:minmax(220px,1.6fr) 130px 150px 150px 130px minmax(200px,1.4fr) 38px;">
+          <div class="prj-table" id="p2_prjTable" style="--prj-cols:minmax(220px,1.6fr) 158px 130px 150px 150px 130px minmax(200px,1.4fr) 38px;">
             <div class="prj-thead">
               <div class="prj-th" data-col="name">Task name</div>
+              <div class="prj-th" data-col="timer">Time</div>
               <div class="prj-th" data-col="priority">Priority</div>
               <div class="prj-th" data-col="assignee">Assignee</div>
               <div class="prj-th" data-col="client">Client</div>
@@ -83796,8 +83800,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   // table, and is worth adding only once something actually needs it.
   async function loadClients(){
     if (Object.keys(p2.clients).length) return;
+    // Every client, churned included: a task can point at one that has since churned, and
+    // leaving it out of the lookup renders that cell as a dash rather than as the client.
     const { data } = await sb().from('clients')
-      .select('id, name, avatar_bg, avatar_fg, status').neq('status', 'churned').order('name');
+      .select('id, name, avatar_bg, avatar_fg, status').order('name');
     (data || []).forEach(c => { p2.clients[c.id] = c; });
   }
 
@@ -83810,9 +83816,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (loading) { loading.style.display = ''; loading.textContent = 'Loading tasks…'; }
     if (empty) empty.style.display = 'none';
     const { data, error } = await sb().from('tasks')
-      .select('id, name, description, status, priority, assigned_to, due_at, client_id, department, category, position, created_at')
+      .select('id, name, description, status, priority, priority_label, resistance_label, '
+              + 'importance_label, assigned_to, due_at, client_id, department, category, '
+              + 'position, created_at, created_by, custom_fields')
       .eq('project_id', p2.activeId)
-      .order('position', { ascending: true }).order('created_at', { ascending: false });
+      // created_at ASCENDING, the same as the original screen. Both load every task in the
+      // project, so the two lists hold the same work -- but position is 0 on almost all of
+      // them, and sorting the tie the other way made the same list look like a different one.
+      .order('position', { ascending: true }).order('created_at', { ascending: true });
     p2.loading = false;
     if (error) {
       if (loading) { loading.style.display = ''; loading.textContent = 'Could not load tasks: ' + error.message; }
@@ -84569,6 +84580,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // read as a row, and the renderers know how a priority chip, an assignee, a client
     // and a department are meant to look.
     const cell = (fn, val) => (typeof window[fn] === 'function' ? window[fn](val) : '');
+    // The original's client cell reads window._prjClientsCache, which only the original
+    // module fills. Borrowing it meant every client showed as a dash whenever the rebuild
+    // was the only thing that had loaded -- and filling that global from here would be this
+    // screen reaching into the other one's state. It has its own clients already.
+    const clientCell = (id) => {
+      const c = id && p2.clients[id];
+      if (!c) return '<span class="prj-cell-empty">—</span>';
+      return '<span class="prj-cell-ava" title="' + esc(c.name) + '">'
+        + '<span class="prj-cell-ava-img" style="background:' + esc(c.avatar_bg || '#4A2424')
+        + ';color:' + esc(c.avatar_fg || '#fff') + ';">'
+        + esc((c.name || '?').trim().charAt(0).toUpperCase()) + '</span>'
+        + '<span class="prj-cell-ava-txt">' + esc(c.name) + '</span></span>';
+    };
 
     // Per-task time tracking, driven by the timer the app already has: time_sessions,
     // one active session per user enforced by the database. Writing a second timer here
@@ -84588,7 +84612,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const pause = '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><rect x="4.2" y="3.2" width="2.9" height="9.6" rx="1.2" fill="currentColor"/><rect x="8.9" y="3.2" width="2.9" height="9.6" rx="1.2" fill="currentColor"/></svg>';
       const stop  = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="2" fill="currentColor"/></svg>';
 
-      let html = '<span class="p2-time" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;flex-shrink:0;">';
+      let html = '<span class="p2-time" style="display:inline-flex;align-items:center;gap:6px;flex-shrink:0;">';
 
       // Someone else's clock, before mine: it is the thing you did not know.
       others.slice(0, 3).forEach(o => {
@@ -84635,14 +84659,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         +   '" style="cursor:pointer;"></span>'
         +   '<span class="prj-name"' + (isDone ? ' style="text-decoration:line-through;"' : '') + '>'
         +   esc(t.name) + '</span>'
-        +   timerHtml(t)
         + '</div>'
+        + '<div class="prj-cell" data-col="timer">' + timerHtml(t) + '</div>'
         + '<div class="prj-cell" data-col="priority">' + cell('_renderPrjPriorityCell', t.priority_label || t.priority) + '</div>'
         + '<div class="prj-cell" data-col="assignee">' + cell('_renderPrjAssigneeCell', assignees(t)) + '</div>'
-        + '<div class="prj-cell" data-col="client">' + cell('_renderPrjClientCell', t.client_id) + '</div>'
+        + '<div class="prj-cell" data-col="client">' + clientCell(t.client_id) + '</div>'
         + '<div class="prj-cell" data-col="department">' + cell('_renderPrjDepartmentCell', t.department) + '</div>'
         + '<div class="prj-cell" data-col="task_details">' + cell('_renderPrjTaskDetailsCell', t.description) + '</div>'
-        + '<div class="prj-cell prj-cell-pad" data-col="pad"></div>'
+        + '<div class="prj-cell prj-cell-pad" data-col="pad">'
+        +   '<span class="p2-row-del" data-p2-task-del="' + esc(t.id) + '" title="Delete this task">'
+        +   '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8"'
+        +   ' stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>'
+        + '</div>'
         + '</div>';
     };
 
@@ -84655,6 +84683,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const th = (col, label) => '<div class="prj-th" data-col="' + col + '">' + label + '</div>';
     const headerHtml = '<div class="prj-section-thead">'
       + th('name', 'Task name')
+      + th('timer', 'Time')
       + th('priority', 'Priority')
       + th('assignee', 'Assignee')
       + th('client', 'Client')
@@ -84747,6 +84776,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // something -- the client cell picks a client, the assignee cell picks a person -- so a
     // row-wide handler fired the panel open on top of whatever that cell was doing, and
     // two things happened for one click.
+    body.querySelectorAll('[data-p2-task-del]').forEach(el => {
+      el.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const tid = el.dataset.p2TaskDel;
+        const tk = p2.tasks.find(x => x.id === tid);
+        if (!tk) return;
+        const ok = await window.giantConfirmWarn('Delete "' + (tk.name || 'this task') + '"?',
+          'Its subtasks and comments go with it. Time already logged stays on people\'s '
+          + 'records. This cannot be undone.', 'Delete task', 'warning');
+        if (!ok) return;
+        const { error } = await sb().from('tasks').delete().eq('id', tid);
+        if (error) { if (window.toast) toast({ type:'error', message:'Could not delete that: ' + error.message }); return; }
+        p2.tasks = p2.tasks.filter(x => x.id !== tid);
+        if (p2.detailId === tid) p2.detailId = null;
+        renderTasks();
+        renderDetail();
+      });
+    });
     body.querySelectorAll('.prj-row[data-p2-task] .prj-name').forEach(el => {
       el.style.cursor = 'pointer';
       el.addEventListener('click', (e) => {

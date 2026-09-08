@@ -4798,9 +4798,12 @@ await step('a task row shows time logged by everyone, and who else is on it', as
     const w = ms => new Promise(res => setTimeout(res, ms));
     const db = window.__mock.db;
     const st = window.p2State;
-    const first = st.tasks[0];
-    if (!first) return { skipped: 'no tasks' };
     db.time_sessions = db.time_sessions || [];
+    // A task nothing else in this suite has tracked: earlier steps start and stop the
+    // timer, so a fixed index gives a total with somebody else's seconds folded into it.
+    const first = st.tasks.find(t => !db.time_sessions.some(x => x.task_id === t.id)) || st.tasks[0];
+    if (!first) return { skipped: 'no tasks' };
+    window.__p2TimeTask = first.id;
     db.time_sessions.push({ id: 'ts-other-live', profile_id: 'u-3', task_id: first.id, status: 'running',
       started_at: new Date(Date.now() - 18e5).toISOString(), total_paused_ms: 0, duration_seconds: null });
     db.time_sessions.push({ id: 'ts-other-done', profile_id: 'u-3', task_id: first.id, status: 'completed',
@@ -4834,8 +4837,9 @@ await step('clicking a task opens it in full, with a per-person time breakdown',
   const r = await page.evaluate(async () => {
     const w = ms => new Promise(res => setTimeout(res, ms));
     const st = window.p2State;
-    const first = st.tasks[0];
     const db = window.__mock.db;
+    // the same task the time check seeded, so the totals below are the ones it wrote
+    const first = st.tasks.find(t => t.id === window.__p2TimeTask) || st.tasks[0];
     const row = document.querySelector('.prj-row[data-p2-task="' + first.id + '"]');
     if (!row) return { skipped: 'no row' };
     // clicking the client cell must NOT open the panel -- that cell means something else
