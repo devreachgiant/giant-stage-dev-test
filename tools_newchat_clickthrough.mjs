@@ -4816,7 +4816,7 @@ await step('a task row shows time logged by everyone, and who else is on it', as
     if (chip) { chip.click(); await w(2500); }
     const row = document.querySelector('.prj-row[data-p2-task="' + first.id + '"]');
     if (!row) return { skipped: 'row gone' };
-    const other = row.querySelector('[title*="tracking this"]');
+    const other = row.querySelector('[title*="is tracking this"]');
     return {
       id: first.id,
       logged: (row.querySelector('.p2-logged') || {}).textContent || null,
@@ -4842,9 +4842,12 @@ await step('the Time column lines up on every row', async () => {
     const px = (el) => el ? Math.round(el.getBoundingClientRect().left) : null;
     const pr = (el) => el ? Math.round(el.getBoundingClientRect().right) : null;
     const btns = rows.map(x => px(x.querySelector('[data-p2-timer]'))).filter(v => v !== null);
+    // children[0] is the number slot -- left-aligned now, so its LEFT edge is the thing
+    // that has to agree across rows. Measuring children[1] would measure the controls
+    // twice and call it two passing assertions.
     const nums = rows.map(x => {
       const w = x.querySelector('.prj-cell[data-col="timer"] .p2-time');
-      return w ? pr(w.children[1]) : null;
+      return w ? px(w.children[0]) : null;
     }).filter(v => v !== null);
     const widths = [...new Set(rows.map(x =>
       Math.round(x.querySelector('.prj-cell[data-col="timer"]').getBoundingClientRect().width)))];
@@ -4855,12 +4858,20 @@ await step('the Time column lines up on every row', async () => {
       buttonColumns: new Set(btns).size,      // one x for every play button
       digitColumns: new Set(nums).size,       // one right edge for every duration
       cellWidths: widths,
+      // the number slot is a fixed width, so the controls cannot drift with the digits
+      numberWidths: [...new Set(rows.map(x => {
+        const w = x.querySelector('.prj-cell[data-col="timer"] .p2-time');
+        return w ? Math.round(w.children[0].getBoundingClientRect().width) : null;
+      }).filter(v => v !== null))],
+      padWidths: [...new Set(rows.map(x =>
+        Math.round(x.querySelector('.prj-cell-pad').getBoundingClientRect().width)))],
       timerAlwaysVisible: btn ? getComputedStyle(btn).opacity === '1' : false,
       deleteAlwaysVisible: del ? getComputedStyle(del).opacity === '1' : false,
     };
   });
   check('every play button and every duration lines up, in one fixed-width column',
-    !r.skipped && r.buttonColumns === 1 && r.digitColumns === 1 && r.cellWidths.length === 1,
+    !r.skipped && r.buttonColumns === 1 && r.digitColumns === 1
+      && r.cellWidths.length === 1 && r.numberWidths.length === 1 && r.padWidths.length === 1,
     JSON.stringify(r));
   check('the timer and the delete are visible without hovering',
     !r.skipped && r.timerAlwaysVisible && r.deleteAlwaysVisible, JSON.stringify(r));

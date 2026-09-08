@@ -718,8 +718,11 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 #p2_root .p2-timer{transition:background .12s ease,color .12s ease;}
 #p2_root .p2-timer:hover{background:var(--surface-2);color:var(--text);}
 #p2_root .p2-timer-on:hover{background:rgba(208,4,0,.22);}
-/* The cell sets its own padding: the timer is a control strip, not prose. */
-#p2_root .prj-cell[data-col="timer"]{padding-left:10px;padding-right:8px;gap:0;}
+/* These two cells are control strips, not prose, so they set their own padding. */
+#p2_root .prj-cell[data-col="timer"]{padding-left:12px;padding-right:8px;gap:0;}
+#p2_root .prj-cell[data-col="pad"]{padding-left:12px;padding-right:12px;justify-content:center;}
+#p2_root .prj-row .p2-row-del{width:20px;height:20px;border-radius:6px;}
+#p2_root .prj-row .p2-row-del:hover{background:rgba(208,4,0,.12);}
 /* The last column was being drawn and left empty; the original puts delete there, and
    keeps it visible -- a control you have to hover to discover is one nobody finds. */
 #p2_root .prj-row .p2-row-del{cursor:pointer;display:inline-flex;align-items:center;
@@ -10273,7 +10276,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
           <div id="p2_prjTimeline" style="display:none;flex:1;min-height:0;overflow:auto;padding:0 0 20px;"></div>
 
           <!-- table -->
-          <div class="prj-table" id="p2_prjTable" style="--prj-cols:minmax(220px,1.6fr) 172px 130px 150px 150px 130px minmax(200px,1.4fr) 38px;">
+          <div class="prj-table" id="p2_prjTable" style="--prj-cols:minmax(220px,1.6fr) 172px 130px 150px 150px 130px minmax(200px,1.4fr) 52px;">
             <div class="prj-thead">
               <div class="prj-th" data-col="name">Task name</div>
               <div class="prj-th" data-col="timer">Time</div>
@@ -84654,12 +84657,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             + 'cursor:pointer;color:var(--text-4);flex-shrink:0;">' + stop + '</span>'
           : '<span style="width:20px;flex-shrink:0;"></span>');
 
-      return '<span class="p2-time" style="display:flex;align-items:center;gap:7px;width:100%;min-width:0;">'
-        + '<span style="display:inline-flex;gap:3px;flex-shrink:0;">' + who + '</span>'
-        + '<span style="flex:1;min-width:0;text-align:right;font-size:11.5px;font-weight:600;'
-        + 'color:var(--text-3);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;">'
+      // Reading order, left to right: the number, the controls, then anyone else on it.
+      // The number has a fixed width rather than a flexible one -- right-aligning it pushed
+      // the digits to the far side of the cell and left a lone play triangle out there on
+      // rows with no time at all. Fixed and left-aligned, every row starts in the same
+      // place and the controls sit at the same x whether the number is 3:02:55 or empty.
+      // The avatars come last for the same reason: leading with them would shift the
+      // digits right on exactly the rows that have somebody on them.
+      return '<span class="p2-time" style="display:flex;align-items:center;gap:6px;width:100%;min-width:0;">'
+        + '<span style="width:72px;flex-shrink:0;text-align:left;font-size:11.5px;font-weight:600;'
+        + 'color:var(--text-3);font-variant-numeric:tabular-nums;overflow:hidden;white-space:nowrap;">'
         + num + '</span>'
-        + '<span style="display:inline-flex;align-items:center;flex-shrink:0;">' + ctrl + '</span>'
+        + '<span style="display:inline-flex;align-items:center;gap:2px;flex-shrink:0;">' + ctrl + '</span>'
+        + '<span style="display:inline-flex;gap:3px;flex:1;min-width:0;justify-content:flex-end;">'
+        + who + '</span>'
         + '</span>';
     };
 
