@@ -703,6 +703,23 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
    word-break:break-word, so a long task name wraps and the row becomes two lines tall --
    which makes a list of them hard to scan. Scoped to #p2_root so the original screen,
    where wrapping is the established behaviour, is untouched. */
+/* A play button on every one of 17 rows is 17 things asking to be pressed. Idle timers
+   surface on hover; one that is actually running stays up, because that is information. */
+#p2_root .p2-timer{opacity:0;transition:opacity .12s ease,background .12s ease,color .12s ease;}
+#p2_root .prj-row:hover .p2-timer,
+#p2_root .p2-timer-on{opacity:1;}
+#p2_root .p2-timer:hover{background:var(--surface-2);color:var(--text);}
+#p2_root .p2-timer-on:hover{background:rgba(208,4,0,.2);}
+#p2_root .p2-timer-stop{opacity:.6;transition:opacity .12s ease,color .12s ease;}
+#p2_root .p2-timer-stop:hover{opacity:1;color:var(--text);}
+#p2_root .prj-row{transition:background .12s ease;}
+#p2_root .prj-row:hover{background:var(--surface);}
+#p2_root .p2-card{transition:border-color .12s ease,transform .08s ease;}
+#p2_root .p2-card:hover{border-color:var(--text-4);}
+#p2_root .p2-card:active{cursor:grabbing;transform:scale(.99);}
+#p2_root [data-p2-tl-task]{transition:background .12s ease;}
+#p2_root [data-p2-tl-task]:hover{background:var(--surface);}
+#p2_root [data-p2-folder-head] svg{transition:transform .15s ease;}
 #p2_root .prj-cell{overflow-wrap:normal;word-break:normal;white-space:nowrap;overflow:hidden;}
 #p2_root .prj-cell > *{min-width:0;}
 #p2_root .prj-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;}
@@ -83488,9 +83505,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   const esc = (s) => String(s == null ? '' : s)
     .replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
 
+  // The app's own timer, not a second one: time_sessions has a one-active-session-per-user
+  // constraint, so two implementations would fight over the same row. Module scope because
+  // the row, the board and the detail panel all need to format a duration.
+  const T = () => window.giantTaskTimer;
+  const liveSession = () => (T() ? T().session() : null);
+  const fmt = (secs) => (T() ? T().format(secs) : '0:00');
+
   const p2 = { projects: [], activeId: null, tasks: [], people: {}, clients: {},
-               status: 'active', loading: false, collapsed: {}, extraFolders: [],
-               view: 'table' };
+               status: 'active', loading: false, collapsed: {},
+               view: 'table', logged: {}, othersOn: {}, detailId: null };
   try { const v = localStorage.getItem('giant_p2_view');
         if (v === 'board' || v === 'timeline' || v === 'table') p2.view = v; } catch (_) {}
 
@@ -83596,12 +83620,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     (data || []).forEach(c => { p2.clients[c.id] = c; });
   }
 
-  function folderOf(t){ return t.client_id || '__none__'; }
-  function folderName(key){
-    if (key === '__none__') return 'Unfiled';
-    const c = p2.clients[key];
-    return (c && c.name) || 'Client';
-  }
 
   async function loadTasks(){
     const body = $('prjDailyBody'), loading = $('prjDailyLoading'), empty = $('prjDailyEmpty');
@@ -83620,8 +83638,37 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       return;
     }
     p2.tasks = data || [];
-    await Promise.all([hydratePeople(p2.tasks.flatMap(assignees)), loadClients()]);
+    await Promise.all([hydratePeople(p2.tasks.flatMap(assignees)), loadClients(), loadTime()]);
     renderTasks();
+  }
+
+  // Time is a property of the TASK, not of my session: a task with six hours on it across
+  // three people looked identical to one nobody had ever touched, because the row only
+  // ever knew about my own running clock.
+  async function loadTime(){
+    const ids = p2.tasks.map(t => t.id);
+    p2.logged = {}; p2.othersOn = {};
+    if (!ids.length) return;
+    const mine = me();
+    const [doneRes, liveRes] = await Promise.all([
+      sb().from('time_sessions').select('task_id, duration_seconds')
+        .in('task_id', ids).eq('status', 'completed'),
+      // running or paused, anyone. The unique index is one active session per PERSON, so
+      // two people on the same task is legal and expected -- what was missing is that
+      // neither could see the other.
+      sb().from('time_sessions').select('task_id, profile_id, status, started_at, paused_at, total_paused_ms')
+        .in('task_id', ids).in('status', ['running', 'paused']),
+    ]);
+    (doneRes.data || []).forEach(r => {
+      p2.logged[r.task_id] = (p2.logged[r.task_id] || 0) + (r.duration_seconds || 0);
+    });
+    const strangers = [];
+    (liveRes.data || []).forEach(r => {
+      if (r.profile_id === mine) return;
+      (p2.othersOn[r.task_id] = p2.othersOn[r.task_id] || []).push(r);
+      strangers.push(r.profile_id);
+    });
+    if (strangers.length) await hydratePeople(strangers);
   }
 
   // One pool of tasks, three presentations. Which one is showing is the only difference
@@ -83709,6 +83756,121 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
   }
 
+  // ── TASK DETAIL ──────────────────────────────────────────────────────────────
+  // A row could be ticked, timed and dragged, but not READ: everything a task carries
+  // beyond its name -- the description, the dates, who is on it, where the hours went --
+  // had nowhere to be shown.
+  async function openTask(id){
+    const t = p2.tasks.find(x => x.id === id);
+    if (!t) return;
+    p2.detailId = id;
+    renderDetail();
+    // The per-person breakdown is the one thing not already in memory.
+    const { data } = await sb().from('time_sessions')
+      .select('profile_id, status, duration_seconds, started_at')
+      .eq('task_id', id).order('started_at', { ascending: false });
+    p2.detailSessions = data || [];
+    await hydratePeople(p2.detailSessions.map(r => r.profile_id));
+    if (p2.detailId === id) renderDetail();
+  }
+  function closeTask(){ p2.detailId = null; renderDetail(); }
+  window.p2OpenTask = openTask;
+
+  function renderDetail(){
+    const root = P2();
+    if (!root) return;
+    let el = document.getElementById('p2_detail');
+    if (!p2.detailId) { if (el) el.remove(); return; }
+    const t = p2.tasks.find(x => x.id === p2.detailId);
+    if (!t) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'p2_detail';
+      el.style.cssText = 'position:absolute;top:0;right:0;bottom:0;width:min(460px,46vw);z-index:70;'
+        + 'background:var(--bg);border-left:1px solid var(--line);box-shadow:-18px 0 40px rgba(0,0,0,.34);'
+        + 'display:flex;flex-direction:column;overflow:auto;';
+      root.style.position = root.style.position || 'relative';
+      root.appendChild(el);
+    }
+    const isDone = t.status === 'done' || t.status === 'completed' || t.status === 'complete';
+    const col = P2_COLS.find(c => c.key === t.status) || P2_COLS[0];
+    const sessions = p2.detailSessions || [];
+    // Everyone who has ever tracked it, biggest contributor first.
+    const byPerson = {};
+    sessions.forEach(r => {
+      const b = byPerson[r.profile_id] = byPerson[r.profile_id] || { secs: 0, live: false };
+      b.secs += r.duration_seconds || 0;
+      if (r.status === 'running' || r.status === 'paused') b.live = true;
+    });
+    const people = Object.entries(byPerson).sort((a, b) => b[1].secs - a[1].secs);
+    const totalSecs = people.reduce((n, [, v]) => n + v.secs, 0);
+
+    const field = (label, value) => '<div style="display:flex;gap:12px;padding:9px 0;border-bottom:1px solid var(--line);">'
+      + '<span style="width:96px;flex-shrink:0;font-size:11.5px;color:var(--text-3);">' + label + '</span>'
+      + '<span style="font-size:12.5px;color:var(--text);min-width:0;overflow-wrap:anywhere;">' + value + '</span></div>';
+    const dash = '<span style="color:var(--text-4);">—</span>';
+
+    el.innerHTML = '<div style="display:flex;align-items:flex-start;gap:10px;padding:16px 18px;'
+      + 'border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:2;">'
+      +   '<span style="font-size:15px;font-weight:700;color:var(--text);line-height:1.35;flex:1;'
+      +   'overflow-wrap:anywhere;' + (isDone ? 'opacity:.6;text-decoration:line-through;' : '') + '">'
+      +   esc(t.name) + '</span>'
+      +   '<span id="p2_detailClose" title="Close" style="cursor:pointer;color:var(--text-3);flex-shrink:0;padding:2px;">'
+      +   '<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>'
+      + '</div>'
+      + '<div style="padding:14px 18px 20px;">'
+      +   field('Status', '<span style="display:inline-flex;align-items:center;gap:6px;">'
+            + '<span style="width:7px;height:7px;border-radius:50%;background:' + col.tint + ';"></span>'
+            + col.label + '</span>')
+      +   field('Priority', t.priority ? esc(t.priority) : dash)
+      +   field('Assignees', assignees(t).length
+            ? '<span style="display:inline-flex;gap:5px;flex-wrap:wrap;">' + assignees(t).map(personChip).join('') + '</span>'
+            : dash)
+      +   field('Client', t.client_id && p2.clients[t.client_id] ? esc(p2.clients[t.client_id].name) : dash)
+      +   field('Department', t.department ? esc(t.department) : dash)
+      +   field('Due', t.due_at ? esc(new Date(t.due_at).toLocaleDateString(undefined,
+            { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })) : dash)
+      +   field('Created', t.created_at ? esc(new Date(t.created_at).toLocaleDateString(undefined,
+            { month: 'short', day: 'numeric', year: 'numeric' })) : dash)
+      +   '<div style="margin-top:18px;">'
+      +     '<div style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;'
+      +     'color:var(--text-3);margin-bottom:8px;">Description</div>'
+      +     '<div style="font-size:12.5px;line-height:1.55;color:' + (t.description ? 'var(--text-2)' : 'var(--text-4)')
+      +     ';white-space:pre-wrap;overflow-wrap:anywhere;">'
+      +     (t.description ? esc(t.description) : 'Nothing written yet.') + '</div>'
+      +   '</div>'
+      +   '<div style="margin-top:20px;">'
+      +     '<div style="display:flex;align-items:baseline;gap:8px;margin-bottom:9px;">'
+      +       '<span style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;'
+      +       'color:var(--text-3);">Time logged</span>'
+      +       '<span style="font-size:12.5px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;">'
+      +       esc(fmt(totalSecs)) + '</span>'
+      +     '</div>'
+      +     (people.length
+            ? people.map(([pid, v]) => {
+                const pr = p2.people[pid] || {};
+                const nm = pr.full_name || pr.email || 'Someone';
+                const share = totalSecs > 0 ? Math.round((v.secs / totalSecs) * 100) : 0;
+                return '<div style="display:flex;align-items:center;gap:9px;padding:6px 0;">'
+                  + personChip(pid)
+                  + '<span style="font-size:12px;color:var(--text-2);flex:1;min-width:0;overflow:hidden;'
+                  + 'text-overflow:ellipsis;white-space:nowrap;">' + esc(nm)
+                  + (v.live ? '<span style="margin-left:6px;font-size:10px;font-weight:800;color:#3B82F6;">TRACKING</span>' : '')
+                  + '</span>'
+                  + '<span style="width:74px;height:4px;border-radius:3px;background:var(--surface-2);flex-shrink:0;">'
+                  + '<span style="display:block;height:100%;border-radius:3px;background:var(--red);width:'
+                  + share + '%;"></span></span>'
+                  + '<span style="font-size:11.5px;font-weight:700;color:var(--text-3);flex-shrink:0;'
+                  + 'font-variant-numeric:tabular-nums;min-width:52px;text-align:right;">' + esc(fmt(v.secs)) + '</span>'
+                  + '</div>';
+              }).join('')
+            : '<div style="font-size:12px;color:var(--text-4);">Nobody has tracked time on this yet.</div>')
+      +   '</div>'
+      + '</div>';
+    const x = document.getElementById('p2_detailClose');
+    if (x) x.addEventListener('click', closeTask);
+  }
+
   // ── BOARD ────────────────────────────────────────────────────────────────────
   function renderBoard(){
     const host = $('prjBoard');
@@ -83759,7 +83921,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
     let dragId = null;
     host.querySelectorAll('[data-p2-card]').forEach(el => {
+      // A click that is not a drag opens the task; dragstart clears this so a drop does
+      // not also fling the panel open.
+      let moved = false;
+      el.addEventListener('click', () => { if (!moved) openTask(el.dataset.p2Card); });
       el.addEventListener('dragstart', (e) => {
+        moved = true;
+        setTimeout(() => { moved = false; }, 400);
         dragId = el.dataset.p2Card;
         // Firefox will not start a drag without data on the transfer.
         try { e.dataTransfer.setData('text/plain', dragId); } catch (_) {}
@@ -83904,6 +84072,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               + esc(t.name) + '</span></div><div></div></div>').join('')
           : g.rows.map(laneHtml).join(''))
       + '</div>').join('');
+    host.querySelectorAll('[data-p2-tl-task]').forEach(r => {
+      r.style.cursor = 'pointer';
+      r.addEventListener('click', () => openTask(r.dataset.p2TlTask));
+    });
   }
 
   function renderTable(){
@@ -83929,30 +84101,58 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // one active session per user enforced by the database. Writing a second timer here
     // would mean two things fighting over the same row, so this drives that one through
     // window.giantTaskTimer and shows its state per row.
-    const T = () => window.giantTaskTimer;
-    const liveSession = () => (T() ? T().session() : null);
-    const fmt = (secs) => (T() ? T().format(secs) : '0:00');
+
+    // Three separate facts, and they were one before: whether I am tracking this now,
+    // how much has ever been logged against it, and whether a colleague is on it too.
     const timerHtml = (t) => {
       const s = liveSession();
       const mine = s && s.task_id === t.id;
       const running = mine && s.status === 'running';
-      const icon = running
-        ? '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="4" y="3" width="3" height="10" rx="1" fill="currentColor"/><rect x="9" y="3" width="3" height="10" rx="1" fill="currentColor"/></svg>'
-        : '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><path d="M5 3.5l7 4.5-7 4.5v-9Z" fill="currentColor"/></svg>';
-      return '<span class="p2-timer" data-p2-timer="' + esc(t.id) + '"'
-        + ' title="' + (running ? 'Pause' : (mine ? 'Resume' : 'Start')) + ' tracking this task"'
-        + ' style="margin-left:auto;display:inline-flex;align-items:center;gap:5px;flex-shrink:0;'
-        + 'padding:2px 7px;border-radius:7px;cursor:pointer;font-size:11px;font-weight:700;'
-        + 'font-variant-numeric:tabular-nums;'
-        + (mine ? 'background:rgba(208,4,0,.12);color:var(--red);' : 'color:var(--text-3);') + '">'
-        + icon
+      const total = p2.logged[t.id] || 0;
+      const others = p2.othersOn[t.id] || [];
+
+      const play = '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M5.2 3.4a.6.6 0 01.92-.5l6.1 4.1a.6.6 0 010 1l-6.1 4.1a.6.6 0 01-.92-.5V3.4Z" fill="currentColor"/></svg>';
+      const pause = '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><rect x="4.2" y="3.2" width="2.9" height="9.6" rx="1.2" fill="currentColor"/><rect x="8.9" y="3.2" width="2.9" height="9.6" rx="1.2" fill="currentColor"/></svg>';
+      const stop  = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="2" fill="currentColor"/></svg>';
+
+      let html = '<span class="p2-time" style="margin-left:auto;display:inline-flex;align-items:center;gap:6px;flex-shrink:0;">';
+
+      // Someone else's clock, before mine: it is the thing you did not know.
+      others.slice(0, 3).forEach(o => {
+        const p = p2.people[o.profile_id] || {};
+        const nm = p.full_name || p.email || 'Someone';
+        html += '<span title="' + esc(nm + ' is tracking this ' + (o.status === 'paused' ? '(paused)' : 'now'))
+          + '" style="display:inline-flex;align-items:center;gap:4px;padding:1px 6px 1px 2px;border-radius:20px;'
+          + 'background:rgba(59,130,246,.14);flex-shrink:0;">'
+          + '<span style="width:15px;height:15px;border-radius:50%;display:inline-flex;align-items:center;'
+          + 'justify-content:center;font-size:7.5px;font-weight:800;background:' + esc(p.avatar_bg || '#3B82F6')
+          + ';color:' + esc(p.avatar_fg || '#fff') + ';">' + esc(nm.trim().charAt(0).toUpperCase()) + '</span>'
+          + '<span style="width:5px;height:5px;border-radius:50%;background:'
+          + (o.status === 'paused' ? 'var(--text-3)' : '#3B82F6') + ';"></span></span>';
+      });
+
+      // Everything ever logged on this task. Quiet until there is something to say.
+      if (total > 0) html += '<span class="p2-logged" title="Total logged by everyone"'
+        + ' style="font-size:11px;font-weight:700;color:var(--text-3);font-variant-numeric:tabular-nums;'
+        + 'flex-shrink:0;">' + esc(fmt(total)) + '</span>';
+
+      html += '<span class="p2-timer' + (mine ? ' p2-timer-on' : '') + '" data-p2-timer="' + esc(t.id) + '"'
+        + ' title="' + (running ? 'Pause tracking' : (mine ? 'Resume tracking' : 'Start tracking this task')) + '"'
+        + ' style="display:inline-flex;align-items:center;gap:5px;flex-shrink:0;padding:3px 8px;border-radius:20px;'
+        + 'cursor:pointer;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;border:1px solid '
+        + (mine ? 'rgba(208,4,0,.35);background:rgba(208,4,0,.12);color:var(--red);'
+                : 'transparent;color:var(--text-4);') + '">'
+        + (running ? pause : play)
         + (mine ? '<span data-p2-elapsed="' + esc(t.id) + '">' + esc(fmt(T().elapsed(s))) + '</span>' : '')
-        + '</span>'
-        + (mine ? '<span class="p2-timer-stop" data-p2-stop="' + esc(t.id) + '" title="Stop and log this session"'
-            + ' style="display:inline-flex;align-items:center;cursor:pointer;color:var(--text-3);flex-shrink:0;">'
-            + '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="4" y="4" width="8" height="8" rx="1.5" fill="currentColor"/></svg></span>'
-          : '');
+        + '</span>';
+
+      if (mine) html += '<span class="p2-timer-stop" data-p2-stop="' + esc(t.id) + '"'
+        + ' title="Stop and log this session" style="display:inline-flex;align-items:center;cursor:pointer;'
+        + 'color:var(--text-4);flex-shrink:0;padding:2px;">' + stop + '</span>';
+
+      return html + '</span>';
     };
+
     const rowHtml = (t) => {
       const isDone = done(t);
       return '<div class="prj-row" data-p2-task="' + esc(t.id) + '"'
@@ -83990,53 +84190,45 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       + '<div class="prj-th" data-col="pad"></div>'
       + '</div>';
 
-    // Folders, in client-name order, with anything unfiled last -- it is 355 of 458 tasks
-    // and would otherwise sit at the top and bury the folders that were the point.
-    const byFolder = new Map();
-    shown.forEach(t => {
-      const k = folderOf(t);
-      if (!byFolder.has(k)) byFolder.set(k, []);
-      byFolder.get(k).push(t);
-    });
-    // Folders added from the picker that have no tasks yet. Without this an empty folder
-    // vanishes the moment it is created, which reads as the button not working.
-    p2.extraFolders.forEach(k => { if (!byFolder.has(k)) byFolder.set(k, []); });
-    const keys = [...byFolder.keys()].sort((a, b) => {
-      if (a === '__none__') return 1;
-      if (b === '__none__') return -1;
-      return folderName(a).localeCompare(folderName(b));
-    });
-    body.innerHTML = keys.map(k => {
-      const rows = byFolder.get(k);
-      const shut = !!p2.collapsed[k];
-      const c = k === '__none__' ? null : p2.clients[k];
-      const mark = c
-        ? '<span style="width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;'
-          + 'justify-content:center;font-size:8.5px;font-weight:800;flex-shrink:0;background:'
-          + esc(c.avatar_bg || 'var(--c3-avatar-bg)') + ';color:' + esc(c.avatar_fg || 'var(--c3-avatar-fg)') + ';">'
-          + esc((c.name || '?').trim().charAt(0).toUpperCase()) + '</span>'
-        : '<span style="width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;'
-          + 'color:var(--text-3);flex-shrink:0;">—</span>';
-      return '<div class="p2-folder" data-p2-folder="' + esc(k) + '">'
-        + '<div data-p2-folder-head="' + esc(k) + '"'
-        + ' style="display:flex;align-items:center;gap:9px;padding:10px 14px;cursor:pointer;'
-        + 'background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2;">'
-        +   '<span style="color:var(--text-3);font-size:10px;width:10px;flex-shrink:0;">'
-        +   (shut ? '&#9654;' : '&#9660;') + '</span>'
-        +   mark
-        +   '<span style="font-size:12.5px;font-weight:700;color:var(--text);">' + esc(folderName(k)) + '</span>'
-        +   '<span style="font-size:11px;font-weight:700;color:var(--text-3);">' + rows.length + '</span>'
-        + '</div>'
-        + '<div data-p2-folder-body="' + esc(k) + '"' + (shut ? ' style="display:none;"' : '') + '>'
-        + headerHtml
-        + rows.map(rowHtml).join('')
-        + '<div style="padding:7px 14px 9px 34px;border-bottom:1px solid var(--line);">'
-        +   '<input type="text" data-p2-add-in="' + esc(k) + '" placeholder="+ Add a task"'
-        +   ' style="width:100%;background:transparent;border:none;outline:none;font:inherit;'
-        +   'font-size:12.5px;color:var(--text);padding:2px 0;">'
-        + '</div>'
-        + '</div></div>';
-    }).join('');
+    // One section, named for where you actually are. It grouped by client before and
+    // called the 355 tasks with no client "Unfiled", which named the tasks after a field
+    // they happen not to have filled in rather than after the thing you opened -- and it
+    // was a third level of grouping under a tree that already has a project and a
+    // subproject above it.
+    const ap = activeProject();
+    const vtab = document.querySelector('#p2_prjVtabs .prj-vtab.active:not(.prj-vtab-plus)');
+    const sub = vtab ? vtab.textContent.trim() : '';
+    const dot = '<span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:'
+      + esc((ap && ap.color) || 'var(--red)') + ';"></span>';
+    const crumb = '<span style="font-size:12.5px;font-weight:700;color:var(--text);">'
+      + esc((ap && ap.name) || 'Project') + '</span>'
+      + (sub ? '<span style="color:var(--text-4);font-size:12px;">/</span>'
+             + '<span style="font-size:12.5px;font-weight:600;color:var(--text-2);">' + esc(sub) + '</span>' : '');
+    const shut = !!p2.collapsed.__all__;
+    body.innerHTML = '<div class="p2-section">'
+      + '<div data-p2-folder-head="__all__"'
+      + ' style="display:flex;align-items:center;gap:9px;padding:10px 14px;cursor:pointer;'
+      + 'background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2;">'
+      +   '<span style="color:var(--text-3);display:inline-flex;flex-shrink:0;transition:transform .15s;'
+      +   (shut ? 'transform:rotate(-90deg);' : '') + '">'
+      +   '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      +   '</span>'
+      +   dot + crumb
+      +   '<span style="font-size:11px;font-weight:700;color:var(--text-3);background:var(--surface-2);'
+      +   'border-radius:20px;padding:1px 8px;">' + shown.length + '</span>'
+      + '</div>'
+      + '<div data-p2-folder-body="__all__"' + (shut ? ' style="display:none;"' : '') + '>'
+      + headerHtml
+      + shown.map(rowHtml).join('')
+      + '<div style="padding:8px 14px 10px 36px;border-bottom:1px solid var(--line);">'
+      +   '<span style="display:flex;align-items:center;gap:8px;">'
+      +   '<span style="color:var(--text-4);display:inline-flex;flex-shrink:0;">'
+      +   '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3.4v9.2M3.4 8h9.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>'
+      +   '<input type="text" data-p2-add-in="__all__" placeholder="Add a task"'
+      +   ' style="flex:1;background:transparent;border:none;outline:none;font:inherit;'
+      +   'font-size:12.5px;color:var(--text);padding:2px 0;"></span>'
+      + '</div>'
+      + '</div></div>';
     // Type and press Enter. The folder decides the client, so a task created inside one
     // belongs to it without anybody choosing a client from a dropdown afterwards.
     body.querySelectorAll('[data-p2-timer]').forEach(el => {
@@ -84072,10 +84264,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (!name) return;
         inp.value = '';
         inp.disabled = true;
-        await addTask(name, inp.dataset.p2AddIn);
+        await addTask(name);
         inp.disabled = false;
         const again = document.querySelector('[data-p2-add-in="' + inp.dataset.p2AddIn + '"]');
         if (again) again.focus();
+      });
+    });
+    // The whole row opens it, except the controls that already mean something else.
+    body.querySelectorAll('.prj-row[data-p2-task]').forEach(row => {
+      row.style.cursor = 'pointer';
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('[data-p2-timer],[data-p2-stop],[data-p2-toggle],input')) return;
+        openTask(row.dataset.p2Task);
       });
     });
     body.querySelectorAll('[data-p2-folder-head]').forEach(h => {
@@ -84103,12 +84303,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
     p2.projects.push(data);
     p2.activeId = data.id;
-    p2.extraFolders = [];
     renderProjectsBar();
     await loadTasks();
   }
 
-  async function addTask(name, folderKey){
+  // The client came from whichever folder you typed into. With the folders gone a new
+  // task simply has no client until someone gives it one -- which is what the old
+  // "Unfiled" bucket was describing in the first place.
+  async function addTask(name){
     if (!p2.activeId) return;
     const row = {
       project_id: p2.activeId,
@@ -84116,7 +84318,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       status: 'todo',
       created_by: me(),
       assigned_to: [],
-      client_id: folderKey === '__none__' ? null : folderKey
+      client_id: null
     };
     const { data, error } = await sb().from('tasks').insert(row)
       .select('id, name, description, status, priority, assigned_to, due_at, client_id, department, category, position, created_at')
@@ -84129,55 +84331,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     renderTasks();
   }
 
-  // "New folder" is choosing which client this project should show a folder for. The
-  // folder is the client -- there is no folder record to create -- so this only decides
-  // what is on screen until a task lands in it.
-  function openFolderPicker(){
-    const root = P2();
-    if (!root) return;
-    document.querySelectorAll('.p2-folder-pop').forEach(e => e.remove());
-    const used = new Set(p2.tasks.map(folderOf).concat(p2.extraFolders));
-    const pick = Object.values(p2.clients)
-      .filter(c => !used.has(c.id))
-      .sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    const pop = document.createElement('div');
-    pop.className = 'p2-folder-pop';
-    pop.style.cssText = 'position:absolute;z-index:90;background:var(--surface);border:1px solid var(--line-2);'
-      + 'border-radius:11px;padding:6px;box-shadow:0 18px 40px -12px rgba(0,0,0,.6);max-height:320px;'
-      + 'overflow-y:auto;width:250px;';
-    pop.innerHTML = '<input type="text" class="p2-folder-filter" placeholder="Find a client…"'
-      + ' style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;'
-      + 'padding:7px 9px;font:inherit;font-size:12px;color:var(--text);outline:none;margin-bottom:5px;">'
-      + (pick.length ? pick.map(c => '<div class="p2-folder-opt" data-p2-pick="' + esc(c.id) + '"'
-          + ' style="padding:7px 9px;border-radius:7px;cursor:pointer;font-size:12.5px;">'
-          + esc(c.name) + '</div>').join('')
-        : '<div style="padding:10px;color:var(--text-3);font-size:12px;">Every client already has a folder here.</div>');
-    const btn = document.getElementById('p2_addFolderBtn') || $('prjProjectsBar');
-    const r = btn.getBoundingClientRect();
-    pop.style.left = Math.round(r.left) + 'px';
-    pop.style.top  = Math.round(r.bottom + 6) + 'px';
-    pop.style.position = 'fixed';
-    document.body.appendChild(pop);
-    const filter = pop.querySelector('.p2-folder-filter');
-    filter.addEventListener('input', () => {
-      const q = filter.value.toLowerCase();
-      pop.querySelectorAll('.p2-folder-opt').forEach(o => {
-        o.style.display = o.textContent.toLowerCase().includes(q) ? '' : 'none';
-      });
-    });
-    pop.querySelectorAll('[data-p2-pick]').forEach(o => {
-      o.addEventListener('click', () => {
-        p2.extraFolders.push(o.dataset.p2Pick);
-        pop.remove();
-        renderTasks();
-      });
-    });
-    setTimeout(() => {
-      const close = (e) => { if (!pop.contains(e.target)) { pop.remove(); document.removeEventListener('click', close); } };
-      document.addEventListener('click', close);
-      filter.focus();
-    }, 10);
-  }
 
   // One interval, only while something is running, and it writes to the elapsed span
   // rather than re-rendering -- a re-render every second would take the caret out of the
@@ -84233,22 +84386,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       projBtn.title = 'Create a project';
       projBtn.addEventListener('click', (e) => { e.stopPropagation(); addProject(); });
     }
-    // Folders get their own control rather than borrowing the project one: they are a
-    // different level of the same tree, and one button that means two things is how a
-    // person ends up creating the wrong thing.
-    const toggle = $('prjStatusToggle');
-    if (toggle && !document.getElementById('p2_addFolderBtn')) {
-      const b = document.createElement('button');
-      b.id = 'p2_addFolderBtn';
-      b.type = 'button';
-      b.textContent = '+ Folder';
-      b.title = 'Add a client folder to this project';
-      b.style.cssText = 'background:transparent;border:1px solid var(--line);border-radius:8px;'
-        + 'padding:6px 11px;font-size:11.5px;font-weight:600;color:var(--text-2);cursor:pointer;'
-        + 'font-family:inherit;margin-right:8px;';
-      b.addEventListener('click', (e) => { e.stopPropagation(); openFolderPicker(); });
-      toggle.parentElement.insertBefore(b, toggle);
-    }
+    // No folder control: this tree already has two levels above a task -- the project and
+    // the subproject -- and a third grouping inside the table was a client grouping wearing
+    // the word "folder", which is a different idea again.
     // Table / Board / Timeline. Bound once -- the switcher is static markup, so rebinding
     // it on every render would stack a listener per repaint.
     const vt = $('prjViewToggle');

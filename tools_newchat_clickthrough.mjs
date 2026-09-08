@@ -4626,9 +4626,107 @@ await step('Projects 2.0 shows one task pool as table, board and timeline', asyn
     !r.skipped && r.axisLabels >= 3, JSON.stringify(r));
 });
 
+// Time is a property of the task, not of my session. The row only ever knew about my own
+// running clock, so a task with hours on it across three people looked exactly like one
+// nobody had ever touched -- and two people could be tracking the same task with neither
+// of them able to tell.
+await step('a task row shows time logged by everyone, and who else is on it', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    const st = window.p2State;
+    const first = st.tasks[0];
+    if (!first) return { skipped: 'no tasks' };
+    db.time_sessions = db.time_sessions || [];
+    db.time_sessions.push({ id: 'ts-other-live', profile_id: 'u-3', task_id: first.id, status: 'running',
+      started_at: new Date(Date.now() - 18e5).toISOString(), total_paused_ms: 0, duration_seconds: null });
+    db.time_sessions.push({ id: 'ts-other-done', profile_id: 'u-3', task_id: first.id, status: 'completed',
+      started_at: new Date(Date.now() - 9e6).toISOString(), duration_seconds: 5400 });
+    db.time_sessions.push({ id: 'ts-mine-done', profile_id: 'u-me', task_id: first.id, status: 'completed',
+      started_at: new Date(Date.now() - 8e6).toISOString(), duration_seconds: 1800 });
+    window.p2SetView('table');
+    // reload so the new sessions are picked up the way a real page load would
+    const chip = document.querySelector('[data-p2-project="' + st.activeId + '"]');
+    if (chip) { chip.click(); await w(2500); }
+    const row = document.querySelector('.prj-row[data-p2-task="' + first.id + '"]');
+    if (!row) return { skipped: 'row gone' };
+    const other = row.querySelector('[title*="tracking this"]');
+    return {
+      id: first.id,
+      logged: (row.querySelector('.p2-logged') || {}).textContent || null,
+      otherShown: !!other,
+      otherTitle: other ? other.title : null,
+      // 5400 + 1800 = 7200s, and the running one must NOT be counted as logged
+      body: document.getElementById('p2_prjDailyBody').innerText.slice(0, 0),
+    };
+  });
+  check('the row totals everyone’s logged time, and names whoever else is tracking it',
+    !r.skipped && r.logged === '2:00:00' && r.otherShown && /is tracking this now/.test(r.otherTitle || ''),
+    JSON.stringify(r));
+});
+
+// A row could be ticked, timed and dragged, but not read: the description, the dates and
+// where the hours went had nowhere to be shown.
+await step('clicking a task opens it in full, with a per-person time breakdown', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const st = window.p2State;
+    const first = st.tasks[0];
+    const row = document.querySelector('.prj-row[data-p2-task="' + first.id + '"]');
+    if (!row) return { skipped: 'no row' };
+    row.click();
+    await w(1400);
+    const d = document.getElementById('p2_detail');
+    if (!d) return { skipped: 'no panel' };
+    const txt = d.innerText;
+    const out = {
+      open: true,
+      hasName: txt.indexOf(first.name) === 0 || txt.includes(first.name),
+      fields: ['Status', 'Priority', 'Assignees', 'Client', 'Due', 'Created'].filter(f => txt.includes(f)).length,
+      hasDescription: /DESCRIPTION/.test(txt),
+      total: (txt.match(/TIME LOGGED\s*\n?\s*([0-9:]+)/) || [])[1] || null,
+      namesBoth: /Team Member 3/.test(txt) && /Nishchay/.test(txt),
+      marksLive: /TRACKING/.test(txt),
+    };
+    document.getElementById('p2_detailClose').click();
+    await w(600);
+    out.closes = !document.getElementById('p2_detail');
+    return out;
+  });
+  check('the task panel shows its fields, its description and who logged what',
+    !r.skipped && r.open && r.hasName && r.fields === 6 && r.hasDescription
+      && r.total === '2:00:00' && r.namesBoth && r.marksLive && r.closes,
+    JSON.stringify(r));
+});
+
+// Folders were a client grouping wearing the word "folder", under a tree that already has
+// a project and a subproject above the task -- and 355 of 458 tasks landed in a bucket
+// named after a field they had not filled in.
+await step('the table is headed by where you are, not by a folder', async () => {
+  const r = await page.evaluate(async () => {
+    const head = document.querySelector('#p2_prjDailyBody [data-p2-folder-head]');
+    const body = document.getElementById('p2_prjDailyBody');
+    const ap = window.p2State.projects.find(p => p.id === window.p2State.activeId);
+    return {
+      folderButtonGone: !document.getElementById('p2_addFolderBtn'),
+      noUnfiled: !/Unfiled/.test(body.innerText),
+      sections: document.querySelectorAll('#p2_prjDailyBody [data-p2-folder-head]').length,
+      headText: head ? head.innerText.replace(/\n/g, ' ').trim() : null,
+      namesProject: !!(head && ap && head.innerText.includes(ap.name)),
+      namesSubproject: !!(head && head.innerText.includes('Daily')),
+    };
+  });
+  check('one section, named for the project and subproject, and no folder control left',
+    r.folderButtonGone && r.noUnfiled && r.sections === 1 && r.namesProject && r.namesSubproject,
+    JSON.stringify(r));
+});
+
 // Dropping a card is the whole point of a board, and status is a Postgres enum -- a column
 // heading that is not one of its values is a column nothing can ever be dropped into.
 await step('dragging a card between board columns writes the new status', async () => {
+  // Sets its own view rather than inheriting whichever one the step before it left up.
+  await page.evaluate(() => window.p2SetView('board'));
+  await page.waitForTimeout(900);
   const before = await page.evaluate(() => {
     const c = document.querySelector('#p2_prjBoard [data-p2-drop="todo"] [data-p2-card]');
     return c ? { id: c.dataset.p2Card } : null;
