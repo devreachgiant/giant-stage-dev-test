@@ -1,35 +1,41 @@
--- Projects become private-by-choice, and a list you are not on stops being readable.
+-- Projects get three levels of visibility, and a list you are not on stops being readable.
 --
--- Today every authenticated user can read every project and every task. Not by policy
--- design -- there are sensible member-based policies already -- but because `projects_all`
--- grants ALL with USING (true), and RLS policies are OR'd, so one permissive true makes
--- every other policy on the table irrelevant. `tasks_select_team` does the same for tasks
--- by granting every non-client read access to all of them.
+-- Today every authenticated user can read every project and every task. Not for want of
+-- policy design -- sensible member-based policies already exist -- but because
+-- `projects_all` grants ALL with USING (true), and RLS policies are OR'd, so one
+-- permissive true makes every other policy on the table irrelevant. `tasks_select_team`
+-- does the same for tasks, and `tasks_insert_workspace` lets anyone signed in add a task
+-- to any project at all.
 --
--- Two things had to be true at once for this to work: a project must be hideable, and
--- hiding it must also hide its tasks. All 486 tasks belong to a project, so scoping task
+-- The three levels exist because two could not express what was asked for. A list that is
+-- restricted but still supervised, and a list that is genuinely nobody else's business,
+-- are different things:
+--
+--   public   the whole team
+--   team     only the people added to it -- plus the few who oversee every list
+--   private  only the creator and whoever they invite. Not owners, not managers. The
+--            in-house dev can read it and nothing more, so a broken list can be looked at
+--            without that being a way to read everyone's private work.
+--
+-- Two things had to be true at once for any of this to work: a project must be hideable,
+-- and hiding it must hide its tasks. All 486 tasks belong to a project, so scoping task
 -- visibility to project visibility leaves nothing orphaned.
 
--- ── 1. a project is public or private ────────────────────────────────────────
+-- ── 1. the level ─────────────────────────────────────────────────────────────
 -- Default public, deliberately: other code paths create projects without knowing about
--- this column (the original Projects screen among them), and a default of private would
--- have them silently create lists their own team cannot see.
+-- this column (the original Projects screen among them), and a stricter default would have
+-- them silently create lists their own team cannot see.
 alter table public.projects
   add column if not exists visibility text not null default 'public';
 
-do $$
-begin
-  if not exists (select 1 from pg_constraint where conname = 'projects_visibility_check') then
-    alter table public.projects
-      add constraint projects_visibility_check check (visibility in ('public','private'));
-  end if;
-end $$;
+alter table public.projects drop constraint if exists projects_visibility_check;
+alter table public.projects
+  add constraint projects_visibility_check check (visibility in ('public','team','private'));
 
--- ── 2. who can see everything ────────────────────────────────────────────────
--- An explicit flag rather than a role test. The four people who supervise every list hold
--- four different roles -- inhouse_dev, manager and two owners -- and one of the owners is
--- deliberately included while no other role holder is, so no role expression describes
--- this set. A column can be changed later without a migration.
+-- ── 2. who oversees the team lists ───────────────────────────────────────────
+-- An explicit flag rather than a role test. The people concerned hold three different
+-- roles, and one of two owners is included while the other role holders are not, so no
+-- role expression describes this set. A column can be changed later without a migration.
 alter table public.profiles
   add column if not exists can_see_all_projects boolean not null default false;
 
@@ -42,22 +48,28 @@ update public.profiles set can_see_all_projects = true
  );
 
 -- ── 3. backfill ──────────────────────────────────────────────────────────────
--- Everything private except the two shared team lists, which are what the workspace
--- actually reads together.
-update public.projects set visibility = 'private';
+-- The two shared team lists stay public because they are what the workspace reads
+-- together. Everything else becomes 'team', not 'private': nobody has chosen privacy for
+-- these yet, and silently making nine existing projects invisible to their own owners is
+-- not a migration's decision to take. Anyone can mark their own list private afterwards.
+update public.projects set visibility = 'team';
 update public.projects set visibility = 'public'
  where name in ('ReachGiant Master List', 'Master List');
 
 -- ── 4. helpers ───────────────────────────────────────────────────────────────
--- SECURITY DEFINER so the lookup itself is not subject to the policy it is used by;
--- STABLE so the planner may call it once per statement rather than once per row.
+-- SECURITY DEFINER so the lookup is not subject to the policy it is used by; STABLE so
+-- the planner may call it once per statement rather than once per row.
 create or replace function public.can_see_all_projects()
 returns boolean language sql stable security definer set search_path = public as $$
-  select coalesce(
-    (select p.can_see_all_projects from public.profiles p where p.id = auth.uid()),
-    false);
+  select coalesce((select p.can_see_all_projects from public.profiles p where p.id = auth.uid()), false);
 $$;
 
+create or replace function public.is_inhouse_dev()
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce((select p.role::text = 'inhouse_dev' from public.profiles p where p.id = auth.uid()), false);
+$$;
+
+-- Reading. The last branch is the read-only window into a private list.
 create or replace function public.can_see_project(p_id uuid)
 returns boolean language sql stable security definer set search_path = public as $$
   select exists (
@@ -67,16 +79,36 @@ returns boolean language sql stable security definer set search_path = public as
           or pr.created_by = auth.uid()
           or exists (select 1 from public.project_members m
                       where m.project_id = pr.id and m.profile_id = auth.uid())
-          or public.can_see_all_projects() )
+          or (pr.visibility = 'team'    and public.can_see_all_projects())
+          or (pr.visibility = 'private' and public.is_inhouse_dev()) )
+  );
+$$;
+
+-- Writing. The same rule minus that window: the in-house dev can read a private list and
+-- change nothing in it, which is the whole point of calling it read-only.
+create or replace function public.can_edit_project(p_id uuid)
+returns boolean language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.projects pr
+     where pr.id = p_id
+       and ( pr.visibility = 'public'
+          or pr.created_by = auth.uid()
+          or exists (select 1 from public.project_members m
+                      where m.project_id = pr.id and m.profile_id = auth.uid())
+          or (pr.visibility = 'team' and public.can_see_all_projects()) )
   );
 $$;
 
 revoke all on function public.can_see_all_projects() from public;
+revoke all on function public.is_inhouse_dev() from public;
 revoke all on function public.can_see_project(uuid) from public;
+revoke all on function public.can_edit_project(uuid) from public;
 grant execute on function public.can_see_all_projects() to authenticated;
+grant execute on function public.is_inhouse_dev() to authenticated;
 grant execute on function public.can_see_project(uuid) to authenticated;
+grant execute on function public.can_edit_project(uuid) to authenticated;
 
--- ── 5. projects: one SELECT policy that says the whole rule ──────────────────
+-- ── 5. projects ──────────────────────────────────────────────────────────────
 drop policy if exists projects_all on public.projects;                    -- USING (true)
 drop policy if exists projects_owner_or_member_select on public.projects; -- subset of the below
 drop policy if exists projects_select_members on public.projects;         -- subset of the below
@@ -87,38 +119,61 @@ create policy projects_visibility_select on public.projects
     visibility = 'public'
     or created_by = auth.uid()
     or public.is_project_member(id)
-    or public.can_see_all_projects()
+    or (visibility = 'team'    and public.can_see_all_projects())
+    or (visibility = 'private' and public.is_inhouse_dev())
   );
 
--- projects_all also carried UPDATE/DELETE/INSERT for everyone. The owner/member policies
--- that remain cover those, but a private project must not be editable by someone who
--- cannot see it, so the update policy is restated against the same rule.
+-- projects_all also carried UPDATE for everyone. A private list must not be editable by
+-- the one account that is allowed to read it.
 drop policy if exists projects_owner_or_member_update on public.projects;
 create policy projects_visibility_update on public.projects
   for update to authenticated
-  using (created_by = auth.uid() or public.is_project_member(id) or public.can_see_all_projects())
-  with check (created_by = auth.uid() or public.is_project_member(id) or public.can_see_all_projects());
+  using (created_by = auth.uid() or public.is_project_member(id)
+         or (visibility = 'team' and public.can_see_all_projects()))
+  with check (created_by = auth.uid() or public.is_project_member(id)
+         or (visibility = 'team' and public.can_see_all_projects()));
 
 -- ── 6. tasks: a task is as visible as its project ────────────────────────────
--- tasks_select_by_visible_project already means "the project row is visible to me", so it
--- becomes correct on its own once the project policies above are right. These two are the
--- independent leaks: they grant every non-client access to every task regardless.
+-- These grant every non-client access to every task regardless of any of the above.
 drop policy if exists tasks_select_team on public.tasks;
 drop policy if exists tasks_update_team on public.tasks;
 -- ...and this let anyone signed in insert a task into any project at all.
 drop policy if exists tasks_insert_workspace on public.tasks;
+-- Both of these read "the projects row exists", which is only as strong as the projects
+-- policies were -- and those were USING (true). Restated against the rule itself.
+drop policy if exists tasks_select_by_visible_project on public.tasks;
+drop policy if exists tasks_update_by_visible_project on public.tasks;
+drop policy if exists tasks_delete_by_visible_project on public.tasks;
+drop policy if exists tasks_insert_by_visible_project on public.tasks;
+
+create policy tasks_select_visible_project on public.tasks
+  for select to authenticated using (public.can_see_project(project_id));
 
 create policy tasks_insert_visible_project on public.tasks
   for insert to authenticated
-  with check (auth.uid() is not null and public.can_see_project(project_id));
+  with check (auth.uid() is not null and public.can_edit_project(project_id));
+
+create policy tasks_update_editable_project on public.tasks
+  for update to authenticated
+  using (public.can_edit_project(project_id))
+  with check (public.can_edit_project(project_id));
+
+create policy tasks_delete_editable_project on public.tasks
+  for delete to authenticated using (public.can_edit_project(project_id));
+
+-- A manager may delete any task, which would otherwise reach into a private list they
+-- cannot see. Scoped to the lists they can actually open.
+drop policy if exists tasks_delete_mgr on public.tasks;
+create policy tasks_delete_mgr on public.tasks
+  for delete to authenticated
+  using (public.is_manager_or_owner() and public.can_edit_project(project_id));
 
 -- ── 7. the client-scope policies were the other reason nothing was hidden ────
--- Both are written as "(NOT is_client_user()) OR mine", which is the right SHAPE for a
--- restriction and the wrong one for a grant: as permissive policies they are OR'd with
--- everything else, so the left half handed every non-client read access to every project
--- and every task -- which is why tightening the policies above changed nothing at all.
--- Recreated AS RESTRICTIVE, which is AND'ed instead, so they go back to meaning what they
--- say: a client sees only their own, and nobody else is granted anything by them.
+-- Both read "(NOT is_client_user()) OR mine", which is the right SHAPE for a restriction
+-- and the wrong one for a grant: as permissive policies they are OR'd with everything
+-- else, so the left half handed every non-client read access to every project and every
+-- task -- which is why tightening the policies above changed nothing at all on its own.
+-- Recreated AS RESTRICTIVE, which is AND'ed, so they mean what they say.
 drop policy if exists projects_client_scope on public.projects;
 create policy projects_client_scope on public.projects
   as restrictive for select to authenticated

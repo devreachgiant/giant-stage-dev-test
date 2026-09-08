@@ -4752,7 +4752,7 @@ await step('a new project is created public or private, with people named', asyn
     return out;
   });
   check('the form offers public or private, and only asks who when it matters',
-    !r.skipped && JSON.stringify(r.options) === '["public","private"]'
+    !r.skipped && JSON.stringify(r.options) === '["public","team","private"]'
       && r.hiddenWhenPublic && r.shownWhenPrivate && r.roster > 0 && r.excludesMe,
     JSON.stringify(r));
   check('creating a private project records the choice and the people chosen',

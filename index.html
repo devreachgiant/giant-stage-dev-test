@@ -84473,16 +84473,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       +   '<input id="p2_npName" type="text" placeholder="Project name" autocomplete="off"'
       +   ' style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:10px;'
       +   'padding:10px 12px;font:inherit;font-size:13px;color:var(--text);outline:none;">'
-      +   '<div style="display:flex;gap:10px;margin-top:14px;">'
-      +     ['public', 'private'].map(k => '<label data-p2-vis="' + k + '" style="flex:1;cursor:pointer;'
-            + 'border:1px solid var(--line);border-radius:11px;padding:11px 12px;display:block;">'
-            + '<span style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--text);">'
+      +   '<div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">'
+      +     [['public', 'Public', 'Anyone on the team can open it.'],
+             ['team', 'Team', 'Only the people you add. Managers and owners can oversee it.'],
+             ['private', 'Private', 'Only you and who you invite — not owners, not managers.']]
+            .map(([k, label, blurb]) => '<label data-p2-vis="' + k + '" style="cursor:pointer;'
+            + 'border:1px solid var(--line);border-radius:11px;padding:10px 12px;display:block;">'
+            + '<span style="display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--text);">'
             + '<span class="p2-vis-dot" style="width:12px;height:12px;border-radius:50%;border:2px solid var(--text-4);'
-            + 'display:inline-block;flex-shrink:0;"></span>'
-            + (k === 'public' ? 'Public' : 'Private') + '</span>'
-            + '<span style="display:block;margin-top:5px;font-size:11px;color:var(--text-3);line-height:1.4;">'
-            + (k === 'public' ? 'Anyone on the team can open it.' : 'Only the people you add below.')
-            + '</span></label>').join('')
+            + 'display:inline-block;flex-shrink:0;"></span>' + label + '</span>'
+            + '<span style="display:block;margin-top:3px;margin-left:20px;font-size:11px;color:var(--text-3);'
+            + 'line-height:1.4;">' + blurb + '</span></label>').join('')
       +   '</div>'
       +   '<div id="p2_npPeople" style="display:none;margin-top:14px;">'
       +     '<div style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;'
@@ -84498,7 +84499,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                 + 'white-space:nowrap;">' + esc(nm) + '</span></label>';
             }).join('') : '<div style="padding:12px;font-size:12px;color:var(--text-4);">Nobody else yet.</div>')
       +     '</div>'
-      +     '<div style="margin-top:7px;font-size:11px;color:var(--text-3);">'
+      +     '<div id="p2_npNote" style="margin-top:7px;font-size:11px;color:var(--text-3);line-height:1.45;">'
       +     'You can always see it. So can anyone who oversees every project.</div>'
       +   '</div>'
       +   '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">'
@@ -84523,7 +84524,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         dot.style.background = on ? 'var(--red)' : 'transparent';
         dot.style.boxShadow = on ? 'inset 0 0 0 2px var(--bg)' : 'none';
       });
-      document.getElementById('p2_npPeople').style.display = vis === 'private' ? '' : 'none';
+      document.getElementById('p2_npPeople').style.display = vis === 'public' ? 'none' : '';
+      const note = document.getElementById('p2_npNote');
+      if (note) note.textContent = vis === 'private'
+        ? 'You can always see it. Nobody else can, except the in-house dev, who can read it and change nothing.'
+        : 'You can always see it. So can anyone who oversees every project.';
     };
     paint();
     wrap.querySelectorAll('[data-p2-vis]').forEach(l =>
@@ -84550,7 +84555,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (window.toast) toast({ type:'error', message:'Could not create that project: ' + error.message });
         return;
       }
-      if (vis === 'private') {
+      if (vis !== 'public') {
         const picked = [...wrap.querySelectorAll('[data-p2-person] input:checked')]
           .map(i => i.closest('[data-p2-person]').dataset.p2Person);
         if (picked.length) {
