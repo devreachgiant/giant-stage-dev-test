@@ -718,14 +718,17 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 #p2_root .p2-timer{transition:background .12s ease,color .12s ease;}
 #p2_root .p2-timer:hover{background:var(--surface-2);color:var(--text);}
 #p2_root .p2-timer-on:hover{background:rgba(208,4,0,.22);}
-/* Resizable columns. The strip is 9px of grab area sitting over the cell divider, which
-   is 1px and impossible to hit; it lights up on hover so it can be found at all. */
+/* Resizable columns. A 9px invisible strip was hit-testable in a harness and unfindable
+   with a real mouse: nothing said the columns could be dragged, and the target sat exactly
+   on a 1px divider. It is 16px wide now, every divider is faintly drawn all the time so the
+   handles can be seen, and it brightens under the pointer. */
 #p2_root .prj-th{position:relative;display:flex;align-items:center;gap:6px;}
-#p2_root .p2-colgrip{position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;
-  z-index:3;flex-shrink:0;}
-#p2_root .p2-colgrip::after{content:'';position:absolute;top:20%;bottom:20%;left:4px;width:2px;
-  border-radius:2px;background:transparent;transition:background .12s ease;}
-#p2_root .p2-colgrip:hover::after{background:rgba(255,255,255,.45);}
+#p2_root .p2-colgrip{position:absolute;top:0;right:-8px;width:16px;height:100%;cursor:col-resize;
+  z-index:6;flex-shrink:0;touch-action:none;}
+#p2_root .p2-colgrip::after{content:'';position:absolute;top:18%;bottom:18%;left:7px;width:2px;
+  border-radius:2px;background:rgba(255,255,255,.22);transition:background .12s ease,transform .12s ease;}
+#p2_root .p2-colgrip:hover::after{background:#fff;transform:scaleX(1.6);}
+#p2_root .p2-colgrip:active::after{background:#fff;transform:scaleX(1.6);}
 /* The table keeps its own width once columns are fixed, and scrolls rather than squashing. */
 #p2_root .prj-table{width:max-content;min-width:100%;}
 /* The last column held nothing but a divider, which read as a stray empty box at the end

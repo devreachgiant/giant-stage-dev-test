@@ -4885,6 +4885,12 @@ await step('table columns can be dragged wider and narrower', async () => {
     timer: Math.round(document.querySelector('.prj-cell[data-col="timer"]').getBoundingClientRect().width),
     // the delete column held nothing but a divider, which read as a stray box on the end
     padBorder: getComputedStyle(document.querySelector('.prj-cell-pad')).borderRightWidth,
+    // a 9px invisible strip passed every automated check and could not be found with a
+    // mouse: the target has to be big enough to hit and drawn so it can be seen at all
+    gripWidth: Math.round(document.querySelector('#p2_prjDailyBody [data-p2-grip]')
+      .getBoundingClientRect().width),
+    dividerVisible: getComputedStyle(document.querySelector('#p2_prjDailyBody [data-p2-grip]'),
+      '::after').backgroundColor !== 'rgba(0, 0, 0, 0)',
   }));
   const grip = await page.$('#p2_prjDailyBody [data-p2-grip="timer"]');
   if (!grip) { check('table columns can be dragged wider and narrower', false, 'no grip'); return; }
@@ -4914,7 +4920,8 @@ await step('table columns can be dragged wider and narrower', async () => {
     cleared: !(JSON.parse(localStorage.getItem('giant_p2_colw') || '{}')).timer,
   }));
   check('every column but the delete one has a grip, and the last one has no divider',
-    start.grips === 7 && start.padBorder === '0px', JSON.stringify(start));
+    start.grips === 7 && start.padBorder === '0px' && start.gripWidth >= 14
+      && start.dividerVisible, JSON.stringify(start));
   check('dragging narrows the column, moves the heading with it and is remembered',
     after.cell === start.timer - 60 && after.head === after.cell
       && after.stored === after.cell && after.aligned,
