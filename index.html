@@ -724,6 +724,8 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 #p2_root .p2-timer-stop:hover{opacity:1;color:var(--text);}
 #p2_root .prj-row{transition:background .12s ease;}
 #p2_root .prj-row:hover{background:var(--surface);}
+#p2_root .prj-row .prj-name{transition:color .12s ease;}
+#p2_root .prj-row .prj-name:hover{color:var(--red);text-decoration:underline;text-underline-offset:2px;}
 #p2_root .p2-card{transition:border-color .12s ease,transform .08s ease;}
 #p2_root .p2-card:hover{border-color:var(--text-4);}
 #p2_root .p2-card:active{cursor:grabbing;transform:scale(.99);}
@@ -83562,6 +83564,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   // by name. projects.position is one number for everybody and is not even distinct --
   // two projects sit at 1, three at 2 -- so ordering by it left the tail to the planner,
   // which is the order that reads as random.
+  // PGRST205 is PostgREST for "that table is not in the schema cache", which is what a
+  // table whose migration has not been applied yet looks like from here. Ordering and
+  // stars then work for the session and are simply not remembered -- one quiet note
+  // rather than a red toast on every single drag.
+  const notDeployed = (e) => !!e && (e.code === 'PGRST205'
+    || /could not find the table/i.test(e.message || ''));
   const P2_MASTER = 'reachgiant master list';
   function projectRank(p){
     if (String(p.name || '').trim().toLowerCase() === P2_MASTER) return 0;
@@ -83589,6 +83597,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       sb().from('project_prefs').select('project_id, position, starred').eq('profile_id', me()),
     ]);
     if (projRes.error) { console.warn('[p2] projects', projRes.error.message); return; }
+    if (notDeployed(prefRes.error)) p2.prefsMissing = true;
     p2.projects = projRes.data || [];
     p2.prefs = {};
     (prefRes.data || []).forEach(r => { p2.prefs[r.project_id] = { position: r.position, starred: !!r.starred }; });
@@ -83596,13 +83605,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     renderProjectsBar();
   }
 
+  let _prefsWarned = false;
+  function warnPrefsMissing(){
+    p2.prefsMissing = true;
+    if (_prefsWarned) return;
+    _prefsWarned = true;
+    if (window.toast) toast({ type:'info',
+      message:'Order and stars are not saved yet — this workspace has not had the update applied.' });
+  }
+
   async function savePref(projectId, patch){
     const cur = p2.prefs[projectId] || { position: null, starred: false };
     p2.prefs[projectId] = { ...cur, ...patch };
+    if (p2.prefsMissing) return;
     const { error } = await sb().from('project_prefs').upsert(
       { profile_id: me(), project_id: projectId, position: p2.prefs[projectId].position,
         starred: !!p2.prefs[projectId].starred, updated_at: new Date().toISOString() },
       { onConflict: 'profile_id,project_id' });
+    if (notDeployed(error)) { warnPrefsMissing(); return; }
     if (error && window.toast) toast({ type:'error', message:'Could not save that: ' + error.message });
   }
 
@@ -83621,7 +83641,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     renderProjectsBar();
     const rows = list.map((id, i) => ({ profile_id: me(), project_id: id, position: i,
       starred: !!(p2.prefs[id] || {}).starred, updated_at: new Date().toISOString() }));
+    if (p2.prefsMissing) return;
     const { error } = await sb().from('project_prefs').upsert(rows, { onConflict: 'profile_id,project_id' });
+    if (notDeployed(error)) { warnPrefsMissing(); return; }
     if (error && window.toast) toast({ type:'error', message:'Could not save that order: ' + error.message });
   }
 
@@ -83644,7 +83666,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // which made a row of projects twice as tall as it needed to be and hard to scan.
         + ' style="display:inline-flex;align-items:center;gap:7px;white-space:nowrap;flex-shrink:0;background:'
         + (on ? 'var(--surface-2)' : 'transparent')
-        + ';border:1px solid ' + (on ? 'var(--red)' : 'var(--line)') + ';border-radius:9px;padding:6px 9px 6px 11px;'
+        + ';border:1px solid transparent;border-radius:9px;padding:6px 9px 6px 11px;'
         + 'margin:0 6px 0 0;font-size:12px;font-weight:600;color:var(--text);cursor:grab;font-family:inherit;">'
         + '<span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:'
         + esc(p.color || 'var(--red)') + ';"></span>'
@@ -83681,15 +83703,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         el.style.opacity = '.45';
       });
       el.addEventListener('dragend', () => { el.style.opacity = ''; dragId = null;
-        bar.querySelectorAll('[data-p2-project]').forEach(x => { x.style.borderColor = ''; }); });
+        bar.querySelectorAll('[data-p2-project]').forEach(x => { x.style.boxShadow = ''; }); });
       el.addEventListener('dragover', (e) => {
         e.preventDefault(); e.dataTransfer.dropEffect = 'move';
-        if (el.dataset.p2Project !== dragId) el.style.borderLeft = '2px solid var(--red)';
+        if (el.dataset.p2Project !== dragId) el.style.boxShadow = 'inset 2px 0 0 var(--red)';
       });
-      el.addEventListener('dragleave', () => { el.style.borderLeft = ''; });
+      el.addEventListener('dragleave', () => { el.style.boxShadow = ''; });
       el.addEventListener('drop', (e) => {
         e.preventDefault();
-        el.style.borderLeft = '';
+        el.style.boxShadow = '';
         const id = dragId || (e.dataTransfer && e.dataTransfer.getData('text/plain'));
         reorderProjects(id, el.dataset.p2Project);
       });
@@ -84429,12 +84451,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (again) again.focus();
       });
     });
-    // The whole row opens it, except the controls that already mean something else.
-    body.querySelectorAll('.prj-row[data-p2-task]').forEach(row => {
-      row.style.cursor = 'pointer';
-      row.addEventListener('click', (e) => {
-        if (e.target.closest('[data-p2-timer],[data-p2-stop],[data-p2-toggle],input')) return;
-        openTask(row.dataset.p2Task);
+    // The TITLE opens the task, not the whole row. Every other cell already means
+    // something -- the client cell picks a client, the assignee cell picks a person -- so a
+    // row-wide handler fired the panel open on top of whatever that cell was doing, and
+    // two things happened for one click.
+    body.querySelectorAll('.prj-row[data-p2-task] .prj-name').forEach(el => {
+      el.style.cursor = 'pointer';
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const row = el.closest('.prj-row[data-p2-task]');
+        if (row) openTask(row.dataset.p2Task);
       });
     });
     body.querySelectorAll('[data-p2-folder-head]').forEach(h => {

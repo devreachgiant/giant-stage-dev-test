@@ -4673,6 +4673,35 @@ await step('the projects bar has an order, and you can rearrange it', async () =
     d.rowsWritten >= 4, JSON.stringify(d));
 });
 
+// The prefs table ships in a migration, and between writing that and applying it PostgREST
+// answers PGRST205. Dragging then threw a red toast on every single move, which is how a
+// pending migration reads as a broken feature.
+await step('a prefs table that is not deployed yet degrades instead of erroring', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    window.__mock.hideTable('project_prefs');
+    const toasts = [];
+    const orig = window.toast;
+    window.toast = (o) => { toasts.push((o && o.type) + ':' + (o && o.message)); return orig ? orig(o) : null; };
+    const chips = [...document.querySelectorAll('[data-p2-project]')];
+    const target = chips[chips.length - 1];
+    target.querySelector('[data-p2-star]').click();
+    await w(900);
+    const first = [...document.querySelectorAll('[data-p2-project]')].map(e => e.textContent.trim())[0];
+    // a second and third attempt must not each add their own toast
+    target.querySelector('[data-p2-star]').click(); await w(700);
+    const c2 = [...document.querySelectorAll('[data-p2-project]')];
+    c2[c2.length - 1].querySelector('[data-p2-star]').click(); await w(700);
+    window.toast = orig;
+    window.__mock.showTable('project_prefs');
+    return { errors: toasts.filter(t => t.startsWith('error:')).length,
+             notes: toasts.filter(t => t.startsWith('info:')).length,
+             stillWorks: !!first, sample: toasts.slice(0, 2) };
+  });
+  check('a missing prefs table says so once, and never as an error',
+    r.errors === 0 && r.notes === 1 && r.stillWorks, JSON.stringify(r));
+});
+
 // Deleting takes the tasks with it -- tasks.project_id is ON DELETE CASCADE -- so the
 // count belongs in the question, not in the aftermath.
 await step('a project can be deleted, and says what that costs', async () => {
@@ -4808,13 +4837,17 @@ await step('clicking a task opens it in full, with a per-person time breakdown',
     const first = st.tasks[0];
     const row = document.querySelector('.prj-row[data-p2-task="' + first.id + '"]');
     if (!row) return { skipped: 'no row' };
-    row.click();
+    // clicking the client cell must NOT open the panel -- that cell means something else
+    const other = row.querySelector('.prj-cell[data-col="client"]');
+    if (other) { other.click(); await w(700); }
+    const openedByWrongCell = !!document.getElementById('p2_detail');
+    row.querySelector('.prj-name').click();
     await w(1400);
     const d = document.getElementById('p2_detail');
     if (!d) return { skipped: 'no panel' };
     const txt = d.innerText;
     const out = {
-      open: true,
+      open: true, openedByWrongCell,
       hasName: txt.indexOf(first.name) === 0 || txt.includes(first.name),
       fields: ['Status', 'Priority', 'Assignees', 'Client', 'Due', 'Created'].filter(f => txt.includes(f)).length,
       hasDescription: /DESCRIPTION/.test(txt),
@@ -4828,7 +4861,7 @@ await step('clicking a task opens it in full, with a per-person time breakdown',
     return out;
   });
   check('the task panel shows its fields, its description and who logged what',
-    !r.skipped && r.open && r.hasName && r.fields === 6 && r.hasDescription
+    !r.skipped && r.open && !r.openedByWrongCell && r.hasName && r.fields === 6 && r.hasDescription
       && r.total === '2:00:00' && r.namesBoth && r.marksLive && r.closes,
     JSON.stringify(r));
 });
