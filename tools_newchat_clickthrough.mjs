@@ -4877,6 +4877,66 @@ await step('the Time column lines up on every row', async () => {
     !r.skipped && r.timerAlwaysVisible && r.deleteAlwaysVisible, JSON.stringify(r));
 });
 
+// The Filter button was markup with nothing listening to it, and there was no way to sort
+// at all. Both belong to the pool rather than to a view, or the counts stop agreeing with
+// the rows: a task hidden in the table has to be hidden on the board too.
+await step('the table sorts, and the Filter button actually filters', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    const st = window.p2State;
+    // a spread of statuses, so a status facet has something to bite on
+    const cols = ['todo', 'in_progress', 'blocked', 'done'];
+    st.tasks.forEach((t, i) => { t.status = cols[i % 4];
+      const d = db.tasks.find(x => x.id === t.id); if (d) d.status = t.status; });
+    // the visible header, not the static one -- .prj-thead is display:none and comes first
+    const head = (c) => document.querySelector('#p2_prjDailyBody .prj-th[data-col="' + c + '"]');
+    const names = () => [...document.querySelectorAll('.prj-row[data-p2-task] .prj-name')]
+      .map(e => e.textContent.trim());
+    const rows = () => document.querySelectorAll('.prj-row[data-p2-task]').length;
+    const out = {};
+
+    head('name').querySelector('[data-p2-sort]').click(); await w(700);
+    const asc = names();
+    out.ascSorted = JSON.stringify(asc) === JSON.stringify(
+      asc.slice().sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase())));
+    head('name').querySelector('[data-p2-sort]').click(); await w(700);
+    const desc = names();
+    out.descIsReverse = JSON.stringify(desc) === JSON.stringify(asc.slice().reverse());
+    out.arrowShown = /▼|▲/.test(head('name').textContent);
+    head('name').querySelector('[data-p2-sort]').click(); await w(700);
+    out.thirdClickClears = st.sort === null;
+
+    out.rowsAll = rows();
+    document.getElementById('p2_prjFilterBtn').click(); await w(700);
+    const pop = document.querySelector('.p2-filterpop');
+    if (!pop) return { ...out, skipped: 'panel did not open' };
+    out.facets = [...new Set([...pop.querySelectorAll('[data-p2-facet]')].map(e => e.dataset.p2Facet))].length;
+    const todo = [...pop.querySelectorAll('[data-p2-facet="status"]')].find(e => e.dataset.p2Val === 'todo');
+    if (!todo) return { ...out, skipped: 'no status option' };
+    todo.click(); await w(800);
+    out.rowsFiltered = rows();
+    out.onlyTodo = st.tasks.filter(t => t.status === 'todo').length === out.rowsFiltered;
+    out.badge = (document.getElementById('p2_prjFilterCount') || {}).textContent;
+    // the board has to hide exactly the same tasks
+    window.p2SetView('board'); await w(700);
+    out.boardCards = document.querySelectorAll('#p2_prjBoard [data-p2-card]').length;
+    window.p2SetView('table'); await w(700);
+    document.getElementById('p2_prjFilterBtn').click(); await w(600);
+    document.getElementById('p2_filterClear').click(); await w(800);
+    out.rowsAfterClear = rows();
+    document.querySelectorAll('.p2-filterpop').forEach(e => e.remove());
+    return out;
+  });
+  check('clicking a heading sorts it, reverses it, then clears it',
+    r.ascSorted && r.descIsReverse && r.arrowShown && r.thirdClickClears, JSON.stringify(r));
+  check('the Filter panel offers every facet and actually narrows the table',
+    !r.skipped && r.facets === 5 && r.rowsFiltered < r.rowsAll && r.onlyTodo
+      && r.badge === '1' && r.rowsAfterClear === r.rowsAll, JSON.stringify(r));
+  check('a filter hides the same tasks on the board as in the table',
+    !r.skipped && r.boardCards === r.rowsFiltered, JSON.stringify(r));
+});
+
 // Column widths were baked into the stylesheet, so a name that needed more room and a
 // Time column that needed less were both somebody else's decision.
 await step('table columns can be dragged wider and narrower', async () => {

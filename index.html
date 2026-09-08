@@ -723,6 +723,7 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
    on a 1px divider. It is 16px wide now, every divider is faintly drawn all the time so the
    handles can be seen, and it brightens under the pointer. */
 #p2_root .prj-th{position:relative;display:flex;align-items:center;gap:6px;}
+#p2_root .prj-th:hover .p2-sortic{opacity:.5;}
 #p2_root .p2-colgrip{position:absolute;top:0;right:-8px;width:16px;height:100%;cursor:col-resize;
   z-index:6;flex-shrink:0;touch-action:none;}
 #p2_root .p2-colgrip::after{content:'';position:absolute;top:18%;bottom:18%;left:7px;width:2px;
@@ -83554,7 +83555,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   const p2 = { projects: [], activeId: null, tasks: [], people: {}, clients: {},
                status: 'active', loading: false, collapsed: {},
-               view: 'table', logged: {}, othersOn: {}, detailId: null, prefs: {}, colw: {} };
+               view: 'table', logged: {}, othersOn: {}, detailId: null, prefs: {}, colw: {},
+               filters: {}, sort: null };
   // Column widths, per person, in this browser. No migration for it: it is a preference
   // about looking at a table, not a fact about the work.
   const P2_COLW = { name: 264, timer: 150, priority: 130, assignee: 150,
@@ -83924,9 +83926,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (st) st.style.display = p2.view === 'table' ? 'flex' : 'none';
     // The counts belong to the pool, not to a view, so they are set whichever is showing.
     const isDone = (t) => t.status === 'done' || t.status === 'complete' || t.status === 'completed';
+    const pool = visibleTasks();
     const a = $('prjStCountActive'), d = $('prjStCountDone');
-    if (a) a.textContent = String(p2.tasks.filter(t => !isDone(t)).length);
-    if (d) d.textContent = String(p2.tasks.filter(isDone).length);
+    if (a) a.textContent = String(pool.filter(t => !isDone(t)).length);
+    if (d) d.textContent = String(pool.filter(isDone).length);
+    const fc = $('prjFilterCount'), n2 = activeFilterCount();
+    if (fc) { fc.textContent = String(n2); fc.style.display = n2 ? 'inline-flex' : 'none'; }
     if (p2.view === 'board') return renderBoard();
     if (p2.view === 'timeline') return renderTimeline();
     return renderTable();
@@ -84405,7 +84410,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     host.style.alignItems = 'flex-start';
     const byCol = {};
     P2_COLS.forEach(c => { byCol[c.key] = []; });
-    p2.tasks.forEach(t => {
+    visibleTasks().forEach(t => {
       // Anything carrying a status the enum has since dropped still has to appear, or a
       // board silently holds fewer tasks than the table does.
       const k = byCol[t.status] ? t.status : (t.status === 'complete' || t.status === 'completed' ? 'done' : 'todo');
@@ -84484,7 +84489,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (!host) return;
     const DAY = 864e5;
     const dated = [], undated = [];
-    p2.tasks.forEach(t => {
+    visibleTasks().forEach(t => {
       const due = t.due_at ? new Date(t.due_at) : null;
       if (due && !isNaN(due)) dated.push(t); else undated.push(t);
     });
@@ -84603,13 +84608,140 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     });
   }
 
+  // Filtering and sorting belong to the pool, not to a view: a task hidden in the table is
+  // hidden on the board too, or the counts stop agreeing with the rows again.
+  const P2_FACETS = [
+    { key: 'status',     label: 'Status',     of: t => t.status || null },
+    { key: 'priority',   label: 'Priority',   of: t => t.priority_label || t.priority || null },
+    { key: 'assignee',   label: 'Assignee',   of: t => assignees(t) },
+    { key: 'client',     label: 'Client',     of: t => t.client_id || null },
+    { key: 'department', label: 'Department', of: t => t.department || null },
+  ];
+  const facetLabel = (key, v) => {
+    if (key === 'status') { const c = P2_COLS.find(x => x.key === v); return c ? c.label : v; }
+    if (key === 'assignee') { const p = p2.people[v] || {}; return p.full_name || p.email || 'Someone'; }
+    if (key === 'client') { const c = p2.clients[v]; return (c && c.name) || 'Client'; }
+    return String(v);
+  };
+  const activeFilterCount = () =>
+    Object.values(p2.filters).reduce((n, arr) => n + ((arr && arr.length) ? 1 : 0), 0);
+
+  function passesFilters(t){
+    return P2_FACETS.every(f => {
+      const want = p2.filters[f.key];
+      if (!want || !want.length) return true;
+      const got = f.of(t);
+      return Array.isArray(got) ? got.some(v => want.includes(v)) : want.includes(got);
+    });
+  }
+
+  const P2_SORTABLE = { name: t => String(t.name || '').toLowerCase(),
+                        timer: t => (p2.logged[t.id] || 0),
+                        priority: t => String(t.priority_label || t.priority || '').toLowerCase(),
+                        assignee: t => { const a = assignees(t)[0]; return a ? facetLabel('assignee', a).toLowerCase() : ''; },
+                        client: t => t.client_id ? facetLabel('client', t.client_id).toLowerCase() : '',
+                        department: t => String(t.department || '').toLowerCase(),
+                        task_details: t => String(t.description || '').toLowerCase() };
+  function sortTasks(list){
+    const s = p2.sort;
+    if (!s || !P2_SORTABLE[s.col]) return list;
+    const get = P2_SORTABLE[s.col];
+    const dir = s.dir === 'desc' ? -1 : 1;
+    return list.slice().sort((a, b) => {
+      const va = get(a), vb = get(b);
+      // Empty always sinks, whichever way the column is pointing: a column of blanks at
+      // the top is not what anyone means by sorting by it.
+      const ea = va === '' || va == null, eb = vb === '' || vb == null;
+      if (ea !== eb) return ea ? 1 : -1;
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+      return String(va).localeCompare(String(vb)) * dir;
+    });
+  }
+  // What every view is looking at.
+  function visibleTasks(){ return sortTasks(p2.tasks.filter(passesFilters)); }
+
+  // The Filter button was markup with nothing listening to it. The facets are built from
+  // the tasks in front of you rather than from a fixed list, so it never offers a client
+  // or a person this project has never used, and every option carries its own count.
+  function openFilterPanel(){
+    document.querySelectorAll('.p2-filterpop').forEach(e => e.remove());
+    const btn = $('prjFilterBtn');
+    if (!btn) return;
+    const counts = {};
+    P2_FACETS.forEach(f => {
+      counts[f.key] = new Map();
+      p2.tasks.forEach(t => {
+        const v = f.of(t);
+        (Array.isArray(v) ? v : [v]).forEach(x => {
+          if (x == null || x === '') return;
+          counts[f.key].set(x, (counts[f.key].get(x) || 0) + 1);
+        });
+      });
+    });
+    const pop = document.createElement('div');
+    pop.className = 'p2-filterpop';
+    const r = btn.getBoundingClientRect();
+    pop.style.cssText = 'position:fixed;z-index:120;width:290px;max-height:70vh;overflow:auto;'
+      + 'background:var(--pane,var(--bg));border:1px solid var(--line);border-radius:12px;'
+      + 'box-shadow:0 18px 44px rgba(0,0,0,.45);padding:6px;'
+      + 'top:' + Math.round(r.bottom + 6) + 'px;left:'
+      + Math.round(Math.min(r.left, window.innerWidth - 300)) + 'px;';
+    const sections = P2_FACETS.map(f => {
+      const entries = [...counts[f.key].entries()]
+        .sort((a, b) => b[1] - a[1] || String(facetLabel(f.key, a[0])).localeCompare(String(facetLabel(f.key, b[0]))));
+      if (!entries.length) return '';
+      const want = p2.filters[f.key] || [];
+      return '<div style="padding:7px 8px 3px;font-size:10px;font-weight:800;letter-spacing:.05em;'
+        + 'text-transform:uppercase;color:var(--text-3);">' + f.label + '</div>'
+        + entries.map(([v, n]) => '<label data-p2-facet="' + f.key + '" data-p2-val="' + esc(String(v)) + '"'
+          + ' style="display:flex;align-items:center;gap:9px;padding:6px 9px;border-radius:8px;cursor:pointer;">'
+          + '<input type="checkbox"' + (want.includes(v) ? ' checked' : '')
+          + ' style="accent-color:var(--red);width:13px;height:13px;flex-shrink:0;">'
+          + '<span style="flex:1;min-width:0;font-size:12.5px;color:var(--text);overflow:hidden;'
+          + 'text-overflow:ellipsis;white-space:nowrap;">' + esc(facetLabel(f.key, v)) + '</span>'
+          + '<span style="font-size:11px;color:var(--text-4);flex-shrink:0;">' + n + '</span></label>').join('');
+    }).join('');
+    pop.innerHTML = (sections || '<div style="padding:14px;font-size:12px;color:var(--text-4);">'
+        + 'Nothing to filter by in this project yet.</div>')
+      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;'
+      + 'padding:8px;border-top:1px solid var(--line);margin-top:4px;">'
+      + '<span id="p2_filterClear" style="font-size:11.5px;font-weight:700;color:var(--text-3);cursor:pointer;">Clear all</span>'
+      + '<span id="p2_filterDone" style="font-size:11.5px;font-weight:700;color:var(--red);cursor:pointer;">Done</span>'
+      + '</div>';
+    document.body.appendChild(pop);
+
+    pop.querySelectorAll('[data-p2-facet]').forEach(row => {
+      row.addEventListener('click', (e) => {
+        // The label wraps the checkbox, so a click on it fires here twice without this.
+        if (e.target.tagName !== 'INPUT') { e.preventDefault(); }
+        const box = row.querySelector('input');
+        const on = e.target.tagName === 'INPUT' ? box.checked : !box.checked;
+        if (e.target.tagName !== 'INPUT') box.checked = on;
+        const key = row.dataset.p2Facet, val = row.dataset.p2Val;
+        const cur = p2.filters[key] || [];
+        p2.filters[key] = on ? [...cur, val] : cur.filter(x => String(x) !== val);
+        if (!p2.filters[key].length) delete p2.filters[key];
+        renderTasks();
+      });
+    });
+    document.getElementById('p2_filterClear').addEventListener('click', () => {
+      p2.filters = {};
+      pop.querySelectorAll('input').forEach(i => { i.checked = false; });
+      renderTasks();
+    });
+    const close = () => { pop.remove(); document.removeEventListener('mousedown', away, true); };
+    const away = (e) => { if (!pop.contains(e.target) && e.target !== btn) close(); };
+    document.getElementById('p2_filterDone').addEventListener('click', close);
+    setTimeout(() => document.addEventListener('mousedown', away, true), 0);
+  }
+
   function renderTable(){
     const body = $('prjDailyBody'), loading = $('prjDailyLoading'), empty = $('prjDailyEmpty');
     if (!body) return;
     applyColumnWidths();
     if (loading) loading.style.display = 'none';
     const done = (t) => t.status === 'done' || t.status === 'complete' || t.status === 'completed';
-    const shown = p2.tasks.filter(t => p2.status === 'done' ? done(t) : !done(t));
+    const shown = visibleTasks().filter(t => p2.status === 'done' ? done(t) : !done(t));
     if (!shown.length) {
       body.innerHTML = '';
       if (empty) empty.style.display = '';
@@ -84741,10 +84873,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // and borrowing it would put this screen's rendering on the other screen's timer.
     // Each heading carries a grab strip on its right edge. Not the last one: the delete
     // column is 52px of icon and there is nothing in it to make wider or narrower.
-    const th = (col, label) => '<div class="prj-th" data-col="' + col + '">'
-      + '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;">' + label + '</span>'
-      + '<span class="p2-colgrip" data-p2-grip="' + col + '" title="Drag to resize · double-click to reset"></span>'
-      + '</div>';
+    const th = (col, label) => {
+      const on = p2.sort && p2.sort.col === col;
+      const arrow = on
+        ? '<span style="flex-shrink:0;opacity:.95;">' + (p2.sort.dir === 'desc' ? '&#9660;' : '&#9650;') + '</span>'
+        : '<span class="p2-sortic" style="flex-shrink:0;opacity:0;">&#9650;</span>';
+      return '<div class="prj-th" data-col="' + col + '">'
+        + '<span class="p2-sort" data-p2-sort="' + col + '" title="Sort by ' + label + '"'
+        + ' style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;cursor:pointer;'
+        + 'display:flex;align-items:center;gap:5px;">'
+        + '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;">' + label + '</span>'
+        + arrow + '</span>'
+        + '<span class="p2-colgrip" data-p2-grip="' + col + '" title="Drag to resize · double-click to reset"></span>'
+        + '</div>';
+    };
     const headerHtml = '<div class="prj-section-thead">'
       + th('name', 'Task name')
       + th('timer', 'Time')
@@ -84843,6 +84985,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // Drag the strip at a heading's right edge. The width is written straight onto the
     // grid while dragging so it tracks the pointer, and saved once on release rather than
     // on every mousemove.
+    // Click a heading to sort by it: ascending, descending, then back to no sort at all.
+    body.querySelectorAll('[data-p2-sort]').forEach(h => {
+      h.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const col = h.dataset.p2Sort;
+        if (!P2_SORTABLE[col]) return;
+        if (!p2.sort || p2.sort.col !== col) p2.sort = { col, dir: 'asc' };
+        else if (p2.sort.dir === 'asc') p2.sort = { col, dir: 'desc' };
+        else p2.sort = null;
+        renderTasks();
+      });
+    });
     body.querySelectorAll('[data-p2-grip]').forEach(grip => {
       grip.addEventListener('mousedown', (e) => {
         e.preventDefault(); e.stopPropagation();
@@ -85134,6 +85288,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // the word "folder", which is a different idea again.
     // Table / Board / Timeline. Bound once -- the switcher is static markup, so rebinding
     // it on every render would stack a listener per repaint.
+    const fb = $('prjFilterBtn');
+    if (fb && !fb.dataset.p2Wired) {
+      fb.dataset.p2Wired = '1';
+      fb.addEventListener('click', (e) => { e.stopPropagation(); openFilterPanel(); });
+    }
     const vt = $('prjViewToggle');
     if (vt && !vt.dataset.p2Wired) {
       vt.dataset.p2Wired = '1';
