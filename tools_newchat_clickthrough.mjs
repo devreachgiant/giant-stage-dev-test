@@ -4626,6 +4626,55 @@ await step('Projects 2.0 shows one task pool as table, board and timeline', asyn
     !r.skipped && r.axisLabels >= 3, JSON.stringify(r));
 });
 
+// Who a project is for is part of creating it. It used to be a window.prompt for the name
+// and nothing else, so every project was visible to the whole workspace with no way to say
+// otherwise. The database enforces the choice; this records it.
+await step('a new project is created public or private, with people named', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    // Creating a project switches to it, and it is empty by definition. Put the previous
+    // one back afterwards or every later step measures a project with nothing in it.
+    const wasActive = window.p2State.activeId;
+    document.getElementById('p2_prjProjAdd').click();
+    await w(1500);
+    const m = document.querySelector('.p2-newproj');
+    if (!m) return { skipped: 'form did not open' };
+    const out = {
+      options: [...m.querySelectorAll('[data-p2-vis]')].map(e => e.dataset.p2Vis),
+      hiddenWhenPublic: getComputedStyle(document.getElementById('p2_npPeople')).display === 'none',
+    };
+    m.querySelector('[data-p2-vis="private"]').click();
+    await w(400);
+    out.shownWhenPrivate = getComputedStyle(document.getElementById('p2_npPeople')).display !== 'none';
+    out.roster = m.querySelectorAll('[data-p2-person]').length;
+    // you are always on your own project, so offering to add yourself is noise
+    out.excludesMe = ![...m.querySelectorAll('[data-p2-person]')]
+      .map(e => e.dataset.p2Person).includes('u-me');
+    document.getElementById('p2_npName').value = 'Harness private project';
+    [...m.querySelectorAll('[data-p2-person] input')].slice(0, 2).forEach(i => i.click());
+    document.getElementById('p2_npCreate').click();
+    await w(2500);
+    const db = window.__mock.db;
+    const made = (db.projects || []).find(p => p.name === 'Harness private project');
+    out.closed = !document.querySelector('.p2-newproj');
+    out.created = !!made;
+    out.visibility = made ? made.visibility : null;
+    out.members = made ? (db.project_members || []).filter(x => x.project_id === made.id).length : 0;
+    out.opensIt = made ? window.p2State.activeId === made.id : false;
+    const back = document.querySelector('[data-p2-project="' + wasActive + '"]');
+    if (back) { back.click(); await w(2500); }
+    out.restored = window.p2State.activeId === wasActive;
+    return out;
+  });
+  check('the form offers public or private, and only asks who when it matters',
+    !r.skipped && JSON.stringify(r.options) === '["public","private"]'
+      && r.hiddenWhenPublic && r.shownWhenPrivate && r.roster > 0 && r.excludesMe,
+    JSON.stringify(r));
+  check('creating a private project records the choice and the people chosen',
+    !r.skipped && r.created && r.visibility === 'private' && r.members === 2
+      && r.closed && r.opensIt && r.restored, JSON.stringify(r));
+});
+
 // Time is a property of the task, not of my session. The row only ever knew about my own
 // running clock, so a task with hours on it across three people looked exactly like one
 // nobody had ever touched -- and two people could be tracking the same task with neither

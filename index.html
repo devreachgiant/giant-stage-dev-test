@@ -84290,21 +84290,138 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     });
   }
 
+  // Who a new project is for is part of creating it, not a setting to find afterwards --
+  // so this is a small form rather than the window.prompt it was. The database is what
+  // actually enforces the choice; this only records it.
   async function addProject(){
-    const name = (window.prompt('Name the project') || '').trim();
-    if (!name) return;
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40) + '-' + Math.random().toString(36).slice(2, 5);
-    const { data, error } = await sb().from('projects')
-      .insert({ name, slug, created_by: me(), status: 'active', position: p2.projects.length })
-      .select('id, name, color, status, deadline, client_id, position').single();
-    if (error) {
-      if (window.toast) toast({ type:'error', message:'Could not create that project: ' + error.message });
-      return;
-    }
-    p2.projects.push(data);
-    p2.activeId = data.id;
-    renderProjectsBar();
-    await loadTasks();
+    document.querySelectorAll('.p2-newproj').forEach(e => e.remove());
+    const root = P2();
+    if (!root) return;
+    const { data: people } = await sb().from('profiles')
+      .select('id, full_name, email, avatar_bg, avatar_fg, role')
+      .neq('role', 'client').order('full_name');
+    const mine = me();
+    const roster = (people || []).filter(p => p.id !== mine);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'p2-newproj';
+    wrap.style.cssText = 'position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.5);'
+      + 'display:flex;align-items:center;justify-content:center;padding:24px;';
+    wrap.innerHTML = '<div style="width:min(480px,100%);max-height:86vh;overflow:auto;background:var(--bg);'
+      + 'border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,.5);">'
+      + '<div style="padding:18px 20px 0;font-size:15px;font-weight:700;color:var(--text);">New project</div>'
+      + '<div style="padding:14px 20px 20px;">'
+      +   '<input id="p2_npName" type="text" placeholder="Project name" autocomplete="off"'
+      +   ' style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:10px;'
+      +   'padding:10px 12px;font:inherit;font-size:13px;color:var(--text);outline:none;">'
+      +   '<div style="display:flex;gap:10px;margin-top:14px;">'
+      +     ['public', 'private'].map(k => '<label data-p2-vis="' + k + '" style="flex:1;cursor:pointer;'
+            + 'border:1px solid var(--line);border-radius:11px;padding:11px 12px;display:block;">'
+            + '<span style="display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;color:var(--text);">'
+            + '<span class="p2-vis-dot" style="width:12px;height:12px;border-radius:50%;border:2px solid var(--text-4);'
+            + 'display:inline-block;flex-shrink:0;"></span>'
+            + (k === 'public' ? 'Public' : 'Private') + '</span>'
+            + '<span style="display:block;margin-top:5px;font-size:11px;color:var(--text-3);line-height:1.4;">'
+            + (k === 'public' ? 'Anyone on the team can open it.' : 'Only the people you add below.')
+            + '</span></label>').join('')
+      +   '</div>'
+      +   '<div id="p2_npPeople" style="display:none;margin-top:14px;">'
+      +     '<div style="font-size:11px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;'
+      +     'color:var(--text-3);margin-bottom:8px;">Who can see it</div>'
+      +     '<div style="max-height:210px;overflow:auto;border:1px solid var(--line);border-radius:10px;">'
+      +     (roster.length ? roster.map(p => {
+              const nm = p.full_name || p.email;
+              return '<label data-p2-person="' + esc(p.id) + '" style="display:flex;align-items:center;gap:9px;'
+                + 'padding:8px 11px;cursor:pointer;border-bottom:1px solid var(--line);">'
+                + '<input type="checkbox" style="accent-color:var(--red);width:14px;height:14px;flex-shrink:0;">'
+                + personChipFor(p)
+                + '<span style="font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;'
+                + 'white-space:nowrap;">' + esc(nm) + '</span></label>';
+            }).join('') : '<div style="padding:12px;font-size:12px;color:var(--text-4);">Nobody else yet.</div>')
+      +     '</div>'
+      +     '<div style="margin-top:7px;font-size:11px;color:var(--text-3);">'
+      +     'You can always see it. So can anyone who oversees every project.</div>'
+      +   '</div>'
+      +   '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">'
+      +     '<button id="p2_npCancel" style="background:transparent;border:1px solid var(--line);'
+      +     'border-radius:9px;padding:8px 14px;font:inherit;font-size:12px;font-weight:600;'
+      +     'color:var(--text-2);cursor:pointer;">Cancel</button>'
+      +     '<button id="p2_npCreate" style="background:var(--red);border:none;border-radius:9px;'
+      +     'padding:8px 16px;font:inherit;font-size:12px;font-weight:700;color:#fff;cursor:pointer;">'
+      +     'Create project</button>'
+      +   '</div>'
+      + '</div></div>';
+    document.body.appendChild(wrap);
+
+    let vis = 'public';
+    const paint = () => {
+      wrap.querySelectorAll('[data-p2-vis]').forEach(l => {
+        const on = l.dataset.p2Vis === vis;
+        l.style.borderColor = on ? 'var(--red)' : 'var(--line)';
+        l.style.background = on ? 'rgba(208,4,0,.07)' : 'transparent';
+        const dot = l.querySelector('.p2-vis-dot');
+        dot.style.borderColor = on ? 'var(--red)' : 'var(--text-4)';
+        dot.style.background = on ? 'var(--red)' : 'transparent';
+        dot.style.boxShadow = on ? 'inset 0 0 0 2px var(--bg)' : 'none';
+      });
+      document.getElementById('p2_npPeople').style.display = vis === 'private' ? '' : 'none';
+    };
+    paint();
+    wrap.querySelectorAll('[data-p2-vis]').forEach(l =>
+      l.addEventListener('click', (e) => { e.preventDefault(); vis = l.dataset.p2Vis; paint(); }));
+    const close = () => wrap.remove();
+    wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
+    document.getElementById('p2_npCancel').addEventListener('click', close);
+    const nameEl = document.getElementById('p2_npName');
+    nameEl.focus();
+
+    const create = async () => {
+      const name = (nameEl.value || '').trim();
+      if (!name) { nameEl.focus(); return; }
+      const btn = document.getElementById('p2_npCreate');
+      btn.disabled = true; btn.textContent = 'Creating…';
+      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)
+        + '-' + Math.random().toString(36).slice(2, 5);
+      const { data, error } = await sb().from('projects')
+        .insert({ name, slug, created_by: mine, status: 'active',
+                  position: p2.projects.length, visibility: vis })
+        .select('id, name, color, status, deadline, client_id, position, visibility').single();
+      if (error) {
+        btn.disabled = false; btn.textContent = 'Create project';
+        if (window.toast) toast({ type:'error', message:'Could not create that project: ' + error.message });
+        return;
+      }
+      if (vis === 'private') {
+        const picked = [...wrap.querySelectorAll('[data-p2-person] input:checked')]
+          .map(i => i.closest('[data-p2-person]').dataset.p2Person);
+        if (picked.length) {
+          const { error: mErr } = await sb().from('project_members')
+            .insert(picked.map(id => ({ project_id: data.id, profile_id: id })));
+          // The project exists either way; say so rather than leaving people wondering
+          // why the list they were promised is empty of everyone but its author.
+          if (mErr && window.toast) toast({ type:'error',
+            message: 'Project created, but could not add everyone: ' + mErr.message });
+        }
+      }
+      close();
+      p2.projects.push(data);
+      p2.activeId = data.id;
+      renderProjectsBar();
+      await loadTasks();
+    };
+    document.getElementById('p2_npCreate').addEventListener('click', create);
+    nameEl.addEventListener('keydown', (e) => { if (e.key === 'Enter') create(); });
+    wrap.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  }
+
+  // personChip works off p2.people, which only holds assignees; the roster comes straight
+  // from the query, so it needs one that takes the row.
+  function personChipFor(p){
+    const nm = p.full_name || p.email || '?';
+    return '<span style="width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;'
+      + 'justify-content:center;font-size:9px;font-weight:800;flex-shrink:0;background:'
+      + esc(p.avatar_bg || 'var(--surface-2)') + ';color:' + esc(p.avatar_fg || 'var(--text)') + ';">'
+      + esc(nm.trim().charAt(0).toUpperCase()) + '</span>';
   }
 
   // The client came from whichever folder you typed into. With the folders gone a new
