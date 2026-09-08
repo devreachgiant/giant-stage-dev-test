@@ -4877,6 +4877,52 @@ await step('the Time column lines up on every row', async () => {
     !r.skipped && r.timerAlwaysVisible && r.deleteAlwaysVisible, JSON.stringify(r));
 });
 
+// Column widths were baked into the stylesheet, so a name that needed more room and a
+// Time column that needed less were both somebody else's decision.
+await step('table columns can be dragged wider and narrower', async () => {
+  const start = await page.evaluate(() => ({
+    grips: document.querySelectorAll('#p2_prjDailyBody [data-p2-grip]').length,
+    timer: Math.round(document.querySelector('.prj-cell[data-col="timer"]').getBoundingClientRect().width),
+    // the delete column held nothing but a divider, which read as a stray box on the end
+    padBorder: getComputedStyle(document.querySelector('.prj-cell-pad')).borderRightWidth,
+  }));
+  const grip = await page.$('#p2_prjDailyBody [data-p2-grip="timer"]');
+  if (!grip) { check('table columns can be dragged wider and narrower', false, 'no grip'); return; }
+  const box = await grip.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 60, box.y + box.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(600);
+  const after = await page.evaluate(() => ({
+    cell: Math.round(document.querySelector('.prj-cell[data-col="timer"]').getBoundingClientRect().width),
+    head: Math.round(document.querySelector('#p2_prjDailyBody .prj-th[data-col="timer"]').getBoundingClientRect().width),
+    stored: (JSON.parse(localStorage.getItem('giant_p2_colw') || '{}')).timer || null,
+    // headings and cells must still share every boundary, or the drag has torn the table
+    aligned: (() => {
+      const h = [...document.querySelectorAll('#p2_prjDailyBody .prj-section-thead .prj-th')]
+        .map(e => Math.round(e.getBoundingClientRect().left));
+      const r = [...document.querySelector('.prj-row[data-p2-task]').querySelectorAll('.prj-cell')]
+        .map(e => Math.round(e.getBoundingClientRect().left));
+      return JSON.stringify(h) === JSON.stringify(r);
+    })(),
+  }));
+  await grip.dblclick();
+  await page.waitForTimeout(500);
+  const reset = await page.evaluate(() => ({
+    cell: Math.round(document.querySelector('.prj-cell[data-col="timer"]').getBoundingClientRect().width),
+    cleared: !(JSON.parse(localStorage.getItem('giant_p2_colw') || '{}')).timer,
+  }));
+  check('every column but the delete one has a grip, and the last one has no divider',
+    start.grips === 7 && start.padBorder === '0px', JSON.stringify(start));
+  check('dragging narrows the column, moves the heading with it and is remembered',
+    after.cell === start.timer - 60 && after.head === after.cell
+      && after.stored === after.cell && after.aligned,
+    JSON.stringify({ start, after }));
+  check('double-clicking the grip puts the column back',
+    reset.cell === start.timer && reset.cleared, JSON.stringify(reset));
+});
+
 // A row could be ticked, timed and dragged, but not read: the description, the dates and
 // where the hours went had nowhere to be shown.
 await step('clicking a task opens it in full, with a per-person time breakdown', async () => {

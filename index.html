@@ -718,6 +718,20 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 #p2_root .p2-timer{transition:background .12s ease,color .12s ease;}
 #p2_root .p2-timer:hover{background:var(--surface-2);color:var(--text);}
 #p2_root .p2-timer-on:hover{background:rgba(208,4,0,.22);}
+/* Resizable columns. The strip is 9px of grab area sitting over the cell divider, which
+   is 1px and impossible to hit; it lights up on hover so it can be found at all. */
+#p2_root .prj-th{position:relative;display:flex;align-items:center;gap:6px;}
+#p2_root .p2-colgrip{position:absolute;top:0;right:-4px;width:9px;height:100%;cursor:col-resize;
+  z-index:3;flex-shrink:0;}
+#p2_root .p2-colgrip::after{content:'';position:absolute;top:20%;bottom:20%;left:4px;width:2px;
+  border-radius:2px;background:transparent;transition:background .12s ease;}
+#p2_root .p2-colgrip:hover::after{background:rgba(255,255,255,.45);}
+/* The table keeps its own width once columns are fixed, and scrolls rather than squashing. */
+#p2_root .prj-table{width:max-content;min-width:100%;}
+/* The last column held nothing but a divider, which read as a stray empty box at the end
+   of the red header. It is the delete column; it needs no heading and no divider. */
+#p2_root .prj-th[data-col="pad"]{border-right:none;}
+#p2_root .prj-cell-pad{border-right:none;}
 /* These two cells are control strips, not prose, so they set their own padding. */
 #p2_root .prj-cell[data-col="timer"]{padding-left:12px;padding-right:8px;gap:0;}
 #p2_root .prj-cell[data-col="pad"]{padding-left:12px;padding-right:12px;justify-content:center;}
@@ -83537,7 +83551,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   const p2 = { projects: [], activeId: null, tasks: [], people: {}, clients: {},
                status: 'active', loading: false, collapsed: {},
-               view: 'table', logged: {}, othersOn: {}, detailId: null, prefs: {} };
+               view: 'table', logged: {}, othersOn: {}, detailId: null, prefs: {}, colw: {} };
+  // Column widths, per person, in this browser. No migration for it: it is a preference
+  // about looking at a table, not a fact about the work.
+  const P2_COLW = { name: 264, timer: 150, priority: 130, assignee: 150,
+                    client: 150, department: 130, task_details: 240 };
+  const P2_COL_ORDER = ['name', 'timer', 'priority', 'assignee', 'client', 'department', 'task_details'];
+  const P2_COL_MIN = 72;
+  try { const raw = JSON.parse(localStorage.getItem('giant_p2_colw') || '{}');
+        Object.keys(P2_COLW).forEach(k => { if (+raw[k] > 0) p2.colw[k] = +raw[k]; }); } catch (_) {}
+  const colWidth = (k) => Math.max(P2_COL_MIN, p2.colw[k] || P2_COLW[k]);
+  function applyColumnWidths(){
+    const tbl = $('prjTable');
+    if (!tbl) return;
+    tbl.style.setProperty('--prj-cols', P2_COL_ORDER.map(k => colWidth(k) + 'px').join(' ') + ' 52px');
+  }
+  function saveColumnWidths(){
+    try { localStorage.setItem('giant_p2_colw', JSON.stringify(p2.colw)); } catch (_) {}
+  }
   try { const v = localStorage.getItem('giant_p2_view');
         if (v === 'board' || v === 'timeline' || v === 'table') p2.view = v; } catch (_) {}
 
@@ -84572,6 +84603,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   function renderTable(){
     const body = $('prjDailyBody'), loading = $('prjDailyLoading'), empty = $('prjDailyEmpty');
     if (!body) return;
+    applyColumnWidths();
     if (loading) loading.style.display = 'none';
     const done = (t) => t.status === 'done' || t.status === 'complete' || t.status === 'completed';
     const shown = p2.tasks.filter(t => p2.status === 'done' ? done(t) : !done(t));
@@ -84669,8 +84701,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         + 'color:var(--text-3);font-variant-numeric:tabular-nums;overflow:hidden;white-space:nowrap;">'
         + num + '</span>'
         + '<span style="display:inline-flex;align-items:center;gap:2px;flex-shrink:0;">' + ctrl + '</span>'
-        + '<span style="display:inline-flex;gap:3px;flex:1;min-width:0;justify-content:flex-end;">'
-        + who + '</span>'
+        + (who ? '<span style="display:inline-flex;gap:3px;min-width:0;overflow:hidden;">'
+                 + who + '</span>' : '')
         + '</span>';
     };
 
@@ -84704,7 +84736,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // .prj-thead, which is display:none. Written out here rather than calling the
     // original's injector: that one walks .prj-section document-wide on a 1.5s interval,
     // and borrowing it would put this screen's rendering on the other screen's timer.
-    const th = (col, label) => '<div class="prj-th" data-col="' + col + '">' + label + '</div>';
+    // Each heading carries a grab strip on its right edge. Not the last one: the delete
+    // column is 52px of icon and there is nothing in it to make wider or narrower.
+    const th = (col, label) => '<div class="prj-th" data-col="' + col + '">'
+      + '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;">' + label + '</span>'
+      + '<span class="p2-colgrip" data-p2-grip="' + col + '" title="Drag to resize · double-click to reset"></span>'
+      + '</div>';
     const headerHtml = '<div class="prj-section-thead">'
       + th('name', 'Task name')
       + th('timer', 'Time')
@@ -84800,6 +84837,39 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // something -- the client cell picks a client, the assignee cell picks a person -- so a
     // row-wide handler fired the panel open on top of whatever that cell was doing, and
     // two things happened for one click.
+    // Drag the strip at a heading's right edge. The width is written straight onto the
+    // grid while dragging so it tracks the pointer, and saved once on release rather than
+    // on every mousemove.
+    body.querySelectorAll('[data-p2-grip]').forEach(grip => {
+      grip.addEventListener('mousedown', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        const key = grip.dataset.p2Grip;
+        const startX = e.clientX;
+        const startW = colWidth(key);
+        const move = (ev) => {
+          p2.colw[key] = Math.max(P2_COL_MIN, Math.round(startW + (ev.clientX - startX)));
+          applyColumnWidths();
+        };
+        const up = () => {
+          document.removeEventListener('mousemove', move);
+          document.removeEventListener('mouseup', up);
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          saveColumnWidths();
+        };
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        document.addEventListener('mousemove', move);
+        document.addEventListener('mouseup', up);
+      });
+      // Back to the width it shipped with, without hunting for the exact pixel.
+      grip.addEventListener('dblclick', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        delete p2.colw[grip.dataset.p2Grip];
+        applyColumnWidths();
+        saveColumnWidths();
+      });
+    });
     body.querySelectorAll('[data-p2-task-del]').forEach(el => {
       el.addEventListener('click', async (e) => {
         e.stopPropagation();
