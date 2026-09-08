@@ -716,10 +716,14 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 /* The timer has a column of its own now, so it no longer has to hide to stay clear of the
    task name -- it sits in its own space and is always there to be pressed. */
 #p2_root .p2-timer{transition:background .12s ease,color .12s ease;}
-/* The last column was being drawn and left empty; the original puts delete there. */
-#p2_root .prj-row .p2-row-del{opacity:0;cursor:pointer;display:inline-flex;align-items:center;
-  justify-content:center;color:var(--text-4);transition:opacity .12s ease,color .12s ease;}
-#p2_root .prj-row:hover .p2-row-del{opacity:1;}
+#p2_root .p2-timer:hover{background:var(--surface-2);color:var(--text);}
+#p2_root .p2-timer-on:hover{background:rgba(208,4,0,.22);}
+/* The cell sets its own padding: the timer is a control strip, not prose. */
+#p2_root .prj-cell[data-col="timer"]{padding-left:10px;padding-right:8px;gap:0;}
+/* The last column was being drawn and left empty; the original puts delete there, and
+   keeps it visible -- a control you have to hover to discover is one nobody finds. */
+#p2_root .prj-row .p2-row-del{cursor:pointer;display:inline-flex;align-items:center;
+  justify-content:center;color:var(--text-4);transition:color .12s ease;}
 #p2_root .prj-row .p2-row-del:hover{color:var(--red);}
 #p2_root .p2-timer:hover{background:var(--surface-2);color:var(--text);}
 #p2_root .p2-timer-on:hover{background:rgba(208,4,0,.2);}
@@ -10269,7 +10273,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
           <div id="p2_prjTimeline" style="display:none;flex:1;min-height:0;overflow:auto;padding:0 0 20px;"></div>
 
           <!-- table -->
-          <div class="prj-table" id="p2_prjTable" style="--prj-cols:minmax(220px,1.6fr) 158px 130px 150px 150px 130px minmax(200px,1.4fr) 38px;">
+          <div class="prj-table" id="p2_prjTable" style="--prj-cols:minmax(220px,1.6fr) 172px 130px 150px 150px 130px minmax(200px,1.4fr) 38px;">
             <div class="prj-thead">
               <div class="prj-th" data-col="name">Task name</div>
               <div class="prj-th" data-col="timer">Time</div>
@@ -84599,8 +84603,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // would mean two things fighting over the same row, so this drives that one through
     // window.giantTaskTimer and shows its state per row.
 
-    // Three separate facts, and they were one before: whether I am tracking this now,
-    // how much has ever been logged against it, and whether a colleague is on it too.
+    // Three slots, always in the same three places: who else is on it, the number, and the
+    // controls. The number was inside the button before, so a row reading 137:43:33 pushed
+    // its play triangle a long way right of a row reading 3:02:55, and a row with no time
+    // at all put its triangle where everyone else's digits were.
     const timerHtml = (t) => {
       const s = liveSession();
       const mine = s && s.task_id === t.id;
@@ -84612,42 +84618,49 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const pause = '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><rect x="4.2" y="3.2" width="2.9" height="9.6" rx="1.2" fill="currentColor"/><rect x="8.9" y="3.2" width="2.9" height="9.6" rx="1.2" fill="currentColor"/></svg>';
       const stop  = '<svg width="10" height="10" viewBox="0 0 16 16" fill="none"><rect x="3.6" y="3.6" width="8.8" height="8.8" rx="2" fill="currentColor"/></svg>';
 
-      let html = '<span class="p2-time" style="display:inline-flex;align-items:center;gap:6px;flex-shrink:0;">';
-
-      // Someone else's clock, before mine: it is the thing you did not know.
-      others.slice(0, 3).forEach(o => {
+      // slot 1 -- somebody else's clock. Fixed width whether or not anyone is on it, so the
+      // digits beside it start in the same place on every row.
+      let who = '';
+      others.slice(0, 2).forEach(o => {
         const p = p2.people[o.profile_id] || {};
         const nm = p.full_name || p.email || 'Someone';
-        html += '<span title="' + esc(nm + ' is tracking this ' + (o.status === 'paused' ? '(paused)' : 'now'))
-          + '" style="display:inline-flex;align-items:center;gap:4px;padding:1px 6px 1px 2px;border-radius:20px;'
+        who += '<span title="' + esc(nm + ' is tracking this ' + (o.status === 'paused' ? '(paused)' : 'now'))
+          + '" style="display:inline-flex;align-items:center;gap:3px;padding:1px 5px 1px 1px;border-radius:20px;'
           + 'background:rgba(59,130,246,.14);flex-shrink:0;">'
-          + '<span style="width:15px;height:15px;border-radius:50%;display:inline-flex;align-items:center;'
-          + 'justify-content:center;font-size:7.5px;font-weight:800;background:' + esc(p.avatar_bg || '#3B82F6')
+          + '<span style="width:14px;height:14px;border-radius:50%;display:inline-flex;align-items:center;'
+          + 'justify-content:center;font-size:7px;font-weight:800;background:' + esc(p.avatar_bg || '#3B82F6')
           + ';color:' + esc(p.avatar_fg || '#fff') + ';">' + esc(nm.trim().charAt(0).toUpperCase()) + '</span>'
-          + '<span style="width:5px;height:5px;border-radius:50%;background:'
+          + '<span style="width:4px;height:4px;border-radius:50%;background:'
           + (o.status === 'paused' ? 'var(--text-3)' : '#3B82F6') + ';"></span></span>';
       });
 
-      // Everything ever logged on this task. Quiet until there is something to say.
-      if (total > 0) html += '<span class="p2-logged" title="Total logged by everyone"'
-        + ' style="font-size:11px;font-weight:700;color:var(--text-3);font-variant-numeric:tabular-nums;'
-        + 'flex-shrink:0;">' + esc(fmt(total)) + '</span>';
+      // slot 2 -- one number, right-aligned and tabular, so every row's digits line up:
+      // the live clock when it is mine, otherwise everything ever logged.
+      const num = mine
+        ? '<span data-p2-elapsed="' + esc(t.id) + '" style="color:var(--red);font-weight:700;">'
+          + esc(fmt(T().elapsed(s))) + '</span>'
+        : (total > 0 ? '<span class="p2-logged" title="Total logged by everyone">'
+            + esc(fmt(total)) + '</span>' : '');
 
-      html += '<span class="p2-timer' + (mine ? ' p2-timer-on' : '') + '" data-p2-timer="' + esc(t.id) + '"'
+      // slot 3 -- the controls, at the same right edge on every row.
+      const ctrl = '<span class="p2-timer' + (mine ? ' p2-timer-on' : '') + '" data-p2-timer="' + esc(t.id) + '"'
         + ' title="' + (running ? 'Pause tracking' : (mine ? 'Resume tracking' : 'Start tracking this task')) + '"'
-        + ' style="display:inline-flex;align-items:center;gap:5px;flex-shrink:0;padding:3px 8px;border-radius:20px;'
-        + 'cursor:pointer;font-size:11px;font-weight:700;font-variant-numeric:tabular-nums;border:1px solid '
-        + (mine ? 'rgba(208,4,0,.35);background:rgba(208,4,0,.12);color:var(--red);'
-                : 'transparent;color:var(--text-4);') + '">'
-        + (running ? pause : play)
-        + (mine ? '<span data-p2-elapsed="' + esc(t.id) + '">' + esc(fmt(T().elapsed(s))) + '</span>' : '')
+        + ' style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;'
+        + 'border-radius:6px;cursor:pointer;flex-shrink:0;'
+        + (mine ? 'background:rgba(208,4,0,.14);color:var(--red);' : 'color:var(--text-4);') + '">'
+        + (running ? pause : play) + '</span>'
+        + (mine ? '<span class="p2-timer-stop" data-p2-stop="' + esc(t.id) + '" title="Stop and log this session"'
+            + ' style="display:inline-flex;align-items:center;justify-content:center;width:20px;height:22px;'
+            + 'cursor:pointer;color:var(--text-4);flex-shrink:0;">' + stop + '</span>'
+          : '<span style="width:20px;flex-shrink:0;"></span>');
+
+      return '<span class="p2-time" style="display:flex;align-items:center;gap:7px;width:100%;min-width:0;">'
+        + '<span style="display:inline-flex;gap:3px;flex-shrink:0;">' + who + '</span>'
+        + '<span style="flex:1;min-width:0;text-align:right;font-size:11.5px;font-weight:600;'
+        + 'color:var(--text-3);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;">'
+        + num + '</span>'
+        + '<span style="display:inline-flex;align-items:center;flex-shrink:0;">' + ctrl + '</span>'
         + '</span>';
-
-      if (mine) html += '<span class="p2-timer-stop" data-p2-stop="' + esc(t.id) + '"'
-        + ' title="Stop and log this session" style="display:inline-flex;align-items:center;cursor:pointer;'
-        + 'color:var(--text-4);flex-shrink:0;padding:2px;">' + stop + '</span>';
-
-      return html + '</span>';
     };
 
     const rowHtml = (t) => {

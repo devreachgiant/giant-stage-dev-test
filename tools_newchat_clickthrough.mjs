@@ -4831,6 +4831,41 @@ await step('a task row shows time logged by everyone, and who else is on it', as
     JSON.stringify(r));
 });
 
+// The timer sat inside the task-name cell, so a row reading 137:43:33 pushed its play
+// triangle far right of one reading 3:02:55, and a row with no time put its triangle where
+// everyone else's digits were. Three fixed slots in a column of its own: who else is on
+// it, the number, the controls.
+await step('the Time column lines up on every row', async () => {
+  const r = await page.evaluate(async () => {
+    const rows = [...document.querySelectorAll('.prj-row[data-p2-task]')];
+    if (rows.length < 3) return { skipped: 'too few rows' };
+    const px = (el) => el ? Math.round(el.getBoundingClientRect().left) : null;
+    const pr = (el) => el ? Math.round(el.getBoundingClientRect().right) : null;
+    const btns = rows.map(x => px(x.querySelector('[data-p2-timer]'))).filter(v => v !== null);
+    const nums = rows.map(x => {
+      const w = x.querySelector('.prj-cell[data-col="timer"] .p2-time');
+      return w ? pr(w.children[1]) : null;
+    }).filter(v => v !== null);
+    const widths = [...new Set(rows.map(x =>
+      Math.round(x.querySelector('.prj-cell[data-col="timer"]').getBoundingClientRect().width)))];
+    const del = rows[0].querySelector('[data-p2-task-del]');
+    const btn = rows[0].querySelector('[data-p2-timer]');
+    return {
+      rows: rows.length,
+      buttonColumns: new Set(btns).size,      // one x for every play button
+      digitColumns: new Set(nums).size,       // one right edge for every duration
+      cellWidths: widths,
+      timerAlwaysVisible: btn ? getComputedStyle(btn).opacity === '1' : false,
+      deleteAlwaysVisible: del ? getComputedStyle(del).opacity === '1' : false,
+    };
+  });
+  check('every play button and every duration lines up, in one fixed-width column',
+    !r.skipped && r.buttonColumns === 1 && r.digitColumns === 1 && r.cellWidths.length === 1,
+    JSON.stringify(r));
+  check('the timer and the delete are visible without hovering',
+    !r.skipped && r.timerAlwaysVisible && r.deleteAlwaysVisible, JSON.stringify(r));
+});
+
 // A row could be ticked, timed and dragged, but not read: the description, the dates and
 // where the hours went had nowhere to be shown.
 await step('clicking a task opens it in full, with a per-person time breakdown', async () => {
