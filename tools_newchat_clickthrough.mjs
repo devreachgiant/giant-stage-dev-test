@@ -4497,6 +4497,83 @@ await step('search: a name typed without spaces, your own conversations, and the
     JSON.stringify(r));
 });
 
+// Every failure in the app arrives through toast({type:'error'}), and most callers pass
+// 'Could not save that: ' + error.message -- so what people read is a Postgres sentence
+// written for whoever wrote the database. Translated at the one place they all pass
+// through, with the original kept for the bug report, where it is actually useful.
+await step('errors are readable, and can be reported in one click', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const f = window.giantFriendlyError;
+    if (typeof f !== 'function') return { skipped: 'no translator' };
+    const cases = {
+      check: f('Could not delete that: new row for relation "chat2_inbox_actions" violates check constraint "chat2_inbox_actions_one_target"').text,
+      missing: f("Could not save that order: Could not find the table 'public.project_prefs' in the schema cache").text,
+      rls: f('Could not load: new row violates row-level security policy for table "tasks"').text,
+      offline: f('Failed to fetch').text,
+      expired: f('JWT expired').text,
+      // already plain English: it must come through untouched
+      plain: f('Your changes were saved').text,
+    };
+    const out = {
+      // nothing a person reads should still contain the database's own vocabulary
+      noJargon: !/relation |constraint|PGRST|schema cache|row-level security|JWT/i
+        .test(Object.values(cases).join(' ')),
+      keepsLead: /^Could not delete that/.test(cases.check),
+      explainsMissingTable: /has not been set up/i.test(cases.missing),
+      saysNotYourFault: /not something you did wrong/i.test(cases.check),
+      startsCapitalised: /^[A-Z]/.test(cases.expired) && /^[A-Z]/.test(cases.offline),
+      leavesPlainAlone: cases.plain === 'Your changes were saved',
+    };
+
+    document.querySelectorAll('.toast').forEach(e => e.remove());
+    const db = window.__mock.db;
+    db.reports = db.reports || [];
+    if (!db.channels.some(c => c.name === 'giant-app'))
+      db.channels.push({ id: 'ch-giantapp', name: 'giant-app', kind: 'team_channel',
+                         is_dm: false, department: null, client_id: null });
+    out.hasToastHost = !!document.getElementById('toastHost');
+    // Toasts render into #toastHost, and by this point in the suite an earlier step has
+    // removed it -- traced to harness cleanup running el.remove() over a NodeList, never to
+    // app code. Put it back rather than skip: the behaviour under test is the toast, and a
+    // check that quietly skips is a check that proves nothing.
+    if (!out.hasToastHost) {
+      const h = document.createElement('div');
+      h.className = 'toast-host'; h.id = 'toastHost';
+      document.getElementById('appView').appendChild(h);
+      out.hostRestored = true;
+    }
+    toast({ type: 'error', message: 'Could not delete that: new row for relation "x" violates check constraint "y"' });
+    for (let i = 0; i < 12 && !document.querySelector('.toast.error'); i++) await w(150);
+    const et = document.querySelector('.toast.error');
+    if (!et) return { ...out, skipped: 'no error toast appeared (host: ' + out.hasToastHost + ')' };
+    out.errorOffersReport = !!et.querySelector('[data-report]');
+    toast({ type: 'success', message: 'Saved' });
+    await w(300);
+    out.successOffersNone = !document.querySelector('.toast.success [data-report]');
+
+    const before = { reports: db.reports.length, posts: db.messages.length };
+    et.querySelector('[data-report]').click();
+    await w(2200);
+    out.reportWritten = db.reports.length - before.reports;
+    out.reportIsBug = (db.reports[db.reports.length - 1] || {}).type === 'bug';
+    out.reportKeepsTechnical = /check constraint/.test((db.reports[db.reports.length - 1] || {}).description || '');
+    const posts = db.messages.filter(m => m.channel_id === 'ch-giantapp');
+    out.postedToGiantApp = posts.length;
+    out.mentionsTheDev = posts.some(m => /@Nishchay/.test(m.body || ''));
+    out.thanks = /sent to the dev team/i.test(et.querySelector('.toast-body').textContent);
+    document.querySelectorAll('.toast').forEach(e => e.remove());
+    return out;
+  });
+  check('a database error becomes a sentence, keeping what the caller said',
+    !r.skipped && r.noJargon && r.keepsLead && r.explainsMissingTable
+      && r.saysNotYourFault && r.startsCapitalised && r.leavesPlainAlone, JSON.stringify(r));
+  check('only errors offer Report, and pressing it files a bug and posts to #giant-app',
+    !r.skipped && r.errorOffersReport && r.successOffersNone && r.reportWritten === 1
+      && r.reportIsBug && r.reportKeepsTechnical && r.postedToGiantApp === 1
+      && r.mentionsTheDev && r.thanks, JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

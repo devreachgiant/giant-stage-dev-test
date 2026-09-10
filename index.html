@@ -11816,6 +11816,108 @@ const ToastIcons={
   warning:'<svg width="3" height="11" viewBox="0 0 4 16" fill="none"><rect width="4" height="8" rx="1" fill="currentColor"/><circle cx="2" cy="13" r="1.5" fill="currentColor"/></svg>',
   info:'<svg width="3" height="11" viewBox="0 0 4 16" fill="none"><circle cx="2" cy="3" r="1.5" fill="currentColor"/><rect y="6" width="4" height="8" rx="1" fill="currentColor"/></svg>'
 };
+/* ============== ERRORS PEOPLE CAN READ ==============
+   Every failure in the app arrives through toast({type:'error'}), and most call sites pass
+   'Could not save that: ' + error.message -- so what people actually read is a Postgres or
+   PostgREST sentence written for whoever wrote the database. "new row for relation
+   chat2_inbox_actions violates check constraint chat2_inbox_actions_one_target" tells a
+   person nothing they can act on, and worse, it reads as though they broke something.
+
+   Rather than rewrite several hundred call sites, the translation happens here, at the one
+   place they all pass through. The caller's own leading clause is kept -- "Could not delete
+   that" is already plain -- and only the technical tail is replaced. The original text is
+   never thrown away: it goes to the bug report, which is where it is actually useful. */
+const GIANT_ERROR_RULES = [
+  { when: /could not find the table|PGRST205/i,
+    say: 'this part of Giant has not been set up on this workspace yet. A developer needs to apply an update.' },
+  { when: /violates check constraint/i,
+    say: 'the record does not fit one of the database’s rules. This is a bug on our side, not something you did wrong.' },
+  { when: /violates foreign key constraint/i,
+    say: 'something it depends on is missing or has been deleted.' },
+  { when: /duplicate key value|violates unique constraint/i,
+    say: 'that already exists.' },
+  { when: /null value in column/i,
+    say: 'something it needs was left blank.' },
+  { when: /violates row-level security|permission denied|not authorized|insufficient_privilege|42501/i,
+    say: 'you do not have access to that.' },
+  { when: /JWT|expired|invalid token|PGRST301|refresh_token/i,
+    say: 'your session has expired. Refresh the page and sign in again.' },
+  { when: /failed to fetch|networkerror|network request failed|load failed|err_(internet|network|connection)/i,
+    say: 'Giant could not reach the server. Check your connection and try again.' },
+  { when: /invalid input syntax|22P02/i,
+    say: 'one of the values was not in a form the database accepts.' },
+  { when: /timeout|statement canceled|57014/i,
+    say: 'that took too long and was stopped. Try again, or with a smaller range.' },
+  { when: /payload too large|413/i, say: 'that file is too big.' },
+];
+// Text that is plainly for a developer rather than for the person reading it.
+const GIANT_ERROR_TECHNICAL = /relation "|constraint|PGRST|pg_|SQLSTATE|\bnull value\b|violates|syntax error|undefined (column|table|function)|TypeError|ReferenceError|\bat [A-Za-z$_]+ \(/i;
+
+function giantFriendlyError(raw){
+  const msg = String(raw == null ? '' : (raw.message || raw)).trim();
+  if (!msg) return { text: 'Something went wrong.', technical: '' };
+  // Keep whatever the caller said before the colon: that half is already written for a
+  // person. Only what follows it is the database talking.
+  const cut = msg.indexOf(': ');
+  const lead = cut > 0 && cut < 60 ? msg.slice(0, cut) : '';
+  const tail = lead ? msg.slice(cut + 2) : msg;
+  const rule = GIANT_ERROR_RULES.find(r => r.when.test(tail) || r.when.test(msg));
+  if (rule) {
+    // The rules read as the tail of somebody else's sentence. With no leading clause to
+    // hang off, one has to start the sentence itself.
+    const say = lead ? rule.say : rule.say.charAt(0).toUpperCase() + rule.say.slice(1);
+    return { text: (lead ? lead + ' — ' : '') + say, technical: msg };
+  }
+  if (GIANT_ERROR_TECHNICAL.test(tail))
+    return { text: (lead ? lead + '.' : 'Something went wrong.')
+             + ' It is a bug on our side, not something you did wrong.', technical: msg };
+  return { text: msg, technical: '' };   // already readable; nothing to translate
+}
+
+/* Reporting it. Two things happen: a row in `reports`, which is the same queue the Report a
+   bug screen writes to, so nothing new has to be watched; and a message in #giant-app that
+   @-mentions the in-house dev, which puts it on the Needs you card and in the Master Inbox
+   without anybody having to check a list. */
+async function giantReportError(detail){
+  const sb = window.giantSupabase;
+  const me = window.giantSession && window.giantSession.user && window.giantSession.user.id;
+  if (!sb || !me) return { ok: false, why: 'signed out' };
+  const where = (document.querySelector('.screen.on') || {}).dataset || {};
+  const context = [
+    'Screen: ' + (where.screen || 'unknown'),
+    'URL: ' + location.href,
+    'When: ' + new Date().toISOString(),
+    'Browser: ' + navigator.userAgent,
+    detail.action ? 'Doing: ' + detail.action : '',
+    '', 'Technical detail:', detail.technical || detail.text || '(none captured)',
+  ].filter(Boolean).join('\n');
+  const title = ('Error: ' + (detail.text || 'Unknown error')).slice(0, 140);
+  const { data: row, error } = await sb.from('reports').insert({
+    type: 'bug', title, description: context, reporter_id: me,
+    page_context: where.screen || null, status: 'open', priority: 'medium',
+  }).select('id, work_order').single();
+  if (error) return { ok: false, why: error.message };
+
+  // Best effort: the report is the record that matters, so a channel that cannot be
+  // posted to must not make the person think nothing was filed.
+  try {
+    const { data: ch } = await sb.from('channels').select('id').eq('name', 'giant-app').limit(1).maybeSingle();
+    const who = (window.giantCurrentProfile && (window.giantCurrentProfile.full_name
+      || window.giantCurrentProfile.email)) || 'Someone';
+    if (ch && ch.id) {
+      const ref = row && row.work_order ? ' (#' + row.work_order + ')' : '';
+      await sb.from('messages').insert({
+        channel_id: ch.id, author_id: me, flagged: true,
+        body: '@Nishchay bug reported by ' + who + ref + '\n\n' + (detail.text || '')
+              + '\n\nOn: ' + (where.screen || 'unknown') + '\n`' + (detail.technical || '') + '`',
+      });
+    }
+  } catch (_) {}
+  return { ok: true, id: row && row.id, ref: row && row.work_order };
+}
+window.giantFriendlyError = giantFriendlyError;
+window.giantReportError = giantReportError;
+
 function toast(opts){
   const host=document.getElementById('toastHost');
   if(!host)return;
@@ -11833,11 +11935,24 @@ function toast(opts){
   const type=opts.type||'info';
   const t=document.createElement('div');
   t.className='toast '+type;
+  // Every error in the app comes through here, so this is where it stops being a database
+  // sentence and starts being something a person can act on -- and where they are offered a
+  // way to send it to us instead of screenshotting it.
+  let shown = opts.message || '';
+  let technical = '';
+  if (type === 'error' && !opts.raw) {
+    const f = giantFriendlyError(shown);
+    shown = f.text; technical = f.technical;
+  }
+  const reportBtn = (type === 'error' && opts.report !== false)
+    ? '<button class="toast-action" data-report>Report</button>' : '';
   const undoBtn=opts.undo?'<button class="toast-action" data-undo>Undo</button>':'';
-  t.innerHTML='<div class="toast-ico">'+ToastIcons[type]+'</div><div class="toast-body">'+(opts.message||'')+'</div>'+undoBtn+'<span class="toast-close" data-close><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span><div class="toast-progress"></div>';
+  t.innerHTML='<div class="toast-ico">'+ToastIcons[type]+'</div><div class="toast-body">'+shown+'</div>'+reportBtn+undoBtn+'<span class="toast-close" data-close><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span><div class="toast-progress"></div>';
   host.appendChild(t);
   requestAnimationFrame(()=>t.classList.add('show'));
-  const duration=opts.duration||4000;
+  // An error worth reporting is worth reading first: four seconds is not enough to find
+  // the button, let alone decide to press it.
+  const duration=opts.duration||(type==='error'?12000:4000);
   let dismissed=false;
   function dismiss(){
     if(dismissed)return;
@@ -11854,8 +11969,48 @@ function toast(opts){
       dismiss();
     });
   }
+  const rb = t.querySelector('[data-report]');
+  if (rb) rb.addEventListener('click', async () => {
+    clearTimeout(timer);
+    rb.disabled = true; rb.textContent = 'Sending…';
+    const res = await giantReportError({ text: shown, technical: technical || opts.message,
+                                         action: opts.action || '' });
+    if (res && res.ok) {
+      rb.textContent = 'Sent';
+      t.querySelector('.toast-body').textContent =
+        'Thanks — sent to the dev team' + (res.ref ? ' as #' + res.ref : '') + '. You can carry on.';
+      setTimeout(dismiss, 3500);
+    } else {
+      rb.disabled = false; rb.textContent = 'Report';
+      t.querySelector('.toast-body').textContent =
+        'Could not send that report. It may be worth a screenshot instead.';
+      setTimeout(dismiss, 5000);
+    }
+  });
   return {dismiss};
 }
+
+/* Nothing caught these before: a thrown error showed up in the console and, as far as the
+   person was concerned, the button simply did nothing. */
+(function catchTheRest(){
+  let last = 0;
+  const surface = (msg, action) => {
+    // One toast per few seconds: a loop that throws must not bury the screen.
+    if (Date.now() - last < 4000) return;
+    last = Date.now();
+    if (typeof toast !== 'function') return;
+    toast({ type: 'error', duration: 12000, action,
+            message: 'Something went wrong on this screen: ' + String(msg || '').slice(0, 180) });
+  };
+  window.addEventListener('error', (e) => {
+    if (e && e.target && e.target !== window) return;   // a failed image is not this
+    surface((e && e.message) || 'unknown error', 'an unexpected failure');
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    const r = e && e.reason;
+    surface((r && (r.message || r)) || 'unknown error', 'an unfinished background task');
+  });
+})();
 
 /* ============== RIPPLE EFFECT ============== */
 document.addEventListener('mousedown',e=>{
