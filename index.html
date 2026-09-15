@@ -6677,6 +6677,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         <div class="nav-pill" id="pillBusiness" style="opacity:0;"></div>
         <div class="nav-item" data-screen="finance" data-role-min="owner" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5v13M11.5 4H6.2a2 2 0 100 4h3.6a2 2 0 110 4H4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>Finance</div>
         <div class="nav-item" data-screen="teampay" data-label="Team Pay" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.4"/><path d="M8 4.5v7M10.3 6.3c0-1-1-1.6-2.3-1.6-1.4 0-2.4.7-2.4 1.7 0 2.3 4.7 1.1 4.7 3.4 0 1-1 1.7-2.4 1.7-1.3 0-2.3-.6-2.3-1.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>Team Pay</div>
+        <div class="nav-item" data-screen="pods" data-label="Pod System" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><circle cx="5" cy="5" r="2.2" stroke="currentColor" stroke-width="1.4"/><circle cx="11" cy="5" r="2.2" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="11" r="2.2" stroke="currentColor" stroke-width="1.4"/><path d="M6.6 6.6 7.4 9M9.4 6.6 8.6 9M7.2 5h1.6" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>Pod System</div>
         <!-- Superseded by White Label 2.0 — hidden, not removed (code stays in case it's ever needed). -->
         <div class="nav-item" data-screen="whitelabel" data-label="White Label" data-role-min="manager" data-client-hidden style="display:none;"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><rect x="1.8" y="2.5" width="12.4" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M1.8 6h12.4" stroke="currentColor" stroke-width="1.4"/><circle cx="4.3" cy="4.2" r=".55" fill="currentColor"/><circle cx="6.1" cy="4.2" r=".55" fill="currentColor"/></svg></span>White Label</div>
         <!-- Relabeled from "White Label 2.0" — v1 is hidden above, so this is just "White Label" now. -->
@@ -10140,6 +10141,129 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               <button id="evTypeDeleteBtn" style="background:transparent;border:none;color:var(--red);font-size:11.5px;cursor:pointer;padding:6px;margin-right:auto;display:none;">Delete event type</button>
               <button class="m-submit btn-red" id="evTypeSaveBtn">Save</button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- The Pod System. Everyone on the team can open it; what they get is not the same
+           screen. A manager, owner or in-house dev sees the board: pods, MRR, margin and
+           per-person pay. Everybody else sees the accounts they hold and what those
+           accounts pay them, and the rest is never sent to their browser rather than
+           hidden in it -- hiding a column is not the same as not sending the number.
+           Clients see none of it, which is what data-client-hidden is for. -->
+      <div class="screen fullbleed" data-screen="pods" data-role-min="manager" data-client-hidden>
+        <!-- The design is dark and self-contained, with its own palette and type scale, so
+             it is reproduced literally here rather than mapped onto the app's tokens: the
+             point of matching a design is matching it. Every value below is the one in
+             screenshots/Pod board rates and capacity/Pod System.dc.html. -->
+        <style>
+        #pods_root{--p-bg:#0b0b0c;--p-card:#141416;--p-line:#1d1d21;--p-line2:#2c2c31;
+          --p-sunk:#1c1c20;--p-raise:#222226;--p-fg:#f2f2f2;--p-fg2:#c9c9cf;--p-mut:#8a8a92;
+          --p-dim:#5a5a62;--p-red:#e8232a;--p-redsoft:#ff8a8a;--p-green:#34c77b;--p-amber:#f0b429;
+          --p-blue:#6fb1ff;--p-purple:#cf9de8;
+          background:var(--p-bg);color:var(--p-fg);
+          font-family:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;}
+        #pods_root h1{font-size:32px;font-weight:700;letter-spacing:-0.02em;margin:0;color:var(--p-fg);}
+        #pods_root .p-sub{color:var(--p-mut);font-size:14px;margin-top:4px;}
+        #pods_root .p-sub b{color:var(--p-fg);font-weight:600;}
+        #pods_root .p-card{background:var(--p-card);border:1px solid var(--p-line);border-radius:16px;padding:20px 22px;}
+        #pods_root .p-tab{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;
+          padding:9px 16px;border-radius:99px;cursor:pointer;white-space:nowrap;
+          background:transparent;color:var(--p-mut);border:1px solid var(--p-line);
+          font-family:inherit;transition:border-color .12s ease,color .12s ease;}
+        #pods_root .p-tab:hover{border-color:var(--p-dim);color:var(--p-fg2);}
+        #pods_root .p-tab.on{background:var(--p-raise);color:var(--p-fg);border-color:var(--p-line2);}
+        #pods_root .p-tab .n{opacity:.5;font-weight:500;}
+        #pods_root .p-statlabel{font-size:11px;font-weight:700;letter-spacing:.14em;}
+        /* A field that reads as the text it replaces until you go near it. The board is a
+           document a manager reads far more often than edits, so an input on every line
+           would make it look like a form; but nothing here should need a developer to
+           change, so every line is one. */
+        #pods_root .p-inline{font-family:inherit;font-size:inherit;font-weight:inherit;
+          color:inherit;letter-spacing:inherit;line-height:inherit;background:transparent;
+          border:1px solid transparent;border-radius:7px;padding:3px 7px;margin:-3px -7px;
+          width:100%;box-sizing:border-box;transition:background .12s ease,border-color .12s ease;}
+        #pods_root .p-inline:hover{border-color:var(--p-line2);background:var(--p-sunk);}
+        #pods_root .p-inline:focus{border-color:var(--p-red);background:var(--p-sunk);outline:none;}
+        #pods_root textarea.p-inline{resize:vertical;min-height:58px;}
+        #pods_root .p-inline.num{text-align:right;font-variant-numeric:tabular-nums;}
+        /* The remove control on a row. Invisible until the row is hovered, because these
+           are configuration rows that are read constantly and deleted once a year. */
+        #pods_root .p-del{opacity:0;color:var(--p-dim);font-weight:700;cursor:pointer;
+          flex:none;padding:0 4px;transition:opacity .12s ease,color .12s ease;}
+        #pods_root .p-cfgrow:hover .p-del{opacity:1;}
+        #pods_root .p-del:hover{color:var(--p-red);}
+        #pods_root .p-add{font-size:12px;font-weight:700;color:var(--p-fg2);
+          border:1px solid var(--p-line2);border-radius:99px;padding:5px 12px;cursor:pointer;
+          display:inline-block;}
+        #pods_root .p-add:hover{border-color:var(--p-dim);color:var(--p-fg);}
+        #pods_root .p-statbig{font-size:44px;font-weight:700;letter-spacing:-0.03em;margin-top:6px;
+          line-height:1;font-variant-numeric:tabular-nums;}
+        #pods_root .p-ava{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;
+          justify-content:center;font-weight:700;font-size:12.5px;flex:none;}
+        #pods_root .p-cava{width:38px;height:38px;border-radius:11px;background:#20262e;color:#8fb4e8;
+          display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;
+          letter-spacing:.06em;flex:none;}
+        #pods_root .p-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;
+          padding:3px 9px;border-radius:99px;white-space:nowrap;}
+        #pods_root .p-btn{font-family:inherit;font-size:13px;font-weight:600;padding:9px 16px;
+          border-radius:99px;cursor:pointer;border:1px solid var(--p-line2);background:var(--p-sunk);color:var(--p-fg2);}
+        #pods_root .p-btn:hover{border-color:var(--p-dim);color:var(--p-fg);}
+        #pods_root .p-btn.primary{background:var(--p-red);border-color:var(--p-red);color:#fff;}
+        #pods_root .p-row{display:flex;align-items:center;gap:14px;padding:14px 16px;
+          background:var(--p-card);border:1px solid var(--p-line);border-radius:14px;}
+        #pods_root .p-seg{display:inline-flex;background:var(--p-sunk);border:1px solid var(--p-line2);
+          border-radius:99px;padding:3px;gap:2px;}
+        #pods_root .p-seg button{font-family:inherit;font-size:12px;font-weight:600;padding:6px 14px;
+          border-radius:99px;border:none;background:transparent;color:var(--p-mut);cursor:pointer;}
+        #pods_root .p-seg button.on{background:var(--p-raise);color:var(--p-fg);}
+        /* The design's own form CSS, which I had not ported — which is why the dropdowns
+           were native macOS controls sitting in a dark panel. Scoped to this screen and its
+           panel so no other form in the app changes. */
+        #pods_root select, .pods-editor select{
+          -webkit-appearance:none;appearance:none;cursor:pointer;
+          background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%236a6a72'/%3E%3C/svg%3E");
+          background-repeat:no-repeat;background-position:right 10px center;padding-right:26px;}
+        #pods_root select:hover, .pods-editor select:hover{border-color:#3a3a41;}
+        #pods_root select:focus, .pods-editor select:focus{outline:1px solid var(--p-red);}
+        /* A dropdown's own list is drawn by the OS, and it inherits none of the above --
+           without this the options are a white sheet over a black panel. */
+        #pods_root select option, .pods-editor select option{background:#1c1c20;color:#f2f2f2;}
+        /* Spinners on a money field are a target nobody wants to hit. */
+        #pods_root input[type=number]::-webkit-outer-spin-button,
+        #pods_root input[type=number]::-webkit-inner-spin-button,
+        .pods-editor input[type=number]::-webkit-outer-spin-button,
+        .pods-editor input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+        #pods_root input[type=number], .pods-editor input[type=number]{-moz-appearance:textfield;}
+        /* Otherwise the date picker renders its own light-mode calendar. */
+        #pods_root input[type=date], .pods-editor input[type=date]{color-scheme:dark;}
+        .pods-editor input:focus{outline:none;}
+        .pods-editor #pods_edName:focus{background:#1c1c20;}
+        .pods-editor [data-pods-drop]:hover{color:var(--p-red,#e8232a);}
+        .pods-editor #pods_edX:hover{background:#222226;color:#fff;}
+        .pods-editor [data-pods-addsvc]{transition:filter .12s ease;}
+        .pods-editor [data-pods-addsvc]:hover{filter:brightness(1.35);}
+        </style>
+        <div id="pods_root" style="height:100%;min-height:0;overflow:auto;padding:36px clamp(20px,4vw,48px) 72px;">
+          <div style="max-width:1100px;margin:0 auto;">
+            <div style="display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:16px;">
+              <div>
+                <div style="display:flex;align-items:center;gap:12px;">
+                  <div style="width:34px;height:34px;border-radius:9px;background:var(--p-red);color:#fff;
+                    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;flex:none;">R</div>
+                  <div style="font-size:13px;font-weight:700;letter-spacing:.22em;color:var(--p-mut);">REACHGIANT</div>
+                </div>
+                <h1 style="margin-top:14px;">The Pod System</h1>
+                <div class="p-sub" id="pods_subtitle"></div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;" id="pods_actions"></div>
+            </div>
+            <div id="pods_pods" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+              gap:12px;margin-top:24px;"></div>
+            <div id="pods_leader"></div>
+            <div id="pods_tabs" style="display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 20px;"></div>
+            <div id="pods_body"></div>
+            <div id="pods_loading" style="padding:40px;text-align:center;color:var(--p-dim);font-size:13px;">Loading the pod board…</div>
           </div>
         </div>
       </div>
@@ -83063,6 +83187,2812 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     })();
     })();
   }
+})();
+</script>
+
+<script>
+/* ── THE POD SYSTEM ───────────────────────────────────────────────────────────
+   Built from the design in screenshots/Pod board rates and capacity. Everything money is
+   derived, never stored twice: payroll is the sum of the rate for each live assignment, so
+   a person's pay is a consequence of the accounts they hold rather than a figure somebody
+   has to remember to update when an account moves. Scoped to #pods_root. */
+(function podSystemModule(){
+  const ROOT = () => document.getElementById('pods_root');
+  const $ = (id) => document.getElementById('pods_' + id);
+  const sb = () => window.giantSupabase;
+  const me = () => window.giantSession && window.giantSession.user && window.giantSession.user.id;
+  const esc = (x) => String(x == null ? '' : x)
+    .replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+
+  // The four services, in the design's order and the chat workspace's colours.
+  const SERVICES = [
+    { key: 'google_ads', label: 'Google Ads', short: 'Google', fg: '#6fb1ff', bg: '#16222f', bd: '#24405e' },
+    { key: 'meta_ads',   label: 'Meta Ads',   short: 'Meta',   fg: '#cf9de8', bg: '#221a28', bd: '#3a2c47' },
+    { key: 'seo',        label: 'SEO & AI Search', short: 'SEO', fg: '#34c77b', bg: '#14261d', bd: '#1f4733' },
+    { key: 'web',        label: 'Web & Design', short: 'Web',  fg: '#f0b429', bg: '#2a2415', bd: '#4a3d1a' },
+  ];
+  const svc = (k) => SERVICES.find(s => s.key === k) || SERVICES[0];
+  const HEALTH = { green: '#34c77b', amber: '#f0b429', red: '#e8232a' };
+  const TIERS = ['standard', 'growth', 'advanced'];
+  const cap = (x) => String(x || '').charAt(0).toUpperCase() + String(x || '').slice(1);
+
+  const P = { pods: [], clients: [], assignments: [], rates: [], people: {}, members: [],
+              settings: {}, tab: 'dash', period: 'mo', teamScope: null,
+              loading: false, loaded: false };
+  // Two boards, one screen. A manager sees the pods, the payroll and the margin; everybody
+  // else sees the accounts they hold, what those accounts pay them, and nothing about
+  // anyone else. The difference is enforced in the database -- what follows only decides
+  // what to ask for and what to draw.
+  const isMgr = () => ['owner', 'manager', 'inhouse_dev']
+    .includes((window.giantCurrentProfile || {}).role);
+  window.podState = P;   // so a check can read the state rather than guess at the DOM
+
+  const money = (cents) => (cents < 0 ? '-$' : '$') + Math.abs(Math.round(cents / 100)).toLocaleString('en-US');
+  // Monthly is what the rates are quoted in; weekly is the same money said differently.
+  const per = (cents) => P.period === 'wk' ? Math.round(cents * 12 / 52) : cents;
+  const perSfx = () => P.period === 'wk' ? '/wk' : '/mo';
+
+  function rateFor(a){
+    const r = P.rates.find(x => x.service === a.service
+      && (x.tier || '') === (a.tier || '') && !!x.is_internal === !!a.is_internal);
+    return r ? r.amount_cents : 0;
+  }
+  const live = () => P.assignments.filter(a => !a.ended_at);
+  // Our own properties rather than clients: no MRR, no onboarding, no client channel. They
+  // are assignments all the same, so they are paid by the same sum and need no special case
+  // anywhere that counts money.
+  const internalWork = () => live().filter(a => a.label);
+  const clientWork = () => live().filter(a => a.client_id);
+  const payFor = (profileId) => live().filter(a => a.specialist_id === profileId)
+    .reduce((n, a) => n + rateFor(a), 0);
+  // A base is stored weekly; an hourly base is a weekly figure once the hours are applied.
+  // Everything below returns MONTHLY cents, so one conversion happens in one place.
+  function baseMonthly(profileId){
+    const t = (P.pay || []).find(x => x.profile_id === profileId);
+    if (!t) return 0;
+    const weekly = t.base_type === 'hourly'
+      ? Number(t.base_amount || 0) * Number(t.weekly_hours || 0)
+      : Number(t.base_amount || 0);
+    return Math.round(weekly * 52 / 12 * 100);
+  }
+  const deptOf = (profileId) => {
+    const t = (P.pay || []).find(x => x.profile_id === profileId);
+    const d = t && (P.depts || []).find(x => x.id === t.department_id);
+    return d ? d.name : '';
+  };
+  // What a person costs: what they are paid to be here, plus the accounts they hold.
+  const totalFor = (profileId) => baseMonthly(profileId) + payFor(profileId);
+  // Payroll is everyone with a base or an account, so the Pod Leader -- who holds no
+  // accounts at all -- is not silently free.
+  const payrollPeople = () => [...new Set([
+    ...(P.pay || []).map(x => x.profile_id),
+    ...live().map(a => a.specialist_id).filter(Boolean)])];
+  const totalPay = () => payrollPeople().reduce((n, id) => n + totalFor(id), 0);
+  const accountsPay = () => live().reduce((n, a) => n + rateFor(a), 0);
+  // MRR counts a client once, however many services they take -- a client is one
+  // relationship, which is the whole basis of the pod cap.
+  // In a pod that actually exists: a deleted pod must not leave phantom members counting
+  // toward capacity and MRR forever.
+  const podClients = () => P.clients.filter(c => c.pod_id && P.pods.some(p => p.id === c.pod_id));
+  const podClientsIn = (podId) => P.clients.filter(c => c.pod_id === podId);
+  const podOf = (c) => P.pods.find(p => p.id === c.pod_id) || null;
+  // Capacity is per pod, so each column counts its own.
+  const podIsFull = (pod) => pod && podClientsIn(pod.id).length >= (pod.max_clients || 20);
+  const totalMRR = () => podClients().reduce((n, c) => n + (c.mrr_cents || 0), 0);
+
+  // What a specialist's board asks for. Deliberately a different set of queries rather
+  // than the manager's set with columns dropped afterwards: a column that is never sent
+  // cannot be read out of the network tab, and the point of this view is that the money
+  // that is not theirs never reaches the browser.
+  async function loadMine(){
+    const uid = me();
+    const [podsR, cliR, asgR, rateR, payR, deptR, teamR, chR, setR, memR] = await Promise.all([
+      sb().from('pods').select('id, name, leader_id, max_clients, status, position').order('position'),
+      // No mrr_cents, no pay_day, no pay_cadence, no onboarding: none of it is theirs.
+      sb().from('clients').select('id, name, status, avatar_bg, avatar_fg, pod_id, health, started_at')
+        .order('name'),
+      // RLS returns only their own rows; asking for only their own says so out loud.
+      sb().from('pod_assignments')
+        .select('id, client_id, label, service, tier, specialist_id, is_internal, started_at, ended_at')
+        .eq('specialist_id', uid),
+      sb().from('pod_rates').select('id, service, tier, is_internal, amount_cents, note'),
+      // Their own pay row and nobody else's -- it is where their department comes from,
+      // and the department is what sets their capacity.
+      sb().from('team_pay').select('profile_id, department_id, base_type, base_amount, weekly_hours')
+        .eq('profile_id', uid),
+      sb().from('pay_departments').select('id, name, color, ideal_accounts, max_accounts, cap_label'),
+      sb().from('profiles').select('id, full_name, email, avatar_bg, avatar_fg, role')
+        .neq('role', 'client').is('deactivated_at', null).order('full_name'),
+      sb().from('channels').select('id, name, client_id, department').eq('kind', 'client_dept'),
+      sb().from('pod_settings').select('key, value'),
+      sb().from('pod_members').select('pod_id, profile_id'),
+    ]);
+    P.loading = false;
+    P.notDeployed = [podsR, asgR, rateR].some(r => r.error
+      && (r.error.code === 'PGRST205' || /could not find the table/i.test(r.error.message || '')));
+    P.pods = podsR.data || [];
+    P.clients = cliR.data || [];
+    P.assignments = asgR.data || [];
+    P.rates = rateR.data || [];
+    P.pay = payR.data || [];
+    P.depts = deptR.data || [];
+    P.channels = chR.data || [];
+    // The words and the growth plan. Absent until the config migration is applied, which is
+    // why every reader below falls back to what the page used to say rather than to nothing.
+    P.settings = {};
+    (setR.data || []).forEach(r => { P.settings[r.key] = r.value; });
+    P.members = memR.data || [];
+    P.roster = (teamR.data || []).filter(x => (x.email || '') !== 'bot@reachgiant.com');
+    P.roster.forEach(x => { P.people[x.id] = x; });
+    if (P.tab === 'dash' || P.tab.startsWith('p:') || P.tab === 'team' || P.tab === 'all') P.tab = 'mine';
+    P.loaded = true;
+    render();
+  }
+
+  async function load(){
+    if (P.loading) return;
+    P.loading = true;
+    if (!isMgr()) { await loadMine(); return; }
+    const [podsR, cliR, asgR, rateR, payR, deptR, teamR, chR, setR, memR] = await Promise.all([
+      sb().from('pods').select('id, name, leader_id, max_clients, opens_at, status, position').order('position'),
+      // Every client the Clients module holds, churned included: the board is where a
+      // client gets put into a pod, so filtering the list is filtering out the ones that
+      // most need assigning.
+      sb().from('clients').select('id, name, status, mrr_cents, avatar_bg, avatar_fg, pod_id, health, pay_day, pay_cadence, started_at, onboarding_token, onboarding_sent_at, onboarding_submitted_at, reviewed_at')
+        .order('name'),
+      sb().from('pod_assignments').select('id, client_id, label, service, tier, specialist_id, is_internal, started_at, ended_at'),
+      sb().from('pod_rates').select('id, service, tier, is_internal, amount_cents, note'),
+      // Real compensation, from the Team Pay module rather than invented: everyone is on a
+      // fixed weekly figure except Carel, who is hourly. Bases are weekly and the rate card
+      // is monthly, which is exactly why the design has a Monthly/Weekly switch.
+      sb().from('team_pay').select('profile_id, department_id, base_type, base_amount, weekly_hours'),
+      sb().from('pay_departments').select('id, name, color, ideal_accounts, max_accounts, cap_label'),
+      // Everyone on the team, not only those already earning: someone with no pay set and
+      // no accounts is exactly who a manager needs to see on this board.
+      sb().from('profiles').select('id, full_name, email, avatar_bg, avatar_fg, role')
+        .neq('role', 'client').is('deactivated_at', null).order('full_name'),
+      // Which client conversations already exist, so the panel can offer to open the ones
+      // that do not rather than making a second of one that does.
+      sb().from('channels').select('id, name, client_id, department').eq('kind', 'client_dept'),
+      sb().from('pod_settings').select('key, value'),
+      sb().from('pod_members').select('pod_id, profile_id'),
+    ]);
+    P.loading = false;
+    // The tables ship in a migration; between writing one and applying it PostgREST answers
+    // PGRST205, and a board that throws is worse than a board that says it is not set up.
+    const missing = [podsR, asgR, rateR].some(r => r.error
+      && (r.error.code === 'PGRST205' || /could not find the table/i.test(r.error.message || '')));
+    P.notDeployed = missing;
+    P.pods = podsR.data || [];
+    P.clients = cliR.data || [];
+    P.assignments = asgR.data || [];
+    P.rates = rateR.data || [];
+    P.pay = payR.data || [];
+    P.depts = deptR.data || [];
+    // The bot is an account, not a colleague.
+    P.channels = chR.data || [];
+    // The words and the growth plan. Absent until the config migration is applied, which is
+    // why every reader below falls back to what the page used to say rather than to nothing.
+    P.settings = {};
+    (setR.data || []).forEach(r => { P.settings[r.key] = r.value; });
+    P.members = memR.data || [];
+    P.roster = (teamR.data || []).filter(x => (x.email || '') !== 'bot@reachgiant.com');
+    P.roster.forEach(x => { P.people[x.id] = x; });
+    const ids = [...new Set([...P.assignments.map(a => a.specialist_id),
+                             ...P.pods.map(p => p.leader_id),
+                             ...P.pay.map(x => x.profile_id)].filter(Boolean))];
+    if (ids.length) {
+      const { data } = await sb().from('profiles')
+        .select('id, full_name, email, avatar_bg, avatar_fg, role').in('id', ids);
+      (data || []).forEach(p => { P.people[p.id] = p; });
+    }
+    P.loaded = true;
+    render();
+  }
+  const personName = (id) => {
+    const p = P.people[id];
+    return p ? (p.full_name || p.email || 'Someone') : 'Unassigned';
+  };
+
+  function render(){
+    const body = $('body'), tabs = $('tabs'), loading = $('loading');
+    if (!body) return;
+    if (loading) loading.style.display = P.loaded ? 'none' : '';
+    if (!P.loaded) return;
+    if (P.notDeployed) {
+      if (tabs) tabs.innerHTML = '';
+      body.innerHTML = '<div style="padding:44px;text-align:center;color:var(--text-3);font-size:13px;">'
+        + 'The Pod System has not been set up on this workspace yet.<br>'
+        + '<span style="font-size:12px;color:var(--text-4);">A developer needs to apply the pod tables.</span></div>';
+      return;
+    }
+    // Read-only views for the checks: the accounts figure and the payroll total are two
+    // different things now, and telling them apart from rendered text is guesswork.
+    P.__accountsPay = accountsPay();
+    P.__totalPay = totalPay();
+    if (!isMgr()) return renderMineBoard();
+    renderActions();
+    renderPodColumns();
+    renderLeader();
+    renderTabs();
+    renderSubtitle();
+    if (P.tab === 'dash') return renderDashboard();
+    if (P.tab === 'rates') return renderRates();
+    if (P.tab === 'team') return renderTeam();
+    if (P.tab === 'how') return renderHow();
+    return renderClients();
+  }
+
+  // ── a specialist's own board ────────────────────────────────────────────────
+  // The same screen, answering the question a specialist actually has: which accounts are
+  // mine, am I at capacity, and what do they pay me. No MRR, no margin, no payroll, no
+  // payment dates, nobody else's accounts and nobody else's pay -- none of which is loaded
+  // in the first place, so there is nothing here to peel back.
+  function renderMineBoard(){
+    const uid = me();
+    ['actions', 'pods', 'leader'].forEach(k => { const el = $(k); if (el) el.innerHTML = ''; });
+    const sub = $('subtitle');
+    const mineAll = live().filter(a => a.specialist_id === uid);
+    const myClients = P.clients.filter(c => mineAll.some(a => a.client_id === c.id));
+    // Their pod is the one their accounts are in, not one they are a member of: a person
+    // can hold work in more than one, and the board should say so rather than pick.
+    const myPods = P.pods.filter(p => myClients.some(c => c.pod_id === p.id));
+    if (sub) {
+      sub.innerHTML = '<b>' + mineAll.length + '</b> account' + (mineAll.length === 1 ? '' : 's')
+        + (myPods.length
+            ? ' · ' + myPods.map(p => esc(p.name)).join(' & ')
+              + (myPods.length === 1 && myPods[0].leader_id
+                  ? ' · led by <b>' + esc(personName(myPods[0].leader_id)) + '</b>' : '')
+            : ' · not in a pod yet');
+    }
+    const defs = [{ key: 'mine', label: 'My accounts', count: myClients.length },
+                  { key: 'rates', label: 'Rates', count: '' },
+                  { key: 'how', label: 'How it works', count: '' }];
+    if (!defs.some(d => d.key === P.tab)) P.tab = 'mine';
+    const tabs = $('tabs');
+    if (tabs) {
+      tabs.innerHTML = defs.map(d =>
+        '<button class="p-tab' + (P.tab === d.key ? ' on' : '') + '" data-pods-tab="' + d.key + '">'
+        + d.label + (d.count !== '' ? '<span class="n">' + d.count + '</span>' : '') + '</button>').join('')
+        + '<div style="margin-left:auto;display:flex;gap:8px;align-items:center;"><div class="p-seg">'
+        + ['mo', 'wk'].map(k => '<button data-pods-period="' + k + '"'
+            + (P.period === k ? ' class="on"' : '') + '>' + (k === 'mo' ? 'Monthly' : 'Weekly')
+            + '</button>').join('') + '</div></div>';
+      tabs.querySelectorAll('[data-pods-tab]').forEach(b =>
+        b.addEventListener('click', () => { P.tab = b.dataset.podsTab; render(); }));
+      tabs.querySelectorAll('[data-pods-period]').forEach(b =>
+        b.addEventListener('click', () => { P.period = b.dataset.podsPeriod; render(); }));
+    }
+    if (P.tab === 'rates') return renderRates();
+    if (P.tab === 'how') return renderHow(true);
+    return renderMine(myClients, mineAll);
+  }
+
+  function renderMine(myClients, mineAll){
+    const body = $('body');
+    const uid = me();
+    const dept = deptOf(uid);
+    const capr = capFor(uid);
+    // Only what the accounts pay. A base salary is a Team Pay matter and is not what this
+    // board is about; adding it here would make the figure change meaning by department.
+    const earn = mineAll.reduce((n, a) => n + rateFor(a), 0);
+    const headroom = capr && capr.max != null ? Math.max(0, capr.max - mineAll.length) : null;
+
+    const head = '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:16px;">'
+      + stat('MY ACCOUNTS', String(mineAll.length),
+             capText(capr) ? cap(capText(capr)) : (dept || 'No capacity set'))
+      + stat('FROM ACCOUNTS · ' + perSfx(), money(per(earn)),
+             'Active, assigned accounts only', 'var(--p-green)')
+      + stat('ROOM LEFT', headroom == null ? '—' : String(headroom),
+             headroom == null ? 'Your department has no cap set'
+               : headroom === 0 ? 'You are at your maximum' : 'Before you reach your maximum',
+             headroom === 0 ? 'var(--p-red)' : 'var(--p-mut)')
+      + '</div>';
+
+    if (!myClients.length && !mineAll.length) {
+      body.innerHTML = head + empty('No accounts yet.',
+        'Your Pod Leader assigns accounts to you. They will appear here when they do.');
+      return;
+    }
+
+    const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2)
+      .map(w => w.charAt(0).toUpperCase()).join('');
+    const rows = myClients.map(c => {
+      const mine = mineAll.filter(a => a.client_id === c.id);
+      const pays = mine.reduce((n, a) => n + rateFor(a), 0);
+      const since = c.started_at ? new Date(c.started_at) : null;
+      const sinceTxt = since && !isNaN(since)
+        ? 'since ' + since.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : '';
+      const h = c.health || 'green';
+      const pod = P.pods.find(p => p.id === c.pod_id);
+      return '<div class="p-row" style="margin-bottom:10px;">'
+        + '<span class="p-cava">' + esc(initials(c.name)) + '</span>'
+        + '<div style="flex:1;min-width:150px;">'
+        +   '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">'
+        +     '<span style="font-weight:700;font-size:14.5px;color:var(--p-fg);">' + esc(c.name) + '</span>'
+        +     '<span class="p-pill" style="background:' + (h === 'green' ? '#14261d' : h === 'amber' ? '#2a2415' : '#2a1517')
+        +     ';color:' + HEALTH[h] + ';border:1px solid ' + (h === 'green' ? '#1f4733' : h === 'amber' ? '#4a3d1a' : '#4a2226')
+        +     ';">' + h + '</span>'
+        +   '</div>'
+        +   '<div style="font-size:12.5px;color:var(--p-dim);margin-top:3px;">'
+        +   esc(cap(c.status || 'active')) + (sinceTxt ? ' · ' + esc(sinceTxt) : '')
+        +   (pod ? ' · ' + esc(pod.name) : '') + '</div>'
+        +   '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;">'
+        +   mine.map(a => { const sv = svc(a.service);
+              return '<span class="p-pill" style="background:' + sv.bg + ';color:' + sv.fg
+                + ';border:1px solid ' + sv.bd + ';">' + sv.short
+                + (a.tier ? ' · ' + cap(a.tier) : '') + '</span>'; }).join('')
+        +   '</div>'
+        + '</div>'
+        + '<div style="flex:none;text-align:right;">'
+        +   '<div style="font-size:17px;font-weight:700;color:var(--p-fg);font-variant-numeric:tabular-nums;">'
+        +   money(per(pays)) + '</div>'
+        +   '<div class="p-statlabel" style="color:var(--p-dim);margin-top:4px;">TO YOU</div>'
+        + '</div></div>';
+    }).join('');
+
+    // Their internal projects, on the same page and paid the same way.
+    const internal = mineAll.filter(a => a.label);
+    const each = (P.rates.find(r => r.service === 'seo' && r.is_internal) || {}).amount_cents || 0;
+    const intBlock = internal.length
+      ? '<div class="p-card" style="margin-top:14px;">'
+        + '<div class="p-statlabel" style="color:var(--p-mut);">INTERNAL · '
+        + esc(money(per(each))) + '/PROJECT</div>'
+        + '<div style="margin-top:12px;">' + internal.map(r =>
+            '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;'
+            + 'border-bottom:1px solid var(--p-line);">'
+            + '<span style="width:8px;height:8px;border-radius:50%;background:#34c77b;flex:none;"></span>'
+            + '<span style="flex:1;min-width:0;font-size:13px;color:var(--p-fg);">' + esc(r.label) + '</span>'
+            + '<span style="font-size:13px;font-weight:700;color:var(--p-fg);flex:none;'
+            + 'font-variant-numeric:tabular-nums;">' + money(per(each)) + '</span></div>').join('')
+        + '</div>'
+        + '<div style="font-size:11.5px;color:var(--p-dim);margin-top:10px;">'
+        + 'Our own properties, not clients — paid at the internal rate.</div></div>'
+      : '';
+
+    body.innerHTML = head + rows + intBlock
+      + '<div style="font-size:12px;color:var(--p-dim);margin-top:16px;line-height:1.7;">'
+      + 'Accounts are assigned by your Pod Leader. Pay applies to active, assigned accounts '
+      + 'and ends when an account is lost or reassigned.</div>';
+  }
+
+  // The design's stat tile: a small tracked-out coloured label over a 44px figure.
+  const stat = (label, value, sub, colour) =>
+    '<div class="p-card" style="flex:1;min-width:196px;">'
+    + '<div class="p-statlabel" style="color:' + (colour || 'var(--p-mut)') + ';">' + label + '</div>'
+    + '<div class="p-statbig">' + value + '</div>'
+    + (sub ? '<div style="font-size:12px;color:var(--p-dim);margin-top:8px;">' + sub + '</div>' : '')
+    + '</div>';
+
+  // The line under the title describes the whole board, so it is written on every render
+  // rather than by one tab: switching to Weekly while on The team left it saying /mo.
+  function renderSubtitle(){
+    const sub = $('subtitle');
+    if (!sub) return;
+    const payM = totalPay(), mrr = totalMRR();
+    // The two figures the checks read. Refreshed here rather than only in render(), because
+    // editing a rate deliberately does not redraw the page -- it would take the cursor out
+    // of the field mid-number -- and payroll has still changed.
+    P.__accountsPay = accountsPay();
+    P.__totalPay = payM;
+    const marginTxt = mrr > 0 ? Math.round(((mrr - payM) / mrr) * 100) + '%' : '—';
+    sub.innerHTML = 'Payroll <b>' + money(per(payM)) + '</b> ' + perSfx()
+      + ' · ' + live().length + ' paid accounts · MRR <b style="color:var(--p-green);">'
+      + money(per(mrr)) + '</b> · margin <b>' + marginTxt + '</b>';
+  }
+
+  function renderActions(){
+    const el = $('actions');
+    if (!el) return;
+    const pod = P.pods.find(p => p.status === 'active');
+    el.innerHTML = (pod
+        ? '<span data-pods-newpod style="border:1px solid #2c2c31;color:#c9c9cf;font-size:13px;'
+          + 'font-weight:600;padding:8px 16px;border-radius:10px;cursor:pointer;">+ New pod</span>'
+          + '<span data-pods-add style="background:var(--p-red);color:#fff;font-size:13px;font-weight:700;'
+          + 'padding:8px 18px;border-radius:10px;cursor:pointer;">+ Add client</span>'
+        : '<span data-pods-newpod style="background:var(--p-red);color:#fff;font-size:13px;font-weight:700;'
+          + 'padding:8px 18px;border-radius:10px;cursor:pointer;">Create the first pod</span>');
+    el.querySelectorAll('[data-pods-add]').forEach(b => b.addEventListener('click', () => openClient(null)));
+    el.querySelectorAll('[data-pods-newpod]').forEach(b => b.addEventListener('click', () => createPod()));
+  }
+
+  // POD 1 · ACTIVE, then the pods that have not opened yet. The design shows all three at
+  // once so the board says what happens next, not only what is true today.
+  const NEXT_PODS = [{ label: 'POD 2', at: 20, who: 'Account Manager #2' },
+                     { label: 'POD 3', at: 40, who: 'Account Manager #3' }];
+  function renderPodColumns(){
+    const el = $('pods');
+    if (!el) return;
+    const active = P.pods.filter(p => p.status === 'active');
+    const cards = active.map((pod, i) => {
+      const max = pod.max_clients || 20;
+      const n = podClientsIn(pod.id).length;
+      const pct = Math.min(100, Math.round((n / max) * 100));
+      const leader = pod.leader_id ? personName(pod.leader_id) : null;
+      return '<div style="background:var(--p-card);border:1px solid var(--p-red);border-radius:14px;padding:16px 18px;">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+        +   '<span style="font-size:11px;font-weight:700;letter-spacing:.12em;color:var(--p-red);">'
+        +   esc((pod.name || ('POD ' + (i + 1))).toUpperCase()) + ' · ACTIVE</span>'
+        +   '<span style="font-size:12px;color:var(--p-mut);">' + n + ' / ' + max + ' clients</span>'
+        + '</div>'
+        + '<div style="font-size:15px;font-weight:700;margin-top:8px;">'
+        + (leader ? esc(leader) + '<span style="color:var(--p-mut);font-weight:500;font-size:13px;"> · Pod Leader</span>'
+                  : '<span data-pods-setleader="' + esc(pod.id) + '" style="color:var(--p-mut);font-weight:500;'
+                    + 'font-size:13px;cursor:pointer;text-decoration:underline;">Choose a Pod Leader</span>')
+        + '</div>'
+        + '<div style="height:5px;background:var(--p-raise);border-radius:99px;overflow:hidden;margin-top:10px;">'
+        + '<div style="height:100%;width:' + pct + '%;background:var(--p-red);border-radius:99px;"></div></div>'
+        + '</div>';
+    });
+    // Only the pods still to come, so a workspace that already has two does not advertise
+    // opening the one it opened last month.
+    // The placeholder is the way to open the next pod. It was decoration before, which left
+    // no way at all to create a second pod once the first existed.
+    const lastFull = active.length && podIsFull(active[active.length - 1]);
+    NEXT_PODS.slice(Math.max(0, active.length - 1)).forEach((np, k) => {
+      const isNext = k === 0;
+      // Due now: the pod before it is full, which is exactly when the design says to open
+      // the next one and recruit its Account Manager.
+      const due = isNext && lastFull;
+      cards.push('<div ' + (isNext ? 'data-pods-openpod="' + esc(np.label) + '" ' : '')
+        + 'style="background:#101012;border:1px ' + (due ? 'solid var(--p-red)' : 'dashed var(--p-line2)')
+        + ';border-radius:14px;padding:16px 18px;' + (isNext ? 'cursor:pointer;' : '') + '">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;">'
+        +   '<span style="font-size:11px;font-weight:700;letter-spacing:.12em;color:'
+        +   (due ? 'var(--p-red)' : 'var(--p-dim)') + ';">' + np.label + '</span>'
+        +   '<span style="font-size:11px;font-weight:600;color:' + (due ? 'var(--p-red)' : 'var(--p-dim)')
+        +   ';border:1px solid ' + (due ? 'var(--p-red)' : 'var(--p-line2)')
+        +   ';border-radius:99px;padding:3px 9px;">'
+        +   (due ? 'READY TO OPEN' : 'OPENS AT ' + np.at + ' CLIENTS') + '</span>'
+        + '</div>'
+        + '<div style="font-size:14px;font-weight:600;margin-top:8px;color:var(--p-mut);">' + np.who + '</div>'
+        + (isNext ? '<div style="font-size:12px;color:' + (due ? 'var(--p-red)' : 'var(--p-dim)')
+            + ';margin-top:8px;">' + (due ? 'The pod before it is full — click to open ' + np.label
+                                          : 'Click to open ' + np.label + ' early') + '</div>' : '')
+        + '</div>');
+    });
+    el.innerHTML = cards.join('');
+    el.querySelectorAll('[data-pods-setleader]').forEach(b =>
+      b.addEventListener('click', (e) => { e.stopPropagation(); setLeader(b.dataset.podsSetleader); }));
+    el.querySelectorAll('[data-pods-openpod]').forEach(b =>
+      b.addEventListener('click', () => createPod(b.dataset.podsOpenpod
+        .replace(/^POD /, 'Pod ').replace(/\b(\w)(\w*)/g, (m2, a2, b2) => a2 + b2.toLowerCase()))));
+  }
+
+  async function setLeader(podId){
+    const roster = await peopleList();
+    const chosen = await podAsk({ title: 'Who leads this pod?',
+      sub: 'The Pod Leader owns every client relationship in it.',
+      // personChipFor lives in the Projects module, not this one -- referencing it threw a
+      // ReferenceError the moment the picker opened. This module has its own avatar.
+      options: roster.map(pp => ({ value: pp.id, label: pp.full_name || pp.email,
+        note: deptOf(pp.id) || '', avatar: avatarOf(pp) })) });
+    if (!chosen) return;
+    const { error } = await sb().from('pods').update({ leader_id: chosen }).eq('id', podId);
+    if (error) { if (window.toast) toast({ type:'error', message:'Could not set that leader: ' + error.message }); return; }
+    // Leading a pod is being in it. Without this the leader is the one person missing from
+    // their own team, which is how the backfill had to treat them too.
+    await sb().from('pod_members')
+      .upsert({ pod_id: podId, profile_id: chosen, added_by: me() },
+              { onConflict: 'pod_id,profile_id' });
+    await load();
+  }
+
+  // The Pod Leader owns every client relationship, so the design gives them a band of their
+  // own above the tabs rather than a row among the specialists.
+  function renderLeader(){
+    const el = $('leader');
+    if (!el) return;
+    const pod = P.pods.find(p => p.status === 'active');
+    if (!pod || !pod.leader_id) { el.innerHTML = ''; return; }
+    const id = pod.leader_id, nm = personName(id);
+    el.innerHTML = '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:16px;'
+      + 'background:linear-gradient(90deg,#241114,#141416 70%);border:1px solid #3a2226;'
+      + 'border-radius:14px;padding:16px 20px;margin-top:16px;">'
+      + '<div style="width:44px;height:44px;border-radius:50%;background:var(--p-red);color:#fff;display:flex;'
+      + 'align-items:center;justify-content:center;font-weight:700;font-size:16px;flex:none;">'
+      + esc(nm.trim().charAt(0).toUpperCase()) + '</div>'
+      + '<div style="flex:1;min-width:200px;">'
+      +   '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+      +     '<span style="font-size:16px;font-weight:700;">' + esc(nm) + '</span>'
+      +     '<span style="background:var(--p-red);color:#fff;font-size:10.5px;font-weight:700;letter-spacing:.1em;'
+      +     'padding:4px 10px;border-radius:99px;">POD LEADER</span>'
+      +   '</div>'
+      +   '<div style="color:var(--p-fg2);font-size:13px;margin-top:3px;">Owns every client relationship</div>'
+      + '</div>'
+      + '<div style="text-align:right;flex:none;">'
+      +   '<div style="font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;">'
+      +   money(per(totalFor(id))) + '</div>'
+      +   '<div style="font-size:11.5px;color:var(--p-dim);">' + perSfx() + '</div>'
+      + '</div></div>';
+  }
+
+  function renderTabs(){
+    const el = $('tabs');
+    if (!el) return;
+    const ids = payrollPeople();
+    const dotFor = (id) => {
+      const d = (deptOf(id) || '').toUpperCase();
+      if (d.includes('PAID ADS')) return 'var(--p-blue)';
+      if (d.includes('PRODUCTION')) return 'var(--p-green)';
+      if (d.includes('MANAGER')) return 'var(--p-red)';
+      return 'var(--p-purple)';
+    };
+    const people = ids
+      .map(id => ({ key: 'p:' + id, label: shortName(id), dot: dotFor(id),
+                    count: live().filter(a => a.specialist_id === id).length }))
+      .sort((a, b) => b.count - a.count);
+    const defs = [{ key: 'dash', label: 'Dashboard', count: '', dot: 'var(--p-red)' },
+                  { key: 'all', label: 'All clients', count: P.clients.length, dot: null },
+                  ...people,
+                  { key: 'team', label: 'The team', count: (P.roster || []).length, dot: null },
+                  { key: 'rates', label: 'Rates', count: '', dot: null },
+                  { key: 'how', label: 'How it works', count: '', dot: null }];
+    el.innerHTML = defs.map(d =>
+      '<button class="p-tab' + (P.tab === d.key ? ' on' : '') + '" data-pods-tab="' + esc(d.key) + '">'
+      + (d.dot ? '<span style="width:8px;height:8px;border-radius:50%;background:' + d.dot + ';"></span>' : '')
+      + esc(d.label)
+      + (d.count !== '' ? '<span class="n">' + d.count + '</span>' : '') + '</button>').join('')
+      + '<div style="margin-left:auto;display:flex;gap:8px;align-items:center;">'
+      + '<div class="p-seg">'
+      + ['mo', 'wk'].map(k => '<button data-pods-period="' + k + '"'
+          + (P.period === k ? ' class="on"' : '') + '>' + (k === 'mo' ? 'Monthly' : 'Weekly') + '</button>').join('')
+      + '</div></div>';
+    el.querySelectorAll('[data-pods-tab]').forEach(b =>
+      b.addEventListener('click', () => { P.tab = b.dataset.podsTab; render(); }));
+    el.querySelectorAll('[data-pods-period]').forEach(b =>
+      b.addEventListener('click', () => { P.period = b.dataset.podsPeriod; render(); }));
+  }
+
+  function renderDashboard(){
+    const body = $('body');
+    const payM = totalPay(), mrr = totalMRR();
+    const marginTxt = mrr > 0 ? Math.round(((mrr - payM) / mrr) * 100) + '%' : '—';
+    const cl = podClients();
+    const active = P.pods.filter(p => p.status === 'active');
+    const pod = active[0] || null;
+    const podMax = active.reduce((n2, p2) => n2 + (p2.max_clients || 20), 0) || 20;
+    const health = { green: 0, amber: 0, red: 0 };
+    cl.forEach(c => { const h = c.health || 'green'; health[h] = (health[h] || 0) + 1; });
+
+    const ids = payrollPeople()
+      .map(id => ({ id, total: totalFor(id), base: baseMonthly(id), acc: payFor(id),
+                    n: live().filter(a => a.specialist_id === id).length }))
+      .sort((a, b) => b.total - a.total);
+    const grand = payM || 1;
+
+    const warn = capacityWarnings();
+    body.innerHTML =
+      (warn.length ? '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px;">'
+        + warn.map(x => '<div style="display:flex;align-items:center;gap:10px;background:' + x.bg
+            + ';border:1px solid ' + x.bd + ';border-radius:12px;padding:11px 14px;">'
+            + '<span style="width:7px;height:7px;border-radius:50%;background:' + x.colour + ';flex:none;"></span>'
+            + '<span style="font-size:12.5px;color:var(--p-fg2);line-height:1.5;">' + x.text + '</span></div>').join('')
+        + '</div>' : '')
+      + '<div style="display:flex;gap:14px;flex-wrap:wrap;">'
+      +   stat('PAYROLL DUE · ' + perSfx(), money(per(payM)),
+              live().length + ' paid accounts · ' + ids.length + ' on the team', 'var(--p-redsoft)')
+      +   stat('MRR', money(per(mrr)), cl.length + ' clients in the pod', 'var(--p-blue)')
+      +   stat('MARGIN', marginTxt,
+              mrr > 0 ? money(per(mrr - payM)) + ' left after pay' : 'set client MRR to see this', 'var(--p-green)')
+      +   stat('CLIENTS', cl.length + ' <span style="font-size:22px;color:var(--p-dim);">/ ' + podMax + '</span>',
+              active.length > 1 ? 'across ' + active.length + ' pods'
+                : (pod ? esc(pod.name) : 'no pod yet'), 'var(--p-mut)')
+      + '</div>'
+      + '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;">'
+      +   '<div class="p-card" style="flex:1;min-width:260px;">'
+      +     '<div class="p-statlabel" style="color:var(--p-mut);">HEALTH</div>'
+      +     '<div style="display:flex;gap:26px;margin-top:14px;">'
+      +     [['green', health.green], ['amber', health.amber || 0], ['red', health.red || 0]].map(([k, n]) =>
+            '<div><div style="font-size:28px;font-weight:700;line-height:1;color:' + HEALTH[k] + ';">' + n + '</div>'
+            + '<div style="font-size:12px;color:var(--p-dim);margin-top:5px;">' + k + '</div></div>').join('')
+      +     '</div></div>'
+      +   '<div class="p-card" style="flex:2;min-width:300px;">'
+      +     '<div class="p-statlabel" style="color:var(--p-mut);">PAYROLL SPLIT</div>'
+      +     '<div style="margin-top:14px;">'
+      +     (ids.length ? ids.map(x =>
+            '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;">'
+            + '<span style="flex:1;min-width:0;font-size:13px;color:var(--p-fg2);overflow:hidden;'
+            + 'text-overflow:ellipsis;white-space:nowrap;">' + esc(personName(x.id)) + '</span>'
+            + '<span style="width:120px;height:6px;border-radius:99px;background:var(--p-sunk);flex:none;">'
+            + '<span style="display:block;height:100%;border-radius:99px;background:var(--p-red);width:'
+            + Math.round((x.total / grand) * 100) + '%;"></span></span>'
+            + '<span style="font-size:12px;color:var(--p-mut);width:42px;text-align:right;flex:none;">'
+            + Math.round((x.total / grand) * 100) + '%</span></div>').join('')
+            : '<div style="font-size:13px;color:var(--p-dim);">Nobody on payroll yet.</div>')
+      +     '</div></div>'
+      + '</div>'
+      + '<div style="display:flex;align-items:center;gap:10px;margin:26px 0 12px;">'
+      +   '<div class="p-statlabel" style="color:var(--p-mut);">WHO IS PAID WHAT</div></div>'
+      + (ids.length ? ids.map(x =>
+          '<div class="p-row" data-pods-person="' + esc(x.id) + '" style="margin-bottom:10px;cursor:pointer;">'
+          + avatar(x.id)
+          + '<div style="flex:1;min-width:0;">'
+          +   '<div style="font-weight:700;font-size:14.5px;color:var(--p-fg);">' + esc(personName(x.id)) + '</div>'
+          +   '<div style="font-size:12.5px;color:var(--p-dim);margin-top:2px;">'
+          +   (deptOf(x.id) ? esc(deptOf(x.id)) + ' · ' : '')
+          +   x.n + ' account' + (x.n === 1 ? '' : 's')
+          +   ' · ' + Math.round((x.total / grand) * 100) + '% of payroll</div>'
+          + '</div>'
+          + '<div style="text-align:right;flex:none;">'
+          +   '<div style="font-size:17px;font-weight:700;color:var(--p-fg);font-variant-numeric:tabular-nums;">'
+          +   money(per(x.total)) + '</div>'
+          +   '<div style="font-size:11.5px;color:var(--p-dim);margin-top:2px;">'
+          +   (x.base ? money(per(x.base)) + ' base' : 'no base set')
+          +   (x.acc ? ' + ' + money(per(x.acc)) + ' accounts' : '') + '</div>'
+          + '</div></div>').join('')
+        : empty(pod ? 'Nobody is assigned to an account yet.' : 'There is no pod yet.',
+                pod ? 'Add a client, give one of its services to a specialist, and their pay appears here.'
+                    : 'A pod holds up to 20 clients under one Pod Leader. Create one to begin.'))
+      + '<div style="font-size:12px;color:var(--p-dim);margin-top:16px;line-height:1.6;">'
+      + 'Switch Monthly / Weekly above — every figure follows. Bases come from Team Pay and are stored '
+      + 'weekly; the rate card is per account, per month. Click a person to see their accounts.</div>';
+    wireCommon();
+  }
+
+  // Takes a profile row, for the places that have one already rather than an id.
+  const avatarOf = (pp) => {
+    const nm = pp.full_name || pp.email || '?';
+    return '<span style="width:28px;height:28px;border-radius:50%;flex:none;display:flex;'
+      + 'align-items:center;justify-content:center;font-size:11px;font-weight:800;background:'
+      + esc(pp.avatar_bg || 'var(--surface-2)') + ';color:' + esc(pp.avatar_fg || 'var(--text)') + ';">'
+      + esc(nm.trim().charAt(0).toUpperCase()) + '</span>';
+  };
+  const avatar = (id) => {
+    const p = P.people[id] || {};
+    const nm = personName(id);
+    return '<span style="width:30px;height:30px;border-radius:50%;flex-shrink:0;display:inline-flex;'
+      + 'align-items:center;justify-content:center;font-size:11px;font-weight:800;background:'
+      + esc(p.avatar_bg || 'var(--surface-2)') + ';color:' + esc(p.avatar_fg || 'var(--text)') + ';">'
+      + esc(nm.trim().charAt(0).toUpperCase()) + '</span>';
+  };
+  const empty = (title, sub) =>
+    '<div style="padding:36px;text-align:center;border:1px dashed var(--line);border-radius:12px;">'
+    + '<div style="font-size:13px;color:var(--text-2);">' + title + '</div>'
+    + '<div style="font-size:11.5px;color:var(--text-4);margin-top:5px;">' + sub + '</div></div>';
+
+  function renderClients(){
+    const body = $('body');
+    const onlyPerson = P.tab.startsWith('p:') ? P.tab.slice(2) : null;
+    // The All clients tab is every client the Clients module has, not only the ones already
+    // assigned: this board is where a client gets put into a pod, so hiding the unassigned
+    // ones hides exactly the work there is to do. A specialist's tab is still only theirs.
+    let rows = onlyPerson
+      ? podClients().filter(c => live().some(a => a.client_id === c.id && a.specialist_id === onlyPerson))
+      : P.clients.slice();
+    if (!onlyPerson) {
+      const inPod = new Set(podClients().map(c => c.id));
+      rows.sort((a, b) => (inPod.has(b.id) - inPod.has(a.id))
+        || String(a.name || '').localeCompare(String(b.name || '')));
+    }
+    const personHead = onlyPerson ? (() => {
+      const n2 = live().filter(a => a.specialist_id === onlyPerson).length;
+      const capr = capFor(onlyPerson);
+      return '<div class="p-card" style="margin-bottom:14px;display:flex;align-items:center;gap:14px;'
+        + 'flex-wrap:wrap;">' + avatar(onlyPerson)
+        + '<div style="flex:1;min-width:180px;">'
+        +   '<div style="font-size:15px;font-weight:700;color:var(--p-fg);">'
+        +   esc(personName(onlyPerson)) + '</div>'
+        +   '<div style="font-size:12.5px;color:var(--p-dim);margin-top:2px;">'
+        +   (deptOf(onlyPerson) ? esc(deptOf(onlyPerson)) + ' · ' : '')
+        +   n2 + ' account' + (n2 === 1 ? '' : 's')
+        +   (capText(capr) ? ' · ' + capText(capr) : '') + '</div>'
+        + '</div>'
+        + '<div style="text-align:right;flex:none;">'
+        +   '<div style="font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;">'
+        +   money(per(totalFor(onlyPerson))) + '</div>'
+        +   '<div style="font-size:11px;color:var(--p-dim);">' + perSfx() + '</div>'
+        + '</div>'
+        + '<span data-pods-assign="' + esc(onlyPerson) + '" style="background:var(--p-red);color:#fff;'
+        + 'font-size:13px;font-weight:700;padding:8px 16px;border-radius:10px;cursor:pointer;flex:none;">'
+        + '+ Give ' + esc(personName(onlyPerson).split(' ')[0]) + ' a client</span>'
+        + '</div>';
+    })() : '';
+    if (!rows.length) {
+      body.innerHTML = personHead + empty('No clients here yet.',
+        'A client appears once one of its services is assigned to a specialist.')
+        + (!onlyPerson && P.pods.some(p => p.status === 'active')
+            ? '<div style="text-align:center;margin-top:14px;">'
+              + '<button class="p-btn primary" data-pods-add>+ Add client</button></div>' : '')
+        + renderInternal(onlyPerson);
+      wireCommon(); return;
+    }
+    const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2)
+      .map(w => w.charAt(0).toUpperCase()).join('');
+    body.innerHTML = personHead + rows.map(c => {
+      const mine = live().filter(a => a.client_id === c.id);
+      const cost = mine.reduce((n, a) => n + rateFor(a), 0);
+      const mrr = c.mrr_cents || 0;
+      const since = c.started_at ? new Date(c.started_at) : null;
+      const sinceTxt = since && !isNaN(since)
+        ? 'since ' + since.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : '';
+      const h = c.health || 'green';
+      const assigned = mine.length > 0;
+      return '<div class="p-row" data-pods-client="' + esc(c.id) + '" style="margin-bottom:10px;cursor:pointer;'
+        + (assigned ? '' : 'border-style:dashed;background:#101012;') + '">'
+        + '<span class="p-cava">' + esc(initials(c.name)) + '</span>'
+        + '<div style="flex:1;min-width:150px;">'
+        +   '<div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap;">'
+        +     '<span style="font-weight:700;font-size:14.5px;color:var(--p-fg);">' + esc(c.name) + '</span>'
+        +     '<span class="p-pill" style="background:' + (h === 'green' ? '#14261d' : h === 'amber' ? '#2a2415' : '#2a1517')
+        +     ';color:' + HEALTH[h] + ';border:1px solid ' + (h === 'green' ? '#1f4733' : h === 'amber' ? '#4a3d1a' : '#4a2226')
+        +     ';">' + h + '</span>'
+        +   '</div>'
+        +   '<div style="font-size:12.5px;color:var(--p-dim);margin-top:3px;">'
+        +   esc(cap(c.status || 'active')) + (sinceTxt ? ' · ' + esc(sinceTxt) : '')
+        +   (P.pods.filter(x => x.status === 'active').length > 1 && podOf(c)
+              ? ' · ' + esc(podOf(c).name) : '') + '</div>'
+        +   '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;">'
+        +   (assigned ? '' : '<span class="p-pill" style="background:transparent;color:var(--p-dim);'
+              + 'border:1px dashed var(--p-line2);">not in a pod — click to assign</span>')
+        +   mine.map(a => { const sv = svc(a.service);
+              const ours = onlyPerson && a.specialist_id === onlyPerson;
+              return '<span class="p-pill" style="background:' + sv.bg + ';color:' + sv.fg
+                + ';border:1px solid ' + sv.bd + ';">' + sv.short + (a.tier ? ' · ' + cap(a.tier) : '')
+                + (a.is_internal ? ' · internal' : '')
+                + '<span style="opacity:.62;font-weight:600;">'
+                + esc(shortName(a.specialist_id)) + '</span>'
+                + (ours ? '<span data-pods-unassign="' + esc(a.id) + '" title="Take this back"'
+                    + ' style="margin-left:4px;opacity:.7;cursor:pointer;font-weight:700;">×</span>' : '')
+                + '</span>'; }).join('')
+        +   '</div>'
+        + '</div>'
+        + '<div style="display:flex;gap:26px;flex:none;text-align:right;">'
+        +   '<div><div style="font-size:17px;font-weight:700;color:var(--p-fg);font-variant-numeric:tabular-nums;">'
+        +   (mrr ? money(per(mrr)) : '<span style="font-size:13px;color:var(--p-dim);font-weight:600;">not set</span>')
+        +   '</div><div class="p-statlabel" style="color:var(--p-dim);margin-top:4px;">MRR</div></div>'
+        +   '<div><div style="font-size:17px;font-weight:700;color:var(--p-fg2);font-variant-numeric:tabular-nums;">'
+        +   money(per(cost)) + '</div>'
+        +   '<div class="p-statlabel" style="color:var(--p-dim);margin-top:4px;">COST</div></div>'
+        +   '<div><div style="font-size:17px;font-weight:700;color:'
+        +   (mrr && cost > mrr ? 'var(--p-red)' : 'var(--p-fg2)') + ';font-variant-numeric:tabular-nums;">'
+        +   (c.pay_day ? String(c.pay_day) : '—') + '</div>'
+        +   '<div class="p-statlabel" style="color:var(--p-dim);margin-top:4px;">PAY DAY</div></div>'
+        + '</div></div>';
+    }).join('') + renderInternal(onlyPerson);
+    wireCommon();
+  }
+
+  // ── assigning work from a person's own tab ──────────────────────────────────
+  // Everyone's chip reads 0 until somebody has been given work, and the only way to give
+  // them any was to open each client in turn and find their name in a dropdown. Assigning
+  // is at least as often a thought about a person as about a client — "what else can Mave
+  // take?" — so it can be done from their tab, in the order the thought arrives.
+  async function assignTo(profileId){
+    const who = personName(profileId);
+    const taken = live();
+    // Only clients in a pod: work is assigned inside a pod, and offering the rest would be
+    // offering to half-add a client from the wrong screen.
+    const choices = podClients().map(c => {
+      const has = taken.filter(a => a.client_id === c.id);
+      const free = SERVICES.filter(sv => !has.some(a => a.service === sv.key));
+      return { c, free, mine: has.filter(a => a.specialist_id === profileId).length };
+    }).filter(x => x.free.length);
+    if (!choices.length) {
+      if (window.toast) toast({ type: 'info', report: false,
+        message: 'Every service on every client in the pod is already assigned.' });
+      return;
+    }
+    const clientId = await podAsk({ title: 'Give ' + who + ' a client',
+      sub: 'Only clients in a pod, and only services nobody holds yet.',
+      options: choices.map(x => ({ value: x.c.id, label: x.c.name,
+        note: x.free.map(f => f.short).join(', ') + ' free' })) });
+    if (!clientId) return;
+    const picked = choices.find(x => x.c.id === clientId);
+
+    const service = await podAsk({ title: 'Which service?',
+      sub: who + ' will be paid the rate for whichever this is.',
+      options: picked.free.map(sv => {
+        const r = P.rates.find(x => x.service === sv.key && !x.tier && !x.is_internal);
+        return { value: sv.key, label: sv.label, note: r ? money(per(r.amount_cents)) : 'by tier' };
+      }) });
+    if (!service) return;
+
+    let tier = null;
+    if (service === 'google_ads' || service === 'meta_ads') {
+      tier = await podAsk({ title: 'Which tier?', sub: 'The tier sets what the account pays.',
+        options: TIERS.map(t => {
+          const r = P.rates.find(x => x.service === service && x.tier === t && !x.is_internal);
+          return { value: t, label: cap(t), note: r ? money(per(r.amount_cents)) : '' };
+        }) });
+      if (!tier) return;
+    }
+
+    const { error } = await sb().from('pod_assignments').insert({
+      client_id: clientId, service, tier, specialist_id: profileId,
+      is_internal: false, created_by: me() });
+    if (error) {
+      if (window.toast) toast({ type: 'error', message: 'Could not assign that: ' + error.message });
+      return;
+    }
+    if (window.toast) toast({ type: 'success',
+      message: who + ' now holds ' + svc(service).label + ' for ' + picked.c.name });
+    await load();
+  }
+
+  // Taking it away again, from the same place it was given.
+  async function unassign(assignmentId){
+    const a = P.assignments.find(x => x.id === assignmentId);
+    if (!a) return;
+    const cli = P.clients.find(x => x.id === a.client_id);
+    const ok = await window.giantConfirmWarn(
+      'Take ' + svc(a.service).label + ' for ' + ((cli && cli.name) || 'this client') + ' away from '
+        + personName(a.specialist_id) + '?',
+      'It stops being paid for from today, and the service is free for somebody else to pick up. '
+      + 'The record of who held it stays.', 'Unassign', 'warning');
+    if (!ok) return;
+    const { error } = await sb().from('pod_assignments')
+      .update({ ended_at: new Date().toISOString().slice(0, 10) }).eq('id', assignmentId);
+    if (error) {
+      if (window.toast) toast({ type: 'error', message: 'Could not unassign that: ' + error.message });
+      return;
+    }
+    await load();
+  }
+
+  // The design's internal block: our own sites, each paid the internal rate, with whoever
+  // holds them named in the heading because in practice that is one person.
+  function renderInternal(who){
+    const rows = who ? internalWork().filter(r => r.specialist_id === who) : internalWork();
+    // On somebody's own tab an empty internal card says nothing; on the full list it says
+    // there are none yet, which is worth saying.
+    if (who && !rows.length) return '';
+    const rate = (P.rates || []).find(r => r.service === 'seo' && r.is_internal);
+    const each = rate ? rate.amount_cents : 0;
+    const holders = shortNames([...new Set(rows.map(r => r.specialist_id).filter(Boolean))]);
+    const head = 'INTERNAL · ' + money(per(each)) + '/PROJECT'
+      + (holders.length ? ' TO ' + holders.join(' & ').toUpperCase() : '');
+    return '<div class="p-card" style="margin-top:14px;">'
+      + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+      +   '<span class="p-statlabel" style="color:var(--p-mut);">' + esc(head) + '</span>'
+      +   (who ? '' : '<span data-pods-addint style="margin-left:auto;font-size:12px;font-weight:700;color:var(--p-fg2);'
+      +   'border:1px solid var(--p-line2);border-radius:99px;padding:5px 12px;cursor:pointer;">'
+      +   '+ Internal project</span>')
+      + '</div>'
+      + (rows.length
+          ? '<div style="margin-top:12px;">' + rows.map(r =>
+              '<div data-pods-int="' + esc(r.id) + '" style="display:flex;align-items:center;gap:12px;'
+              + 'padding:10px 0;border-bottom:1px solid var(--p-line);cursor:pointer;">'
+              + '<span style="width:8px;height:8px;border-radius:50%;background:#34c77b;flex:none;"></span>'
+              + '<span style="flex:1;min-width:0;font-size:13px;color:var(--p-fg);overflow:hidden;'
+              + 'text-overflow:ellipsis;white-space:nowrap;">' + esc(r.label) + '</span>'
+              + '<span style="font-size:12px;color:' + (r.specialist_id ? 'var(--p-fg2)' : 'var(--p-dim)')
+              + ';flex:none;">' + esc(r.specialist_id ? personName(r.specialist_id) : 'unassigned') + '</span>'
+              + '<span style="font-size:13px;font-weight:700;color:var(--p-fg);flex:none;'
+              + 'font-variant-numeric:tabular-nums;min-width:56px;text-align:right;">'
+              + money(per(each)) + '</span></div>').join('')
+            + '</div>'
+          : '<div style="font-size:12.5px;color:var(--p-dim);margin-top:10px;">'
+            + 'No internal projects yet.</div>')
+      + '<div style="font-size:11.5px;color:var(--p-dim);margin-top:10px;">'
+      + 'Our own properties, not clients — no MRR and no invoice, paid at the internal rate.</div>'
+      + '</div>';
+  }
+
+  // Small enough to be a prompt and a picker rather than the whole client panel.
+  async function editInternal(id){
+    const row = P.assignments.find(a => a.id === id);
+    if (!row) return;
+    const roster = await peopleList();
+    const chosen = await podAsk({ title: row.label,
+      sub: 'Who holds this internal project? Choose nobody to end it.',
+      options: [{ value: '__none__', label: 'Nobody — end this project', note: '' }]
+        .concat(roster.map(pp => ({ value: pp.id, label: pp.full_name || pp.email,
+          note: deptOf(pp.id) || '', avatar: avatarOf(pp) }))) });
+    if (!chosen) return;
+    if (chosen === '__none__') {
+      const ok = await window.giantConfirmWarn('End “' + row.label + '”?',
+        'It stops being paid for from today. The record of who held it stays.', 'End it', 'warning');
+      if (!ok) return;
+      await sb().from('pod_assignments')
+        .update({ ended_at: new Date().toISOString().slice(0, 10) }).eq('id', id);
+    } else {
+      await sb().from('pod_assignments').update({ specialist_id: chosen }).eq('id', id);
+    }
+    await load();
+  }
+
+  async function addInternal(){
+    const name = (await window.giantPrompt(
+      'Name this internal project. Our own properties rather than clients — paid at the internal rate.',
+      '') || '').trim();
+    if (!name) return;
+    if (internalWork().some(r => String(r.label || '').toLowerCase() === name.toLowerCase())) {
+      if (window.toast) toast({ type: 'error', report: false,
+        message: '“' + name + '” is already an internal project.' });
+      return;
+    }
+    const { error } = await sb().from('pod_assignments')
+      .insert({ label: name, service: 'seo', is_internal: true, created_by: me() });
+    if (error) {
+      if (window.toast) toast({ type: 'error', message: 'Could not add that: ' + error.message });
+      return;
+    }
+    await load();
+  }
+
+  // ── editing the board's own configuration ───────────────────────────────────
+  // The rate card was a table from the start, because "rates are reviewed every 90 days,
+  // and a review that needs a developer is a review that does not happen". The same was
+  // true of the capacity a specialist is held to and the description of what each role
+  // does, and those were still literals in this file. They are rows now, and everything
+  // below is what makes them editable in place.
+
+  // One input, drawn as the text it replaces. `on` is the save, called with the new value
+  // only when it actually changed -- a focus and a blur with nothing typed writes nothing.
+  const field = (attrs, value, extra) =>
+    '<input class="p-inline' + (extra && extra.num ? ' num' : '') + '" '
+    + (extra && extra.type ? 'type="' + extra.type + '" ' : 'type="text" ')
+    + (extra && extra.placeholder ? 'placeholder="' + esc(extra.placeholder) + '" ' : '')
+    + (extra && extra.style ? 'style="' + extra.style + '" ' : '')
+    + attrs + ' value="' + esc(value == null ? '' : value) + '">';
+  const area = (attrs, value, extra) =>
+    '<textarea class="p-inline" ' + (extra && extra.style ? 'style="' + extra.style + '" ' : '')
+    + (extra && extra.placeholder ? 'placeholder="' + esc(extra.placeholder) + '" ' : '')
+    + attrs + '>' + esc(value == null ? '' : value) + '</textarea>';
+
+  // Writing a change without redrawing. Every one of these edits leaves the page looking
+  // exactly as it did -- the text you typed is the text that is there -- so a re-render
+  // would only take the cursor away mid-sentence. The row in memory is updated so anything
+  // derived from it (payroll, a capacity warning) is right on the next draw.
+  async function saveCfg(table, match, patch, local){
+    let q = sb().from(table).update(patch);
+    Object.keys(match).forEach(k => { q = q.eq(k, match[k]); });
+    const { error } = await q;
+    if (error) {
+      if (window.toast) toast({ type: 'error', message: 'Could not save that: ' + error.message });
+      return false;
+    }
+    if (local) Object.assign(local, patch);
+    return true;
+  }
+  const setSetting = async (key, value) => {
+    // upsert, not update: a workspace that has not been seeded has no row to update, and
+    // the first edit should not silently do nothing.
+    const { error } = await sb().from('pod_settings')
+      .upsert({ key, value, updated_by: me(), updated_at: new Date().toISOString() },
+              { onConflict: 'key' });
+    if (error) {
+      if (window.toast) toast({ type: 'error', message: 'Could not save that: ' + error.message });
+      return false;
+    }
+    P.settings[key] = value;
+    return true;
+  };
+  // Settings whose shape is a list are read through this, so a workspace without the row
+  // yet -- or with something unexpected in it -- draws an empty list rather than throwing.
+  const listSetting = (key) => Array.isArray(P.settings[key]) ? P.settings[key] : [];
+  const objSetting = (key) => (P.settings[key] && typeof P.settings[key] === 'object'
+    && !Array.isArray(P.settings[key])) ? P.settings[key] : {};
+
+  // Bind every inline field on the page in one pass. An input saves when it loses focus or
+  // when Enter is pressed, and only if the value changed; Escape puts it back.
+  function wireFields(host, handlers){
+    host.querySelectorAll('[data-pods-field]').forEach(el => {
+      const was = el.value;
+      const run = async () => {
+        if (el.value === el.dataset.podsWas) return;
+        const h = handlers[el.dataset.podsField];
+        if (!h) return;
+        const ok = await h(el, el.value);
+        if (ok === false) { el.value = el.dataset.podsWas; return; }
+        el.dataset.podsWas = el.value;
+      };
+      el.dataset.podsWas = was;
+      el.addEventListener('blur', run);
+      el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && el.tagName !== 'TEXTAREA') { e.preventDefault(); el.blur(); }
+        if (e.key === 'Escape') { el.value = el.dataset.podsWas; el.blur(); }
+      });
+    });
+  }
+
+  function renderRates(){
+    const body = $('body');
+    const edit = isMgr();
+    // Every service, not only the ones that already have a rate: a service with no rate is
+    // exactly the one somebody needs to add, and leaving it off the page hides the gap.
+    const groups = edit ? SERVICES : SERVICES.filter(sv => P.rates.some(r => r.service === sv.key));
+    const note = typeof P.settings.rates_note === 'string' ? P.settings.rates_note
+      : 'Same rate card in every location. Pay applies to active, assigned accounts only. Large or '
+      + 'unusually complex accounts priced separately. Rates reviewed every 90 days.';
+
+    body.innerHTML = '<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;">'
+      + groups.map(sv => {
+      const rs = P.rates.filter(r => r.service === sv.key)
+        .sort((a, b) => (TIERS.indexOf(a.tier) - TIERS.indexOf(b.tier)) || a.amount_cents - b.amount_cents);
+      return '<div class="p-card" style="flex:1;min-width:280px;">'
+        + '<div class="p-statlabel" style="color:' + sv.fg + ';">' + sv.label.toUpperCase() + '</div>'
+        + '<div style="margin-top:12px;">'
+        + (rs.length ? rs.map(r => {
+            const what = r.tier ? cap(r.tier) : (r.is_internal ? 'Internal project' : 'Paying client');
+            return '<div class="p-cfgrow" style="display:flex;justify-content:space-between;'
+              + 'align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--p-line);">'
+              + '<div style="flex:1;min-width:0;">'
+              +   '<div style="font-size:13px;color:var(--p-fg2);">' + esc(what) + '</div>'
+              // The note is what the tier MEANS -- "$10k–$50k ad spend" -- and is the half of
+              // a rate most likely to go stale, so it is editable alongside the money.
+              +   (edit
+                    ? field('data-pods-field="rateNote" data-id="' + esc(r.id) + '"', r.note,
+                            { placeholder: 'What this tier means',
+                              style: 'font-size:12px;color:var(--p-dim);margin-top:2px;' })
+                    : (r.note ? '<div style="font-size:12px;color:var(--p-dim);margin-top:2px;">'
+                        + esc(r.note) + '</div>' : ''))
+              + '</div>'
+              + (edit
+                  ? '<div style="display:flex;align-items:center;gap:2px;flex:none;">'
+                    + '<span style="font-size:14px;font-weight:700;color:var(--p-dim);">'
+                    + (P.period === 'wk' ? '~$' : '$') + '</span>'
+                    + field('data-pods-field="rateAmount" data-id="' + esc(r.id) + '"',
+                            Math.round(per(r.amount_cents) / 100),
+                            { num: true, type: 'number',
+                              style: 'font-size:14px;font-weight:700;width:84px;' })
+                    + '<span class="p-del" data-pods-rate-del="' + esc(r.id) + '" '
+                    + 'title="Remove this rate">×</span></div>'
+                  : '<span style="font-size:14px;font-weight:700;color:var(--p-fg);flex:none;'
+                    + 'font-variant-numeric:tabular-nums;">' + money(per(r.amount_cents)) + '</span>')
+              + '</div>';
+          }).join('')
+          : '<div style="font-size:12.5px;color:var(--p-dim);padding:6px 0;">No rate set yet.</div>')
+        + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;'
+        + 'margin-top:12px;flex-wrap:wrap;">'
+        + '<span style="font-size:12px;color:var(--p-dim);">Per account, per '
+        + (P.period === 'wk' ? 'week.' : 'month.') + '</span>'
+        + (edit && rateSlots(sv.key).length
+            ? '<span class="p-add" data-pods-rate-add="' + sv.key + '">+ Rate</span>' : '')
+        + '</div>'
+        + '</div></div>';
+    }).join('') + '</div>'
+      + '<div class="p-card" style="margin-top:14px;">'
+      + (edit
+          ? area('data-pods-field="ratesNote"', note,
+                 { placeholder: 'The small print under the rate card',
+                   style: 'font-size:12.5px;color:var(--p-dim);line-height:1.7;' })
+          : '<div style="font-size:12.5px;color:var(--p-dim);line-height:1.7;">' + esc(note) + '</div>')
+      + '</div>'
+      + (edit ? '<div style="font-size:11.5px;color:var(--p-dim);margin-top:12px;">'
+          + 'Changing a rate changes what everyone holding that service is paid, from the next '
+          + 'time the board is read. It does not backdate.</div>' : '');
+
+    if (!edit) return;
+    wireFields(body, {
+      rateNote: (el, v) => {
+        const r = P.rates.find(x => x.id === el.dataset.id);
+        return saveCfg('pod_rates', { id: el.dataset.id }, { note: v.trim() || null }, r);
+      },
+      rateAmount: async (el, v) => {
+        const n = Number(v);
+        if (!isFinite(n) || n < 0) return false;
+        // What was typed is in whatever period the board is showing, so a weekly figure is
+        // turned back into the monthly one the card stores rather than saved as monthly.
+        const cents = Math.round(P.period === 'wk' ? n * 100 * 52 / 12 : n * 100);
+        const r = P.rates.find(x => x.id === el.dataset.id);
+        const ok = await saveCfg('pod_rates', { id: el.dataset.id }, { amount_cents: cents }, r);
+        if (ok) renderSubtitle();     // payroll follows the card
+        return ok;
+      },
+      ratesNote: (el, v) => setSetting('rates_note', v.trim()),
+    });
+    body.querySelectorAll('[data-pods-rate-add]').forEach(b =>
+      b.addEventListener('click', () => addRate(b.dataset.podsRateAdd)));
+    body.querySelectorAll('[data-pods-rate-del]').forEach(b =>
+      b.addEventListener('click', () => removeRate(b.dataset.podsRateDel)));
+  }
+
+  // Which (tier, internal) combinations a service does not have a rate for yet. Offering
+  // only these is what stops a second rate for the same thing being created -- the table
+  // has a unique index on exactly this, and a refusal after the fact is a worse answer
+  // than never having offered it.
+  function rateSlots(service){
+    const has = (tier, internal) => P.rates.some(r => r.service === service
+      && (r.tier || null) === tier && !!r.is_internal === internal);
+    const out = [];
+    TIERS.forEach(t => { if (!has(t, false)) out.push({ tier: t, is_internal: false,
+      label: cap(t), note: 'A tier of paying client work' }); });
+    if (!has(null, false)) out.push({ tier: null, is_internal: false,
+      label: 'Paying client', note: 'One rate, no tiers' });
+    if (!has(null, true)) out.push({ tier: null, is_internal: true,
+      label: 'Internal project', note: 'Our own properties, at the lower rate' });
+    return out;
+  }
+
+  async function addRate(service){
+    const slots = rateSlots(service);
+    if (!slots.length) return;
+    const pick = await podAsk({ title: 'A rate for ' + svc(service).label,
+      sub: 'Only the ones this service does not already have.',
+      options: slots.map((sl, i) => ({ value: String(i), label: sl.label, note: sl.note })) });
+    if (pick == null) return;
+    const sl = slots[Number(pick)];
+    const amount = await window.giantPrompt(
+      svc(service).label + ' · ' + sl.label + '\nHow much, per account per month?', '');
+    const n = Number(String(amount == null ? '' : amount).replace(/[^0-9.]/g, ''));
+    if (!isFinite(n) || n <= 0) return;
+    const { error } = await sb().from('pod_rates').insert({
+      service, tier: sl.tier, is_internal: sl.is_internal,
+      amount_cents: Math.round(n * 100), updated_by: me() });
+    if (error) {
+      if (window.toast) toast({ type: 'error', message: 'Could not add that rate: ' + error.message });
+      return;
+    }
+    await load();
+  }
+
+  async function removeRate(id){
+    const r = P.rates.find(x => x.id === id);
+    if (!r) return;
+    // How many people this actually pays right now, said before it is taken away rather
+    // than discovered afterwards when a payroll figure quietly drops.
+    const held = live().filter(a => a.service === r.service
+      && (a.tier || null) === (r.tier || null) && !!a.is_internal === !!r.is_internal);
+    const who = [...new Set(held.map(a => a.specialist_id).filter(Boolean))];
+    const ok = await window.giantConfirmWarn(
+      'Remove the ' + svc(r.service).label + ' rate' + (r.tier ? ' for ' + cap(r.tier) : '') + '?',
+      held.length
+        ? held.length + ' live account' + (held.length === 1 ? '' : 's') + ' are paid at this rate'
+          + (who.length ? ', held by ' + shortNames(who).join(' & ') : '')
+          + '. They stay assigned and stop being paid until a rate exists again.'
+        : 'Nothing is paid at this rate at the moment.',
+      'Remove', 'warning');
+    if (!ok) return;
+    const { error } = await sb().from('pod_rates').delete().eq('id', id);
+    if (error) {
+      if (window.toast) toast({ type: 'error', message: 'Could not remove that rate: ' + error.message });
+      return;
+    }
+    await load();
+  }
+
+  // The team: everyone, and how each of them is paid. Two ways exist side by side, which
+  // is the point of the board — the paid-ads people earn per client account off the rate
+  // card, everybody else is on time, and some carry both.
+  // Capacity belongs to the department, and is read from it. It used to be this object,
+  // keyed by department NAME -- which meant renaming a department silently removed
+  // everybody's cap, and changing a number meant changing the page.
+  //   const CAPS = { 'PAID ADS': { ideal: 15, max: 20, label: 'Google Ads specialist' }, ... }
+  // Those three are now rows in pay_departments, seeded with exactly these figures.
+  const capOfDept = (d) => (d && (d.ideal_accounts != null || d.max_accounts != null))
+    ? { ideal: d.ideal_accounts, max: d.max_accounts, label: d.cap_label || d.name, dept: d }
+    : null;
+  const deptRowOf = (profileId) => {
+    const t = (P.pay || []).find(x => x.profile_id === profileId);
+    return t ? (P.depts || []).find(x => x.id === t.department_id) || null : null;
+  };
+  const capFor = (profileId) => capOfDept(deptRowOf(profileId));
+  // A department may have one number set and not the other, so the line that describes a
+  // cap is written once rather than assuming both exist in five places.
+  const capText = (c) => !c ? '' : [c.ideal != null ? 'ideal ' + c.ideal : '',
+                                    c.max != null ? 'max ' + c.max : ''].filter(Boolean).join(' · ');
+  function payBasis(id){
+    const t = (P.pay || []).find(x => x.profile_id === id);
+    if (!t) return null;
+    if (t.base_type === 'hourly')
+      return { text: '$' + Number(t.base_amount) + '/hr × ' + Number(t.weekly_hours || 0) + 'h a week', kind: 'hourly' };
+    if (t.base_type === 'fixed_monthly')
+      return { text: '$' + Number(t.base_amount).toLocaleString('en-US') + ' a month', kind: 'monthly' };
+    return { text: '$' + Number(t.base_amount).toLocaleString('en-US') + ' a week', kind: 'weekly' };
+  }
+  // Who is in a pod, and which. A person can be in two -- "can support clients across
+  // pods" is on How it works in as many words -- so this is a list, not a lookup.
+  const podsOf = (profileId) => P.members.filter(m => m.profile_id === profileId)
+    .map(m => P.pods.find(p => p.id === m.pod_id)).filter(Boolean);
+  const membersOf = (podId) => P.members.filter(m => m.pod_id === podId).map(m => m.profile_id);
+  const inAnyPod = (profileId) => P.members.some(m => m.profile_id === profileId
+    && P.pods.some(p => p.id === m.pod_id));
+
+  function renderTeam(){
+    const body = $('body');
+    const roster = (P.roster || []).slice();
+    if (!roster.length) { body.innerHTML = empty('No team members yet.',
+      'People come from the workspace; their pay comes from Team Pay.'); return; }
+
+    // Which people this tab is showing. It used to be every profile in the workspace,
+    // because "who is on this pod" had nowhere to be written down; with a second pod that
+    // stops being merely untidy and becomes unanswerable.
+    const active = P.pods.filter(p => p.status === 'active');
+    if (P.teamScope == null) P.teamScope = active.length ? active[0].id : 'all';
+    if (P.teamScope !== 'all' && P.teamScope !== 'none'
+        && !active.some(p => p.id === P.teamScope)) P.teamScope = active.length ? active[0].id : 'all';
+    const scoped = P.teamScope === 'all' ? roster
+      : P.teamScope === 'none' ? roster.filter(pp => !inAnyPod(pp.id))
+      : roster.filter(pp => membersOf(P.teamScope).includes(pp.id));
+
+    const rows = scoped.map(pp => ({
+      pp, id: pp.id, base: baseMonthly(pp.id), acc: payFor(pp.id), total: totalFor(pp.id),
+      n: live().filter(a => a.specialist_id === pp.id).length,
+      dept: deptOf(pp.id), basis: payBasis(pp.id),
+      clients: [...new Set(live().filter(a => a.specialist_id === pp.id).map(a => a.client_id))].length,
+    })).sort((a, b) => b.total - a.total || String(a.pp.full_name || '').localeCompare(String(b.pp.full_name || '')));
+
+    const scopes = active.map(p => ({ key: p.id, label: p.name, n: membersOf(p.id).length }))
+      .concat([{ key: 'none', label: 'Not in a pod', n: roster.filter(pp => !inAnyPod(pp.id)).length },
+               { key: 'all',  label: 'Everyone',     n: roster.length }]);
+    const scopeBar = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;">'
+      + scopes.map(sc => '<button class="p-tab' + (P.teamScope === sc.key ? ' on' : '') + '" '
+          + 'data-pods-scope="' + esc(sc.key) + '">' + esc(sc.label)
+          + '<span class="n">' + sc.n + '</span></button>').join('')
+      + (isMgr() && P.teamScope !== 'all' && P.teamScope !== 'none'
+          ? '<span class="p-add" style="margin-left:auto;" data-pods-addmate="' + esc(P.teamScope) + '">'
+            + '+ Add teammate</span>' : '')
+      + '</div>';
+
+    body.innerHTML = scopeBar + renderCapacityCard()
+      + (rows.length ? '' : empty(
+          P.teamScope === 'none' ? 'Everybody is in a pod.' : 'Nobody in this pod yet.',
+          P.teamScope === 'none' ? 'Nothing to do here.'
+            : 'Add the Pod Leader and the specialists, then give them accounts.'))
+      + '<div style="display:flex;gap:14px;flex-wrap:wrap;">'
+      + rows.map(x => {
+        const capr = capFor(x.id);
+        const pct = capr && capr.max ? Math.min(100, Math.round((x.n / capr.max) * 100)) : 0;
+        const over = capr && capr.ideal != null && x.n > capr.ideal;
+        const leads = P.pods.filter(p => p.leader_id === x.id);
+        const theirPods = podsOf(x.id);
+        return '<div class="p-card p-cfgrow" style="flex:1;min-width:300px;'
+          + (x.basis ? '' : 'border-style:dashed;') + '">'
+          + '<div style="display:flex;align-items:center;gap:12px;">' + avatarOf(x.pp)
+          + '<div style="min-width:0;flex:1;">'
+          +   '<div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap;">'
+          +     '<span style="font-weight:700;font-size:14.5px;color:var(--p-fg);">'
+          +     esc(x.pp.full_name || x.pp.email) + '</span>'
+          +     (leads.length ? '<span class="p-pill" style="background:#2a1517;color:var(--p-redsoft);'
+                + 'border:1px solid #4a2226;">leads ' + esc(leads.map(p => p.name).join(' & ')) + '</span>' : '')
+          +   '</div>'
+          +   '<div style="font-size:12px;color:var(--p-dim);margin-top:2px;">'
+          +   esc(x.dept || (x.pp.role ? cap(String(x.pp.role).replace('_', ' ')) : 'no department'))
+          // Which pod somebody is in only needs saying where it is not already the answer
+          // to the question the tab is asking.
+          +   (P.teamScope === 'all' && theirPods.length
+                ? ' · ' + esc(theirPods.map(p => p.name).join(' & ')) : '')
+          +   (P.teamScope === 'all' && !theirPods.length ? ' · not in a pod' : '')
+          +   '</div>'
+          + '</div>'
+          + '<div style="text-align:right;flex:none;">'
+          +   '<div style="font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;color:'
+          +   (x.total ? 'var(--p-fg)' : 'var(--p-dim)') + ';">' + money(per(x.total)) + '</div>'
+          +   '<div style="font-size:11px;color:var(--p-dim);">' + perSfx() + '</div>'
+          + '</div></div>'
+
+          // How this person is paid, said plainly: time, accounts, or both.
+          + '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;">'
+          + (x.basis
+              ? '<span class="p-pill" style="background:#16222f;color:var(--p-blue);border:1px solid #24405e;">'
+                + esc(x.basis.kind) + ' · ' + esc(x.basis.text) + '</span>'
+              : '<span class="p-pill" style="background:transparent;color:var(--p-dim);'
+                + 'border:1px dashed var(--p-line2);">no pay set in Team Pay</span>')
+          + (x.n ? '<span class="p-pill" style="background:#14261d;color:var(--p-green);border:1px solid #1f4733;">'
+                   + 'per account · ' + x.n + ' account' + (x.n === 1 ? '' : 's')
+                   + (x.clients && x.clients !== x.n ? ' across ' + x.clients + ' clients' : '') + '</span>' : '')
+          + '</div>'
+
+          + (isMgr() ? payEditor(x) : '<div style="font-size:12.5px;color:var(--p-fg2);margin-top:10px;">'
+              + (x.base ? money(per(x.base)) + ' base' : 'no base')
+              + (x.acc ? ' + ' + money(per(x.acc)) + ' from accounts' : '')
+              + (!x.base && !x.acc ? 'Nothing owed yet — no pay set and no accounts held.' : '')
+              + '</div>')
+          + (capr && x.n
+              ? '<div style="margin-top:12px;">'
+                + '<div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--p-dim);">'
+                + '<span>' + esc(capr.label) + (capText(capr) ? ' · ' + capText(capr) : '') + '</span>'
+                + '<span style="color:' + (over ? 'var(--p-amber)' : 'var(--p-dim)') + ';">' + x.n + '</span></div>'
+                + '<div style="height:6px;border-radius:99px;background:var(--p-sunk);margin-top:6px;">'
+                + '<div style="height:100%;border-radius:99px;width:' + pct + '%;background:'
+                + (over ? 'var(--p-amber)' : 'var(--p-green)') + ';"></div></div>'
+                + (over ? '<div style="font-size:11.5px;color:var(--p-amber);margin-top:6px;">'
+                    + 'Past the ideal load — add people only when capacity is actually reached.</div>' : '')
+                + '</div>'
+              : '')
+          + (isMgr() && P.teamScope !== 'all' && P.teamScope !== 'none'
+              ? '<div style="display:flex;justify-content:flex-end;margin-top:10px;">'
+                + '<span class="p-del" data-pods-dropmate="' + esc(x.id) + '" '
+                + 'style="font-size:11.5px;font-weight:600;">Remove from this pod</span></div>' : '')
+          + '</div>';
+      }).join('') + '</div>'
+      + '<div style="font-size:12px;color:var(--p-dim);margin-top:16px;line-height:1.6;">'
+      + 'Everyone in the workspace appears here. Bases come from Team Pay; per-account pay comes '
+      + 'from the rate card and follows the accounts each person holds. A client can have several '
+      + 'people on it — one per service — and each is paid for the service they hold.</div>';
+    body.querySelectorAll('[data-pods-scope]').forEach(b =>
+      b.addEventListener('click', () => { P.teamScope = b.dataset.podsScope; render(); }));
+    if (!isMgr()) return;
+    wireCapacityCard(body);
+    wirePayEditors(body);
+    body.querySelectorAll('[data-pods-addmate]').forEach(b =>
+      b.addEventListener('click', () => addTeammate(b.dataset.podsAddmate)));
+    body.querySelectorAll('[data-pods-dropmate]').forEach(b =>
+      b.addEventListener('click', () => dropTeammate(P.teamScope, b.dataset.podsDropmate)));
+  }
+
+  // ── what somebody is paid to be here ────────────────────────────────────────
+  // The base, on the card, rather than on another screen. Team Pay still owns the whole
+  // record -- bonuses, currency, the review cycle -- and is linked to from here; what is
+  // editable on this board is the part the board itself does arithmetic with, so a person
+  // whose figure is obviously wrong can be corrected where it is obviously wrong.
+  const BASES = [{ key: 'fixed_weekly', label: 'Weekly' },
+                 { key: 'fixed_monthly', label: 'Monthly' },
+                 { key: 'hourly', label: 'Hourly' }];
+
+  function payEditor(x){
+    const t = (P.pay || []).find(r => r.profile_id === x.id) || null;
+    const depts = (P.depts || []).slice()
+      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    if (!t) {
+      return '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;'
+        + 'padding-top:12px;border-top:1px solid var(--p-line);">'
+        + '<span style="font-size:12.5px;color:var(--p-dim);flex:1;min-width:0;">'
+        + (x.acc ? money(per(x.acc)) + ' from accounts · no base set'
+                 : 'Nothing owed yet — no pay set and no accounts held.') + '</span>'
+        + '<span class="p-add" data-pods-setpay="' + esc(x.id) + '">Set pay</span></div>';
+    }
+    const sel = (name, value, opts, extra) =>
+      '<select data-pods-pay="' + name + '" data-id="' + esc(x.id) + '" '
+      + 'style="font-size:12px;padding:5px 8px;' + (extra || '') + '">'
+      + opts.map(o => '<option value="' + esc(o.v) + '"'
+          + ((o.v || '') === (value == null ? '' : String(value)) ? ' selected' : '') + '>'
+          + esc(o.t) + '</option>').join('') + '</select>';
+    return '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--p-line);">'
+      + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+      +   sel('dept', t.department_id, [{ v: '', t: 'No department' }]
+            .concat(depts.map(d => ({ v: d.id, t: d.name }))), 'flex:1;min-width:120px;')
+      +   sel('base', t.base_type, BASES.map(b => ({ v: b.key, t: b.label })))
+      +   '<span style="display:flex;align-items:center;gap:2px;font-size:13px;font-weight:700;">$'
+      +   field('data-pods-field="payAmount" data-id="' + esc(x.id) + '"', t.base_amount,
+                { num: true, type: 'number',
+                  style: 'font-size:13px;font-weight:700;width:78px;' }) + '</span>'
+      +   (t.base_type === 'hourly'
+            ? '<span style="display:flex;align-items:center;gap:3px;font-size:12px;color:var(--p-dim);">×'
+              + field('data-pods-field="payHours" data-id="' + esc(x.id) + '"', t.weekly_hours,
+                      { num: true, type: 'number', placeholder: 'h',
+                        style: 'font-size:13px;font-weight:700;color:var(--p-fg);width:56px;' })
+              + 'h/wk</span>'
+            : '')
+      + '</div>'
+      + '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:8px;">'
+      +   '<span style="font-size:12.5px;color:var(--p-fg2);flex:1;min-width:0;">'
+      +   (x.base ? money(per(x.base)) + ' base' : 'no base')
+      +   (x.acc ? ' + ' + money(per(x.acc)) + ' from accounts' : '') + '</span>'
+      +   '<span data-pods-teampay style="font-size:11.5px;color:var(--p-dim);cursor:pointer;'
+      +   'text-decoration:underline;text-underline-offset:2px;">Bonuses and currency in Team Pay</span>'
+      + '</div></div>';
+  }
+
+  function wirePayEditors(host){
+    const rowOf = (id) => (P.pay || []).find(r => r.profile_id === id) || null;
+    // Every one of these changes a figure the board adds up, so the subtitle and the
+    // dashboard totals are refreshed even though the card itself is not redrawn.
+    const after = () => { renderSubtitle(); };
+    wireFields(host, {
+      payAmount: async (el, v) => {
+        const n = Number(v);
+        if (!isFinite(n) || n < 0) return false;
+        const t = rowOf(el.dataset.id);
+        const ok = t && await saveCfg('team_pay', { profile_id: el.dataset.id }, { base_amount: n }, t);
+        if (ok) after();
+        return !!ok;
+      },
+      payHours: async (el, v) => {
+        const t = String(v).trim();
+        const n = t === '' ? null : Number(t);
+        if (n !== null && (!isFinite(n) || n < 0)) return false;
+        const row = rowOf(el.dataset.id);
+        const ok = row && await saveCfg('team_pay', { profile_id: el.dataset.id }, { weekly_hours: n }, row);
+        if (ok) after();
+        return !!ok;
+      },
+    });
+    host.querySelectorAll('[data-pods-pay]').forEach(el => el.addEventListener('change', async () => {
+      const id = el.dataset.id, row = rowOf(id);
+      if (!row) return;
+      const patch = el.dataset.podsPay === 'dept'
+        ? { department_id: el.value || null }
+        : { base_type: el.value };
+      // Changing away from hourly leaves weekly_hours behind, where it means nothing and
+      // would come back if the base type were changed back months later.
+      if (el.dataset.podsPay === 'base' && el.value !== 'hourly') patch.weekly_hours = null;
+      const ok = await saveCfg('team_pay', { profile_id: id }, patch, row);
+      // The department decides the capacity line, and the base type decides whether the
+      // hours field exists at all, so these two do redraw.
+      if (ok) render();
+    }));
+    host.querySelectorAll('[data-pods-setpay]').forEach(b =>
+      b.addEventListener('click', () => setPay(b.dataset.podsSetpay)));
+    host.querySelectorAll('[data-pods-teampay]').forEach(b => b.addEventListener('click', () => {
+      const nav = document.querySelector('.nav-item[data-screen="teampay"]');
+      if (nav) nav.click();
+    }));
+  }
+
+  async function setPay(profileId){
+    const who = personName(profileId);
+    const basis = await podAsk({ title: 'How is ' + who + ' paid?',
+      sub: 'The base. Per-account pay comes off the rate card on its own.',
+      options: BASES.map(b => ({ value: b.key, label: b.label,
+        note: b.key === 'hourly' ? 'An hourly rate and a number of hours a week'
+            : b.key === 'fixed_weekly' ? 'The same every week' : 'The same every month' })) });
+    if (!basis) return;
+    const amount = Number(String(await window.giantPrompt(
+      who + ' · ' + (BASES.find(b => b.key === basis) || {}).label
+      + '\nHow much' + (basis === 'hourly' ? ' an hour?' : '?'), '') || '').replace(/[^0-9.]/g, ''));
+    if (!isFinite(amount) || amount <= 0) return;
+    let hours = null;
+    if (basis === 'hourly') {
+      hours = Number(String(await window.giantPrompt('How many hours a week?', '') || '')
+        .replace(/[^0-9.]/g, ''));
+      if (!isFinite(hours) || hours <= 0) return;
+    }
+    const dept = (P.depts || []).length ? await podAsk({ title: 'Which department?',
+      sub: 'It sets the capacity they are measured against.',
+      options: (P.depts || []).map(d => ({ value: d.id, label: d.name,
+        note: capText(capOfDept(d)) || 'No capacity set' }))
+        .concat([{ value: '', label: 'No department', note: 'Not measured against a cap' }]) }) : '';
+    if (dept == null) return;
+    const { error } = await sb().from('team_pay').insert({
+      profile_id: profileId, department_id: dept || null, base_type: basis,
+      base_amount: amount, weekly_hours: hours, created_by: me() });
+    if (error) {
+      if (window.toast) toast({ type: 'error', message: 'Could not set that pay: ' + error.message });
+      return;
+    }
+    await load();
+  }
+
+  // ── who is in this pod ──────────────────────────────────────────────────────
+  async function addTeammate(podId){
+    const pod = P.pods.find(p => p.id === podId);
+    if (!pod) return;
+    const already = membersOf(podId);
+    const free = (P.roster || []).filter(pp => !already.includes(pp.id));
+    const chosen = await podAsk({ title: 'Who joins ' + pod.name + '?',
+      sub: 'Anybody in the workspace who is not in this pod already.',
+      options: free.map(pp => ({ value: pp.id, label: pp.full_name || pp.email,
+        avatar: avatarOf(pp),
+        note: [deptOf(pp.id), podsOf(pp.id).map(p => p.name).join(' & ')]
+          .filter(Boolean).join(' · ') || 'Not in a pod' }))
+        .concat([{ value: '__invite__', label: 'Invite somebody new',
+                   note: 'They get an email and join the workspace first' }]) });
+    if (!chosen) return;
+    if (chosen === '__invite__') return inviteTeammate(podId);
+    const { error } = await sb().from('pod_members')
+      .insert({ pod_id: podId, profile_id: chosen, added_by: me() });
+    if (error) {
+      if (window.toast) toast({ type: 'error', message: 'Could not add them: ' + error.message });
+      return;
+    }
+    await load();
+  }
+
+  // A person who is not in the workspace at all cannot be put in a pod, so the invitation
+  // is the first step and the pod is the second. Same mechanism the rest of the app uses:
+  // a real invitations row and the send-invitation function.
+  async function inviteTeammate(podId){
+    const email = String(await window.giantPrompt(
+      'Their email address\nThey will be emailed an invitation to join the workspace.', '') || '').trim();
+    if (!email) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if (window.toast) toast({ type: 'error', report: false, message: 'That is not an email address.' });
+      return;
+    }
+    const { data: existing } = await sb().from('profiles').select('id').eq('email', email).maybeSingle();
+    if (existing) {
+      if (window.toast) toast({ type: 'info', report: false,
+        message: 'They already have a Giant account — add them from the list instead.' });
+      return;
+    }
+    const { data: pending } = await sb().from('invitations').select('id').eq('email', email)
+      .is('accepted_at', null).is('revoked_at', null).maybeSingle();
+    if (pending) {
+      if (window.toast) toast({ type: 'info', report: false,
+        message: 'An invitation has already gone to that address.' });
+      return;
+    }
+    const name = String(await window.giantPrompt('Their name (optional)', '') || '').trim();
+    const token = Array.from(crypto.getRandomValues(new Uint8Array(24)))
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+    const { data: inv, error } = await sb().from('invitations')
+      .insert({ email, full_name: name || null, role: 'member', token, invited_by: me() })
+      .select().single();
+    if (error) {
+      if (window.toast) toast({ type: 'error', message: 'Could not invite them: ' + error.message });
+      return;
+    }
+    try {
+      const res = await fetch('/.netlify/functions/send-invitation', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invitation_id: inv.id }) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || d.error) throw new Error(d.error || ('HTTP ' + res.status));
+      if (window.toast) toast({ type: 'success',
+        message: 'Invited ' + esc(email) + '. Add them to the pod once they accept.' });
+    } catch (e) {
+      if (window.toast) toast({ type: 'warning',
+        message: 'Invitation saved, but the email did not send: ' + (e.message || e) });
+    }
+  }
+
+  async function dropTeammate(podId, profileId){
+    const pod = P.pods.find(p => p.id === podId);
+    if (!pod) return;
+    const who = personName(profileId);
+    // What leaving actually costs, said before it happens: their accounts in this pod stay
+    // assigned to them, which is almost never what somebody leaving a pod means.
+    const held = live().filter(a => a.specialist_id === profileId
+      && P.clients.some(c => c.id === a.client_id && c.pod_id === podId));
+    const ok = await window.giantConfirmWarn('Take ' + who + ' out of ' + pod.name + '?',
+      (pod.leader_id === profileId ? 'They lead this pod, so pick a new Pod Leader as well. ' : '')
+      + (held.length
+          ? held.length + ' account' + (held.length === 1 ? '' : 's') + ' here stay assigned to them '
+            + 'and keep being paid — move those first if they are leaving the work too.'
+          : 'They hold no accounts here.'),
+      'Remove', 'warning');
+    if (!ok) return;
+    const { error } = await sb().from('pod_members').delete()
+      .eq('pod_id', podId).eq('profile_id', profileId);
+    if (error) {
+      if (window.toast) toast({ type: 'error', message: 'Could not remove them: ' + error.message });
+      return;
+    }
+    await load();
+  }
+
+  // ── the numbers everyone on this tab is measured against ────────────────────
+  // Both of these decide whether somebody is shown as over capacity, and both were
+  // constants: the pod size in the pods table but with no way to change it, and the
+  // per-department caps in a JS object keyed by department name. A person is told they are
+  // past their ideal load by these numbers, so the numbers belong where they can be argued
+  // with.
+  function renderCapacityCard(){
+    const edit = isMgr();
+    const pods = P.pods.slice().sort((a, b) => (a.position || 0) - (b.position || 0));
+    const depts = (P.depts || []).slice()
+      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    if (!edit && !depts.some(d => capOfDept(d))) return '';
+
+    const line = (left, right) =>
+      '<div class="p-cfgrow" style="display:flex;align-items:center;gap:10px;padding:9px 0;'
+      + 'border-bottom:1px solid var(--p-line);">' + left + right + '</div>';
+
+    return '<div class="p-card" style="margin-bottom:16px;">'
+      + '<div class="p-statlabel" style="color:var(--p-mut);">CAPACITY</div>'
+      + '<div style="margin-top:12px;">'
+      // how many clients a pod holds
+      + pods.map(p => line(
+          '<span style="flex:1;min-width:0;font-size:13px;color:var(--p-fg2);">'
+          + esc(p.name) + '</span>',
+          '<span style="display:flex;align-items:center;gap:7px;flex:none;'
+          + 'font-size:12.5px;color:var(--p-dim);">max clients'
+          + (edit
+              ? field('data-pods-field="podMax" data-id="' + esc(p.id) + '"', p.max_clients || 20,
+                      { num: true, type: 'number',
+                        style: 'font-size:13px;font-weight:700;color:var(--p-fg);width:62px;' })
+              : '<b style="color:var(--p-fg);">' + (p.max_clients || 20) + '</b>')
+          + '</span>')).join('')
+      // and how many accounts a person in each department holds
+      + depts.map(d => line(
+          '<div style="flex:1;min-width:0;">'
+          + '<div style="font-size:13px;color:var(--p-fg2);">' + esc(d.name) + '</div>'
+          + (edit
+              ? field('data-pods-field="deptLabel" data-id="' + esc(d.id) + '"', d.cap_label,
+                      { placeholder: 'What to call somebody here, e.g. SEO specialist',
+                        style: 'font-size:12px;color:var(--p-dim);margin-top:2px;' })
+              : (d.cap_label ? '<div style="font-size:12px;color:var(--p-dim);margin-top:2px;">'
+                  + esc(d.cap_label) + '</div>' : ''))
+          + '</div>',
+          '<span style="display:flex;align-items:center;gap:7px;flex:none;'
+          + 'font-size:12.5px;color:var(--p-dim);">ideal'
+          + (edit
+              ? field('data-pods-field="deptIdeal" data-id="' + esc(d.id) + '"', d.ideal_accounts,
+                      { num: true, type: 'number', placeholder: '—',
+                        style: 'font-size:13px;font-weight:700;color:var(--p-fg);width:54px;' })
+              : '<b style="color:var(--p-fg);">' + (d.ideal_accounts == null ? '—' : d.ideal_accounts) + '</b>')
+          + 'max'
+          + (edit
+              ? field('data-pods-field="deptMax" data-id="' + esc(d.id) + '"', d.max_accounts,
+                      { num: true, type: 'number', placeholder: '—',
+                        style: 'font-size:13px;font-weight:700;color:var(--p-fg);width:54px;' })
+              : '<b style="color:var(--p-fg);">' + (d.max_accounts == null ? '—' : d.max_accounts) + '</b>')
+          + '</span>')).join('')
+      + '</div>'
+      + '<div style="font-size:11.5px;color:var(--p-dim);margin-top:12px;line-height:1.6;">'
+      + (edit
+          ? 'These decide who the board shows as past their ideal load, and when it says a pod '
+            + 'is full. Leave a number empty and nobody in that department is measured against it. '
+            + 'Departments come from Team Pay.'
+          : 'What each department is measured against.')
+      + '</div></div>';
+  }
+
+  function wireCapacityCard(host){
+    const dept = (id) => (P.depts || []).find(x => x.id === id);
+    // Empty means "not measured against this", which is a real answer and different from
+    // zero -- so an empty field saves null rather than being refused.
+    const num = (v) => { const t = String(v).trim();
+      if (!t) return null;
+      const n = Number(t);
+      return isFinite(n) && n >= 0 ? Math.round(n) : undefined; };
+    wireFields(host, {
+      podMax: async (el, v) => {
+        const n = num(v);
+        if (n == null || n === undefined || n < 1) return false;
+        const pod = P.pods.find(x => x.id === el.dataset.id);
+        const ok = await saveCfg('pods', { id: el.dataset.id }, { max_clients: n }, pod);
+        if (ok) { renderPodColumns(); renderSubtitle(); }
+        return ok;
+      },
+      deptLabel: (el, v) => saveCfg('pay_departments', { id: el.dataset.id },
+        { cap_label: v.trim() || null }, dept(el.dataset.id)),
+      deptIdeal: async (el, v) => {
+        const n = num(v);
+        if (n === undefined) return false;
+        const d = dept(el.dataset.id);
+        // The table refuses ideal above max, so the page says why rather than letting the
+        // database answer with a constraint name.
+        if (n != null && d && d.max_accounts != null && n > d.max_accounts) {
+          if (window.toast) toast({ type: 'error', report: false,
+            message: 'The ideal load cannot be above the maximum (' + d.max_accounts + ').' });
+          return false;
+        }
+        return saveCfg('pay_departments', { id: el.dataset.id }, { ideal_accounts: n }, d);
+      },
+      deptMax: async (el, v) => {
+        const n = num(v);
+        if (n === undefined) return false;
+        const d = dept(el.dataset.id);
+        if (n != null && d && d.ideal_accounts != null && n < d.ideal_accounts) {
+          if (window.toast) toast({ type: 'error', report: false,
+            message: 'The maximum cannot be below the ideal load (' + d.ideal_accounts + ').' });
+          return false;
+        }
+        return saveCfg('pay_departments', { id: el.dataset.id }, { max_accounts: n }, d);
+      },
+    });
+  }
+
+  // ── the warnings the design asks for ────────────────────────────────────────
+  // "3rd Meta account reached — assign or recruit a dedicated per-account Meta specialist."
+  // A cap drawn on a bar is a fact; a cap that speaks when it is crossed is a prompt, and
+  // the design is explicit that crossing one is when you recruit rather than when you
+  // notice. Computed from the board, so they appear and clear on their own.
+  function capacityWarnings(){
+    const out = [];
+    const metaN = live().filter(a => a.service === 'meta_ads').length;
+    const metaWho = [...new Set(live().filter(a => a.service === 'meta_ads' && a.specialist_id)
+      .map(a => a.specialist_id))];
+    if (metaN >= 3 && metaWho.length < 2) {
+      const rates = SERVICES.find(x => x.key === 'meta_ads');
+      const tiers = TIERS.map(t => {
+        const r = P.rates.find(x => x.service === 'meta_ads' && x.tier === t);
+        return r ? money(r.amount_cents) : null;
+      }).filter(Boolean).join(' / ');
+      out.push({ colour: rates.fg, bg: rates.bg, bd: rates.bd,
+        text: metaN + ordinalSuffix(metaN) + ' Meta account reached — assign or recruit a dedicated '
+            + 'per-account Meta specialist' + (tiers ? ' (' + tiers + ')' : '') + '.' });
+    }
+    // Everyone past their ideal load, and every pod at its limit.
+    (P.roster || []).forEach(pp => {
+      const capr = capFor(pp.id);
+      // A department with one of the two numbers left unset still warns on the one it has.
+      if (!capr) return;
+      const n = live().filter(a => a.specialist_id === pp.id).length;
+      if (capr.max != null && n > capr.max) out.push({ colour: '#e8232a', bg: '#2a1517', bd: '#4a2226',
+        text: esc(personName(pp.id)) + ' is over the maximum for a ' + capr.label.toLowerCase()
+            + ' (' + n + ' of ' + capr.max + ') — move accounts or bring somebody in.' });
+      else if (capr.ideal != null && n > capr.ideal) out.push({ colour: '#f0b429', bg: '#2a2415', bd: '#4a3d1a',
+        text: esc(personName(pp.id)) + ' is past the ideal load for a ' + capr.label.toLowerCase()
+            + ' (' + n + ', ideal ' + capr.ideal + ').' });
+    });
+    P.pods.filter(p => p.status === 'active').forEach(pod => {
+      if (podIsFull(pod)) out.push({ colour: '#e8232a', bg: '#2a1517', bd: '#4a2226',
+        text: esc(pod.name) + ' is full at ' + (pod.max_clients || 20)
+            + ' clients — open the next pod and recruit its Account Manager.' });
+    });
+    return out;
+  }
+  const ordinalSuffix = (n) => {
+    const t = n % 100;
+    if (t >= 11 && t <= 13) return 'th';
+    return ['th', 'st', 'nd', 'rd'][n % 10] || 'th';
+  };
+
+  // ── how it works ────────────────────────────────────────────────────────────
+  // The design's explainer, with the people filled in from the board rather than written
+  // down: who holds Google accounts today is a fact the board already knows, and a poster
+  // that says "EMMAN & JOVEN" goes stale the first time somebody moves.
+  // ROLES, LIMITS and GROWTH used to live here: the five role descriptions, the capacity
+  // limits written out in prose, and the growth plan. They are rows in pod_settings now and
+  // edited on How it works itself -- except the limits, which were a second written-down
+  // copy of the pod size and the department caps and are read off those rows instead.
+  // Migration 20260915160000 seeds all of it with exactly the words that were here.
+
+  // First names read best — "Emman & Joven" — but two people sharing one would both show as
+  // the same word, naming nobody. The same rule the tabs use.
+  // Counted across the whole workspace, not within one role: two people called Team, one
+  // on Google and one on Meta, each read as "Team" while neither list had a collision in
+  // it. A first name is only safe to show if it belongs to one person here.
+  function firstNameIsUnique(id){
+    const f = personName(id).split(' ')[0].toLowerCase();
+    return (P.roster || []).filter(x => String(x.full_name || x.email || '').split(' ')[0]
+      .toLowerCase() === f).length <= 1;
+  }
+  const shortName = (id) => firstNameIsUnique(id) ? personName(id).split(' ')[0] : personName(id);
+  function shortNames(ids){ return ids.map(shortName); }
+  function whoHolds(serviceKey){
+    const ids = serviceKey === 'lead'
+      ? [...new Set(P.pods.filter(p => p.leader_id).map(p => p.leader_id))]
+      : [...new Set(live().filter(a => a.service === serviceKey && a.specialist_id)
+          .map(a => a.specialist_id))];
+    return shortNames(ids);
+  }
+
+  function renderHow(mine){
+    const body = $('body');
+    const edit = isMgr() && !mine;
+    const clientCount = podClients().length;
+    const intro = objSetting('intro');
+    const roles = listSetting('roles');
+    const growth = listSetting('growth');
+    const notes = listSetting('notes');
+    // Which band the workspace is actually in, rather than a fixed "NOW" on the first row.
+    // Ranges are typed by hand -- "1-20", "60+" -- so a row nobody can parse simply never
+    // matches rather than throwing on the page.
+    const band = growth.findIndex(g => {
+      const m = String(g.range || '').match(/(\d+)\s*[-–—]\s*(\d+)|(\d+)\s*\+/);
+      if (!m) return false;
+      return m[3] != null ? clientCount >= Number(m[3])
+        : clientCount >= Number(m[1]) && clientCount <= Number(m[2]);
+    });
+
+    const card = (inner, style) =>
+      '<div class="p-card" style="' + (style || '') + '">' + inner + '</div>';
+
+    // Between writing the config migration and applying it there is no pod_settings table,
+    // so every block on this tab would draw empty -- a page that looks broken rather than
+    // one that says what is wrong. The capacity card on The team has no such state: those
+    // are columns, and a workspace without them simply has no caps set.
+    if (!roles.length && !growth.length && !notes.length && !intro.title) {
+      body.innerHTML = '<div class="p-card" style="text-align:center;padding:40px;">'
+        + '<div style="font-size:13px;color:var(--p-fg2);">How it works has not been set up yet.</div>'
+        + '<div style="font-size:12px;color:var(--p-dim);margin-top:6px;">'
+        + (edit ? 'A developer needs to apply the pod configuration migration.'
+                : 'A manager has not written this page yet.') + '</div></div>';
+      return;
+    }
+
+    body.innerHTML =
+      // ── what the pod is ──
+      card((edit
+          ? field('data-pods-field="introTitle"', intro.title,
+                  { placeholder: 'What this board is, in one line',
+                    style: 'font-size:17px;font-weight:700;color:var(--p-fg);' })
+            + area('data-pods-field="introBody"', intro.body,
+                   { placeholder: 'And in a paragraph',
+                     style: 'font-size:13px;color:var(--p-fg2);line-height:1.7;margin-top:8px;' })
+          : '<div style="font-size:17px;font-weight:700;color:var(--p-fg);">'
+            + esc(intro.title || '') + '</div>'
+            + '<div style="font-size:13px;color:var(--p-fg2);line-height:1.7;margin-top:8px;">'
+            + esc(intro.body || '') + '</div>'), 'margin-bottom:14px;')
+
+      // ── what each role is for ──
+      + '<div style="display:flex;gap:14px;flex-wrap:wrap;">'
+      + roles.map((r, i) => {
+          // The colour is the service's own, not a stored value: two places holding the
+          // same colour is how they end up different.
+          const colour = r.key === 'lead' ? 'var(--p-red)'
+            : (SERVICES.find(x => x.key === r.key) || {}).fg || 'var(--p-mut)';
+          // A specialist is only sent their own assignments, so "who holds this" would read
+          // "nobody assigned yet" for every role but theirs -- not reticence, a wrong answer.
+          const who = mine ? [] : whoHolds(r.key);
+          const n = (mine || r.key === 'lead') ? 0 : live().filter(a => a.service === r.key).length;
+          return '<div class="p-card p-cfgrow" style="flex:1;min-width:300px;">'
+            + '<div style="display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;">'
+            + (edit
+                ? field('data-pods-field="roleLabel" data-i="' + i + '"', r.label,
+                        { placeholder: 'ROLE',
+                          style: 'font-size:13px;font-weight:700;letter-spacing:.1em;color:'
+                               + colour + ';flex:1;min-width:120px;' })
+                : '<span style="font-size:13px;font-weight:700;letter-spacing:.1em;color:'
+                  + colour + ';">' + esc(r.label || '') + '</span>')
+            + (who.length
+                ? '<span style="font-size:12.5px;color:var(--p-fg2);">· ' + esc(who.join(' & ')) + '</span>'
+                : mine || edit ? ''
+                : '<span style="font-size:12.5px;color:var(--p-dim);">· nobody assigned yet</span>')
+            + (n ? '<span style="margin-left:auto;font-size:11.5px;color:var(--p-dim);">' + n
+                   + ' account' + (n === 1 ? '' : 's') + '</span>' : '')
+            + (edit ? '<span class="p-del" data-pods-role-del="' + i + '" '
+                + 'title="Remove this role">×</span>' : '')
+            + '</div>'
+            + (edit
+                ? area('data-pods-field="roleDoes" data-i="' + i + '"', r.does,
+                       { placeholder: 'What this role is responsible for',
+                         style: 'font-size:12.5px;color:var(--p-fg2);line-height:1.65;margin-top:10px;' })
+                  + area('data-pods-field="roleNote" data-i="' + i + '"', r.note,
+                         { placeholder: 'The caveat: load, how it is paid, what it does not cover',
+                           style: 'font-size:12px;color:var(--p-dim);line-height:1.6;margin-top:10px;'
+                                + 'padding-top:10px;border-top:1px solid var(--p-line);' })
+                : '<div style="font-size:12.5px;color:var(--p-fg2);line-height:1.65;margin-top:10px;">'
+                  + esc(r.does || '') + '</div>'
+                  + (r.note ? '<div style="font-size:12px;color:var(--p-dim);line-height:1.6;margin-top:10px;'
+                      + 'padding-top:10px;border-top:1px solid var(--p-line);">' + esc(r.note) + '</div>' : ''))
+            + '</div>';
+        }).join('')
+      + '</div>'
+      + (edit ? '<div style="margin-top:12px;"><span class="p-add" data-pods-role-add>+ Role</span></div>' : '')
+
+      + '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;">'
+      // ── the limits, which are no longer written down twice ──
+      // This list used to be a constant that repeated the pod size and the department caps
+      // in prose. Two copies of a number is one copy too many, and the prose one was the
+      // one nobody updated. It is read off the same rows the rest of the board is measured
+      // against, so it cannot disagree with them -- and it is edited on The team, where
+      // those rows live, rather than being a second place to type the same figure.
+      +   card('<div class="p-statlabel" style="color:var(--p-mut);">CAPACITY LIMITS</div>'
+      +     '<div style="margin-top:12px;">'
+      +     capacityLimits().map(([k, v]) => '<div style="display:flex;justify-content:space-between;'
+              + 'gap:10px;padding:8px 0;border-bottom:1px solid var(--p-line);font-size:12.5px;">'
+              + '<span style="color:var(--p-fg2);">' + esc(k) + '</span>'
+              + '<span style="color:var(--p-fg);font-weight:600;flex:none;">' + esc(v) + '</span></div>').join('')
+      +     '<div style="font-size:12px;color:var(--p-dim);margin-top:10px;">'
+      +     (edit ? 'Set on The team, so these and the warnings cannot disagree.'
+                  : 'Add people only when capacity is actually reached.')
+      +     '</div></div>', 'flex:1;min-width:280px;')
+      // ── the standing notes ──
+      +   notes.map((nt, i) => card(
+            '<div style="display:flex;align-items:center;gap:8px;">'
+            + (edit
+                ? field('data-pods-field="noteLabel" data-i="' + i + '"', nt.label,
+                        { placeholder: 'HEADING',
+                          style: 'font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--p-mut);' })
+                : '<div class="p-statlabel" style="color:var(--p-mut);flex:1;">' + esc(nt.label || '') + '</div>')
+            + (edit ? '<span class="p-del" data-pods-note-del="' + i + '" title="Remove this note">×</span>' : '')
+            + '</div>'
+            + (edit
+                ? area('data-pods-field="noteBody" data-i="' + i + '"', nt.body,
+                       { placeholder: 'What it says',
+                         style: 'font-size:12.5px;color:var(--p-fg2);line-height:1.7;margin-top:12px;' })
+                : '<div style="font-size:12.5px;color:var(--p-fg2);line-height:1.7;margin-top:12px;">'
+                  + esc(nt.body || '') + '</div>'),
+            'flex:1;min-width:280px;').replace('class="p-card"', 'class="p-card p-cfgrow"')).join('')
+      + '</div>'
+      + (edit ? '<div style="margin-top:12px;"><span class="p-add" data-pods-note-add>+ Note</span></div>' : '')
+
+      // ── the growth plan ──
+      + card('<div class="p-statlabel" style="color:var(--p-mut);">GROWTH PLAN</div>'
+      + '<div style="margin-top:12px;">'
+      + growth.map((g, i) => {
+          const here = i === band;
+          return '<div class="p-cfgrow" style="display:flex;align-items:center;gap:14px;padding:10px 0;'
+            + 'border-bottom:1px solid var(--p-line);">'
+            + (edit
+                ? field('data-pods-field="growthRange" data-i="' + i + '"', g.range,
+                        { placeholder: '20-25',
+                          style: 'width:78px;flex:none;font-size:13px;font-weight:700;color:'
+                               + (here ? 'var(--p-red)' : 'var(--p-mut)') + ';' })
+                : '<span style="width:64px;flex:none;font-size:13px;font-weight:700;color:'
+                  + (here ? 'var(--p-red)' : 'var(--p-mut)') + ';">' + esc(g.range || '') + '</span>')
+            + (edit
+                ? field('data-pods-field="growthWhat" data-i="' + i + '"', g.what,
+                        { placeholder: 'What happens at that size',
+                          style: 'flex:1;min-width:0;font-size:12.5px;color:'
+                               + (here ? 'var(--p-fg)' : 'var(--p-fg2)') + ';' })
+                : '<span style="flex:1;min-width:0;font-size:12.5px;color:'
+                  + (here ? 'var(--p-fg)' : 'var(--p-fg2)') + ';">' + esc(g.what || '') + '</span>')
+            + (here ? '<span style="font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--p-red);'
+                + 'border:1px solid var(--p-red);border-radius:99px;padding:3px 9px;flex:none;">NOW · '
+                + clientCount + ' CLIENTS</span>' : '')
+            + (edit ? '<span class="p-del" data-pods-growth-del="' + i + '" title="Remove this row">×</span>' : '')
+            + '</div>';
+        }).join('')
+      + (edit ? '<div style="margin-top:12px;"><span class="p-add" data-pods-growth-add>+ Row</span></div>' : '')
+      + '</div>', 'margin-top:14px;');
+
+    if (edit) wireHow(body);
+  }
+
+  // The capacity limits, read off the rows the board actually measures against rather than
+  // a second prose copy of the same numbers.
+  function capacityLimits(){
+    const out = [];
+    P.pods.filter(p => p.status === 'active')
+      .forEach(p => out.push([p.name, 'max ' + (p.max_clients || 20) + ' clients']));
+    (P.depts || []).forEach(d => {
+      const c = capOfDept(d);
+      if (c) out.push([c.label, capText(c)]);
+    });
+    return out;
+  }
+
+  // Editing a list setting: the row is changed in the copy we hold and the whole list is
+  // written back. These lists are five rows long, they are edited by one person at a time,
+  // and a per-row identity would be a schema for something that is a paragraph.
+  function wireHow(host){
+    const patch = (key, i, prop) => async (el, v) => {
+      const list = listSetting(key).map(x => Object.assign({}, x));
+      if (!list[i]) return false;
+      list[i][prop] = v.trim();
+      return setSetting(key, list);
+    };
+    const handlers = {
+      introTitle: (el, v) => setSetting('intro',
+        Object.assign({}, objSetting('intro'), { title: v.trim() })),
+      introBody: (el, v) => setSetting('intro',
+        Object.assign({}, objSetting('intro'), { body: v.trim() })),
+    };
+    // One handler per field name, closed over the row it belongs to, read off the element.
+    [['roleLabel', 'roles', 'label'], ['roleDoes', 'roles', 'does'], ['roleNote', 'roles', 'note'],
+     ['noteLabel', 'notes', 'label'], ['noteBody', 'notes', 'body'],
+     ['growthRange', 'growth', 'range'], ['growthWhat', 'growth', 'what']]
+      .forEach(([name, key, prop]) => {
+        handlers[name] = (el, v) => patch(key, Number(el.dataset.i), prop)(el, v);
+      });
+    wireFields(host, handlers);
+
+    const addTo = async (key, row) => { await setSetting(key, listSetting(key).concat([row])); render(); };
+    const delFrom = async (key, i, what) => {
+      const list = listSetting(key);
+      if (!list[i]) return;
+      const ok = await window.giantConfirmWarn('Remove this ' + what + '?',
+        (list[i].label || list[i].range || '').trim() || 'It is empty.', 'Remove', 'warning');
+      if (!ok) return;
+      await setSetting(key, list.filter((x, j) => j !== i));
+      render();
+    };
+
+    host.querySelectorAll('[data-pods-role-add]').forEach(b => b.addEventListener('click', async () => {
+      // Offer the services that have no role card yet, so the colour and the account count
+      // line up with a real service rather than being decorative.
+      const taken = listSetting('roles').map(r => r.key);
+      const opts = [{ value: 'lead', label: 'Pod Leader', note: 'Owns the client relationships' }]
+        .concat(SERVICES.map(sv => ({ value: sv.key, label: sv.label, note: 'A service on the rate card' })))
+        .filter(o => !taken.includes(o.value))
+        .concat([{ value: '', label: 'Something else', note: 'A role that is not a service' }]);
+      const key = await podAsk({ title: 'Which role?',
+        sub: 'A role that matches a service is counted and coloured like one.', options: opts });
+      if (key == null) return;
+      const label = ((await window.giantPrompt('What is this role called?', '')) || '').trim();
+      if (!label) return;
+      await addTo('roles', { key, label: label.toUpperCase(), does: '', note: '' });
+    }));
+    host.querySelectorAll('[data-pods-role-del]').forEach(b =>
+      b.addEventListener('click', () => delFrom('roles', Number(b.dataset.podsRoleDel), 'role')));
+    host.querySelectorAll('[data-pods-note-add]').forEach(b =>
+      b.addEventListener('click', () => addTo('notes', { label: 'NEW NOTE', body: '' })));
+    host.querySelectorAll('[data-pods-note-del]').forEach(b =>
+      b.addEventListener('click', () => delFrom('notes', Number(b.dataset.podsNoteDel), 'note')));
+    host.querySelectorAll('[data-pods-growth-add]').forEach(b =>
+      b.addEventListener('click', () => addTo('growth', { range: '', what: '' })));
+    host.querySelectorAll('[data-pods-growth-del]').forEach(b =>
+      b.addEventListener('click', () => delFrom('growth', Number(b.dataset.podsGrowthDel), 'row')));
+  }
+
+  // ── asking for something, the way the rest of the app asks ──────────────────
+  // Choosing a person was a window.prompt showing a numbered list and asking for a digit.
+  // Worse than ugly: the app already warns that window.prompt is a no-op in the Electron
+  // build, so on the desktop it did nothing at all. Built on the app's own .modal classes
+  // so it looks like every other dialog in Giant, rather than on this screen's palette,
+  // which belongs to the board. Plain text prompts use the app's giantPrompt instead.
+  function podAsk(opts){
+    return new Promise(resolve => {
+      document.querySelectorAll('.pods-ask').forEach(e => e.remove());
+      const ov = document.createElement('div');
+      ov.className = 'modal-overlay on pods-ask';
+      const rows = (opts.options || []);
+      ov.innerHTML = '<div class="modal" style="width:' + (rows.length ? '440px' : '420px') + ';">'
+        + '<div class="modal-head"><div><h3>' + esc(opts.title) + '</h3>'
+        + (opts.sub ? '<div class="m-sub">' + esc(opts.sub) + '</div>' : '') + '</div>'
+        + '<div class="m-close" data-ask-close><svg width="14" height="14" viewBox="0 0 16 16" fill="none">'
+        + '<path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div></div>'
+        + '<div class="modal-body">'
+        + (rows.length
+            ? '<div class="m-field" style="margin-bottom:0;">'
+              + '<input id="pods_askSearch" type="text" placeholder="Search…" autocomplete="off" style="margin-bottom:8px;">'
+              + '<div id="pods_askList" style="max-height:260px;overflow:auto;border:1px solid var(--line-2);'
+              + 'border-radius:10px;"></div></div>'
+            : '')
+        + '</div>'
+        + '<div class="modal-foot">'
+        + '<button data-ask-cancel style="background:var(--surface-2);border:1px solid var(--line-2);color:var(--text-2);">Cancel</button>'
+        + '</div></div>';
+      document.body.appendChild(ov);
+
+      const done = (val) => { ov.remove(); document.removeEventListener('keydown', onKey); resolve(val); };
+      const onKey = (e) => { if (e.key === 'Escape') done(null); };
+      document.addEventListener('keydown', onKey);
+      ov.addEventListener('click', (e) => { if (e.target === ov) done(null); });
+      ov.querySelector('[data-ask-close]').addEventListener('click', () => done(null));
+      ov.querySelector('[data-ask-cancel]').addEventListener('click', () => done(null));
+
+      const list = document.getElementById('pods_askList');
+      if (list) {
+        const search = document.getElementById('pods_askSearch');
+        const draw = () => {
+          const term = (search.value || '').trim().toLowerCase();
+          const hits = rows.filter(r => !term || r.label.toLowerCase().includes(term));
+          list.innerHTML = hits.length ? hits.map(r =>
+            '<div data-ask-pick="' + esc(r.value) + '" style="display:flex;align-items:center;gap:10px;'
+            + 'padding:10px 12px;cursor:pointer;border-bottom:1px solid var(--line);">'
+            + (r.avatar || '')
+            + '<span style="flex:1;min-width:0;font-size:13px;color:var(--text);overflow:hidden;'
+            + 'text-overflow:ellipsis;white-space:nowrap;">' + esc(r.label) + '</span>'
+            + (r.note ? '<span style="font-size:11.5px;color:var(--text-3);">' + esc(r.note) + '</span>' : '')
+            + '</div>').join('')
+            : '<div style="padding:12px;font-size:12.5px;color:var(--text-3);">Nobody matches that.</div>';
+          list.querySelectorAll('[data-ask-pick]').forEach(row =>
+            row.addEventListener('click', () => done(row.dataset.askPick)));
+        };
+        draw();
+        search.addEventListener('input', draw);
+        search.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          const first = list.querySelector('[data-ask-pick]');
+          if (first) first.click();
+        });
+        setTimeout(() => search.focus(), 30);
+      }
+    });
+  }
+
+  // ── the client's conversations ──────────────────────────────────────────────
+  // A service on a client is work somebody has to talk about, so the board can open the
+  // conversation for it rather than sending you to Chat to do it by hand. The shape is the
+  // one Chat writes: a public client_dept channel with the whole team in it, because a
+  // client conversation is the team's shared record of that client.
+  const SERVICE_DEPT = { google_ads: 'googleAds', meta_ads: 'metaAds', seo: 'seo', web: 'web' };
+  function channelFor(clientId, service){
+    const dept = SERVICE_DEPT[service];
+    return (P.channels || []).find(ch => ch.client_id === clientId && ch.department === dept) || null;
+  }
+  async function createChannel(cli, service){
+    const dept = SERVICE_DEPT[service];
+    if (!dept || !cli) return null;
+    if (channelFor(cli.id, service)) return channelFor(cli.id, service);
+    const slug = String(cli.name || 'client').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30) + '-' + dept;
+    const { data, error } = await sb().from('channels')
+      .insert({ name: (cli.name || 'Client') + ' ' + dept, slug, is_private: false,
+                kind: 'client_dept', client_id: cli.id, department: dept, created_by: me() })
+      .select('id, name, client_id, department').single();
+    if (error) {
+      if (window.toast) toast({ type: 'error', message: 'Could not open that conversation: ' + error.message });
+      return null;
+    }
+    // Everyone, not just whoever pressed the button: a client channel created
+    // private-by-creator is invisible to the team it is meant to serve.
+    const team = (P.roster || []).map(x => ({ channel_id: data.id, profile_id: x.id }));
+    if (team.length) await sb().from('channel_members').upsert(team, { onConflict: 'channel_id,profile_id' });
+    P.channels.push(data);
+    return data;
+  }
+
+  // A department with no service behind it -- "general" most often, which every client
+  // wants and no rate card covers.
+  async function createDeptChannel(cli, dept){
+    if (!dept || !cli) return null;
+    const slug = String(cli.name || 'client').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 30) + '-' + dept;
+    const { data, error } = await sb().from('channels')
+      .insert({ name: (cli.name || 'Client') + ' ' + dept, slug, is_private: false,
+                kind: 'client_dept', client_id: cli.id, department: dept, created_by: me() })
+      .select('id, name, client_id, department').single();
+    if (error) {
+      if (window.toast) toast({ type: 'error', message: 'Could not open that conversation: ' + error.message });
+      return null;
+    }
+    const team = (P.roster || []).map(x => ({ channel_id: data.id, profile_id: x.id }));
+    if (team.length) await sb().from('channel_members').upsert(team, { onConflict: 'channel_id,profile_id' });
+    P.channels.push(data);
+    return data;
+  }
+
+  // ── onboarding ──────────────────────────────────────────────────────────────
+  async function makeOnboardingLink(clientId){
+    const { data, error } = await sb().rpc('generate_onboarding_token', { p_client_id: clientId });
+    if (error || !data) {
+      if (window.toast) toast({ type: 'error',
+        message: 'Could not create the onboarding link: ' + ((error && error.message) || 'no token returned') });
+      return null;
+    }
+    const cli = P.clients.find(x => x.id === clientId);
+    if (cli) cli.onboarding_token = data;
+    return data;
+  }
+  const onboardingUrl = (token) => window.location.origin + '/onboard/' + token;
+
+  // A client that does not exist yet. The board is where somebody sits down to fill a pod,
+  // and being sent to another screen to create a client and back again is the sort of
+  // errand that gets abandoned. The row is the same shape the Clients module writes —
+  // name, slug, initial, owner — so a client created here is not a second-class one.
+  async function createClient(name){
+    const clean = String(name || '').trim();
+    if (!clean) return null;
+    // Showing the matches is not the same as preventing the mistake: somebody who types a
+    // name Giant already has, and does not look down, ends up with two of that client and
+    // two sets of accounts. An exact name is refused; anything near it was already listed.
+    const clash = P.clients.find(x => String(x.name || '').trim().toLowerCase() === clean.toLowerCase());
+    if (clash) {
+      if (window.toast) toast({ type: 'error', report: false,
+        message: '“' + clean + '” is already a client. Switch to Existing client to add that one.' });
+      return null;
+    }
+    const slug = clean.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      + '-' + Math.random().toString(36).slice(2, 6);
+    const { data, error } = await sb().from('clients').insert({
+      name: clean, slug, initial: clean.charAt(0).toUpperCase(),
+      status: 'onboarding', owner_id: me(), source: 'pod_board',
+    }).select('id, name, status, mrr_cents, avatar_bg, avatar_fg, pod_id, health, pay_day, '
+      + 'pay_cadence, started_at, onboarding_sent_at, onboarding_submitted_at, reviewed_at').single();
+    if (error) {
+      if (window.toast) toast({ type: 'error', message: 'Could not create that client: ' + error.message });
+      return null;
+    }
+    // Into the board's own list straight away, so the panel can select it without a reload.
+    P.clients.push(data);
+    P.clients.sort((x, y) => String(x.name || '').localeCompare(String(y.name || '')));
+    return data;
+  }
+
+  // ── making it real: a pod, and clients assigned into it ─────────────────────
+  // Everything the board shows is derived, so this is the only place that writes: a pod, a
+  // client's own figures, and one row per service saying who holds it at what tier.
+  async function createPod(suggested){
+    // giantPrompt, not window.prompt: the app already warns that the native one is a no-op
+    // in the Electron build, so this would have silently done nothing on the desktop.
+    const raw = await window.giantPrompt('Name this pod. A pod holds up to 20 clients under one Pod Leader.',
+      suggested || ('Pod ' + (P.pods.length + 1)));
+    const name = (raw || '').trim();
+    if (!name) return;
+    const { data, error } = await sb().from('pods')
+      .insert({ name, max_clients: 20, status: 'active', position: P.pods.length, created_by: me() })
+      .select('id, name, leader_id, max_clients, opens_at, status, position').single();
+    if (error) { if (window.toast) toast({ type:'error', message:'Could not create that pod: ' + error.message }); return; }
+    P.pods.push(data);
+    render();
+  }
+
+  // The roster is loaded with the board now, so this is just the accessor.
+  async function peopleList(){ return P.roster || []; }
+
+  // One panel for both jobs. "Add a client" is the same form with nothing filled in, so
+  // there is one set of rules about what an assignment means rather than two.
+  async function openClient(clientId){
+    const roster = await peopleList();
+    const pod = P.pods.find(p => p.status === 'active');
+    document.querySelectorAll('.pods-editor').forEach(e => e.remove());
+    const c = P.clients.find(x => x.id === clientId) || null;
+    // Only clients not already in the pod can be added, so the same client cannot be
+    // entered twice under two different names.
+    const inPod = new Set(podClients().map(x => x.id));
+    const addable = P.clients.filter(x => !inPod.has(x.id));
+
+    P.__draftPod = null;
+    const draft = {
+      clientId: c ? c.id : (addable[0] ? addable[0].id : null),
+      name: c ? c.name : (addable[0] ? addable[0].name : ''),
+      mrr: c ? (c.mrr_cents || 0) / 100 : 0,
+      payDay: c ? (c.pay_day || '') : '',
+      health: c ? (c.health || 'green') : 'green',
+      status: c ? (c.status || 'active') : 'active',
+      // "new" or "pick": one question, answered once, rather than one field meaning two
+      // things depending on which row gets clicked.
+      mode: c ? 'pick' : 'new',
+      newName: '',
+      // Which pod this client sits in. Changing it here is how a client moves.
+      podId: c ? (c.pod_id || (P.pods.find(x => x.status === 'active') || {}).id || null)
+                : ((P.pods.find(x => x.status === 'active') || {}).id || null),
+      services: {},
+    };
+    SERVICES.forEach(s => {
+      const a = c ? live().find(x => x.client_id === c.id && x.service === s.key) : null;
+      draft.services[s.key] = a
+        ? { on: true, tier: a.tier || 'standard', who: a.specialist_id || '', internal: !!a.is_internal,
+            id: a.id, channel: false }
+        : { on: false, tier: 'standard', who: '', internal: false, id: null, channel: false };
+    });
+
+    const wrap = document.createElement('div');
+    wrap.className = 'pods-editor';
+    wrap.style.cssText = 'position:fixed;inset:0;background:rgba(4,4,5,.72);backdrop-filter:blur(6px);'
+      + 'display:flex;align-items:flex-start;justify-content:center;padding:6vh 20px 40px;z-index:200;overflow:auto;';
+    wrap.innerHTML = '<div id="pods_edCard" style="width:100%;max-width:640px;background:#141416;'
+      + 'border:1px solid #2c2c31;border-radius:20px;box-shadow:0 32px 80px rgba(0,0,0,.6);overflow:hidden;'
+      + "font-family:'Instrument Sans',system-ui,sans-serif;color:#f2f2f2;\"></div>";
+    document.body.appendChild(wrap);
+    wrap.addEventListener('click', (e) => { if (e.target === wrap) wrap.remove(); });
+
+    const HEALTHS = ['green', 'amber', 'red'];
+    const STATUSES = ['active', 'onboarding', 'paused', 'at_risk'];
+    const SLABEL = { active: 'Active', onboarding: 'Onboarding', paused: 'Paused', at_risk: 'At risk' };
+    draft.status = c ? (c.status || 'active') : 'active';
+
+    // The next time this client pays: the next occurrence of its pay day. The design shows
+    // a date and lets you pick one; the schema keeps the day of the month, which is what
+    // recurs -- so a picked date is read for its day and the year looks after itself.
+    function nextPayDate(){
+      if (!draft.payDay) return null;
+      const d = Number(draft.payDay), now = new Date();
+      let dt = new Date(now.getFullYear(), now.getMonth(), d);
+      if (dt < new Date(now.getFullYear(), now.getMonth(), now.getDate()))
+        dt = new Date(now.getFullYear(), now.getMonth() + 1, d);
+      return dt;
+    }
+    const money0 = (n) => '$' + Math.round(n).toLocaleString('en-US');
+    function cost(){
+      return SERVICES.reduce((n, sv) => {
+        const d = draft.services[sv.key];
+        if (!d.on) return n;
+        const r = P.rates.find(x => x.service === sv.key
+          && (x.tier || '') === (sv.key === 'seo' || sv.key === 'web' ? '' : d.tier)
+          && !!x.is_internal === !!d.internal);
+        return n + (r ? r.amount_cents : 0);
+      }, 0);
+    }
+    const rateOf = (key) => {
+      const d = draft.services[key];
+      const r = P.rates.find(x => x.service === key
+        && (x.tier || '') === (key === 'seo' || key === 'web' ? '' : d.tier)
+        && !!x.is_internal === !!d.internal);
+      return r ? r.amount_cents : 0;
+    };
+
+    const LAB = { font: 'font-size:10px;font-weight:700;letter-spacing:.12em;color:#5a5a62;' };
+    const SEL = 'background:#1c1c20;border:1px solid #2c2c31;color:#f2f2f2;padding:7px 10px;'
+      + 'border-radius:8px;font-family:inherit;font-size:13px;outline:none;';
+
+    function paint(){
+      const card = document.getElementById('pods_edCard');
+      const teamCost = cost(), mrrC = Math.round(draft.mrr * 100);
+      const marginPct = mrrC > 0 ? Math.round(((mrrC - teamCost) / mrrC) * 100) : null;
+      const npd = nextPayDate();
+      const on = SERVICES.filter(sv => draft.services[sv.key].on);
+      const off = SERVICES.filter(sv => !draft.services[sv.key].on);
+
+      const pending = !c && !!draft.newName;
+      card.innerHTML =
+        (c || pending ? '' : '<div style="padding:20px 26px 0;">'
+          + '<div style="display:flex;background:#0f0f11;border:1px solid #26262b;border-radius:99px;'
+          + 'padding:3px;width:fit-content;margin-bottom:12px;">'
+          + [['new', 'New client'], ['pick', 'Existing client']].map(([k, label]) =>
+              '<span data-pods-mode="' + k + '" style="font-size:12px;font-weight:700;padding:6px 14px;'
+              + 'border-radius:99px;cursor:pointer;white-space:nowrap;background:'
+              + (draft.mode === k ? '#222226' : 'transparent') + ';color:'
+              + (draft.mode === k ? '#f2f2f2' : '#8a8a92') + ';">' + label + '</span>').join('')
+          + '</div>'
+          // A dropdown of fifty-one clients is a scroll and a squint. Type to narrow it,
+          // and the list shows what each one already pays so you can tell two similar
+          // names apart without leaving the panel.
+          + (addable.length
+              ? '<input type="hidden" id="pods_edClient" value="' + esc(draft.clientId || '') + '">'
+                + '<input id="pods_edSearch" type="text" autocomplete="off" placeholder="'
+                + (draft.mode === 'new' ? 'Name the new client…'
+                                        : 'Search ' + addable.length + ' clients…')
+                + '" value="' + esc(draft.q || '') + '" style="' + SEL
+                + 'width:100%;box-sizing:border-box;cursor:text;">'
+                + '<div id="pods_edList" style="max-height:190px;overflow:auto;margin-top:8px;'
+                + 'border:1px solid #1d1d21;border-radius:12px;background:#101012;"></div>'
+              : '<input type="hidden" id="pods_edClient" value="">'
+                + '<input id="pods_edSearch" type="text" autocomplete="off" value="' + esc(draft.q || '')
+                + '" placeholder="Every client is in a pod — type a name to create one…" style="' + SEL
+                + 'width:100%;box-sizing:border-box;cursor:text;">'
+                + '<div id="pods_edList" style="max-height:190px;overflow:auto;margin-top:8px;'
+                + 'border:1px solid #1d1d21;border-radius:12px;background:#101012;"></div>')
+          + '</div>')
+        + '<div style="display:flex;align-items:center;gap:14px;padding:22px 26px 18px;flex-wrap:wrap;">'
+        +   '<span id="pods_edHealth" title="Health — click to cycle" style="width:12px;height:12px;'
+        +   'border-radius:50%;background:' + HEALTH[draft.health] + ';cursor:pointer;'
+        +   'box-shadow:0 0 0 4px #1d1d21;flex:none;"></span>'
+        +   '<input id="pods_edName" value="' + esc(draft.name || '') + '"'
+        +   (c || pending ? '' : ' readonly')
+        +   ' style="flex:1;min-width:120px;font-weight:700;font-size:21px;letter-spacing:-.01em;'
+        +   'background:transparent;border:none;color:#f2f2f2;font-family:inherit;outline:none;'
+        +   'padding:2px 6px;margin:-2px -6px;border-radius:6px;">'
+        +   '<div style="display:flex;background:#0f0f11;border:1px solid #26262b;border-radius:99px;padding:3px;flex:none;">'
+        +   STATUSES.map(st => '<span data-pods-status="' + st + '" style="font-size:12px;font-weight:700;'
+              + 'padding:6px 13px;border-radius:99px;cursor:pointer;white-space:nowrap;background:'
+              + (draft.status === st ? '#222226' : 'transparent') + ';color:'
+              + (draft.status === st ? '#f2f2f2' : '#8a8a92') + ';">' + SLABEL[st] + '</span>').join('')
+        +   '</div>'
+        +   '<span id="pods_edX" style="width:32px;height:32px;border-radius:10px;display:flex;'
+        +   'align-items:center;justify-content:center;color:#8a8a92;cursor:pointer;font-size:18px;flex:none;">×</span>'
+        + '</div>'
+
+        + (draft.status === 'onboarding' ? onboardingBlock(pending) : '')
+
+        + (P.pods.filter(x => x.status === 'active').length
+            ? '<div style="margin:0 26px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+              + '<span style="' + LAB.font + '">POD</span>'
+              + P.pods.filter(x => x.status === 'active').map(x => {
+                  const n2 = podClientsIn(x.id).length, max = x.max_clients || 20;
+                  const here = draft.podId === x.id;
+                  // A pod that is full is still offered if the client is already in it --
+                  // otherwise editing a client in a full pod would move it out.
+                  const full = n2 >= max && !here;
+                  return '<span data-pods-pod="' + esc(x.id) + '" title="'
+                    + (full ? 'This pod is full' : 'Put this client in ' + esc(x.name)) + '"'
+                    + ' style="font-size:12px;font-weight:700;padding:6px 13px;border-radius:99px;'
+                    + 'cursor:' + (full ? 'not-allowed' : 'pointer') + ';border:1px solid '
+                    + (here ? '#e8232a' : '#2c2c31') + ';background:' + (here ? 'rgba(232,35,42,.12)' : 'transparent')
+                    + ';color:' + (here ? '#f2f2f2' : full ? '#5a5a62' : '#8a8a92') + ';">'
+                    + esc(x.name) + '<span style="opacity:.6;font-weight:500;margin-left:7px;">'
+                    + n2 + '/' + max + '</span></span>';
+                }).join('')
+              + '</div>'
+            : '')
+        + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;'
+        + 'background:#1d1d21;border-top:1px solid #1d1d21;">'
+        +   '<div style="background:#141416;padding:16px 22px 18px;">'
+        +     '<div style="' + LAB.font + 'margin-bottom:8px;">MRR</div>'
+        +     '<div style="display:flex;align-items:baseline;font-weight:700;font-size:22px;color:#34c77b;'
+        +     'letter-spacing:-.01em;">$<input id="pods_edMrr" type="number" value="' + draft.mrr + '" placeholder="0"'
+        +     ' style="width:92px;background:transparent;border:none;color:#34c77b;font-family:inherit;'
+        +     'font-weight:700;font-size:22px;letter-spacing:-.01em;outline:none;padding:0;"></div>'
+        +   '</div>'
+        +   '<div style="background:#141416;padding:16px 22px 18px;position:relative;cursor:pointer;">'
+        +     '<div style="' + LAB.font + 'margin-bottom:8px;">NEXT PAYMENT</div>'
+        +     '<div style="font-weight:700;font-size:22px;letter-spacing:-.01em;">'
+        +     (npd ? esc(npd.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })) : '—') + '</div>'
+        +     '<div style="font-size:10.5px;color:#5a5a62;margin-top:4px;">monthly · click to change</div>'
+        +     '<input id="pods_edDate" type="date"' + (npd ? ' value="' + npd.toISOString().slice(0, 10) + '"' : '')
+        +     ' style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer;border:none;">'
+        +   '</div>'
+        +   '<div style="background:#141416;padding:16px 22px 18px;">'
+        +     '<div style="' + LAB.font + 'margin-bottom:8px;">TEAM COST</div>'
+        +     '<div style="font-weight:700;font-size:22px;letter-spacing:-.01em;">' + money0(teamCost / 100) + '</div>'
+        +   '</div>'
+        +   '<div style="background:#141416;padding:16px 22px 18px;">'
+        +     '<div style="' + LAB.font + 'margin-bottom:8px;">MARGIN</div>'
+        +     '<div style="font-weight:700;font-size:22px;letter-spacing:-.01em;color:'
+        +     (marginPct == null ? '#5a5a62' : marginPct < 0 ? '#e8232a' : '#34c77b') + ';">'
+        +     (marginPct == null ? '—' : marginPct + '%') + '</div>'
+        +   '</div>'
+        + '</div>'
+
+        + (draft.clientId ? '<div style="padding:18px 26px 0;">'
+            + '<div style="' + LAB.font + 'margin-bottom:9px;">CONVERSATIONS</div>'
+            + '<div style="display:flex;gap:7px;flex-wrap:wrap;">'
+            + [{ key: 'general', label: 'General', fg: '#c9c9cf', bg: '#1c1c20', bd: '#2c2c31' }]
+              .concat(SERVICES.map(sv => ({ key: SERVICE_DEPT[sv.key], label: sv.short,
+                                            fg: sv.fg, bg: sv.bg, bd: sv.bd })))
+              .filter(d => d.key)
+              .map(d => {
+                const existing2 = (P.channels || []).find(ch => ch.client_id === draft.clientId
+                  && ch.department === d.key);
+                if (existing2) return '<span style="font-size:12px;font-weight:700;padding:6px 12px;'
+                  + 'border-radius:99px;background:' + d.bg + ';color:' + d.fg + ';border:1px solid '
+                  + d.bd + ';display:inline-flex;align-items:center;gap:6px;">'
+                  + '<span style="width:5px;height:5px;border-radius:50%;background:' + d.fg + ';"></span>'
+                  + esc(d.label) + '</span>';
+                return '<span data-pods-thread="' + d.key + '" title="Open a ' + esc(d.label)
+                  + ' conversation for this client" style="font-size:12px;font-weight:700;padding:6px 12px;'
+                  + 'border-radius:99px;background:transparent;color:#8a8a92;border:1px dashed #2c2c31;'
+                  + 'cursor:pointer;">+ ' + esc(d.label) + '</span>';
+              }).join('')
+            + '</div>'
+            + '<div style="font-size:11.5px;color:#5a5a62;margin-top:8px;">'
+            + 'A service opens its own conversation when you save. These open one for any department, '
+            + 'whether or not the client takes that service.</div></div>' : '')
+        + '<div style="padding:20px 26px;display:flex;flex-direction:column;gap:10px;border-top:1px solid #1d1d21;">'
+        +   '<div style="' + LAB.font + '">SERVICES</div>'
+        +   (on.length ? on.map(sv => {
+              const d = draft.services[sv.key];
+              const tiered = sv.key === 'google_ads' || sv.key === 'meta_ads';
+              return '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;background:#101012;'
+                + 'border:1px solid #1d1d21;border-radius:14px;padding:11px 16px;">'
+                + '<span style="width:8px;height:8px;border-radius:50%;background:' + sv.fg + ';flex:none;"></span>'
+                + '<div style="width:88px;font-size:11.5px;font-weight:700;letter-spacing:.06em;color:' + sv.fg
+                + ';flex:none;">' + sv.short.toUpperCase() + '</div>'
+                + (tiered
+                    ? '<select data-pods-tier="' + sv.key + '" style="' + SEL + '">'
+                      + TIERS.map(t => '<option value="' + t + '"' + (d.tier === t ? ' selected' : '') + '>'
+                        + cap(t) + '</option>').join('') + '</select>'
+                    : (sv.key === 'seo'
+                        ? '<select data-pods-internal="' + sv.key + '" style="' + SEL + '">'
+                          + '<option value="0"' + (!d.internal ? ' selected' : '') + '>Paying client</option>'
+                          + '<option value="1"' + (d.internal ? ' selected' : '') + '>Internal</option></select>'
+                        : ''))
+                + '<select data-pods-who="' + sv.key + '" style="' + SEL + '">'
+                + '<option value="">Unassigned</option>'
+                + roster.map(pp => '<option value="' + esc(pp.id) + '"' + (d.who === pp.id ? ' selected' : '') + '>'
+                  + esc(pp.full_name || pp.email) + '</option>').join('') + '</select>'
+                + (SERVICE_DEPT[sv.key] ? (() => {
+                    const cid = draft.clientId;
+                    const has = cid ? channelFor(cid, sv.key) : null;
+                    if (has) return '<span title="Conversation already open" style="font-size:11.5px;'
+                      + 'color:#34c77b;display:inline-flex;align-items:center;gap:5px;">'
+                      + '<span style="width:6px;height:6px;border-radius:50%;background:#34c77b;"></span>chat</span>';
+                    return '<label title="Open a channel for this service when you save" '
+                      + 'style="display:inline-flex;align-items:center;gap:5px;font-size:11.5px;'
+                      + 'color:#8a8a92;cursor:pointer;"><input type="checkbox" data-pods-chan="' + sv.key + '"'
+                      + (d.channel ? ' checked' : '') + ' style="accent-color:' + sv.fg + ';">chat</label>';
+                  })() : '')
+                + '<span style="font-size:13px;font-weight:700;margin-left:auto;">' + money0(rateOf(sv.key) / 100) + '</span>'
+                + '<span data-pods-drop="' + sv.key + '" style="font-size:15px;color:#5a5a62;cursor:pointer;'
+                + 'padding:0 4px;">×</span></div>';
+            }).join('')
+            : '<div style="font-size:13px;color:#5a5a62;">No services yet.</div>')
+        +   (off.length ? '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:2px;">'
+              + off.map(sv => '<span data-pods-addsvc="' + sv.key + '" style="font-size:12px;font-weight:700;'
+                + 'padding:7px 14px;border-radius:99px;cursor:pointer;background:' + sv.bg + ';color:' + sv.fg
+                + ';border:1px solid ' + sv.bd + ';">+ ' + sv.label + '</span>').join('') + '</div>' : '')
+        + '</div>'
+
+        + '<div style="display:flex;justify-content:space-between;gap:8px;padding:0 26px 22px;">'
+        +   (c ? '<span id="pods_edRemove" style="font-size:13px;font-weight:600;color:#e8232a;cursor:pointer;'
+              + 'padding:9px 2px;">Remove from pod</span>' : '<span></span>')
+        +   '<span style="display:flex;gap:8px;">'
+        +     '<span id="pods_edCancel" style="border:1px solid #2c2c31;color:#c9c9cf;font-size:13px;'
+              + 'font-weight:600;padding:8px 16px;border-radius:10px;cursor:pointer;">Cancel</span>'
+        +     '<span id="pods_edSave" style="background:#e8232a;color:#fff;font-size:13px;font-weight:700;'
+              + 'padding:8px 18px;border-radius:10px;cursor:pointer;">'
+              + (c ? 'Save' : pending ? 'Create and add to pod' : 'Add to pod') + '</span>'
+        +   '</span></div>';
+
+      const q = (id) => document.getElementById(id);
+      const all = (sel, ev, fn) => card.querySelectorAll(sel).forEach(e => e.addEventListener(ev, fn));
+      q('pods_edX').addEventListener('click', () => wrap.remove());
+      q('pods_edCancel').addEventListener('click', () => wrap.remove());
+      q('pods_edSave').addEventListener('click', save);
+      const rm = q('pods_edRemove');
+      if (rm) rm.addEventListener('click', removeFromPod);
+      q('pods_edHealth').addEventListener('click', () => {
+        draft.health = HEALTHS[(HEALTHS.indexOf(draft.health) + 1) % HEALTHS.length]; paint();
+      });
+      all('[data-pods-status]', 'click', (e) => { draft.status = e.target.dataset.podsStatus; paint(); });
+      all('[data-pods-mode]', 'click', (e) => {
+        draft.mode = e.target.dataset.podsMode;
+        draft.q = ''; draft.newName = ''; draft.clientId = null; draft.name = '';
+        paint();
+      });
+      all('[data-pods-pod]', 'click', (e) => {
+        const id = e.target.closest('[data-pods-pod]').dataset.podsPod;
+        const target = P.pods.find(x => x.id === id);
+        if (!target) return;
+        const n2 = podClientsIn(id).length, max = target.max_clients || 20;
+        if (draft.podId !== id && n2 >= max) {
+          if (window.toast) toast({ type: 'error', report: false,
+            message: esc(target.name) + ' is full at ' + max + ' clients. Open the next pod, or move a '
+              + 'client out of it first.' });
+          return;
+        }
+        draft.podId = id;
+        P.__draftPod = id;   // read-only view, so a check can tell a refusal from an accept
+        paint();
+      });
+      const nm = q('pods_edName');
+      if (nm && (c || pending)) nm.addEventListener('input', () => {
+        draft.name = nm.value;
+        if (pending) draft.newName = nm.value;
+      });
+      const mr = q('pods_edMrr');
+      mr.addEventListener('input', () => {
+        draft.mrr = Number(mr.value) || 0;
+        // repaint only the figures that follow from it, or the field loses focus mid-type
+        const cells = card.querySelectorAll('[style*="font-size:22px"]');
+        const tc = cost(), mc = Math.round(draft.mrr * 100);
+        if (cells[2]) cells[2].textContent = money0(tc / 100);
+        if (cells[3]) { const pctv = mc > 0 ? Math.round(((mc - tc) / mc) * 100) : null;
+          cells[3].textContent = pctv == null ? '—' : pctv + '%';
+          cells[3].style.color = pctv == null ? '#5a5a62' : pctv < 0 ? '#e8232a' : '#34c77b'; }
+      });
+      const dt = q('pods_edDate');
+      if (dt) dt.addEventListener('change', () => {
+        if (!dt.value) return;
+        draft.payDay = String(new Date(dt.value + 'T00:00:00').getDate());
+        paint();
+      });
+      all('[data-pods-tier]', 'change', (e) => { draft.services[e.target.dataset.podsTier].tier = e.target.value; paint(); });
+      all('[data-pods-who]', 'change', (e) => { draft.services[e.target.dataset.podsWho].who = e.target.value; });
+      all('[data-pods-internal]', 'change', (e) => {
+        draft.services[e.target.dataset.podsInternal].internal = e.target.value === '1'; paint(); });
+      all('[data-pods-thread]', 'click', async (e) => {
+        const el2 = e.target.closest('[data-pods-thread]');
+        const dept = el2.dataset.podsThread;
+        const cli2 = P.clients.find(x => x.id === draft.clientId);
+        if (!cli2) return;
+        el2.textContent = 'Opening…';
+        // createChannel works off a service; a department without one is opened directly.
+        const svcKey = Object.keys(SERVICE_DEPT).find(k => SERVICE_DEPT[k] === dept);
+        const made = svcKey ? await createChannel(cli2, svcKey) : await createDeptChannel(cli2, dept);
+        if (!made) { paint(); return; }
+        if (window.toast) toast({ type: 'success', message: 'Opened the conversation' });
+        paint();
+      });
+      all('[data-pods-chan]', 'change', (e) => {
+        draft.services[e.target.dataset.podsChan].channel = e.target.checked; });
+      all('[data-pods-addsvc]', 'click', (e) => {
+        const k = e.target.dataset.podsAddsvc;
+        draft.services[k].on = true;
+        // A new service almost always wants a conversation, so it is ticked by default and
+        // can be unticked -- rather than being something you must remember to ask for.
+        if (!draft.services[k].id) draft.services[k].channel = true;
+        paint();
+      });
+      all('[data-pods-drop]', 'click', (e) => { draft.services[e.target.dataset.podsDrop].on = false; paint(); });
+      const mk2 = q('pods_obMake');
+      if (mk2) mk2.addEventListener('click', async () => {
+        mk2.textContent = 'Creating…';
+        const tok = await makeOnboardingLink(draft.clientId);
+        if (!tok) { mk2.textContent = 'Generate onboarding link'; return; }
+        paint();
+      });
+      const cp = q('pods_obCopy');
+      if (cp) cp.addEventListener('click', () => {
+        const live2 = P.clients.find(x => x.id === draft.clientId);
+        if (!live2 || !live2.onboarding_token) return;
+        try { navigator.clipboard.writeText(onboardingUrl(live2.onboarding_token));
+              cp.textContent = 'Copied'; setTimeout(() => { cp.textContent = 'Copy'; }, 1600); }
+        catch (_) { if (window.toast) toast({ type: 'error', message: 'Could not copy that link' }); }
+      });
+      const search = q('pods_edSearch'), list = q('pods_edList');
+      if (search && list) {
+        const drawList = () => {
+          const term = (draft.q || '').trim().toLowerCase();
+          const hits = addable.filter(x => !term || String(x.name || '').toLowerCase().includes(term));
+          const typedNow = (draft.q || '').trim();
+          const existing = (draft.mode === 'new' ? hits.slice(0, 4) : hits.slice(0, 60)).map(x => {
+            const on = x.id === draft.clientId;
+            return '<div data-pods-pick="' + esc(x.id) + '" style="display:flex;align-items:center;gap:10px;'
+              + 'padding:9px 12px;cursor:pointer;border-bottom:1px solid #1d1d21;background:'
+              + (on ? '#1c1c20' : 'transparent') + ';">'
+              + '<span style="width:26px;height:26px;border-radius:8px;background:#20262e;color:#8fb4e8;'
+              + 'display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;'
+              + 'flex:none;">' + esc(String(x.name || '?').charAt(0).toUpperCase()) + '</span>'
+              + '<span style="flex:1;min-width:0;font-size:13px;color:' + (on ? '#f2f2f2' : '#c9c9cf')
+              + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + esc(x.name) + '</span>'
+              + (x.mrr_cents ? '<span style="font-size:11.5px;color:#5a5a62;flex:none;">$'
+                  + Math.round(x.mrr_cents / 100).toLocaleString('en-US') + '</span>' : '')
+              + (on ? '<span style="color:#e8232a;font-size:13px;flex:none;">✓</span>' : '')
+              + '</div>';
+          }).join('');
+          // Creating comes first: this button is for adding a client, and picking an
+          // existing one is the fallback. The matches still appear underneath, because the
+          // commonest mistake here is making a second copy of somebody already in Giant.
+          const createRow = (draft.mode === 'new' && typedNow)
+            ? '<div data-pods-new style="display:flex;align-items:center;gap:10px;padding:12px;'
+              + 'cursor:pointer;background:rgba(232,35,42,.07);">'
+              + '<span style="width:26px;height:26px;border-radius:8px;background:rgba(232,35,42,.16);'
+              + 'color:#e8232a;display:flex;align-items:center;justify-content:center;font-size:15px;'
+              + 'font-weight:700;flex:none;">+</span>'
+              + '<span style="flex:1;min-width:0;font-size:13px;font-weight:600;color:#f2f2f2;">Create “'
+              + esc(typedNow) + '”</span>'
+              + '<span style="font-size:11.5px;color:#5a5a62;flex:none;">new client</span></div>'
+            : '';
+          // In "new" mode the matches are a duplicate guard, not a menu: they appear only
+          // once something is typed, and only a few, under a heading that says why.
+          const showExisting = draft.mode === 'pick' || (typedNow && existing);
+          const headed = showExisting && existing
+            ? '<div style="padding:8px 12px 6px;font-size:10px;font-weight:700;letter-spacing:.12em;'
+              + 'color:#5a5a62;border-top:' + (createRow ? '1px solid #1d1d21' : 'none') + ';">'
+              + (draft.mode === 'new' ? 'ALREADY IN GIANT — DID YOU MEAN ONE OF THESE?'
+                                      : 'CLIENTS') + '</div>' + existing
+            : '';
+          list.innerHTML = (createRow + headed)
+            || '<div style="padding:12px;font-size:12.5px;color:#5a5a62;">'
+               + (draft.mode === 'new' ? 'Type a name to create a client.' : 'No client matches that.')
+               + '</div>';
+          const mk = list.querySelector('[data-pods-new]');
+          // Chosen, not created. Writing the client the moment this was clicked meant
+          // pressing Cancel afterwards still left it behind -- an orphan with no pod, no
+          // services and no MRR. It is created when the panel is saved, with everything
+          // else, so Cancel means cancel.
+          if (mk) mk.addEventListener('click', () => {
+            draft.newName = typedNow;
+            draft.clientId = null;
+            draft.name = typedNow;
+            draft.status = 'onboarding';
+            draft.health = 'green';
+            paint();
+          });
+          list.querySelectorAll('[data-pods-pick]').forEach(row => {
+            row.addEventListener('click', () => {
+              draft.clientId = row.dataset.podsPick;
+              const picked = P.clients.find(x => x.id === draft.clientId);
+              // the header shows the client being added, so it follows the pick
+              if (picked) { draft.name = picked.name; draft.mrr = (picked.mrr_cents || 0) / 100;
+                            draft.health = picked.health || 'green'; draft.status = picked.status || 'active'; }
+              paint();
+              const again = document.getElementById('pods_edSearch');
+              if (again) again.focus();
+            });
+          });
+        };
+        drawList();
+        search.addEventListener('input', () => { draft.q = search.value; drawList(); });
+        // Enter takes the only match, which is the whole point of typing
+        search.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          // the first match, or -- if nothing matches what was typed -- create it
+          const first = list.querySelector('[data-pods-pick]') || list.querySelector('[data-pods-new]');
+          if (first) first.click();
+        });
+      }
+    }
+
+    // The same onboarding state the Clients module shows: whether a link exists, whether it
+    // was sent, and whether they have filled it in -- read from the columns that module
+    // already writes rather than from a second source of truth.
+    function onboardingBlock(isPending){
+      // Keyed on whichever client the panel currently has, not on the one it opened with:
+      // a client created inside the panel exists from that moment, so its link can be made
+      // there and then rather than after a save-and-reopen.
+      const live2 = draft.clientId ? (P.clients.find(x => x.id === draft.clientId) || null) : null;
+      const tok = live2 && live2.onboarding_token;
+      const steps = live2 ? [['Link created', !!tok], ['Form sent', !!live2.onboarding_sent_at],
+                            ['They replied', !!live2.onboarding_submitted_at],
+                            ['Reviewed', !!live2.reviewed_at]] : [];
+      return '<div style="margin:0 26px 18px;background:rgba(240,180,41,.07);border:1px solid #3a301a;'
+        + 'border-radius:12px;padding:11px 13px;">'
+        + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+        + '<span style="font-size:10px;font-weight:700;letter-spacing:.12em;color:#f0b429;">ONBOARDING</span>'
+        + steps.map(([label, done2]) => '<span style="font-size:11.5px;font-weight:700;padding:5px 12px;'
+            + 'border-radius:99px;white-space:nowrap;background:' + (done2 ? 'rgba(240,180,41,.18)' : 'transparent')
+            + ';color:' + (done2 ? '#f0b429' : '#5a5a62') + ';border:1px solid '
+            + (done2 ? '#4a3d1a' : '#2c2c31') + ';">' + label + '</span>').join('')
+        + '</div>'
+        + (!live2 ? '<div style="font-size:11.5px;color:#5a5a62;margin-top:9px;">'
+              + (isPending ? 'The link can be created as soon as this client is saved — the panel '
+                             + 'comes straight back to it.'
+                           : 'Save the client first, then its link can be created.') + '</div>'
+          : tok
+            ? '<div style="display:flex;align-items:center;gap:8px;margin-top:10px;">'
+              + '<div style="flex:1;min-width:0;font-size:12px;color:#c9c9cf;background:#101012;'
+              + 'border:1px solid #2c2c31;border-radius:8px;padding:7px 10px;overflow:hidden;'
+              + 'text-overflow:ellipsis;white-space:nowrap;">' + esc(onboardingUrl(tok)) + '</div>'
+              + '<span id="pods_obCopy" style="font-size:12px;font-weight:700;color:#f2f2f2;background:#1c1c20;'
+              + 'border:1px solid #2c2c31;border-radius:8px;padding:7px 12px;cursor:pointer;">Copy</span></div>'
+            : '<div style="margin-top:10px;"><span id="pods_obMake" style="font-size:12px;font-weight:700;'
+              + 'color:#f0b429;background:rgba(240,180,41,.12);border:1px solid #4a3d1a;border-radius:8px;'
+              + 'padding:7px 12px;cursor:pointer;">Generate onboarding link</span></div>')
+        + '</div>';
+    }
+
+    async function save(){
+      const btn = document.getElementById('pods_edSave');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      // A client named but not yet written is created here, so nothing exists until the
+      // panel is saved and Cancel leaves the database as it found it.
+      let id = draft.clientId;
+      const wasPending = !id && !!draft.newName;
+      if (!id && draft.newName) {
+        btn.textContent = 'Creating…';
+        const made = await createClient(draft.name || draft.newName);
+        if (!made) { btn.disabled = false; btn.textContent = 'Create and add to pod'; return; }
+        id = made.id;
+        draft.clientId = id;
+      }
+      if (!id) { wrap.remove(); return; }
+      // The pod the panel is showing as chosen, so a client can be moved between them.
+      // Resolved here rather than when the panel opened: a pod can be created while this is
+      // on screen, and a client saved into no pod is half-added -- it would carry services
+      // and pay while belonging to nothing, and the capacity count would never see it.
+      const intoPod = P.pods.find(p => p.id === draft.podId)
+        || P.pods.find(p => p.status === 'active') || pod || null;
+      // Twenty is the whole basis of the pod, so it is checked here and not only drawn on a
+      // progress bar. Moving a client within its own pod is never blocked by its own row.
+      if (intoPod && (!c || c.pod_id !== intoPod.id)
+          && podClientsIn(intoPod.id).length >= (intoPod.max_clients || 20)) {
+        btn.disabled = false; btn.textContent = c ? 'Save' : 'Add to pod';
+        if (window.toast) toast({ type: 'error', report: false,
+          message: intoPod.name + ' is full at ' + (intoPod.max_clients || 20) + ' clients. '
+            + 'Open the next pod, or move a client out of it first.' });
+        return;
+      }
+      if (!intoPod) {
+        btn.disabled = false; btn.textContent = c ? 'Save' : 'Add to pod';
+        if (window.toast) toast({ type: 'error', report: false,
+          message: 'There is no active pod to add this client to. Create a pod first.' });
+        return;
+      }
+      const patch = { mrr_cents: Math.round(draft.mrr * 100), health: draft.health,
+                      status: draft.status,
+                      pay_day: draft.payDay ? Number(draft.payDay) : null,
+                      pay_cadence: draft.payDay ? 'monthly' : null,
+                      pod_id: intoPod.id };
+      // Renaming is only offered on a client that already exists; a new one keeps the name
+      // it has in the Clients module rather than acquiring a second one here.
+      if (c && draft.name && draft.name.trim() && draft.name !== c.name) patch.name = draft.name.trim();
+      const { error: cErr } = await sb().from('clients').update(patch).eq('id', id);
+      if (cErr) { btn.disabled = false; btn.textContent = c ? 'Save' : 'Add to pod';
+        if (window.toast) toast({ type:'error', message:'Could not save that client: ' + cErr.message }); return; }
+
+      for (const s of SERVICES) {
+        const d = draft.services[s.key];
+        const existing = live().find(a => a.client_id === id && a.service === s.key);
+        const tier = (s.key === 'google_ads' || s.key === 'meta_ads') ? d.tier : null;
+        if (d.on && !existing) {
+          await sb().from('pod_assignments').insert({ client_id: id, service: s.key, tier,
+            specialist_id: d.who || null, is_internal: !!d.internal, created_by: me() });
+        } else if (d.on && existing) {
+          await sb().from('pod_assignments').update({ tier, specialist_id: d.who || null,
+            is_internal: !!d.internal, updated_at: new Date().toISOString() }).eq('id', existing.id);
+        } else if (!d.on && existing) {
+          // Ended, not deleted: "account losses are reviewed for cause" needs the row to
+          // still exist, and the unique index only counts live ones so it can come back.
+          await sb().from('pod_assignments')
+            .update({ ended_at: new Date().toISOString().slice(0, 10) }).eq('id', existing.id);
+        }
+      }
+      // Conversations last, once the client and its services are real: a channel for a
+      // service that failed to save would be a room about nothing.
+      const cli = P.clients.find(x => x.id === id);
+      const wanted = SERVICES.filter(sv => draft.services[sv.key].on && draft.services[sv.key].channel
+                                           && SERVICE_DEPT[sv.key] && !channelFor(id, sv.key));
+      if (wanted.length && cli) {
+        btn.textContent = 'Opening conversations…';
+        for (const sv of wanted) await createChannel(cli, sv.key);
+        if (window.toast) toast({ type: 'success',
+          message: wanted.length === 1 ? 'Opened the ' + wanted[0].label + ' conversation'
+                 : 'Opened ' + wanted.length + ' conversations' });
+      }
+      wrap.remove();
+      await load();
+      // The design says a full pod is when you open the next one and recruit its Account
+      // Manager. Asked at the moment it fills, rather than left for somebody to notice.
+      const filled = P.pods.find(p2 => p2.id === intoPod.id);
+      if (filled && podIsFull(filled) && !P.pods.some(p2 => p2.position > filled.position)) {
+        const next = 'Pod ' + (P.pods.filter(p2 => p2.status === 'active').length + 1);
+        const ok = await window.giantConfirmWarn(filled.name + ' is now full',
+          'That was its ' + (filled.max_clients || 20) + 'th client. The next pod opens here, and its '
+          + 'Account Manager is the next hire. Open ' + next + ' now?', 'Open ' + next, 'info');
+        if (ok) await createPod(next);
+      }
+      // A client that was created by this save is now real, so the panel comes back on it:
+      // its onboarding link can only be made once it exists, and sending somebody to find
+      // the client again to do that is the errand deferring the write was meant to avoid.
+      if (wasPending) openClient(id);
+    }
+
+    async function removeFromPod(){
+      const ok = await window.giantConfirmWarn('Remove ' + esc(c.name) + ' from the pod?',
+        'Its services end today and stop being paid for. The client itself is untouched, and '
+        + 'the record of who held what stays.', 'Remove', 'warning');
+      if (!ok) return;
+      const today = new Date().toISOString().slice(0, 10);
+      for (const a of live().filter(x => x.client_id === c.id)) {
+        await sb().from('pod_assignments').update({ ended_at: today }).eq('id', a.id);
+      }
+      await sb().from('clients').update({ pod_id: null }).eq('id', c.id);
+      wrap.remove();
+      await load();
+    }
+
+    paint();
+  }
+  window.podsOpenClient = openClient;
+
+  function wireCommon(){
+    const body = $('body');
+    body.querySelectorAll('[data-pods-period]').forEach(b =>
+      b.addEventListener('click', () => { P.period = b.dataset.podsPeriod; render(); }));
+    body.querySelectorAll('[data-pods-assign]').forEach(b =>
+      b.addEventListener('click', (e) => { e.stopPropagation(); assignTo(b.dataset.podsAssign); }));
+    body.querySelectorAll('[data-pods-unassign]').forEach(b =>
+      b.addEventListener('click', (e) => { e.stopPropagation(); unassign(b.dataset.podsUnassign); }));
+    body.querySelectorAll('[data-pods-addint]').forEach(b =>
+      b.addEventListener('click', (e) => { e.stopPropagation(); addInternal(); }));
+    body.querySelectorAll('[data-pods-int]').forEach(b =>
+      b.addEventListener('click', () => editInternal(b.dataset.podsInt)));
+    body.querySelectorAll('[data-pods-person]').forEach(b =>
+      b.addEventListener('click', () => { P.tab = 'p:' + b.dataset.podsPerson; render(); }));
+    body.querySelectorAll('[data-pods-add]').forEach(b =>
+      b.addEventListener('click', () => openClient(null)));
+    body.querySelectorAll('[data-pods-newpod]').forEach(b =>
+      b.addEventListener('click', createPod));
+    body.querySelectorAll('[data-pods-client]').forEach(b =>
+      b.addEventListener('click', () => openClient(b.dataset.podsClient)));
+  }
+
+  // Opened rather than loaded at boot: it is a manager screen most people never open, and
+  // four queries on every sign-in for a screen nobody looked at is four queries wasted.
+  (function watch(){
+    const host = document.querySelector('.screen[data-screen="pods"]');
+    if (!host) { setTimeout(watch, 500); return; }
+    let was = host.classList.contains('on');
+    new MutationObserver(() => {
+      const on = host.classList.contains('on');
+      if (on && !was) { if (!sb() || !me()) setTimeout(load, 600); else load(); }
+      was = on;
+    }).observe(host, { attributes: true, attributeFilter: ['class'] });
+    if (host.classList.contains('on')) setTimeout(load, 400);
+  })();
+  window.podsReload = load;
 })();
 </script>
 </body>

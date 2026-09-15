@@ -188,8 +188,21 @@
     { channel_id: 'ch-team-0', content: '<p>Team notes.</p>', updated_at: iso(4, 0), updated_by: ME, cards: [] }
   ];
 
-  DB.projects = [{ id: 'p-1', name: 'Maribou — Q3 SEO', client_id: 'c-1' },
-                 { id: 'p-2', name: 'Fortess DG — Site rebuild', client_id: 'c-2' }];
+  // created_by matters: the Projects screen loads projects this person OWNS plus ones
+  // shared through project_members, so without an owner it showed "No projects yet" and
+  // that whole screen -- table, rows, everything on them -- was untestable.
+  DB.projects = [{ id: 'p-1', name: 'Maribou — Q3 SEO', client_id: 'c-1', created_by: ME,
+                   position: 1, color: '#D00400', created_at: iso(30, 0) },
+                 { id: 'p-2', name: 'Fortess DG — Site rebuild', client_id: 'c-2', created_by: ME,
+                   position: 2, color: '#5aa8d6', created_at: iso(20, 0) },
+                 // The bar puts the workspace master list first, then anything you created
+                 // yourself, then the rest by name. Two projects both created by me could
+                 // not tell that rule from no rule at all, so: one master list, and one
+                 // owned by somebody else whose name sorts last.
+                 { id: 'p-master', name: 'ReachGiant Master List', client_id: null, created_by: 'u-4',
+                   position: 3, color: '#3ECF8E', created_at: iso(40, 0) },
+                 { id: 'p-theirs', name: 'Aardvark — someone else\'s', client_id: null, created_by: 'u-4',
+                   position: 4, color: '#F59E0B', created_at: iso(15, 0) }];
   DB.tasks = [];
   ['todo', 'in_progress', 'review', 'done'].forEach((st, si) => {
     for (let i = 0; i < 3; i++) DB.tasks.push({
@@ -288,6 +301,55 @@
         created_at: iso(12 + n, i) });
     });
   });
+  DB.subtasks = [];
+  DB.task_comments = [];
+  DB.project_priorities = ['Fire', 'Medium', 'Low'].map((label, i) => ({
+    id: 'pp-' + i, project_id: 'p-1', label, color: ['#FF6B3B', '#F2A93B', '#7C8797'][i],
+    emoji: null, position: i + 1, kind: 'priority', created_at: iso(30, 0) }));
+  // The real Team Pay module: everyone on a fixed weekly base except one hourly, which is
+  // what the Pod System's Monthly/Weekly switch exists to reconcile against a monthly card.
+  // ideal_accounts/max_accounts/cap_label ship in migration 20260915160000: the capacity a
+  // specialist is held to is a fact about their department, not a constant in the page.
+  DB.pay_departments = [
+    { id:'pd-1', name:'PAID ADS', color:'#6fb1ff', position:1,
+      ideal_accounts:15, max_accounts:20, cap_label:'Google Ads specialist' },
+    { id:'pd-2', name:'PRODUCTION', color:'#34c77b', position:2,
+      ideal_accounts:10, max_accounts:10, cap_label:'SEO specialist' },
+    { id:'pd-3', name:'Managers', color:'#e8232a', position:3,
+      ideal_accounts:15, max_accounts:20, cap_label:'Pod Leader' }];
+  // Who is in which pod (migration 20260915170000). Empty by default: the checks that care
+  // set it up themselves, and a board with no membership yet must still draw.
+  DB.pod_members = [];
+  // The words on How it works, same migration. Seeded with what the page used to hard-code.
+  // The same five roles, five growth bands and two notes the migration seeds, so a check
+  // that asserts the design's blocks are all present is asserting something real.
+  DB.pod_settings = [
+    { key:'intro', value:{ title:'The Pod Leader owns the clients. Specialists deliver the work.',
+      body:'One pod holds up to 20 clients under one Pod Leader.' } },
+    { key:'roles', value:[
+      { key:'lead', label:'POD LEADER', does:'Owns all client relationships.', note:'Weekly health report.' },
+      { key:'google_ads', label:'GOOGLE ADS', does:'Campaign builds.', note:'Paid per account by tier.' },
+      { key:'seo', label:'SEO & AI SEARCH', does:'SEO strategy.', note:'Max 10 accounts initially.' },
+      { key:'meta_ads', label:'META ADS', does:'Campaign builds for Meta.', note:'Meta rates provisional.' },
+      { key:'web', label:'WEB & DESIGN', does:'Essential development.', note:'Shared across the pod.' }] },
+    { key:'growth', value:[
+      { range:'1-20', what:'One Pod Leader owns all client relationships' },
+      { range:'20-25', what:'Begin recruiting Account Manager #2' },
+      { range:'25-40', what:'Two AMs · roughly 15-20 clients each' },
+      { range:'40-60', what:'Third AM · Pod Leader leads Client Services' },
+      { range:'60+',   what:'Pod Leader manages the AMs, fewer direct clients' }] },
+    { key:'notes', value:[
+      { label:'HOW PAY WORKS', body:'Payments apply only to active, assigned accounts.' },
+      { label:'PERFORMANCE = MORE ACCOUNTS', body:'Good work earns more accounts.' }] },
+    { key:'rates_note', value:'Same rate card in every location.' }];
+  DB.team_pay = [
+    { id:'tp-1', profile_id:'u-1', department_id:'pd-1', base_type:'fixed_weekly', base_amount:296,   weekly_hours:null },
+    { id:'tp-2', profile_id:'u-2', department_id:'pd-2', base_type:'fixed_weekly', base_amount:346.15, weekly_hours:null },
+    { id:'tp-3', profile_id:'u-3', department_id:'pd-1', base_type:'hourly',       base_amount:16,     weekly_hours:20 },
+    { id:'tp-4', profile_id:ME,    department_id:'pd-3', base_type:'fixed_weekly', base_amount:1596.15, weekly_hours:null }];
+  // u-4 onwards deliberately have no team_pay row: somebody with no pay set and no
+  // accounts is exactly who a manager needs to see on the board, so the board must show them.
+  DB.project_prefs = [];   // migration 20260908130000 -- per-person order and stars
   DB.nav_favorites = [];   // migration 20260824140000
   DB.invitations = [];
   DB.channel_stars = [{ profile_id: ME, channel_id: 'ch-team-0' }];
@@ -576,13 +638,18 @@
   const DEFAULTS = {
     scheduled_messages: { status: 'pending' },
     messages: { flagged: false },
+    task_comments: { created_at: '@now' },
+    subtasks: { done: false, created_at: '@now' },
     channels: { is_private: false },
-    invitations: { accepted_at: null, revoked_at: null }
+    invitations: { accepted_at: null, revoked_at: null },
+    // time_sessions.started_at is "DEFAULT now() NOT NULL" -- the timer never sends it,
+    // so without this the elapsed clock reads a missing date and shows NaN:NaN.
+    time_sessions: { started_at: '@now', total_paused_ms: 0 }
   };
   function applyDefaults(t, r) {
     const d = DEFAULTS[t];
     if (!d || !r) return;
-    for (const k in d) if (r[k] === undefined) r[k] = d[k];
+    for (const k in d) if (r[k] === undefined) r[k] = (d[k] === '@now' ? new Date().toISOString() : d[k]);
   }
 
   function checkConstraints(t, r) {
@@ -648,7 +715,13 @@
         let data = null;
         if (name === 'ensure_dm_channel') data = 'ch-dm-1';
         else if (name === 'create_group_dm') data = 'ch-dm-1';
-        else if (name === 'generate_onboarding_token') data = 'tok-generated';
+        else if (name === 'generate_onboarding_token') {
+          // The real function writes the token onto the client row and returns it; a mock
+          // that only returns it lets a caller pass while never persisting anything.
+          data = 'tok-' + Math.random().toString(36).slice(2, 10);
+          const row = (DB.clients || []).find(c => c.id === (args && args.p_client_id));
+          if (row) { row.onboarding_token = data; row.onboarding_sent_at = null; }
+        }
         // The real search_messages is a Postgres function over a tsvector. This stands in
         // for it closely enough to exercise the UI: the same arguments, the same row
         // shape, the same <mark> highlighting, and the same AND / OR / NOT semantics --
