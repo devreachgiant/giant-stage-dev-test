@@ -220,9 +220,9 @@ select count(*) from public.clients;
   Removing `data-role-min="manager"` from its nav item and screen opens it to everyone.
 - **`feature/projects-rework`** is the Projects 2.0 redesign, ~28 commits, not merged.
 - **`feature/pod-system`** is the full pod branch including work not on `main`.
-- Three migrations are written and deliberately unapplied: project visibility, project delete,
-  and one restricting `clients` (a client account can currently read every client row,
-  including other clients' MRR — the fix is written and waiting on a decision).
+- Two migrations are written and deliberately unapplied: project visibility and project
+  delete. A third, restricting `clients` so a client account reads only its own row, was
+  applied on 2026-09-16.
 
 ## 9. If you get stuck
 

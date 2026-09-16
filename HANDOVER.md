@@ -85,17 +85,27 @@ a preview for Luke, not a general release.
 
 ### Migrations written and deliberately NOT applied
 
-Do not apply these casually and never via `supabase db push` — that would apply all three.
+Do not apply these casually and never via `supabase db push` — that would apply both.
 
 - `20260908120000_project_visibility` — three-level public/team/private projects, plus a
   read-only window for the in-house dev into private lists. **This is the one that closes the
   hole where every signed-in user can read every project and task.**
 - `20260908140000_project_delete` — the delete fix.
-- `20260915150000_clients_not_public` — **a security finding.** `clients_select_all` is
-  `USING (true)`, so any signed-in account, *including client users*, can read every client
-  row — names, status, MRR, contact email, Stripe customer id. Dry-run against production: a
-  client account goes from 51 readable rows to 1; a team member is unaffected. Written at
-  Nishchay's request to be reviewed before applying, and still waiting on that.
+
+### Recently closed
+
+`20260915150000_clients_not_public` was applied on 2026-09-16. Until then any signed-in
+account, **including client users**, could read every client row — names, status, MRR,
+contact emails, Stripe customer ids — because `clients_select_all` was `USING (true)`. It is
+now two policies: the team reads every client as before, a client account reads only the one
+client its profile is linked to. Anonymous access was unaffected (the old policy was
+`to authenticated`), and the public onboarding form was exercised end to end before and
+after, since it runs through a SECURITY DEFINER function that never consulted the policy.
+
+What this did **not** fix: `mrr_cents` is still readable by every team member, specialists
+included. RLS is row-level and PostgREST talks to the database as a single `authenticated`
+role for everybody, so hiding one column from one audience needs a view with the money left
+out and the table closed behind it. Nobody has asked for that.
 
 ### Open questions nobody has answered
 
