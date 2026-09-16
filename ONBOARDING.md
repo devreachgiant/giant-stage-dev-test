@@ -218,7 +218,8 @@ select count(*) from public.clients;
 - **`main`** is live and current.
 - **Pod System** is live but restricted to owner/manager/in-house-dev — a preview for Luke.
   Removing `data-role-min="manager"` from its nav item and screen opens it to everyone.
-- **`feature/projects-rework`** is the Projects 2.0 redesign, ~28 commits, not merged.
+- **`feature/projects-rework`** is the Projects 2.0 redesign, ~28 commits. It stays on the
+  branch — it is not finished, and it is not to be merged unless Nishchay says so.
 - **`feature/pod-system`** is the full pod branch including work not on `main`.
 - Two migrations are written and deliberately unapplied: project visibility and project
   delete. A third, restricting `clients` so a client account reads only its own row, was

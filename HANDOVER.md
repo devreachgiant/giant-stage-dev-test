@@ -77,7 +77,12 @@ a preview for Luke, not a general release.
 
 - **`feature/projects-rework`** — the Projects 2.0 redesign. 28 commits. One task pool seen as
   table, board or timeline; time tracking on the table; resizable and sortable columns; a task
-  detail panel. Complete and tested, never merged.
+  detail panel.
+  **Stays on the branch. Do not merge it.** Nishchay's call, 2026-09-16: the feature is not
+  finished. An earlier version of this document called it "complete and tested" — that was
+  wrong, and wrong in the direction that invites somebody to merge it. The checks passing is
+  not the same as the feature being done, and only Nishchay decides which it is. Work on it
+  when asked; leave it alone otherwise.
 - **`feature/pod-system`** — the full pod branch, including the team-member view that `main`
   gates off.
 - **`pod-system-live`** — what was actually extracted to `main`. `pod-preview-backup` pins the
