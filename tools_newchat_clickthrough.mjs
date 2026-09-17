@@ -5703,6 +5703,103 @@ await page.evaluate(async () => {
   await window.podsReload();
 });
 
+// Matthew, 2026-09-16: "tracking of the payment renewal dates for all of our clients... this
+// has been an issue recently where a client has canceled and they still have been charged."
+// The case in his message is the one this has to catch: work ends 1 Oct, card is charged 2 Oct.
+await step('a client charged after their last day is flagged before it happens', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    const iso = (offsetDays) => { const d = new Date(); d.setHours(0,0,0,0);
+      d.setDate(d.getDate() + offsetDays); return d.toISOString().slice(0, 10); };
+    db.pods = [{ id:'pod-b', name:'Pod B', leader_id:'u-me', max_clients:20, opens_at:null, status:'active', position:0 }];
+    db.clients.forEach(c => { c.pod_id = null; c.ends_on = null; c.next_charge_on = null;
+                              c.billing_off_at = null; c.billing_off_by = null; });
+    const [paul, wpf, fine, quiet] = db.clients;
+    // Paul Davis: last day the 1st, charge lands the 2nd. The whole point.
+    paul.pod_id = 'pod-b'; paul.mrr_cents = 250000;
+    paul.ends_on = iso(14); paul.next_charge_on = iso(15);
+    // WPF: ended already, nobody confirmed the billing was turned off
+    wpf.pod_id = 'pod-b'; wpf.ends_on = iso(-3);
+    // an ordinary client renewing soon, no end date: informational, not a problem
+    fine.pod_id = 'pod-b'; fine.next_charge_on = iso(5);
+    // and one with nothing set at all
+    quiet.pod_id = 'pod-b';
+    db.pod_assignments = [];
+    document.querySelector('.nav-item[data-screen="pods"]').click();
+    await w(400);
+    await window.podsReload();
+    await w(700);
+    const out = {};
+    // Reached by clicking the tab, not by setting podState. Setting the tab directly hid
+    // that the tab had never been added to the bar at all -- the view rendered fine and
+    // was unreachable, which is the same as not existing.
+    const tabBtn = document.querySelector('[data-pods-tab="renewals"]');
+    out.tabExists = !!tabBtn;
+    out.tabCount = tabBtn ? tabBtn.textContent.replace(/\D+/g, '') : '';
+    if (tabBtn) tabBtn.click();
+    await w(900);
+    const body = document.getElementById('pods_body');
+    const txt = () => document.getElementById('pods_body').innerText;
+
+    out.flagsPaul = new RegExp(paul.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(txt())
+      && /next charge/i.test(txt());
+    out.saysTurnItOff = /turn the Stripe payment off/i.test(txt());
+    out.flagsEnded = /nobody has confirmed/i.test(txt());
+    // the tab itself carries the count, so it is visible without opening it
+    // a client with no dates is still reachable rather than invisible
+    out.listsUndated = /NO DATES YET/.test(txt());
+
+    // the dates are editable in place
+    const nc = [...body.querySelectorAll('[data-pods-field="nextCharge"]')]
+      .find(e => e.dataset.id === quiet.id);
+    out.dateIsAField = !!nc;
+    nc.focus(); nc.value = iso(3); nc.blur();
+    await w(800);
+    out.dateWrote = (db.clients.find(c => c.id === quiet.id) || {}).next_charge_on === iso(3);
+
+    // "know for sure that we have turned off their Stripe payment"
+    const orig = window.giantConfirmWarn; let asked = '';
+    window.giantConfirmWarn = (t, m) => { asked = t + ' :: ' + m; return Promise.resolve(true); };
+    document.querySelector('[data-pods-billoff="' + paul.id + '"]').click();
+    await w(900);
+    window.giantConfirmWarn = orig;
+    out.asked = asked;
+    const p2 = db.clients.find(c => c.id === paul.id);
+    out.stamped = !!p2.billing_off_at && p2.billing_off_by === window.giantSession.user.id;
+    out.clearedAfterOff = !/turn the Stripe payment off/i.test(txt());
+
+    // changing a date afterwards must drop that confirmation — it was about the old arrangement
+    const nc2 = [...document.getElementById('pods_body').querySelectorAll('[data-pods-field="nextCharge"]')]
+      .find(e => e.dataset.id === paul.id);
+    nc2.focus(); nc2.value = iso(40); nc2.blur();
+    await w(800);
+    out.confirmationDropped = (db.clients.find(c => c.id === paul.id) || {}).billing_off_at === null;
+
+    // and the dashboard says it too, without anybody opening this tab
+    window.podState.tab = 'dash';
+    await window.podsReload();
+    await w(800);
+    out.onDashboard = /turn the Stripe payment off|nobody has confirmed/i.test(
+      document.getElementById('pods_body').innerText);
+    return out;
+  });
+  check('the client whose charge lands after their last day is named, with what to do',
+    r.flagsPaul && r.saysTurnItOff, JSON.stringify(r));
+  check('so is one whose last day has passed with the billing still on',
+    r.flagsEnded && r.listsUndated, JSON.stringify(r));
+  check('and the tab is actually in the bar, carrying the count',
+    r.tabExists && r.tabCount === '3', JSON.stringify(r));
+  check('the dates are typed straight onto the board',
+    r.dateIsAField && r.dateWrote, JSON.stringify(r));
+  check('confirming the payment is off is stamped with who said so, and clears the flag',
+    r.stamped && /actually cancelled/i.test(r.asked) && r.clearedAfterOff, JSON.stringify(r));
+  check('and changing a date afterwards drops that confirmation',
+    r.confirmationDropped, JSON.stringify(r));
+  check('the warning reaches the dashboard, not only its own tab',
+    r.onDashboard, JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
