@@ -10965,9 +10965,17 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                   <div class="cd-field"><span class="cd-lbl">Address</span><span class="cd-val" data-cd-field="address">—</span></div>
                   <div class="cd-field"><span class="cd-lbl">Assigned owner</span><span class="cd-val" data-cd-owner>—</span></div>
                   <div class="cd-field" data-role-min="owner"><span class="cd-lbl">MRR</span><span class="cd-val" data-cd-mrr>—</span></div>
+                  <!-- Billing dates. Read-only here and edited on the Pod System's Renewals
+                       tab, so there is one place a date is changed rather than two that can
+                       disagree. The warning line below them is the point: a client whose
+                       last day has passed with the Stripe payment still running. -->
+                  <div class="cd-field" data-role-min="manager"><span class="cd-lbl">Next charge</span><span class="cd-val" data-cd-nextcharge>—</span></div>
+                  <div class="cd-field" data-role-min="manager"><span class="cd-lbl">Last day</span><span class="cd-val" data-cd-endson>—</span></div>
                   <div class="cd-field"><span class="cd-lbl">Services</span><span class="cd-val" data-cd-field="services">—</span></div>
                   <div class="cd-field"><span class="cd-lbl">Notes</span><span class="cd-val" data-cd-field="notes">—</span></div>
                 </div>
+                <div data-cd-billwarn style="display:none;align-items:center;gap:10px;margin-top:14px;
+                     padding:11px 14px;border-radius:9px;font-size:12.5px;font-weight:600;"></div>
                 <!-- Custom fields area — rendered dynamically from clients.custom_fields (JSONB) -->
                 <div id="cdCustomFieldsWrap" style="margin-top:18px;padding-top:18px;border-top:1px dashed var(--line);">
                   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px;">
@@ -39120,6 +39128,54 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           mrrEl.textContent = '—';
         }
       }
+      // ── Billing dates, and the one warning worth interrupting somebody for ──────
+      // The Pod System owns editing these; here they are shown, because whoever opens a
+      // client to ask "are we still working with them" is exactly who needs to know a
+      // payment is still due after the work stopped.
+      (function billingOnDetail(){
+        const fmt = (v) => {
+          if (!v) return '—';
+          const m = String(v).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          // Built locally, not via Date(string): a date column parsed as UTC midnight shows
+          // as the day before in any negative timezone, on exactly the dates that matter.
+          const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(v);
+          return isNaN(d) ? '—' : d.toLocaleDateString(undefined,
+            { day: 'numeric', month: 'short', year: 'numeric' });
+        };
+        const nc = document.querySelector('#clientDetailModal [data-cd-nextcharge]');
+        const eo = document.querySelector('#clientDetailModal [data-cd-endson]');
+        if (nc) nc.textContent = fmt(c.next_charge_on);
+        if (eo) eo.textContent = c.ends_on
+          ? fmt(c.ends_on) + (c.billing_off_at ? ' · billing off' : '') : '—';
+        const warn = document.querySelector('#clientDetailModal [data-cd-billwarn]');
+        if (!warn) return;
+        const day = 86400000, t = new Date(); t.setHours(0, 0, 0, 0);
+        const parse = (v) => { if (!v) return null;
+          const m = String(v).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null; };
+        const ends = parse(c.ends_on), charge = parse(c.next_charge_on), off = !!c.billing_off_at;
+        let msg = null, tone = null;
+        if (ends && charge && !off && charge > ends) {
+          tone = 'red'; msg = 'Their last day is ' + fmt(c.ends_on) + ' but the next charge is '
+            + fmt(c.next_charge_on) + '. Turn the Stripe payment off.';
+        } else if (ends && !off && ends < t) {
+          tone = 'red'; msg = 'Their last day was ' + fmt(c.ends_on)
+            + ' and nobody has confirmed the Stripe payment is off.';
+        } else if (ends && !off && Math.round((ends - t) / day) <= 14) {
+          tone = 'amber'; msg = 'Their last day is ' + fmt(c.ends_on)
+            + ' and the Stripe payment has not been turned off yet.';
+        }
+        if (!msg) { warn.style.display = 'none'; warn.textContent = ''; return; }
+        const col = tone === 'red'
+          ? { fg: '#B42318', bg: 'rgba(208,4,0,.10)', bd: 'rgba(208,4,0,.30)' }
+          : { fg: '#B54708', bg: 'rgba(242,169,59,.12)', bd: 'rgba(242,169,59,.34)' };
+        warn.style.display = 'flex';
+        warn.style.color = col.fg;
+        warn.style.background = col.bg;
+        warn.style.border = '1px solid ' + col.bd;
+        warn.textContent = msg;
+      })();
+
       // ── Custom fields (stored in clients.custom_fields JSONB) ──
       // Cache active client so the Save flow in the banner can persist custom fields too
       window._activeClient = c;
@@ -83289,7 +83345,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const [podsR, cliR, asgR, rateR, payR, deptR, teamR, chR, setR, memR] = await Promise.all([
       sb().from('pods').select('id, name, leader_id, max_clients, status, position').order('position'),
       // No mrr_cents, no pay_day, no pay_cadence, no onboarding: none of it is theirs.
-      sb().from('clients').select('id, name, status, avatar_bg, avatar_fg, pod_id, health, started_at')
+      sb().from('clients').select('id, name, status, avatar_bg, avatar_fg, pod_id, health, started_at, ends_on, next_charge_on')
         .order('name'),
       // RLS returns only their own rows; asking for only their own says so out loud.
       sb().from('pod_assignments')
@@ -83329,6 +83385,89 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     render();
   }
 
+  // ── billing: when is this client next charged, and should they be ───────────
+  // The whole feature in one function, so the board, the client panel and the Clients
+  // module cannot disagree about whether a client is a problem. Everything below reads
+  // this; nothing re-derives it.
+  const DAY = 86400000;
+  const today = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+  const asDate = (v) => {
+    if (!v) return null;
+    // A date column arrives as 'YYYY-MM-DD'. Parsed by Date() that is UTC midnight, which
+    // in any negative timezone is the day before -- an off-by-one on exactly the dates
+    // this feature exists to get right. Build it locally instead.
+    const m = String(v).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) { const d = new Date(v); return isNaN(d) ? null : d; }
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  };
+  const daysUntil = (v) => { const d = asDate(v); return d == null ? null : Math.round((d - today()) / DAY); };
+  const fmtDate = (v) => { const d = asDate(v);
+    return d ? d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year:
+      d.getFullYear() === today().getFullYear() ? undefined : 'numeric' }) : '—'; };
+
+  // How soon counts as "soon". Two weeks is long enough to act on a renewal and short
+  // enough that the list is not everybody.
+  const SOON_DAYS = 14;
+
+  // The one judgement. Returns null when there is nothing to say.
+  function billingAlert(c){
+    if (!c) return null;
+    const off = !!c.billing_off_at;
+    const ends = c.ends_on, charge = c.next_charge_on;
+    const dEnds = daysUntil(ends), dCharge = daysUntil(charge);
+
+    // The failure that actually happened: work ends, the subscription does not, and the
+    // card is charged for a month nobody is working. Loudest, because it costs a refund
+    // and an apology rather than a chase.
+    if (ends && charge && !off && asDate(charge) > asDate(ends)) {
+      return { level: 'red', key: 'charge_after_end',
+        short: 'Charging after their last day',
+        text: 'Last day ' + fmtDate(ends) + ', next charge ' + fmtDate(charge)
+            + ' — turn the Stripe payment off.' };
+    }
+    // Ending, and nobody has confirmed the billing is off yet. Same failure, caught before
+    // the date rather than after.
+    if (ends && !off && dEnds != null && dEnds >= 0 && dEnds <= SOON_DAYS) {
+      return { level: 'amber', key: 'ending_billing_on',
+        short: 'Ending — billing not turned off',
+        text: 'Last day ' + fmtDate(ends) + (dEnds === 0 ? ' (today)' : ' — in ' + dEnds + ' days')
+            + '. Nobody has confirmed the Stripe payment is off.' };
+    }
+    // Already past their last day and still not confirmed off.
+    if (ends && !off && dEnds != null && dEnds < 0) {
+      return { level: 'red', key: 'ended_billing_on',
+        short: 'Ended — billing not turned off',
+        text: 'Last day was ' + fmtDate(ends) + '. Nobody has confirmed the Stripe payment is off.' };
+    }
+    // A charge is due and no end is planned: not a problem, just worth seeing coming.
+    if (charge && !ends && dCharge != null && dCharge >= 0 && dCharge <= SOON_DAYS) {
+      return { level: 'info', key: 'renewing',
+        short: 'Renews in ' + dCharge + ' day' + (dCharge === 1 ? '' : 's'),
+        text: 'Next charge ' + fmtDate(charge) + '.' };
+    }
+    // A charge date that has come and gone and was never moved on. Either it failed, or
+    // nobody has updated it — both are worth a look, which is the point of the ask.
+    if (charge && dCharge != null && dCharge < -1 && !off) {
+      return { level: 'amber', key: 'charge_stale',
+        short: 'Charge date has passed',
+        text: 'Next charge was ' + fmtDate(charge) + ' and has not moved. Did it go through?' };
+    }
+    return null;
+  }
+  const ALERT_COLOURS = {
+    red:   { fg: '#ff8a8a', bg: '#2a1517', bd: '#4a2226' },
+    amber: { fg: '#f0b429', bg: '#2a2415', bd: '#4a3d1a' },
+    info:  { fg: '#6fb1ff', bg: '#16222f', bd: '#24405e' },
+  };
+  // Worst first, then soonest — the order somebody would work down the list in.
+  const RANK = { red: 0, amber: 1, info: 2 };
+  function clientsNeedingBilling(){
+    return P.clients.map(c => ({ c, a: billingAlert(c) })).filter(x => x.a)
+      .sort((x, y) => (RANK[x.a.level] - RANK[y.a.level])
+        || ((daysUntil(x.c.ends_on || x.c.next_charge_on) ?? 9999)
+          - (daysUntil(y.c.ends_on || y.c.next_charge_on) ?? 9999)));
+  }
+
   async function load(){
     if (P.loading) return;
     P.loading = true;
@@ -83338,7 +83477,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // Every client the Clients module holds, churned included: the board is where a
       // client gets put into a pod, so filtering the list is filtering out the ones that
       // most need assigning.
-      sb().from('clients').select('id, name, status, mrr_cents, avatar_bg, avatar_fg, pod_id, health, pay_day, pay_cadence, started_at, onboarding_token, onboarding_sent_at, onboarding_submitted_at, reviewed_at')
+      sb().from('clients').select('id, name, status, mrr_cents, avatar_bg, avatar_fg, pod_id, health, pay_day, pay_cadence, started_at, ends_on, next_charge_on, billing_off_at, billing_off_by, onboarding_token, onboarding_sent_at, onboarding_submitted_at, reviewed_at')
         .order('name'),
       sb().from('pod_assignments').select('id, client_id, label, service, tier, specialist_id, is_internal, started_at, ended_at'),
       sb().from('pod_rates').select('id, service, tier, is_internal, amount_cents, note'),
@@ -83417,6 +83556,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     renderTabs();
     renderSubtitle();
     if (P.tab === 'dash') return renderDashboard();
+    if (P.tab === 'renewals') return renderRenewals();
     if (P.tab === 'rates') return renderRates();
     if (P.tab === 'team') return renderTeam();
     if (P.tab === 'how') return renderHow();
@@ -83722,8 +83862,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       .map(id => ({ key: 'p:' + id, label: shortName(id), dot: dotFor(id),
                     count: live().filter(a => a.specialist_id === id).length }))
       .sort((a, b) => b.count - a.count);
+    const needingBilling = clientsNeedingBilling();
+    const worstBilling = needingBilling.length ? needingBilling[0].a.level : null;
     const defs = [{ key: 'dash', label: 'Dashboard', count: '', dot: 'var(--p-red)' },
                   { key: 'all', label: 'All clients', count: P.clients.length, dot: null },
+                  // Renewals sits beside the clients it is about, and carries a dot only
+                  // when something is actually wrong — a permanent badge is furniture.
+                  { key: 'renewals', label: 'Renewals', count: needingBilling.length || '',
+                    dot: worstBilling ? ALERT_COLOURS[worstBilling].fg : null },
                   ...people,
                   { key: 'team', label: 'The team', count: (P.roster || []).length, dot: null },
                   { key: 'rates', label: 'Rates', count: '', dot: null },
@@ -84185,6 +84331,160 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (e.key === 'Escape') { el.value = el.dataset.podsWas; el.blur(); }
       });
     });
+  }
+
+  // ── Renewals ────────────────────────────────────────────────────────────────
+  // What Matthew asked for: every client's next charge, and a loud line at the top for
+  // anyone who is going to be charged for a month nobody is working. Editable in place,
+  // because a date that needs a developer to correct is a date that stays wrong.
+  function renderRenewals(){
+    const body = $('body');
+    const needing = clientsNeedingBilling();
+    const problems = needing.filter(x => x.a.level !== 'info');
+
+    // Everyone with either date set, soonest first, then everyone else so a client with
+    // nothing filled in is still reachable from here rather than invisible.
+    const dated = P.clients.filter(c => c.next_charge_on || c.ends_on)
+      .sort((a, b) => (daysUntil(a.next_charge_on || a.ends_on) ?? 9999)
+                    - (daysUntil(b.next_charge_on || b.ends_on) ?? 9999));
+    const undated = P.clients.filter(c => !c.next_charge_on && !c.ends_on
+      && (c.status || 'active') === 'active')
+      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+
+    const banner = problems.length
+      ? '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">'
+        + problems.map(({ c, a }) => {
+            const col = ALERT_COLOURS[a.level];
+            return '<div data-pods-client="' + esc(c.id) + '" style="display:flex;align-items:center;'
+              + 'gap:12px;background:' + col.bg + ';border:1px solid ' + col.bd + ';border-radius:12px;'
+              + 'padding:12px 16px;cursor:pointer;">'
+              + '<span style="width:8px;height:8px;border-radius:50%;background:' + col.fg + ';flex:none;"></span>'
+              + '<span style="font-weight:700;font-size:13.5px;color:var(--p-fg);flex:none;">'
+              + esc(c.name) + '</span>'
+              + '<span style="font-size:12.5px;color:' + col.fg + ';flex:1;min-width:0;">'
+              + esc(a.text) + '</span>'
+              + '<span data-pods-billoff="' + esc(c.id) + '" style="flex:none;background:' + col.fg + ';'
+              + 'color:#0b0b0c;font-size:11.5px;font-weight:800;padding:6px 12px;border-radius:8px;'
+              + 'cursor:pointer;white-space:nowrap;">Mark billing off</span>'
+              + '</div>';
+          }).join('')
+        + '</div>'
+      : '<div class="p-card" style="margin-bottom:16px;display:flex;align-items:center;gap:12px;">'
+        + '<span style="width:8px;height:8px;border-radius:50%;background:var(--p-green);flex:none;"></span>'
+        + '<span style="font-size:13px;color:var(--p-fg2);">Nothing is being charged past its last '
+        + 'day, and nothing is ending with the billing still on.</span></div>';
+
+    const row = (c) => {
+      const a = billingAlert(c);
+      const col = a ? ALERT_COLOURS[a.level] : null;
+      const off = !!c.billing_off_at;
+      return '<div class="p-cfgrow" style="display:flex;align-items:center;gap:14px;padding:12px 16px;'
+        + 'border-bottom:1px solid var(--p-line);">'
+        + '<span data-pods-client="' + esc(c.id) + '" style="flex:1;min-width:120px;cursor:pointer;">'
+        +   '<span style="font-weight:700;font-size:13.5px;color:var(--p-fg);">' + esc(c.name) + '</span>'
+        +   (a ? '<span class="p-pill" style="margin-left:9px;background:' + col.bg + ';color:' + col.fg
+                + ';border:1px solid ' + col.bd + ';">' + esc(a.short) + '</span>' : '')
+        +   (off ? '<span class="p-pill" style="margin-left:9px;background:#14261d;color:var(--p-green);'
+                + 'border:1px solid #1f4733;">billing off</span>' : '')
+        +   '<div style="font-size:11.5px;color:var(--p-dim);margin-top:3px;">'
+        +   (c.mrr_cents ? money(c.mrr_cents) + '/mo' : 'no MRR set')
+        +   (off ? ' · turned off ' + fmtDate(c.billing_off_at)
+                   + (c.billing_off_by ? ' by ' + esc(shortName(c.billing_off_by)) : '') : '')
+        +   '</div>'
+        + '</span>'
+        + '<span style="flex:none;text-align:right;">'
+        +   '<div style="font-size:10.5px;color:var(--p-dim);letter-spacing:.1em;font-weight:700;">NEXT CHARGE</div>'
+        +   field('data-pods-field="nextCharge" data-id="' + esc(c.id) + '"',
+                  c.next_charge_on ? String(c.next_charge_on).slice(0, 10) : '',
+                  { type: 'date', style: 'width:140px;font-size:12.5px;' })
+        + '</span>'
+        + '<span style="flex:none;text-align:right;">'
+        +   '<div style="font-size:10.5px;color:var(--p-dim);letter-spacing:.1em;font-weight:700;">LAST DAY</div>'
+        +   field('data-pods-field="endsOn" data-id="' + esc(c.id) + '"',
+                  c.ends_on ? String(c.ends_on).slice(0, 10) : '',
+                  { type: 'date', style: 'width:140px;font-size:12.5px;' })
+        + '</span>'
+        + '<span data-pods-billoff="' + esc(c.id) + '" title="' + (off ? 'Billing is off' : 'Confirm the Stripe payment is off')
+        + '" style="flex:none;width:26px;height:26px;border-radius:7px;display:flex;align-items:center;'
+        + 'justify-content:center;cursor:pointer;font-weight:800;font-size:13px;border:1px solid '
+        + (off ? '#1f4733;background:#14261d;color:var(--p-green)' : 'var(--p-line2);color:var(--p-dim)')
+        + ';">' + (off ? '✓' : '·') + '</span>'
+        + '</div>';
+    };
+
+    body.innerHTML = banner
+      + '<div class="p-card" style="padding:0;overflow:hidden;">'
+      +   '<div style="display:flex;align-items:center;gap:10px;padding:14px 16px;'
+      +   'border-bottom:1px solid var(--p-line);">'
+      +     '<span class="p-statlabel" style="color:var(--p-mut);flex:1;">DATED · ' + dated.length + '</span>'
+      +     '<span style="font-size:11.5px;color:var(--p-dim);">a tick means somebody has confirmed '
+      +     'the Stripe payment is off</span>'
+      +   '</div>'
+      +   (dated.length ? dated.map(row).join('')
+          : '<div style="padding:26px;text-align:center;font-size:12.5px;color:var(--p-dim);">'
+            + 'No dates set yet. Fill one in below and it appears here.</div>')
+      + '</div>'
+      + (undated.length
+          ? '<div class="p-card" style="padding:0;overflow:hidden;margin-top:14px;">'
+            + '<div style="padding:14px 16px;border-bottom:1px solid var(--p-line);">'
+            + '<span class="p-statlabel" style="color:var(--p-mut);">NO DATES YET · ' + undated.length + '</span>'
+            + '<div style="font-size:11.5px;color:var(--p-dim);margin-top:4px;">Active clients whose next '
+            + 'charge nobody has recorded. Until a date is here, nothing can be flagged about them.</div></div>'
+            + undated.map(row).join('') + '</div>'
+          : '')
+      + '<div style="font-size:11.5px;color:var(--p-dim);margin-top:14px;line-height:1.7;">'
+      + 'These dates are typed in, not read from Stripe — the Stripe webhook is not connected on '
+      + 'this workspace, so nothing here is checked against what Stripe actually has. When it is '
+      + 'reconnected, the next charge can be filled in automatically.</div>';
+
+    wireRenewals(body);
+  }
+
+  function wireRenewals(host){
+    const clientOf = (id) => P.clients.find(c => c.id === id);
+    const saveDate = (col) => async (el, v) => {
+      const val = String(v).trim() || null;
+      if (val && !/^\d{4}-\d{2}-\d{2}$/.test(val)) return false;
+      const c = clientOf(el.dataset.id);
+      const patch = {}; patch[col] = val;
+      // Changing a date makes the old "we turned it off" tick meaningless -- it was a
+      // statement about a billing arrangement that has just changed.
+      if (c && c.billing_off_at) { patch.billing_off_at = null; patch.billing_off_by = null; }
+      const ok = await saveCfg('clients', { id: el.dataset.id }, patch, c);
+      if (ok) render();
+      return ok;
+    };
+    wireFields(host, { nextCharge: saveDate('next_charge_on'), endsOn: saveDate('ends_on') });
+    host.querySelectorAll('[data-pods-billoff]').forEach(b =>
+      b.addEventListener('click', (e) => { e.stopPropagation(); toggleBillingOff(b.dataset.podsBilloff); }));
+    host.querySelectorAll('[data-pods-client]').forEach(b =>
+      b.addEventListener('click', () => openClient(b.dataset.podsClient)));
+  }
+
+  // The tick, and taking it back. Both are a claim somebody is making, so both are stamped
+  // with who made it -- "I believe this is off" is worth less than "Mave said so on the 3rd".
+  async function toggleBillingOff(clientId){
+    const c = P.clients.find(x => x.id === clientId);
+    if (!c) return;
+    if (c.billing_off_at) {
+      const ok = await window.giantConfirmWarn('Billing is back on for ' + c.name + '?',
+        'This undoes the confirmation that their Stripe payment was turned off. '
+        + 'Do it if the subscription is live again, not to correct a typo elsewhere.',
+        'Billing is on', 'warning');
+      if (!ok) return;
+      const done = await saveCfg('clients', { id: clientId },
+        { billing_off_at: null, billing_off_by: null }, c);
+      if (done) render();
+      return;
+    }
+    const ok = await window.giantConfirmWarn('Their Stripe payment is turned off?',
+      'Confirm you have actually cancelled the recurring payment for ' + c.name + ' in Stripe. '
+      + 'This records that you checked, with your name and today\'s date against it — it does not '
+      + 'cancel anything by itself.', 'Yes, it is off', 'warning');
+    if (!ok) return;
+    const done = await saveCfg('clients', { id: clientId },
+      { billing_off_at: new Date().toISOString(), billing_off_by: me() }, c);
+    if (done) render();
   }
 
   function renderRates(){
@@ -84867,6 +85167,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         text: metaN + ordinalSuffix(metaN) + ' Meta account reached — assign or recruit a dedicated '
             + 'per-account Meta specialist' + (tiers ? ' (' + tiers + ')' : '') + '.' });
     }
+    // Billing first: a client being charged for a month nobody is working is money going
+    // the wrong way, which outranks a capacity problem.
+    clientsNeedingBilling().filter(x => x.a.level === 'red').forEach(({ c, a }) => {
+      const col = ALERT_COLOURS.red;
+      out.push({ colour: col.fg, bg: col.bg, bd: col.bd,
+        text: esc(c.name) + ' — ' + esc(a.text) });
+    });
     // Everyone past their ideal load, and every pod at its limit.
     (P.roster || []).forEach(pp => {
       const capr = capFor(pp.id);
@@ -85367,6 +85674,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       name: c ? c.name : (addable[0] ? addable[0].name : ''),
       mrr: c ? (c.mrr_cents || 0) / 100 : 0,
       payDay: c ? (c.pay_day || '') : '',
+      // Real dates, not a day-of-month. "The 2nd" cannot say which month, and that is
+      // precisely the ambiguity that lets a charge land after somebody's last day.
+      nextCharge: c && c.next_charge_on ? String(c.next_charge_on).slice(0, 10) : '',
+      endsOn: c && c.ends_on ? String(c.ends_on).slice(0, 10) : '',
       health: c ? (c.health || 'green') : 'green',
       status: c ? (c.status || 'active') : 'active',
       // "new" or "pick": one question, answered once, rather than one field meaning two
@@ -85405,6 +85716,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // a date and lets you pick one; the schema keeps the day of the month, which is what
     // recurs -- so a picked date is read for its day and the year looks after itself.
     function nextPayDate(){
+      if (draft.nextCharge) return asDate(draft.nextCharge);
       if (!draft.payDay) return null;
       const d = Number(draft.payDay), now = new Date();
       let dt = new Date(now.getFullYear(), now.getMonth(), d);
@@ -85531,6 +85843,31 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         +     '<input id="pods_edDate" type="date"' + (npd ? ' value="' + npd.toISOString().slice(0, 10) + '"' : '')
         +     ' style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer;border:none;">'
         +   '</div>'
+        +   '<div style="background:#141416;padding:16px 22px 18px;position:relative;cursor:pointer;">'
+        +     '<div style="' + LAB.font + 'margin-bottom:8px;">LAST DAY</div>'
+        +     '<div style="font-weight:700;font-size:22px;letter-spacing:-.01em;color:'
+        +     (draft.endsOn ? '#ff8a8a' : '#5a5a62') + ';">'
+        +     (draft.endsOn ? esc(fmtDate(draft.endsOn)) : '—') + '</div>'
+        +     '<div style="font-size:10.5px;color:#5a5a62;margin-top:4px;">'
+        +     (draft.endsOn ? 'set · click to change' : 'not ending · click to set') + '</div>'
+        +     '<input id="pods_edEnds" type="date"'
+        +     (draft.endsOn ? ' value="' + esc(draft.endsOn) + '"' : '')
+        +     ' style="position:absolute;top:0;left:0;width:100%;height:100%;opacity:0;cursor:pointer;border:none;">'
+        +   '</div>'
+        // The warning the whole feature exists for, said right where both dates are set,
+        // rather than only on a board somebody has to think to open.
+        +   (billingAlert({ ends_on: draft.endsOn || null, next_charge_on: draft.nextCharge || null,
+                            billing_off_at: c ? c.billing_off_at : null })
+              ? (() => { const al = billingAlert({ ends_on: draft.endsOn || null,
+                           next_charge_on: draft.nextCharge || null,
+                           billing_off_at: c ? c.billing_off_at : null });
+                  const col = ALERT_COLOURS[al.level];
+                  return '<div style="grid-column:1/-1;background:' + col.bg + ';padding:12px 22px;'
+                    + 'display:flex;align-items:center;gap:10px;">'
+                    + '<span style="width:7px;height:7px;border-radius:50%;background:' + col.fg
+                    + ';flex:none;"></span><span style="font-size:12.5px;color:' + col.fg + ';">'
+                    + esc(al.text) + '</span></div>'; })()
+              : '')
         +   '<div style="background:#141416;padding:16px 22px 18px;">'
         +     '<div style="' + LAB.font + 'margin-bottom:8px;">TEAM COST</div>'
         +     '<div style="font-weight:700;font-size:22px;letter-spacing:-.01em;">' + money0(teamCost / 100) + '</div>'
@@ -85670,10 +86007,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           cells[3].textContent = pctv == null ? '—' : pctv + '%';
           cells[3].style.color = pctv == null ? '#5a5a62' : pctv < 0 ? '#e8232a' : '#34c77b'; }
       });
+      const en = q('pods_edEnds');
+      if (en) en.addEventListener('change', () => { draft.endsOn = en.value || ''; paint(); });
       const dt = q('pods_edDate');
+      // pay_day stays in step so the PAY DAY column and anything else reading it agree.
+
       if (dt) dt.addEventListener('change', () => {
         if (!dt.value) return;
         draft.payDay = String(new Date(dt.value + 'T00:00:00').getDate());
+        draft.nextCharge = dt.value;
         paint();
       });
       all('[data-pods-tier]', 'change', (e) => { draft.services[e.target.dataset.podsTier].tier = e.target.value; paint(); });
@@ -85884,6 +86226,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                       status: draft.status,
                       pay_day: draft.payDay ? Number(draft.payDay) : null,
                       pay_cadence: draft.payDay ? 'monthly' : null,
+                      next_charge_on: draft.nextCharge || null,
+                      ends_on: draft.endsOn || null,
                       pod_id: intoPod.id };
       // Renaming is only offered on a client that already exists; a new one keeps the name
       // it has in the Clients module rather than acquiring a second one here.

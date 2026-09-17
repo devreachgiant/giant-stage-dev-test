@@ -320,6 +320,11 @@
   // Who is in which pod (migration 20260915170000). Empty by default: the checks that care
   // set it up themselves, and a board with no membership yet must still draw.
   DB.pod_members = [];
+  // Billing dates (migration 20260917120000). Left unset on the fixtures: the renewals
+  // checks set the dates they need, and a client with nothing filled in is a real state
+  // the board has to render.
+  DB.clients.forEach(c => { c.ends_on = null; c.next_charge_on = null;
+                            c.billing_off_at = null; c.billing_off_by = null; });
   // The words on How it works, same migration. Seeded with what the page used to hard-code.
   // The same five roles, five growth bands and two notes the migration seeds, so a check
   // that asserts the design's blocks are all present is asserting something real.
