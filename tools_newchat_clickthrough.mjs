@@ -5850,6 +5850,67 @@ await step('a DM on Needs you is named for the other person, never for you', asy
     r.namesSomeoneElse === true, JSON.stringify(r));
 });
 
+// A task link pasted into a chat opened a second copy of the whole app in a new tab, then
+// booted it just to show a panel. Every internal link did, because they render as ordinary
+// anchors with target="_blank".
+await step('a link to Giant opens in Giant, not in a second copy of it', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const out = {};
+    // what a link in a message actually looks like
+    const host = document.createElement('div');
+    host.innerHTML = '<a id="probeTask" target="_blank" rel="noopener" '
+      + 'href="https://giant.reachgiant.com/app?task=t-probe">the task</a>'
+      + '<a id="probeExternal" target="_blank" href="https://example.com/x">outside</a>'
+      + '<a id="probeOnboard" target="_blank" '
+      + 'href="https://giant.reachgiant.com/onboard/abc123">onboarding form</a>';
+    document.body.appendChild(host);
+
+    let openedWith = null;
+    const realOpen = window.openTaskDetailPanel;
+    window.openTaskDetailPanel = (id) => { openedWith = id; };
+    // nothing must reach the browser's own navigation
+    let navigated = null;
+    const realAssign = window.location.assign;
+    out.hasHandler = typeof realOpen === 'function';
+
+    const fire = (id) => {
+      const el = document.getElementById(id);
+      const ev = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+      el.dispatchEvent(ev);
+      return ev.defaultPrevented;
+    };
+    out.taskPrevented = fire('probeTask');
+    out.openedWith = openedWith;
+
+    // an outside link is left completely alone
+    out.externalPrevented = fire('probeExternal');
+
+    // and so is a standalone page that genuinely has to load as its own document
+    openedWith = null;
+    out.onboardPrevented = fire('probeOnboard');
+    out.onboardDidNotOpenPanel = openedWith === null;
+
+    // a modified click still means "new tab" -- the choice is not taken away
+    const el = document.getElementById('probeTask');
+    const meta = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, metaKey: true });
+    el.dispatchEvent(meta);
+    out.metaClickLeftAlone = !meta.defaultPrevented;
+
+    window.openTaskDetailPanel = realOpen;
+    host.remove();
+    return out;
+  });
+  check('clicking a task link opens the panel here instead of a new tab',
+    r.hasHandler && r.taskPrevented && r.openedWith === 't-probe', JSON.stringify(r));
+  check('a link to anywhere else is left exactly as it was',
+    r.externalPrevented === false, JSON.stringify(r));
+  check('so is a standalone page that has to load as its own document',
+    r.onboardPrevented === false && r.onboardDidNotOpenPanel, JSON.stringify(r));
+  check('and cmd-click still opens a new tab, because that is what it means',
+    r.metaClickLeftAlone, JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

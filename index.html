@@ -36058,6 +36058,55 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
   window.GIANT_ORIGIN = 'https://giant.reachgiant.com';
   window.giantUrl = (path) => window.GIANT_ORIGIN + (String(path || '').startsWith('/') ? path : '/' + path);
 
+  // ── a link to Giant opens IN Giant ──────────────────────────────────────────
+  // A task link pasted into a chat opened a second copy of the whole app in a new tab,
+  // waited for it to boot, and then opened a panel -- for something the tab you are
+  // already in can do immediately. Every internal link behaved that way, because the app
+  // renders them as ordinary anchors with target="_blank".
+  //
+  // Captured at the document, before anything else sees the click, so it works for links
+  // in chat messages, task descriptions, notes and anywhere else without each of them
+  // having to know about it.
+  document.addEventListener('click', (e) => {
+    // A modified click means the person asked for a new tab or window. Leave it alone --
+    // this is about the default, not about taking the choice away.
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.target && e.target.closest && e.target.closest('a[href]');
+    if (!a || a.hasAttribute('download')) return;
+    let u;
+    try { u = new URL(a.getAttribute('href'), window.location.href); } catch (_) { return; }
+    // Ours only: the canonical domain, and whatever host is actually serving this page --
+    // the raw Netlify deploy URL is redirected now, but a link made before that still
+    // carries it, and it is still our app.
+    const ours = [window.GIANT_ORIGIN, window.location.origin,
+                  'https://giant-reachgiant.netlify.app'];
+    if (ours.indexOf(u.origin) === -1) return;
+    // Standalone pages -- the onboarding form, a meeting room, a booking page, a share or
+    // a public recording -- are separate documents and genuinely have to load. Only the
+    // app's own routes are handled here.
+    if (!/^\/(app\/?)?$/.test(u.pathname)) return;
+
+    const q = u.searchParams;
+    const opened =
+      (q.get('task')    && typeof window.openTaskDetailPanel === 'function'
+        && (window.openTaskDetailPanel(q.get('task')), true)) ||
+      (q.get('message') && q.get('channel') && typeof window.jumpToChatMessage === 'function'
+        && (window.jumpToChatMessage(q.get('channel'), q.get('message')), true)) ||
+      (q.get('c3thread') && typeof window.chat3OpenThread === 'function'
+        && (window.chat3OpenThread(q.get('c3thread'), q.get('c3message') || null), true)) ||
+      (q.get('screen') && (() => { const nav = document.querySelector(
+          '.nav-item[data-screen="' + String(q.get('screen')).replace(/"/g, '') + '"]');
+        if (nav) { nav.click(); return true; } return false; })());
+
+    if (opened) { e.preventDefault(); e.stopPropagation(); return; }
+
+    // Nothing here knows how to open it, but it is still our own app: navigate this tab
+    // rather than spawning another copy of it. A second instance of Giant is never the
+    // useful answer to clicking a Giant link.
+    e.preventDefault();
+    window.location.href = u.href.replace(u.origin, window.GIANT_ORIGIN);
+  }, true);
+
   const SUPABASE_URL = window.GIANT_SUPABASE_URL || 'https://pvuykkdqoxrflbasswal.supabase.co';
   const SUPABASE_ANON_KEY = window.GIANT_SUPABASE_ANON_KEY || 'sb_publishable_ogf5kmGoZxfBi20v00akRA_ok4_tJvQ';
 
