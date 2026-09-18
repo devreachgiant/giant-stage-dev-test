@@ -98,7 +98,11 @@ exports.handler = async (event) => {
     }
 
     // Build invitation URL — frontend reads ?invite=<token> and walks the signup flow
-    const baseUrl = process.env.GIANT_PUBLIC_URL || event.headers.origin || event.headers.Origin || 'https://giant-reachgiant.netlify.app';
+    // The canonical domain, never the raw Netlify deploy URL and never the request's own
+    // origin: an invitation is an email somebody keeps, and a link built from whichever
+    // host happened to send it puts giant-reachgiant.netlify.app in front of a new user
+    // as the address of the app.
+    const baseUrl = process.env.GIANT_PUBLIC_URL || 'https://giant.reachgiant.com';
     // Canonical route handled by the frontend bootstrap. Old format ?invite=<token> is still accepted (auto-rewritten).
     const inviteUrl = `${baseUrl}/accept-invite?token=${encodeURIComponent(inv.token)}`;
 

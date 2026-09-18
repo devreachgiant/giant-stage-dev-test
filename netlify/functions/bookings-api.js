@@ -345,7 +345,9 @@ exports.handler = async (event) => {
       if (evt.location_type === 'video') {
         // Token format: 3 groups of 3 chars (24 bits) — short, memorable, unguessable
         giantMeetToken = rand32().slice(0,3) + '-' + rand32().slice(0,3) + '-' + rand32().slice(0,3);
-        giantMeetUrl = `${origin || 'https://giant-reachgiant.netlify.app'}/meet/${giantMeetToken}`;
+        // Canonical domain as the fallback, not the raw deploy URL: this link is sent to
+        // the person being met, and often to someone outside the company.
+        giantMeetUrl = `${origin || 'https://giant.reachgiant.com'}/meet/${giantMeetToken}`;
       }
       const createdArr = await sb('bookings', 'POST', {
         event_type_id: evt.id,

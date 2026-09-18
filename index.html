@@ -14106,7 +14106,7 @@ window.addEventListener('popstate', (e) => {
   }
 
   async function shareSop(id) {
-    const url = `${window.location.origin}/app?sop=${id}`;
+    const url = window.giantUrl(`/app?sop=${id}`);
     try {
       await navigator.clipboard.writeText(url);
       if (typeof toast==='function') toast({type:'success', message:'Link copied — anyone on the team can open it directly.'});
@@ -16807,9 +16807,9 @@ window.addEventListener('popstate', (e) => {
         <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);">
           <div style="font-size:11px;color:var(--text-3);font-weight:700;text-transform:uppercase;margin-bottom:6px;">Onboarding link</div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <input readonly value="${esc(window.location.origin + '/onboard/' + cl.onboardingToken)}" onclick="this.select()" style="flex:1;min-width:260px;background:var(--surface);color:var(--text-2);border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;font-family:inherit;">
+            <input readonly value="${esc(window.giantUrl('/onboard/' + cl.onboardingToken))}" onclick="this.select()" style="flex:1;min-width:260px;background:var(--surface);color:var(--text-2);border:1px solid var(--line);border-radius:7px;padding:8px 10px;font-size:12.5px;font-family:inherit;">
             <div class="btn-outline" data-wl-action="send-onboarding" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;">Copy</div>
-            <a href="${esc(window.location.origin + '/onboard/' + cl.onboardingToken)}" target="_blank" rel="noopener" class="btn-outline" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;text-decoration:none;">Open</a>
+            <a href="${esc(window.giantUrl('/onboard/' + cl.onboardingToken))}" target="_blank" rel="noopener" class="btn-outline" style="padding:8px 14px;border-radius:8px;border:1px solid var(--line-2);color:var(--text-2);font-size:12.5px;font-weight:700;cursor:pointer;text-decoration:none;">Open</a>
           </div>
         </div>` : (isNotPartnerView() ? `
         <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);">
@@ -16886,7 +16886,7 @@ window.addEventListener('popstate', (e) => {
       cl.onboardingToken = tok;
     }
     if (cl.onboardingStatus === 'not_sent') cl.onboardingStatus = 'sent';
-    return { url: window.location.origin + '/onboard/' + cl.onboardingToken, token: cl.onboardingToken };
+    return { url: window.giantUrl('/onboard/' + cl.onboardingToken), token: cl.onboardingToken };
   }
   async function copyOnboardingLink() {
     if (!isNotPartnerView()) return;
@@ -19578,7 +19578,7 @@ window.addEventListener('popstate', (e) => {
   // signed into Giant and already has real (RLS-granted) access to this entry. Copying it
   // doesn't decrypt or expose anything by itself.
   async function copyEntryLink(entryId){
-    const url = `${window.location.origin}${window.location.pathname}?pwEntry=${encodeURIComponent(entryId)}`;
+    const url = `${window.GIANT_ORIGIN}${window.location.pathname}?pwEntry=${encodeURIComponent(entryId)}`;
     try {
       await navigator.clipboard.writeText(url);
       if (typeof toast==='function') toast({type:'success', message:'Link copied — only works for people who already have access to this password', duration:3500});
@@ -19601,7 +19601,7 @@ window.addEventListener('popstate', (e) => {
     });
     const data = await res.json().catch(()=>({}));
     if (!res.ok) throw new Error(data.error || 'Could not create link');
-    return `${window.location.origin}/pwshare/${data.token}`;
+    return window.giantUrl(`/pwshare/${data.token}`);
   }
   async function revokeShareLink(linkId){
     const { error } = await sb().from('password_share_links').update({ revoked_at: new Date().toISOString() }).eq('id', linkId);
@@ -22124,7 +22124,7 @@ window.addEventListener('popstate', (e) => {
             ${!(ob && ob.onboarding_token) ? `<div data-c2-disabled="Create onboarding link" style="background:#242424;color:#7a7a7a;font-size:12.5px;font-weight:700;padding:8px 16px;border-radius:8px;cursor:pointer;flex-shrink:0;">Create link</div>` : ''}
           </div>
           ${ob && ob.onboarding_token ? `<div style="display:flex;gap:8px;align-items:center;margin-top:14px;background:#141414;border:1px solid #2a2a2a;border-radius:9px;padding:10px 14px;">
-            <div style="flex:1;min-width:0;font-size:13px;color:#c8c8c8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(window.location.origin + '/onboard/' + ob.onboarding_token)}</div>
+            <div style="flex:1;min-width:0;font-size:13px;color:#c8c8c8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(window.giantUrl('/onboard/' + ob.onboarding_token))}</div>
           </div>` : ''}
           ${answers ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid #2a2a2a;cursor:pointer;display:flex;justify-content:space-between;align-items:center;" data-c2-toggle-qa>
             <span style="font-size:12.5px;font-weight:700;color:#c8c8c8;">${state.hubOnboardingQAOpen?'Hide':'Show'} responses (${Object.keys(answers).length})</span>
@@ -30120,7 +30120,9 @@ Rules:
   // opens this library on that recording. Both are stable and both are worth pasting into
   // a message -- which the raw .webm in storage never was.
   function recShareLink(rec){
-    const origin = window.location.origin;
+    // A recording link is pasted into a chat and often forwarded on, so it carries the
+    // canonical host rather than whichever one the sharer happened to be on.
+    const origin = window.GIANT_ORIGIN;
     if (rec.visibility === 'public' && rec.share_token) return origin + '/rec/' + rec.share_token;
     return origin + '/?rec=' + rec.id;
   }
@@ -30495,7 +30497,7 @@ Rules:
   let roomToken = null, roomReady = false;
   function mrEsc(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
   function mrHint(t){ const h=$('mrHint'); if(h) h.textContent = t; }
-  function roomUrl(){ return window.location.origin + '/meet/' + roomToken; }
+  function roomUrl(){ return window.giantUrl('/meet/' + roomToken); }
 
   async function ensureRoom(){
     if (roomReady) return roomToken;
@@ -36047,10 +36049,103 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
 <script>
 (function(){
   // CONFIG — replace at deploy time
+  // The app's one address. Links that get SHARED -- an onboarding form, a meeting room, a
+  // password share, a published page -- are built from this and never from
+  // window.location.origin, because the app also answers on the raw Netlify deploy URL and
+  // a link built from whichever host loaded the page carries that host to whoever receives
+  // it. The redirect in netlify.toml moves people off the deploy URL; this makes sure a
+  // link copied before that redirect fires is still the right one.
+  window.GIANT_ORIGIN = 'https://giant.reachgiant.com';
+  window.giantUrl = (path) => window.GIANT_ORIGIN + (String(path || '').startsWith('/') ? path : '/' + path);
+
   const SUPABASE_URL = window.GIANT_SUPABASE_URL || 'https://pvuykkdqoxrflbasswal.supabase.co';
   const SUPABASE_ANON_KEY = window.GIANT_SUPABASE_ANON_KEY || 'sb_publishable_ogf5kmGoZxfBi20v00akRA_ok4_tJvQ';
 
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ── realtime sends cannot be allowed to take the app down ───────────────────
+  // Luke saw "Maximum call stack size exceeded" with a stack of encode / push / send --
+  // three frames inside supabase-js, naming no channel, no event and no payload. It is
+  // thrown while serialising something we asked it to send, and it rejects the promise of
+  // whatever was running at the time, so the real damage is the work that gets abandoned.
+  //
+  // Two things happen here. Every payload is rebuilt as plain JSON-safe data with a depth
+  // and size cap before it goes near the encoder, which is what stops the overflow; and if
+  // a send throws anyway it is caught and reported WITH ITS CHANNEL AND EVENT, so the next
+  // occurrence names itself instead of being three anonymous library frames.
+  //
+  // Patched on the prototype rather than at each call site: there are fifteen of those
+  // across four modules, and one of them is in Old Chat, which is pinned.
+  (function guardRealtimeSend(){
+    try {
+      const probe = supabase.channel('__giant_send_guard__');
+      const proto = Object.getPrototypeOf(probe);
+      try { supabase.removeChannel(probe); } catch (_) {}
+      if (!proto || typeof proto.send !== 'function' || proto.__giantGuarded) return;
+
+      const MAX_DEPTH = 12;     // deeper than any payload we send; shallow enough to stop a loop
+      const MAX_KEYS  = 200;
+      const MAX_STR   = 100000;
+      // Plain data only. A live browser object -- an RTCIceCandidate, a DOM node, anything
+      // whose getters build a new object each time they are read -- is what turns a
+      // serialiser into an infinite descent, and every one of them is replaced by its own
+      // JSON form or dropped.
+      const plain = (v, depth, seen) => {
+        if (v == null) return v;
+        const t = typeof v;
+        if (t === 'string') return v.length > MAX_STR ? v.slice(0, MAX_STR) + '…[truncated]' : v;
+        if (t === 'number' || t === 'boolean') return v;
+        if (t === 'function' || t === 'symbol' || t === 'bigint') return undefined;
+        if (depth > MAX_DEPTH) return '[too deep]';
+        if (seen.has(v)) return '[circular]';
+        seen.add(v);
+        try {
+          if (Array.isArray(v)) return v.slice(0, MAX_KEYS).map(x => plain(x, depth + 1, seen));
+          if (typeof v.toJSON === 'function') {
+            const j = v.toJSON();
+            return j === v ? String(v) : plain(j, depth + 1, seen);
+          }
+          const out = {};
+          Object.keys(v).slice(0, MAX_KEYS).forEach(k => {
+            const got = plain(v[k], depth + 1, seen);
+            if (got !== undefined) out[k] = got;
+          });
+          return out;
+        } catch (_) {
+          return '[unreadable]';
+        } finally {
+          seen.delete(v);
+        }
+      };
+
+      const orig = proto.send;
+      proto.send = function guardedSend(msg, opts){
+        const where = (this && this.topic) || 'unknown channel';
+        const what = (msg && msg.event) || (msg && msg.type) || 'unknown event';
+        let safe = msg;
+        try {
+          safe = plain(msg, 0, new Set());
+        } catch (e) {
+          console.error('[realtime] payload could not be made safe on', where, what, e);
+          return Promise.resolve('error');
+        }
+        try {
+          return orig.call(this, safe, opts);
+        } catch (e) {
+          // Reported, never rethrown: a broadcast that cannot be sent must not abort the
+          // huddle, the typing indicator or whatever else was mid-flight.
+          console.error('[realtime] send failed on', where, what, e);
+          if (typeof window.toast === 'function') {
+            window.toast({ type: 'error', report: true,
+              message: 'A live update could not be sent (' + where + ' / ' + what + '). '
+                     + 'Everything else is unaffected.' });
+          }
+          return Promise.resolve('error');
+        }
+      };
+      proto.__giantGuarded = true;
+    } catch (_) { /* never let the guard itself break startup */ }
+  })();
 
   // Expose for the auth fetch-wrapper in <head> (security batch 2): lets it read a
   // fresh, auto-refreshed session token when attaching Authorization headers.
@@ -36381,7 +36476,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
 
       function renderSuccess(booking) {
         const start = new Date(booking.start_at);
-        const manageUrl = `${window.location.origin}/booking/${booking.cancel_token}`;
+        const manageUrl = window.giantUrl(`/booking/${booking.cancel_token}`);
         content.innerHTML = renderHostHeader(host) + `<div style="text-align:center;padding:32px 16px;max-width:480px;margin:0 auto;">
           <div style="width:60px;height:60px;border-radius:50%;background:rgba(0,200,80,.15);color:#00C850;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:30px;">✓</div>
           <div style="font-size:18px;font-weight:800;margin-bottom:8px;">Booking confirmed</div>
@@ -39401,7 +39496,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const onbCopyBtn = document.getElementById('cdOnboardingCopyBtn');
       const onbOpenBtn = document.getElementById('cdOnboardingOpenBtn');
       const showOnbLink = (token) => {
-        const url = window.location.origin + '/onboard/' + token;
+        const url = window.giantUrl('/onboard/' + token);
         console.log('[onboarding] generated URL:', url, '— path bootstrap matches /^\\/onboard\\/([\\w-]+)/');
         onbLinkInput.value = url;
         onbLinkRow.style.display = 'flex';
@@ -53996,7 +54091,7 @@ ${COMMON_SCHEMA}`;
         page.slug = slug;
         if (slugEl) slugEl.textContent = slug;
         // Wire Copy/Open buttons (once per render) with the REAL public URL
-        const realPublicUrl = `${window.location.origin}/?page=${slug}`;
+        const realPublicUrl = window.giantUrl(`/?page=${slug}`);
         const copyBtn = document.getElementById('tplPreviewCopyBtn');
         const openBtn = document.getElementById('tplPreviewOpenBtn');
         const urlTextEl = document.getElementById('tplPreviewUrlText');
@@ -54004,14 +54099,14 @@ ${COMMON_SCHEMA}`;
         if (urlTextEl) {
           // Show abbreviated for visual, keep full URL in title attribute
           const fullUrl = realPublicUrl;
-          urlTextEl.innerHTML = `${(window.location.origin + '/?page=').replace(/</g,'&lt;')}<b style="color:var(--text);" id="tplPreviewSlug">${slug.replace(/</g,'&lt;')}</b>`;
+          urlTextEl.innerHTML = `${(window.GIANT_ORIGIN + '/?page=').replace(/</g,'&lt;')}<b style="color:var(--text);" id="tplPreviewSlug">${slug.replace(/</g,'&lt;')}</b>`;
           urlTextEl.title = fullUrl;
         }
         if (copyBtn && !copyBtn.dataset.wired) {
           copyBtn.dataset.wired = '1';
           copyBtn.addEventListener('click', async () => {
             const currentSlug = page.slug || slug;
-            const url = `${window.location.origin}/?page=${currentSlug}`;
+            const url = window.giantUrl(`/?page=${currentSlug}`);
             try {
               await navigator.clipboard.writeText(url);
               const originalHTML = copyBtn.innerHTML;
@@ -54028,7 +54123,7 @@ ${COMMON_SCHEMA}`;
           openBtn.dataset.wired = '1';
           openBtn.addEventListener('click', () => {
             const currentSlug = page.slug || slug;
-            const url = `${window.location.origin}/?page=${currentSlug}`;
+            const url = window.giantUrl(`/?page=${currentSlug}`);
             window.open(url, '_blank', 'noopener,noreferrer');
           });
         }
@@ -54580,7 +54675,7 @@ ${COMMON_SCHEMA}`;
               if (typeof toast === 'function') toast({type:'error', message:'Publish failed: ' + error.message});
               return;
             }
-            const publicUrl = `${window.location.origin}/?page=${slug}`;
+            const publicUrl = window.giantUrl(`/?page=${slug}`);
             // Copy to clipboard (best-effort, may fail in some browser contexts)
             let copied = false;
             try { await navigator.clipboard.writeText(publicUrl); copied = true; } catch(e) { copied = false; }
@@ -54720,7 +54815,7 @@ ${COMMON_SCHEMA}`;
                 loadSavedTemplates();
               }
             } else if (act === 'copy') {
-              const url = `${window.location.origin}/?page=${slug}`;
+              const url = window.giantUrl(`/?page=${slug}`);
               try { await navigator.clipboard.writeText(url); if (typeof toast === 'function') toast({type:'success', message:'URL copied', duration: 1500}); } catch(e) {}
             } else if (act === 'delete') {
               if (!confirm('Delete this template? This cannot be undone.')) return;
@@ -55877,7 +55972,7 @@ ${COMMON_SCHEMA}`;
       const videoConf = document.getElementById('newEventVideoConf').value;
       let giantLink = null;
       if (videoConf === 'giant') {
-        try { const slug = await loadBookingSlug(); if (slug) giantLink = `${window.location.origin}/book/${slug}`; } catch(_){}
+        try { const slug = await loadBookingSlug(); if (slug) giantLink = `${window.GIANT_ORIGIN}/book/${slug}`; } catch(_){}
       }
       try {
         if (gcalToken) {
@@ -55952,7 +56047,7 @@ ${COMMON_SCHEMA}`;
 
     async function loadBkData() {
       await loadBookingSlug();
-      const fullUrl = currentProfile.booking_slug ? `${window.location.origin}/book/${currentProfile.booking_slug}` : '';
+      const fullUrl = currentProfile.booking_slug ? `${window.GIANT_ORIGIN}/book/${currentProfile.booking_slug}` : '';
       const urlHolder = document.getElementById('bkPublicUrl');
       if (urlHolder) urlHolder.textContent = fullUrl;
       // Wire the "Share my booking link" pill button in the topbar — opens a small popover
@@ -56026,7 +56121,7 @@ ${COMMON_SCHEMA}`;
       const nmEl = document.getElementById('bkCleanGroupName');
       if (nmEl) nmEl.textContent = currentProfile.full_name || 'My event types';
       const slug = currentProfile.booking_slug;
-      const landingUrl = slug ? `${window.location.origin}/book/${slug}` : '';
+      const landingUrl = slug ? `${window.GIANT_ORIGIN}/book/${slug}` : '';
       const landingBtn = document.getElementById('bkViewLandingBtn');
       if (landingBtn) { landingBtn.style.display = landingUrl ? '' : 'none'; landingBtn.onclick = () => { if (landingUrl) window.open(landingUrl, '_blank'); }; }
 
@@ -56065,7 +56160,7 @@ ${COMMON_SCHEMA}`;
           if (s && e) timeRange = ` · ${s} – ${e}`;
         }
         const daysLbl = workDays.length ? workDays.map(d => dayNames[d]).join(', ') + timeRange : 'No availability set';
-        const pubUrl = slug ? `${window.location.origin}/book/${slug}/${t.slug}` : '';
+        const pubUrl = slug ? `${window.GIANT_ORIGIN}/book/${slug}/${t.slug}` : '';
         return `<div class="bk-clean-card" data-bk-card="${calEsc(t.id)}">
           <div class="bk-clean-card-bar" style="background:${color};"></div>
           <div class="bk-clean-card-check ${t.is_active?'on':''}" data-bk-toggle="${calEsc(t.id)}" title="${t.is_active?'Active — click to deactivate':'Inactive — click to activate'}">
@@ -56176,7 +56271,7 @@ ${COMMON_SCHEMA}`;
         const tz = t.timezone || 'UTC';
         const blackouts = Array.isArray(t.blackout_dates) ? t.blackout_dates : [];
         const count = bkBookings.filter(b => b.event_type_id === t.id).length;
-        const url = currentProfile.booking_slug ? `${window.location.origin}/book/${currentProfile.booking_slug}/${t.slug}` : null;
+        const url = currentProfile.booking_slug ? `${window.GIANT_ORIGIN}/book/${currentProfile.booking_slug}/${t.slug}` : null;
         return `<div class="bk-evtype-card" data-bk-type-full="${calEsc(t.id)}" style="background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:11px;transition:.15s;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:14px;">
             <div style="flex:1;min-width:0;">
@@ -56239,7 +56334,7 @@ ${COMMON_SCHEMA}`;
       }
       const t = bkEventTypes.find(x => x.id === bkActiveTypeId);
       if (!t) { renderEventTypePane(); return; }
-      const publicUrl = currentProfile.booking_slug ? `${window.location.origin}/book/${currentProfile.booking_slug}/${t.slug}` : null;
+      const publicUrl = currentProfile.booking_slug ? `${window.GIANT_ORIGIN}/book/${currentProfile.booking_slug}/${t.slug}` : null;
       const locLabel = t.location_type === 'video' ? 'Giant Meet (built-in)' : t.location_type === 'phone' ? 'Phone' : t.location_type === 'in_person' ? 'In person' : 'Custom';
       const bookingsCount = bkBookings.filter(b => b.event_type_id === bkActiveTypeId).length;
       pane.innerHTML = `
@@ -56350,7 +56445,7 @@ ${COMMON_SCHEMA}`;
           // Generate a short token (preview-XXXX)
           const rand = () => Math.random().toString(36).slice(2, 8);
           const previewToken = 'preview-' + rand();
-          const meetUrl = `${window.location.origin}/meet/${previewToken}`;
+          const meetUrl = `${window.GIANT_ORIGIN}/meet/${previewToken}`;
           // Insert preview meeting row in DB
           try {
             if (typeof toast === 'function') toast({ type: 'info', message: 'Creating preview meeting…', duration: 1500 });
@@ -56642,7 +56737,7 @@ ${COMMON_SCHEMA}`;
           } else if (act === 'email') {
             window.location.href = `mailto:${meeting.guest_email}?subject=Re: ${encodeURIComponent(evtName)}`;
           } else if (act === 'manage') {
-            const url = `${window.location.origin}/booking/${meeting.cancel_token}`;
+            const url = `${window.GIANT_ORIGIN}/booking/${meeting.cancel_token}`;
             navigator.clipboard.writeText(url);
             if (typeof toast === 'function') toast({type:'info', message:'Manage URL copied to clipboard', duration:2000});
           }
@@ -63016,7 +63111,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             const rejected = feedbacks.filter(f => f.action === 'reject').length;
             const comments = feedbacks.filter(f => f.action === 'comment').length;
             const postCount = Array.isArray(pack.posts) ? pack.posts.length : 0;
-            const baseUrl = window.location.origin;
+            const baseUrl = window.GIANT_ORIGIN;
             return `
               <div class="shared-packs-item" data-pack-id="${hxEscapeHtml(pack.id)}">
                 <div class="shared-packs-item-main">
@@ -63050,7 +63145,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const bodyEl = document.getElementById('sharedPacksBody');
         if (!bodyEl) return;
         const posts = Array.isArray(pack.posts) ? pack.posts : [];
-        const baseUrl = window.location.origin;
+        const baseUrl = window.GIANT_ORIGIN;
         const shareUrl = `${baseUrl}/share/${pack.slug}`;
         // Group feedbacks by post_index
         const fbByPost = {};
@@ -63388,7 +63483,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             });
             const data = await res.json();
             if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
-            const fullUrl = window.location.origin + data.share_path;
+            const fullUrl = window.GIANT_ORIGIN + data.share_path;
             const resultEl = ov.querySelector('#sharePackResult');
             resultEl.style.display = 'block';
             resultEl.innerHTML = `
@@ -85656,7 +85751,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (cli) cli.onboarding_token = data;
     return data;
   }
-  const onboardingUrl = (token) => window.location.origin + '/onboard/' + token;
+  const onboardingUrl = (token) => window.giantUrl('/onboard/' + token);
 
   // A client that does not exist yet. The board is where somebody sits down to fill a pod,
   // and being sent to another screen to create a client and back again is the sort of

@@ -3601,13 +3601,17 @@ await step('a recording can be linked, shared publicly and deleted', async () =>
     out.fileRemoved = (window.__mock.log.storage || []).some(x => x.startsWith('remove:recordings/'));
     return out;
   });
-  const origin = new URL(page.url()).origin;
+  // The canonical domain, not the origin serving the test. A recording link is pasted
+  // into a chat and forwarded on, so it must not carry whichever host the sharer happened
+  // to load -- the app also answers on the raw Netlify deploy URL. Asserting against
+  // page.url() would pass on either, which is the bug it is supposed to catch.
+  const origin = 'https://giant.reachgiant.com';
   check('a recording can be linked, shared publicly and deleted',
     r.cards >= 2 && r.copyOnEveryCard && r.shareOnEveryCard
       && r.copiedWorkspace === origin + '/?rec=rec-1'
       && r.dialogOpen && r.bothOptionsOffered
       && r.rowVisibility === 'public'
-      && /^https?:\/\/[^/]+\/rec\/[a-f0-9]{32}$/.test(r.urlWentPublic || '')
+      && new RegExp('^' + origin + '/rec/[a-f0-9]{32}$').test(r.urlWentPublic || '')
       && r.copiedPublic === r.urlWentPublic && r.dialogClosed
       && r.otherRadios.join(',') === 'workspace:disabled,public:disabled'
       && r.otherUrlIsPublicPage && r.menuOffersSharing

@@ -75,6 +75,29 @@
     Content-Security-Policy = "frame-ancestors *"
     X-Frame-Options = "ALLOWALL"
 
+# ── the app has one address ──────────────────────────────────────────────────
+# Luke asked "am I supposed to be on giant-reachgiant.netlify.app? I thought we were on a
+# subdomain". He was right to ask: the raw Netlify deploy URL serves the identical app, so
+# it is possible to spend all day on the wrong one -- and every link copied from there
+# carries that host to whoever it is sent to.
+#
+# Anyone who lands on the deploy URL is moved to the canonical domain. First, because these
+# rules are read in order and the first match wins.
+#
+# Functions are exempt and must stay exempt: a 301 on a POST is not reliably followed, and
+# any webhook still registered against the deploy URL would silently stop being delivered.
+[[redirects]]
+  from = "https://giant-reachgiant.netlify.app/.netlify/functions/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "https://giant-reachgiant.netlify.app/*"
+  to = "https://giant.reachgiant.com/:splat"
+  status = 301
+  force = true
+
 [[redirects]]
   from = "/share/*"
   to = "/share.html"
