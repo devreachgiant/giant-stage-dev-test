@@ -1,6 +1,24 @@
 <!doctype html>
 <html lang="en">
 <head>
+<script>
+/* One address for the app. The raw Netlify deploy URL serves the identical site, so it is
+   possible to spend all day on the wrong one -- and every link copied from there carries
+   that host to whoever it is sent to. Luke asked whether he was supposed to be on it.
+
+   Done here rather than as a Netlify redirect because Netlify does not honour a full-URL
+   `from` against its own *.netlify.app subdomain; that was tried and measured returning 200
+   with no Location. First thing in the document, before any other script or fetch, so the
+   wrong host does no work. replace(), not assign(), so Back does not bounce. */
+(function(){
+  try {
+    if (location.hostname === 'giant-reachgiant.netlify.app') {
+      location.replace('https://giant.reachgiant.com'
+        + location.pathname + location.search + location.hash);
+    }
+  } catch (e) {}
+})();
+</script>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="robots" content="noindex" />

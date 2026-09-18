@@ -86,17 +86,11 @@
 #
 # Functions are exempt and must stay exempt: a 301 on a POST is not reliably followed, and
 # any webhook still registered against the deploy URL would silently stop being delivered.
-[[redirects]]
-  from = "https://giant-reachgiant.netlify.app/.netlify/functions/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "https://giant-reachgiant.netlify.app/*"
-  to = "https://giant.reachgiant.com/:splat"
-  status = 301
-  force = true
+# A redirect rule was tried here first and does not work: Netlify does not honour a
+# full-URL `from` against its OWN *.netlify.app subdomain -- domain-level redirects apply to
+# domain aliases, and the default subdomain is the host it is already serving. Measured, not
+# assumed: it returned 200 with no Location header. The redirect is done in the page instead
+# (see the top of index.html and the standalone pages). Please do not re-add it here.
 
 [[redirects]]
   from = "/share/*"
