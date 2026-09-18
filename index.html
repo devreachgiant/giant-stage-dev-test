@@ -71599,6 +71599,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   // "still loading" forever. Scoped to while this screen is the active one, and
   // labelled as possibly belonging to another module, because it cannot tell.
   let _banner = null;
+  let _bannerCount = 0;
   window.addEventListener('unhandledrejection', (e) => {
     const host = document.querySelector('.screen[data-screen="newchat"]');
     if (!host || !host.classList.contains('on')) return;
@@ -71609,9 +71610,33 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // where, so they go on the banner and into the clipboard, rather than only into a
     // console nobody had open at the time.
     const stack = String((e.reason && e.reason.stack) || '');
-    const frames = stack.split('\n').slice(1, 4)
-      .map(l => l.trim().replace(/^at\s+/, '').replace(/\s*\(.*?(:\d+:\d+)\)$/, ' $1'))
-      .filter(Boolean);
+    const clean = (l) => l.trim().replace(/^at\s+/, '').replace(/\s*\(.*?(:\d+:\d+)\)$/, ' $1');
+    const all = stack.split('\n').slice(1).map(clean).filter(Boolean);
+
+    // For a stack overflow the top frames are the least useful thing on the stack: they
+    // are wherever it happened to run out, which is why three reports of the same fault
+    // showed three different sets of them. What identifies a runaway loop is the frame
+    // that REPEATS -- so that is what goes on the banner, with how many times it appeared.
+    const overflow = /call stack size exceeded|too much recursion|stack overflow/i.test(msg);
+    let frames;
+    if (overflow && all.length > 6) {
+      const seen = new Map();
+      all.forEach(f => seen.set(f, (seen.get(f) || 0) + 1));
+      const repeats = [...seen.entries()].filter(([, n]) => n > 1)
+        .sort((a, b) => b[1] - a[1]).slice(0, 3);
+      // The deepest frame that is OURS, not the library's: a loop always runs through our
+      // code somewhere, and that is the line worth reading.
+      const mine = all.find(f => !/cdn\.jsdelivr\.net|unpkg|\[native code\]/.test(f));
+      frames = repeats.length
+        ? repeats.map(([f, n]) => 'x' + n + '  ' + f)
+        : all.slice(0, 3);
+      if (mine && !frames.some(f => f.indexOf(mine) !== -1)) frames.push('ours: ' + mine);
+      frames.push(all.length + ' frames deep');
+    } else {
+      frames = all.slice(0, 3);
+    }
+    // The whole stack, once, where it can be read properly rather than three lines at a time.
+    if (overflow) console.error('[newchat] stack overflow, full stack follows:\n' + stack);
     if (!_banner) {
       _banner = document.createElement('div');
       _banner.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:10000;max-width:70vw;'
@@ -71622,7 +71647,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       document.body.appendChild(_banner);
     }
     const esc = (t) => String(t).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
-    _banner.innerHTML = '<b style="color:var(--c3-salmon);">New Chat — async error</b><br>'
+    // When it happened, and how many times. The banner stays until it is clicked, so one
+    // from twenty minutes ago looks exactly like one from just now -- and "it is just there
+    // when I arrive at the screen" is what that looks like from the outside. It cost a round
+    // of chasing the wrong thing, so the banner now says.
+    _bannerCount++;
+    const when = new Date().toLocaleTimeString();
+    _banner.innerHTML = '<b style="color:var(--c3-salmon);">New Chat — async error</b>'
+      + '<span style="color:var(--c3-t5);font-size:11px;font-weight:600;margin-left:8px;">'
+      + when + (_bannerCount > 1 ? ' · ' + _bannerCount + ' times this session' : '') + '</span><br>'
       + esc(msg)
       + (frames.length
           ? '<br><span style="color:var(--c3-t4);font-size:11px;font-family:ui-monospace,monospace;">'
