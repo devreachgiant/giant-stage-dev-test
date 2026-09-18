@@ -7,7 +7,7 @@ work that is **not** recoverable from the code or `git log` is written down here
 Read [ONBOARDING.md](ONBOARDING.md) first for how the codebase works and how to get running.
 This file is about the state of play and the working agreements.
 
-Accurate as of **2026-09-16**.
+Accurate as of **2026-09-18**.
 
 ---
 
@@ -88,14 +88,40 @@ a preview for Luke, not a general release.
 - **`pod-system-live`** — what was actually extracted to `main`. `pod-preview-backup` pins the
   full branch.
 
-### Migrations written and deliberately NOT applied
+### The one open security hole
 
-Do not apply these casually and never via `supabase db push` — that would apply both.
+**Every signed-in user can read every project and every task.** `projects_all` on
+public.projects is `USING (true)`, and RLS policies are OR'd, so the sensible member-based
+policies sitting beside it are irrelevant. Verified still open on 2026-09-18.
+
+The fix is written and dry-run clean — but **it is not on `main`**, so
+`supabase migration list` run from `main` reports nothing pending and a new session would
+never learn it exists. Both files live on `feature/pod-system`:
 
 - `20260908120000_project_visibility` — three-level public/team/private projects, plus a
-  read-only window for the in-house dev into private lists. **This is the one that closes the
-  hole where every signed-in user can read every project and task.**
-- `20260908140000_project_delete` — the delete fix.
+  read-only window for the in-house dev into private lists. This is the one that closes it.
+- `20260908140000_project_delete` — the delete fix that goes with it.
+
+To see them: `git show feature/pod-system:supabase/migrations/20260908120000_project_visibility.sql`
+
+Not applied because it changes who can see what across the whole Projects screen, and that
+was Nishchay's call to make rather than a tidy-up. It is the last known open item.
+
+### Shipped 2026-09-17/18, all live on main
+
+- **Renewals** (Pod System tab): each client's next charge and last day, a red flag when a
+  charge lands after the last day, and a tick recording who confirmed the Stripe payment was
+  turned off. Dates are typed in — Stripe is not connected (`STRIPE_WEBHOOK_SECRET` unset, no
+  client carries a `stripe_customer_id`, zero invoice rows), so nothing is cross-checked
+  against it. The fields are shaped to be what Stripe would fill in later.
+  Matthew was told by DM; WonderPark and Paul Davis still have no dates set.
+- **DM naming**: `channels.name` on a DM names everyone except its creator, so it is right
+  only for whoever opened the conversation. Needs you showed the viewer their own name as the
+  person messaging them. Names are resolved per viewer from members now, in New Chat and Old
+  Chat both; the two Old Chat changes are registered in the isolation check.
+- `version.json` is `20260917u1`; the in-app changelog is at `0.0.25`. **These are two
+  independent schemes** — the first is the desktop app's build stamp, the second the in-app
+  Version & Changelog list. Both need bumping on a release.
 
 ### Recently closed
 
@@ -122,11 +148,13 @@ out and the table closed behind it. Nobody has asked for that.
 
 ## 3. Things to tidy
 
-- **7 commits exist only on this laptop**, on three branches with no remote at all:
-  `feature/chat3-management-panels` (3), `feature/sop-detail-view-and-recording` (2),
-  `feature/sop-form-side-panel` (2). Push them as backup or accept the risk knowingly.
-- **Adrien still has `push` access** to this private repo despite having left the team.
-  Raised twice; not yet acted on.
+- Every branch's work is on the remote as of 2026-09-18; nothing exists only on this laptop.
+- Adrien is fully offboarded: removed from GitHub, profile deactivated, auth user banned.
+  **Note for the next person who leaves:** no RLS policy consults `deactivated_at`, so
+  deactivating a profile removes nothing. Banning the Supabase auth user is the step that
+  actually cuts access. Both are needed.
+- Nishchay alone holds the Supabase/Netlify/`.env` credentials, so offboarding never needs a
+  key rotation.
 - The repo has **48 branches** and tags (`v0.0.20`, `v0.0.21`) that look current and point at
   July. See ONBOARDING.md §1 — this already cost a new developer a confusing first clone.
 
