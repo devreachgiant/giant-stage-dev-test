@@ -44238,7 +44238,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           // Group DM — shown in the Team scope only
           if (scope === 'clients') return;
           const names = others.map(id => profilesById[id]).filter(Boolean).map(p => (p.full_name || p.email || '?').split(' ')[0]);
-          const label = (c.name && c.name.trim()) ? c.name : (names.join(', ') || 'Group');
+          const label = names.join(', ') || (c.name && c.name.trim()) || 'Group';
           if (query && !label.toLowerCase().includes(query)) return;
           const isActive = c.id === activeChannelId ? ' active' : '';
           const gava = `<span class="dot-ava" style="background:var(--surface-3);color:var(--text-2);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><circle cx="10.5" cy="6" r="2.2" stroke="currentColor" stroke-width="1.2"/><path d="M2 12.5c0-1.7 1.4-2.8 3.5-2.8M14 12.5c0-1.7-1.4-2.8-3.5-2.8M6 13c0-1.6 1-2.6 2-2.6s2 1 2 2.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></span>`;
@@ -44682,7 +44682,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
               if (!prof) { const { data } = await supabase.from('profiles').select('id, full_name, email').eq('id', oid).single(); prof = data; if (prof) chatProfilesCache[oid] = prof; }
               if (prof) names.push((prof.full_name || prof.email || '?').split(' ')[0]);
             }
-            const label = (c.name && c.name.trim()) ? c.name : (names.join(', ') || 'Group');
+            const label = names.join(', ') || (c.name && c.name.trim()) || 'Group';
             if (channelId === activeChannelId) {
               chatHeadName.textContent = label;
               chatHeadTopic.textContent = (otherIds.length + 1) + ' members';

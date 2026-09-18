@@ -174,7 +174,22 @@ ALLOWED = [(1, BEFORE_BAR_SELECTOR, AFTER_BAR_SELECTOR, _BAR_WHY),
             'old chat reads `kind` so it can skip New Chat\'s client conversations'),
            (1, BEFORE_SPLIT, AFTER_SPLIT,
             'client conversations are public now, so old chat would otherwise list every '
-            'one of them in a sidebar that has never had them; hidden by explicit decision')]
+            'one of them in a sidebar that has never had them; hidden by explicit decision'),
+           # A group DM was labelled with channels.name, which names everyone EXCEPT the
+           # creator -- so the viewer saw their own name and never the person who had
+           # written to them. Fixed in New Chat first; Nishchay asked for both, since a
+           # wrong name is wrong on whichever screen somebody happens to be reading.
+           # Two copies, told apart by their indentation: the sidebar list and the picker.
+           (1,
+            "\n          const label = (c.name && c.name.trim()) ? c.name : (names.join(', ') || 'Group');",
+            "\n          const label = names.join(', ') || (c.name && c.name.trim()) || 'Group';",
+            'a group DM was named from channels.name, which lists everyone but its creator, '
+            'so the viewer was shown their own name as the conversation; fixed in both chats '
+            'by explicit decision (sidebar list)'),
+           (1,
+            "\n            const label = (c.name && c.name.trim()) ? c.name : (names.join(', ') || 'Group');",
+            "\n            const label = names.join(', ') || (c.name && c.name.trim()) || 'Group';",
+            'the same wrong name in the other copy (the picker)')]
 
 # The baseline is the last commit BEFORE New Chat was merged into main, not main itself.
 # Once the branch landed, "main:index.html" became the file this tool is checking, so it
