@@ -70264,8 +70264,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
   function push(n){ try { if ('Notification' in window && Notification.permission === 'granted') new Notification('Giant — ' + (n.title||'Notification'), { body: n.body||'' }); } catch(_){} }
 
+  // Removing a channel is itself a status change: removeChannel() unsubscribes, which
+  // leaves the topic, and supabase-js reports that back through THIS SAME CALLBACK as
+  // CLOSED. So handling CLOSED by removing the channel asks it to be removed again, and
+  // again -- the loop Luke's stack showed, running
+  //   removeChannel -> unsubscribe -> leave -> matchReceive -> trigger -> here -> removeChannel
+  // until the stack ran out. It surfaced as "Maximum call stack size exceeded" in three
+  // different supabase-js functions on three different days, because the top of an
+  // overflowed stack is just wherever it happened to run out.
+  let _tearingDown = false;
+  let _resubTimer = null;
   function subscribe(){
-    if (!ready() || _sub) return;
+    if (!ready() || _sub || _tearingDown) return;
     try {
       _sub = sb().channel('notifications-' + myId())
         .on('postgres_changes', { event:'INSERT', schema:'public', table:'notifications', filter:'recipient_id=eq.' + myId() }, (payload) => {
@@ -70277,14 +70287,32 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           // Realtime channels can silently die (tab backgrounded, laptop sleep, network blip)
           // and never recover on their own — this leaves notifications stuck until a manual
           // reload. Detect the dead states and resubscribe.
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-            try { sb().removeChannel(_sub); } catch(e){}
-            _sub = null;
-            setTimeout(subscribe, 3000);
-          }
+          if (status !== 'CHANNEL_ERROR' && status !== 'TIMED_OUT' && status !== 'CLOSED') return;
+          // Already taking this one down: this call IS the teardown reporting itself.
+          if (_tearingDown) return;
+          _tearingDown = true;
+          // Cleared before the remove, not after, so nothing can reach a channel that is
+          // in the middle of being removed.
+          const dead = _sub;
+          _sub = null;
+          try { sb().removeChannel(dead); } catch(e){}
+          clearTimeout(_resubTimer);
+          _resubTimer = setTimeout(() => { _tearingDown = false; subscribe(); }, 3000);
         });
-    } catch(e){}
+    } catch(e){ _sub = null; }
   }
+  // Exposed so a check can drive the teardown path directly. Reaching it for real means
+  // pulling the network at the right moment, which no automated check can arrange -- and
+  // this is the loop that took three of Luke's afternoons, so it is worth being able to
+  // prove it stays fixed.
+  window.__giantNotifSub = {
+    subscribe,
+    status: () => ({ hasChannel: !!_sub, tearingDown: _tearingDown }),
+    // Put it back to "never subscribed" so a check starts from a known state. Without this
+    // subscribe() returns at its own guard -- _sub is already set from boot -- and the
+    // check passes having exercised nothing, which is worse than failing.
+    __resetForTest: () => { _sub = null; _tearingDown = false; clearTimeout(_resubTimer); },
+  };
 
   // Safety net: realtime can miss events during the time it's reconnecting (or if it silently
   // died — see subscribe() above), so re-fetch from the DB whenever the tab regains focus.

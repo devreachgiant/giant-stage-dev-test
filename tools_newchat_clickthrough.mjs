@@ -5911,6 +5911,63 @@ await step('a link to Giant opens in Giant, not in a second copy of it', async (
     r.metaClickLeftAlone, JSON.stringify(r));
 });
 
+// The loop behind "Maximum call stack size exceeded", which Luke saw for three days under
+// three different sets of frames. Removing a channel unsubscribes it, which leaves the
+// topic, which supabase-js reports back through the SAME status callback as CLOSED -- so
+// handling CLOSED by removing the channel asks for the channel to be removed again.
+await step('a dead realtime channel is torn down once, not forever', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const hook = window.__giantNotifSub;
+    const out = { exposed: !!hook };
+    if (!hook) return out;
+
+    // Stand in for supabase: removeChannel reports CLOSED back through the status callback,
+    // exactly as the real one does. Before the guard this recursed until the stack ran out.
+    let statusCb = null, removeCalls = 0, depth = 0, maxDepth = 0, overflowed = false;
+    const sb = window.giantSupabase;
+    const realChannel = sb.channel.bind(sb);
+    const realRemove = sb.removeChannel.bind(sb);
+    sb.channel = () => ({
+      on() { return this; },
+      subscribe(cb) { statusCb = cb; return this; },
+      topic: 'notifications-test',
+    });
+    sb.removeChannel = (ch) => {
+      removeCalls++;
+      depth++; if (depth > maxDepth) maxDepth = depth;
+      if (depth > 40) { overflowed = true; depth--; return; }
+      // this is the part that used to bite: the teardown reports itself
+      try { if (statusCb) statusCb('CLOSED'); } catch (e) { overflowed = true; }
+      depth--;
+    };
+
+    // From a known state: it has already subscribed for real at boot, so subscribe()
+    // would return at its own guard and the check would pass having done nothing.
+    hook.__resetForTest();
+    hook.subscribe();
+    out.subscribed = typeof statusCb === 'function';
+    if (statusCb) statusCb('CHANNEL_ERROR');   // the channel dies
+    await w(200);
+
+    out.removeCalls = removeCalls;
+    out.maxDepth = maxDepth;
+    out.overflowed = overflowed;
+    out.tearingDown = hook.status().tearingDown;
+
+    sb.channel = realChannel;
+    sb.removeChannel = realRemove;
+    hook.__resetForTest();
+    return out;
+  });
+  check('the notification channel exposes its teardown so this can be checked at all',
+    r.exposed && r.subscribed, JSON.stringify(r));
+  check('a dead channel is removed exactly once, and removing it does not remove it again',
+    r.removeCalls === 1 && r.maxDepth === 1 && r.overflowed === false, JSON.stringify(r));
+  check('and it stays marked as tearing down until the retry, so nothing re-enters',
+    r.tearingDown === true, JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
