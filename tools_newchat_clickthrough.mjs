@@ -2722,11 +2722,13 @@ await step('New Chat is now Chat, and the old one is in Archive', async () => {
     out.oldChatArchived = !!oldInArchive;
     // ...and no Chat entry left loose in Communication for a non-client.
     out.commsChatEntries = byScreen('chat').filter(e => comms && comms.contains(e)).length;
-    // Old Chat is for everyone -- members and clients included, since it is still their
-    // surface. Chat 2.0 and 3.0 stay manager-only inside the same group.
+    // Archive is now the in-house dev's alone. It used to be open to everyone, members
+    // and clients included, on the grounds that Old Chat was still their surface -- that
+    // is no longer the intent: Chat is the surface, and Archive is scaffolding.
     const gate = (el) => el && el.getAttribute('data-role-min');
-    out.archiveGroupGated = !!gate(document.querySelector('[data-navgroup="archive"]'))
-      || !!gate(document.querySelector('[data-navgroup-body="archive"]'));
+    const only = (el) => el && el.getAttribute('data-role-only');
+    out.archiveOnlyInhouse = only(document.querySelector('[data-navgroup="archive"]')) === 'inhouse_dev'
+      && only(document.querySelector('[data-navgroup-body="archive"]')) === 'inhouse_dev';
     out.oldChatGated = !!gate(oldInArchive);
     out.chat2Gated = gate(byScreen('chat2')[0]) === 'manager';
     out.chat3Gated = gate(byScreen('chat3')[0]) === 'manager';
@@ -2734,11 +2736,12 @@ await step('New Chat is now Chat, and the old one is in Archive', async () => {
     return out;
   });
   check('New Chat is now Chat, and the old one is in Archive',
-    r.newChatLabel === 'Chat' && r.newChatInComms && r.newChatVisible && r.keepsNewBadge
-      && r.hasUnreadBadge
+    r.newChatLabel === 'Chat' && r.newChatInComms && r.newChatVisible
+      // Chat is not new any more; the unread count is a different badge and stays.
+      && r.keepsNewBadge === false && r.hasUnreadBadge
       && r.oldChatArchived && r.oldChatLabel === 'Old Chat'
       && r.commsChatEntries === 0
-      && !r.archiveGroupGated && !r.oldChatGated && r.chat2Gated && r.chat3Gated,
+      && r.archiveOnlyInhouse && !r.oldChatGated && r.chat2Gated && r.chat3Gated,
     JSON.stringify(r));
 });
 
@@ -4179,8 +4182,15 @@ await step('the Chat nav badges are one group, not two odd shapes', async () => 
     const badges = [...item.querySelectorAll('.badge')]
       .filter(b => b.getBoundingClientRect().width > 2);
     out.badges = badges.map(b => b.textContent.trim());
-    if (badges.length < 2) return out;
     const boxes = badges.map(b => b.getBoundingClientRect());
+    const label0 = item.getBoundingClientRect();
+    // One badge now that NEW has gone. What is left to check is that the unread count sits
+    // where it should -- right of the label, on its centre line -- which is the half of
+    // this that was never about the pairing.
+    out.oneBadgePlaced = boxes.length === 1
+      && boxes[0].left > label0.left + 40
+      && Math.abs((boxes[0].top + boxes[0].height / 2) - (label0.top + label0.height / 2)) <= 1.5;
+    if (badges.length < 2) return out;
     // Same height and same corner radius: they were 15px and 11px, which is what made
     // them read as two unrelated things stuck to the word rather than one group.
     out.heights = [...new Set(boxes.map(b => Math.round(b.height)))];
@@ -4194,11 +4204,8 @@ await step('the Chat nav badges are one group, not two odd shapes', async () => 
       Math.abs((b.top + b.height / 2) - (label.top + label.height / 2)) <= 1.5);
     return out;
   });
-  check('the Chat nav badges are one group, not two odd shapes',
-    r.badges && r.badges.length === 2
-      && r.heights.length === 1 && r.radii.length === 1
-      && r.gap >= 2 && r.gap <= 6
-      && r.rightOfLabel && r.centred,
+  check('the Chat unread badge sits right of the label, on its centre line',
+    r.badges && r.badges.length === 1 && r.badges[0] === '36' && r.oneBadgePlaced,
     JSON.stringify(r));
 });
 
@@ -5966,6 +5973,45 @@ await step('a dead realtime channel is torn down once, not forever', async () =>
     r.removeCalls === 1 && r.maxDepth === 1 && r.overflowed === false, JSON.stringify(r));
   check('and it stays marked as tearing down until the retry, so nothing re-enters',
     r.tearingDown === true, JSON.stringify(r));
+});
+
+// Chat stopped being new a while ago, and Archive is scaffolding nobody but the in-house
+// dev has any use for.
+await step('Chat has no NEW badge, and Archive is for the in-house dev alone', async () => {
+  const r = await page.evaluate(() => {
+    const out = {};
+    const chat = document.querySelector('.nav-item[data-screen="newchat"]');
+    out.chatExists = !!chat;
+    out.newBadge = chat ? chat.querySelectorAll('.badge-new').length : -1;
+    // the unread count is a different badge and must survive
+    out.unreadBadgeKept = !!document.getElementById('nc_sidebarBadgeChat');
+
+    const label = document.querySelector('[data-navgroup="archive"]');
+    const rail  = document.querySelector('[data-navgroup-body="archive"]');
+    out.bothGated = !!label && !!rail
+      && label.getAttribute('data-role-only') === 'inhouse_dev'
+      && rail.getAttribute('data-role-only') === 'inhouse_dev';
+
+    const was = document.body.className;
+    const seen = {};
+    ['role-owner', 'role-manager', 'role-member', 'role-client', 'role-inhouse_dev'].forEach(c => {
+      document.body.className = c;
+      seen[c] = getComputedStyle(label).display !== 'none';
+    });
+    document.body.className = was;
+    out.seen = seen;
+    // an owner outranks the in-house dev, so a data-role-min gate would have let them in
+    out.hiddenFromOwner = seen['role-owner'] === false;
+    out.shownToInhouseDev = seen['role-inhouse_dev'] === true;
+    out.hiddenFromEveryoneElse = !seen['role-manager'] && !seen['role-member'] && !seen['role-client'];
+    return out;
+  });
+  check('the NEW badge is off Chat, and the unread count is not',
+    r.chatExists && r.newBadge === 0 && r.unreadBadgeKept, JSON.stringify(r));
+  check('Archive is gated on both the label and the rail, or half of it would still show',
+    r.bothGated, JSON.stringify(r));
+  check('only the in-house dev sees it — an owner does not, which a role floor could not do',
+    r.shownToInhouseDev && r.hiddenFromOwner && r.hiddenFromEveryoneElse, JSON.stringify(r));
 });
 
 // ── what the mock actually served, as evidence the paths ran ─────────────────
