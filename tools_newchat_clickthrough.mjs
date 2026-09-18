@@ -5800,6 +5800,52 @@ await step('a client charged after their last day is flagged before it happens',
     r.onDashboard, JSON.stringify(r));
 });
 
+// A message from Mave appeared on Needs you labelled "Nishchay" -- the viewer's own name.
+// channels.name is written once and names everyone EXCEPT the creator, so it is right only
+// for whoever opened the conversation and wrong for the person being messaged.
+await step('a DM on Needs you is named for the other person, never for you', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    const me = window.giantSession.user.id;
+    const myName = (db.profiles.find(p => p.id === me) || {}).full_name;
+    // a group DM somebody else opened: stored under the viewer's own name, no dm_pair
+    const ch = db.channels.find(c => c.is_dm && c.name === myName && !c.dm_pair);
+    const out = { myName, found: !!ch };
+    if (!ch) return out;
+    out.storedName = ch.name;
+    const others = db.channel_members.filter(m => m.channel_id === ch.id && m.profile_id !== me)
+      .map(m => (db.profiles.find(p => p.id === m.profile_id) || {}).full_name).filter(Boolean);
+    out.othersInChannel = others.slice(0, 3);
+
+    // put a mention from one of them on it, so it lands on Needs you
+    const author = db.channel_members.find(m => m.channel_id === ch.id && m.profile_id !== me).profile_id;
+    db.messages.push({ id: 'dmbug-1', channel_id: ch.id, author_id: author,
+      body: 'hey @Nishchay can you look at this', created_at: new Date().toISOString(),
+      parent_id: null, reply_count: 0, flagged: false });
+    db.inbox_actions = [];
+
+    await window.nc_computeNeedsYou();
+    await w(900);
+    const rows = [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')];
+    const row = rows.find(x => x.dataset.ncChannelId === ch.id);
+    out.rowFound = !!row;
+    if (row) {
+      out.rowLabel = [...row.querySelectorAll('span')].map(sp => sp.textContent.trim())
+        .filter(Boolean).join(' | ');
+      out.showsMyOwnName = new RegExp(myName.split(' ')[0], 'i').test(out.rowLabel);
+      out.namesSomeoneElse = others.some(n => out.rowLabel.includes(n.split(' ')[0]));
+    }
+    return out;
+  });
+  check('the fixture has a DM stored under the viewer\'s own name, as production does',
+    r.found && r.storedName === r.myName, JSON.stringify(r));
+  check('and Needs you does not label it with your own name',
+    r.rowFound && r.showsMyOwnName === false, JSON.stringify(r));
+  check('it names somebody actually in the conversation instead',
+    r.namesSomeoneElse === true, JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

@@ -121,6 +121,16 @@
       }
       // and a few that do set it, so both routes are exercised
       if (n % 25 === 0) c.is_group = true;
+      // Production shape, which this fixture did not have: channels.name on a DM is
+      // POPULATED, by ensure_dm_channel / create_group_dm, and it names everyone EXCEPT
+      // THE CREATOR. So a conversation somebody else opened is stored under the viewer's
+      // own name. Leaving it '' here is what let "a message from Mave, labelled Nishchay"
+      // ship -- the code read channels.name first and the fixture made that harmless.
+      if (n % 10 === 0) {
+        // opened by the other person: the stored name is the viewer's own, plus the rest
+        c.name = 'Nishchay Pandya';   // the viewer's own name, exactly as production stores it
+        c.dm_pair = null;              // group DMs carry no pair, so it cannot be resolved from one
+      }
     } else {
       for (let i = 1; i <= 4; i++)
         DB.channel_members.push({ channel_id: c.id, profile_id: 'u-' + ((DB.channel_members.length + i) % 80 + 1),

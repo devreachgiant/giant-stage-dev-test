@@ -72260,6 +72260,50 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     let ncNeedMsgRank = {};
     // Lower wins. A mention beats a flag beats "the newest thing you have not read".
     const NC_NEED_RANK = { mention: 0, flagged: 1, unread: 2 };
+
+    // What to call a DM, from the point of view of whoever is looking at it.
+    //
+    // channels.name is set once, by ensure_dm_channel or create_group_dm, and it names
+    // everybody EXCEPT THE CREATOR. So it is correct only for the person who started the
+    // conversation and wrong for everyone else: a 1:1 that Mave opened is stored as
+    // "Nishchay", and a group Mave opened is stored as "Nishchay, V, Noor, Rash" -- the
+    // viewer's own name, and never Mave's. That is why a message from Mave appeared on
+    // Needs you as "Nishchay".
+    //
+    // It is a stored string that depends on who is reading it, which it cannot be. So the
+    // name is worked out per viewer and c.name is only ever a last resort.
+    // channel_id -> the other members' ids. Filled by renderDmChannelList, which already
+    // has to fetch this to name its own rows; kept here so anything else naming a DM uses
+    // the same answer instead of a second guess at it.
+    let ncDmOthers = {};
+    const ncDmLabelFor = (c, painted) => {
+      if (!c) return '';
+      const me = ncMyId();
+      const nameOf = (id) => { const p = chatProfilesCache[id] || {};
+        return p.full_name || p.email || ''; };
+      // The sidebar already resolves this correctly for every DM it lists, so its own row
+      // is the best answer when there is one.
+      if (painted) {
+        const fromRow = [...painted.childNodes]
+          .filter(n => n.nodeType === Node.TEXT_NODE)
+          .map(n => n.textContent).join('').trim();
+        if (fromRow) return fromRow;
+      }
+      // Members first: this is the only source that is right for a group DM, which leaves
+      // dm_pair null. dm_pair covers a 1:1 that the members map has not reached yet.
+      const fromMembers = (ncDmOthers[c.id] || []).map(nameOf).filter(Boolean);
+      if (fromMembers.length) return fromMembers.join(', ');
+      const others = String(c.dm_pair || '').split(':').filter(x => x && x !== me);
+      const named = others.map(nameOf).filter(Boolean);
+      if (named.length) return named.join(', ');
+      // Last resort: the stored name, with the viewer's own name taken out of it. Not
+      // perfect -- it still cannot name somebody it never listed -- but it never again
+      // shows you your own name as the person who wants something from you.
+      const mine = nameOf(me);
+      const parts = String(c.name || '').split(',').map(x => x.trim())
+        .filter(x => x && x.toLowerCase() !== mine.toLowerCase());
+      return parts.join(', ');
+    };
     const ncSetNeedAt = (cid, at) => {
       if (!cid || !at) return;
       if (!ncNeedAt[cid] || new Date(at) > new Date(ncNeedAt[cid])) ncNeedAt[cid] = at;
@@ -72773,10 +72817,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               go: () => openClientThread(cl.id) });
       });
       (chatDmChannels || []).forEach(c => {
+        // Same rule as Needs you: group DMs leave dm_pair null, so this fell through to
+        // channels.name -- which lists everyone but the creator, and so offered the
+        // searcher their own name as the conversation's title.
         const others = (c.dm_pair || '').split(':').filter(x => x && x !== ncMyId());
-        const names = others.map(id => (chatProfilesCache[id] || {}).full_name
-                                    || (chatProfilesCache[id] || {}).email || '').filter(Boolean);
-        const label = names.join(', ') || c.name || 'Conversation';
+        const label = ncDmLabelFor(c) || 'Conversation';
         if (!hit(label)) return;
         add({ key: 'dm:' + c.id, kind: others.length > 1 ? 'Group' : 'Direct',
               label, go: () => switchChannel(c.id) });
@@ -72997,13 +73042,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (!c) return null;
         const cl = c.client_id ? ncClients[c.client_id] : null;
         const painted = rowByChannel.get(id);
+        // A DM is named per viewer, never from channels.name -- that column names
+        // everyone except whoever created the conversation, so it is right for them and
+        // wrong for the person being messaged. This read "Nishchay" on a message from Mave.
         let label = cl
           ? (cl.name || 'Client') + (c.department && c.department !== 'general' ? ' · ' + c.department : '')
+          : c.is_dm ? ncDmLabelFor(c, painted)
           : (c.name || '');
         if (!label && painted) {
-          // A DM channel row has no name of its own -- the person's name is worked out
-          // from its members by the list that painted it. Taking the text off that row is
-          // how this reads "Joven" instead of "Channel".
+          // A channel the sidebar has already painted: take the text off that row rather
+          // than second-guessing it. This is how a row reads "Joven" instead of "Channel".
           label = [...painted.childNodes]
             .filter(n => n.nodeType === Node.TEXT_NODE)
             .map(n => n.textContent).join('').trim();
@@ -77161,6 +77209,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           (channelToOthers[m.channel_id] = channelToOthers[m.channel_id] || []).push(m.profile_id);
         }
       });
+      // Shared, so Needs you and the jump box name a DM the same way this list does.
+      ncDmOthers = channelToOthers;
       // Pull profiles from the in-memory cache (populated by hydrateAllWorkspaceProfiles at boot).
       // If any are missing, fetch them in a single batch query.
       const allOtherIds = [...new Set(Object.values(channelToOthers).flat())];
@@ -77187,7 +77237,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const isGroup = c.is_group === true || others.length > 1;
         if (isGroup) {
           const names = others.map(id => profilesById[id]).filter(Boolean).map(p => (p.full_name || p.email || '?').split(' ')[0]);
-          const label = (c.name && c.name.trim()) ? c.name : (names.join(', ') || 'Group');
+          // The members, not channels.name. That column names everyone EXCEPT whoever
+          // created the conversation, so preferring it showed the viewer their own
+          // name and never the person who had actually written to them.
+          const label = names.join(', ') || (c.name && c.name.trim()) || 'Group';
           if (query && !label.toLowerCase().includes(query)) return;
           const isActive = c.id === activeChannelId ? ' active' : '';
           const gava = ncAvatarHtml({ name: label, bg: 'var(--surface-3)', fg: 'var(--text-2)',
@@ -77808,7 +77861,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               if (!prof) { const { data } = await window.giantSupabase.from('profiles').select('id, full_name, email').eq('id', oid).single(); prof = data; if (prof) chatProfilesCache[oid] = prof; }
               if (prof) names.push((prof.full_name || prof.email || '?').split(' ')[0]);
             }
-            const label = (c.name && c.name.trim()) ? c.name : (names.join(', ') || 'Group');
+            // The members, not channels.name. That column names everyone EXCEPT whoever
+            // created the conversation, so preferring it showed the viewer their own
+            // name and never the person who had actually written to them.
+            const label = names.join(', ') || (c.name && c.name.trim()) || 'Group';
             if (channelId === activeChannelId) {
               chatHeadName.textContent = label;
               chatHeadTopic.textContent = (otherIds.length + 1) + ' members';
