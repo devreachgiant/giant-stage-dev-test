@@ -7,7 +7,7 @@ work that is **not** recoverable from the code or `git log` is written down here
 Read [ONBOARDING.md](ONBOARDING.md) first for how the codebase works and how to get running.
 This file is about the state of play and the working agreements.
 
-Accurate as of **2026-09-18**.
+Accurate as of **2026-09-21**.
 
 ---
 
@@ -107,6 +107,32 @@ To see them: `git show feature/pod-system:supabase/migrations/20260908120000_pro
 Not applied because it changes who can see what across the whole Projects screen, and that
 was Nishchay's call to make rather than a tidy-up. It is the last known open item.
 
+### Shipped 2026-09-18 (afternoon), all live on main
+
+- **The realtime crash.** "Maximum call stack size exceeded" ended Luke's sessions for
+  three days. The notifications channel handled CHANNEL_ERROR / TIMED_OUT / CLOSED by
+  removing the channel — but removing a channel unsubscribes it, which leaves the topic,
+  which supabase-js reports back through the *same* callback as CLOSED. So the removal
+  asked for the removal. Guarded against re-entry; a regression check drives it.
+  **The lesson worth keeping:** for a stack overflow the top frames are just where it ran
+  out. Three reports showed three unrelated-looking traces and sent me down the wrong path
+  twice. The error banner now reports the frame that REPEATS, the deepest frame that is
+  ours, and the depth — that is what made it findable.
+- **One address.** `giant.reachgiant.com` is canonical. The raw Netlify deploy URL
+  redirects to it — in the page, on all four entry points, because Netlify does not honour
+  a full-URL `from` against its own `*.netlify.app` subdomain (tried, measured, returns 200
+  with no Location; see the note in netlify.toml). 23 shared links and two Netlify
+  functions now build from the canonical origin instead of whatever host loaded the page.
+  Auth and OAuth redirects are deliberately left dynamic — they must match what the
+  provider has registered.
+- **Internal links open in the app**, not a second copy of it in a new tab. External links,
+  standalone pages (onboarding, meet, booking, share, public recordings) and modified
+  clicks are deliberately untouched.
+- **Nav**: the NEW badge is off Chat; Archive is `data-role-only="inhouse_dev"`. That
+  attribute exists because `data-role-min` is a floor and an owner outranks the in-house
+  dev. **Consequence to know: members and clients no longer have any route to Old Chat.**
+- `version.json` is `20260918u1`.
+
 ### Shipped 2026-09-17/18, all live on main
 
 - **Renewals** (Pod System tab): each client's next charge and last day, a red flag when a
@@ -143,8 +169,12 @@ out and the table closed behind it. Nobody has asked for that.
 - **Pod payroll scope.** The board's payroll counts everyone with a base or an account,
   whether or not they are in a pod. It was read as a business-wide figure. If it should be
   per-pod, that is a small change nobody has asked for yet.
-- **`version.json` says `20260902u1`** and has not been bumped since 2 September, though
-  `main` has moved several times. The web app does not read it; the desktop app does.
+- **The in-app changelog is at 0.0.25** and does not cover the 18th's work. Drafted and
+  offered; no wording confirmed, so nothing was saved — entries are never added silently.
+- **Nobody has set a renewal date yet** (0 clients). The feature cannot flag anything until
+  Matthew fills WonderPark and Paul Davis in; he was told by DM on the 17th.
+- **No reply to any Giant Bot DM**, from anyone. The bot account is unmonitored, so a reply
+  would sit unread — worth knowing before sending anything that expects an answer.
 
 ## 3. Things to tidy
 
