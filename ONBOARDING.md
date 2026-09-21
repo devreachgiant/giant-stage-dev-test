@@ -225,7 +225,14 @@ select count(*) from public.clients;
   delete. A third, restricting `clients` so a client account reads only its own row, was
   applied on 2026-09-16.
 
-## 9. If you get stuck
+## 9. How a release actually goes out
+
+[HANDOVER.md](HANDOVER.md) has the full runbook — §4 shipping and verifying a deploy, §5
+migrations, §6 messaging the team, §7 the traps. Read it before your first push. The short
+version: branch off `origin/main`, all four checks green, ask before pushing, verify the
+deploy against the live URL, bump `version.json` and add a changelog entry.
+
+## 10. If you get stuck
 
 `NEW_CHAT_HANDOFF.md` is the deepest written record of how the chat rebuild was done and why,
 including a "Known, not fixed" list. It is long and it is honest.
