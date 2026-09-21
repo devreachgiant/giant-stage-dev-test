@@ -88,24 +88,28 @@ a preview for Luke, not a general release.
 - **`pod-system-live`** — what was actually extracted to `main`. `pod-preview-backup` pins the
   full branch.
 
-### The one open security hole
+### No known open security holes
 
-**Every signed-in user can read every project and every task.** `projects_all` on
-public.projects is `USING (true)`, and RLS policies are OR'd, so the sensible member-based
-policies sitting beside it are irrelevant. Verified still open on 2026-09-18.
+The last one closed on 2026-09-21. `projects_all` was `USING (true)`, so every signed-in
+account — **client accounts included** — could read every project and every task. Both
+migrations are applied and on `main`:
 
-The fix is written and dry-run clean — but **it is not on `main`**, so
-`supabase migration list` run from `main` reports nothing pending and a new session would
-never learn it exists. Both files live on `feature/pod-system`:
-
-- `20260908120000_project_visibility` — three-level public/team/private projects, plus a
-  read-only window for the in-house dev into private lists. This is the one that closes it.
+- `20260908120000_project_visibility` — public / team / private, plus a read-only window
+  for the in-house dev into private lists.
 - `20260908140000_project_delete` — the delete fix that goes with it.
 
-To see them: `git show feature/pod-system:supabase/migrations/20260908120000_project_visibility.sql`
+Measured in production after applying: a client account went from 10 projects and their
+tasks to **zero**; a member sees the 2 shared lists and 321 of 544 tasks; the four
+oversight accounts (Nishchay, Matthew, Luke, Kristina, via `profiles.can_see_all_projects`)
+still see all 10 and all 544.
 
-Not applied because it changes who can see what across the whole Projects screen, and that
-was Nishchay's call to make rather than a tidy-up. It is the last known open item.
+Checked before applying, and worth repeating if anything like it is done again: the only
+person who lost sight of a task they were assigned was Adrien, who is deactivated and
+banned. Everything else people lost was in projects they were not on.
+
+Everything is backfilled to `team` except ReachGiant Master List and Master List, which
+stay `public` because they are what the workspace reads together. Access is granted by
+adding somebody to a project — the button exists on the Projects screen.
 
 ### Shipped 2026-09-18 (afternoon), all live on main
 
@@ -169,12 +173,12 @@ out and the table closed behind it. Nobody has asked for that.
 - **Pod payroll scope.** The board's payroll counts everyone with a base or an account,
   whether or not they are in a pod. It was read as a business-wide figure. If it should be
   per-pod, that is a small change nobody has asked for yet.
-- **The in-app changelog is at 0.0.25** and does not cover the 18th's work. Drafted and
-  offered; no wording confirmed, so nothing was saved — entries are never added silently.
 - **Nobody has set a renewal date yet** (0 clients). The feature cannot flag anything until
-  Matthew fills WonderPark and Paul Davis in; he was told by DM on the 17th.
+  the dates are in; Matthew was told by DM on the 17th and is sending them.
 - **No reply to any Giant Bot DM**, from anyone. The bot account is unmonitored, so a reply
   would sit unread — worth knowing before sending anything that expects an answer.
+- **The in-app changelog is at 0.0.27**, `version.json` at `20260918u1`. Two separate
+  schemes; both need bumping on a release.
 
 ## 3. Things to tidy
 
