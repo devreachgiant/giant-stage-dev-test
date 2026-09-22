@@ -121,6 +121,16 @@
       }
       // and a few that do set it, so both routes are exercised
       if (n % 25 === 0) c.is_group = true;
+      // Production shape, which this fixture did not have: channels.name on a DM is
+      // POPULATED, by ensure_dm_channel / create_group_dm, and it names everyone EXCEPT
+      // THE CREATOR. So a conversation somebody else opened is stored under the viewer's
+      // own name. Leaving it '' here is what let "a message from Mave, labelled Nishchay"
+      // ship -- the code read channels.name first and the fixture made that harmless.
+      if (n % 10 === 0) {
+        // opened by the other person: the stored name is the viewer's own, plus the rest
+        c.name = 'Nishchay Pandya';   // the viewer's own name, exactly as production stores it
+        c.dm_pair = null;              // group DMs carry no pair, so it cannot be resolved from one
+      }
     } else {
       for (let i = 1; i <= 4; i++)
         DB.channel_members.push({ channel_id: c.id, profile_id: 'u-' + ((DB.channel_members.length + i) % 80 + 1),
@@ -317,6 +327,54 @@
   DB.project_priorities = ['Fire', 'Medium', 'Low'].map((label, i) => ({
     id: 'pp-' + i, project_id: 'p-1', label, color: ['#FF6B3B', '#F2A93B', '#7C8797'][i],
     emoji: null, position: i + 1, kind: 'priority', created_at: iso(30, 0) }));
+  // The real Team Pay module: everyone on a fixed weekly base except one hourly, which is
+  // what the Pod System's Monthly/Weekly switch exists to reconcile against a monthly card.
+  // ideal_accounts/max_accounts/cap_label ship in migration 20260915160000: the capacity a
+  // specialist is held to is a fact about their department, not a constant in the page.
+  DB.pay_departments = [
+    { id:'pd-1', name:'PAID ADS', color:'#6fb1ff', position:1,
+      ideal_accounts:15, max_accounts:20, cap_label:'Google Ads specialist' },
+    { id:'pd-2', name:'PRODUCTION', color:'#34c77b', position:2,
+      ideal_accounts:10, max_accounts:10, cap_label:'SEO specialist' },
+    { id:'pd-3', name:'Managers', color:'#e8232a', position:3,
+      ideal_accounts:15, max_accounts:20, cap_label:'Pod Leader' }];
+  // Who is in which pod (migration 20260915170000). Empty by default: the checks that care
+  // set it up themselves, and a board with no membership yet must still draw.
+  DB.pod_members = [];
+  // Billing dates (migration 20260917120000). Left unset on the fixtures: the renewals
+  // checks set the dates they need, and a client with nothing filled in is a real state
+  // the board has to render.
+  DB.clients.forEach(c => { c.ends_on = null; c.next_charge_on = null;
+                            c.billing_off_at = null; c.billing_off_by = null; });
+  // The words on How it works, same migration. Seeded with what the page used to hard-code.
+  // The same five roles, five growth bands and two notes the migration seeds, so a check
+  // that asserts the design's blocks are all present is asserting something real.
+  DB.pod_settings = [
+    { key:'intro', value:{ title:'The Pod Leader owns the clients. Specialists deliver the work.',
+      body:'One pod holds up to 20 clients under one Pod Leader.' } },
+    { key:'roles', value:[
+      { key:'lead', label:'POD LEADER', does:'Owns all client relationships.', note:'Weekly health report.' },
+      { key:'google_ads', label:'GOOGLE ADS', does:'Campaign builds.', note:'Paid per account by tier.' },
+      { key:'seo', label:'SEO & AI SEARCH', does:'SEO strategy.', note:'Max 10 accounts initially.' },
+      { key:'meta_ads', label:'META ADS', does:'Campaign builds for Meta.', note:'Meta rates provisional.' },
+      { key:'web', label:'WEB & DESIGN', does:'Essential development.', note:'Shared across the pod.' }] },
+    { key:'growth', value:[
+      { range:'1-20', what:'One Pod Leader owns all client relationships' },
+      { range:'20-25', what:'Begin recruiting Account Manager #2' },
+      { range:'25-40', what:'Two AMs · roughly 15-20 clients each' },
+      { range:'40-60', what:'Third AM · Pod Leader leads Client Services' },
+      { range:'60+',   what:'Pod Leader manages the AMs, fewer direct clients' }] },
+    { key:'notes', value:[
+      { label:'HOW PAY WORKS', body:'Payments apply only to active, assigned accounts.' },
+      { label:'PERFORMANCE = MORE ACCOUNTS', body:'Good work earns more accounts.' }] },
+    { key:'rates_note', value:'Same rate card in every location.' }];
+  DB.team_pay = [
+    { id:'tp-1', profile_id:'u-1', department_id:'pd-1', base_type:'fixed_weekly', base_amount:296,   weekly_hours:null },
+    { id:'tp-2', profile_id:'u-2', department_id:'pd-2', base_type:'fixed_weekly', base_amount:346.15, weekly_hours:null },
+    { id:'tp-3', profile_id:'u-3', department_id:'pd-1', base_type:'hourly',       base_amount:16,     weekly_hours:20 },
+    { id:'tp-4', profile_id:ME,    department_id:'pd-3', base_type:'fixed_weekly', base_amount:1596.15, weekly_hours:null }];
+  // u-4 onwards deliberately have no team_pay row: somebody with no pay set and no
+  // accounts is exactly who a manager needs to see on the board, so the board must show them.
   DB.project_prefs = [];   // migration 20260908130000 -- per-person order and stars
   DB.nav_favorites = [];   // migration 20260824140000
   DB.invitations = [];
@@ -683,7 +741,13 @@
         let data = null;
         if (name === 'ensure_dm_channel') data = 'ch-dm-1';
         else if (name === 'create_group_dm') data = 'ch-dm-1';
-        else if (name === 'generate_onboarding_token') data = 'tok-generated';
+        else if (name === 'generate_onboarding_token') {
+          // The real function writes the token onto the client row and returns it; a mock
+          // that only returns it lets a caller pass while never persisting anything.
+          data = 'tok-' + Math.random().toString(36).slice(2, 10);
+          const row = (DB.clients || []).find(c => c.id === (args && args.p_client_id));
+          if (row) { row.onboarding_token = data; row.onboarding_sent_at = null; }
+        }
         // The real search_messages is a Postgres function over a tsvector. This stands in
         // for it closely enough to exercise the UI: the same arguments, the same row
         // shape, the same <mark> highlighting, and the same AND / OR / NOT semantics --

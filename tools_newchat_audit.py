@@ -2,7 +2,12 @@
 error: calls (incl. inside ${...}), bare CONSTANT references, and methods called on a
 shim object. Scope-aware enough to spot names visible only inside the nested IIFE."""
 import re, sys
-S=open('/Users/nischaypandya/Desktop/AI/Projects/giant/index.html').read()
+import os
+# The file next to this script, not a path on whoever wrote it: these ran on one
+# machine for months and would have failed on the second person's the moment they
+# cloned it.
+HERE = os.path.dirname(os.path.abspath(__file__))
+S= open(os.path.join(HERE, 'index.html')).read()
 nc=S[S.index('(function newChatModule(){'):]; nc=nc[:nc.index('\n})();\n</script>')]
 c3=S[S.index('(function chat3Module(){'):]; c3=c3[:c3.index('\n})();\n</script>')]
 

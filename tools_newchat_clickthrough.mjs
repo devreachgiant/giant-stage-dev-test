@@ -2722,11 +2722,13 @@ await step('New Chat is now Chat, and the old one is in Archive', async () => {
     out.oldChatArchived = !!oldInArchive;
     // ...and no Chat entry left loose in Communication for a non-client.
     out.commsChatEntries = byScreen('chat').filter(e => comms && comms.contains(e)).length;
-    // Old Chat is for everyone -- members and clients included, since it is still their
-    // surface. Chat 2.0 and 3.0 stay manager-only inside the same group.
+    // Archive is now the in-house dev's alone. It used to be open to everyone, members
+    // and clients included, on the grounds that Old Chat was still their surface -- that
+    // is no longer the intent: Chat is the surface, and Archive is scaffolding.
     const gate = (el) => el && el.getAttribute('data-role-min');
-    out.archiveGroupGated = !!gate(document.querySelector('[data-navgroup="archive"]'))
-      || !!gate(document.querySelector('[data-navgroup-body="archive"]'));
+    const only = (el) => el && el.getAttribute('data-role-only');
+    out.archiveOnlyInhouse = only(document.querySelector('[data-navgroup="archive"]')) === 'inhouse_dev'
+      && only(document.querySelector('[data-navgroup-body="archive"]')) === 'inhouse_dev';
     out.oldChatGated = !!gate(oldInArchive);
     out.chat2Gated = gate(byScreen('chat2')[0]) === 'manager';
     out.chat3Gated = gate(byScreen('chat3')[0]) === 'manager';
@@ -2734,11 +2736,12 @@ await step('New Chat is now Chat, and the old one is in Archive', async () => {
     return out;
   });
   check('New Chat is now Chat, and the old one is in Archive',
-    r.newChatLabel === 'Chat' && r.newChatInComms && r.newChatVisible && r.keepsNewBadge
-      && r.hasUnreadBadge
+    r.newChatLabel === 'Chat' && r.newChatInComms && r.newChatVisible
+      // Chat is not new any more; the unread count is a different badge and stays.
+      && r.keepsNewBadge === false && r.hasUnreadBadge
       && r.oldChatArchived && r.oldChatLabel === 'Old Chat'
       && r.commsChatEntries === 0
-      && !r.archiveGroupGated && !r.oldChatGated && r.chat2Gated && r.chat3Gated,
+      && r.archiveOnlyInhouse && !r.oldChatGated && r.chat2Gated && r.chat3Gated,
     JSON.stringify(r));
 });
 
@@ -3601,13 +3604,17 @@ await step('a recording can be linked, shared publicly and deleted', async () =>
     out.fileRemoved = (window.__mock.log.storage || []).some(x => x.startsWith('remove:recordings/'));
     return out;
   });
-  const origin = new URL(page.url()).origin;
+  // The canonical domain, not the origin serving the test. A recording link is pasted
+  // into a chat and forwarded on, so it must not carry whichever host the sharer happened
+  // to load -- the app also answers on the raw Netlify deploy URL. Asserting against
+  // page.url() would pass on either, which is the bug it is supposed to catch.
+  const origin = 'https://giant.reachgiant.com';
   check('a recording can be linked, shared publicly and deleted',
     r.cards >= 2 && r.copyOnEveryCard && r.shareOnEveryCard
       && r.copiedWorkspace === origin + '/?rec=rec-1'
       && r.dialogOpen && r.bothOptionsOffered
       && r.rowVisibility === 'public'
-      && /^https?:\/\/[^/]+\/rec\/[a-f0-9]{32}$/.test(r.urlWentPublic || '')
+      && new RegExp('^' + origin + '/rec/[a-f0-9]{32}$').test(r.urlWentPublic || '')
       && r.copiedPublic === r.urlWentPublic && r.dialogClosed
       && r.otherRadios.join(',') === 'workspace:disabled,public:disabled'
       && r.otherUrlIsPublicPage && r.menuOffersSharing
@@ -4175,8 +4182,15 @@ await step('the Chat nav badges are one group, not two odd shapes', async () => 
     const badges = [...item.querySelectorAll('.badge')]
       .filter(b => b.getBoundingClientRect().width > 2);
     out.badges = badges.map(b => b.textContent.trim());
-    if (badges.length < 2) return out;
     const boxes = badges.map(b => b.getBoundingClientRect());
+    const label0 = item.getBoundingClientRect();
+    // One badge now that NEW has gone. What is left to check is that the unread count sits
+    // where it should -- right of the label, on its centre line -- which is the half of
+    // this that was never about the pairing.
+    out.oneBadgePlaced = boxes.length === 1
+      && boxes[0].left > label0.left + 40
+      && Math.abs((boxes[0].top + boxes[0].height / 2) - (label0.top + label0.height / 2)) <= 1.5;
+    if (badges.length < 2) return out;
     // Same height and same corner radius: they were 15px and 11px, which is what made
     // them read as two unrelated things stuck to the word rather than one group.
     out.heights = [...new Set(boxes.map(b => Math.round(b.height)))];
@@ -4190,11 +4204,8 @@ await step('the Chat nav badges are one group, not two odd shapes', async () => 
       Math.abs((b.top + b.height / 2) - (label.top + label.height / 2)) <= 1.5);
     return out;
   });
-  check('the Chat nav badges are one group, not two odd shapes',
-    r.badges && r.badges.length === 2
-      && r.heights.length === 1 && r.radii.length === 1
-      && r.gap >= 2 && r.gap <= 6
-      && r.rightOfLabel && r.centred,
+  check('the Chat unread badge sits right of the label, on its centre line',
+    r.badges && r.badges.length === 1 && r.badges[0] === '36' && r.oneBadgePlaced,
     JSON.stringify(r));
 });
 
@@ -5276,7 +5287,7 @@ await step('table columns can be dragged wider and narrower', async () => {
     const a = mk('t-del-mine', me), b = mk('t-del-theirs', 'u-9');
     [a, b].forEach(t => { st.tasks.push(t); db.tasks.push({ ...t }); });
 
-    // as a plain member, only my own task offers the control
+    // as somebody without the delete capability, only my own task offers the control
     const wasRole = window.giantCurrentProfile.role;
     window.giantCurrentProfile.role = 'member';
     // Bounce through the board to force a repaint. p2SetView returns early when the view
@@ -5294,10 +5305,13 @@ await step('table columns can be dragged wider and narrower', async () => {
     out.headingSaysDelete = /delete/i.test(
       (document.querySelector('#p2_prjDailyBody .prj-th[data-col="pad"]') || {}).textContent || '');
 
-    // a manager may delete anybody's
-    window.giantCurrentProfile.role = 'manager';
-    await repaint();
-    out.managerSeesOthers = ctl(b.id);
+    // each oversight role may delete anybody's; a member may not, which is the pair that
+    // proves the selector measures the rule and not merely the absence of a row.
+    for (const r of ['owner', 'manager', 'inhouse_dev']) {
+      window.giantCurrentProfile.role = r;
+      await repaint();
+      out['sees_' + r] = ctl(b.id);
+    }
 
     // typing the wrong word must not delete
     const realPrompt = window.giantPrompt;
@@ -5326,8 +5340,9 @@ await step('table columns can be dragged wider and narrower', async () => {
   check('the delete column is labelled, and only the creator sees the control',
     del.headingSaysDelete && del.memberSeesOwn && del.memberSeesOthers === false,
     JSON.stringify(del));
-  check('a manager can delete anybody\'s task',
-    del.managerSeesOthers, JSON.stringify(del));
+  check('every oversight role can delete anybody\'s task, and a member cannot',
+    del.sees_owner && del.sees_manager && del.sees_inhouse_dev && del.memberSeesOthers === false,
+    JSON.stringify(del));
   check('deleting asks you to type delete, and refuses anything else',
     del.askedToType && del.survivedWrongWord && del.deletedOnRightWord,
     JSON.stringify(del));
@@ -5651,6 +5666,1511 @@ await step('dragging a card between board columns writes the new status', async 
     r.state === 'in_progress' && r.db === 'in_progress' && r.inColumn
       && (r.writes - before.writes) === 1,
     JSON.stringify({ ...r, delta: r.writes - before.writes }));
+});
+// Every failure in the app arrives through toast({type:'error'}), and most callers pass
+// 'Could not save that: ' + error.message -- so what people read is a Postgres sentence
+// written for whoever wrote the database. Translated at the one place they all pass
+// through, with the original kept for the bug report, where it is actually useful.
+await step('errors are readable, and can be reported in one click', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const f = window.giantFriendlyError;
+    if (typeof f !== 'function') return { skipped: 'no translator' };
+    const cases = {
+      check: f('Could not delete that: new row for relation "chat2_inbox_actions" violates check constraint "chat2_inbox_actions_one_target"').text,
+      missing: f("Could not save that order: Could not find the table 'public.project_prefs' in the schema cache").text,
+      rls: f('Could not load: new row violates row-level security policy for table "tasks"').text,
+      offline: f('Failed to fetch').text,
+      expired: f('JWT expired').text,
+      // already plain English: it must come through untouched
+      plain: f('Your changes were saved').text,
+    };
+    const out = {
+      // nothing a person reads should still contain the database's own vocabulary
+      noJargon: !/relation |constraint|PGRST|schema cache|row-level security|JWT/i
+        .test(Object.values(cases).join(' ')),
+      keepsLead: /^Could not delete that/.test(cases.check),
+      explainsMissingTable: /has not been set up/i.test(cases.missing),
+      saysNotYourFault: /not something you did wrong/i.test(cases.check),
+      startsCapitalised: /^[A-Z]/.test(cases.expired) && /^[A-Z]/.test(cases.offline),
+      leavesPlainAlone: cases.plain === 'Your changes were saved',
+    };
+
+    document.querySelectorAll('.toast').forEach(e => e.remove());
+    const db = window.__mock.db;
+    db.reports = db.reports || [];
+    if (!db.channels.some(c => c.name === 'giant-app'))
+      db.channels.push({ id: 'ch-giantapp', name: 'giant-app', kind: 'team_channel',
+                         is_dm: false, department: null, client_id: null });
+    out.hasToastHost = !!document.getElementById('toastHost');
+    // Toasts render into #toastHost, and by this point in the suite an earlier step has
+    // removed it -- traced to harness cleanup running el.remove() over a NodeList, never to
+    // app code. Put it back rather than skip: the behaviour under test is the toast, and a
+    // check that quietly skips is a check that proves nothing.
+    if (!out.hasToastHost) {
+      const h = document.createElement('div');
+      h.className = 'toast-host'; h.id = 'toastHost';
+      document.getElementById('appView').appendChild(h);
+      out.hostRestored = true;
+    }
+    toast({ type: 'error', message: 'Could not delete that: new row for relation "x" violates check constraint "y"' });
+    for (let i = 0; i < 12 && !document.querySelector('.toast.error'); i++) await w(150);
+    const et = document.querySelector('.toast.error');
+    if (!et) return { ...out, skipped: 'no error toast appeared (host: ' + out.hasToastHost + ')' };
+    out.errorOffersReport = !!et.querySelector('[data-report]');
+    toast({ type: 'success', message: 'Saved' });
+    await w(300);
+    out.successOffersNone = !document.querySelector('.toast.success [data-report]');
+
+    const before = { reports: db.reports.length, posts: db.messages.length };
+    et.querySelector('[data-report]').click();
+    await w(2200);
+    out.reportWritten = db.reports.length - before.reports;
+    out.reportIsBug = (db.reports[db.reports.length - 1] || {}).type === 'bug';
+    out.reportKeepsTechnical = /check constraint/.test((db.reports[db.reports.length - 1] || {}).description || '');
+    const posts = db.messages.filter(m => m.channel_id === 'ch-giantapp');
+    out.postedToGiantApp = posts.length;
+    out.mentionsTheDev = posts.some(m => /@Nishchay/.test(m.body || ''));
+    out.thanks = /sent to the dev team/i.test(et.querySelector('.toast-body').textContent);
+    document.querySelectorAll('.toast').forEach(e => e.remove());
+    return out;
+  });
+  check('a database error becomes a sentence, keeping what the caller said',
+    !r.skipped && r.noJargon && r.keepsLead && r.explainsMissingTable
+      && r.saysNotYourFault && r.startsCapitalised && r.leavesPlainAlone, JSON.stringify(r));
+  check('only errors offer Report, and pressing it files a bug and posts to #giant-app',
+    !r.skipped && r.errorOffersReport && r.successOffersNone && r.reportWritten === 1
+      && r.reportIsBug && r.reportKeepsTechnical && r.postedToGiantApp === 1
+      && r.mentionsTheDev && r.thanks, JSON.stringify(r));
+});
+
+await step('the Pod System board adds up, and is manager-only', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    db.pods = [{ id: 'pod-1', name: 'Pod 1', leader_id: 'u-1', max_clients: 20,
+                 opens_at: null, status: 'active', position: 0 }];
+    db.pod_rates = [
+      { id:'r-g1', service:'google_ads', tier:'standard', is_internal:false, amount_cents:20000, note:'$0–$10k ad spend' },
+      { id:'r-g2', service:'google_ads', tier:'growth',   is_internal:false, amount_cents:25000, note:'$10k–$50k' },
+      { id:'r-g3', service:'google_ads', tier:'advanced', is_internal:false, amount_cents:32500, note:'$50k+' },
+      { id:'r-s1', service:'seo', tier:null, is_internal:false, amount_cents:30000, note:'Paying SEO client' },
+      { id:'r-s2', service:'seo', tier:null, is_internal:true,  amount_cents:15000, note:'Internal project' }];
+    const cls = db.clients.slice(0, 4);
+    cls[0].mrr_cents = 150000; cls[1].mrr_cents = 200000; cls[2].mrr_cents = 250000; cls[3].mrr_cents = 0;
+    cls[0].health = 'green'; cls[1].health = 'amber'; cls[2].health = 'red';
+    // A client belongs to a pod because it has a pod_id, not because somebody happens to
+    // hold one of its services — that is what the twenty is counted against.
+    cls.forEach(x => { x.pod_id = 'pod-1'; });
+    db.clients.forEach(x => { if (!cls.includes(x)) x.pod_id = null; });
+    db.pod_assignments = [
+      { id:'a1', client_id:cls[0].id, service:'google_ads', tier:'growth',   specialist_id:'u-1', is_internal:false, ended_at:null },
+      { id:'a2', client_id:cls[1].id, service:'google_ads', tier:'standard', specialist_id:'u-1', is_internal:false, ended_at:null },
+      { id:'a3', client_id:cls[2].id, service:'seo', tier:null, specialist_id:'u-2', is_internal:false, ended_at:null },
+      { id:'a4', client_id:cls[3].id, service:'seo', tier:null, specialist_id:'u-2', is_internal:true,  ended_at:null },
+      // ended: it must not be paid for, and must not put its client on the board
+      { id:'a5', client_id:cls[0].id, service:'meta_ads', tier:'standard', specialist_id:'u-3', is_internal:false, ended_at:'2026-08-01' }];
+
+    const nav = document.querySelector('.nav-item[data-screen="pods"]');
+    const out = { nav: !!nav, roleGate: nav && nav.getAttribute('data-role-min') };
+    // sits in the Business group: after its label, before the next group's
+    const items = [...document.querySelectorAll('.nav-group-label, .nav-item[data-screen]')];
+    const gi = items.findIndex(e => e.dataset.navgroup === 'business');
+    const ni = items.indexOf(nav);
+    const nextGroup = items.findIndex((e, i) => i > gi && e.classList.contains('nav-group-label'));
+    out.underBusiness = gi > -1 && ni > gi && (nextGroup === -1 || ni < nextGroup);
+    // Luke's preview: owner, manager and the in-house dev, and nobody else. The
+    // specialist view is built and checked below, and simply not reachable from the nav
+    // until this attribute comes off -- which is the whole of turning it on.
+    const had = document.body.className;
+    document.body.className = 'role-member';
+    out.hiddenFromMember = getComputedStyle(nav).display === 'none';
+    // Clients are hidden from in a pass at init that keys off this attribute, not by the
+    // role CSS, so what there is to check here is that the attribute is still on both.
+    out.hiddenFromClient = nav.hasAttribute('data-client-hidden')
+      && document.querySelector('.screen[data-screen="pods"]').hasAttribute('data-client-hidden');
+    document.body.className = 'role-manager';
+    out.shownToManager = getComputedStyle(nav).display !== 'none';
+    document.body.className = had;
+
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click(); });
+    await w(400);
+    nav.click();
+    for (let i = 0; i < 40 && !(window.podState && window.podState.loaded); i++) await w(250);
+    await w(800);
+    out.loaded = !!(window.podState && window.podState.loaded);
+    out.subtitle = (document.getElementById('pods_subtitle') || {}).textContent;
+    const body = () => document.getElementById('pods_body').innerText;
+    // Accounts alone: 250 growth + 200 standard + 300 seo + 150 internal = 900, with the
+    // ended Meta row unpaid. Payroll is larger than this because it also carries the Team
+    // Pay bases -- the Pod Leader holds no accounts and must not be free -- so the check
+    // reads the accounts figure from the state rather than expecting payroll to equal it.
+    out.accountsOnly = window.podState.__accountsPay;
+    out.mrr = /\$6,000/.test(out.subtitle);          // 1500 + 2000 + 2500 + 0
+    out.payrollExceedsAccounts = window.podState.__totalPay > window.podState.__accountsPay;
+    out.excludesEnded = !/Meta/.test(body());
+    out.capacity = /4 \/ 20/.test(body());
+    out.health = /\b2\b/.test(body()) && /green/.test(body());
+    const subBefore = (document.getElementById('pods_subtitle') || {}).textContent;
+    document.querySelector('[data-pods-period="wk"]').click(); await w(400);
+    const subAfter = (document.getElementById('pods_subtitle') || {}).textContent;
+    out.weekly = /\/wk/.test(subAfter) && subAfter !== subBefore;
+    document.querySelector('[data-pods-period="mo"]').click(); await w(400);
+    const tabs = [...document.querySelectorAll('[data-pods-tab]')];
+    out.tabLabels = tabs.map(t => t.textContent.trim());
+    // two specialists share the first name "Team" in the fixtures: neither tab may say only that
+    out.namesNotAmbiguous = new Set(tabs.filter(t => t.dataset.podsTab.startsWith('p:'))
+      .map(t => t.textContent.trim())).size === tabs.filter(t => t.dataset.podsTab.startsWith('p:')).length;
+    const rates = tabs.find(t => /Rates/.test(t.textContent));
+    rates.click(); await w(400);
+    // Amounts are fields now, not text, so they are read from the inputs. 200 / 325 / 150
+    // is the seeded card: Google standard, Google advanced, and the internal SEO rate.
+    const amounts = [...document.querySelectorAll('[data-pods-field="rateAmount"]')].map(el => el.value);
+    out.rateAmounts = amounts.join(',');
+    out.ratesShown = ['200', '325', '150'].every(v => amounts.includes(v));
+    out.noDuplicatedNote = !/Paying clientPaying/.test(body());
+    return out;
+  });
+  check('the Pod System sits under Business, and only managers and above can open it',
+    r.nav && r.roleGate === 'manager' && r.underBusiness && r.hiddenFromMember
+      && r.shownToManager && r.hiddenFromClient, JSON.stringify(r));
+  check('payroll, MRR and capacity are computed, and ended accounts are not paid',
+    r.loaded && r.accountsOnly === 90000 && r.mrr && r.payrollExceedsAccounts
+      && r.excludesEnded && r.capacity && r.health, JSON.stringify(r));
+  check('weekly restates the same money, and the rate card reads from the database',
+    r.weekly && r.ratesShown && r.noDuplicatedNote && r.namesNotAmbiguous, JSON.stringify(r));
+});
+
+await step('the board matches the reference design, and uses real Team Pay figures', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    db.pods = [{ id:'pod-1', name:'Pod 1', leader_id:'u-me', max_clients:20,
+                 opens_at:null, status:'active', position:0 }];
+    const cs = db.clients.slice(0, 2);
+    db.clients.forEach(x => { x.pod_id = null; });
+    cs.forEach(x => { x.pod_id = 'pod-1'; });
+    cs[0].mrr_cents = 250000; cs[1].mrr_cents = 180000;
+    cs[0].health = 'green'; cs[1].health = 'amber';
+    db.pod_assignments = [
+      { id:'a1', client_id:cs[0].id, service:'google_ads', tier:'growth', specialist_id:'u-1', is_internal:false, ended_at:null },
+      { id:'a2', client_id:cs[1].id, service:'seo', tier:null, specialist_id:'u-2', is_internal:false, ended_at:null }];
+    document.querySelector('.nav-item[data-screen="pods"]').click();
+    await w(400);
+    // an earlier step leaves its own tab selected, and the stat tiles only exist on the
+    // dashboard -- measuring The team would report the 44px figure as missing
+    if (window.podState) window.podState.tab = 'dash';
+    await window.podsReload();
+    await w(700);
+    const root = document.getElementById('pods_root');
+    const px = (el, prop) => el ? getComputedStyle(el)[prop] : null;
+    const out = {
+      // the design's own values, from Pod System.dc.html
+      bg: px(root, 'backgroundColor'),
+      font: (px(root, 'fontFamily') || '').split(',')[0].replace(/"/g, ''),
+      h1: px(root.querySelector('h1'), 'fontSize') + '/' + px(root.querySelector('h1'), 'fontWeight'),
+      statBig: px(root.querySelector('.p-statbig'), 'fontSize'),
+      tabRadius: px(root.querySelector('.p-tab'), 'borderRadius'),
+      tabPad: px(root.querySelector('.p-tab'), 'padding'),
+      cardBg: px(root.querySelector('.p-card'), 'backgroundColor'),
+      cardRadius: px(root.querySelector('.p-card'), 'borderRadius'),
+      cardPad: px(root.querySelector('.p-card'), 'padding'),
+      // the design's order: pod columns, then the leader band, then the chips
+      order: [...root.querySelectorAll('[id^="pods_"]')].map(e => e.id)
+        .filter(x => ['pods_subtitle','pods_pods','pods_leader','pods_tabs','pods_body'].includes(x)),
+      headerHasLogo: /REACHGIANT/.test(root.innerText),
+      headerAdd: !!document.querySelector('#pods_actions [data-pods-add]'),
+    };
+    const cards = [...document.querySelectorAll('#pods_pods > div')];
+    out.podCards = cards.length;
+    out.podCardText = cards.map(c => c.innerText.replace(/\n+/g, ' | '));
+    // POD 1 is solid red; the pods that have not opened are dashed and grey
+    out.pod1Border = cards[0] ? getComputedStyle(cards[0]).borderColor : null;
+    out.pod2Dashed = cards[1] ? getComputedStyle(cards[1]).borderStyle : null;
+    const sub = () => document.getElementById('pods_subtitle').textContent;
+    // Matthew's real base is $1,596.15 a week; the rate card is monthly, so the board has to
+    // reconcile the two. 1596.15 * 52 / 12 = 6916.65
+    out.baseConverted = /\$6,917/.test(document.getElementById('pods_body').innerText)
+      || /\$6,917/.test(sub());
+    out.monthly = sub();
+    document.querySelector('[data-pods-period="wk"]').click(); await w(400);
+    out.weekly = sub();
+    // the subtitle belongs to the board, not to one tab
+    const team = [...document.querySelectorAll('[data-pods-tab]')].find(b => /The team/.test(b.textContent));
+    out.hasTeamTab = !!team;
+    if (team) { team.click(); await w(500);
+      // The team opens on a pod now, and this fixture has no pod membership, so the
+      // people are behind Everyone. What is being checked is what a person's card says,
+      // not which scope it opens on -- that has its own check.
+      const everyone = document.querySelector('#pods_body [data-pods-scope="all"]');
+      out.hasEveryoneScope = !!everyone;
+      if (everyone) { everyone.click(); await w(600); }
+      out.teamShowsBaseAndAccounts = /base/.test(document.getElementById('pods_body').innerText)
+        && /account/.test(document.getElementById('pods_body').innerText);
+      out.subtitleFollowsOnAnyTab = /\/wk/.test(sub());
+    }
+    document.querySelector('[data-pods-period="mo"]').click(); await w(400);
+    return out;
+  });
+  check('the board is laid out in the design’s order, with its pod columns and leader band',
+    JSON.stringify(r.order) === JSON.stringify(['pods_subtitle','pods_pods','pods_leader','pods_tabs','pods_body'])
+      && r.podCards === 3 && /POD 1 · ACTIVE/.test(r.podCardText[0] || '')
+      && /OPENS AT 20 CLIENTS/.test(r.podCardText[1] || '')
+      && /OPENS AT 40 CLIENTS/.test(r.podCardText[2] || '')
+      && r.pod1Border === 'rgb(232, 35, 42)' && r.pod2Dashed === 'dashed'
+      && r.headerHasLogo && r.headerAdd, JSON.stringify(r));
+  check('the design’s palette, type scale and card geometry are reproduced exactly',
+    r.bg === 'rgb(11, 11, 12)' && r.font === 'Instrument Sans' && r.h1 === '32px/700'
+      && r.statBig === '44px' && r.tabRadius === '99px' && r.tabPad === '9px 16px'
+      && r.cardBg === 'rgb(20, 20, 22)' && r.cardRadius === '16px' && r.cardPad === '20px 22px',
+    JSON.stringify(r));
+  check('real Team Pay bases are converted onto the rate card’s monthly footing',
+    r.baseConverted && /\/mo/.test(r.monthly) && /\/wk/.test(r.weekly)
+      && r.monthly !== r.weekly, JSON.stringify(r));
+  check('The team shows base plus accounts, and the summary follows the period on any tab',
+    r.hasTeamTab && r.teamShowsBaseAndAccounts && r.subtitleFollowsOnAnyTab, JSON.stringify(r));
+});
+
+await step('a pod can be created, and a client assigned into it', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    // start with nothing: the board's first job is to offer the first step
+    db.pods = []; db.pod_assignments = [];
+    // and nobody left in a pod that no longer exists
+    db.clients.forEach(x => { x.pod_id = null; });
+    if (window.podState) { window.podState.pods = []; window.podState.assignments = []; }
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click(); });
+    await w(400);
+    document.querySelector('.nav-item[data-screen="pods"]').click();
+    await w(500);
+    // The screen may already be open from the check before this one, in which case its
+    // class never changes and the reload-on-open observer never fires. Ask directly.
+    if (window.podState) window.podState.tab = 'dash';
+    await window.podsReload();
+    await w(700);
+    const body = () => document.getElementById('pods_body');
+    // the design puts the action beside the title, not in the board body
+    const header = () => document.getElementById('pods_actions');
+    const out = { offersPod: !!header().querySelector('[data-pods-newpod]') };
+    if (!out.offersPod) return { ...out, skipped: 'no create-pod button on an empty board' };
+
+    // window.prompt is a no-op in the Electron build, which is why the app has giantPrompt
+    // and why stubbing the native one would prove nothing about the desktop app
+    const origPrompt = window.giantPrompt;
+    let usedNativePrompt = false;
+    const origNative = window.prompt;
+    window.prompt = () => { usedNativePrompt = true; return 'Pod 1'; };
+    window.giantPrompt = () => Promise.resolve('Pod 1');
+    header().querySelector('[data-pods-newpod]').click();
+    await w(1200);
+    window.giantPrompt = origPrompt;
+    window.prompt = origNative;
+    out.usedNativePrompt = usedNativePrompt;
+    out.podCreated = (db.pods || []).length;
+    out.thenOffersAddClient = !!header().querySelector('[data-pods-add]');
+    if (!out.thenOffersAddClient) return out;
+
+    header().querySelector('[data-pods-add]').click();
+    await w(1200);
+    if (!document.querySelector('.pods-editor')) return { ...out, skipped: 'editor did not open' };
+    // the client is identified by id, not by a figure -- the fixtures seed clients with the
+    // same MRR, and finding by value reads back somebody else's row
+    // Two explicit modes now. Staging a new client then cancelling must leave nothing
+    // behind — the client used to be written the moment Create was clicked.
+    const beforeCancel = db.clients.length;
+    const stage = document.getElementById('pods_edSearch');
+    stage.value = 'Ghost Co ' + Date.now();
+    stage.dispatchEvent(new Event('input', { bubbles: true }));
+    await w(400);
+    document.querySelector('[data-pods-new]').click();
+    await w(500);
+    out.stagedNotWritten = db.clients.length === beforeCancel;
+    document.getElementById('pods_edCancel').click();
+    await w(500);
+    out.cancelLeavesNothing = db.clients.length === beforeCancel;
+
+    // reopen, and pick an existing client through the Existing client mode
+    document.querySelector('#pods_actions [data-pods-add]').click();
+    await w(1000);
+    document.querySelector('[data-pods-mode="pick"]').click();
+    await w(400);
+    const search = document.getElementById('pods_edSearch');
+    const firstName = (window.podState.clients[0] || {}).name || '';
+    search.value = firstName.slice(0, 4);
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    await w(400);
+    out.searchNarrows = document.querySelectorAll('#pods_edList [data-pods-pick]').length
+      < window.podState.clients.length;
+    document.querySelector('#pods_edList [data-pods-pick]').click();
+    await w(500);
+    const savingId = document.getElementById('pods_edClient').value;
+    out.pickedBySearch = !!savingId;
+    // every client from the Clients module appears on All clients, including ones with no
+    // assignment yet -- the board is where they get assigned, so hiding them hides the work
+    out.clientsInModule = window.podState.clients.length;
+
+    const mrr = document.getElementById('pods_edMrr');
+    mrr.value = '2000'; mrr.dispatchEvent(new Event('input', { bubbles: true }));
+    await w(200);
+    // the design has a date, not a day number: picking one keeps its day of the month
+    const dt = document.getElementById('pods_edDate');
+    const d15 = new Date(); d15.setDate(15);
+    dt.value = d15.toISOString().slice(0, 10);
+    dt.dispatchEvent(new Event('change', { bubbles: true }));
+    await w(400);
+    // services are added by chip, then configured on their own row
+    document.querySelector('[data-pods-addsvc="google_ads"]').click(); await w(400);
+    const tier = document.querySelector('[data-pods-tier="google_ads"]');
+    tier.value = 'growth'; tier.dispatchEvent(new Event('change', { bubbles: true }));
+    await w(400);
+    const who = document.querySelector('[data-pods-who="google_ads"]');
+    const someone = [...who.options].find(o => o.value);
+    who.value = someone ? someone.value : ''; who.dispatchEvent(new Event('change', { bubbles: true }));
+    document.querySelector('[data-pods-addsvc="seo"]').click(); await w(400);
+    // growth 250 + seo 300, priced on the row and in the TEAM COST cell before saving
+    const cardTxt = document.getElementById('pods_edCard').innerText;
+    out.livePreview = /\$550/.test(cardTxt);
+    out.hasStatusPills = !!document.querySelector('[data-pods-status="active"]');
+    out.hasHealthDot = !!document.getElementById('pods_edHealth');
+    out.perServiceRate = /\$250/.test(cardTxt) && /\$300/.test(cardTxt);
+    document.getElementById('pods_edSave').click();
+    await w(2200);
+    out.closed = !document.querySelector('.pods-editor');
+    const saved = db.clients.find(c => c.id === savingId) || {};
+    out.client = { mrr: saved.mrr_cents, payDay: saved.pay_day, inPod: !!saved.pod_id };
+    const rows = (db.pod_assignments || []).filter(a => a.client_id === savingId);
+    out.assignments = rows.length;
+    out.google = rows.some(a => a.service === 'google_ads' && a.tier === 'growth' && a.specialist_id);
+    out.seoUntiered = rows.some(a => a.service === 'seo' && a.tier === null);
+    out.subtitle = (document.getElementById('pods_subtitle') || {}).textContent;
+    // the accounts figure, which is what this step created; payroll also carries the Team
+    // Pay bases, so the two are deliberately different numbers
+    out.accountsPay = window.podState.__accountsPay;
+
+    // The team is the whole workspace, not only those already earning: two ways of being
+    // paid sit side by side, and somebody with neither still has to be visible.
+    const teamTab = [...document.querySelectorAll('[data-pods-tab]')].find(b => b.dataset.podsTab === 'team');
+    teamTab.click(); await w(600);
+    // Everyone is a scope on this tab now, not the whole of it: the tab opens on a pod,
+    // because a person appearing here for the sole reason that they have a Giant account
+    // is what made it unreadable. The workspace is still one click away, and that is what
+    // this check is about.
+    const everyone2 = document.querySelector('#pods_body [data-pods-scope="all"]');
+    if (everyone2) everyone2.click();
+    await w(700);
+    const teamTxt = document.getElementById('pods_body').innerText;
+    out.rosterSize = (window.podState.roster || []).length;
+    // one card per person, plus the Capacity card the tab now opens with
+    out.teamCards = document.querySelectorAll('#pods_body .p-card').length;
+    out.hasCapacityCard = /CAPACITY/.test(document.getElementById('pods_body').innerText);
+    out.showsTimeBasis = /a week|\/hr|a month/.test(teamTxt);
+    out.showsPerAccount = /per account/.test(teamTxt);
+    out.showsUnpaid = /no pay set in Team Pay/.test(teamTxt);
+
+    const allTab = [...document.querySelectorAll('[data-pods-tab]')].find(b => b.dataset.podsTab === 'all');
+    allTab.click(); await w(600);
+    // counted after the create above, or the new client makes the two disagree by one
+    out.clientsInModule = window.podState.clients.length;
+    out.allClientsCount = document.querySelectorAll('#pods_body [data-pods-client]').length;
+    out.unassignedAreOffered = /not in a pod/.test(document.getElementById('pods_body').innerText);
+
+    // the leader picker referenced a function from another module and threw on open
+    let leaderError = null;
+    const onErr = (e) => { leaderError = String(e.message || e); };
+    window.addEventListener('error', onErr);
+    const dash = [...document.querySelectorAll('[data-pods-tab]')].find(b => b.dataset.podsTab === 'dash');
+    dash.click(); await w(500);
+    const setL = document.querySelector('[data-pods-setleader]');
+    if (setL) { setL.click(); await w(900); }
+    out.leaderPickerOpens = setL ? !!document.querySelector('.pods-ask') : 'no unset pod to try';
+    out.leaderError = leaderError;
+    window.removeEventListener('error', onErr);
+    document.querySelectorAll('.pods-ask').forEach(e => e.remove());
+    return out;
+  });
+  check('an empty board offers a pod, and once there is one, offers a client',
+    r.offersPod && r.podCreated === 1 && r.thenOffersAddClient, JSON.stringify(r));
+  check('it asks through the app’s own prompt, not the native one Electron ignores',
+    r.usedNativePrompt === false, JSON.stringify(r));
+  check('the client panel is the design’s: health dot, status pills, per-service rates',
+    !r.skipped && r.hasHealthDot && r.hasStatusPills && r.perServiceRate, JSON.stringify(r));
+  check('The team shows everyone in the workspace, however they are paid',
+    !r.skipped && r.teamCards === r.rosterSize + 1 && r.hasCapacityCard && r.rosterSize > 0
+      && r.showsTimeBasis && r.showsPerAccount && r.showsUnpaid, JSON.stringify(r));
+  check('choosing a Pod Leader opens a picker instead of throwing',
+    !r.skipped && r.leaderPickerOpens && !r.leaderError, JSON.stringify(r));
+  check('All clients lists every client the Clients module has, not only assigned ones',
+    !r.skipped && r.allClientsCount === r.clientsInModule
+      && r.unassignedAreOffered, JSON.stringify(r));
+  check('naming a client stages it, and cancelling leaves nothing behind',
+    !r.skipped && r.stagedNotWritten && r.cancelLeavesNothing, JSON.stringify(r));
+  check('the client picker is searched rather than scrolled',
+    !r.skipped && r.searchNarrows && r.pickedBySearch, JSON.stringify(r));
+  check('the editor prices the services before saving, then writes client and assignments',
+    !r.skipped && r.livePreview && r.closed && r.assignments === 2 && r.google && r.seoUntiered
+      && r.client.mrr === 200000 && r.client.payDay === 15 && r.client.inPod,
+    JSON.stringify(r));
+  check('and the board immediately reflects what was just entered',
+    !r.skipped && r.accountsPay === 55000 && /\$2,000/.test(r.subtitle || ''),
+    JSON.stringify(r));
+});
+
+await step('clients move between pods, and a full pod refuses a twenty-first', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    db.pods = [{ id:'pod-a', name:'Pod A', leader_id:'u-me', max_clients:20, opens_at:null, status:'active', position:0 },
+               { id:'pod-b', name:'Pod B', leader_id:'u-1',  max_clients:2,  opens_at:null, status:'active', position:1 }];
+    db.pod_assignments = [];
+    db.clients.forEach(x => { x.pod_id = null; });
+    const cls = db.clients.slice(0, 4);
+    cls[0].pod_id = 'pod-a';
+    // Pod B is deliberately at its limit of two
+    cls[1].pod_id = 'pod-b'; cls[2].pod_id = 'pod-b';
+    document.querySelector('.nav-item[data-screen="pods"]').click();
+    await w(400);
+    if (window.podState) window.podState.tab = 'dash';
+    await window.podsReload();
+    await w(700);
+    const out = {};
+    // each column counts its own clients, rather than every pod showing the same number
+    out.columns = [...document.querySelectorAll('#pods_pods > div')].map(c =>
+      (c.innerText.match(/(\d+)\s*\/\s*(\d+)\s*clients/) || [])[0] || null).filter(Boolean);
+
+    // opening the next pod: the header offers one, and the dashed placeholder is the way
+    // the design intends -- it was decoration before, leaving no way to make a second pod
+    out.headerOffersNewPod = !!document.querySelector('#pods_actions [data-pods-newpod]');
+    const ph = document.querySelector('[data-pods-openpod]');
+    out.placeholderClickable = !!ph;
+    // Pod B is at its limit of two, so the next placeholder should read as due
+    out.readyWhenFull = /READY TO OPEN/.test(document.getElementById('pods_pods').innerText);
+    const before2 = db.pods.length;
+    const origGP = window.giantPrompt;
+    window.giantPrompt = () => Promise.resolve('Pod C');
+    if (ph) { ph.click(); await w(1400); }
+    window.giantPrompt = origGP;
+    out.secondPodOpened = db.pods.length === before2 + 1
+      && db.pods.some(x => x.name === 'Pod C' && x.status === 'active');
+    // back to two pods for the rest of the step
+    db.pods = db.pods.filter(x => x.name !== 'Pod C');
+    await window.podsReload(); await w(500);
+
+    // move the Pod A client into Pod B, which is full: it must be refused
+    window.podState.tab = 'all';
+    window.podState.render ? null : null;
+    await window.podsReload(); await w(600);
+    document.querySelector('[data-pods-client="' + cls[0].id + '"]').click();
+    await w(1200);
+    const podChips = [...document.querySelectorAll('[data-pods-pod]')];
+    out.podPicker = podChips.length;
+    out.startsInPodA = !!podChips.find(x => x.dataset.podsPod === 'pod-a'
+      && /rgb\(232, 35, 42\)/.test(getComputedStyle(x).borderColor));
+    const toB = podChips.find(x => x.dataset.podsPod === 'pod-b');
+    toB.click(); await w(500);
+    // refused, so the draft stays on Pod A
+    out.fullPodRefused = window.podState.__draftPod !== 'pod-b';
+
+    // now make room in Pod B and move it for real
+    cls[2].pod_id = null;
+    await window.podsReload(); await w(500);
+    document.querySelector('[data-pods-client="' + cls[0].id + '"]').click();
+    await w(1000);
+    const toB2 = [...document.querySelectorAll('[data-pods-pod]')].find(x => x.dataset.podsPod === 'pod-b');
+    toB2.click(); await w(400);
+    document.getElementById('pods_edSave').click();
+    await w(2000);
+    out.moved = (db.clients.find(x => x.id === cls[0].id) || {}).pod_id === 'pod-b';
+    out.podAEmptyNow = db.clients.filter(x => x.pod_id === 'pod-a').length === 0;
+    return out;
+  });
+  check('each pod column counts its own clients against its own maximum',
+    r.columns && r.columns.length === 2 && r.columns[0] !== r.columns[1], JSON.stringify(r));
+  check('a second pod can be opened, and the placeholder says so when one is full',
+    r.headerOffersNewPod && r.placeholderClickable && r.readyWhenFull && r.secondPodOpened,
+    JSON.stringify(r));
+  check('a full pod refuses another client rather than quietly taking a twenty-first',
+    r.podPicker >= 2 && r.fullPodRefused, JSON.stringify(r));
+  check('a client can be moved from one pod to another',
+    r.moved && r.podAEmptyNow, JSON.stringify(r));
+});
+
+await step('the client panel creates, connects and onboards in one place', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    db.pods = [{ id:'pod-z', name:'Pod Z', leader_id:'u-me', max_clients:20, opens_at:null, status:'active', position:0 }];
+    db.pod_assignments = [];
+    db.clients.forEach(x => { x.pod_id = null; });
+    db.channels = (db.channels || []).filter(ch => ch.kind !== 'client_dept');
+    document.querySelector('.nav-item[data-screen="pods"]').click();
+    await w(400);
+    if (window.podState) window.podState.tab = 'dash';
+    await window.podsReload();
+    await w(700);
+    document.querySelector('#pods_actions [data-pods-add]').click();
+    await w(1200);
+    const out = {};
+
+    // a client that does not exist yet: named, staged, and written only on save
+    const name = 'Pod Panel Co ' + Date.now();
+    const search = document.getElementById('pods_edSearch');
+    search.value = name; search.dispatchEvent(new Event('input', { bubbles: true }));
+    await w(400);
+    const before = db.clients.length;
+    document.querySelector('[data-pods-new]').click();
+    await w(600);
+    out.stagedOnly = db.clients.length === before;
+    out.titleShowsName = (document.getElementById('pods_edName') || {}).value === name;
+    out.saveSaysCreate = /Create and add to pod/.test(document.getElementById('pods_edCard').innerText);
+
+    // its services, each offering to open a conversation
+    document.querySelector('[data-pods-addsvc="google_ads"]').click(); await w(400);
+    document.querySelector('[data-pods-addsvc="seo"]').click(); await w(400);
+    out.chanOfferedByDefault = [...document.querySelectorAll('[data-pods-chan]')].every(x => x.checked);
+
+    // while it is only staged, the onboarding block says the link waits on the save
+    out.onboardingShown = /ONBOARDING/.test(document.getElementById('pods_edCard').innerText);
+    out.linkWaitsOnSave = /as soon as this client is saved/.test(
+      document.getElementById('pods_edCard').innerText);
+
+    const mrr = document.getElementById('pods_edMrr');
+    mrr.value = '3000'; mrr.dispatchEvent(new Event('input', { bubbles: true }));
+    await w(250);
+    document.getElementById('pods_edSave').click();
+    await w(3000);
+
+    const made = db.clients.find(x => x.name === name);
+    out.created = !!made;
+    if (!made) return out;
+    out.createdStatus = made.status;
+    out.createdInModule = !!(made.slug && made.initial);
+    out.savedMrr = made.mrr_cents;
+    out.inPod = made.pod_id === 'pod-z';
+    const chans = (db.channels || []).filter(ch => ch.client_id === made.id);
+    out.channelsOpened = chans.map(ch => ch.department).sort().join(',');
+    out.channelsPublic = chans.every(ch => ch.is_private === false);
+    out.teamAdded = chans.every(ch =>
+      (db.channel_members || []).filter(m => m.channel_id === ch.id).length > 1);
+
+    // the panel comes back on the client it just made, so its link can be generated there
+    out.reopened = !!document.querySelector('.pods-editor')
+      && (document.getElementById('pods_edName') || {}).value === name;
+    const mk = document.getElementById('pods_obMake');
+    out.offersLink = !!mk;
+    if (mk) { mk.click(); await w(1500); }
+    out.linkAfter = /\/onboard\//.test(document.getElementById('pods_edCard').innerText);
+    out.tokenStored = !!(db.clients.find(x => x.id === made.id) || {}).onboarding_token;
+    document.querySelectorAll('.pods-editor').forEach(e => e.remove());
+    return out;
+  });
+  check('naming a client stages it; nothing is written until the panel is saved',
+    r.stagedOnly && r.titleShowsName && r.saveSaysCreate && r.linkWaitsOnSave, JSON.stringify(r));
+  check('saving creates the client, in the shape the Clients module writes',
+    r.created && r.createdStatus === 'onboarding' && r.createdInModule, JSON.stringify(r));
+  check('choosing services opens a conversation for each, public and with the team in it',
+    r.chanOfferedByDefault && r.channelsOpened === 'googleAds,seo'
+      && r.channelsPublic && r.teamAdded, JSON.stringify(r));
+  check('the panel returns to the new client so its onboarding link can be made',
+    r.reopened && r.onboardingShown && r.offersLink && r.linkAfter && r.tokenStored,
+    JSON.stringify(r));
+  check('and its money and pod are saved with it',
+    r.savedMrr === 300000 && r.inPod, JSON.stringify(r));
+});
+
+await step('How it works explains the pod from the board’s own data', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    db.pods = [{ id:'pod-h', name:'Pod H', leader_id:'u-me', max_clients:20, opens_at:null, status:'active', position:0 }];
+    db.clients.forEach(x => { x.pod_id = null; });
+    const cs = db.clients.slice(0, 5);
+    cs.forEach(x => { x.pod_id = 'pod-h'; });
+    // the whole Meta rate card, so the warning can quote it as the design does
+    db.pod_rates = (db.pod_rates || []).filter(x => x.service !== 'meta_ads').concat([
+      { id:'r-m1', service:'meta_ads', tier:'standard', is_internal:false, amount_cents:25000, note:'$0–$10k ad spend' },
+      { id:'r-m2', service:'meta_ads', tier:'growth',   is_internal:false, amount_cents:30000, note:'$10k–$50k' },
+      { id:'r-m3', service:'meta_ads', tier:'advanced', is_internal:false, amount_cents:40000, note:'$50k+' }]);
+    // three Meta accounts, all on one person: the design's own warning
+    db.pod_assignments = [
+      { id:'m1', client_id:cs[0].id, service:'meta_ads', tier:'standard', specialist_id:'u-3', is_internal:false, ended_at:null },
+      { id:'m2', client_id:cs[1].id, service:'meta_ads', tier:'growth',   specialist_id:'u-3', is_internal:false, ended_at:null },
+      { id:'m3', client_id:cs[2].id, service:'meta_ads', tier:'standard', specialist_id:'u-3', is_internal:false, ended_at:null },
+      { id:'g1', client_id:cs[3].id, service:'google_ads', tier:'growth', specialist_id:'u-1', is_internal:false, ended_at:null }];
+    document.querySelector('.nav-item[data-screen="pods"]').click();
+    await w(400);
+    if (window.podState) window.podState.tab = 'dash';
+    await window.podsReload();
+    await w(800);
+    const out = {};
+    const dash = document.getElementById('pods_body').innerText;
+    out.metaWarning = /3rd Meta account reached/.test(dash);
+    out.warningNamesRates = /\$250/.test(dash) && /\$400/.test(dash);
+
+    const how = [...document.querySelectorAll('[data-pods-tab]')].find(b => b.dataset.podsTab === 'how');
+    out.hasHowTab = !!how;
+    if (!how) return out;
+    how.click(); await w(700);
+    // Every word on this tab is a field for a manager, so what it says is the fields'
+    // values as well as the text around them.
+    const body2 = document.getElementById('pods_body');
+    const txt = body2.innerText + ' '
+      + [...body2.querySelectorAll('input, textarea')].map(el => el.value).join(' ');
+    out.roles = ['POD LEADER', 'GOOGLE ADS', 'SEO & AI SEARCH', 'META ADS', 'WEB & DESIGN']
+      .every(k => txt.includes(k));
+    out.blocks = ['CAPACITY LIMITS', 'HOW PAY WORKS', 'PERFORMANCE = MORE ACCOUNTS', 'GROWTH PLAN']
+      .every(k => txt.includes(k));
+    // the people are filled in from the board, not written into the page
+    out.namesRealHolders = /Team Member 3/.test(txt) && /Team Member 1/.test(txt);
+    // and the growth plan marks where this workspace actually is
+    out.marksNow = /NOW · 5 CLIENTS/.test(txt);
+    return out;
+  });
+  check('the dashboard raises the design’s Meta warning, with its rates',
+    r.metaWarning && r.warningNamesRates, JSON.stringify(r));
+  check('How it works carries every role and every block from the design',
+    r.hasHowTab && r.roles && r.blocks, JSON.stringify(r));
+  check('it names whoever actually holds the work, and marks where the pod is now',
+    r.namesRealHolders && r.marksNow, JSON.stringify(r));
+});
+
+await step('duplicate names are refused, and any department can be opened', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    const existingName = db.clients[0].name;
+    document.querySelector('#pods_actions [data-pods-add]').click();
+    await w(1000);
+    const search = document.getElementById('pods_edSearch');
+    search.value = existingName;
+    search.dispatchEvent(new Event('input', { bubbles: true }));
+    await w(400);
+    const before = db.clients.length;
+    const mk = document.querySelector('[data-pods-new]');
+    if (mk) { mk.click(); await w(400); }
+    // staged, so still nothing written -- the refusal happens when it would be created
+    document.getElementById('pods_edSave').click();
+    await w(1500);
+    const out = { refusedDuplicate: db.clients.length === before,
+                  panelStillOpen: !!document.querySelector('.pods-editor') };
+    document.querySelectorAll('.pods-editor').forEach(e => e.remove());
+
+    // a General conversation, which no service covers
+    const cli = db.clients.find(x => x.pod_id);
+    db.channels = (db.channels || []).filter(ch => ch.client_id !== cli.id);
+    await window.podsReload(); await w(500);
+    window.podState.tab = 'all';
+    await window.podsReload(); await w(600);
+    document.querySelector('[data-pods-client="' + cli.id + '"]').click();
+    await w(1200);
+    const gen = document.querySelector('[data-pods-thread="general"]');
+    out.offersGeneral = !!gen;
+    if (gen) { gen.click(); await w(1600); }
+    out.generalOpened = (db.channels || []).some(ch => ch.client_id === cli.id && ch.department === 'general');
+    document.querySelectorAll('.pods-editor').forEach(e => e.remove());
+    return out;
+  });
+  check('a client Giant already has cannot be created a second time',
+    r.refusedDuplicate && r.panelStillOpen, JSON.stringify(r));
+  check('a conversation can be opened for a department with no service behind it',
+    r.offersGeneral && r.generalOpened, JSON.stringify(r));
+});
+
+await step('internal projects are paid like work, and counted like nothing else', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    db.pods = [{ id:'pod-i', name:'Pod I', leader_id:'u-me', max_clients:20, opens_at:null, status:'active', position:0 }];
+    db.clients.forEach(x => { x.pod_id = null; });
+    const cs = db.clients.slice(0, 2);
+    cs.forEach(x => { x.pod_id = 'pod-i'; x.mrr_cents = 100000; });
+    db.pod_assignments = [
+      { id:'c1', client_id:cs[0].id, label:null, service:'seo', tier:null, specialist_id:'u-2', is_internal:false, ended_at:null },
+      // three of ours, one of them unassigned
+      { id:'i1', client_id:null, label:'Reach Giant', service:'seo', tier:null, specialist_id:'u-2', is_internal:true, ended_at:null },
+      { id:'i2', client_id:null, label:'Lukas Griffin Artwork', service:'seo', tier:null, specialist_id:'u-2', is_internal:true, ended_at:null },
+      { id:'i3', client_id:null, label:'MODIFYR', service:'seo', tier:null, specialist_id:null, is_internal:true, ended_at:null }];
+    document.querySelector('.nav-item[data-screen="pods"]').click();
+    await w(400);
+    if (window.podState) window.podState.tab = 'all';
+    await window.podsReload();
+    await w(800);
+    const out = {};
+    const body = document.getElementById('pods_body');
+    out.blockShown = /INTERNAL ·/.test(body.innerText);
+    out.namesHolder = /TO TEAM MEMBER 2|TO NOOR/i.test(body.innerText);
+    out.lists = ['Reach Giant', 'Lukas Griffin Artwork', 'MODIFYR'].every(n => body.innerText.includes(n));
+    out.unassignedSaidSo = /unassigned/.test(body.innerText);
+    out.rows = document.querySelectorAll('[data-pods-int]').length;
+
+    // they are not clients: no client row is one of them, and none counts against the pod.
+    // All clients lists every client by design, so the count there is not the thing to test.
+    const clientNames = [...document.querySelectorAll('[data-pods-client]')].map(e => e.innerText);
+    out.noInternalAmongClients = !clientNames.some(t =>
+      /Reach Giant|Lukas Griffin Artwork|MODIFYR/.test(t));
+    out.podCounts = window.podState.clients.filter(c => c.pod_id === 'pod-i').length;
+    out.capacitySaysTwo = /2 \/ 20/.test(document.getElementById('pods_pods').innerText);
+    // 3 internal at $150 + one paying SEO client at $300 = $750 of account pay
+    out.accountsPay = window.podState.__accountsPay;
+    // and MRR is the clients' only
+    out.mrr = /\$200,000|\$2,000/.test(document.getElementById('pods_subtitle').textContent);
+    return out;
+  });
+  check('the internal block lists our own properties and names who holds them',
+    r.blockShown && r.lists && r.rows === 3 && r.unassignedSaidSo, JSON.stringify(r));
+  check('they are paid off the same rate card as client work',
+    r.accountsPay === 75000, JSON.stringify(r));
+  check('but they are not clients: not listed as one, not counted against the pod',
+    r.noInternalAmongClients && r.podCounts === 2 && r.capacitySaysTwo, JSON.stringify(r));
+});
+
+await step('work can be given and taken back from a person\'s own tab', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    db.pods = [{ id:'pod-j', name:'Pod J', leader_id:'u-me', max_clients:20, opens_at:null, status:'active', position:0 }];
+    db.clients.forEach(x => { x.pod_id = null; });
+    const cs = db.clients.slice(0, 2);
+    cs.forEach(x => { x.pod_id = 'pod-j'; });
+    db.pod_assignments = [
+      { id:'a1', client_id:cs[0].id, label:null, service:'seo', tier:null, specialist_id:'u-2', is_internal:false, ended_at:null },
+      { id:'a2', client_id:null, label:'Reach Giant', service:'seo', tier:null, specialist_id:'u-2', is_internal:true, ended_at:null }];
+    document.querySelector('.nav-item[data-screen="pods"]').click();
+    await w(400);
+    window.podState.tab = 'p:u-2';
+    await window.podsReload();
+    await w(700);
+    const out = {};
+    const body = document.getElementById('pods_body');
+    // their chip counts internal work, so their tab has to show it or the two disagree
+    const chip = document.querySelector('[data-pods-tab="p:u-2"]');
+    out.chipSays = chip ? chip.innerText.replace(/\s+/g, ' ').trim() : '';
+    out.internalShown = /Reach Giant/.test(body.innerText);
+    out.noAddInternalHere = !body.querySelector('[data-pods-addint]');
+
+    // give them a second client: client, then service, then no tier for SEO
+    const before = db.pod_assignments.length;
+    const btn = body.querySelector('[data-pods-assign="u-2"]');
+    out.hasGive = !!btn;
+    btn.click(); await w(400);
+    const pick = (re) => { const o = [...document.querySelectorAll('.pods-ask [data-ask-pick]')]
+      .find(x => re.test(x.innerText)); if (o) o.click(); return !!o; };
+    out.offeredOther = pick(new RegExp(cs[1].name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    await w(350);
+    out.offeredService = pick(/SEO/i);
+    await w(700);
+    out.wrote = db.pod_assignments.length === before + 1;
+    const made = db.pod_assignments[db.pod_assignments.length - 1];
+    out.madeRight = !!made && made.specialist_id === 'u-2' && made.client_id === cs[1].id
+      && made.service === 'seo' && made.ended_at == null;
+    out.rowsNow = document.querySelectorAll('[data-pods-client]').length;
+
+    // and take the first one back
+    const origConfirm = window.giantConfirmWarn;
+    let asked = '';
+    window.giantConfirmWarn = (t, m) => { asked = t + ' :: ' + m; return Promise.resolve(true); };
+    const x = body.querySelector('[data-pods-unassign="a1"]');
+    out.hasTakeBack = !!x;
+    if (x) { x.click(); await w(900); }
+    window.giantConfirmWarn = origConfirm;
+    out.asked = asked;
+    out.ended = !!(db.pod_assignments.find(a => a.id === 'a1') || {}).ended_at;
+    out.rowsAfter = document.querySelectorAll('[data-pods-client]').length;
+    return out;
+  });
+  check('their tab shows their internal work, because their chip counts it',
+    r.internalShown && r.noAddInternalHere && /2/.test(r.chipSays), JSON.stringify(r));
+  check('a client can be given to them from their own tab, at a rate',
+    r.hasGive && r.offeredOther && r.offeredService && r.wrote && r.madeRight && r.rowsNow === 2,
+    JSON.stringify(r));
+  check('and taken back again from the same row, after saying what that means',
+    r.hasTakeBack && r.ended && r.rowsAfter === 1 && /stops being paid/.test(r.asked),
+    JSON.stringify(r));
+});
+
+await step('a specialist gets their own accounts, and none of the money that is not theirs', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    const uid = window.giantSession.user.id;
+    db.pods = [{ id:'pod-k', name:'Pod K', leader_id:'u-2', max_clients:20, opens_at:null, status:'active', position:0 }];
+    db.clients.forEach(x => { x.pod_id = null; });
+    const cs = db.clients.slice(0, 3);
+    cs.forEach(x => { x.pod_id = 'pod-k'; x.mrr_cents = 900000; x.pay_day = 14; });
+    db.pod_assignments = [
+      { id:'m1', client_id:cs[0].id, label:null, service:'seo', tier:null, specialist_id:uid, is_internal:false, ended_at:null },
+      { id:'m2', client_id:null, label:'Reach Giant', service:'seo', tier:null, specialist_id:uid, is_internal:true, ended_at:null },
+      // somebody else's, on a client we are not on and on one we are
+      { id:'o1', client_id:cs[1].id, label:null, service:'google_ads', tier:'growth', specialist_id:'u-2', is_internal:false, ended_at:null },
+      { id:'o2', client_id:cs[0].id, label:null, service:'meta_ads', tier:'advanced', specialist_id:'u-2', is_internal:false, ended_at:null }];
+
+    // The nav no longer offers this to a member -- it is gated for Luke's preview -- so
+    // the board is opened directly. What is being checked is that the view itself is
+    // right and asks for nothing that is not theirs, which is what makes turning the gate
+    // off later a one-attribute change rather than a piece of work.
+    const was = window.giantCurrentProfile.role;
+    window.giantCurrentProfile.role = 'member';
+    window.__mock.log.selects = [];
+    document.querySelector('.nav-item[data-screen="pods"]').click();
+    await w(400);
+    await window.podsReload();
+    await w(900);
+
+    const out = {};
+    const body = document.getElementById('pods_body').innerText;
+    const sub = document.getElementById('pods_subtitle').textContent;
+    out.sub = sub;
+    out.body = body.slice(0, 400);
+    // theirs, and only theirs
+    out.hasMine = body.includes(cs[0].name) && /Reach Giant/.test(body);
+    out.notOthers = !body.includes(cs[1].name);
+    // 1 client account + 1 internal = 2; SEO 300 + internal 150 = $450
+    out.countTwo = /\b2\b/.test(sub);
+    out.earns = /\$450/.test(body);
+    // and none of the board's money anywhere on the page
+    const all = document.getElementById('pods_root').innerText;
+    out.noMrr = !/MRR|\$9,000/.test(all);
+    out.noPayroll = !/Payroll|margin|PAY DAY/i.test(all);
+    out.noOtherTabs = ![...document.querySelectorAll('[data-pods-tab]')]
+      .some(t => /Dashboard|All clients|The team/.test(t.textContent));
+    out.noActions = !document.querySelector('#pods_actions [data-pods-add], #pods_actions [data-pods-newpod]');
+    out.tabs = [...document.querySelectorAll('[data-pods-tab]')].map(t => t.textContent.trim());
+
+    // the state itself must not hold what was never theirs to see
+    out.stateHasNoMrr = window.podState.clients.every(c => c.mrr_cents === undefined);
+    out.stateHasNoPayDay = window.podState.clients.every(c => c.pay_day === undefined);
+    out.stateOnlyMyAssignments = window.podState.assignments.every(a => a.specialist_id === uid);
+    out.stateOnlyMyPay = (window.podState.pay || []).every(x => x.profile_id === uid);
+
+    // How it works is still theirs to read, without naming who holds what
+    const how = [...document.querySelectorAll('[data-pods-tab]')].find(t => /How it works/.test(t.textContent));
+    how.click(); await w(400);
+    const howTxt = document.getElementById('pods_body').innerText;
+    out.howShown = /Pod Leader owns the clients/.test(howTxt);
+    out.howNamesNobody = !/nobody assigned yet/.test(howTxt);
+
+    window.giantCurrentProfile.role = was;
+    return out;
+  });
+  check('their board is their accounts and their internal work, not anybody else\'s',
+    r.hasMine && r.notOthers && r.countTwo && r.earns, JSON.stringify(r));
+  check('MRR, payroll, margin and payment dates are not on the page at all',
+    r.noMrr && r.noPayroll && r.noOtherTabs && r.noActions, JSON.stringify(r));
+  check('and were never fetched: the numbers are absent from the state, not hidden in it',
+    r.stateHasNoMrr && r.stateHasNoPayDay && r.stateOnlyMyAssignments && r.stateOnlyMyPay,
+    JSON.stringify(r));
+  check('How it works reads the same, minus the names it could not know',
+    r.howShown && r.howNamesNobody, JSON.stringify(r));
+});
+
+await step('the rate card is edited on the page, and payroll follows it', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    db.pods = [{ id:'pod-r', name:'Pod R', leader_id:'u-1', max_clients:20, opens_at:null, status:'active', position:0 }];
+    db.clients.forEach(x => { x.pod_id = null; });
+    const c0 = db.clients[0]; c0.pod_id = 'pod-r';
+    db.pod_rates = [
+      { id:'rr-1', service:'google_ads', tier:'standard', is_internal:false, amount_cents:20000, note:'$0–$10k ad spend' },
+      { id:'rr-2', service:'seo', tier:null, is_internal:false, amount_cents:30000, note:'Paying SEO client' }];
+    db.pod_assignments = [
+      { id:'ra-1', client_id:c0.id, label:null, service:'google_ads', tier:'standard', specialist_id:'u-1', is_internal:false, ended_at:null }];
+    document.querySelector('.nav-item[data-screen="pods"]').click();
+    await w(400);
+    window.podState.tab = 'rates';
+    await window.podsReload();
+    await w(800);
+    const out = {};
+    const body = document.getElementById('pods_body');
+
+    // every service is offered, including the ones with no rate yet -- that is the gap
+    out.servicesShown = ['GOOGLE ADS', 'META ADS', 'SEO', 'WEB'].every(t => body.innerText.includes(t));
+    out.emptySaidSo = /No rate set yet/.test(body.innerText);
+
+    // change an amount
+    const amt = [...body.querySelectorAll('[data-pods-field="rateAmount"]')]
+      .find(el => el.dataset.id === 'rr-1');
+    out.amountIsAField = !!amt && amt.value === '200';
+    const payBefore = window.podState.__accountsPay;
+    amt.focus(); amt.value = '275'; amt.blur();
+    await w(600);
+    out.wrote = (db.pod_rates.find(x => x.id === 'rr-1') || {}).amount_cents;
+    out.payFollowed = window.podState.__accountsPay !== payBefore;
+    out.subtitleFollowed = /\$275|27,500/.test(
+      document.getElementById('pods_subtitle').textContent) || window.podState.__accountsPay === 27500;
+
+    // change a note, and the small print underneath
+    const nt = [...body.querySelectorAll('[data-pods-field="rateNote"]')]
+      .find(el => el.dataset.id === 'rr-2');
+    nt.focus(); nt.value = 'Retainer SEO'; nt.blur();
+    await w(500);
+    out.noteWrote = (db.pod_rates.find(x => x.id === 'rr-2') || {}).note;
+    const small = body.querySelector('[data-pods-field="ratesNote"]');
+    small.focus(); small.value = 'Reviewed every 60 days now.'; small.blur();
+    await w(500);
+    out.settingWrote = (db.pod_settings.find(x => x.key === 'rates_note') || {}).value;
+
+    // typing nothing writes nothing
+    const writesBefore = window.__mock.log.writes.length;
+    nt.focus(); nt.blur();
+    await w(300);
+    out.noWriteOnNoChange = window.__mock.log.writes.length === writesBefore;
+
+    // Escape puts a field back
+    amt.focus(); amt.value = '9999';
+    amt.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await w(200);
+    out.escapeReverted = amt.value === '275';
+
+    // a rate can be added: only the combinations this service does not already have
+    const add = body.querySelector('[data-pods-rate-add="google_ads"]');
+    out.canAdd = !!add;
+    add.click(); await w(400);
+    const opts = [...document.querySelectorAll('.pods-ask [data-ask-pick]')].map(x => x.innerText);
+    out.offered = opts.join(' | ');
+    out.doesNotOfferStandard = !opts.some(t => /^Standard/.test(t));
+    const growth = [...document.querySelectorAll('.pods-ask [data-ask-pick]')].find(x => /Growth/.test(x.innerText));
+    growth.click(); await w(400);
+    const box = document.getElementById('giantPromptOverlay');
+    out.askedHowMuch = !!box;
+    if (box) {
+      const inp = box.querySelector('input');
+      inp.value = '250';
+      const btns = [...box.querySelectorAll('button')];
+      btns[btns.length - 1].click();
+    }
+    await w(900);
+    const made = db.pod_rates.find(x => x.service === 'google_ads' && x.tier === 'growth');
+    out.added = !!made && made.amount_cents === 25000;
+    return out;
+  });
+  check('every service is on the card, including one with no rate yet',
+    r.servicesShown && r.emptySaidSo && r.amountIsAField, JSON.stringify(r));
+  check('an amount is typed on the page and payroll follows it',
+    r.wrote === 27500 && r.payFollowed, JSON.stringify(r));
+  check('so are the tier note and the small print under the card',
+    r.noteWrote === 'Retainer SEO' && r.settingWrote === 'Reviewed every 60 days now.',
+    JSON.stringify(r));
+  check('a field that was not changed writes nothing, and Escape puts it back',
+    r.noWriteOnNoChange && r.escapeReverted, JSON.stringify(r));
+  check('a rate can be added, and a duplicate of one that exists is never offered',
+    r.canAdd && r.doesNotOfferStandard && r.askedHowMuch && r.added, JSON.stringify(r));
+});
+
+await step('the words and the capacity are configuration, not code', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    db.pods = [{ id:'pod-c', name:'Pod C', leader_id:'u-1', max_clients:20, opens_at:null, status:'active', position:0 }];
+    db.clients.forEach(x => { x.pod_id = null; });
+    db.clients.slice(0, 3).forEach(x => { x.pod_id = 'pod-c'; });
+    db.pod_assignments = [];
+    document.querySelector('.nav-item[data-screen="pods"]').click();
+    await w(400);
+    window.podState.tab = 'how';
+    await window.podsReload();
+    await w(900);
+    const out = {};
+    const body = document.getElementById('pods_body');
+
+    // the limits are read off the pod and the departments, not written out a second time
+    const limits = body.innerText;
+    out.limitsFromPod = /Pod C[\s\S]{0,40}max 20 clients/.test(limits);
+    out.limitsFromDepts = /Google Ads specialist/.test(limits) && /SEO specialist/.test(limits);
+
+    // change the intro, a role and a growth row
+    const setField = async (name, i, val) => {
+      const el = [...body.querySelectorAll('[data-pods-field="' + name + '"]')]
+        .find(e => i == null || e.dataset.i === String(i));
+      if (!el) return false;
+      el.focus(); el.value = val; el.blur();
+      await w(450);
+      return true;
+    };
+    out.introEditable = await setField('introTitle', null, 'Pods, restated.');
+    out.roleEditable  = await setField('roleDoes', 1, 'Runs the ads and says so.');
+    out.growthEditable = await setField('growthWhat', 0, 'One leader, all the clients.');
+    const get = (k) => (db.pod_settings.find(x => x.key === k) || {}).value;
+    out.introWrote = (get('intro') || {}).title;
+    out.roleWrote = ((get('roles') || [])[1] || {}).does;
+    out.growthWrote = ((get('growth') || [])[0] || {}).what;
+    // editing one field must not flatten the rest of the list
+    out.rolesStillFive = (get('roles') || []).length === 5;
+    out.roleLabelKept = ((get('roles') || [])[1] || {}).label === 'GOOGLE ADS';
+
+    // a growth row can be added and the NOW marker follows the real client count
+    const before = (get('growth') || []).length;
+    body.querySelector('[data-pods-growth-add]').click();
+    await w(800);
+    out.growthAdded = (get('growth') || []).length === before + 1;
+    out.marksNow = /NOW · 3 CLIENTS/.test(document.getElementById('pods_body').innerText);
+
+    // now the capacity, on The team
+    window.podState.tab = 'team';
+    window.podState.render ? 0 : 0;
+    await window.podsReload();
+    await w(900);
+    const team = document.getElementById('pods_body');
+    out.capacityCard = /CAPACITY/.test(team.innerText);
+    const idealEl = [...team.querySelectorAll('[data-pods-field="deptIdeal"]')]
+      .find(e => e.dataset.id === 'pd-1');
+    out.idealIsAField = !!idealEl && idealEl.value === '15';
+    // above the maximum is refused, and the field goes back
+    idealEl.focus(); idealEl.value = '99'; idealEl.blur();
+    await w(500);
+    out.refusedAboveMax = (db.pay_departments.find(d => d.id === 'pd-1') || {}).ideal_accounts === 15
+      && idealEl.value === '15';
+    idealEl.focus(); idealEl.value = '12'; idealEl.blur();
+    await w(500);
+    out.idealWrote = (db.pay_departments.find(d => d.id === 'pd-1') || {}).ideal_accounts;
+    // emptying it means "not measured", which is a real answer and not zero
+    const maxEl = [...team.querySelectorAll('[data-pods-field="deptMax"]')]
+      .find(e => e.dataset.id === 'pd-2');
+    maxEl.focus(); maxEl.value = ''; maxEl.blur();
+    await w(500);
+    out.emptyIsNull = (db.pay_departments.find(d => d.id === 'pd-2') || {}).max_accounts === null;
+    // and the pod's own size
+    const podEl = team.querySelector('[data-pods-field="podMax"]');
+    podEl.focus(); podEl.value = '25'; podEl.blur();
+    await w(600);
+    out.podMaxWrote = (db.pods.find(p => p.id === 'pod-c') || {}).max_clients;
+    out.columnFollowed = /3 \/ 25/.test(document.getElementById('pods_pods').innerText);
+    return out;
+  });
+  check('the capacity limits are read off the pod and the departments, not written twice',
+    r.limitsFromPod && r.limitsFromDepts, JSON.stringify(r));
+  check('the intro, a role and a growth row are all edited on the page',
+    r.introWrote === 'Pods, restated.' && r.roleWrote === 'Runs the ads and says so.'
+      && r.growthWrote === 'One leader, all the clients.', JSON.stringify(r));
+  check('editing one field in a list leaves the rest of the list alone',
+    r.rolesStillFive && r.roleLabelKept, JSON.stringify(r));
+  check('rows can be added, and the growth plan still marks where the pod actually is',
+    r.growthAdded && r.marksNow, JSON.stringify(r));
+  check('a department\'s capacity is edited on The team, and an impossible one refused',
+    r.capacityCard && r.idealIsAField && r.refusedAboveMax && r.idealWrote === 12,
+    JSON.stringify(r));
+  check('an empty cap means not measured, not zero, and the pod size feeds the columns',
+    r.emptyIsNull && r.podMaxWrote === 25 && r.columnFollowed, JSON.stringify(r));
+});
+
+await step('a pod has a team, and it is managed where it is read', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    db.pods = [
+      { id:'pod-t1', name:'Pod One', leader_id:'u-me', max_clients:20, opens_at:null, status:'active', position:0 },
+      { id:'pod-t2', name:'Pod Two', leader_id:null,  max_clients:20, opens_at:null, status:'active', position:1 }];
+    db.clients.forEach(x => { x.pod_id = null; });
+    const c0 = db.clients[0]; c0.pod_id = 'pod-t1';
+    db.pod_assignments = [
+      { id:'ta-1', client_id:c0.id, label:null, service:'seo', tier:null, specialist_id:'u-2', is_internal:false, ended_at:null }];
+    db.pod_members = [{ pod_id:'pod-t1', profile_id:'u-me' }, { pod_id:'pod-t1', profile_id:'u-2' }];
+    document.querySelector('.nav-item[data-screen="pods"]').click();
+    await w(400);
+    window.podState.tab = 'team';
+    window.podState.teamScope = null;
+    await window.podsReload();
+    await w(900);
+    const out = {};
+    const body = () => document.getElementById('pods_body');
+
+    // it opens on a pod, not on the whole workspace
+    const scopes = [...body().querySelectorAll('[data-pods-scope]')].map(b => b.textContent.trim());
+    out.scopes = scopes.join(' | ');
+    out.opensOnAPod = (body().querySelector('[data-pods-scope].on') || {}).dataset
+      ? body().querySelector('[data-pods-scope].on').dataset.podsScope === 'pod-t1' : false;
+    out.cards = body().querySelectorAll('.p-card').length;     // 2 people + Capacity card
+    out.leaderMarked = /leads Pod One/.test(body().innerText);
+    out.rosterIsBigger = window.podState.roster.length > 2;
+
+    // the empty pod says so rather than showing everybody
+    body().querySelector('[data-pods-scope="pod-t2"]').click();
+    await w(600);
+    out.emptyPodSaidSo = /Nobody in this pod yet/.test(body().innerText);
+    // only the Capacity card is left -- no person cards at all
+    out.emptyPodCards = body().querySelectorAll('.p-card').length - 1;
+
+    // somebody can be added to it, and only people who are not in it already are offered
+    body().querySelector('[data-pods-addmate="pod-t2"]').click();
+    await w(400);
+    let opts = [...document.querySelectorAll('.pods-ask [data-ask-pick]')];
+    out.offersInvite = opts.some(o => /Invite somebody new/.test(o.innerText));
+    const pick = opts.find(o => o.dataset.askPick === 'u-3');
+    out.offersOthers = !!pick;
+    pick.click();
+    await w(900);
+    out.added = db.pod_members.some(m => m.pod_id === 'pod-t2' && m.profile_id === 'u-3');
+    out.nowInPodTwo = /Team Member 3/.test(body().innerText);
+
+    // and taken out again, having been told what it costs
+    let asked = '';
+    const orig = window.giantConfirmWarn;
+    window.giantConfirmWarn = (t, m) => { asked = t + ' :: ' + m; return Promise.resolve(true); };
+    body().querySelector('[data-pods-dropmate="u-3"]').click();
+    await w(900);
+    window.giantConfirmWarn = orig;
+    out.asked = asked;
+    out.removed = !db.pod_members.some(m => m.pod_id === 'pod-t2' && m.profile_id === 'u-3');
+
+    // pay is edited on the card
+    body().querySelector('[data-pods-scope="pod-t1"]').click();
+    await w(700);
+    const amt = [...body().querySelectorAll('[data-pods-field="payAmount"]')]
+      .find(e => e.dataset.id === 'u-2');
+    out.payIsAField = !!amt;
+    const payBefore = window.podState.__totalPay;
+    amt.focus(); amt.value = '500'; amt.blur();
+    await w(700);
+    out.payWrote = (db.team_pay.find(t => t.profile_id === 'u-2') || {}).base_amount;
+    out.payrollFollowed = window.podState.__totalPay !== payBefore;
+
+    // changing the base type away from hourly clears the hours it no longer means
+    db.team_pay.find(t => t.profile_id === 'u-2').base_type = 'hourly';
+    db.team_pay.find(t => t.profile_id === 'u-2').weekly_hours = 20;
+    await window.podsReload(); await w(800);
+    const selBase = [...body().querySelectorAll('[data-pods-pay="base"]')]
+      .find(e => e.dataset.id === 'u-2');
+    out.hoursShownWhenHourly = !!body().querySelector('[data-pods-field="payHours"]');
+    selBase.value = 'fixed_weekly';
+    selBase.dispatchEvent(new Event('change', { bubbles: true }));
+    await w(900);
+    const row = db.team_pay.find(t => t.profile_id === 'u-2');
+    out.baseWrote = row.base_type;
+    out.hoursCleared = row.weekly_hours === null;
+
+    // somebody with no pay row at all is offered one rather than shown a blank
+    const noPay = window.podState.roster.find(pp =>
+      !db.team_pay.some(t => t.profile_id === pp.id));
+    out.someoneHasNoPay = !!noPay;
+    body().querySelector('[data-pods-scope="all"]').click();
+    await w(900);
+    out.offersSetPay = !!body().querySelector('[data-pods-setpay]');
+    return out;
+  });
+  check('the tab opens on a pod and shows only its people, with the leader marked',
+    r.opensOnAPod && r.cards === 3 && r.leaderMarked && r.rosterIsBigger, JSON.stringify(r));
+  check('an empty pod says so instead of listing the whole workspace',
+    r.emptyPodSaidSo && r.emptyPodCards === 0 && /Pod One|Pod Two/.test(r.scopes),
+    JSON.stringify(r));
+  check('somebody is added to a pod, or invited if they have no account yet',
+    r.offersOthers && r.offersInvite && r.added && r.nowInPodTwo, JSON.stringify(r));
+  check('and taken out again, after being told their accounts stay assigned',
+    r.removed && /stay assigned|hold no accounts/.test(r.asked), JSON.stringify(r));
+  check('a base is edited on the card and payroll follows it',
+    r.payIsAField && r.payWrote === 500 && r.payrollFollowed, JSON.stringify(r));
+  check('hours exist only while somebody is hourly, and are cleared when they stop being',
+    r.hoursShownWhenHourly && r.baseWrote === 'fixed_weekly' && r.hoursCleared,
+    JSON.stringify(r));
+  check('somebody with no pay set is offered one rather than shown a blank',
+    r.someoneHasNoPay && r.offersSetPay, JSON.stringify(r));
+});
+
+// Back to a manager, so anything after this sees the board it expects.
+await page.evaluate(async () => {
+  window.giantCurrentProfile.role = 'owner';
+  await window.podsReload();
+});
+
+// Matthew, 2026-09-16: "tracking of the payment renewal dates for all of our clients... this
+// has been an issue recently where a client has canceled and they still have been charged."
+// The case in his message is the one this has to catch: work ends 1 Oct, card is charged 2 Oct.
+await step('a client charged after their last day is flagged before it happens', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    const iso = (offsetDays) => { const d = new Date(); d.setHours(0,0,0,0);
+      d.setDate(d.getDate() + offsetDays); return d.toISOString().slice(0, 10); };
+    db.pods = [{ id:'pod-b', name:'Pod B', leader_id:'u-me', max_clients:20, opens_at:null, status:'active', position:0 }];
+    db.clients.forEach(c => { c.pod_id = null; c.ends_on = null; c.next_charge_on = null;
+                              c.billing_off_at = null; c.billing_off_by = null; });
+    const [paul, wpf, fine, quiet] = db.clients;
+    // Paul Davis: last day the 1st, charge lands the 2nd. The whole point.
+    paul.pod_id = 'pod-b'; paul.mrr_cents = 250000;
+    paul.ends_on = iso(14); paul.next_charge_on = iso(15);
+    // WPF: ended already, nobody confirmed the billing was turned off
+    wpf.pod_id = 'pod-b'; wpf.ends_on = iso(-3);
+    // an ordinary client renewing soon, no end date: informational, not a problem
+    fine.pod_id = 'pod-b'; fine.next_charge_on = iso(5);
+    // and one with nothing set at all
+    quiet.pod_id = 'pod-b';
+    db.pod_assignments = [];
+    document.querySelector('.nav-item[data-screen="pods"]').click();
+    await w(400);
+    await window.podsReload();
+    await w(700);
+    const out = {};
+    // Reached by clicking the tab, not by setting podState. Setting the tab directly hid
+    // that the tab had never been added to the bar at all -- the view rendered fine and
+    // was unreachable, which is the same as not existing.
+    const tabBtn = document.querySelector('[data-pods-tab="renewals"]');
+    out.tabExists = !!tabBtn;
+    out.tabCount = tabBtn ? tabBtn.textContent.replace(/\D+/g, '') : '';
+    if (tabBtn) tabBtn.click();
+    await w(900);
+    const body = document.getElementById('pods_body');
+    const txt = () => document.getElementById('pods_body').innerText;
+
+    out.flagsPaul = new RegExp(paul.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(txt())
+      && /next charge/i.test(txt());
+    out.saysTurnItOff = /turn the Stripe payment off/i.test(txt());
+    out.flagsEnded = /nobody has confirmed/i.test(txt());
+    // the tab itself carries the count, so it is visible without opening it
+    // a client with no dates is still reachable rather than invisible
+    out.listsUndated = /NO DATES YET/.test(txt());
+
+    // the dates are editable in place
+    const nc = [...body.querySelectorAll('[data-pods-field="nextCharge"]')]
+      .find(e => e.dataset.id === quiet.id);
+    out.dateIsAField = !!nc;
+    nc.focus(); nc.value = iso(3); nc.blur();
+    await w(800);
+    out.dateWrote = (db.clients.find(c => c.id === quiet.id) || {}).next_charge_on === iso(3);
+
+    // "know for sure that we have turned off their Stripe payment"
+    const orig = window.giantConfirmWarn; let asked = '';
+    window.giantConfirmWarn = (t, m) => { asked = t + ' :: ' + m; return Promise.resolve(true); };
+    document.querySelector('[data-pods-billoff="' + paul.id + '"]').click();
+    await w(900);
+    window.giantConfirmWarn = orig;
+    out.asked = asked;
+    const p2 = db.clients.find(c => c.id === paul.id);
+    out.stamped = !!p2.billing_off_at && p2.billing_off_by === window.giantSession.user.id;
+    out.clearedAfterOff = !/turn the Stripe payment off/i.test(txt());
+
+    // changing a date afterwards must drop that confirmation — it was about the old arrangement
+    const nc2 = [...document.getElementById('pods_body').querySelectorAll('[data-pods-field="nextCharge"]')]
+      .find(e => e.dataset.id === paul.id);
+    nc2.focus(); nc2.value = iso(40); nc2.blur();
+    await w(800);
+    out.confirmationDropped = (db.clients.find(c => c.id === paul.id) || {}).billing_off_at === null;
+
+    // and the dashboard says it too, without anybody opening this tab
+    window.podState.tab = 'dash';
+    await window.podsReload();
+    await w(800);
+    out.onDashboard = /turn the Stripe payment off|nobody has confirmed/i.test(
+      document.getElementById('pods_body').innerText);
+    return out;
+  });
+  check('the client whose charge lands after their last day is named, with what to do',
+    r.flagsPaul && r.saysTurnItOff, JSON.stringify(r));
+  check('so is one whose last day has passed with the billing still on',
+    r.flagsEnded && r.listsUndated, JSON.stringify(r));
+  check('and the tab is actually in the bar, carrying the count',
+    r.tabExists && r.tabCount === '3', JSON.stringify(r));
+  check('the dates are typed straight onto the board',
+    r.dateIsAField && r.dateWrote, JSON.stringify(r));
+  check('confirming the payment is off is stamped with who said so, and clears the flag',
+    r.stamped && /actually cancelled/i.test(r.asked) && r.clearedAfterOff, JSON.stringify(r));
+  check('and changing a date afterwards drops that confirmation',
+    r.confirmationDropped, JSON.stringify(r));
+  check('the warning reaches the dashboard, not only its own tab',
+    r.onDashboard, JSON.stringify(r));
+});
+
+// A message from Mave appeared on Needs you labelled "Nishchay" -- the viewer's own name.
+// channels.name is written once and names everyone EXCEPT the creator, so it is right only
+// for whoever opened the conversation and wrong for the person being messaged.
+await step('a DM on Needs you is named for the other person, never for you', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    const me = window.giantSession.user.id;
+    const myName = (db.profiles.find(p => p.id === me) || {}).full_name;
+    // a group DM somebody else opened: stored under the viewer's own name, no dm_pair
+    const ch = db.channels.find(c => c.is_dm && c.name === myName && !c.dm_pair);
+    const out = { myName, found: !!ch };
+    if (!ch) return out;
+    out.storedName = ch.name;
+    const others = db.channel_members.filter(m => m.channel_id === ch.id && m.profile_id !== me)
+      .map(m => (db.profiles.find(p => p.id === m.profile_id) || {}).full_name).filter(Boolean);
+    out.othersInChannel = others.slice(0, 3);
+
+    // put a mention from one of them on it, so it lands on Needs you
+    const author = db.channel_members.find(m => m.channel_id === ch.id && m.profile_id !== me).profile_id;
+    db.messages.push({ id: 'dmbug-1', channel_id: ch.id, author_id: author,
+      body: 'hey @Nishchay can you look at this', created_at: new Date().toISOString(),
+      parent_id: null, reply_count: 0, flagged: false });
+    db.inbox_actions = [];
+
+    await window.nc_computeNeedsYou();
+    await w(900);
+    const rows = [...document.querySelectorAll('#nc_cardNeedsBody .nc_ch-item')];
+    const row = rows.find(x => x.dataset.ncChannelId === ch.id);
+    out.rowFound = !!row;
+    if (row) {
+      out.rowLabel = [...row.querySelectorAll('span')].map(sp => sp.textContent.trim())
+        .filter(Boolean).join(' | ');
+      out.showsMyOwnName = new RegExp(myName.split(' ')[0], 'i').test(out.rowLabel);
+      out.namesSomeoneElse = others.some(n => out.rowLabel.includes(n.split(' ')[0]));
+    }
+    return out;
+  });
+  check('the fixture has a DM stored under the viewer\'s own name, as production does',
+    r.found && r.storedName === r.myName, JSON.stringify(r));
+  check('and Needs you does not label it with your own name',
+    r.rowFound && r.showsMyOwnName === false, JSON.stringify(r));
+  check('it names somebody actually in the conversation instead',
+    r.namesSomeoneElse === true, JSON.stringify(r));
+});
+
+// A task link pasted into a chat opened a second copy of the whole app in a new tab, then
+// booted it just to show a panel. Every internal link did, because they render as ordinary
+// anchors with target="_blank".
+await step('a link to Giant opens in Giant, not in a second copy of it', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const out = {};
+    // what a link in a message actually looks like
+    const host = document.createElement('div');
+    host.innerHTML = '<a id="probeTask" target="_blank" rel="noopener" '
+      + 'href="https://giant.reachgiant.com/app?task=t-probe">the task</a>'
+      + '<a id="probeExternal" target="_blank" href="https://example.com/x">outside</a>'
+      + '<a id="probeOnboard" target="_blank" '
+      + 'href="https://giant.reachgiant.com/onboard/abc123">onboarding form</a>';
+    document.body.appendChild(host);
+
+    let openedWith = null;
+    const realOpen = window.openTaskDetailPanel;
+    window.openTaskDetailPanel = (id) => { openedWith = id; };
+    // nothing must reach the browser's own navigation
+    let navigated = null;
+    const realAssign = window.location.assign;
+    out.hasHandler = typeof realOpen === 'function';
+
+    const fire = (id) => {
+      const el = document.getElementById(id);
+      const ev = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+      el.dispatchEvent(ev);
+      return ev.defaultPrevented;
+    };
+    out.taskPrevented = fire('probeTask');
+    out.openedWith = openedWith;
+
+    // an outside link is left completely alone
+    out.externalPrevented = fire('probeExternal');
+
+    // and so is a standalone page that genuinely has to load as its own document
+    openedWith = null;
+    out.onboardPrevented = fire('probeOnboard');
+    out.onboardDidNotOpenPanel = openedWith === null;
+
+    // a modified click still means "new tab" -- the choice is not taken away
+    const el = document.getElementById('probeTask');
+    const meta = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, metaKey: true });
+    el.dispatchEvent(meta);
+    out.metaClickLeftAlone = !meta.defaultPrevented;
+
+    window.openTaskDetailPanel = realOpen;
+    host.remove();
+    return out;
+  });
+  check('clicking a task link opens the panel here instead of a new tab',
+    r.hasHandler && r.taskPrevented && r.openedWith === 't-probe', JSON.stringify(r));
+  check('a link to anywhere else is left exactly as it was',
+    r.externalPrevented === false, JSON.stringify(r));
+  check('so is a standalone page that has to load as its own document',
+    r.onboardPrevented === false && r.onboardDidNotOpenPanel, JSON.stringify(r));
+  check('and cmd-click still opens a new tab, because that is what it means',
+    r.metaClickLeftAlone, JSON.stringify(r));
+});
+
+// The loop behind "Maximum call stack size exceeded", which Luke saw for three days under
+// three different sets of frames. Removing a channel unsubscribes it, which leaves the
+// topic, which supabase-js reports back through the SAME status callback as CLOSED -- so
+// handling CLOSED by removing the channel asks for the channel to be removed again.
+await step('a dead realtime channel is torn down once, not forever', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const hook = window.__giantNotifSub;
+    const out = { exposed: !!hook };
+    if (!hook) return out;
+
+    // Stand in for supabase: removeChannel reports CLOSED back through the status callback,
+    // exactly as the real one does. Before the guard this recursed until the stack ran out.
+    let statusCb = null, removeCalls = 0, depth = 0, maxDepth = 0, overflowed = false;
+    const sb = window.giantSupabase;
+    const realChannel = sb.channel.bind(sb);
+    const realRemove = sb.removeChannel.bind(sb);
+    sb.channel = () => ({
+      on() { return this; },
+      subscribe(cb) { statusCb = cb; return this; },
+      topic: 'notifications-test',
+    });
+    sb.removeChannel = (ch) => {
+      removeCalls++;
+      depth++; if (depth > maxDepth) maxDepth = depth;
+      if (depth > 40) { overflowed = true; depth--; return; }
+      // this is the part that used to bite: the teardown reports itself
+      try { if (statusCb) statusCb('CLOSED'); } catch (e) { overflowed = true; }
+      depth--;
+    };
+
+    // From a known state: it has already subscribed for real at boot, so subscribe()
+    // would return at its own guard and the check would pass having done nothing.
+    hook.__resetForTest();
+    hook.subscribe();
+    out.subscribed = typeof statusCb === 'function';
+    if (statusCb) statusCb('CHANNEL_ERROR');   // the channel dies
+    await w(200);
+
+    out.removeCalls = removeCalls;
+    out.maxDepth = maxDepth;
+    out.overflowed = overflowed;
+    out.tearingDown = hook.status().tearingDown;
+
+    sb.channel = realChannel;
+    sb.removeChannel = realRemove;
+    hook.__resetForTest();
+    return out;
+  });
+  check('the notification channel exposes its teardown so this can be checked at all',
+    r.exposed && r.subscribed, JSON.stringify(r));
+  check('a dead channel is removed exactly once, and removing it does not remove it again',
+    r.removeCalls === 1 && r.maxDepth === 1 && r.overflowed === false, JSON.stringify(r));
+  check('and it stays marked as tearing down until the retry, so nothing re-enters',
+    r.tearingDown === true, JSON.stringify(r));
+});
+
+// Chat stopped being new a while ago, and Archive is scaffolding nobody but the in-house
+// dev has any use for.
+await step('Chat has no NEW badge, and Archive is for the in-house dev alone', async () => {
+  const r = await page.evaluate(() => {
+    const out = {};
+    const chat = document.querySelector('.nav-item[data-screen="newchat"]');
+    out.chatExists = !!chat;
+    out.newBadge = chat ? chat.querySelectorAll('.badge-new').length : -1;
+    // the unread count is a different badge and must survive
+    out.unreadBadgeKept = !!document.getElementById('nc_sidebarBadgeChat');
+
+    const label = document.querySelector('[data-navgroup="archive"]');
+    const rail  = document.querySelector('[data-navgroup-body="archive"]');
+    out.bothGated = !!label && !!rail
+      && label.getAttribute('data-role-only') === 'inhouse_dev'
+      && rail.getAttribute('data-role-only') === 'inhouse_dev';
+
+    const was = document.body.className;
+    const seen = {};
+    ['role-owner', 'role-manager', 'role-member', 'role-client', 'role-inhouse_dev'].forEach(c => {
+      document.body.className = c;
+      seen[c] = getComputedStyle(label).display !== 'none';
+    });
+    document.body.className = was;
+    out.seen = seen;
+    // an owner outranks the in-house dev, so a data-role-min gate would have let them in
+    out.hiddenFromOwner = seen['role-owner'] === false;
+    out.shownToInhouseDev = seen['role-inhouse_dev'] === true;
+    out.hiddenFromEveryoneElse = !seen['role-manager'] && !seen['role-member'] && !seen['role-client'];
+    return out;
+  });
+  check('the NEW badge is off Chat, and the unread count is not',
+    r.chatExists && r.newBadge === 0 && r.unreadBadgeKept, JSON.stringify(r));
+  check('Archive is gated on both the label and the rail, or half of it would still show',
+    r.bothGated, JSON.stringify(r));
+  check('only the in-house dev sees it — an owner does not, which a role floor could not do',
+    r.shownToInhouseDev && r.hiddenFromOwner && r.hiddenFromEveryoneElse, JSON.stringify(r));
 });
 
 // ── what the mock actually served, as evidence the paths ran ─────────────────

@@ -4,7 +4,12 @@ whether they parse: an unbalanced paren inside newChatModule left the audit clea
 block count right, and the entire module dead at runtime, which the click-through then
 reported as fifty unrelated failures."""
 import re, subprocess, sys, tempfile, os
-S = open('/Users/nischaypandya/Desktop/AI/Projects/giant/index.html').read()
+import os
+# The file next to this script, not a path on whoever wrote it: these ran on one
+# machine for months and would have failed on the second person's the moment they
+# cloned it.
+HERE = os.path.dirname(os.path.abspath(__file__))
+S = open(os.path.join(HERE, 'index.html')).read()
 blocks = re.findall(r'<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>', S, re.S)
 bad = 0
 for i, b in enumerate(blocks):

@@ -5,3 +5,8 @@ supabase/.temp/
 GIANT/
 .DS_Store
 APP FILES/
+
+# Screenshots and design exports: reference material for whoever is building, not part of
+# the app. They are large (the Pod System export alone is 15MB of PNGs) and they change
+# constantly, so they stay on disk and out of the repo.
+screenshots/
