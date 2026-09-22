@@ -5115,6 +5115,84 @@ await step('table columns can be dragged wider and narrower', async () => {
   check('the control is called Visibility, and says what the list actually controls',
     mem.label === 'Visibility' && /who can see/i.test(mem.modalTitle || '')
       && /add or remove/i.test(mem.modalSub || ''), JSON.stringify(mem));
+
+  // "My tasks" in the toolbar: one pool feeds the table, the board and the counts, so it
+  // has to narrow all three, not just whichever one happens to be open.
+  const minef = await page.evaluate(async () => {
+    const w = ms => new Promise(r => setTimeout(r, ms));
+    const me = window.giantSession.user.id;
+    const st = window.p2State;
+    const out = {};
+    // give the signed-in user some of the tasks and not others
+    st.tasks.forEach((t, i) => { t.assigned_to = i % 3 === 0 ? [me] : ['u-9']; });
+    const mineCount = st.tasks.filter(t => (t.assigned_to || []).includes(me)).length;
+    out.mineCount = mineCount;
+    out.total = st.tasks.length;
+    out.someButNotAll = mineCount > 0 && mineCount < st.tasks.length;
+
+    const btn = document.getElementById('p2_prjMineBtn');
+    out.exists = !!btn;
+    if (!btn) return out;
+    out.label = btn.textContent.trim();
+
+    window.p2SetView('table'); await w(600);
+    const rows = () => document.querySelectorAll('#p2_prjDailyBody .prj-row[data-p2-task]').length;
+    out.rowsAllOff = rows();
+    btn.click(); await w(700);
+    out.on = btn.classList.contains('on');
+    out.rowsWhenMine = rows();
+    // the Active/Done counts come off the same pool, so they must have narrowed too
+    out.activeCount = document.getElementById('p2_prjStCountActive').textContent;
+    // and the board, which is a different renderer reading the same pool
+    window.p2SetView('board'); await w(700);
+    out.cardsWhenMine = document.querySelectorAll('#p2_prjBoard [data-p2-card]').length;
+    out.shownOnBoard = getComputedStyle(btn).display !== 'none';
+    window.p2SetView('table'); await w(600);
+    out.persisted = localStorage.getItem('giant_p2_mine');
+    btn.click(); await w(700);
+    out.rowsBackOff = rows();
+    return out;
+  });
+  check('My tasks is in the toolbar and narrows the table to the signed-in user',
+    minef.exists && minef.label === 'My tasks' && minef.someButNotAll && minef.on
+      && minef.rowsWhenMine < minef.rowsAllOff && minef.rowsWhenMine > 0,
+    JSON.stringify(minef));
+  check('it narrows the board and the counts too, and is remembered',
+    minef.cardsWhenMine === minef.mineCount && minef.shownOnBoard
+      && minef.persisted === '1' && minef.rowsBackOff === minef.rowsAllOff,
+    JSON.stringify(minef));
+
+  // The Client facet is a directory, so A to Z; and a client that only ever existed to try
+  // something out is noise in it.
+  const cf = await page.evaluate(async () => {
+    const w = ms => new Promise(r => setTimeout(r, ms));
+    const st = window.p2State;
+    // plant three clients: two tests and one whose name merely CONTAINS "test", which a
+    // substring match would wrongly hide
+    st.clients['c-test-1'] = { id: 'c-test-1', name: 'Test Client Co' };
+    st.clients['c-test-2'] = { id: 'c-test-2', name: 'test' };
+    st.clients['c-real-1'] = { id: 'c-real-1', name: 'Contest Media' };
+    st.clients['c-real-2'] = { id: 'c-real-2', name: 'Aardvark Ltd' };
+    st.tasks[0].client_id = 'c-test-1';
+    st.tasks[1].client_id = 'c-test-2';
+    st.tasks[2].client_id = 'c-real-1';
+    st.tasks[3].client_id = 'c-real-2';
+    document.querySelectorAll('.p2-filterpop').forEach(e => e.remove());
+    document.getElementById('p2_prjFilterBtn').click(); await w(600);
+    const pop = document.querySelector('.p2-filterpop');
+    if (!pop) return { missing: true };
+    const names = [...pop.querySelectorAll('[data-p2-facet="client"]')]
+      .map(l => l.querySelector('span').textContent.trim());
+    document.querySelectorAll('.p2-filterpop').forEach(e => e.remove());
+    const sorted = [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    return { names, azOrder: JSON.stringify(names) === JSON.stringify(sorted),
+             hidesTests: !names.includes('Test Client Co') && !names.includes('test'),
+             keepsRealOne: names.includes('Contest Media') && names.includes('Aardvark Ltd') };
+  });
+  check('the Client filter is A to Z and leaves the test clients out',
+    !cf.missing && cf.azOrder && cf.hidesTests, JSON.stringify(cf));
+  check('and a real client that merely contains the word is not hidden with them',
+    !cf.missing && cf.keepsRealOne, JSON.stringify(cf));
 });
 
 // A row could be ticked, timed and dragged, but not read: the description, the dates and

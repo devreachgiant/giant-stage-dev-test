@@ -740,6 +740,11 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
    again, and the section is what refuses to squash. */
 #p2_root .prj-table{width:auto;min-width:0;}
 #p2_root .p2-section{min-width:max-content;}
+/* "My tasks" reads as pressed when it is on, using the red the rest of this screen already
+   uses for an active control -- so it is obvious at a glance why a list is short. */
+#p2_root #p2_prjMineBtn.on{background:rgba(208,4,0,.12);border-color:rgba(208,4,0,.45);
+  color:var(--text);}
+#p2_root #p2_prjMineBtn:hover{border-color:var(--text-4);color:var(--text);}
 /* The section card. .p2-section had no styling at all, so the table sat as a square slab
    while the original Projects screen shows a rounded card -- same data, two different
    screens. These are the original .prj-section values, with one deliberate difference:
@@ -10292,6 +10297,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
           <!-- controls bar -->
           <div class="prj-controls">
             <div class="prj-spacer"></div>
+            <button id="p2_prjMineBtn" title="Show only tasks assigned to me" style="background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:6px 11px;color:var(--text-2);cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;margin-right:8px;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5.5" r="2.6" stroke="currentColor" stroke-width="1.4"/><path d="M3 13.5c0-2.4 2.2-4 5-4s5 1.6 5 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span>My tasks</span></button>
             <div class="prj-status-toggle" id="p2_prjStatusToggle" style="display:flex;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px;margin-right:8px;">
               <button class="prj-st-btn active" data-status="active" style="background:var(--surface-2);color:var(--text);border:none;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">Active <span class="prj-st-count" id="p2_prjStCountActive" style="opacity:.6;margin-left:3px;">0</span></button>
               <button class="prj-st-btn" data-status="done" style="background:transparent;color:var(--text-2);border:none;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">Done <span class="prj-st-count" id="p2_prjStCountDone" style="opacity:.6;margin-left:3px;">0</span></button>
@@ -83584,7 +83590,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   const p2 = { projects: [], activeId: null, tasks: [], people: {}, clients: {},
                status: 'active', loading: false, collapsed: {},
-               view: 'table', logged: {}, othersOn: {}, detailId: null, prefs: {}, colw: {},
+               view: 'table', mine: false, logged: {}, othersOn: {}, detailId: null, prefs: {}, colw: {},
                filters: {}, sort: null };
   // Column widths, per person, in this browser. No migration for it: it is a preference
   // about looking at a table, not a fact about the work.
@@ -83609,6 +83615,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   // putting the view back is re-adding one button and 'timeline' to this list.
   try { const v = localStorage.getItem('giant_p2_view');
         if (v === 'board' || v === 'table') p2.view = v; } catch (_) {}
+  // "My tasks" is a way of working, not a per-visit choice, and it has to hold while you
+  // move from list to list -- which is the whole reason it sits in the toolbar rather than
+  // inside the Filter panel, where it would reset with the rest of the facets.
+  try { p2.mine = localStorage.getItem('giant_p2_mine') === '1'; } catch (_) {}
 
   // The four values tasks.status actually accepts -- it is a Postgres enum (task_status),
   // so a column heading that is not one of these is a column nothing can ever be dropped
@@ -83957,6 +83967,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // column for good. Shown where it means something, hidden where it does not.
     const st = $('prjStatusToggle');
     if (st) st.style.display = p2.view === 'table' ? 'flex' : 'none';
+    // Shown on every view, because "only mine" means the same thing on a board as in a
+    // table -- unlike Active/Done, which is a filter only the table applies.
+    const mineBtn = $('prjMineBtn');
+    if (mineBtn) {
+      mineBtn.classList.toggle('on', !!p2.mine);
+      mineBtn.title = p2.mine ? 'Showing only tasks assigned to you — click to show all'
+                              : 'Show only tasks assigned to me';
+    }
     // The counts belong to the pool, not to a view, so they are set whichever is showing.
     const isDone = (t) => t.status === 'done' || t.status === 'complete' || t.status === 'completed';
     const pool = visibleTasks();
@@ -84643,6 +84661,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   // Filtering and sorting belong to the pool, not to a view: a task hidden in the table is
   // hidden on the board too, or the counts stop agreeing with the rows again.
+  // A client that only ever existed to try something out is noise in a filter list.
+  // Matched on whole words, not substrings: a bare /test/ would have hidden a real
+  // "Contest" or "Testament", and today's list has none of those only by luck.
+  //
+  // This is a heuristic and it will eventually be wrong -- "Demo Day Ltd" is a plausible
+  // real client and would be hidden. The durable fix is a flag on the client that somebody
+  // sets deliberately; this is what can be done without asking anyone to go and tick 51
+  // boxes first. It hides them from the FILTER LIST only: a task already pointing at one
+  // still shows its name in the row, because pretending otherwise would make a real task
+  // look unassigned.
+  const P2_TEST_CLIENT = /(^|\s)(test|demo|sample|dummy|testing)(\s|$)|test\s*client/i;
+  const isTestClient = (id) => {
+    const c = p2.clients[id];
+    return !!(c && c.name && P2_TEST_CLIENT.test(c.name));
+  };
+
   const P2_FACETS = [
     { key: 'status',     label: 'Status',     of: t => t.status || null },
     { key: 'priority',   label: 'Priority',   of: t => t.priority_label || t.priority || null },
@@ -84660,6 +84694,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     Object.values(p2.filters).reduce((n, arr) => n + ((arr && arr.length) ? 1 : 0), 0);
 
   function passesFilters(t){
+    // Mine first: it is the cheapest test and the one most likely to reject.
+    if (p2.mine) {
+      const who = me();
+      if (!who || !assignees(t).includes(who)) return false;
+    }
     return P2_FACETS.every(f => {
       const want = p2.filters[f.key];
       if (!want || !want.length) return true;
@@ -84732,8 +84771,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       + 'top:' + Math.round(up ? Math.max(EDGE, r.top - GAP - maxH) : r.bottom + GAP) + 'px;left:'
       + Math.round(Math.max(EDGE, Math.min(r.left, window.innerWidth - 300))) + 'px;';
     const sections = P2_FACETS.map(f => {
-      const entries = [...counts[f.key].entries()]
-        .sort((a, b) => b[1] - a[1] || String(facetLabel(f.key, a[0])).localeCompare(String(facetLabel(f.key, b[0]))));
+      let entries = [...counts[f.key].entries()];
+      if (f.key === 'client') {
+        // Clients read as a directory, so they go A to Z. The other facets stay by count:
+        // a status or a person you have twenty tasks under is more use at the top than
+        // whatever happens to start with an A.
+        entries = entries.filter(([v]) => !isTestClient(v))
+          .sort((a, b) => String(facetLabel('client', a[0]))
+            .localeCompare(String(facetLabel('client', b[0])), undefined, { sensitivity: 'base' }));
+      } else {
+        entries.sort((a, b) => b[1] - a[1]
+          || String(facetLabel(f.key, a[0])).localeCompare(String(facetLabel(f.key, b[0]))));
+      }
       if (!entries.length) return '';
       const want = p2.filters[f.key] || [];
       return '<div style="padding:7px 8px 3px;font-size:10px;font-weight:800;letter-spacing:.05em;'
@@ -85356,6 +85405,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // and the original's is delegated on '#prjMembersBtn' -- an id this button does not
     // have -- so clicking it did nothing at all. It opens the shared modal, told which
     // project THIS screen has open rather than letting it read the other screen's.
+    const mine = $('prjMineBtn');
+    if (mine && !mine.dataset.p2Wired) {
+      mine.dataset.p2Wired = '1';
+      mine.addEventListener('click', (e) => {
+        e.stopPropagation();
+        p2.mine = !p2.mine;
+        try { localStorage.setItem('giant_p2_mine', p2.mine ? '1' : '0'); } catch (_) {}
+        renderTasks();
+      });
+    }
     const mb = $('prjMembersBtn');
     if (mb && !mb.dataset.p2Wired) {
       mb.dataset.p2Wired = '1';
