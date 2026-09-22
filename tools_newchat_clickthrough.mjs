@@ -5221,6 +5221,43 @@ await step('table columns can be dragged wider and narrower', async () => {
   check('and a real client that merely contains the word is not hidden with them',
     !cf.missing && cf.keepsRealOne, JSON.stringify(cf));
 
+  // The picker on a client CELL, which is a different list from the Filter panel's facet
+  // and was in whatever order the cache happened to be filled in. Two code paths fill that
+  // cache and only one of them ordered its query.
+  const cpick = await page.evaluate(async () => {
+    const w = ms => new Promise(r => setTimeout(r, ms));
+    // seed the cache the way the unordered path used to, so the picker cannot pass by
+    // inheriting a sorted query
+    window._prjClientsCache = [
+      { id: 'cp-3', name: 'Zebra Consulting' },
+      { id: 'cp-1', name: 'aardvark digital' },
+      { id: 'cp-t', name: 'Test Client Co' },
+      { id: 'cp-2', name: 'Contest Media' },
+      { id: 'cp-4', name: 'Beta Works' },
+    ];
+    document.querySelectorAll('.prj-popover').forEach(e => e.remove());
+    window.p2SetView('board'); await w(250); window.p2SetView('table'); await w(700);
+    const cell = document.querySelector('#p2_prjDailyBody .prj-cell[data-col="client"]');
+    if (!cell) return { missing: true };
+    cell.click(); await w(700);
+    const pop = document.querySelector('.prj-popover');
+    if (!pop) return { missing: true, noPopover: true };
+    const names = [...pop.querySelectorAll('[data-pop-val]:not([data-pop-val="__clear__"])')]
+      .map(o => o.dataset.name);
+    document.querySelectorAll('.prj-popover').forEach(e => e.remove());
+    delete window._prjClientsCache;
+    const sorted = [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    return { names, azOrder: JSON.stringify(names) === JSON.stringify(sorted),
+             hidesTest: !names.includes('Test Client Co'),
+             // case must not split the list into two alphabets
+             keepsLowercase: names.includes('aardvark digital'),
+             keepsContest: names.includes('Contest Media') };
+  });
+  check('the client picker is A to Z whatever order the cache was filled in',
+    !cpick.missing && cpick.azOrder && cpick.keepsLowercase, JSON.stringify(cpick));
+  check('and it leaves test clients out without hiding a real Contest',
+    !cpick.missing && cpick.hidesTest && cpick.keepsContest, JSON.stringify(cpick));
+
   // Deleting a task takes its subtasks and comments with it and cannot be undone, so it is
   // gated on who created it and confirmed by typing rather than by one click.
   const del = await page.evaluate(async () => {

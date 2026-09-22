@@ -40779,7 +40779,10 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         try { const { data } = await supabase.from('profiles').select('id, full_name, email, avatar_bg, avatar_fg, avatar_url'); window._prjTeamProfiles = data || []; } catch(_) {}
       }
       if (window._prjClientsCache === null) {
-        try { const { data } = await supabase.from('clients').select('id, name, avatar_bg, avatar_fg, initial'); window._prjClientsCache = data || []; } catch(_) {}
+        // .order('name') matters here: this and _prjLoadClients both fill the same cache,
+        // and whichever runs first decides what every client picker shows. Without it the
+        // list came back in whatever order PostgREST happened to return.
+        try { const { data } = await supabase.from('clients').select('id, name, avatar_bg, avatar_fg, initial').order('name'); window._prjClientsCache = data || []; } catch(_) {}
       }
 
       // Build the HTML for a single task row. Extracted so the optimistic "Add task" path
@@ -67850,6 +67853,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     } catch(_) { window._prjTeamProfiles = []; }
     return window._prjTeamProfiles;
   }
+  // Whole words, not substrings: a bare /test/ hides a real "Contest Media" or
+  // "Testament Ltd". Defined once and shared -- Projects 2.0's filter list uses the same
+  // one, and two copies of a rule like this drift the first time either is edited.
+  window._prjTestClientRe = /(^|\s)(test|demo|sample|dummy|testing)(\s|$)|test\s*client/i;
+  window._prjIsTestClient = (name) => !!(name && window._prjTestClientRe.test(String(name)));
+
   async function _prjLoadClients() {
     if (window._prjClientsCache) return window._prjClientsCache;
     try {
@@ -68058,7 +68067,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   async function openPrjClientPicker(cell) {
     const taskId = _prjTaskIdFrom(cell);
-    const clients = await _prjLoadClients();
+    // Sorted and filtered HERE rather than trusting the cache: two code paths fill it and
+    // whichever wins the race decided the order. A picker is a directory -- A to Z -- and
+    // a client that only ever existed to try something out is noise in one.
+    const clients = (await _prjLoadClients())
+      .filter(c => !window._prjIsTestClient(c.name))
+      .slice()
+      .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''),
+                                                          undefined, { sensitivity: 'base' }));
     if (!clients.length) {
       if (typeof toast === 'function') toast({type:'info', message:'No clients found — create one in Clients tab'});
       return;
@@ -84738,10 +84754,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   // boxes first. It hides them from the FILTER LIST only: a task already pointing at one
   // still shows its name in the row, because pretending otherwise would make a real task
   // look unassigned.
-  const P2_TEST_CLIENT = /(^|\s)(test|demo|sample|dummy|testing)(\s|$)|test\s*client/i;
   const isTestClient = (id) => {
     const c = p2.clients[id];
-    return !!(c && c.name && P2_TEST_CLIENT.test(c.name));
+    if (!c || !c.name) return false;
+    // The same rule the client picker uses, not a second copy of it.
+    return typeof window._prjIsTestClient === 'function'
+      ? window._prjIsTestClient(c.name)
+      : /(^|\s)(test|demo|sample|dummy|testing)(\s|$)|test\s*client/i.test(c.name);
   };
 
   const P2_FACETS = [
