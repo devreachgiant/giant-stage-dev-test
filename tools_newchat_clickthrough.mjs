@@ -4598,6 +4598,12 @@ await step('Projects 2.0 shows one task pool as table, board and timeline', asyn
     const tableHidden = getComputedStyle(document.getElementById('p2_prjTable')).display === 'none';
     const statusToggleHidden = getComputedStyle(document.getElementById('p2_prjStatusToggle')).display === 'none';
 
+    // Timeline is hidden: the switcher must offer Table and Board and nothing else.
+    // Reached below through p2SetView anyway, because the renderer is dormant rather than
+    // deleted and re-enabling it is one button -- so it stays covered.
+    const offered = [...document.querySelectorAll('#p2_prjViewToggle [data-p2-view]')]
+      .map(b => b.dataset.p2View);
+
     window.p2SetView('timeline'); await w(800);
     const tl = document.getElementById('p2_prjTimeline');
     const lanes = tl.querySelectorAll('[data-p2-tl-task]').length;
@@ -4607,7 +4613,7 @@ await step('Projects 2.0 shows one task pool as table, board and timeline', asyn
 
     window.p2SetView('board'); await w(600);
     return { pool, active, tableRows, headings, cards, tableHidden, lanes, axisLabels,
-             statusToggleShown, statusToggleHidden,
+             statusToggleShown, statusToggleHidden, offered,
              persisted: localStorage.getItem('giant_p2_view') };
   });
   check('the board columns are exactly the four statuses the database accepts',
@@ -4624,6 +4630,9 @@ await step('Projects 2.0 shows one task pool as table, board and timeline', asyn
     !r.skipped && r.statusToggleShown && r.statusToggleHidden, JSON.stringify(r));
   check('the timeline draws a real date axis, not one lonely label',
     !r.skipped && r.axisLabels >= 3, JSON.stringify(r));
+  check('the view switcher offers Table and Board only — Timeline is hidden',
+    !r.skipped && JSON.stringify(r.offered) === JSON.stringify(['table','board']),
+    JSON.stringify(r));
 });
 
 // projects.position is one number shared by the whole workspace and it is not distinct --

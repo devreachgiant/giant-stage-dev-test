@@ -10286,7 +10286,6 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <div class="prj-view-toggle" id="p2_prjViewToggle">
               <button class="prj-vt-btn active" data-p2-view="table"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Table</button>
               <button class="prj-vt-btn" data-p2-view="board"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="3.5" height="10" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="6.5" y="3" width="3.5" height="7" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="3" width="3" height="9" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>Board</button>
-              <button class="prj-vt-btn" data-p2-view="timeline"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3.5" width="7" height="3" rx="1.5" stroke="currentColor" stroke-width="1.4"/><rect x="5" y="9.5" width="9" height="3" rx="1.5" stroke="currentColor" stroke-width="1.4"/></svg>Timeline</button>
             </div>
           </div>
 
@@ -83574,8 +83573,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   function saveColumnWidths(){
     try { localStorage.setItem('giant_p2_colw', JSON.stringify(p2.colw)); } catch (_) {}
   }
+  // Timeline is hidden (its button is gone from the switcher), so a stored preference for
+  // it is not honoured -- otherwise whoever last used it reloads into a view with no
+  // control to leave by. renderTimeline() and the #prjTimeline host are deliberately kept:
+  // putting the view back is re-adding one button and 'timeline' to this list.
   try { const v = localStorage.getItem('giant_p2_view');
-        if (v === 'board' || v === 'timeline' || v === 'table') p2.view = v; } catch (_) {}
+        if (v === 'board' || v === 'table') p2.view = v; } catch (_) {}
 
   // The four values tasks.status actually accepts -- it is a Postgres enum (task_status),
   // so a column heading that is not one of these is a column nothing can ever be dropped
