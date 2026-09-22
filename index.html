@@ -730,8 +730,16 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
   border-radius:2px;background:rgba(255,255,255,.22);transition:background .12s ease,transform .12s ease;}
 #p2_root .p2-colgrip:hover::after{background:#fff;transform:scaleX(1.6);}
 #p2_root .p2-colgrip:active::after{background:#fff;transform:scaleX(1.6);}
-/* The table keeps its own width once columns are fixed, and scrolls rather than squashing. */
-#p2_root .prj-table{width:max-content;min-width:100%;}
+/* The table keeps its own width once columns are fixed, and scrolls rather than squashing.
+   The width belongs on the CONTENT, not on the scroller. width:max-content here made
+   .prj-table grow to fit its own content, so the element carrying overflow-x:auto never had
+   anything to scroll -- it simply overflowed its parent, and the card's right-hand border
+   sat somewhere off the side of the pane with no way to reach it. That is why the table had
+   a border down the left and none down the right: the left one was visible inside the
+   container's 12px padding and the right one was past the edge. The scroller is a scroller
+   again, and the section is what refuses to squash. */
+#p2_root .prj-table{width:auto;min-width:0;}
+#p2_root .p2-section{min-width:max-content;}
 /* The section card. .p2-section had no styling at all, so the table sat as a square slab
    while the original Projects screen shows a rounded card -- same data, two different
    screens. These are the original .prj-section values, with one deliberate difference:
@@ -41940,8 +41948,13 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     window.openPriorityManageModal = openPriorityManageModal;
 
     // ── Project Members modal — invite teammates ───────────────────
-    async function openProjectMembersModal() {
-      const pid = activeProjectId;
+    // Projects 2.0 shares this modal, and it has its own active project. This read the
+    // ORIGINAL screen's closure variable, so opening it from there would have quietly
+    // managed a different project's members -- whichever one this screen happened to have
+    // open. The caller says which project it means; nothing passes one and the behaviour
+    // is exactly as before.
+    async function openProjectMembersModal(projectIdArg) {
+      const pid = projectIdArg || activeProjectId;
       if (!pid) return;
       // Inject modal once
       let modal = document.getElementById('prjMembersModal');
@@ -84733,14 +84746,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           + 'text-overflow:ellipsis;white-space:nowrap;">' + esc(facetLabel(f.key, v)) + '</span>'
           + '<span style="font-size:11px;color:var(--text-4);flex-shrink:0;">' + n + '</span></label>').join('');
     }).join('');
-    pop.innerHTML = (sections || '<div style="padding:14px;font-size:12px;color:var(--text-4);">'
+    pop.innerHTML =
+      // Clear all at the top, stuck there. It was at the foot of a list that can be long
+      // enough to scroll, so the one control you reach for to undo a filter was the one
+      // you had to go looking for.
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;'
+      + 'padding:7px 9px 8px;border-bottom:1px solid var(--line);margin-bottom:2px;'
+      + 'position:sticky;top:-6px;z-index:1;background:var(--pane,var(--bg));">'
+      +   '<span style="font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;'
+      +   'color:var(--text-3);">Filter by</span>'
+      +   '<span id="p2_filterClear" style="font-size:11.5px;font-weight:700;color:var(--text-3);'
+      +   'cursor:pointer;">Clear all</span>'
+      + '</div>'
+      + (sections || '<div style="padding:14px;font-size:12px;color:var(--text-4);">'
         + 'Nothing to filter by in this project yet.</div>')
       // Stuck to the bottom of the panel rather than to the end of the list: with a long
       // list of facets, Clear all and Done scrolled away out of reach.
-      + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;'
+      + '<div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;'
       + 'padding:8px;border-top:1px solid var(--line);margin-top:4px;'
       + 'position:sticky;bottom:-6px;background:var(--pane,var(--bg));">'
-      + '<span id="p2_filterClear" style="font-size:11.5px;font-weight:700;color:var(--text-3);cursor:pointer;">Clear all</span>'
       + '<span id="p2_filterDone" style="font-size:11.5px;font-weight:700;color:var(--red);cursor:pointer;">Done</span>'
       + '</div>';
     document.body.appendChild(pop);
@@ -85327,6 +85351,28 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (fb && !fb.dataset.p2Wired) {
       fb.dataset.p2Wired = '1';
       fb.addEventListener('click', (e) => { e.stopPropagation(); openFilterPanel(); });
+    }
+    // Members. The markup was copied across with the p2_ prefix and the handler was not,
+    // and the original's is delegated on '#prjMembersBtn' -- an id this button does not
+    // have -- so clicking it did nothing at all. It opens the shared modal, told which
+    // project THIS screen has open rather than letting it read the other screen's.
+    const mb = $('prjMembersBtn');
+    if (mb && !mb.dataset.p2Wired) {
+      mb.dataset.p2Wired = '1';
+      mb.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const ap = activeProject();
+        if (!ap) {
+          if (typeof toast === 'function') toast({ type: 'info', report: false,
+            message: 'Open a project first.' });
+          return;
+        }
+        if (typeof window.openProjectMembersModal === 'function') {
+          window.openProjectMembersModal(ap.id);
+        } else if (typeof toast === 'function') {
+          toast({ type: 'error', message: 'The project members panel is not available.' });
+        }
+      });
     }
     const vt = $('prjViewToggle');
     if (vt && !vt.dataset.p2Wired) {

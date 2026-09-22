@@ -5032,6 +5032,76 @@ await step('table columns can be dragged wider and narrower', async () => {
   }
   check('every one of the seven columns actually resizes when dragged',
     Object.values(perCol).every(v => v === 'ok'), JSON.stringify(perCol));
+
+  // The card had a border down the left and none down the right. width:max-content sat on
+  // the element carrying overflow-x:auto, so the scroller grew to fit its own content,
+  // never scrolled, and the right-hand border ended up somewhere off the side of the pane.
+  const edges = await page.evaluate(() => {
+    const tbl = document.getElementById('p2_prjTable');
+    const sec = document.querySelector('#p2_prjDailyBody .p2-section');
+    if (!tbl || !sec) return { missing: true };
+    const cs = getComputedStyle(sec);
+    tbl.scrollLeft = tbl.scrollWidth;           // scroll to the far right
+    const t = tbl.getBoundingClientRect(), s = sec.getBoundingClientRect();
+    return {
+      leftBorder: cs.borderLeftWidth, rightBorder: cs.borderRightWidth,
+      radius: cs.borderTopLeftRadius,
+      // the scroller must actually be able to scroll, or the right edge is unreachable
+      scrollable: tbl.scrollWidth > tbl.clientWidth + 1,
+      // and once scrolled to the end, the section's right edge is inside the viewport
+      rightEdgeReachable: Math.round(s.right) <= Math.round(t.right) + 1,
+    };
+  });
+  check('the card has a border on both sides, and the right one can be reached',
+    !edges.missing && edges.leftBorder === '1px' && edges.rightBorder === '1px'
+      && edges.radius !== '0px' && edges.rightEdgeReachable, JSON.stringify(edges));
+
+  // Clear all was at the foot of a list long enough to scroll, so the control you reach
+  // for to undo a filter was the one you had to go hunting for.
+  const filt = await page.evaluate(async () => {
+    const w = ms => new Promise(r => setTimeout(r, ms));
+    document.querySelectorAll('.p2-filterpop').forEach(e => e.remove());
+    document.getElementById('p2_prjFilterBtn').click();
+    await w(500);
+    const pop = document.querySelector('.p2-filterpop');
+    if (!pop) return { missing: true };
+    const clear = document.getElementById('p2_filterClear');
+    const done = document.getElementById('p2_filterDone');
+    const pr = pop.getBoundingClientRect();
+    const out = {
+      hasClear: !!clear, hasDone: !!done,
+      // Clear all in the top half of the panel, not the bottom
+      clearNearTop: clear ? (clear.getBoundingClientRect().top - pr.top) < pr.height / 2 : false,
+      // the panel must fit on screen -- this is what "not scrollable at the bottom" was
+      fitsOnScreen: Math.round(pr.bottom) <= window.innerHeight,
+      maxH: pop.style.maxHeight,
+    };
+    document.querySelectorAll('.p2-filterpop').forEach(e => e.remove());
+    return out;
+  });
+  check('Clear all is at the top of the Filter panel, and the panel fits on screen',
+    !filt.missing && filt.hasClear && filt.hasDone && filt.clearNearTop && filt.fitsOnScreen,
+    JSON.stringify(filt));
+
+  // The Members markup was copied across with the p2_ prefix and the handler was not, and
+  // the original's is delegated on an id this button does not have -- so it did nothing.
+  const mem = await page.evaluate(async () => {
+    const w = ms => new Promise(r => setTimeout(r, ms));
+    let askedFor = null;
+    const real = window.openProjectMembersModal;
+    window.openProjectMembersModal = (pid) => { askedFor = pid === undefined ? '(none)' : pid; };
+    const btn = document.getElementById('p2_prjMembersBtn');
+    const out = { exists: !!btn };
+    if (btn) { btn.click(); await w(300); }
+    out.askedFor = askedFor;
+    // it must ask for the project THIS screen has open, not whatever the other one has
+    out.isThisScreensProject = askedFor === (window.p2State && window.p2State.activeId);
+    window.openProjectMembersModal = real;
+    return out;
+  });
+  check('Members opens the panel for the project this screen has open',
+    mem.exists && mem.askedFor && mem.askedFor !== '(none)' && mem.isThisScreensProject,
+    JSON.stringify(mem));
 });
 
 // A row could be ticked, timed and dragged, but not read: the description, the dates and
