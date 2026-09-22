@@ -5385,6 +5385,114 @@ await step('table columns can be dragged wider and narrower', async () => {
     stage.foundRow && stage.savedStage === 'review' && stage.savedStatus === 'in_progress'
       && stage.doneStage === 'done' && stage.doneStatus === 'done' && stage.stampedCompleted,
     JSON.stringify(stage));
+
+  // Three things reported together, and all three were the same shape of bug: a control on
+  // this screen calling code that only knew about the other screen's row, or only about
+  // half the state.
+  const fixes = await page.evaluate(async () => {
+    const w = ms => new Promise(r => setTimeout(r, ms));
+    const st = window.p2State, db = window.__mock.db;
+    const out = {};
+    const repaint = async () => { window.p2SetView('board'); await w(300);
+                                  window.p2SetView('table'); await w(700); };
+    await repaint();
+
+    // 1. the editable cells could not find a task id on this screen's rows, so every save
+    //    refused with "This task is not saved yet" -- for saved tasks.
+    // A task whose id is UUID-shaped. The persist guard rejects anything that is not one
+    // -- rightly, it is there to catch rows that were never inserted -- and every fixture
+    // id here is 't-1-2' and friends, so without this the check cannot tell a resolved id
+    // from an unresolved one. The first version of this check asserted on assigned_to
+    // being non-empty, which the fixtures already were: it passed while proving nothing.
+    const uuid = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeee0001';
+    const probe = { ...st.tasks[0], id: uuid, name: 'assign-probe', assigned_to: [],
+                    status: 'todo', status_stage: 'not_started' };
+    st.tasks.unshift(probe);
+    db.tasks.push({ ...probe });
+    await repaint();
+
+    const prow = document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task="' + uuid + '"]');
+    const cellEl = prow && prow.querySelector('.prj-cell[data-col="assignee"]');
+    const arow = prow;
+    out.foundCell = !!cellEl;
+    if (arow && cellEl) {
+      const taskId = arow.dataset.p2Task;
+      let refused = false;
+      const said = [];
+      // Clear any popover an earlier step left behind: clicking an option inside a stale
+      // one runs a handler bound to a different cell, which is its own failure and not
+      // the one being tested here.
+      document.querySelectorAll('.prj-popover').forEach(e => e.remove());
+      const realToast = window.toast;
+      const realWarn = console.warn;
+      const warns = [];
+      console.warn = (...a) => { warns.push(a.map(String).join(' ').slice(0, 150)); realWarn(...a); };
+      window.toast = (o2) => { const m = (o2 && o2.message) || '';
+        said.push(String(m).slice(0, 60));
+        if (/not saved yet/i.test(m)) refused = true; };
+      cellEl.click(); await w(600);
+      const pops = [...document.querySelectorAll('.prj-popover')];
+      out.popoverCount = pops.length;
+      const opt = pops.length
+        ? pops[pops.length - 1].querySelector('[data-pop-val]:not([data-pop-val="__clear__"])')
+        : null;
+      out.popoverOpened = !!opt;
+      if (opt) { opt.click(); await w(900); }
+      window.toast = realToast;
+      console.warn = realWarn;
+      out.refusedAsUnsaved = refused;
+      out.toasts = said;
+      out.warns = warns.filter(x => /SKIP persist/.test(x));
+      const saved = db.tasks.find(x => x.id === taskId) || {};
+      out.assigneeSaved = Array.isArray(saved.assigned_to) && saved.assigned_to.length > 0;
+      out.resolvedId = taskId;
+      document.querySelectorAll('.prj-popover').forEach(e => e.remove());
+      st.tasks = st.tasks.filter(x => x.id !== uuid);
+      db.tasks = db.tasks.filter(x => x.id !== uuid);
+      await repaint();
+    }
+
+    // 2. an untracked task showed a blank Time cell rather than a zero
+    const timed = [...document.querySelectorAll('#p2_prjDailyBody .prj-cell[data-col="timer"]')]
+      .map(c => c.textContent.trim());
+    out.noBlankTimes = timed.length > 0 && timed.every(x => /\d/.test(x));
+
+    // 3. ticking a task complete moved it out of Active but left its stage behind
+    const t = st.tasks.find(x => x.status !== 'done');
+    out.foundOne = !!t;
+    if (t) {
+      const tick = document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task="'
+        + t.id + '"] [data-p2-toggle]');
+      out.hasTick = !!tick;
+      if (tick) { tick.click(); await w(900); }
+      const saved = db.tasks.find(x => x.id === t.id) || {};
+      out.tickStage = saved.status_stage;
+      out.tickStatus = saved.status;
+      out.tickStamped = !!saved.completed_at;
+      // and it is gone from the Active list
+      out.goneFromActive = !document.querySelector(
+        '#p2_prjDailyBody .prj-row[data-p2-task="' + t.id + '"]');
+      // un-tick it: leaving a task completed takes a row away from every step after this.
+      if (window.p2State) {
+        const back = st.tasks.find(x => x.id === t.id);
+        if (back) { back.status = 'todo'; back.status_stage = 'not_started'; }
+        const d = db.tasks.find(x => x.id === t.id);
+        if (d) { d.status = 'todo'; d.status_stage = 'not_started'; d.completed_at = null; }
+        await repaint();
+      }
+    }
+    return out;
+  });
+  check('assigning somebody actually saves, instead of refusing as unsaved',
+    fixes.foundCell && fixes.popoverOpened && fixes.refusedAsUnsaved === false
+      && fixes.assigneeSaved && fixes.resolvedId === 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeee0001',
+    JSON.stringify(fixes));
+  check('an untracked task shows a zero in Time, not an empty cell',
+    fixes.noBlankTimes, JSON.stringify(fixes));
+  check('ticking a task complete sets its stage to Done and moves it off the active list',
+    fixes.foundOne && fixes.hasTick && fixes.tickStage === 'done'
+      && fixes.tickStatus === 'done' && fixes.tickStamped && fixes.goneFromActive,
+    JSON.stringify(fixes));
 });
 
 // A row could be ticked, timed and dragged, but not read: the description, the dates and

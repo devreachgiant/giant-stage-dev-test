@@ -67945,6 +67945,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     return pop;
   }
 
+  // A task row is a task row on either Projects screen, but they label themselves
+  // differently: the original carries data-task-id, Projects 2.0 carries data-p2-task.
+  // Every editable cell here resolved only the first, so on the rebuild taskId came back
+  // undefined and the persist below refused with "This task is not saved yet" -- which was
+  // not what was wrong. Nothing was unsaved; the handler could not find the id.
+  //
+  // Deliberately NOT fixed by adding data-task-id to the rebuild's rows: that would hand
+  // every one of the original screen's delegated handlers a row it was never written for.
+  function _prjTaskIdFrom(el) {
+    const a = el && el.closest('[data-task-id]');
+    if (a && a.dataset.taskId) return a.dataset.taskId;
+    const b = el && el.closest('[data-p2-task]');
+    return b ? b.dataset.p2Task : undefined;
+  }
+
   // ── PERSISTENCE ──
   async function _prjPersistCell(taskId, field, value) {
     if (!taskId || !/^[0-9a-f-]{30,}$/i.test(taskId)) {
@@ -67983,7 +67998,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   // ── PICKERS ──
   function openPrjPriorityPickerHC(cell) {
-    const taskId = cell.closest('[data-task-id]')?.dataset.taskId;
+    const taskId = _prjTaskIdFrom(cell);
     const opts = PRJ_PRIORITY_OPTIONS.map(o =>
       `<div class="prj-popover-opt" data-pop-val="${_prjEscapeHtml(o.value)}"><span class="prj-lbl ${o.cls}">${_prjEscapeHtml(o.value)}</span></div>`
     ).join('');
@@ -67995,7 +68010,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   function openPrjDepartmentPicker(cell) {
-    const taskId = cell.closest('[data-task-id]')?.dataset.taskId;
+    const taskId = _prjTaskIdFrom(cell);
     const opts = PRJ_DEPARTMENT_OPTIONS.map(o =>
       `<div class="prj-popover-opt" data-pop-val="${_prjEscapeHtml(o.value)}"><span class="prj-lbl ${o.cls}">${_prjEscapeHtml(o.value)}</span></div>`
     ).join('');
@@ -68007,7 +68022,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   async function openPrjAssigneePicker(cell) {
-    const taskId = cell.closest('[data-task-id]')?.dataset.taskId;
+    const taskId = _prjTaskIdFrom(cell);
     const profiles = await _prjLoadProfiles();
     if (!profiles.length) {
       if (typeof toast === 'function') toast({type:'info', message:'No team members found'});
@@ -68042,7 +68057,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   async function openPrjClientPicker(cell) {
-    const taskId = cell.closest('[data-task-id]')?.dataset.taskId;
+    const taskId = _prjTaskIdFrom(cell);
     const clients = await _prjLoadClients();
     if (!clients.length) {
       if (typeof toast === 'function') toast({type:'info', message:'No clients found — create one in Clients tab'});
@@ -68072,7 +68087,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   function openPrjTaskDetailsEditor(cell) {
-    const taskId = cell.closest('[data-task-id]')?.dataset.taskId;
+    const taskId = _prjTaskIdFrom(cell);
     const current = cell.querySelector('span:not(.prj-cell-empty)')?.textContent || '';
     cell.innerHTML = '';
     const input = document.createElement('textarea');
@@ -85005,8 +85020,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const num = mine
         ? '<span data-p2-elapsed="' + esc(t.id) + '" style="color:var(--red);font-weight:700;">'
           + esc(fmt(T().elapsed(s))) + '</span>'
-        : (total > 0 ? '<span class="p2-logged" title="Total logged by everyone">'
-            + esc(fmt(total)) + '</span>' : '');
+        // A zero rather than a blank. An empty cell reads as "this column does not apply
+        // to this row"; 0:00:00 reads as "nothing logged yet", which is what it means --
+        // and it keeps the digits in the same place on every row instead of the play
+        // button sliding left on untracked ones. Dimmed, so a real total still stands out.
+        : (total > 0
+            ? '<span class="p2-logged" title="Total logged by everyone">' + esc(fmt(total)) + '</span>'
+            : '<span class="p2-logged" title="Nothing logged yet" style="color:var(--text-4);">'
+              + esc(fmt(0)) + '</span>');
 
       // slot 3 -- the controls, at the same right edge on every row.
       const ctrl = '<span class="p2-timer' + (mine ? ' p2-timer-on' : '') + '" data-p2-timer="' + esc(t.id) + '"'
@@ -85477,18 +85498,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
   function liveSessionSafe(){ return window.giantTaskTimer ? window.giantTaskTimer.session() : null; }
 
+  // Through setTaskStage, so ticking a task complete moves BOTH. Writing only status left
+  // the row correctly out of the Active list while the Status column still read "Not
+  // started" and its board card sat in the wrong column -- exactly the drift the two
+  // columns are written together to avoid. It also never stamped completed_at, which is
+  // what the rest of the app reads to say when something was finished.
+  //
+  // Un-ticking returns it to Not started. Whatever stage it was at before being completed
+  // is not recorded anywhere, and guessing at it would be worse than the obvious answer.
   async function toggleDone(taskId){
     const t = p2.tasks.find(x => x.id === taskId);
     if (!t) return;
-    const isDone = t.status === 'done';
-    t.status = isDone ? 'todo' : 'done';
-    renderTasks();
-    const { error } = await sb().from('tasks').update({ status: t.status }).eq('id', taskId);
-    if (error) {
-      t.status = isDone ? 'done' : 'todo';
-      renderTasks();
-      if (window.toast) toast({ type:'error', message:'Could not update that task: ' + error.message });
-    }
+    const isDone = stageOf(t) === 'done' || t.status === 'done';
+    return setTaskStage(taskId, isDone ? P2_STAGE_DEFAULT : 'done');
   }
 
   // Status toggle (Active / Done), scoped -- a bare .prj-st-btn would also grab the
