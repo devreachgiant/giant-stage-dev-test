@@ -4568,6 +4568,21 @@ await step('the Projects table tracks time on a task row', async () => {
     JSON.stringify(r));
 });
 
+// Which of the two Projects 2.0 you land on. This has to be read BEFORE any step below
+// sets window.p2UseRebuild itself, and while nothing is saved in localStorage -- that pair
+// is exactly the first-visit state, and it is the only moment the default is observable.
+const mode = await step('Projects 2.0 opens on the rebuild, not the clone', async () => {
+  return await page.evaluate(() => ({
+    saved: (() => { try { return localStorage.getItem('giant_p2_mode'); } catch (_) { return 'unreadable'; } })(),
+    useRebuild: window.p2UseRebuild === true,
+    switchOffersBoth: [...(document.getElementById('p2_modeSwitch') || { children: [] }).children]
+      .map(b => b.textContent.trim()).join('|'),
+  }));
+});
+check('with nothing saved, Projects 2.0 lands on the rebuild and still offers the clone',
+  mode.saved === null && mode.useRebuild && mode.switchOffersBoth === 'Clone|Rebuild',
+  JSON.stringify(mode));
+
 // One pool of tasks, three ways of looking at it. The failure the original module kept
 // producing was per-view task ownership -- a task in the board and missing from the list --
 // so the check that matters is that all three views describe the same tasks, and that

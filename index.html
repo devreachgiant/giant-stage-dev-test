@@ -84155,18 +84155,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 // every interval comes with it, because it is the same node -- which is what makes this a
 // clone rather than a likeness.
 //
-// The catch, stated plainly: there is one screen, so the two nav items show the same
-// thing. It cannot diverge. The rebuilt module below is left intact and dormant behind
-// window.p2UseRebuild for when it should.
+// The catch, stated plainly: there is one screen, so while the clone is showing, the two
+// nav items show the same thing and it cannot diverge. That is why the clone is no longer
+// the default -- the rebuilt module below is what Projects 2.0 opens on now, and the clone
+// is the comparison you switch to, not the thing you land on.
 (function projects2Alias(){
   // Which of the two Projects 2.0 is showing, remembered per person. The clone is the
   // live Projects screen moved into this container; the rebuild is the new module. A
   // switch rather than a code edit, because the whole point of having both is being able
   // to look at one and then the other.
+  // The rebuild is what Projects 2.0 is for, so it is what opening Projects 2.0 shows.
+  // The clone stays one click away -- it is the thing to compare against, and the way back
+  // if the new screen is wrong about something -- but it is no longer what you land on.
+  // A choice already made still wins over this default, in both directions.
+  window.p2UseRebuild = true;
   try {
     const saved = localStorage.getItem('giant_p2_mode');
-    if (saved === 'rebuild') window.p2UseRebuild = true;
     if (saved === 'clone') window.p2UseRebuild = false;
+    if (saved === 'rebuild') window.p2UseRebuild = true;
   } catch (_) {}
 
   (function addModeSwitch(){
