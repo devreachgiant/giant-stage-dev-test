@@ -5130,37 +5130,47 @@ await step('table columns can be dragged wider and narrower', async () => {
     out.total = st.tasks.length;
     out.someButNotAll = mineCount > 0 && mineCount < st.tasks.length;
 
-    const btn = document.getElementById('p2_prjMineBtn');
-    out.exists = !!btn;
-    if (!btn) return out;
-    out.label = btn.textContent.trim();
+    // A segmented pair now, not one button that lights up: both states are named, so you
+    // can see where you are and where you can go without decoding a colour.
+    const tog = document.getElementById('p2_prjMineToggle');
+    out.exists = !!tog;
+    if (!tog) return out;
+    const half = (v) => tog.querySelector('[data-p2-mine="' + v + '"]');
+    out.labels = [...tog.querySelectorAll('[data-p2-mine]')].map(b => b.textContent.trim());
 
     window.p2SetView('table'); await w(600);
     const rows = () => document.querySelectorAll('#p2_prjDailyBody .prj-row[data-p2-task]').length;
+    // start from All, whatever a previous run left behind
+    half('0').click(); await w(600);
     out.rowsAllOff = rows();
-    btn.click(); await w(700);
-    out.on = btn.classList.contains('on');
+    out.allSelectedFirst = half('0').classList.contains('active');
+    half('1').click(); await w(700);
+    out.on = half('1').classList.contains('active') && !half('0').classList.contains('active');
     out.rowsWhenMine = rows();
     // the Active/Done counts come off the same pool, so they must have narrowed too
     out.activeCount = document.getElementById('p2_prjStCountActive').textContent;
     // and the board, which is a different renderer reading the same pool
     window.p2SetView('board'); await w(700);
     out.cardsWhenMine = document.querySelectorAll('#p2_prjBoard [data-p2-card]').length;
-    out.shownOnBoard = getComputedStyle(btn).display !== 'none';
+    out.shownOnBoard = getComputedStyle(tog).display !== 'none';
     window.p2SetView('table'); await w(600);
     out.persisted = localStorage.getItem('giant_p2_mine');
-    btn.click(); await w(700);
+    // and back to All, which is the half of the round trip that was easy to get wrong
+    half('0').click(); await w(700);
     out.rowsBackOff = rows();
+    out.backToAllSelected = half('0').classList.contains('active');
     return out;
   });
-  check('My tasks is in the toolbar and narrows the table to the signed-in user',
-    minef.exists && minef.label === 'My tasks' && minef.someButNotAll && minef.on
-      && minef.rowsWhenMine < minef.rowsAllOff && minef.rowsWhenMine > 0,
-    JSON.stringify(minef));
+  check('the toolbar names both states, All tasks and My tasks, and starts on All',
+    minef.exists && JSON.stringify(minef.labels) === JSON.stringify(['All tasks','My tasks'])
+      && minef.allSelectedFirst, JSON.stringify(minef));
+  check('My tasks narrows the table to the signed-in user, and All puts it back',
+    minef.someButNotAll && minef.on && minef.rowsWhenMine < minef.rowsAllOff
+      && minef.rowsWhenMine > 0 && minef.rowsBackOff === minef.rowsAllOff
+      && minef.backToAllSelected, JSON.stringify(minef));
   check('it narrows the board and the counts too, and is remembered',
     minef.cardsWhenMine === minef.mineCount && minef.shownOnBoard
-      && minef.persisted === '1' && minef.rowsBackOff === minef.rowsAllOff,
-    JSON.stringify(minef));
+      && minef.persisted === '1', JSON.stringify(minef));
 
   // The Client facet is a directory, so A to Z; and a client that only ever existed to try
   // something out is noise in it.
@@ -5193,6 +5203,104 @@ await step('table columns can be dragged wider and narrower', async () => {
     !cf.missing && cf.azOrder && cf.hidesTests, JSON.stringify(cf));
   check('and a real client that merely contains the word is not hidden with them',
     !cf.missing && cf.keepsRealOne, JSON.stringify(cf));
+
+  // Deleting a task takes its subtasks and comments with it and cannot be undone, so it is
+  // gated on who created it and confirmed by typing rather than by one click.
+  const del = await page.evaluate(async () => {
+    const w = ms => new Promise(r => setTimeout(r, ms));
+    const me = window.giantSession.user.id;
+    const st = window.p2State, db = window.__mock.db;
+    const out = {};
+    st.mine = false;
+    try { localStorage.setItem('giant_p2_mine', '0'); } catch (_) {}
+
+    // Two disposable tasks of its own: one mine, one somebody else's. Deleting a fixture
+    // row would take it away from every step that runs after this one.
+    const base = st.tasks[0];
+    const mk = (id, by) => ({ ...base, id, name: 'del-probe-' + id, created_by: by,
+                              assigned_to: [me], status: 'todo' });
+    const a = mk('t-del-mine', me), b = mk('t-del-theirs', 'u-9');
+    [a, b].forEach(t => { st.tasks.push(t); db.tasks.push({ ...t }); });
+
+    // as a plain member, only my own task offers the control
+    const wasRole = window.giantCurrentProfile.role;
+    window.giantCurrentProfile.role = 'member';
+    // Bounce through the board to force a repaint. p2SetView returns early when the view
+    // is already the one asked for, so calling it with 'table' while on the table renders
+    // nothing -- and the freshly planted rows were not in the DOM when this measured them.
+    const repaint = async () => {
+      window.p2SetView('board'); await w(300);
+      window.p2SetView('table'); await w(700);
+    };
+    await repaint();
+    const ctl = (id) => !!document.querySelector(
+      '#p2_prjDailyBody .prj-row[data-p2-task="' + id + '"] [data-p2-task-del]');
+    out.memberSeesOwn = ctl(a.id);
+    out.memberSeesOthers = ctl(b.id);
+    out.headingSaysDelete = /delete/i.test(
+      (document.querySelector('#p2_prjDailyBody .prj-th[data-col="pad"]') || {}).textContent || '');
+
+    // a manager may delete anybody's
+    window.giantCurrentProfile.role = 'manager';
+    await repaint();
+    out.managerSeesOthers = ctl(b.id);
+
+    // typing the wrong word must not delete
+    const realPrompt = window.giantPrompt;
+    let asked = '';
+    window.giantPrompt = (msg) => { asked = String(msg); return Promise.resolve('yes'); };
+    const alive = () => db.tasks.some(t => t.id === b.id);
+    document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task="' + b.id + '"] [data-p2-task-del]').click();
+    await w(700);
+    out.askedToType = /type\s+delete/i.test(asked);
+    out.survivedWrongWord = alive();
+
+    // and typing delete must
+    window.giantPrompt = () => Promise.resolve('Delete');   // case-insensitive, trimmed
+    document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task="' + b.id + '"] [data-p2-task-del]').click();
+    await w(900);
+    out.deletedOnRightWord = !alive();
+
+    window.giantPrompt = realPrompt;
+    window.giantCurrentProfile.role = wasRole;
+    // leave the fixtures as they were found
+    st.tasks = st.tasks.filter(t => t.id !== 't-del-mine' && t.id !== 't-del-theirs');
+    db.tasks = db.tasks.filter(t => t.id !== 't-del-mine' && t.id !== 't-del-theirs');
+    window.p2SetView('table'); await w(500);
+    return out;
+  });
+  check('the delete column is labelled, and only the creator sees the control',
+    del.headingSaysDelete && del.memberSeesOwn && del.memberSeesOthers === false,
+    JSON.stringify(del));
+  check('a manager can delete anybody\'s task',
+    del.managerSeesOthers, JSON.stringify(del));
+  check('deleting asks you to type delete, and refuses anything else',
+    del.askedToType && del.survivedWrongWord && del.deletedOnRightWord,
+    JSON.stringify(del));
+
+  // The add-a-task box was under the whole list -- sixty-nine rows in the master list --
+  // so adding one meant scrolling to the end to find it.
+  const addpos = await page.evaluate(async () => {
+    const w = ms => new Promise(r => setTimeout(r, ms));
+    window.p2SetView('table'); await w(700);
+    const body = document.querySelector('#p2_prjDailyBody [data-p2-folder-body]');
+    const add = document.querySelector('#p2_prjDailyBody [data-p2-add-in]');
+    const rows = [...document.querySelectorAll('#p2_prjDailyBody .prj-row[data-p2-task]')];
+    if (!body || !add || !rows.length) return { missing: true };
+    const kids = [...body.children];
+    const addRow = add.closest('div');
+    return {
+      rows: rows.length,
+      // above the first task row, both in document order and on screen
+      beforeFirstRow: kids.indexOf(addRow) < kids.indexOf(rows[0]),
+      aboveOnScreen: addRow.getBoundingClientRect().top < rows[0].getBoundingClientRect().top,
+      // still typable, which is the whole point of it
+      enabled: !add.disabled && add.placeholder === 'Add a task',
+    };
+  });
+  check('the add-a-task box is above the list, not behind it',
+    !addpos.missing && addpos.rows > 1 && addpos.beforeFirstRow && addpos.aboveOnScreen
+      && addpos.enabled, JSON.stringify(addpos));
 });
 
 // A row could be ticked, timed and dragged, but not read: the description, the dates and

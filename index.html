@@ -740,11 +740,6 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
    again, and the section is what refuses to squash. */
 #p2_root .prj-table{width:auto;min-width:0;}
 #p2_root .p2-section{min-width:max-content;}
-/* "My tasks" reads as pressed when it is on, using the red the rest of this screen already
-   uses for an active control -- so it is obvious at a glance why a list is short. */
-#p2_root #p2_prjMineBtn.on{background:rgba(208,4,0,.12);border-color:rgba(208,4,0,.45);
-  color:var(--text);}
-#p2_root #p2_prjMineBtn:hover{border-color:var(--text-4);color:var(--text);}
 /* The section card. .p2-section had no styling at all, so the table sat as a square slab
    while the original Projects screen shows a rounded card -- same data, two different
    screens. These are the original .prj-section values, with one deliberate difference:
@@ -10297,7 +10292,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
           <!-- controls bar -->
           <div class="prj-controls">
             <div class="prj-spacer"></div>
-            <button id="p2_prjMineBtn" title="Show only tasks assigned to me" style="background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:6px 11px;color:var(--text-2);cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;margin-right:8px;"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5.5" r="2.6" stroke="currentColor" stroke-width="1.4"/><path d="M3 13.5c0-2.4 2.2-4 5-4s5 1.6 5 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg><span>My tasks</span></button>
+            <div class="prj-status-toggle" id="p2_prjMineToggle" style="display:flex;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px;margin-right:8px;"><button class="prj-st-btn active" data-p2-mine="0" style="background:var(--surface-2);color:var(--text);border:none;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">All tasks</button><button class="prj-st-btn" data-p2-mine="1" style="background:transparent;color:var(--text-2);border:none;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">My tasks</button></div>
             <div class="prj-status-toggle" id="p2_prjStatusToggle" style="display:flex;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px;margin-right:8px;">
               <button class="prj-st-btn active" data-status="active" style="background:var(--surface-2);color:var(--text);border:none;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">Active <span class="prj-st-count" id="p2_prjStCountActive" style="opacity:.6;margin-left:3px;">0</span></button>
               <button class="prj-st-btn" data-status="done" style="background:transparent;color:var(--text-2);border:none;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">Done <span class="prj-st-count" id="p2_prjStCountDone" style="opacity:.6;margin-left:3px;">0</span></button>
@@ -83604,7 +83599,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   function applyColumnWidths(){
     const tbl = $('prjTable');
     if (!tbl) return;
-    tbl.style.setProperty('--prj-cols', P2_COL_ORDER.map(k => colWidth(k) + 'px').join(' ') + ' 52px');
+    tbl.style.setProperty('--prj-cols', P2_COL_ORDER.map(k => colWidth(k) + 'px').join(' ') + ' 92px');
   }
   function saveColumnWidths(){
     try { localStorage.setItem('giant_p2_colw', JSON.stringify(p2.colw)); } catch (_) {}
@@ -83969,12 +83964,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (st) st.style.display = p2.view === 'table' ? 'flex' : 'none';
     // Shown on every view, because "only mine" means the same thing on a board as in a
     // table -- unlike Active/Done, which is a filter only the table applies.
-    const mineBtn = $('prjMineBtn');
-    if (mineBtn) {
-      mineBtn.classList.toggle('on', !!p2.mine);
-      mineBtn.title = p2.mine ? 'Showing only tasks assigned to you — click to show all'
-                              : 'Show only tasks assigned to me';
-    }
+    const mt = $('prjMineToggle');
+    if (mt) mt.querySelectorAll('[data-p2-mine]').forEach(b => {
+      const on = (b.dataset.p2Mine === '1') === !!p2.mine;
+      b.classList.toggle('active', on);
+      b.style.background = on ? 'var(--surface-2)' : 'transparent';
+      b.style.color = on ? 'var(--text)' : 'var(--text-2)';
+    });
     // The counts belong to the pool, not to a view, so they are set whichever is showing.
     const isDone = (t) => t.status === 'done' || t.status === 'complete' || t.status === 'completed';
     const pool = visibleTasks();
@@ -84693,6 +84689,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   const activeFilterCount = () =>
     Object.values(p2.filters).reduce((n, arr) => n + ((arr && arr.length) ? 1 : 0), 0);
 
+  // Who may delete a task. The person who created it, plus the people who answer for the
+  // whole workspace -- owner, manager and the in-house dev, which is Luke, Matthew,
+  // Kristina and Nishchay today.
+  //
+  // Nishchay asked for "Luke, Matt and me", which is those three roles minus Kristina.
+  // Keyed on role rather than on three profile ids on purpose: a list of names in a
+  // condition goes stale the first time somebody joins or leaves and nobody thinks to come
+  // back here. It does mean Kristina can delete too, as an owner. Say so if that is wrong
+  // and it becomes a flag rather than a role.
+  const P2_DELETE_ROLES = ['owner', 'manager', 'inhouse_dev'];
+  const canDeleteTask = (t) => {
+    if (!t) return false;
+    const who = me();
+    if (who && t.created_by === who) return true;
+    const role = (window.giantCurrentProfile || {}).role;
+    return P2_DELETE_ROLES.includes(role);
+  };
+
   function passesFilters(t){
     // Mine first: it is the cheapest test and the one most likely to reject.
     if (p2.mine) {
@@ -84966,9 +84980,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         + '<div class="prj-cell" data-col="department">' + cell('_renderPrjDepartmentCell', t.department) + '</div>'
         + '<div class="prj-cell" data-col="task_details">' + cell('_renderPrjTaskDetailsCell', t.description) + '</div>'
         + '<div class="prj-cell prj-cell-pad" data-col="pad">'
-        +   '<span class="p2-row-del" data-p2-task-del="' + esc(t.id) + '" title="Delete this task">'
-        +   '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8"'
-        +   ' stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>'
+        // No control at all for somebody who cannot delete it. A visible button that
+        // refuses on click teaches people the app is unreliable; an absent one teaches
+        // them whose task it is.
+        +   (canDeleteTask(t)
+              ? '<span class="p2-row-del" data-p2-task-del="' + esc(t.id) + '" title="Delete this task">'
+                + '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8"'
+                + ' stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>'
+              : '')
         + '</div>'
         + '</div>';
     };
@@ -85003,7 +85022,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       + th('client', 'Client')
       + th('department', 'Department')
       + th('task_details', 'Task infos')
-      + '<div class="prj-th" data-col="pad"></div>'
+      + '<div class="prj-th" data-col="pad">Delete</div>'
       + '</div>';
 
     // One section, named for where you actually are. It grouped by client before and
@@ -85035,7 +85054,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       + '</div>'
       + '<div data-p2-folder-body="__all__"' + (shut ? ' style="display:none;"' : '') + '>'
       + headerHtml
-      + shown.map(rowHtml).join('')
+      // Above the list, not under it. At the bottom it sat behind however many tasks the
+      // project has -- sixty-nine in the master list -- so adding one meant scrolling to
+      // the end to find the box. Same row, same behaviour, moved to where you already are.
       + '<div style="padding:8px 14px 10px 36px;border-bottom:1px solid var(--line);">'
       +   '<span style="display:flex;align-items:center;gap:8px;">'
       +   '<span style="color:var(--text-4);display:inline-flex;flex-shrink:0;">'
@@ -85044,6 +85065,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       +   ' style="flex:1;background:transparent;border:none;outline:none;font:inherit;'
       +   'font-size:12.5px;color:var(--text);padding:2px 0;"></span>'
       + '</div>'
+      + shown.map(rowHtml).join('')
       + '</div></div>';
     // Type and press Enter. The folder decides the client, so a task created inside one
     // belongs to it without anybody choosing a client from a dropdown afterwards.
@@ -85141,10 +85163,28 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const tid = el.dataset.p2TaskDel;
         const tk = p2.tasks.find(x => x.id === tid);
         if (!tk) return;
-        const ok = await window.giantConfirmWarn('Delete "' + (tk.name || 'this task') + '"?',
-          'Its subtasks and comments go with it. Time already logged stays on people\'s '
-          + 'records. This cannot be undone.', 'Delete task', 'warning');
-        if (!ok) return;
+        // Checked again here, not only when the row was drawn: the row could have been
+        // rendered before a re-auth, and a control that is merely hidden is not a rule.
+        if (!canDeleteTask(tk)) {
+          if (window.toast) toast({ type: 'info', report: false,
+            message: 'Only whoever created this task can delete it.' });
+          return;
+        }
+        // Typed, not clicked. Deleting a task takes its subtasks and comments with it and
+        // there is no undo, so the confirmation asks for something you cannot do by
+        // reflex. giantPrompt rather than a bespoke modal because window.prompt is a no-op
+        // in the desktop build and this one already works in both.
+        const typed = await window.giantPrompt(
+          'Delete "' + (tk.name || 'this task') + '"?\n\n'
+          + 'Its subtasks and comments go with it. Time already logged stays on people\'s '
+          + 'records. This cannot be undone.\n\n'
+          + 'Type  delete  to confirm.', '');
+        if (String(typed == null ? '' : typed).trim().toLowerCase() !== 'delete') {
+          if (typed != null && String(typed).trim() !== '' && window.toast) {
+            toast({ type: 'info', report: false, message: 'Not deleted — that did not say delete.' });
+          }
+          return;
+        }
         const { error } = await sb().from('tasks').delete().eq('id', tid);
         if (error) { if (window.toast) toast({ type:'error', message:'Could not delete that: ' + error.message }); return; }
         p2.tasks = p2.tasks.filter(x => x.id !== tid);
@@ -85405,14 +85445,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // and the original's is delegated on '#prjMembersBtn' -- an id this button does not
     // have -- so clicking it did nothing at all. It opens the shared modal, told which
     // project THIS screen has open rather than letting it read the other screen's.
-    const mine = $('prjMineBtn');
-    if (mine && !mine.dataset.p2Wired) {
-      mine.dataset.p2Wired = '1';
-      mine.addEventListener('click', (e) => {
-        e.stopPropagation();
-        p2.mine = !p2.mine;
-        try { localStorage.setItem('giant_p2_mine', p2.mine ? '1' : '0'); } catch (_) {}
-        renderTasks();
+    const mineTog = $('prjMineToggle');
+    if (mineTog && !mineTog.dataset.p2Wired) {
+      mineTog.dataset.p2Wired = '1';
+      mineTog.querySelectorAll('[data-p2-mine]').forEach(b => {
+        b.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const want = b.dataset.p2Mine === '1';
+          if (want === p2.mine) return;
+          p2.mine = want;
+          try { localStorage.setItem('giant_p2_mine', p2.mine ? '1' : '0'); } catch (_) {}
+          renderTasks();
+        });
       });
     }
     const mb = $('prjMembersBtn');
