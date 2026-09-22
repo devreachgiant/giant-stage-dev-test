@@ -4951,7 +4951,8 @@ await step('the table sorts, and the Filter button actually filters', async () =
 await step('table columns can be dragged wider and narrower', async () => {
   const start = await page.evaluate(() => ({
     grips: document.querySelectorAll('#p2_prjDailyBody [data-p2-grip]').length,
-    timer: Math.round(document.querySelector('.prj-cell[data-col="timer"]').getBoundingClientRect().width),
+    // scoped: a bare .prj-cell also matches the original Projects screen, which is hidden
+    timer: Math.round(document.querySelector('#p2_prjDailyBody .prj-cell[data-col="timer"]').getBoundingClientRect().width),
     // the delete column held nothing but a divider, which read as a stray box on the end
     padBorder: getComputedStyle(document.querySelector('.prj-cell-pad')).borderRightWidth,
     // a 9px invisible strip passed every automated check and could not be found with a
@@ -4970,14 +4971,14 @@ await step('table columns can be dragged wider and narrower', async () => {
   await page.mouse.up();
   await page.waitForTimeout(600);
   const after = await page.evaluate(() => ({
-    cell: Math.round(document.querySelector('.prj-cell[data-col="timer"]').getBoundingClientRect().width),
+    cell: Math.round(document.querySelector('#p2_prjDailyBody .prj-cell[data-col="timer"]').getBoundingClientRect().width),
     head: Math.round(document.querySelector('#p2_prjDailyBody .prj-th[data-col="timer"]').getBoundingClientRect().width),
     stored: (JSON.parse(localStorage.getItem('giant_p2_colw') || '{}')).timer || null,
     // headings and cells must still share every boundary, or the drag has torn the table
     aligned: (() => {
       const h = [...document.querySelectorAll('#p2_prjDailyBody .prj-section-thead .prj-th')]
         .map(e => Math.round(e.getBoundingClientRect().left));
-      const r = [...document.querySelector('.prj-row[data-p2-task]').querySelectorAll('.prj-cell')]
+      const r = [...document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task]').querySelectorAll('.prj-cell')]
         .map(e => Math.round(e.getBoundingClientRect().left));
       return JSON.stringify(h) === JSON.stringify(r);
     })(),
@@ -4985,7 +4986,7 @@ await step('table columns can be dragged wider and narrower', async () => {
   await grip.dblclick();
   await page.waitForTimeout(500);
   const reset = await page.evaluate(() => ({
-    cell: Math.round(document.querySelector('.prj-cell[data-col="timer"]').getBoundingClientRect().width),
+    cell: Math.round(document.querySelector('#p2_prjDailyBody .prj-cell[data-col="timer"]').getBoundingClientRect().width),
     cleared: !(JSON.parse(localStorage.getItem('giant_p2_colw') || '{}')).timer,
   }));
   check('every column but the delete one has a grip, and the last one has no divider',
@@ -4997,6 +4998,40 @@ await step('table columns can be dragged wider and narrower', async () => {
     JSON.stringify({ start, after }));
   check('double-clicking the grip puts the column back',
     reset.cell === start.timer && reset.cleared, JSON.stringify(reset));
+
+  // One column proved nothing about the other six. Nishchay asked for every column to be
+  // adjustable, and "there is a grip in the markup" is not the same as "dragging it
+  // resizes the column" -- a grip on a column the width map does not know about would
+  // drag and do nothing at all. So every one is actually dragged.
+  const perCol = {};
+  for (const col of ['name','timer','priority','assignee','client','department','task_details']) {
+    const g = await page.$('#p2_prjDailyBody [data-p2-grip="' + col + '"]');
+    if (!g) { perCol[col] = 'no grip'; continue; }
+    // Scoped to #p2_prjDailyBody. Unscoped, '.prj-cell[data-col="name"]' matches the
+    // ORIGINAL Projects screen first -- which is hidden, so it measured 0 and the check
+    // failed on its own selector rather than on the app. The prefix is the isolation
+    // boundary on this screen and a bare class reaches straight through it.
+    const w0 = await page.evaluate(c => Math.round(
+      document.querySelector('#p2_prjDailyBody .prj-cell[data-col="' + c + '"]')
+        .getBoundingClientRect().width), col);
+    const bb = await g.boundingBox();
+    if (!bb) { perCol[col] = 'grip not hittable'; continue; }
+    await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(bb.x + bb.width / 2 + 40, bb.y + bb.height / 2, { steps: 6 });
+    await page.mouse.up();
+    await page.waitForTimeout(350);
+    const w1 = await page.evaluate(c => ({
+      cell: Math.round(document.querySelector('#p2_prjDailyBody .prj-cell[data-col="' + c + '"]').getBoundingClientRect().width),
+      head: Math.round(document.querySelector('#p2_prjDailyBody .prj-th[data-col="' + c + '"]').getBoundingClientRect().width),
+    }), col);
+    // +40 exactly, and the heading has to have come with it
+    perCol[col] = (w1.cell === w0 + 40 && w1.head === w1.cell) ? 'ok' : (w0 + '->' + w1.cell + '/' + w1.head);
+    await g.dblclick();
+    await page.waitForTimeout(250);
+  }
+  check('every one of the seven columns actually resizes when dragged',
+    Object.values(perCol).every(v => v === 'ok'), JSON.stringify(perCol));
 });
 
 // A row could be ticked, timed and dragged, but not read: the description, the dates and

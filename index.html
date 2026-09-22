@@ -732,6 +732,23 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 #p2_root .p2-colgrip:active::after{background:#fff;transform:scaleX(1.6);}
 /* The table keeps its own width once columns are fixed, and scrolls rather than squashing. */
 #p2_root .prj-table{width:max-content;min-width:100%;}
+/* The section card. .p2-section had no styling at all, so the table sat as a square slab
+   while the original Projects screen shows a rounded card -- same data, two different
+   screens. These are the original .prj-section values, with one deliberate difference:
+   NO overflow:hidden. That property makes the element a scroll container, and the folder
+   head inside is position:sticky against the outer scroller -- clipping here would stop it
+   sticking. The corners are rounded on the children instead, which costs two rules and
+   keeps the header behaving. */
+#p2_root .p2-section{background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  margin-bottom:14px;box-shadow:0 4px 18px -10px rgba(208,4,0,.22);}
+#p2_root .p2-section > [data-p2-folder-head]{border-radius:11px 11px 0 0;}
+/* Last row in the card carries the bottom curve, and drops the divider that would
+   otherwise cut straight across it. */
+#p2_root .p2-section > [data-p2-folder-body] > *:last-child{border-radius:0 0 11px 11px;
+  border-bottom:none;}
+/* Collapsed, the head IS the card, so it rounds on all four corners. */
+#p2_root .p2-section:has(> [data-p2-folder-body][style*="display:none"]) > [data-p2-folder-head]{
+  border-radius:11px;border-bottom:none;}
 /* The last column held nothing but a divider, which read as a stray empty box at the end
    of the red header. It is the delete column; it needs no heading and no divider. */
 #p2_root .prj-th[data-col="pad"]{border-right:none;}
@@ -84684,11 +84701,23 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const pop = document.createElement('div');
     pop.className = 'p2-filterpop';
     const r = btn.getBoundingClientRect();
-    pop.style.cssText = 'position:fixed;z-index:120;width:290px;max-height:70vh;overflow:auto;'
+    // max-height was a flat 70vh regardless of where the button is. Opened from a Filter
+    // button low on the screen, the panel ran past the bottom of the window -- and being
+    // position:fixed there is nothing to scroll to reach it, so Clear all and Done were
+    // simply unreachable. The height is now whatever room there actually is.
+    const GAP = 6, EDGE = 12, WANT = 260;
+    const below = window.innerHeight - r.bottom - GAP - EDGE;
+    const above = r.top - GAP - EDGE;
+    // Flip above the button only when there is genuinely more room up there, so the panel
+    // does not jump sides for the sake of a few pixels.
+    const up = below < WANT && above > below;
+    const maxH = Math.max(160, Math.min(Math.round(window.innerHeight * 0.7), up ? above : below));
+    pop.style.cssText = 'position:fixed;z-index:120;width:290px;overflow:auto;'
+      + 'max-height:' + maxH + 'px;'
       + 'background:var(--pane,var(--bg));border:1px solid var(--line);border-radius:12px;'
       + 'box-shadow:0 18px 44px rgba(0,0,0,.45);padding:6px;'
-      + 'top:' + Math.round(r.bottom + 6) + 'px;left:'
-      + Math.round(Math.min(r.left, window.innerWidth - 300)) + 'px;';
+      + 'top:' + Math.round(up ? Math.max(EDGE, r.top - GAP - maxH) : r.bottom + GAP) + 'px;left:'
+      + Math.round(Math.max(EDGE, Math.min(r.left, window.innerWidth - 300))) + 'px;';
     const sections = P2_FACETS.map(f => {
       const entries = [...counts[f.key].entries()]
         .sort((a, b) => b[1] - a[1] || String(facetLabel(f.key, a[0])).localeCompare(String(facetLabel(f.key, b[0]))));
@@ -84706,8 +84735,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }).join('');
     pop.innerHTML = (sections || '<div style="padding:14px;font-size:12px;color:var(--text-4);">'
         + 'Nothing to filter by in this project yet.</div>')
+      // Stuck to the bottom of the panel rather than to the end of the list: with a long
+      // list of facets, Clear all and Done scrolled away out of reach.
       + '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;'
-      + 'padding:8px;border-top:1px solid var(--line);margin-top:4px;">'
+      + 'padding:8px;border-top:1px solid var(--line);margin-top:4px;'
+      + 'position:sticky;bottom:-6px;background:var(--pane,var(--bg));">'
       + '<span id="p2_filterClear" style="font-size:11.5px;font-weight:700;color:var(--text-3);cursor:pointer;">Clear all</span>'
       + '<span id="p2_filterDone" style="font-size:11.5px;font-weight:700;color:var(--red);cursor:pointer;">Done</span>'
       + '</div>';
