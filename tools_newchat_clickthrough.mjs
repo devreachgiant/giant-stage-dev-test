@@ -4616,9 +4616,10 @@ await step('Projects 2.0 shows one task pool as table, board and timeline', asyn
              statusToggleShown, statusToggleHidden, offered,
              persisted: localStorage.getItem('giant_p2_view') };
   });
-  check('the board columns are exactly the four statuses the database accepts',
-    !r.skipped && JSON.stringify(r.headings) === JSON.stringify(['todo','in_progress','blocked','done']),
-    JSON.stringify(r));
+  check('the board columns are the nine pipeline stages, in pipeline order',
+    !r.skipped && JSON.stringify(r.headings) === JSON.stringify(
+      ['new_request','needs_detail','not_started','in_progress','review',
+       'waiting','on_hold','roadblock','done']), JSON.stringify(r));
   // The table is filtered to Active by default; the board and timeline carry status
   // themselves, so they show the whole pool. Same tasks either way -- what differs is only
   // the filter the table is showing, and the control for it is only up while it applies.
@@ -4921,11 +4922,25 @@ await step('the table sorts, and the Filter button actually filters', async () =
     const pop = document.querySelector('.p2-filterpop');
     if (!pop) return { ...out, skipped: 'panel did not open' };
     out.facets = [...new Set([...pop.querySelectorAll('[data-p2-facet]')].map(e => e.dataset.p2Facet))].length;
-    const todo = [...pop.querySelectorAll('[data-p2-facet="status"]')].find(e => e.dataset.p2Val === 'todo');
-    if (!todo) return { ...out, skipped: 'no status option' };
-    todo.click(); await w(800);
+    // The facet is the nine-stage pipeline now, not the four-value enum. Whichever stage
+    // is offered first is fine to assert on -- the point is that picking one narrows the
+    // table to exactly the tasks in it.
+    // Not 'done': the table hides Done by default and the board does not, so filtering to
+    // it makes the two legitimately disagree and the board comparison below meaningless.
+    const opt = [...pop.querySelectorAll('[data-p2-facet="status"]')]
+      .find(e => e.dataset.p2Val !== 'done');
+    if (!opt) return { ...out, skipped: 'no status option' };
+    const pickedStage = opt.dataset.p2Val;
+    out.pickedStage = pickedStage;
+    opt.click(); await w(800);
     out.rowsFiltered = rows();
-    out.onlyTodo = st.tasks.filter(t => t.status === 'todo').length === out.rowsFiltered;
+    const stageOf = (t) => t.status_stage
+      || (t.status === 'done' ? 'done' : t.status === 'in_progress' ? 'in_progress'
+          : t.status === 'blocked' ? 'roadblock' : 'not_started');
+    // the table also hides Done by default, so compare against what the table can show
+    const isDone = (t) => t.status === 'done';
+    out.onlyTodo = st.tasks.filter(t => stageOf(t) === pickedStage && !isDone(t)).length
+      === out.rowsFiltered;
     out.badge = (document.getElementById('p2_prjFilterCount') || {}).textContent;
     // the board has to hide exactly the same tasks
     window.p2SetView('board'); await w(700);
@@ -4990,7 +5005,7 @@ await step('table columns can be dragged wider and narrower', async () => {
     cleared: !(JSON.parse(localStorage.getItem('giant_p2_colw') || '{}')).timer,
   }));
   check('every column but the delete one has a grip, and the last one has no divider',
-    start.grips === 7 && start.padBorder === '0px' && start.gripWidth >= 14
+    start.grips === 8 && start.padBorder === '0px' && start.gripWidth >= 14
       && start.dividerVisible, JSON.stringify(start));
   check('dragging narrows the column, moves the heading with it and is remembered',
     after.cell === start.timer - 60 && after.head === after.cell
@@ -5004,7 +5019,7 @@ await step('table columns can be dragged wider and narrower', async () => {
   // resizes the column" -- a grip on a column the width map does not know about would
   // drag and do nothing at all. So every one is actually dragged.
   const perCol = {};
-  for (const col of ['name','timer','priority','assignee','client','department','task_details']) {
+  for (const col of ['name','status','timer','priority','assignee','client','department','task_details']) {
     const g = await page.$('#p2_prjDailyBody [data-p2-grip="' + col + '"]');
     if (!g) { perCol[col] = 'no grip'; continue; }
     // Scoped to #p2_prjDailyBody. Unscoped, '.prj-cell[data-col="name"]' matches the
@@ -5014,6 +5029,8 @@ await step('table columns can be dragged wider and narrower', async () => {
     const w0 = await page.evaluate(c => Math.round(
       document.querySelector('#p2_prjDailyBody .prj-cell[data-col="' + c + '"]')
         .getBoundingClientRect().width), col);
+    await g.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(150);
     const bb = await g.boundingBox();
     if (!bb) { perCol[col] = 'grip not hittable'; continue; }
     await page.mouse.move(bb.x + bb.width / 2, bb.y + bb.height / 2);
@@ -5030,7 +5047,7 @@ await step('table columns can be dragged wider and narrower', async () => {
     await g.dblclick();
     await page.waitForTimeout(250);
   }
-  check('every one of the seven columns actually resizes when dragged',
+  check('every one of the eight columns actually resizes when dragged',
     Object.values(perCol).every(v => v === 'ok'), JSON.stringify(perCol));
 
   // The card had a border down the left and none down the right. width:max-content sat on
@@ -5301,6 +5318,73 @@ await step('table columns can be dragged wider and narrower', async () => {
   check('the add-a-task box is above the list, not behind it',
     !addpos.missing && addpos.rows > 1 && addpos.beforeFirstRow && addpos.aboveOnScreen
       && addpos.enabled, JSON.stringify(addpos));
+
+  // The Status column: nine stages the enum cannot express, kept in step with the enum
+  // every other screen reads.
+  const stage = await page.evaluate(async () => {
+    const w = ms => new Promise(r => setTimeout(r, ms));
+    const st = window.p2State, db = window.__mock.db;
+    const out = {};
+    const repaint = async () => { window.p2SetView('board'); await w(300);
+                                  window.p2SetView('table'); await w(700); };
+    await repaint();
+
+    out.headingSaysStatus = /status/i.test(
+      (document.querySelector('#p2_prjDailyBody .prj-th[data-col="status"]') || {}).textContent || '');
+    const sel = document.querySelector('#p2_prjDailyBody .prj-cell[data-col="status"] select');
+    out.isAPicker = !!sel;
+    if (!sel) return out;
+    out.options = [...sel.options].map(o => o.textContent);
+    out.nine = sel.options.length === 9;
+
+    // a task with no stage recorded must not land on "Not started" when it is plainly done
+    const doneNoStage = st.tasks.find(t => !t.status_stage
+      && (t.status === 'done' || t.status === 'complete'));
+    if (doneNoStage) {
+      // the table shows Active by default, so a finished task is not on screen to read
+      const toDone = document.querySelector('#p2_prjStatusToggle [data-status="done"]');
+      if (toDone) { toDone.click(); await w(800); }
+      const s2 = document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task="'
+        + doneNoStage.id + '"] .prj-cell[data-col="status"] select');
+      out.derivedFromEnum = s2 ? s2.value : '(row not shown)';
+      const back = document.querySelector('#p2_prjStatusToggle [data-status="active"]');
+      if (back) { back.click(); await w(700); }
+    } else { out.derivedFromEnum = 'done'; }
+
+    // changing the stage writes BOTH it and the enum, so the rest of the app keeps up
+    const row = st.tasks.find(t => t.status !== 'done');
+    const rs = document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task="'
+      + row.id + '"] .prj-cell[data-col="status"] select');
+    out.foundRow = !!rs;
+    if (rs) {
+      rs.value = 'review';
+      rs.dispatchEvent(new Event('change', { bubbles: true }));
+      await w(800);
+      const saved = db.tasks.find(t => t.id === row.id) || {};
+      out.savedStage = saved.status_stage;
+      out.savedStatus = saved.status;          // 'review' maps onto in_progress
+      // and moving it to Done must set the enum to done, which is what every other
+      // screen and every count reads
+      const rs2 = document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task="'
+        + row.id + '"] .prj-cell[data-col="status"] select');
+      if (rs2) { rs2.value = 'done'; rs2.dispatchEvent(new Event('change', { bubbles: true })); await w(800); }
+      const saved2 = db.tasks.find(t => t.id === row.id) || {};
+      out.doneStage = saved2.status_stage;
+      out.doneStatus = saved2.status;
+      out.stampedCompleted = !!saved2.completed_at;
+    }
+    return out;
+  });
+  check('the table has a Status column offering all nine stages',
+    stage.headingSaysStatus && stage.isAPicker && stage.nine
+      && stage.options.includes('Ready for review')
+      && stage.options.includes('Waiting on another team'), JSON.stringify(stage));
+  check('a task with no stage recorded is placed from its status, not dumped in Not started',
+    stage.derivedFromEnum === 'done', JSON.stringify(stage));
+  check('setting a stage writes the enum with it, so the rest of the app keeps up',
+    stage.foundRow && stage.savedStage === 'review' && stage.savedStatus === 'in_progress'
+      && stage.doneStage === 'done' && stage.doneStatus === 'done' && stage.stampedCompleted,
+    JSON.stringify(stage));
 });
 
 // A row could be ticked, timed and dragged, but not read: the description, the dates and
@@ -5360,7 +5444,8 @@ await step('clicking a task opens it in full, with a per-person time breakdown',
   });
   check('the task panel carries every control the old one had',
     !r.skipped && r.open && !r.openedByWrongCell && r.controls === 10
-      && r.statusOptions === 'todo,in_progress,blocked,done' && r.hasDescription && r.closes,
+      && r.statusOptions === 'new_request,needs_detail,not_started,in_progress,review,waiting,on_hold,roadblock,done'
+      && r.hasDescription && r.closes,
     JSON.stringify(r));
   check('the panel edits the task, and takes subtasks and comments',
     !r.skipped && r.nameSaved && r.statusSaved && r.subtask === 1
@@ -5398,14 +5483,16 @@ await step('dragging a card between board columns writes the new status', async 
   await page.evaluate(() => window.p2SetView('board'));
   await page.waitForTimeout(900);
   const before = await page.evaluate(() => {
-    const c = document.querySelector('#p2_prjBoard [data-p2-drop="todo"] [data-p2-card]');
+    const c = document.querySelector('#p2_prjBoard [data-p2-drop="not_started"] [data-p2-card]')
+      || document.querySelector('#p2_prjBoard [data-p2-drop="new_request"] [data-p2-card]');
     // a baseline, not a running total: other steps edit tasks too, and a cumulative count
     // makes this assertion fail for something that has nothing to do with dragging
     const writes = (window.__mock.log.writes || []).filter(x => /^tasks\.update/.test(x)).length;
-    return c ? { id: c.dataset.p2Card, writes } : null;
+    return c ? { id: c.dataset.p2Card, writes,
+                 from: c.closest('[data-p2-drop]').dataset.p2Drop } : null;
   });
   if (!before) { check('dragging a card between board columns writes the new status', false, 'no card to drag'); return; }
-  await page.dragAndDrop('#p2_prjBoard [data-p2-drop="todo"] [data-p2-card]',
+  await page.dragAndDrop('#p2_prjBoard [data-p2-drop="' + before.from + '"] [data-p2-card]',
                          '#p2_prjBoard [data-p2-drop="in_progress"]');
   await page.waitForTimeout(1200);
   const r = await page.evaluate((id) => ({

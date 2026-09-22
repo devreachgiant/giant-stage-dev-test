@@ -740,6 +740,12 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
    again, and the section is what refuses to squash. */
 #p2_root .prj-table{width:auto;min-width:0;}
 #p2_root .p2-section{min-width:max-content;}
+/* The stage picker reads as a coloured pill until you go near it, then as the control it
+   is -- the same idea as the inline fields on the Pod board. */
+#p2_root .prj-cell[data-col="status"] select{transition:background .12s ease,border-color .12s ease;}
+#p2_root .prj-cell[data-col="status"] select:hover{background:var(--surface-2);border-color:var(--line-2);}
+#p2_root .prj-cell[data-col="status"] select:focus{border-color:var(--red);background:var(--surface-2);}
+#p2_root .prj-cell[data-col="status"] select option{background:var(--surface);color:var(--text);}
 /* The section card. .p2-section had no styling at all, so the table sat as a square slab
    while the original Projects screen shows a rounded card -- same data, two different
    screens. These are the original .prj-section values, with one deliberate difference:
@@ -83589,9 +83595,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                filters: {}, sort: null };
   // Column widths, per person, in this browser. No migration for it: it is a preference
   // about looking at a table, not a fact about the work.
-  const P2_COLW = { name: 264, timer: 150, priority: 130, assignee: 150,
+  const P2_COLW = { name: 264, status: 170, timer: 150, priority: 130, assignee: 150,
                     client: 150, department: 130, task_details: 240 };
-  const P2_COL_ORDER = ['name', 'timer', 'priority', 'assignee', 'client', 'department', 'task_details'];
+  // Status sits straight after the name: it is the thing you scan a list for, and putting
+  // it behind the timer would mean reading past a column of digits to find it.
+  const P2_COL_ORDER = ['name', 'status', 'timer', 'priority', 'assignee', 'client', 'department', 'task_details'];
   const P2_COL_MIN = 72;
   try { const raw = JSON.parse(localStorage.getItem('giant_p2_colw') || '{}');
         Object.keys(P2_COLW).forEach(k => { if (+raw[k] > 0) p2.colw[k] = +raw[k]; }); } catch (_) {}
@@ -83619,12 +83627,45 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   // so a column heading that is not one of these is a column nothing can ever be dropped
   // into. Production uses only todo and done today; in_progress and blocked start empty
   // and are the point of having a board at all.
-  const P2_COLS = [
-    { key: 'todo',        label: 'To do',       tint: 'var(--text-3)' },
-    { key: 'in_progress', label: 'In progress', tint: '#3B82F6' },
-    { key: 'blocked',     label: 'Blocked',     tint: '#F59E0B' },
-    { key: 'done',        label: 'Done',        tint: '#10B981' },
+  // The pipeline, left to right. Nine stages where tasks.status has four, because "in
+  // progress" and "ready for review" are different things to stand in front of on a
+  // Monday and the enum cannot tell them apart.
+  //
+  // Each one maps onto the enum, which is NOT replaced: the original Projects screen, the
+  // Active/Done counts, Team Pulse and the reports all read tasks.status, and adding nine
+  // values to a Postgres enum is close to irreversible. Writing a stage writes both, so
+  // the two never drift.
+  //
+  // Wording changed from what was asked, and worth saying why: "waiting for other
+  // department" became "Waiting on another team" because tasks already HAVE a department
+  // column, and two different meanings of the word on one row is how people mis-file
+  // things. "not started yet" and "need more details" are just tightened.
+  const P2_STAGES = [
+    { key: 'new_request',  label: 'New request',       status: 'todo',        tint: '#A855F7' },
+    { key: 'needs_detail', label: 'Needs more detail', status: 'todo',        tint: '#8B5CF6' },
+    { key: 'not_started',  label: 'Not started',       status: 'todo',        tint: 'var(--text-3)' },
+    { key: 'in_progress',  label: 'In progress',       status: 'in_progress', tint: '#3B82F6' },
+    { key: 'review',       label: 'Ready for review',  status: 'in_progress', tint: '#06B6D4' },
+    { key: 'waiting',      label: 'Waiting on another team', status: 'blocked', tint: '#F59E0B' },
+    { key: 'on_hold',      label: 'On hold',           status: 'blocked',     tint: '#9CA3AF' },
+    { key: 'roadblock',    label: 'Roadblock',         status: 'blocked',     tint: '#EF4444' },
+    { key: 'done',         label: 'Done',              status: 'done',        tint: '#10B981' },
   ];
+  const P2_STAGE_DEFAULT = 'not_started';
+  const stageOf = (t) => {
+    if (t && t.status_stage && P2_STAGES.some(x => x.key === t.status_stage)) return t.status_stage;
+    // Nothing recorded yet: derive the nearest stage from the enum, so a task created by
+    // the original screen still lands in a sensible column rather than in "Not started"
+    // when it is plainly finished.
+    const st = t && t.status;
+    if (st === 'done' || st === 'complete' || st === 'completed') return 'done';
+    if (st === 'in_progress') return 'in_progress';
+    if (st === 'blocked') return 'roadblock';
+    return P2_STAGE_DEFAULT;
+  };
+  const stageDef = (k) => P2_STAGES.find(x => x.key === k) || P2_STAGES.find(x => x.key === P2_STAGE_DEFAULT);
+  // The board's columns ARE the stages now.
+  const P2_COLS = P2_STAGES;
   window.p2State = p2;   // for the checks, and for reading state without guessing
 
   function activeProject(){ return p2.projects.find(p => p.id === p2.activeId) || null; }
@@ -83897,9 +83938,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (loading) { loading.style.display = ''; loading.textContent = 'Loading tasks…'; }
     if (empty) empty.style.display = 'none';
     const { data, error } = await sb().from('tasks')
-      .select('id, name, description, status, priority, priority_label, resistance_label, '
-              + 'importance_label, assigned_to, due_at, client_id, department, category, '
-              + 'position, created_at, created_by, custom_fields')
+      .select('id, name, description, status, status_stage, priority, priority_label, '
+              + 'resistance_label, importance_label, assigned_to, due_at, client_id, '
+              + 'department, category, position, created_at, created_by, custom_fields')
       .eq('project_id', p2.activeId)
       // created_at ASCENDING, the same as the original screen. Both load every task in the
       // project, so the two lists hold the same work -- but position is 0 on almost all of
@@ -84023,22 +84064,33 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   // Optimistic, then reverted if the write fails: a card that springs back is honest,
   // a card that sits in the wrong column while the database disagrees is not.
-  async function setTaskStatus(id, status){
+  // Moving a task writes BOTH: the stage this screen shows, and the enum every other
+  // screen reads. One write, so they cannot drift -- and a rollback puts both back.
+  async function setTaskStage(id, stage){
     const t = p2.tasks.find(x => x.id === id);
-    if (!t || t.status === status) return;
-    const was = t.status;
-    t.status = status;
+    const def = stageDef(stage);
+    if (!t || !def) return;
+    if (stageOf(t) === def.key && t.status === def.status) return;
+    const wasStage = t.status_stage, wasStatus = t.status;
+    t.status_stage = def.key;
+    t.status = def.status;
     renderTasks();
-    const patch = { status };
+    const patch = { status_stage: def.key, status: def.status };
     // completed_at is what every other screen reads to say when something was finished.
-    if (status === 'done') patch.completed_at = new Date().toISOString();
-    else if (was === 'done') patch.completed_at = null;
+    if (def.status === 'done') patch.completed_at = new Date().toISOString();
+    else if (wasStatus === 'done') patch.completed_at = null;
     const { error } = await sb().from('tasks').update(patch).eq('id', id);
     if (error) {
-      t.status = was;
+      t.status_stage = wasStage; t.status = wasStatus;
       renderTasks();
       if (typeof toast === 'function') toast({ type: 'error', message: 'Could not move that task: ' + error.message });
     }
+  }
+  // Kept for the two callers that think in the four-value enum -- the detail panel's
+  // done tick and its status select. Each lands on the nearest stage.
+  async function setTaskStatus(id, status){
+    const near = P2_STAGES.find(x => x.key === status) || P2_STAGES.find(x => x.status === status);
+    return setTaskStage(id, near ? near.key : P2_STAGE_DEFAULT);
   }
 
   // ── TASK DETAIL ──────────────────────────────────────────────────────────────
@@ -84455,13 +84507,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     host.style.display = 'flex';
     host.style.gap = '12px';
     host.style.alignItems = 'flex-start';
+    // Nine columns do not fit a laptop, so the board scrolls sideways rather than
+    // squeezing each one down to a strip too narrow to read a task name in.
+    host.style.overflowX = 'auto';
+    host.style.paddingBottom = '10px';
     const byCol = {};
     P2_COLS.forEach(c => { byCol[c.key] = []; });
     visibleTasks().forEach(t => {
-      // Anything carrying a status the enum has since dropped still has to appear, or a
-      // board silently holds fewer tasks than the table does.
-      const k = byCol[t.status] ? t.status : (t.status === 'complete' || t.status === 'completed' ? 'done' : 'todo');
-      byCol[k].push(t);
+      // By stage, and stageOf falls back to the enum for anything that predates it -- a
+      // board that silently holds fewer tasks than the table is worse than a wrong column.
+      const k = stageOf(t);
+      (byCol[k] || byCol[P2_STAGE_DEFAULT]).push(t);
     });
     const cardHtml = (t) => '<div class="p2-card" draggable="true" data-p2-card="' + esc(t.id) + '"'
       + ' style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 11px;'
@@ -84482,7 +84538,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       + '</div>';
     host.innerHTML = P2_COLS.map(c => {
       const rows = byCol[c.key];
-      return '<div data-p2-col="' + c.key + '" style="flex:1 1 0;min-width:210px;display:flex;flex-direction:column;'
+      return '<div data-p2-col="' + c.key + '" style="flex:0 0 232px;min-width:232px;display:flex;flex-direction:column;'
         + 'background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:10px;">'
         + '<div style="display:flex;align-items:center;gap:7px;margin-bottom:10px;">'
         +   '<span style="width:7px;height:7px;border-radius:50%;background:' + c.tint + ';"></span>'
@@ -84521,7 +84577,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         e.preventDefault();
         zone.style.background = '';
         const id = dragId || (e.dataTransfer && e.dataTransfer.getData('text/plain'));
-        if (id) setTaskStatus(id, zone.dataset.p2Drop);
+        if (id) setTaskStage(id, zone.dataset.p2Drop);
       });
     });
   }
@@ -84674,14 +84730,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   };
 
   const P2_FACETS = [
-    { key: 'status',     label: 'Status',     of: t => t.status || null },
+    { key: 'status',     label: 'Status',     of: t => stageOf(t) },
     { key: 'priority',   label: 'Priority',   of: t => t.priority_label || t.priority || null },
     { key: 'assignee',   label: 'Assignee',   of: t => assignees(t) },
     { key: 'client',     label: 'Client',     of: t => t.client_id || null },
     { key: 'department', label: 'Department', of: t => t.department || null },
   ];
   const facetLabel = (key, v) => {
-    if (key === 'status') { const c = P2_COLS.find(x => x.key === v); return c ? c.label : v; }
+    if (key === 'status') { const c = P2_STAGES.find(x => x.key === v); return c ? c.label : v; }
     if (key === 'assignee') { const p = p2.people[v] || {}; return p.full_name || p.email || 'Someone'; }
     if (key === 'client') { const c = p2.clients[v]; return (c && c.name) || 'Client'; }
     return String(v);
@@ -84722,6 +84778,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   const P2_SORTABLE = { name: t => String(t.name || '').toLowerCase(),
+                        // by position in the pipeline, not by first letter: sorting
+                        // "Done" above "In progress" is alphabetical and meaningless
+                        status: t => P2_STAGES.findIndex(x => x.key === stageOf(t)),
                         timer: t => (p2.logged[t.id] || 0),
                         priority: t => String(t.priority_label || t.priority || '').toLowerCase(),
                         assignee: t => { const a = assignees(t)[0]; return a ? facetLabel('assignee', a).toLowerCase() : ''; },
@@ -84880,6 +84939,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // module fills. Borrowing it meant every client showed as a dash whenever the rebuild
     // was the only thing that had loaded -- and filling that global from here would be this
     // screen reaching into the other one's state. It has its own clients already.
+    // A native select rather than a popover. Nine options is a list, not a menu, and the
+    // browser's own control already handles keyboard, touch and a long list on a small
+    // screen -- three things a hand-rolled dropdown gets wrong before it gets them right.
+    // Styled to read as a pill so it does not look like a form field in a table of text.
+    const stageCell = (t) => {
+      const k = stageOf(t), d = stageDef(k);
+      return '<select data-p2-stage="' + esc(t.id) + '" title="' + esc(d.label) + '"'
+        + ' style="width:100%;min-width:0;background:transparent;border:1px solid transparent;'
+        + 'border-radius:7px;padding:3px 6px;font:inherit;font-size:12px;font-weight:600;'
+        + 'cursor:pointer;outline:none;color:' + esc(d.tint) + ';">'
+        + P2_STAGES.map(x => '<option value="' + x.key + '"' + (x.key === k ? ' selected' : '')
+            + '>' + esc(x.label) + '</option>').join('')
+        + '</select>';
+    };
+
     const clientCell = (id) => {
       const c = id && p2.clients[id];
       if (!c) return '<span class="prj-cell-empty">—</span>';
@@ -84973,6 +85047,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         +   '<span class="prj-name"' + (isDone ? ' style="text-decoration:line-through;"' : '') + '>'
         +   esc(t.name) + '</span>'
         + '</div>'
+        + '<div class="prj-cell" data-col="status">' + stageCell(t) + '</div>'
         + '<div class="prj-cell" data-col="timer">' + timerHtml(t) + '</div>'
         + '<div class="prj-cell" data-col="priority">' + cell('_renderPrjPriorityCell', t.priority_label || t.priority) + '</div>'
         + '<div class="prj-cell" data-col="assignee">' + cell('_renderPrjAssigneeCell', assignees(t)) + '</div>'
@@ -85016,6 +85091,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     };
     const headerHtml = '<div class="prj-section-thead">'
       + th('name', 'Task name')
+      + th('status', 'Status')
       + th('timer', 'Time')
       + th('priority', 'Priority')
       + th('assignee', 'Assignee')
@@ -85155,6 +85231,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         delete p2.colw[grip.dataset.p2Grip];
         applyColumnWidths();
         saveColumnWidths();
+      });
+    });
+    body.querySelectorAll('[data-p2-stage]').forEach(el => {
+      el.addEventListener('click', (e) => e.stopPropagation());   // do not open the task
+      el.addEventListener('change', (e) => {
+        e.stopPropagation();
+        setTaskStage(el.dataset.p2Stage, el.value);
       });
     });
     body.querySelectorAll('[data-p2-task-del]').forEach(el => {

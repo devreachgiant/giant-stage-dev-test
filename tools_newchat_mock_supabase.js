@@ -290,6 +290,17 @@
       assigned_to: ['u-' + (1 + n)], department: 'general', due_at: iso(-2 - n, 0),
       project_id: null, client_id: cl.id, created_by: ME, created_at: iso(10 + n, 0),
       completed_at: st === 'done' ? iso(1, n) : null }))));
+  // status_stage ships in migration 20260922130000: the nine-step pipeline beside the
+  // four-value enum. Derived the same way the page derives it, and deliberately left OFF
+  // some rows -- a task that predates the column has to land somewhere sensible, and
+  // "somewhere sensible" is the thing worth testing.
+  DB.tasks.forEach((t, i) => {
+    if (i % 4 === 3) { t.status_stage = null; return; }
+    t.status_stage = t.status === 'done' ? 'done'
+      : t.status === 'in_progress' ? 'in_progress'
+      : t.status === 'blocked' ? 'roadblock'
+      : ['not_started', 'new_request', 'needs_detail'][i % 3];
+  });
   // The four non-department grants (migration 20260824120000). Seeded unevenly on
   // purpose: a client where everyone has everything cannot tell a working tick from a
   // hardcoded one.
