@@ -5091,17 +5091,30 @@ await step('table columns can be dragged wider and narrower', async () => {
     const real = window.openProjectMembersModal;
     window.openProjectMembersModal = (pid) => { askedFor = pid === undefined ? '(none)' : pid; };
     const btn = document.getElementById('p2_prjMembersBtn');
-    const out = { exists: !!btn };
+    const out = { exists: !!btn, label: btn ? btn.textContent.trim() : null };
     if (btn) { btn.click(); await w(300); }
     out.askedFor = askedFor;
+    // and the panel it opens has to say what the list is for. Opened for real this time,
+    // with the stub put back first.
+    window.openProjectMembersModal = real;
+    if (typeof real === 'function' && window.p2State) {
+      await real(window.p2State.activeId); await w(500);
+      const m = document.getElementById('prjMembersModal');
+      out.modalTitle = m ? (m.querySelector('h3') || {}).textContent : null;
+      out.modalSub = m ? (m.querySelector('.m-sub') || {}).textContent : null;
+      if (m) m.classList.remove('on');
+    }
     // it must ask for the project THIS screen has open, not whatever the other one has
     out.isThisScreensProject = askedFor === (window.p2State && window.p2State.activeId);
     window.openProjectMembersModal = real;
     return out;
   });
-  check('Members opens the panel for the project this screen has open',
+  check('Visibility opens the panel for the project this screen has open',
     mem.exists && mem.askedFor && mem.askedFor !== '(none)' && mem.isThisScreensProject,
     JSON.stringify(mem));
+  check('the control is called Visibility, and says what the list actually controls',
+    mem.label === 'Visibility' && /who can see/i.test(mem.modalTitle || '')
+      && /add or remove/i.test(mem.modalSub || ''), JSON.stringify(mem));
 });
 
 // A row could be ticked, timed and dragged, but not read: the description, the dates and
