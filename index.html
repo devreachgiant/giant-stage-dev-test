@@ -8915,6 +8915,17 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                     <div class="nc_m-role" data-ctype="client"><div class="nc_mr-name">Client</div><div class="nc_mr-desc">Shows under Clients</div></div>
                   </div>
                 </div>
+                <!-- Which client. A client channel with no client behind it sorts outside the
+                     alphabetical list and has no department strip, so there is nothing to
+                     choose here except the client itself. Shown only when Client is picked. -->
+                <div class="nc_m-field" id="nc_newChannelClientField" style="display:none;">
+                  <label>Which client</label>
+                  <select id="nc_newChannelClient"></select>
+                  <div style="font-size:11px;color:var(--text-3);margin-top:5px;line-height:1.45;">
+                    Creates the conversation under this client, with its General, Google Ads,
+                    Meta Ads, SEO and Web tabs.
+                  </div>
+                </div>
                 <div class="nc_m-field">
                   <label>Privacy</label>
                   <div class="nc_m-role-grid">
@@ -80762,6 +80773,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       document.querySelectorAll('#nc_newChannelModal [data-ctype]').forEach(el => {
         el.classList.toggle('nc_sel', el.dataset.ctype === want);
       });
+      ncSyncChannelClientField();
 
       // The picker needs people to offer. It is the same list the DM modal uses and is
       // cached after the first load.
@@ -80778,8 +80790,72 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       el.addEventListener('click', () => {
         el.parentElement.querySelectorAll('.nc_m-role')
           .forEach(o => o.classList.toggle('nc_sel', o === el));
+        if (el.dataset.ctype) ncSyncChannelClientField();
       });
     });
+
+    // Create a client from the New channel form. Mirrors the pod board's version: the
+    // same slug shape, the same 'onboarding' starting status, and the same refusal to make
+    // a second client with a name that already exists -- picking the existing one is what
+    // somebody means by typing its name, and two clients of the same name is a mess that
+    // takes a person to untangle.
+    async function ncCreateClientNamed(rawName){
+      const clean = String(rawName || '').trim();
+      if (!clean) return null;
+      const dupe = Object.values(ncClients || {})
+        .find(c => c && String(c.name || '').trim().toLowerCase() === clean.toLowerCase());
+      if (dupe) return dupe.id;                    // quietly use it; it is what was asked for
+      const slug = clean.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        + '-' + Math.random().toString(36).slice(2, 6);
+      const { data, error } = await NCSB().from('clients')
+        .insert({ name: clean, slug, initial: clean.charAt(0).toUpperCase(),
+                  status: 'onboarding', owner_id: ncMyId() })
+        .select('id, name, avatar_bg, avatar_fg, status').single();
+      if (error || !data) {
+        if (typeof toast === 'function') toast({ type:'error',
+          message:'Could not add that client: ' + ((error && error.message) || '?') });
+        return null;
+      }
+      ncClients[data.id] = data;                   // so the strip and the sidebar see it at once
+      return data.id;
+    }
+
+    // The client picker only means anything for a client channel, so it appears with one.
+    // Sorted by name and filtered the same way the rest of the app filters clients, so the
+    // list reads like the Clients card rather than like the table behind it.
+    async function ncSyncChannelClientField(){
+      const isClient = document.querySelector('#nc_newChannelModal [data-ctype].nc_sel')?.dataset.ctype === 'client';
+      const field = document.getElementById('nc_newChannelClientField');
+      const sel = document.getElementById('nc_newChannelClient');
+      if (!field || !sel) return;
+      field.style.display = isClient ? '' : 'none';
+      if (!isClient) return;
+      // ncClients is filled by loadChannels(), so it is empty until Chat has loaded its
+      // channels once -- and this form can be opened before that, which left the picker
+      // with nothing in it but "Choose a client...". Load it here rather than trusting
+      // that somebody else already did.
+      if (!Object.keys(ncClients || {}).length) {
+        sel.innerHTML = '<option value="">Loading clients…</option>';
+        try { await loadNcClients(); } catch (_) {}
+      }
+      const was = sel.value;
+      const list = Object.values(ncClients || {})
+        .filter(c => c && c.name && !(window._prjIsTestClient && window._prjIsTestClient(c.name)))
+        .sort((a, b) => String(a.name).localeCompare(String(b.name), undefined, { sensitivity: 'base' }));
+      // "Not in this list" first, because the moment you need it is the moment the list
+      // has failed you, and hunting to the bottom of fifty names to find out it is not
+      // there is the worst version of that. It creates the client from the channel name,
+      // so a brand new client is one form rather than two screens.
+      // Only offered to the people the database will actually let create a client:
+      // clients_insert_mgr is is_manager_or_owner(). Shown to anybody else it is a dead
+      // end -- they type a name and get a policy error they can do nothing about.
+      const mayAddClient = ['owner', 'manager', 'inhouse_dev']
+        .includes((window.giantCurrentProfile || {}).role);
+      sel.innerHTML = '<option value="">Choose a client…</option>'
+        + (mayAddClient ? '<option value="__new__">＋ New client — not in this list</option>' : '')
+        + list.map(c => '<option value="' + chatEsc(c.id) + '">' + chatEsc(c.name) + '</option>').join('');
+      if (was) sel.value = was;
+    }
 
     const ncChannelSubmit = document.getElementById('nc_newChannelSubmit');
     if (ncChannelSubmit) ncChannelSubmit.addEventListener('click', async () => {
@@ -80798,19 +80874,51 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         position: (chatChannels || []).length,
         created_by: sess.user.id
       };
-      // Whatever the form says, which is whatever the person can see.
-      // Client, with no client RECORD and no department. Both were asked for and then
-      // asked away again; what is left is the smallest thing that answers the question
-      // the form asks, which is where the channel should appear.
+      // A client channel is created through the client, not beside it. This used to set
+      // kind='client_dept' and leave client_id and department null, which made a channel
+      // that calls itself a client conversation and is attached to no client. Two things
+      // followed, and both were reported as separate bugs: the sidebar has a bucket for
+      // client channels with no client record and puts it ABOVE the alphabetical list, so
+      // the row never sorted into place; and the department strip is drawn from the client
+      // record, so General / Google Ads / Meta Ads / SEO / Web were unreachable.
       //
-      // `channels_client_dept_needs_client` used to refuse this, and 20260825120000 drops
-      // it: the reason it was written -- "a department tab strip attached to nothing" --
-      // is handled in the client, where isClient requires a client_id and this channel
-      // will not have one, so it shows as a plain conversation and no Management panel.
-      // department stays null, and a constraint now enforces that a department implies a
-      // client, which is the half of the original rule worth keeping.
+      // ensureClientDeptThread is the path every other client conversation already takes:
+      // it reuses an existing department channel rather than making a second one, names it
+      // after the client, and adds the whole team. So this form now asks which client and
+      // hands over to it, rather than writing a half-linked row of its own.
       if (document.querySelector('#nc_newChannelModal [data-ctype].nc_sel')?.dataset.ctype === 'client') {
-        payload.kind = 'client_dept';
+        let clientId = (document.getElementById('nc_newChannelClient') || {}).value || '';
+        if (!clientId) {
+          if (typeof toast === 'function') toast({ type:'error', message:'Choose which client this conversation belongs to.' });
+          document.getElementById('nc_newChannelClient')?.focus();
+          return;
+        }
+        ncChannelSubmit.disabled = true;
+        ncChannelSubmit.textContent = 'Creating…';
+        // A client nobody has entered yet. The record is made from the channel name rather
+        // than asking for it twice, and it is a REAL client row on purpose: the department
+        // strip and the sidebar's alphabetical order are both read from the client record,
+        // so a conversation attached to nothing is the one shape that cannot have either.
+        if (clientId === '__new__') {
+          clientId = await ncCreateClientNamed(raw);
+          if (!clientId) { ncChannelSubmit.disabled = false; ncChannelSubmit.textContent = 'Create channel'; return; }
+        }
+        const chId = await ensureClientDeptThread(clientId, 'general');
+        ncChannelSubmit.disabled = false;
+        ncChannelSubmit.textContent = 'Create channel';
+        if (!chId) return;                       // ensureClientDeptThread has already said why
+        // Reset the form the same way the team path does, or the next open still holds
+        // the last name typed and the invite chips of a channel that now has the whole
+        // team in it anyway.
+        closeModal('nc_newChannelModal');
+        if (nameEl) nameEl.value = '';
+        ncChannelInvitees.clear();
+        ncRenderInviteChips();
+        const clName = (ncClients[clientId] || {}).name || 'the client';
+        if (typeof toast === 'function') toast({ type:'success', message:'Conversation for <b>' + chatEsc(clName) + '</b> is ready' });
+        if (typeof loadChannels === 'function') await loadChannels();
+        await switchChannel(chId);
+        return;
       }
       window.nc__channelModalCard = null;
       ncChannelSubmit.disabled = true;

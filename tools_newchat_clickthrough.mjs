@@ -1991,6 +1991,72 @@ await step('the "+" on a nav card creates a channel and shows it', async () => {
     JSON.stringify(r));
 });
 
+// A client conversation created from this form used to set kind='client_dept' and leave
+// client_id null, which put the row in the sidebar's orphan bucket ABOVE the alphabetical
+// list and left it with no department strip. Both were reported as separate bugs and are
+// one cause, so the check is that the form cannot produce that row at all.
+const r2 = await step('the New channel form cannot create a client channel with no client', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const out = {};
+    document.querySelectorAll('.modal-overlay.on').forEach(m => m.classList.remove('on'));
+    document.getElementById('nc_newChannelBtn2')?.click();
+    await w(500);
+    const field = document.getElementById('nc_newChannelClientField');
+    const sel = document.getElementById('nc_newChannelClient');
+    out.hiddenForTeam = !!field && field.style.display === 'none';
+
+    document.querySelector('#nc_newChannelModal [data-ctype="client"]')?.click();
+    await w(300);
+    out.shownForClient = !!field && field.style.display !== 'none';
+    out.optionsOffered = sel ? sel.options.length - 1 : 0;      // minus the placeholder
+    // Alphabetical, because the picker is how somebody finds their client in a list of 50.
+    const labels = sel ? [...sel.options].slice(1).map(o => o.textContent) : [];
+    out.pickerSorted = labels.length > 1
+      && labels.every((v, i) => i === 0 || labels[i - 1].localeCompare(v, undefined, { sensitivity: 'base' }) <= 0);
+
+    const name = document.getElementById('nc_newChannelName');
+    if (name) { name.value = 'ct-client-conv'; name.dispatchEvent(new Event('input', { bubbles: true })); }
+
+    // Nothing chosen: it must refuse rather than write a half-linked row.
+    const before = window.__mock.db.channels.length;
+    document.getElementById('nc_newChannelSubmit')?.click();
+    await w(700);
+    out.refusedWithNoClient = window.__mock.db.channels.length === before;
+
+    // c-12 deliberately: it has no channel of any kind in the fixtures, so this has to
+    // create one rather than reuse an existing General and pass without writing anything.
+    if (sel) { sel.value = 'c-12'; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+    out.couldPickC12 = sel ? sel.value === 'c-12' : false;
+    document.getElementById('nc_newChannelSubmit')?.click();
+    for (let i = 0; i < 40; i++) {
+      await w(250);
+      if (window.__mock.db.channels.some(c => c.client_id === 'c-12')) break;
+    }
+    const made = window.__mock.db.channels.filter(c => c.client_id === 'c-12');
+    out.created = made.length === 1;
+    out.linkedToClient = !!made[0] && made[0].client_id === 'c-12';
+    out.hasDepartment = !!made[0] && made[0].department === 'general';
+    out.isClientKind = !!made[0] && made[0].kind === 'client_dept';
+    // The orphan bucket is what put Nordic Chems above A X E. Nothing may land in it.
+    out.orphansCreated = window.__mock.db.channels
+      .filter(c => c.kind === 'client_dept' && !c.client_id).length;
+
+    document.querySelectorAll('.modal-overlay.on').forEach(m => m.classList.remove('on'));
+    return out;
+  });
+  return r;
+}) || {};
+check('the client picker appears only for a client channel, and lists clients A-Z',
+  r2.hiddenForTeam && r2.shownForClient && r2.optionsOffered > 1 && r2.pickerSorted,
+  JSON.stringify(r2));
+check('submitting with no client chosen writes nothing',
+  r2.refusedWithNoClient, JSON.stringify(r2));
+check('a client conversation is created linked to its client, with a department and no orphan',
+  r2.couldPickC12 && r2.created && r2.linkedToClient && r2.hasDepartment
+    && r2.isClientKind && r2.orphansCreated === 0,
+  JSON.stringify(r2));
+
 await step('every modal New Chat opens is actually on screen', async () => {
   const r = await page.evaluate(async () => {
     const seen = (el) => {
@@ -2360,22 +2426,38 @@ await step('the Clients "+" opens the same form as Teams', async () => {
     await new Promise(r => setTimeout(r, 150));
     out.privacyAfter = document.querySelector('#nc_newChannelModal [data-priv].nc_sel')?.dataset.priv;
 
-    // No client or department pickers: the form asks where the channel belongs and
-    // nothing else.
-    out.noClientPicker = !document.getElementById('nc_newChannelClient');
+    // A client picker, and still no department picker: which client is the one thing the
+    // form cannot work out for itself, and the department is always General to begin with.
+    // This used to assert there was NO client picker, and that the row it created had a
+    // null client and a null department. That shape is what Matthew reported -- it sorts
+    // outside the alphabetical list and has no department strip -- so the check was
+    // describing the bug rather than the intent.
+    const picker = document.getElementById('nc_newChannelClient');
+    out.hasClientPicker = !!picker;
     out.noDeptPicker = !document.getElementById('nc_newChannelDept');
     const name = document.getElementById('nc_newChannelName');
     name.value = 'from-clients-card';
     name.dispatchEvent(new Event('input', { bubbles: true }));
+    // "Not in this list" is the first option, and it makes the client from the name --
+    // the path somebody takes for a client nobody has entered yet.
+    out.newClientOptionFirst = !!picker && picker.options[1] && picker.options[1].value === '__new__';
+    if (picker) { picker.value = '__new__'; picker.dispatchEvent(new Event('change', { bubbles: true })); }
     const before = window.__mock.db.channels.length;
     document.getElementById('nc_newChannelSubmit')?.click();
     for (let i = 0; i < 40; i++) {
       await new Promise(r => setTimeout(r, 200));
       if (window.__mock.db.channels.length > before) break;
     }
-    const made = window.__mock.db.channels.find(c => c.name === 'from-clients-card');
+    // ensureClientDeptThread names the channel "<client> <department>", so the row is
+    // found by prefix rather than by an exact name the form no longer controls.
+    const made = window.__mock.db.channels.find(c => /^from-clients-card/.test(c.name || ''));
     out.created = !!made;
     out.shape = made ? { kind: made.kind, client: made.client_id || null, dept: made.department || null } : null;
+    // The client record it made, which is what gives the row its department strip.
+    out.clientMade = !!(made && made.client_id
+      && window.__mock.db.clients.some(c => c.id === made.client_id && c.name === 'from-clients-card'));
+    out.noOrphansAnywhere = window.__mock.db.channels
+      .filter(c => c.kind === 'client_dept' && !c.client_id).length === 0;
     // A DEPARTMENT still implies a client -- the half of the old constraint that was kept,
     // because a department tab means nothing without one.
     out.rejectsDeptWithoutClient = await (async () => {
@@ -2401,9 +2483,33 @@ await step('the Clients "+" opens the same form as Teams', async () => {
     const idx = rows.findIndex(e => /from-clients-card/.test(e.textContent));
     out.inClientsCard = idx >= 0;
     out.clientRows = rows.length;
-    // What you just made is at the top. Appended, it sat under fifty alphabetised
-    // clients, which is the sidebar hiding your own work.
     out.positionInCard = idx;
+    // It sorts into the list by name rather than being hoisted to the top. The top was
+    // the old behaviour and it is exactly what was reported: "Nordic Chems" sitting above
+    // "A X E" with no way to tell why.
+    //
+    // Measured on the order CLIENTS first appear, not on every row: one client can own
+    // several rows here (Maribou has a second General in the fixtures), so "every row in
+    // name order" is not the rule and asserting it fails on correct output.
+    // A row carries data-client-id only when it is a dimmed placeholder for a client with
+    // no conversation yet; every real row identifies itself by CHANNEL. Reading only the
+    // first attribute found nothing at all, and an empty list is how an ordering check
+    // passes while measuring no rows -- so the client is resolved through the channel, and
+    // the name comes from the client record rather than from row text carrying badges.
+    const byCh = new Map(window.__mock.db.channels.map(c => [c.id, c]));
+    const clName = new Map(window.__mock.db.clients.map(c => [c.id, String(c.name || '')]));
+    const firstSeen = [];
+    rows.forEach(e => {
+      const cid = e.dataset.clientId
+        || (e.dataset.ncChannelId ? (byCh.get(e.dataset.ncChannelId) || {}).client_id : null);
+      if (!cid || firstSeen.some(x => x.id === cid)) return;
+      firstSeen.push({ id: cid, text: (clName.get(cid) || '').trim().toLowerCase() });
+    });
+    out.clientOrder = firstSeen.map(x => x.text);      // emitted so a failure is readable
+    out.cardIsAlphabetical = firstSeen.length > 2 && firstSeen.every((v, i) =>
+      i === 0 || firstSeen[i - 1].text.localeCompare(v.text, undefined, { sensitivity: 'base' }) <= 0);
+    // The regression itself: the old code put what you just made at index 0 regardless.
+    out.notHoistedToTop = idx > 0;
     // ...and it wears an initial circle like every other row in this card, not a "#",
     // which made the one row that is not a client look like a stray team channel.
     const mark = idx >= 0 ? rows[idx].querySelector('.nc_hash') : null;
@@ -2423,13 +2529,17 @@ await step('the Clients "+" opens the same form as Teams', async () => {
     r.hasButton && r.opensTeamForm && r.cardDidNotToggle && r.pickerGone
       && r.typeChoiceVisible && r.defaultedToClient
       && r.privacyBefore === 'public' && r.privacyAfter === 'public'
-      && r.noClientPicker && r.noDeptPicker
+      && r.hasClientPicker && r.noDeptPicker && r.newClientOptionFirst
       && r.created && r.shape && r.shape.kind === 'client_dept'
-      && r.shape.client === null && r.shape.dept === null
+      // Linked, with a department: the two things the old shape could not have.
+      && r.shape.client !== null && r.shape.dept === 'general'
+      && r.clientMade && r.noOrphansAnywhere
       && r.rejectsDeptWithoutClient
       && r.inClientsCard && !r.inTeamsCard
+      // In name order, not hoisted to the top.
+      && r.cardIsAlphabetical && r.notHoistedToTop
       // Two initials now, not one: "FD" tells two Fortress rows apart where "F" does not.
-      && r.positionInCard === 0 && /^[A-Z]{2}$/.test(r.markText || '') && r.markIsCircle,
+      && /^[A-Z]{2}$/.test(r.markText || '') && r.markIsCircle,
     JSON.stringify(r));
 });
 
