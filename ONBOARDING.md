@@ -218,8 +218,11 @@ select count(*) from public.clients;
 - **`main`** is live and current.
 - **Pod System** is live but restricted to owner/manager/in-house-dev — a preview for Luke.
   Removing `data-role-min="manager"` from its nav item and screen opens it to everyone.
-- **`feature/projects-rework`** is the Projects 2.0 redesign, ~28 commits. It stays on the
-  branch — it is not finished, and it is not to be merged unless Nishchay says so.
+- **Projects 2.0 is live**, merged on 2026-09-22 and restricted to owner/manager/in-house-dev
+  (`data-role-min="manager"` on its nav item and screen). It opens on the rebuilt screen; the
+  Clone/Rebuild switch in the bottom-right corner still shows the old screen for comparison,
+  and a choice already made wins over that default. `feature/projects-rework` is merged and
+  kept only for history — earlier copies of this file said it must never be merged.
 - **`feature/pod-system`** is the full pod branch including work not on `main`.
 - Migration status, checked against production on 2026-09-22 with `supabase migration list --linked`:
   project visibility (`20260908120000`) **is applied**, and so are the task pipeline
