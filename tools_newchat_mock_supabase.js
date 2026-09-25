@@ -375,6 +375,40 @@
     { id:'tp-4', profile_id:ME,    department_id:'pd-3', base_type:'fixed_weekly', base_amount:1596.15, weekly_hours:null }];
   // u-4 onwards deliberately have no team_pay row: somebody with no pay set and no
   // accounts is exactly who a manager needs to see on the board, so the board must show them.
+  // Meetings. One event type and three bookings covering the three states the Booked
+  // meetings list has to draw: one nobody has looked at, one already accepted, and one
+  // declined. The guest's timezone differs from the host's on purpose -- the row shows both
+  // clocks only when they disagree, and a fixture where they agree would never prove it.
+  DB.event_types = [{
+    id: 'et-1', profile_id: ME, slug: 'sales-call', name: 'Sales call', duration_min: 30,
+    buffer_before_min: 0, buffer_after_min: 0, location_type: 'video', location_detail: null,
+    availability: { mon:['09:00-18:00'], tue:['09:00-18:00'], wed:['09:00-18:00'],
+                    thu:['09:00-18:00'], fri:['09:00-18:00'] },
+    timezone: 'Europe/London', min_notice_hours: 4, max_advance_days: 60, is_active: true,
+    auto_generate_meet: true, invitees: [], blackout_dates: [],
+    questions: [{ key: 'budget', label: 'Budget', type: 'text', required: false }],
+  }];
+  // Relative to the real clock, not the fixtures' pinned 2026-08-24: the list filters on
+  // upcoming vs past, so a booking that is always in the past can only ever exercise half
+  // of it.
+  const soon = (mins) => new Date(Date.now() + mins * 60000).toISOString();
+  const bk = (id, mins, over) => Object.assign({
+    id, event_type_id: 'et-1', host_profile_id: ME,
+    guest_name: 'Dana Prospect', guest_email: 'dana@example.com',
+    guest_notes: 'Keen to talk about paid search.',
+    questions_answers: { budget: '2k/month' },
+    start_at: soon(mins), end_at: soon(mins + 30),
+    timezone: 'America/New_York', status: 'confirmed',
+    meeting_link: 'https://giant.reachgiant.com/meet/abc-def-ghi',
+    cancel_token: 'tok-' + id, host_accepted_at: null, declined_at: null, decline_reason: null,
+  }, over || {});
+  DB.bookings = [
+    bk('bk-new', 120),
+    bk('bk-accepted', 240, { host_accepted_at: soon(-60), guest_name: 'Sam Accepted' }),
+    bk('bk-declined', 360, { status: 'declined', declined_at: soon(-60),
+        decline_reason: 'Clash with a client call', guest_name: 'Ravi Declined' }),
+  ];
+
   DB.project_prefs = [];   // migration 20260908130000 -- per-person order and stars
   DB.nav_favorites = [];   // migration 20260824140000
   DB.invitations = [];

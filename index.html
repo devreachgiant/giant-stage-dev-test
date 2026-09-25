@@ -4160,6 +4160,18 @@ html[data-theme="light"] .invite-banner .ib-ava{background:#DCE7F5;color:#2C5C9E
 .bk-cly-meeting-title{font-size:13px;font-weight:700;color:var(--text);}
 .bk-cly-meeting-title .bk-cly-guest{color:var(--text-2);font-weight:500;}
 .bk-cly-meeting-time{font-size:11.5px;color:var(--text-3);font-weight:600;font-variant-numeric:tabular-nums;margin-top:2px;}
+/* Booked meetings: the row carries the detail and the actions now, so it needs room and
+   the inner controls need to sit apart from the row's own click. */
+.bk-pill{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:700;vertical-align:middle;}
+.bk-row-sub{font-size:11.5px;color:var(--text-2);margin-top:4px;line-height:1.45;word-break:break-word;}
+.bk-row-sub a{color:var(--text-2);text-decoration:underline;text-underline-offset:2px;}
+.bk-row-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px;}
+.bk-row-btn{display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:7px;border:1px solid var(--line-2);
+  background:var(--surface);color:var(--text-2);font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:none;}
+.bk-row-btn:hover{border-color:var(--text-3);color:var(--text);}
+.bk-row-btn-join{background:var(--red);border-color:var(--red);color:#fff;}
+.bk-row-btn-join:hover{filter:brightness(1.08);color:#fff;}
+.bk-row-btn-decline:hover{border-color:#EF4444;color:#EF4444;}
 
 /* Invitee right pane */
 .bk-cly-inv-header{padding:18px 20px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;}
@@ -57220,11 +57232,42 @@ ${COMMON_SCHEMA}`;
           const timeStr = `${start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} – ${end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
           const isActive = b.id === bkActiveMeetingId;
           const dotColor = b.status === 'cancelled' ? 'var(--text-3)' : 'var(--red)';
-          html += `<div class="bk-cly-meeting ${isActive ? 'active' : ''}" data-bk-meeting-id="${calEsc(b.id)}">
+          // The row used to say the name and the time and nothing else -- not the guest's
+          // email, not their answers, and not the join link, which is the one thing you
+          // actually need when the meeting starts. All of it is here now, and the actions
+          // are on the row rather than behind a click, because "which of these have I dealt
+          // with" is the question this list exists to answer.
+          const guestTz = b.timezone || null;
+          const theirTime = guestTz ? start.toLocaleTimeString('en-US',
+            { hour: 'numeric', minute: '2-digit', timeZone: guestTz }) : null;
+          const sameClock = !theirTime || theirTime === start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+          const cancelled = b.status === 'cancelled' || b.status === 'declined';
+          const accepted = !!b.host_accepted_at;
+          const pill = cancelled
+            ? '<span class="bk-pill" style="background:rgba(160,160,160,.16);color:var(--text-3);">' + (b.status === 'declined' ? 'Declined' : 'Cancelled') + '</span>'
+            : (accepted
+              ? '<span class="bk-pill" style="background:rgba(16,185,129,.16);color:#10B981;">Accepted</span>'
+              : '<span class="bk-pill" style="background:rgba(245,158,11,.16);color:#F59E0B;">Needs a look</span>');
+          const answers = b.questions_answers && typeof b.questions_answers === 'object'
+            ? Object.entries(b.questions_answers).filter(([, v]) => v !== null && v !== '' )
+            : [];
+          html += `<div class="bk-cly-meeting ${isActive ? 'active' : ''}" data-bk-meeting-id="${calEsc(b.id)}" style="${cancelled ? 'opacity:.6;' : ''}">
             <div class="bk-cly-meeting-dot" style="background:${dotColor};"></div>
             <div class="bk-cly-meeting-main">
-              <div class="bk-cly-meeting-title">${calEsc(b.event_types?.name || 'Meeting')} <span class="bk-cly-guest">with ${calEsc(b.guest_name || '—')}</span></div>
-              <div class="bk-cly-meeting-time">${calEsc(timeStr)}</div>
+              <div class="bk-cly-meeting-title">${calEsc(b.event_types?.name || 'Meeting')} <span class="bk-cly-guest">with ${calEsc(b.guest_name || '—')}</span> ${pill}</div>
+              <div class="bk-cly-meeting-time">${calEsc(timeStr)}${sameClock ? '' : ' · ' + calEsc(theirTime) + ' their time (' + calEsc(guestTz) + ')'}</div>
+              ${b.guest_email ? `<div class="bk-row-sub"><a href="mailto:${calEsc(b.guest_email)}" data-bk-stop="1">${calEsc(b.guest_email)}</a></div>` : ''}
+              ${b.guest_notes ? `<div class="bk-row-sub">“${calEsc(b.guest_notes)}”</div>` : ''}
+              ${answers.length ? `<div class="bk-row-sub">${answers.map(([k, v]) =>
+                  '<b>' + calEsc(String(k).replace(/_/g, ' ')) + ':</b> ' + calEsc(Array.isArray(v) ? v.join(', ') : String(v))
+                ).join(' · ')}</div>` : ''}
+              <div class="bk-row-actions">
+                ${b.meeting_link && !cancelled ? `<a class="bk-row-btn bk-row-btn-join" href="${calEsc(b.meeting_link)}" target="_blank" rel="noopener" data-bk-stop="1">Join</a>` : ''}
+                ${!cancelled && !accepted ? `<button type="button" class="bk-row-btn" data-bk-accept="${calEsc(b.id)}">Accept</button>` : ''}
+                ${!cancelled ? `<button type="button" class="bk-row-btn bk-row-btn-decline" data-bk-decline="${calEsc(b.id)}">Decline</button>` : ''}
+                ${b.cancel_token && !cancelled ? `<a class="bk-row-btn" href="${calEsc(window.GIANT_ORIGIN + '/booking/' + b.cancel_token)}" target="_blank" rel="noopener" data-bk-stop="1">Reschedule</a>` : ''}
+              </div>
+              ${b.decline_reason ? `<div class="bk-row-sub" style="color:var(--text-3);">Declined: ${calEsc(b.decline_reason)}</div>` : ''}
             </div>
           </div>`;
         });
@@ -57232,15 +57275,87 @@ ${COMMON_SCHEMA}`;
       list.innerHTML = html;
       // Wire meeting click → show invitee pane
       list.querySelectorAll('[data-bk-meeting-id]').forEach(el => {
-        el.addEventListener('click', () => {
+        el.addEventListener('click', (e) => {
+          // Join, Reschedule, the guest's email and the two actions all live inside the
+          // row now. Without this, clicking any of them also selects the row and re-renders
+          // it out from under the click.
+          if (e.target.closest('[data-bk-stop], [data-bk-accept], [data-bk-decline]')) return;
           bkActiveMeetingId = el.dataset.bkMeetingId;
           renderBkBookings();
           renderInviteePane();
         });
       });
+
+      // Accept: an acknowledgement, not a gate. The booking was already confirmed when it
+      // was made -- this records that a human has seen it, which is what turns the list
+      // from a pile into a queue.
+      list.querySelectorAll('[data-bk-accept]').forEach(el => {
+        el.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const id = el.dataset.bkAccept;
+          el.disabled = true; el.textContent = 'Saving…';
+          const when = new Date().toISOString();
+          const { error } = await supabase.from('bookings')
+            .update({ host_accepted_at: when }).eq('id', id);
+          if (error) {
+            el.disabled = false; el.textContent = 'Accept';
+            if (typeof toast === 'function') toast({ type:'error', message:'Could not save that: ' + error.message });
+            return;
+          }
+          const row = bkBookings.find(b => b.id === id);
+          if (row) row.host_accepted_at = when;
+          renderBkBookings();
+        });
+      });
+
+      // Decline: this one the guest feels, so it asks first, then cancels for real and
+      // sends them the reason and a link to pick another time.
+      list.querySelectorAll('[data-bk-decline]').forEach(el => {
+        el.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const id = el.dataset.bkDecline;
+          const b = bkBookings.find(x => x.id === id);
+          if (!b) return;
+          const reason = await window.giantPrompt(
+            'Decline this meeting?\n\n' + (b.guest_name || 'The guest') + ' will be emailed to say it is off, '
+            + 'with a link to book another time.\n\nA short reason (they will see this):', '');
+          if (reason === null) return;                      // cancelled the dialog
+          el.disabled = true; el.textContent = 'Declining…';
+          const ok = await bkDeclineBooking(b, String(reason || '').trim());
+          if (!ok) { el.disabled = false; el.textContent = 'Decline'; return; }
+          await loadBkData();
+          renderBkBookings();
+        });
+      });
       // If active meeting still in list, render pane
       if (bkActiveMeetingId && filtered.find(b => b.id === bkActiveMeetingId)) {
         renderInviteePane();
+      }
+    }
+
+    // Declining goes through the same endpoint the guest's own cancel link uses, with
+    // by_host set. Doing it that way rather than writing the row straight from here is what
+    // keeps the Google Calendar entry, the in-app calendar mirror and the guest's email in
+    // step -- a direct update would leave the meeting sitting in everyone's calendar.
+    async function bkDeclineBooking(booking, reason) {
+      if (!booking || !booking.cancel_token) {
+        if (typeof toast === 'function') toast({ type:'error', message:'This booking has no cancel token, so it cannot be declined here.' });
+        return false;
+      }
+      try {
+        const res = await fetch('/.netlify/functions/bookings-api', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'cancel_booking',
+            params: { token: booking.cancel_token, reason: reason || null, by_host: true } })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Decline failed');
+        if (typeof toast === 'function') toast({ type:'success',
+          message: (booking.guest_name || 'The guest') + ' has been emailed, with a link to pick another time.' });
+        return true;
+      } catch (e) {
+        if (typeof toast === 'function') toast({ type:'error', message:'Could not decline that: ' + e.message });
+        return false;
       }
     }
 
@@ -57461,7 +57576,34 @@ ${COMMON_SCHEMA}`;
       });
     })();
 
+    // Ten hard-coded zones covered Europe and not much else, so a host outside them had to
+    // pick the closest wrong one -- and since the booking page now reads the host's zone for
+    // real, a wrong zone is wrong hours rather than a cosmetic label. The browser already
+    // knows every zone; the hard-coded list stays as the fallback for anything too old to
+    // answer, and the host's own zone is put first so the common case is one click.
+    function ensureEvTypeTimezones() {
+      const sel = document.getElementById('evTypeTimezone');
+      if (!sel || sel.dataset.filled === '1') return;
+      let zones = [];
+      try { zones = (Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : []) || []; } catch (_) { zones = []; }
+      if (zones.length < 20) return;                       // keep the built-in list
+      const mine = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const label = (z) => {
+        try {
+          const p = new Intl.DateTimeFormat('en-US', { timeZone: z, timeZoneName: 'shortOffset' })
+            .formatToParts(new Date()).find(x => x.type === 'timeZoneName');
+          return p ? `${z} (${p.value})` : z;
+        } catch (_) { return z; }
+      };
+      const ordered = [mine, 'UTC'].filter(z => z && zones.includes(z))
+        .concat(zones.filter(z => z !== mine && z !== 'UTC'));
+      sel.innerHTML = ordered.map(z =>
+        '<option value="' + z + '">' + label(z) + '</option>').join('');
+      sel.dataset.filled = '1';
+    }
+
     function openEvTypeModal(typeId) {
+      ensureEvTypeTimezones();
       bkEditingTypeId = typeId || null;
       document.getElementById('evTypeAlert').className = 'auth-alert';
       const delBtn = document.getElementById('evTypeDeleteBtn');

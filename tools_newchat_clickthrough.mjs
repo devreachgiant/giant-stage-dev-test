@@ -7336,6 +7336,90 @@ await step('Chat has no NEW badge, and Archive is for the in-house dev alone', a
     r.shownToInhouseDev && r.hiddenFromOwner && r.hiddenFromEveryoneElse, JSON.stringify(r));
 });
 
+// ── Meetings: the booked list, and the two actions on a row ──────────────────
+// This screen had no coverage at all, which is how it kept a full Availability card that
+// saved to a column nothing read. The row is the thing a host works from, so the check is
+// that it carries what you need when the meeting starts -- the join link, who it is with,
+// what they said -- and that Accept and Decline do what they claim.
+const mt = await step('Booked meetings shows the detail and the actions', async () => {
+  return await page.evaluate(async () => {
+    const w = ms => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const grp = document.querySelector('.nav-group-toggle[data-navgroup="communication"]');
+    if (grp && grp.classList.contains('nav-group-collapsed')) { grp.click(); await w(400); }
+    const nav = document.querySelector('.nav-item[data-screen="bookings"]');
+    out.navExists = !!nav;
+    if (!nav) return out;
+    nav.click();
+    await w(2200);
+    // The Booked meetings sub-tab
+    const tab = [...document.querySelectorAll('[data-bk-tab], .bk-tab, button, div')]
+      .find(e => /^booked meetings$/i.test((e.textContent || '').trim()));
+    if (tab) { tab.click(); await w(1200); }
+
+    const rows = [...document.querySelectorAll('[data-bk-meeting-id]')];
+    out.rows = rows.length;
+    if (!rows.length) return out;
+    const all = rows.map(r => r.textContent || '').join(' ');
+    out.showsGuestEmail = /dana@example\.com/.test(all);
+    out.showsAnswers    = /2k\/month/.test(all);
+    out.showsNotes      = /paid search/i.test(all);
+    // Both clocks, because the guest is in New York and the host's hours are London.
+    out.showsTheirTime  = /their time/i.test(all);
+    out.hasJoinLink     = !!document.querySelector('[data-bk-meeting-id] a.bk-row-btn-join[href*="/meet/"]');
+    // Three states, three different pills.
+    out.pills = [...document.querySelectorAll('[data-bk-meeting-id] .bk-pill')]
+      .map(p => (p.textContent || '').trim());
+
+    // Accept records that a human has seen it.
+    const acc = document.querySelector('[data-bk-accept="bk-new"]');
+    out.acceptOffered = !!acc;
+    out.acceptNotOfferedOnAccepted = !document.querySelector('[data-bk-accept="bk-accepted"]');
+    out.declineNotOfferedOnDeclined = !document.querySelector('[data-bk-decline="bk-declined"]');
+    if (acc) {
+      acc.click();
+      for (let i = 0; i < 30; i++) {
+        await w(200);
+        if ((window.__mock.db.bookings.find(b => b.id === 'bk-new') || {}).host_accepted_at) break;
+      }
+      out.acceptWrote = !!(window.__mock.db.bookings.find(b => b.id === 'bk-new') || {}).host_accepted_at;
+      out.acceptShowsInRow = /accepted/i.test(
+        (document.querySelector('[data-bk-meeting-id="bk-new"]') || {}).textContent || '');
+    }
+
+    // Decline must ASK before it cancels somebody's meeting.
+    const realPrompt = window.giantPrompt;
+    let asked = '';
+    window.giantPrompt = (m) => { asked = String(m); return Promise.resolve(null); };   // cancel it
+    const dec = document.querySelector('[data-bk-decline="bk-new"]');
+    out.declineOffered = !!dec;
+    if (dec) {
+      dec.click(); await w(600);
+      out.declineAsked = /decline this meeting/i.test(asked);
+      out.declineMentionsEmail = /email/i.test(asked);
+      out.stillConfirmedAfterCancelling =
+        (window.__mock.db.bookings.find(b => b.id === 'bk-new') || {}).status === 'confirmed';
+    }
+    window.giantPrompt = realPrompt;
+    return out;
+  });
+}) || {};
+check('the Meetings screen lists a booking with everything the host needs',
+  mt.navExists && mt.rows >= 3 && mt.showsGuestEmail && mt.showsAnswers && mt.showsNotes
+    && mt.showsTheirTime && mt.hasJoinLink
+    && mt.pills.some(p => /needs a look/i.test(p))
+    && mt.pills.some(p => /accepted/i.test(p))
+    && mt.pills.some(p => /declined/i.test(p)),
+  JSON.stringify(mt));
+check('Accept records that the host has seen it, and is not offered twice',
+  mt.acceptOffered && mt.acceptWrote && mt.acceptShowsInRow
+    && mt.acceptNotOfferedOnAccepted && mt.declineNotOfferedOnDeclined,
+  JSON.stringify(mt));
+check('Decline asks first, and cancelling the question changes nothing',
+  mt.declineOffered && mt.declineAsked && mt.declineMentionsEmail
+    && mt.stillConfirmedAfterCancelling,
+  JSON.stringify(mt));
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

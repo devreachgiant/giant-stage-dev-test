@@ -186,6 +186,49 @@ async function cancelGcalEvent(hostId, gcalEventId) {
   } catch (e) { console.warn('[gcal] cancel error:', e.message); }
 }
 
+// ── Add to calendar ─────────────────────────────────────────────────────────
+// The confirmation email had the time and the join link and no way to put either into a
+// calendar, so the guest either typed it in themselves or forgot. Three routes, because
+// people's calendars differ and none of them should have to be explained: a .ics file that
+// Apple Calendar and Outlook open natively, and prefilled links for Google and Outlook Web.
+const icsStamp = (d) => new Date(d).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+
+function buildIcs(booking, eventType, host, joinUrl) {
+  const start = icsStamp(booking.start_at);
+  const end = icsStamp(booking.end_at);
+  // RFC 5545: CRLF line endings, escaped commas/semicolons, and folding is avoided by
+  // keeping lines short rather than implementing it wrongly.
+  const esc = (t) => String(t || '').replace(/\\/g, '\\\\').replace(/[,;]/g, m => '\\' + m).replace(/\r?\n/g, '\\n');
+  const lines = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Giant//Bookings//EN', 'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH', 'BEGIN:VEVENT',
+    `UID:${booking.id}@giant.reachgiant.com`,
+    `DTSTAMP:${icsStamp(Date.now())}`,
+    `DTSTART:${start}`, `DTEND:${end}`,
+    `SUMMARY:${esc(eventType.name + ' with ' + (host.full_name || host.email || 'Giant'))}`,
+    `DESCRIPTION:${esc(joinUrl ? 'Join: ' + joinUrl : (eventType.description || ''))}`,
+    joinUrl ? `LOCATION:${esc(joinUrl)}` : `LOCATION:${esc(eventType.location_detail || '')}`,
+    'STATUS:CONFIRMED', 'END:VEVENT', 'END:VCALENDAR',
+  ];
+  return lines.join('\r\n');
+}
+
+function calendarLinks(booking, eventType, host, joinUrl) {
+  const title = `${eventType.name} with ${host.full_name || host.email || 'Giant'}`;
+  const details = joinUrl ? `Join: ${joinUrl}` : (eventType.description || '');
+  const s = icsStamp(booking.start_at), e = icsStamp(booking.end_at);
+  return {
+    google: 'https://calendar.google.com/calendar/render?action=TEMPLATE'
+      + `&text=${encodeURIComponent(title)}&dates=${s}/${e}`
+      + `&details=${encodeURIComponent(details)}&location=${encodeURIComponent(joinUrl || '')}`,
+    outlook: 'https://outlook.live.com/calendar/0/deeplink/compose?path=/calendar/action/compose&rru=addevent'
+      + `&subject=${encodeURIComponent(title)}`
+      + `&startdt=${encodeURIComponent(new Date(booking.start_at).toISOString())}`
+      + `&enddt=${encodeURIComponent(new Date(booking.end_at).toISOString())}`
+      + `&body=${encodeURIComponent(details)}&location=${encodeURIComponent(joinUrl || '')}`,
+  };
+}
+
 async function sendBookingEmail(booking, eventType, host, kind, origin, opts) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) { console.warn('[bookings] RESEND_API_KEY not set'); return; }
@@ -201,8 +244,24 @@ async function sendBookingEmail(booking, eventType, host, kind, origin, opts) {
   let subject, intro, ctaBlock = '';
   const manageUrl = origin ? `${origin}/booking/${booking.cancel_token}` : null;
   if (kind === 'cancellation') {
-    subject = `Booking cancelled: ${eventType.name} with ${hostName}`;
-    intro = `The meeting with <strong>${hostName}</strong> has been cancelled.`;
+    // A guest who is told "cancelled" and nothing else has to chase somebody to rebook.
+    // When the host declined it, say so, say why if a reason was given, and put the link to
+    // pick another time in the same email.
+    const rebookUrl = (origin && host.booking_slug) ? `${origin}/book/${host.booking_slug}` : null;
+    subject = opts.declinedByHost
+      ? `Meeting cancelled: ${eventType.name} with ${hostName}`
+      : `Booking cancelled: ${eventType.name} with ${hostName}`;
+    intro = opts.declinedByHost
+      ? `Unfortunately <strong>${hostName}</strong> can't make the meeting you booked${dateStr ? ` on ${dateStr}` : ''}, so it has been cancelled.`
+      : `The meeting with <strong>${hostName}</strong> has been cancelled.`;
+    if (opts.reason) {
+      intro += `<br><br><span style="color:#444;">Reason given: ${String(opts.reason).replace(/[<>]/g, '')}</span>`;
+    }
+    if (rebookUrl) {
+      ctaBlock = `<div style="margin:18px 0;text-align:center;">
+        <a href="${rebookUrl}" style="display:inline-block;background:#D00400;color:#fff;text-decoration:none;padding:12px 22px;border-radius:9px;font-size:14px;font-weight:700;">Pick another time</a>
+      </div>`;
+    }
   } else if (kind === 'reschedule') {
     subject = `Booking rescheduled: ${eventType.name} with ${hostName}`;
     intro = `The meeting with <strong>${hostName}</strong> has been rescheduled to:`;
@@ -219,6 +278,7 @@ async function sendBookingEmail(booking, eventType, host, kind, origin, opts) {
   const meetingLink = booking.meeting_link;
   const isGiantMeet = meetingLink && meetingLink.includes('/meet/');
   const meetingLabel = isGiantMeet ? 'Join Giant Meet' : (meetingLink && meetingLink.includes('meet.google') ? 'Join Google Meet' : 'Join meeting');
+  const calLinks = calendarLinks(booking, eventType, host, meetingLink);
   const headerLabel = kind === 'cancellation' ? 'Booking cancelled' : kind === 'reschedule' ? 'Booking rescheduled' : kind === 'invitation' ? "You're invited" : 'Booking confirmed';
   const html = `
     <div style="font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#111;">
@@ -235,6 +295,12 @@ async function sendBookingEmail(booking, eventType, host, kind, origin, opts) {
         ${eventType.location_detail && !meetingLink ? `<div style="font-size:14px;color:#444;margin-top:6px;">Location: ${eventType.location_detail}</div>` : ''}
       </div>` : ''}
       ${booking.guest_notes ? `<p style="font-size:13px;color:#666;"><b>Notes:</b> ${booking.guest_notes}</p>` : ''}
+      ${kind !== 'cancellation' ? `<div style="margin:18px 0;">
+        <div style="font-size:12px;color:#666;margin-bottom:8px;font-weight:700;">Add it to your calendar</div>
+        <a href="${calLinks.google}" style="display:inline-block;padding:9px 14px;margin:0 6px 6px 0;background:#fff;border:1px solid #dcdcdc;border-radius:8px;color:#111;text-decoration:none;font-size:13px;">Google Calendar</a>
+        <a href="${calLinks.outlook}" style="display:inline-block;padding:9px 14px;margin:0 6px 6px 0;background:#fff;border:1px solid #dcdcdc;border-radius:8px;color:#111;text-decoration:none;font-size:13px;">Outlook</a>
+        <span style="display:inline-block;padding:9px 14px;margin:0 6px 6px 0;background:#fff;border:1px solid #dcdcdc;border-radius:8px;color:#666;font-size:13px;">Apple Calendar — open the attached invite.ics</span>
+      </div>` : ''}
       ${ctaBlock}
       <p style="font-size:11px;color:#999;margin-top:32px;border-top:1px solid #eaeaea;padding-top:16px;">Powered by Giant</p>
     </div>
@@ -245,7 +311,13 @@ async function sendBookingEmail(booking, eventType, host, kind, origin, opts) {
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from: process.env.RESEND_FROM || 'Giant <noreply@reachgiant.com>',
-        to: [recipientEmail], subject, html
+        to: [recipientEmail], subject, html,
+        // Apple Calendar and desktop Outlook open this directly; a cancellation has
+        // nothing to add, so it carries no invite.
+        ...(kind !== 'cancellation' ? { attachments: [{
+          filename: 'invite.ics',
+          content: Buffer.from(buildIcs(booking, eventType, host, meetingLink), 'utf8').toString('base64'),
+        }] } : {}),
       })
     });
   } catch (e) { console.warn('[bookings] email failed:', e.message); }
@@ -522,7 +594,11 @@ exports.handler = async (event) => {
     }
 
     if (action === 'cancel_booking') {
-      const { token, reason } = params;
+      // by_host: the host declined it from the app, rather than the guest cancelling from
+      // their own link. Same mechanics either way -- the calendar entry goes, the mirror row
+      // goes, the guest is emailed -- so this reuses all of it instead of growing a second
+      // path that would drift out of step with this one.
+      const { token, reason, by_host } = params;
       if (!token) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Token required' }) };
       const bookings = await sb(`bookings?cancel_token=eq.${encodeURIComponent(token)}&limit=1`);
       if (!bookings.length) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Booking not found' }) };
@@ -533,10 +609,14 @@ exports.handler = async (event) => {
         await cancelGcalEvent(booking.host_profile_id, calEvents[0].gcal_event_id);
       }
       await sb(`calendar_events?booking_id=eq.${booking.id}`, 'DELETE');
-      await sb(`bookings?id=eq.${booking.id}`, 'PATCH', { status: 'cancelled', cancel_reason: reason || null });
+      const patch = by_host
+        ? { status: 'declined', cancel_reason: reason || null, declined_at: new Date().toISOString(), decline_reason: reason || null }
+        : { status: 'cancelled', cancel_reason: reason || null };
+      await sb(`bookings?id=eq.${booking.id}`, 'PATCH', patch);
       const evt = (await sb(`event_types?id=eq.${booking.event_type_id}&limit=1`))[0];
-      const host = (await sb(`profiles?id=eq.${booking.host_profile_id}&select=full_name,email&limit=1`))[0];
-      sendBookingEmail({...booking, status: 'cancelled'}, evt, host, 'cancellation', origin).catch(()=>{});
+      const host = (await sb(`profiles?id=eq.${booking.host_profile_id}&select=full_name,email,booking_slug&limit=1`))[0];
+      sendBookingEmail({ ...booking, ...patch }, evt, host, 'cancellation', origin,
+        { declinedByHost: !!by_host, reason: reason || null }).catch(()=>{});
       return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
     }
 
