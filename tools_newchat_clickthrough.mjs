@@ -3853,6 +3853,44 @@ await step('double-clicking a message opens the message, not the reaction bar', 
     out.stillRendered = !!document.querySelector(`.nc_msg[data-msg-id="${out.msgId}"]`);
     return out;
   });
+  // Line breaks have to survive being edited. The editor prefers the cached message, so
+  // the way to see this bug is the fallback: a message the cache does not hold, whose text
+  // is therefore read back out of the DOM. ncMessageText clones the body and used to call
+  // innerText on the detached copy -- and innerText is defined to fall back to textContent
+  // for anything not being rendered, where a <br> contributes no text at all. Every break
+  // vanished, the lines either side ran together, and saving wrote that back permanently.
+  const br = await step('editing a message keeps its line breaks', async () => {
+    return await page.evaluate(async () => {
+      const w = ms => new Promise(r => setTimeout(r, ms));
+      const out = {};
+      const list = document.getElementById('nc_chatMsgsList');
+      if (!list) return out;
+      const mine = [...list.querySelectorAll('[data-msg-body][data-msg-mine="1"]')]
+        .filter(b => !b.dataset.editWired);
+      out.candidates = mine.length;
+      if (!mine.length) return out;
+      const body = mine[0];
+      // An id the cache cannot know, so the editor must fall back to reading the DOM --
+      // which is the broken path. Nothing is saved: this cancels with Escape.
+      body.dataset.msgId = 'br-probe-' + Math.random().toString(36).slice(2, 8);
+      body.innerHTML = 'first line<br><br>third line';
+      out.renderedText = body.innerText;                 // live element: breaks are real
+      body.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+      await w(900);
+      const root = body.closest('.nc_msg') || list;
+      const ta = root.querySelector('textarea');
+      out.editorOpened = !!ta;
+      out.editorValue = ta ? ta.value : null;
+      out.keptBothBreaks = !!ta && ta.value === 'first line\n\nthird line';
+      out.linesNotRunTogether = !!ta && !/lineth|onethird|linethird/i.test(ta.value);
+      if (ta) { ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); await w(500); }
+      return out;
+    });
+  }) || {};
+  check('a message edited from the DOM keeps every line break',
+    br.candidates > 0 && br.editorOpened && br.keptBothBreaks && br.linesNotRunTogether,
+    JSON.stringify(br));
+
   check('double-clicking a message opens the message, not the reaction bar',
     r.editableMessages > 0 && r.barsOnMessage === 1 && r.barsInsideText === 0
       && r.emojiNodesInText === 0 && !/👍|❤️|🔥|😂|🎉/.test(r.textReads || '')

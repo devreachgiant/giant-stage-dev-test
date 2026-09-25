@@ -79655,7 +79655,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       copy.querySelectorAll('span').forEach(el => {
         if (el.textContent.trim() === '(edited)') el.remove();
       });
-      return copy.innerText.trim();
+      // innerText only turns <br> back into a newline for an element that is RENDERED. This
+      // copy is detached, and for anything not being rendered innerText is defined to fall
+      // back to textContent -- which has no text for a <br> at all. So every line break in
+      // the message was dropped here, and the lines either side were run together: a
+      // paragraphed message opened in the edit box as one unbroken block, and saving wrote
+      // that back. Editing a long message destroyed its formatting permanently.
+      //
+      // The renderer writes line breaks one way -- .replace(/\n/g,'<br>') -- so turning <br>
+      // back into "\n" before reading the text is the exact inverse, and does not depend on
+      // layout at all.
+      copy.querySelectorAll('br').forEach(br => br.replaceWith(document.createTextNode('\n')));
+      return copy.textContent.trim();
     }
 
     function wireEditMessage(textEl, msgsRef) {
