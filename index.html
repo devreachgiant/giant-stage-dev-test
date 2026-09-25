@@ -37549,9 +37549,27 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       </div>
     `;
 
-    // Fetch host info
-    const { data: hosts } = await supabase.from('profiles').select('id, full_name, email, avatar_url').eq('id', meeting.host_profile_id).limit(1);
-    const host = hosts && hosts[0];
+    // Fetch host info.
+    //
+    // Through a token-scoped function, not a profiles select: an anonymous guest can read
+    // ZERO rows from profiles -- correctly -- so the direct query returned nothing, raised
+    // no error, and left "Loading host…" on screen permanently for everybody outside the
+    // company. Signed-in staff never saw it, which is exactly why it lasted: it only broke
+    // for the people the page exists for.
+    //
+    // The plain select stays as a fallback for a signed-in viewer, so if the function is
+    // ever missing on an environment this degrades to the old behaviour rather than to a
+    // blank screen.
+    let host = null;
+    try {
+      const { data: h } = await supabase.rpc('get_meeting_host_by_token', { p_token: token });
+      host = Array.isArray(h) ? h[0] : h;
+    } catch (_) {}
+    if (!host && meeting.host_profile_id) {
+      const { data: hosts } = await supabase.from('profiles')
+        .select('id, full_name, email, avatar_url').eq('id', meeting.host_profile_id).limit(1);
+      host = hosts && hosts[0];
+    }
     if (host) {
       const hostAva = document.getElementById('gmHostAva');
       const hostName = document.getElementById('gmHostName');
