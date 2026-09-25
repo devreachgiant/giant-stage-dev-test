@@ -10003,6 +10003,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                   <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
                     <div style="width:28px;height:28px;border-radius:7px;background:rgba(208,4,0,.13);color:var(--red);display:flex;align-items:center;justify-content:center;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.5"/><path d="M8 5v3l2 1.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
                     <div style="font-size:13.5px;font-weight:800;color:var(--text);">Availability</div>
+                    <div style="font-size:11px;color:var(--text-3);margin-top:3px;line-height:1.45;">Where a new meeting type starts. Changing this does not alter meeting types you have already set up — each one keeps its own hours.</div>
                   </div>
                   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
                     <div>
@@ -56625,6 +56626,20 @@ ${COMMON_SCHEMA}`;
 
     async function loadBkData() {
       await loadBookingSlug();
+      // Booking settings, fetched here rather than added to the sign-in query. That query
+      // decides whether anybody gets into the app at all, and PostgREST fails the whole
+      // select if one column is missing -- naming a column there is a company-wide outage
+      // waiting for a migration to be late. Asked for on this screen, the worst case is a
+      // new meeting type starting from plain 9-6.
+      try {
+        const { data: bp } = await supabase.from('profiles')
+          .select('booking_prefs, timezone').eq('id', session.user.id).single();
+        if (bp) {
+          currentProfile.booking_prefs = bp.booking_prefs || currentProfile.booking_prefs;
+          if (bp.timezone) currentProfile.timezone = bp.timezone;
+          window.giantCurrentProfile = currentProfile;
+        }
+      } catch (_) {}
       const fullUrl = currentProfile.booking_slug ? `${window.GIANT_ORIGIN}/book/${currentProfile.booking_slug}` : '';
       const urlHolder = document.getElementById('bkPublicUrl');
       if (urlHolder) urlHolder.textContent = fullUrl;
@@ -57491,19 +57506,35 @@ ${COMMON_SCHEMA}`;
         document.getElementById('evTypeName').value = '';
         document.getElementById('evTypeSlug').value = '';
         document.getElementById('evTypeDesc').value = '';
-        document.getElementById('evTypeDuration').value = '30';
+        // Booking settings are the starting point for a new meeting type. They were saved
+        // to profiles.booking_prefs and then read by nothing at all -- somebody could set
+        // "Mon-Fri, 9 to 6" there, watch it save, and be bookable at completely different
+        // hours, with no way to tell why. Applied here rather than at booking time on
+        // purpose: an existing meeting type's hours are a decision somebody made, and a
+        // settings screen should not quietly rewrite it underneath them.
+        const bp = (window.giantCurrentProfile || {}).booking_prefs || {};
+        const wh = bp.working_hours || {};
+        const from = wh.start || '09:00', to = wh.end || '18:00';
+        const days = Array.isArray(bp.working_days) && bp.working_days.length
+          ? bp.working_days : ['mon','tue','wed','thu','fri'];
+        const seeded = {};
+        days.forEach(d => { seeded[String(d).slice(0,3).toLowerCase()] = [from + '-' + to]; });
+
+        document.getElementById('evTypeDuration').value = String(bp.default_duration || 30);
         document.getElementById('evTypeLocation').value = 'video';
         document.getElementById('evTypeLocationDetail').value = '';
-        document.getElementById('evTypeBufferBefore').value = '0';
-        document.getElementById('evTypeBufferAfter').value = '0';
+        document.getElementById('evTypeBufferBefore').value = String(bp.buffer_minutes || 0);
+        document.getElementById('evTypeBufferAfter').value = String(bp.buffer_minutes || 0);
         document.getElementById('evTypeAutoMeet').checked = true;
-        document.getElementById('evTypeStart').value = '09:00';
-        document.getElementById('evTypeEnd').value = '18:00';
+        document.getElementById('evTypeStart').value = from;
+        document.getElementById('evTypeEnd').value = to;
         // New fields — defaults
-        document.getElementById('evTypeTimezone').value = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-        document.getElementById('evTypeMinNotice').value = '0';
+        document.getElementById('evTypeTimezone').value =
+          bp.timezone || (window.giantCurrentProfile || {}).timezone
+          || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+        document.getElementById('evTypeMinNotice').value = String(bp.min_notice_hours || 0);
         window._evTypeBlackouts = [];
-        renderEvTypeAvailabilityGrid({});
+        renderEvTypeAvailabilityGrid(seeded);
         renderEvTypeBlackoutChips();
         // Reset custom questions
         if (typeof window._loadEvTypeQuestions === 'function') window._loadEvTypeQuestions([]);

@@ -251,6 +251,81 @@ async function sendBookingEmail(booking, eventType, host, kind, origin, opts) {
   } catch (e) { console.warn('[bookings] email failed:', e.message); }
 }
 
+// ── Is this slot one the host actually offers? ───────────────────────────────
+// create_booking used to check only for CLASHES, and every other rule -- working hours,
+// notice period, blackout dates, whether the event type is even switched on -- lived in the
+// browser. This endpoint is public and unauthenticated and takes a raw event_type_id, so a
+// scripted POST could book 3am on a Sunday, or on an event type the host had turned off,
+// and it would be accepted, emailed and written into the host's calendar.
+//
+// The host's availability is written in the HOST's timezone, so it has to be read in that
+// timezone here too -- the same bug the public page had, and the server is the copy that
+// decides what is real.
+function tzOffsetMs(ts, tz) {
+  const p = {};
+  new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    .formatToParts(new Date(ts))
+    .forEach(x => { if (x.type !== 'literal') p[x.type] = x.value; });
+  return Date.UTC(+p.year, +p.month - 1, +p.day, (+p.hour) % 24, +p.minute, +p.second) - ts;
+}
+// The instant, described in the host's own calendar and clock.
+function wallClockIn(ts, tz) {
+  const p = {};
+  new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false, weekday: 'short',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    .formatToParts(new Date(ts))
+    .forEach(x => { if (x.type !== 'literal') p[x.type] = x.value; });
+  return {
+    dayKey: String(p.weekday || '').slice(0, 3).toLowerCase(),   // mon, tue, ...
+    isoDate: `${p.year}-${p.month}-${p.day}`,
+    minutes: ((+p.hour) % 24) * 60 + (+p.minute),
+  };
+}
+
+// Returns null when the slot is fine, or a human sentence explaining why it is not.
+function slotRejectionReason(evt, start) {
+  if (!(start instanceof Date) || isNaN(start.getTime())) return 'That is not a valid time.';
+  if (evt.is_active === false) return 'That meeting type is not taking bookings.';
+
+  const tz = evt.timezone || 'UTC';
+  const now = Date.now();
+  const noticeMs = Math.max(0, (evt.min_notice_hours || 0)) * 3600000;
+  if (start.getTime() < now + noticeMs) {
+    return (evt.min_notice_hours || 0) > 0
+      ? `That time is too soon — ${evt.min_notice_hours} hours' notice is needed.`
+      : 'That time is in the past.';
+  }
+  const maxDays = evt.max_advance_days || 0;
+  if (maxDays > 0 && start.getTime() > now + maxDays * 86400000) {
+    return `That is further ahead than this meeting type can be booked (${maxDays} days).`;
+  }
+
+  const at = wallClockIn(start.getTime(), tz);
+  const blackout = Array.isArray(evt.blackout_dates) ? evt.blackout_dates : [];
+  if (blackout.includes(at.isoDate)) return 'That date is not available.';
+
+  const ranges = ((evt.availability || {})[at.dayKey]) || [];
+  if (!ranges.length) return 'There are no times available on that day.';
+
+  const duration = evt.duration_min || 30;
+  // Inside a published window, AND on the grid that window generates -- otherwise 09:07
+  // passes for a 09:00-18:00 day, which is not a slot anybody was ever offered.
+  const fits = ranges.some(r => {
+    const [s, e] = String(r).split('-');
+    if (!s || !e) return false;
+    const [sh, sm] = s.split(':').map(Number);
+    const [eh, em] = e.split(':').map(Number);
+    if ([sh, sm, eh, em].some(n => !Number.isFinite(n))) return false;
+    const from = sh * 60 + sm, to = eh * 60 + em;
+    if (at.minutes < from || at.minutes + duration > to) return false;
+    return (at.minutes - from) % duration === 0;
+  });
+  if (!fits) return 'That time is outside the hours this meeting type is offered.';
+  return null;
+}
+
 function rand32() {
   const arr = new Uint8Array(16);
   if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(arr);
@@ -326,6 +401,10 @@ exports.handler = async (event) => {
       if (!types.length) return { statusCode: 404, headers, body: JSON.stringify({ error: 'Event type not found' }) };
       const evt = types[0];
       const start = new Date(start_at);
+      // The rules, not just the clashes. 400 rather than 409: a clash means "somebody got
+      // there first, pick another", this means "that was never on offer".
+      const bad = slotRejectionReason(evt, start);
+      if (bad) return { statusCode: 400, headers, body: JSON.stringify({ error: bad }) };
       const end = new Date(start.getTime() + evt.duration_min * 60000);
       const fromIso = start.toISOString();
       const toIso = end.toISOString();
@@ -469,6 +548,10 @@ exports.handler = async (event) => {
       const booking = bookings[0];
       const evt = (await sb(`event_types?id=eq.${booking.event_type_id}&limit=1`))[0];
       const newStart = new Date(new_start_at);
+      // Rescheduling is a booking too. Without this, a guest could move a call anywhere --
+      // the rules were only ever checked on the way in, and only in the browser.
+      const badMove = slotRejectionReason(evt, newStart);
+      if (badMove) return { statusCode: 400, headers, body: JSON.stringify({ error: badMove }) };
       const newEnd = new Date(newStart.getTime() + evt.duration_min * 60000);
       const bufferBefore = (evt.buffer_before_min || 0) * 60000;
       const bufferAfter = (evt.buffer_after_min || 0) * 60000;
@@ -476,6 +559,11 @@ exports.handler = async (event) => {
       const conflictToIso = new Date(newEnd.getTime() + bufferAfter).toISOString();
       const conflicts = await sb(`bookings?host_profile_id=eq.${evt.profile_id}&id=neq.${booking.id}&start_at=lt.${conflictToIso}&end_at=gt.${conflictFromIso}&status=eq.confirmed&limit=1`);
       if (conflicts.length) return { statusCode: 409, headers, body: JSON.stringify({ error: 'Slot no longer available' }) };
+      // The host's own calendar counts as busy on the way in, and it has to count here too
+      // -- otherwise a reschedule can be dropped straight on top of a real meeting that an
+      // initial booking would have refused. Excludes this booking's own mirror row.
+      const calClash = await sb(`calendar_events?profile_id=eq.${evt.profile_id}&booking_id=neq.${booking.id}&start_at=lt.${conflictToIso}&end_at=gt.${conflictFromIso}&limit=1`);
+      if (calClash.length) return { statusCode: 409, headers, body: JSON.stringify({ error: 'Slot no longer available' }) };
       const calEvents = await sb(`calendar_events?booking_id=eq.${booking.id}&limit=1`);
       if (calEvents.length && calEvents[0].gcal_event_id) {
         await cancelGcalEvent(booking.host_profile_id, calEvents[0].gcal_event_id);
