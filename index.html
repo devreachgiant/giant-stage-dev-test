@@ -36725,6 +36725,37 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     goSignIn: () => { history.replaceState({}, '', '/sign-in'); showScreen('sign-in'); }
   };
 
+  // ── Time zones, for the public booking page ──────────────────
+  // A host writes "09:00-18:00" and means it in THEIR timezone. The page used to build
+  // those slots with setHours() on a plain Date, which reads them in the VISITOR's
+  // timezone -- so a London host offering 9-6 was offered to a New York prospect as 9-6
+  // New York, five hours out, and bookable outside the host's working day entirely.
+  // event_types.timezone was being saved all along and never used.
+  //
+  // No library: Intl can already do this. Ask what a given instant looks like in the zone,
+  // compare it to the same numbers read as UTC, and the difference is the offset then --
+  // which is what makes this correct across DST rather than assuming a fixed offset.
+  function tzOffsetMs(ts, tz) {
+    const p = {};
+    new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      .formatToParts(new Date(ts))
+      .forEach(x => { if (x.type !== 'literal') p[x.type] = x.value; });
+    // hour comes back as 24 at midnight in some engines
+    const asUtc = Date.UTC(+p.year, +p.month - 1, +p.day, (+p.hour) % 24, +p.minute, +p.second);
+    return asUtc - ts;
+  }
+  // The wall-clock time y-mo-d h:mi AS READ IN tz, returned as a real instant.
+  function instantInZone(y, mo, d, h, mi, tz) {
+    const guess = Date.UTC(y, mo, d, h, mi, 0);
+    let ts = guess - tzOffsetMs(guess, tz);
+    // One correction pass: on a DST boundary the first offset can be the wrong side of it.
+    const off2 = tzOffsetMs(ts, tz);
+    if (guess - off2 !== ts) ts = guess - off2;
+    return new Date(ts);
+  }
+
   // ── Public booking page (no auth required) ───────────────────
   async function renderPublicBookingPage(path) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('on'));
@@ -36885,6 +36916,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       function renderSlots() {
         const wrap = content.querySelector('#pbSlots');
         if (!wrap) return;
+        // The host's own zone. Falls back to the visitor's only when an event type has no
+        // timezone saved, which is the old behaviour and no worse than it was.
+        const hostTz = evt.timezone || guestTimezone;
         const dow = selectedDate.getDay();
         const dayKey = ['sun','mon','tue','wed','thu','fri','sat'][dow];
         const ranges = (evt.availability || {})[dayKey] || [];
@@ -36895,8 +36929,11 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           const [eh, em] = e.split(':').map(Number);
           const startMin = sh * 60 + sm, endMin = eh * 60 + em;
           for (let m = startMin; m + evt.duration_min <= endMin; m += evt.duration_min) {
-            const dt = new Date(selectedDate); dt.setHours(Math.floor(m/60), m%60, 0, 0);
-            slots.push(dt);
+            // The host's wall clock read in the host's zone, not the visitor's.
+            // selectedDate is used only for its calendar y/m/d, which is the same date
+            // however you read it.
+            slots.push(instantInZone(selectedDate.getFullYear(), selectedDate.getMonth(),
+              selectedDate.getDate(), Math.floor(m / 60), m % 60, hostTz));
           }
         });
         const now = new Date();
@@ -37203,6 +37240,10 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           const data = await res.json();
           if (res.ok) busy = data.busy || [];
         } catch(e) { busy = []; }
+        // Same rule as the booking page: the host's hours belong to the host's zone.
+        // Rescheduling had the identical bug, so a prospect moving a call could land it
+        // outside the host's working day even though the first booking was inside it.
+        const hostTz = evt.timezone || guestTz;
         const dow = selectedDate.getDay();
         const dayKey = ['sun','mon','tue','wed','thu','fri','sat'][dow];
         const ranges = (evt.availability || {})[dayKey] || [];
@@ -37213,8 +37254,8 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           const [eh, em] = e.split(':').map(Number);
           const startMin = sh * 60 + sm, endMin = eh * 60 + em;
           for (let m = startMin; m + evt.duration_min <= endMin; m += evt.duration_min) {
-            const dt = new Date(selectedDate); dt.setHours(Math.floor(m/60), m%60, 0, 0);
-            slots.push(dt);
+            slots.push(instantInZone(selectedDate.getFullYear(), selectedDate.getMonth(),
+              selectedDate.getDate(), Math.floor(m / 60), m % 60, hostTz));
           }
         });
         const now = new Date();
