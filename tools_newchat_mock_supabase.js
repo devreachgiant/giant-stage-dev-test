@@ -403,7 +403,11 @@
     cancel_token: 'tok-' + id, host_accepted_at: null, declined_at: null, decline_reason: null,
   }, over || {});
   DB.bookings = [
-    bk('bk-new', 120),
+    // One with a location and one without: guest_geo is null for anything booked before
+    // the column existed and for anything booked on localhost, so the row has to read fine
+    // either way.
+    bk('bk-new', 120, { guest_geo: { country: 'United States', countryCode: 'US',
+                                     city: 'Austin', region: 'Texas', timezone: 'America/Chicago' } }),
     bk('bk-accepted', 240, { host_accepted_at: soon(-60), guest_name: 'Sam Accepted' }),
     bk('bk-declined', 360, { status: 'declined', declined_at: soon(-60),
         decline_reason: 'Clash with a client call', guest_name: 'Ravi Declined' }),

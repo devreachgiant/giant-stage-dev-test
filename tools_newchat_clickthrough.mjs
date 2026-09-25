@@ -133,6 +133,17 @@ await step('app boots past the sign-in gate', async () => {
   await page.waitForSelector('#view-app.on', { timeout: 30000 });
   check('app boots past the sign-in gate', true);
 });
+// The Meetings sub-tabs were wired INSIDE the nav-item click handler, so they worked only
+// if you had arrived by clicking Meetings in the sidebar. Reload with Meetings as the open
+// screen and Scheduling / Booked meetings / Meeting Room were dead, silently. Asserted here,
+// before anything in this run has clicked that nav item, because after the click they work
+// either way and the bug is invisible.
+check('the Meetings sub-tabs are live before anyone clicks the nav item',
+  await page.evaluate(() => {
+    const tabs = [...document.querySelectorAll('.bk-subtab')];
+    return tabs.length >= 3 && tabs.every(t => t.dataset.wired === '1');
+  }));
+
 check('supabase-js was replaced by the mock', await page.evaluate(() => !!(window.supabase && window.supabase.__isMock)));
 
 // Favourites: a star on every nav item and a group above Communication. It stores a
@@ -7366,6 +7377,11 @@ const mt = await step('Booked meetings shows the detail and the actions', async 
     out.showsNotes      = /paid search/i.test(all);
     // Both clocks, because the guest is in New York and the host's hours are London.
     out.showsTheirTime  = /their time/i.test(all);
+    // Where they opened the link -- shown, and never used to decide anything.
+    out.showsWhereFrom  = /opened from .*austin/i.test(all);
+    // The booking without geo must still render cleanly, with no stray "Opened from".
+    out.noGeoRowIsClean = !/opened from\s*(·|$|<)/i.test(
+      (document.querySelector('[data-bk-meeting-id="bk-accepted"]') || {}).textContent || '');
     out.hasJoinLink     = !!document.querySelector('[data-bk-meeting-id] a.bk-row-btn-join[href*="/meet/"]');
     // Three states, three different pills.
     out.pills = [...document.querySelectorAll('[data-bk-meeting-id] .bk-pill')]
@@ -7404,9 +7420,39 @@ const mt = await step('Booked meetings shows the detail and the actions', async 
     return out;
   });
 }) || {};
+// Everything on this screen -- the tabs AND the data -- hung off the nav-item click, so
+// arriving any other way left it rendered and completely empty: "No event types yet" shown
+// to somebody who has one, with nothing fetched and no error. Simulated by making the
+// screen active the way a restored tab does, without touching the nav item.
+const mr = await step('Meetings loads its data however the screen is reached', async () => {
+  return await page.evaluate(async () => {
+    const w = ms => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const host = document.querySelector('.screen[data-screen="bookings"]');
+    if (!host) return out;
+    // Leave, and empty the list so a stale render cannot pass for a fresh one.
+    document.querySelector('.nav-item[data-screen="newchat"]')?.click();
+    await w(900);
+    const list = document.getElementById('bkCleanCards');
+    if (list) list.innerHTML = '';
+    out.clearedFirst = !!list && list.children.length === 0;
+    // Come back WITHOUT the nav item -- the path that used to load nothing.
+    document.querySelectorAll('.screen').forEach(sc => sc.classList.remove('on'));
+    host.classList.add('on');
+    for (let i = 0; i < 40; i++) {
+      await w(250);
+      if (list && list.children.length) break;
+    }
+    out.cardsAfter = list ? list.children.length : 0;
+    return out;
+  });
+}) || {};
+check('arriving at Meetings without the nav item still loads the event types',
+  mr.clearedFirst && mr.cardsAfter > 0, JSON.stringify(mr));
+
 check('the Meetings screen lists a booking with everything the host needs',
   mt.navExists && mt.rows >= 3 && mt.showsGuestEmail && mt.showsAnswers && mt.showsNotes
-    && mt.showsTheirTime && mt.hasJoinLink
+    && mt.showsTheirTime && mt.hasJoinLink && mt.showsWhereFrom && mt.noGeoRowIsClean
     && mt.pills.some(p => /needs a look/i.test(p))
     && mt.pills.some(p => /accepted/i.test(p))
     && mt.pills.some(p => /declined/i.test(p)),

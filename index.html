@@ -4138,7 +4138,8 @@ html[data-theme="light"] .invite-banner .ib-ava{background:#DCE7F5;color:#2C5C9E
 .bk-clean-card-meta{font-size:12px;color:var(--text-3);margin-top:4px;}
 .bk-clean-card-avail{font-size:12px;color:var(--text-3);margin-top:2px;}
 .bk-clean-card-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
-.bk-clean-copy{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--line);color:var(--text-2);border-radius:20px;padding:6px 13px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;transition:.13s;}
+.bk-clean-copy,.bk-clean-editbtn{display:inline-flex;align-items:center;gap:6px;background:transparent;border:1px solid var(--line);color:var(--text-2);border-radius:20px;padding:6px 13px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;transition:.13s;}
+.bk-clean-editbtn:hover{border-color:var(--text-3);color:var(--text);}
 .bk-clean-copy:hover{background:var(--surface-2);border-color:var(--line-2);color:var(--text);}
 .bk-clean-iconbtn{width:30px;height:30px;border-radius:7px;border:1px solid var(--line);background:transparent;color:var(--text-2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.13s;}
 .bk-clean-iconbtn:hover{background:var(--surface-2);color:var(--text);}
@@ -36837,7 +36838,15 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       let selectedDate = new Date(today);
       let selectedSlot = null;
       let busySlots = [];
-      const guestTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      // The visitor's own zone to begin with, but changeable: somebody booking from an
+      // airport, or arranging a call for a colleague elsewhere, needs to read the times in
+      // a zone that is not the one their laptop is set to. Remembered per browser so it
+      // does not have to be chosen again on the next page.
+      let guestTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      try {
+        const saved = localStorage.getItem('giant_book_tz');
+        if (saved && Intl.DateTimeFormat(undefined, { timeZone: saved })) guestTimezone = saved;
+      } catch (_) {}
 
       async function fetchAvailability() {
         const dayStart = new Date(selectedDate); dayStart.setHours(0,0,0,0);
@@ -36878,14 +36887,48 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
             <div id="pbDatePicker"></div>
           </div>
           <div>
-            <div style="font-size:13px;font-weight:700;margin-bottom:2px;">${selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
-            <div style="font-size:10.5px;color:var(--text-3);margin-bottom:10px;">Times shown in ${escHtml(guestTimezone)}</div>
+            <div id="pbDateLabel" style="font-size:13px;font-weight:700;margin-bottom:2px;">${selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+            <div style="font-size:10.5px;color:var(--text-3);margin-bottom:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <span>Times shown in</span>
+              <select id="pbGuestTz" style="background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:4px 8px;font-size:10.5px;color:var(--text);font-family:inherit;outline:none;max-width:240px;"></select>
+            </div>
             <div id="pbSlots" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;max-height:380px;overflow-y:auto;"><div style="grid-column:1/-1;color:var(--text-3);font-size:11.5px;padding:14px;text-align:center;">Loading slots…</div></div>
           </div>
         </div>`;
+        wireGuestTzPicker();
         renderDatePicker();
         await fetchAvailability();
         renderSlots();
+      }
+
+      // Only the LABELS change. Every slot is already an absolute instant computed from the
+      // host's hours in the host's zone, so switching zone here re-reads the same moments on
+      // a different clock -- it can never move what is actually being booked.
+      function wireGuestTzPicker() {
+        const sel = content.querySelector('#pbGuestTz');
+        if (!sel) return;
+        let zones = [];
+        try { zones = (Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : []) || []; } catch (_) { zones = []; }
+        const here = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+        if (!zones.length) zones = [here, guestTimezone, evt.timezone, 'UTC'].filter(Boolean);
+        const uniq = [...new Set([guestTimezone, here, evt.timezone, 'UTC'].filter(Boolean).concat(zones))];
+        const label = (z) => {
+          try {
+            const p = new Intl.DateTimeFormat('en-US', { timeZone: z, timeZoneName: 'shortOffset' })
+              .formatToParts(new Date()).find(x => x.type === 'timeZoneName');
+            return p ? z + ' (' + p.value + ')' : z;
+          } catch (_) { return z; }
+        };
+        sel.innerHTML = uniq.map(z => '<option value="' + escHtml(z) + '">' + escHtml(label(z)) + '</option>').join('');
+        sel.value = guestTimezone;
+        sel.addEventListener('change', () => {
+          guestTimezone = sel.value || here;
+          try { localStorage.setItem('giant_book_tz', guestTimezone); } catch (_) {}
+          const lbl = content.querySelector('#pbDateLabel');
+          if (lbl) lbl.textContent = selectedDate.toLocaleDateString('en-US',
+            { weekday: 'long', month: 'long', day: 'numeric' });
+          renderSlots();
+        });
       }
 
       function renderDatePicker() {
@@ -36957,7 +37000,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           return !busySlots.some(b => { const bs = new Date(b.start).getTime(); const be = new Date(b.end).getTime(); return s.getTime() < be && slotEnd.getTime() > bs; });
         });
         if (!free.length) { wrap.innerHTML = '<div style="grid-column:1/-1;color:var(--text-3);font-size:12px;padding:24px;text-align:center;">No times available.</div>'; return; }
-        wrap.innerHTML = free.map(s => `<button data-pb-slot="${s.toISOString()}" style="padding:9px;background:var(--surface);border:1px solid var(--line);border-radius:8px;color:var(--text);font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;transition:.14s;">${escHtml(s.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }))}</button>`).join('');
+        wrap.innerHTML = free.map(s => `<button data-pb-slot="${s.toISOString()}" style="padding:9px;background:var(--surface);border:1px solid var(--line);border-radius:8px;color:var(--text);font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;transition:.14s;">${escHtml(s.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: guestTimezone }))}</button>`).join('');
         wrap.querySelectorAll('[data-pb-slot]').forEach(b => {
           b.addEventListener('click', () => { selectedSlot = new Date(b.dataset.pbSlot); renderConfirmForm(); });
         });
@@ -36988,7 +37031,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         content.innerHTML = renderHostHeader(host) + `<div style="max-width:480px;margin:0 auto;">
           <div style="background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:16px;margin-bottom:18px;">
             <div style="font-size:14px;font-weight:700;margin-bottom:6px;">${escHtml(evt.name)}</div>
-            <div style="font-size:12px;color:var(--text-3);">${start.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} · ${start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} – ${end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</div>
+            <div style="font-size:12px;color:var(--text-3);">${start.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: guestTimezone })} · ${start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: guestTimezone })} – ${end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: guestTimezone })} <span style="opacity:.75;">(${escHtml(guestTimezone)})</span></div>
           </div>
           <div class="auth-alert" id="pbAlert"></div>
           <div class="m-field"><label>Your name</label><input type="text" id="pbName" placeholder="John Doe" autocomplete="name"></div>
@@ -37529,6 +37572,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     let camOn = true;
     let screenStream = null;
     let participants = {}; // peerId → { name, pc, stream, isHost }
+    window.__gmParticipants = participants;   // read by the two-peer wiring test
     const peerId = 'p_' + Math.random().toString(36).slice(2, 10);
     const myName = isHost ? (host?.full_name || host?.email || 'Host') : (meeting.guest_name || 'Guest');
     let channel = null;
@@ -37653,16 +37697,24 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         const others = Object.keys(state).filter(k => k !== peerId);
         // Initiate connection to NEW peers (deterministic role: lower peerId offers)
         others.forEach(otherId => {
-          if (!participants[otherId]) {
-            const otherInfo = state[otherId][0] || {};
-            participants[otherId] = { name: otherInfo.name || 'Guest', pc: null, stream: null, isHost: otherInfo.isHost };
-            // Show empty tile
-            addParticipantTile(otherId, otherInfo.name || 'Guest', false, null, otherInfo.isHost);
+          const otherInfo = (state[otherId] && state[otherId][0]) || {};
+          const known = participants[otherId];
+          if (!known) {
+            participants[otherId] = { name: otherInfo.name || '', pc: null, stream: null, isHost: !!otherInfo.isHost };
+            addParticipantTile(otherId, otherInfo.name || 'Joining…', false, null, !!otherInfo.isHost);
             // Decide who offers: peer with lower string id offers
             if (peerId < otherId) {
               createOffer(otherId);
             }
+          } else if (otherInfo.name && otherInfo.name !== known.name) {
+            // The peer was created by an incoming signal before presence had named them, so
+            // the tile is sitting there labelled "Joining…". Presence is the only thing that
+            // ever knows the real name -- this used to skip known peers entirely, which is
+            // why the host showed as "Guest" for the whole call.
+            known.name = otherInfo.name;
+            known.isHost = !!otherInfo.isHost;
           }
+          syncParticipant(otherId);
         });
         // Remove disconnected peers
         Object.keys(participants).forEach(pid => {
@@ -37729,23 +37781,16 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       }
       // On remote track
       pc.ontrack = (e) => {
-        const stream = e.streams[0];
-        if (participants[otherId]) {
-          participants[otherId].stream = stream;
-          const tile = document.querySelector(`.gm-tile[data-pid="${otherId}"]`);
-          if (tile) {
-            let v = tile.querySelector('video');
-            if (!v) {
-              v = document.createElement('video');
-              v.autoplay = true;
-              v.playsInline = true;
-              tile.insertBefore(v, tile.firstChild);
-              const noava = tile.querySelector('.gm-tile-noava');
-              if (noava) noava.remove();
-            }
-            v.srcObject = stream;
-          }
+        // Record it and render whatever is known. This used to bail out when the peer was
+        // not in `participants` yet -- which is exactly the common case, because a track can
+        // arrive before presence has told us who the peer is -- and the stream was lost for
+        // the rest of the call with no way to recover it.
+        if (!participants[otherId]) participants[otherId] = { name: '', pc: null, stream: null, isHost: false };
+        participants[otherId].stream = e.streams[0];
+        if (!document.querySelector(`.gm-tile[data-pid="${otherId}"]`)) {
+          addParticipantTile(otherId, participants[otherId].name || 'Joining…', false, null, participants[otherId].isHost);
         }
+        syncParticipant(otherId);
       };
       pc.onicecandidate = (e) => {
         if (e.candidate) {
@@ -37765,9 +37810,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const { from, signal } = msg;
       let p = participants[from];
       if (!p) {
-        participants[from] = { name: 'Guest', pc: null, stream: null };
+        participants[from] = { name: '', pc: null, stream: null, isHost: false };
         p = participants[from];
-        addParticipantTile(from, 'Guest', false, null, false);
+        addParticipantTile(from, 'Joining…', false, null, false);
       }
       if (signal.type === 'offer') {
         if (!p.pc) p.pc = createPeerConnection(from);
@@ -37816,6 +37861,47 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       // Update grid layout based on count
       const count = grid.querySelectorAll('.gm-tile').length;
       grid.classList.toggle('two', count >= 2);
+    }
+
+    // The remote video and the remote NAME both used to depend on two independent events
+    // arriving in a lucky order -- the WebRTC track, and Supabase presence. Whichever lost
+    // the race was simply dropped: ontrack bailed out if the participant was not known yet,
+    // and if the tile had not been built the stream was stored on an object nothing read
+    // again. That is why the other person showed as a black rectangle labelled "Guest".
+    //
+    // So neither is allowed to do the work any more. Both just record what they learned and
+    // call this, which renders whatever is known so far and can be called any number of
+    // times in any order.
+    function syncParticipant(pid) {
+      const p = participants[pid];
+      if (!p) return;
+      const tile = document.querySelector(`.gm-tile[data-pid="${pid}"]`);
+      if (!tile) return;
+      // Name: presence usually arrives after the first signal, so the label starts as
+      // "Guest" and has to be corrected rather than left.
+      const label = tile.querySelector('.gm-tile-label');
+      if (label && p.name) {
+        const want = p.name + (p.isHost ? ' · Host' : '');
+        if (label.textContent !== want) label.textContent = want;
+      }
+      // Video: attach once, whenever the stream turns up.
+      if (p.stream) {
+        let v = tile.querySelector('video');
+        if (!v) {
+          v = document.createElement('video');
+          v.autoplay = true; v.playsInline = true;
+          tile.insertBefore(v, tile.firstChild);
+        }
+        tile.querySelector('.gm-tile-noava')?.remove();
+        if (v.srcObject !== p.stream) {
+          v.srcObject = p.stream;
+          // Autoplay can still refuse even after a click elsewhere on the page; without
+          // this the tile stays black with a stream sitting in it.
+          const go = () => v.play().catch(() => {});
+          go();
+          v.onloadedmetadata = go;
+        }
+      }
     }
 
     function removeParticipant(pid) {
@@ -56781,6 +56867,10 @@ ${COMMON_SCHEMA}`;
               <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M6 9.5l-1 1a2.3 2.3 0 11-3.3-3.3l3-3a2.3 2.3 0 013.3 0M10 6.5l1-1a2.3 2.3 0 113.3 3.3l-3 3a2.3 2.3 0 01-3.3 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
               Copy link
             </button>
+            <button class="bk-clean-editbtn" data-bk-edit="${calEsc(t.id)}" title="Edit this meeting type">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5l2 2L6 12l-2.6.6L4 10z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+              Edit
+            </button>
             <button class="bk-clean-iconbtn" data-bk-open="${calEsc(pubUrl)}" title="Open booking page"><svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M6 3H3.5A1.5 1.5 0 002 4.5v8A1.5 1.5 0 003.5 14h8a1.5 1.5 0 001.5-1.5V10M9.5 2.5H13.5V6.5M13 3l-6 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>`:''}
             <button class="bk-clean-iconbtn" data-bk-menu="${calEsc(t.id)}" title="More"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="3.5" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="12.5" r="1.3" fill="currentColor"/></svg></button>
           </div>
@@ -57248,6 +57338,13 @@ ${COMMON_SCHEMA}`;
             : (accepted
               ? '<span class="bk-pill" style="background:rgba(16,185,129,.16);color:#10B981;">Accepted</span>'
               : '<span class="bk-pill" style="background:rgba(245,158,11,.16);color:#F59E0B;">Needs a look</span>');
+          // Where they opened the link. Absent on anything booked before this, and on
+          // anything booked from localhost, so every part of it is optional.
+          const g = b.guest_geo && typeof b.guest_geo === 'object' ? b.guest_geo : null;
+          const geoLbl = g
+            ? ('Opened from ' + [g.city, g.region, g.country || g.countryCode]
+                .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(', '))
+            : '';
           const answers = b.questions_answers && typeof b.questions_answers === 'object'
             ? Object.entries(b.questions_answers).filter(([, v]) => v !== null && v !== '' )
             : [];
@@ -57256,7 +57353,7 @@ ${COMMON_SCHEMA}`;
             <div class="bk-cly-meeting-main">
               <div class="bk-cly-meeting-title">${calEsc(b.event_types?.name || 'Meeting')} <span class="bk-cly-guest">with ${calEsc(b.guest_name || '—')}</span> ${pill}</div>
               <div class="bk-cly-meeting-time">${calEsc(timeStr)}${sameClock ? '' : ' · ' + calEsc(theirTime) + ' their time (' + calEsc(guestTz) + ')'}</div>
-              ${b.guest_email ? `<div class="bk-row-sub"><a href="mailto:${calEsc(b.guest_email)}" data-bk-stop="1">${calEsc(b.guest_email)}</a></div>` : ''}
+              ${b.guest_email ? `<div class="bk-row-sub"><a href="mailto:${calEsc(b.guest_email)}" data-bk-stop="1">${calEsc(b.guest_email)}</a>${geoLbl ? ' · <span style="color:var(--text-3);">' + calEsc(geoLbl) + '</span>' : ''}</div>` : (geoLbl ? `<div class="bk-row-sub" style="color:var(--text-3);">${calEsc(geoLbl)}</div>` : '')}
               ${b.guest_notes ? `<div class="bk-row-sub">“${calEsc(b.guest_notes)}”</div>` : ''}
               ${answers.length ? `<div class="bk-row-sub">${answers.map(([k, v]) =>
                   '<b>' + calEsc(String(k).replace(/_/g, ' ')) + ':</b> ' + calEsc(Array.isArray(v) ? v.join(', ') : String(v))
@@ -57602,6 +57699,49 @@ ${COMMON_SCHEMA}`;
       sel.dataset.filled = '1';
     }
 
+    function wireBkSubTabs() {
+        // Wire sub-tabs (Scheduling / Booked meetings) — idempotent
+        document.querySelectorAll('.bk-subtab').forEach(tab => {
+          if (tab.dataset.wired) return;
+          tab.dataset.wired = '1';
+          tab.addEventListener('click', () => {
+            const which = tab.dataset.bktab;
+            const sched = document.getElementById('bkSchedulingPane');
+            const booked = document.getElementById('bkBookedPane');
+            const roomPane = document.getElementById('bkMeetingRoomPane');
+            const createBtn = document.getElementById('bkNewTypeBtn');
+            const prefs = document.getElementById('bkPanePrefs');
+            if (prefs) prefs.style.display = 'none';
+            document.querySelectorAll('.bk-subtab').forEach(t => t.classList.toggle('active', t === tab));
+            // Meeting Room: show inline BELOW the tabs (move the room card into this pane), don't navigate.
+            if (which === 'meetingroom') {
+              if (sched) sched.style.display = 'none';
+              if (booked) booked.style.display = 'none';
+              if (createBtn) createBtn.style.display = 'none';
+              if (roomPane) {
+                const card = document.querySelector('.mr-wrap');
+                if (card && card.parentElement !== roomPane) roomPane.appendChild(card);
+                roomPane.style.display = 'block';
+              }
+              if (typeof initRoomScreen === 'function') initRoomScreen();
+              return;
+            }
+            if (roomPane) roomPane.style.display = 'none';
+            if (which === 'booked') {
+              if (sched) sched.style.display = 'none';
+              if (booked) booked.style.display = 'block';
+              if (createBtn) createBtn.style.display = 'none';
+              if (typeof renderBkBookings === 'function') renderBkBookings();
+            } else {
+              if (sched) sched.style.display = 'block';
+              if (booked) booked.style.display = 'none';
+              if (createBtn) createBtn.style.display = '';
+              if (typeof renderBkEventTypes === 'function') renderBkEventTypes();
+            }
+          });
+        });
+    }
+
     function openEvTypeModal(typeId) {
       ensureEvTypeTimezones();
       bkEditingTypeId = typeId || null;
@@ -57804,6 +57944,35 @@ ${COMMON_SCHEMA}`;
       }
       input.value = '';
     });
+    // At startup too, so the tabs work on a reload that lands straight on Meetings --
+    // the case the nav-click wiring could never cover. It skips anything already wired.
+    wireBkSubTabs();
+
+    // ...and the same for the DATA. loadBkData() was also called only from the nav-item
+    // click, so arriving any other way -- a reload with Meetings as the open screen, a
+    // restored tab -- left the screen fully rendered and completely empty, saying "No event
+    // types yet" to somebody who has one. Nothing was missing; nothing had been fetched.
+    //
+    // Watching the screen's own class rather than adding another entry point, because the
+    // entry points are the problem: this fires however the screen comes up.
+    (function watchBookingsScreen(){
+      const host = document.querySelector('.screen[data-screen="bookings"]');
+      if (!host) { setTimeout(watchBookingsScreen, 500); return; }
+      let inFlight = false;
+      const load = async () => {
+        if (inFlight) return;                      // the nav click may have started one
+        inFlight = true;
+        try { await loadBkData(); } catch (_) {}
+        inFlight = false;
+      };
+      let was = host.classList.contains('on');
+      new MutationObserver(() => {
+        const on = host.classList.contains('on');
+        if (on && !was) load();
+        was = on;
+      }).observe(host, { attributes: true, attributeFilter: ['class'] });
+      if (was) load();                             // already the open screen at startup
+    })();
     document.getElementById('bkNewTypeBtn')?.addEventListener('click', () => openEvTypeModal(null));
     document.getElementById('bkNewTypeBtn2')?.addEventListener('click', () => openEvTypeModal(null));
 
@@ -58132,46 +58301,11 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
     document.querySelectorAll('.nav-item[data-screen="bookings"]').forEach(n => {
       n.addEventListener('click', () => {
         loadBkData();
-        // Wire sub-tabs (Scheduling / Booked meetings) — idempotent
-        document.querySelectorAll('.bk-subtab').forEach(tab => {
-          if (tab.dataset.wired) return;
-          tab.dataset.wired = '1';
-          tab.addEventListener('click', () => {
-            const which = tab.dataset.bktab;
-            const sched = document.getElementById('bkSchedulingPane');
-            const booked = document.getElementById('bkBookedPane');
-            const roomPane = document.getElementById('bkMeetingRoomPane');
-            const createBtn = document.getElementById('bkNewTypeBtn');
-            const prefs = document.getElementById('bkPanePrefs');
-            if (prefs) prefs.style.display = 'none';
-            document.querySelectorAll('.bk-subtab').forEach(t => t.classList.toggle('active', t === tab));
-            // Meeting Room: show inline BELOW the tabs (move the room card into this pane), don't navigate.
-            if (which === 'meetingroom') {
-              if (sched) sched.style.display = 'none';
-              if (booked) booked.style.display = 'none';
-              if (createBtn) createBtn.style.display = 'none';
-              if (roomPane) {
-                const card = document.querySelector('.mr-wrap');
-                if (card && card.parentElement !== roomPane) roomPane.appendChild(card);
-                roomPane.style.display = 'block';
-              }
-              if (typeof initRoomScreen === 'function') initRoomScreen();
-              return;
-            }
-            if (roomPane) roomPane.style.display = 'none';
-            if (which === 'booked') {
-              if (sched) sched.style.display = 'none';
-              if (booked) booked.style.display = 'block';
-              if (createBtn) createBtn.style.display = 'none';
-              if (typeof renderBkBookings === 'function') renderBkBookings();
-            } else {
-              if (sched) sched.style.display = 'block';
-              if (booked) booked.style.display = 'none';
-              if (createBtn) createBtn.style.display = '';
-              if (typeof renderBkEventTypes === 'function') renderBkEventTypes();
-            }
-          });
-        });
+        // Wired once, on load, by wireBkSubTabs() -- not from here. Wiring them inside
+        // this handler meant a tab only worked if you had ARRIVED by clicking the nav item:
+        // reload while Meetings is the open screen and Scheduling / Booked meetings /
+        // Meeting Room did nothing at all, with no error to explain why.
+        wireBkSubTabs();
         // Wire clean event-types search (idempotent)
         const cs = document.getElementById('bkCleanSearch');
         if (cs && !cs.dataset.wired) {

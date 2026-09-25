@@ -398,6 +398,31 @@ function slotRejectionReason(evt, start) {
   return null;
 }
 
+// Where the request came from, as Netlify's edge already knows it. Display only -- see the
+// comment on bookings.guest_geo. Everything here is defensive on purpose: this runs inside
+// the booking path, and a booking must never fail because a header was missing, truncated,
+// or not valid base64. Absent on localhost, where Netlify injects no geo at all.
+function geoFromHeaders(headers) {
+  try {
+    const h = headers || {};
+    const raw = h['x-nf-geo'] || h['X-Nf-Geo'];
+    if (raw) {
+      const g = JSON.parse(Buffer.from(raw, 'base64').toString('utf8')) || {};
+      const out = {
+        country: (g.country && g.country.name) || null,
+        countryCode: (g.country && g.country.code) || null,
+        city: g.city || null,
+        region: (g.subdivision && g.subdivision.name) || null,
+        timezone: g.timezone || null,
+      };
+      return Object.values(out).some(v => v) ? out : null;
+    }
+    // Some edges send only a country code. Worth keeping -- a country is most of the value.
+    const cc = h['x-country'] || h['x-nf-client-connection-country'];
+    return cc ? { country: null, countryCode: String(cc).toUpperCase(), city: null, region: null, timezone: null } : null;
+  } catch (_) { return null; }
+}
+
 function rand32() {
   const arr = new Uint8Array(16);
   if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(arr);
@@ -508,6 +533,9 @@ exports.handler = async (event) => {
         questions_answers: questions_answers || {},
         start_at: fromIso, end_at: toIso,
         timezone: guest_timezone || evt.timezone || 'UTC',
+        // Recorded, not consulted: the meeting time comes from guest_timezone above, which
+        // is the guest's own device and their own choice on the page.
+        guest_geo: geoFromHeaders(event.headers),
         meeting_link: giantMeetUrl || (evt.location_type === 'video' ? evt.location_detail : null),
         cancel_token: cancelToken
       });
