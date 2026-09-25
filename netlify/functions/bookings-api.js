@@ -231,7 +231,11 @@ function calendarLinks(booking, eventType, host, joinUrl) {
 
 async function sendBookingEmail(booking, eventType, host, kind, origin, opts) {
   const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) { console.warn('[bookings] RESEND_API_KEY not set'); return; }
+  if (!apiKey) {
+    console.error('[bookings] RESEND_API_KEY is not set in this environment — no email sent for', kind,
+      'to', (opts && opts.recipient) || (booking && booking.guest_email) || '(unknown)');
+    return { ok: false, error: 'RESEND_API_KEY not configured' };
+  }
   opts = opts || {};
   // For 'invitation' kind, override recipient with the invitee
   const recipientEmail = opts.recipient || booking.guest_email;
@@ -306,7 +310,7 @@ async function sendBookingEmail(booking, eventType, host, kind, origin, opts) {
     </div>
   `;
   try {
-    await fetch('https://api.resend.com/emails', {
+    const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -320,7 +324,21 @@ async function sendBookingEmail(booking, eventType, host, kind, origin, opts) {
         }] } : {}),
       })
     });
-  } catch (e) { console.warn('[bookings] email failed:', e.message); }
+    // Resend rejects with a 4xx body, not an exception -- an unverified sending domain, a
+    // recipient the account is not allowed to mail, a bad key. None of that threw, so the
+    // old code's try/catch caught nothing and every failure was invisible: a booking was
+    // made, no email arrived, and there was no record anywhere that one had been attempted.
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.error('[bookings] RESEND REJECTED', kind, 'to', recipientEmail,
+        '-> HTTP', res.status, body.slice(0, 400));
+      return { ok: false, status: res.status, error: body.slice(0, 400) };
+    }
+    return { ok: true };
+  } catch (e) {
+    console.error('[bookings] email threw:', e.message);
+    return { ok: false, error: e.message };
+  }
 }
 
 // ── Is this slot one the host actually offers? ───────────────────────────────
@@ -453,6 +471,18 @@ exports.handler = async (event) => {
       // Used by the admin Integrations panel to show "connected" or not.
       const configured = !!(process.env.ZOOM_ACCOUNT_ID && process.env.ZOOM_CLIENT_ID && process.env.ZOOM_CLIENT_SECRET);
       return { statusCode: 200, headers, body: JSON.stringify({ configured }) };
+    }
+
+    // Is email actually configured HERE? Local .env and the deployed environment are two
+    // different things, and the only symptom of the difference is a booking that sends no
+    // email and says nothing about it. Reports presence only -- never the key itself.
+    if (action === 'email_status') {
+      const key = process.env.RESEND_API_KEY || '';
+      return { statusCode: 200, headers, body: JSON.stringify({
+        configured: !!key,
+        keyLooksValid: /^re_/.test(key),
+        from: process.env.RESEND_FROM || 'Giant <noreply@reachgiant.com> (default)',
+      }) };
     }
 
     if (action === 'get_event_type') {

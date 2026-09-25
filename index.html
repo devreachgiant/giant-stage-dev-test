@@ -37816,6 +37816,11 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         }
       };
       pc.onconnectionstatechange = () => {
+        // Say what is happening. A call that cannot connect used to show a black rectangle
+        // for ever, which looks exactly like "their camera is off" -- so nobody reports it
+        // as a connection problem, and the real cause (no working TURN relay, so no path
+        // between two networks) stays invisible.
+        setTileState(otherId, pc.connectionState);
         if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
           console.warn('[meet] peer disconnected:', otherId);
         }
@@ -37890,6 +37895,30 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     // So neither is allowed to do the work any more. Both just record what they learned and
     // call this, which renders whatever is known so far and can be called any number of
     // times in any order.
+    // A short, honest line on the tile while there is no picture yet.
+    function setTileState(pid, state) {
+      const tile = document.querySelector(`.gm-tile[data-pid="${pid}"]`);
+      if (!tile) return;
+      const p = participants[pid];
+      const hasPicture = !!(p && p.stream && p.stream.getVideoTracks().some(t => t.readyState === 'live' && !t.muted));
+      let note = tile.querySelector('.gm-tile-state');
+      const text =
+        state === 'failed'       ? 'Could not connect — no route between your networks'
+      : state === 'disconnected' ? 'Connection lost — trying again'
+      : state === 'connected'    ? (hasPicture ? '' : 'Connected — no camera')
+      : state === 'closed'       ? ''
+      : 'Connecting…';
+      if (!text) { note?.remove(); return; }
+      if (!note) {
+        note = document.createElement('div');
+        note.className = 'gm-tile-state';
+        note.style.cssText = 'position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);'
+          + 'text-align:center;font-size:12px;color:#bbb;padding:0 14px;line-height:1.5;pointer-events:none;';
+        tile.appendChild(note);
+      }
+      note.textContent = text;
+    }
+
     function syncParticipant(pid) {
       const p = participants[pid];
       if (!p) return;
@@ -37913,6 +37942,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         tile.querySelector('.gm-tile-noava')?.remove();
         if (v.srcObject !== p.stream) {
           v.srcObject = p.stream;
+          v.addEventListener('playing', () => tile.querySelector('.gm-tile-state')?.remove(), { once: true });
           // Autoplay can still refuse even after a click elsewhere on the page; without
           // this the tile stays black with a stream sitting in it.
           const go = () => v.play().catch(() => {});
