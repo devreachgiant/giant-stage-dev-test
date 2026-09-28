@@ -5557,11 +5557,33 @@ await step('table columns can be dragged wider and narrower', async () => {
 
     out.headingSaysStatus = /status/i.test(
       (document.querySelector('#p2_prjDailyBody .prj-th[data-col="status"]') || {}).textContent || '');
-    const sel = document.querySelector('#p2_prjDailyBody .prj-cell[data-col="status"] select');
-    out.isAPicker = !!sel;
-    if (!sel) return out;
-    out.options = [...sel.options].map(o => o.textContent);
-    out.nine = sel.options.length === 9;
+    // Status is the one dropdown that is NOT a native select: the value is a coloured
+    // pill, which a native option list cannot show. Opening it puts the menu on <body>,
+    // so the options are read from there rather than from inside the cell.
+    const openStage = async (rowId) => {
+      document.querySelector('.giant-pick')?.remove();
+      const btn = rowId
+        ? document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task="' + rowId + '"] [data-p2-stage]')
+        : document.querySelector('#p2_prjDailyBody .prj-cell[data-col="status"] [data-p2-stage]');
+      if (!btn) return null;
+      btn.click(); await w(350);
+      return document.querySelector('.giant-pick');
+    };
+    const pick = async (menu, label) => {
+      const it = [...menu.querySelectorAll('.giant-pick-item')]
+        .find(x => (x.textContent || '').trim().toLowerCase() === label.toLowerCase());
+      if (it) { it.click(); await w(800); }
+      return !!it;
+    };
+    const firstMenu = await openStage(null);
+    out.isAPicker = !!firstMenu;
+    if (!firstMenu) return out;
+    out.options = [...firstMenu.querySelectorAll('.giant-pick-item')].map(o => o.textContent.trim());
+    out.nine = out.options.length === 9;
+    // The colour is the point of having a custom menu at all.
+    out.optionsArePills = firstMenu.querySelectorAll('.giant-pick-pill').length === 9;
+    out.marksCurrent = firstMenu.querySelectorAll('[aria-selected="true"]').length === 1;
+    document.querySelector('.giant-pick')?.remove();
 
     // a task with no stage recorded must not land on "Not started" when it is plainly done
     const doneNoStage = st.tasks.find(t => !t.status_stage
@@ -5570,30 +5592,26 @@ await step('table columns can be dragged wider and narrower', async () => {
       // the table shows Active by default, so a finished task is not on screen to read
       const toDone = document.querySelector('#p2_prjStatusToggle [data-status="done"]');
       if (toDone) { toDone.click(); await w(800); }
-      const s2 = document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task="'
-        + doneNoStage.id + '"] .prj-cell[data-col="status"] select');
-      out.derivedFromEnum = s2 ? s2.value : '(row not shown)';
+      const btn2 = document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task="'
+        + doneNoStage.id + '"] [data-p2-stage]');
+      out.derivedFromEnum = btn2 ? (btn2.textContent || '').trim().toLowerCase() : '(row not shown)';
       const back = document.querySelector('#p2_prjStatusToggle [data-status="active"]');
       if (back) { back.click(); await w(700); }
     } else { out.derivedFromEnum = 'done'; }
 
     // changing the stage writes BOTH it and the enum, so the rest of the app keeps up
     const row = st.tasks.find(t => t.status !== 'done');
-    const rs = document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task="'
-      + row.id + '"] .prj-cell[data-col="status"] select');
-    out.foundRow = !!rs;
-    if (rs) {
-      rs.value = 'review';
-      rs.dispatchEvent(new Event('change', { bubbles: true }));
-      await w(800);
+    const rsMenu = await openStage(row.id);
+    out.foundRow = !!rsMenu;
+    if (rsMenu) {
+      out.pickedReview = await pick(rsMenu, 'Ready for review');
       const saved = db.tasks.find(t => t.id === row.id) || {};
       out.savedStage = saved.status_stage;
       out.savedStatus = saved.status;          // 'review' maps onto in_progress
       // and moving it to Done must set the enum to done, which is what every other
       // screen and every count reads
-      const rs2 = document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task="'
-        + row.id + '"] .prj-cell[data-col="status"] select');
-      if (rs2) { rs2.value = 'done'; rs2.dispatchEvent(new Event('change', { bubbles: true })); await w(800); }
+      const rs2 = await openStage(row.id);
+      if (rs2) out.pickedDone = await pick(rs2, 'Done');
       const saved2 = db.tasks.find(t => t.id === row.id) || {};
       out.doneStage = saved2.status_stage;
       out.doneStatus = saved2.status;
@@ -5605,10 +5623,16 @@ await step('table columns can be dragged wider and narrower', async () => {
     stage.headingSaysStatus && stage.isAPicker && stage.nine
       && stage.options.includes('Ready for review')
       && stage.options.includes('Waiting on another team'), JSON.stringify(stage));
+  // The reason this one control is not a native select: the colour is the value. If the
+  // options ever stop being pills, the custom menu is costing keyboard and mobile
+  // behaviour and buying nothing back.
+  check('each stage is shown as its own coloured pill, with the current one marked',
+    stage.optionsArePills && stage.marksCurrent, JSON.stringify(stage));
   check('a task with no stage recorded is placed from its status, not dumped in Not started',
     stage.derivedFromEnum === 'done', JSON.stringify(stage));
   check('setting a stage writes the enum with it, so the rest of the app keeps up',
-    stage.foundRow && stage.savedStage === 'review' && stage.savedStatus === 'in_progress'
+    stage.foundRow && stage.pickedReview && stage.pickedDone
+      && stage.savedStage === 'review' && stage.savedStatus === 'in_progress'
       && stage.doneStage === 'done' && stage.doneStatus === 'done' && stage.stampedCompleted,
     JSON.stringify(stage));
 
