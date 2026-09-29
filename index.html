@@ -11509,7 +11509,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <div class="cs-cell cs-filter" data-status-filter="churned" style="cursor:pointer;"><div class="cs-num" id="csArchived" style="color:var(--text-3);">0</div><div class="cs-lbl">Archived</div></div>
           </div>
           <div class="gtable" id="clientTable">
-            <div class="gthead" style="grid-template-columns:2fr 1.1fr 1fr 1fr 0.6fr 36px;"><div>Client</div><div>Status</div><div>Started</div><div>Owner</div><div data-mrr-cell>MRR</div><div></div></div>
+            <div class="gthead" style="grid-template-columns:2fr 1fr 1fr 1.4fr 1fr 0.6fr 36px;"><div>Client</div><div>Status</div><div>Next payment</div><div>Notes</div><div>Owner</div><div data-mrr-cell>MRR</div><div></div></div>
             <div id="clientRows"></div>
             <div id="clientLoading" style="padding:32px 16px;color:var(--text-3);font-size:13px;text-align:center;">Loading clients…</div>
             <div id="clientEmpty" style="display:none;padding:48px 16px;text-align:center;background:var(--surface);border:1px dashed var(--line-2);border-radius:11px;margin-top:8px;">
@@ -39822,9 +39822,13 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
 
       // Owners → raw table (incl. MRR). Others → clients_public view (no MRR).
       const table = isOwner ? 'clients' : 'clients_public';
+      // contact_name, next_charge_on, ends_on and working_notes are what the list shows now.
+      // Named explicitly rather than select('*') so the columns a client-facing screen reads
+      // stay a deliberate list -- the same reason the rest of this query is written out.
+      const BILLING = 'contact_name, next_charge_on, ends_on, working_notes';
       const cols  = isOwner
-        ? 'id, name, slug, initial, avatar_bg, avatar_fg, status, owner_id, mrr_cents, started_at, notes, created_at'
-        : 'id, name, slug, initial, avatar_bg, avatar_fg, status, owner_id, started_at, notes, created_at';
+        ? 'id, name, slug, initial, avatar_bg, avatar_fg, status, owner_id, mrr_cents, started_at, notes, created_at, ' + BILLING
+        : 'id, name, slug, initial, avatar_bg, avatar_fg, status, owner_id, started_at, notes, created_at, ' + BILLING;
 
       const [clientsRes, profilesRes] = await Promise.all([
         supabase.from(table).select(cols).order('created_at', { ascending: false }),
@@ -39875,7 +39879,29 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       }
       clientEmpty.style.display = 'none';
 
-      const cols2 = isOwner ? '2fr 1.1fr 1fr 1fr 0.6fr 36px' : '2fr 1.1fr 1fr 1fr 36px';
+      // Next payment and Notes replace Started. "When did they join" is a fact you look up
+      // once; "when do they pay next" and "what is unresolved about them" are what this list
+      // is actually scanned for.
+      const cols2 = isOwner ? '2fr 1fr 1fr 1.4fr 1fr 0.6fr 36px' : '2fr 1fr 1fr 1.4fr 1fr 36px';
+      // The next payment, and how close it is. A date on its own makes you do the
+      // subtraction; "in 2 days" is the thing you were working out anyway. Overdue is
+      // called out because a date that has passed and still says "next" is a question.
+      const payCell = (c) => {
+        if (!c.next_charge_on) {
+          return c.ends_on
+            ? `<div style="font-size:11.5px;color:var(--text-3);">Ends ${escClient(new Date(c.ends_on + 'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}))}</div>`
+            : '<div style="font-size:11.5px;color:var(--text-3);">—</div>';
+        }
+        const d = new Date(c.next_charge_on + 'T00:00:00');
+        const today = new Date(); today.setHours(0,0,0,0);
+        const days = Math.round((d - today) / 86400000);
+        const near = days < 0 ? 'var(--red)' : days <= 7 ? '#F59E0B' : 'var(--text-2)';
+        const when = days < 0 ? Math.abs(days) + 'd overdue'
+                   : days === 0 ? 'today' : days === 1 ? 'tomorrow' : 'in ' + days + 'd';
+        return `<div style="font-size:11.5px;color:${near};font-weight:600;">`
+          + escClient(d.toLocaleDateString('en-US',{month:'short',day:'numeric'}))
+          + `<span style="opacity:.7;font-weight:500;"> · ${escClient(when)}</span></div>`;
+      };
       // Also update the gthead grid if needed (hide MRR header for non-owners)
       const gthead = document.querySelector('#clientTable .gthead');
       if (gthead && !isOwner) gthead.style.gridTemplateColumns = cols2;
@@ -39900,10 +39926,11 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           <div class="grow client-row" data-client-id="${escClient(c.id)}" style="grid-template-columns:${cols2};">
             <div class="tname">
               <div class="a-ava" style="background:${escClient(c.avatar_bg||'#22344F')};color:${escClient(c.avatar_fg||'#9DC0F0')};border-radius:8px;width:30px;height:30px;">${escClient(initial)}</div>
-              <div><div class="nm">${escClient(c.name)}</div><div class="sub">${escClient(fmtClientStarted(c.started_at || c.created_at))}${health ? ' · ' + health : ''}</div></div>
+              <div><div class="nm">${escClient(c.name)}</div><div class="sub">${c.contact_name ? escClient(c.contact_name) + ' · ' : ''}${escClient(fmtClientStarted(c.started_at || c.created_at))}${health ? ' · ' + health : ''}</div></div>
             </div>
             <div>${statusPill(c.status)}</div>
-            <div style="font-size:11.5px;color:var(--text-2);">${escClient(c.started_at ? new Date(c.started_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—')}</div>
+            ${payCell(c)}
+            <div style="font-size:11.5px;color:var(--text-2);line-height:1.45;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;" title="${escClient(c.working_notes || '')}">${escClient(c.working_notes || '')}</div>
             ${ownerCell}
             ${mrrCell}
             <div class="cli-menu-cell"><span class="cli-menu-trigger"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="13" cy="8" r="1.3" fill="currentColor"/></svg></span></div>
