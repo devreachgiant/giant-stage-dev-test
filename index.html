@@ -11508,8 +11508,27 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <div class="cs-cell cs-filter" data-status-filter="at_risk" style="cursor:pointer;"><div class="cs-num" id="csAtRisk" style="color:var(--red);">0</div><div class="cs-lbl">At risk</div></div>
             <div class="cs-cell cs-filter" data-status-filter="churned" style="cursor:pointer;"><div class="cs-num" id="csArchived" style="color:var(--text-3);">0</div><div class="cs-lbl">Archived</div></div>
           </div>
+          <!-- Search and the two filters the new columns made worth having. Status is not
+               repeated here: the stat cards above already filter by it, and offering the
+               same control twice makes people wonder which one is in charge. -->
+          <div id="clientToolbar" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px;">
+            <input id="clientSearchInput" type="text" placeholder="Search name, contact or notes…"
+              style="flex:1;min-width:220px;background:var(--surface);border:1px solid var(--line-2);border-radius:9px;padding:9px 12px;font-size:13px;color:var(--text);font-family:inherit;outline:none;">
+            <select id="clientPayFilter" title="Filter by payment">
+              <option value="">Any payment date</option>
+              <option value="overdue">Overdue</option>
+              <option value="7">Due in 7 days</option>
+              <option value="30">Due in 30 days</option>
+              <option value="none">No date set</option>
+              <option value="ending">Ending</option>
+            </select>
+            <select id="clientOwnerFilter" title="Filter by owner"><option value="">Any owner</option></select>
+            <button type="button" id="clientClearFilters"
+              style="display:none;background:transparent;border:1px solid var(--line-2);border-radius:9px;padding:8px 12px;font-size:12px;color:var(--text-2);cursor:pointer;font-family:inherit;">Clear</button>
+            <span id="clientFilterCount" style="font-size:11.5px;color:var(--text-3);"></span>
+          </div>
           <div class="gtable" id="clientTable">
-            <div class="gthead" style="grid-template-columns:2fr 1fr 1fr 1.4fr 1fr 0.6fr 36px;"><div>Client</div><div>Status</div><div>Next payment</div><div>Notes</div><div>Owner</div><div data-mrr-cell>MRR</div><div></div></div>
+            <div class="gthead" style="grid-template-columns:2fr 1fr 1fr 1.4fr 1fr 0.6fr 36px;"><div data-csort="name" class="cli-sortable">Client</div><div data-csort="status" class="cli-sortable">Status</div><div data-csort="next_charge_on" class="cli-sortable">Next payment</div><div>Notes</div><div data-csort="owner" class="cli-sortable">Owner</div><div data-mrr-cell data-csort="mrr_cents" class="cli-sortable">MRR</div><div></div></div>
             <div id="clientRows"></div>
             <div id="clientLoading" style="padding:32px 16px;color:var(--text-3);font-size:13px;text-align:center;">Loading clients…</div>
             <div id="clientEmpty" style="display:none;padding:48px 16px;text-align:center;background:var(--surface);border:1px dashed var(--line-2);border-radius:11px;margin-top:8px;">
@@ -39831,7 +39850,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         : 'id, name, slug, initial, avatar_bg, avatar_fg, status, owner_id, started_at, notes, created_at, ' + BILLING;
 
       const [clientsRes, profilesRes] = await Promise.all([
-        supabase.from(table).select(cols).order('created_at', { ascending: false }),
+        supabase.from(table).select(cols).order('name', { ascending: true }),
         supabase.from('profiles').select('id, full_name, avatar_bg, avatar_fg, avatar_url')
       ]);
 
@@ -39841,7 +39860,12 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         clientRowsEl.innerHTML = `<div style="padding:20px;color:#FF6B66;font-size:12px;text-align:center;">Failed to load clients: ${escClient(clientsRes.error.message)}</div>`;
         return;
       }
-      const clients = clientsRes.data || [];
+      // A to Z, and sorted here as well as in the query: Postgres orders by the column's
+      // collation, which puts "MODIFYR" and "Mango Vans" in an order that looks wrong to a
+      // person scanning a list. localeCompare with base sensitivity is the order somebody
+      // expects when they say alphabetical -- case and accents ignored.
+      const clients = (clientsRes.data || []).slice().sort((a, b) =>
+        String(a.name || '').localeCompare(String(b.name || ''), undefined, { sensitivity: 'base' }));
       allLoadedClients = clients;
       clientProfilesCache = profilesRes.data || [];
 
@@ -39860,17 +39884,146 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         clientsMrrPillValue.textContent = fmtEuros(totalMrr) === '—' ? '€0' : fmtEuros(totalMrr);
       }
 
+      // The owner list is built from the clients that just loaded, so it has to come
+      // after them rather than at wiring time.
+      wireClientFilters();
+      populateClientOwnerFilter();
       renderClientRows();
+    }
+
+    // Search, payment window and owner, on top of the status the stat cards already set.
+    // One function so they compose: picking "Overdue" inside "At risk" means both, which is
+    // the question somebody actually has.
+    let clientSearchQ = '', clientPayQ = '', clientOwnerQ = '';
+    let clientSort = { key: 'name', dir: 'asc' };
+
+    const daysUntil = (d) => {
+      if (!d) return null;
+      const t = new Date(); t.setHours(0, 0, 0, 0);
+      return Math.round((new Date(d + 'T00:00:00') - t) / 86400000);
+    };
+
+    function filterClients(list) {
+      const q = clientSearchQ.trim().toLowerCase();
+      return (list || []).filter(c => {
+        if (clientStatusFilter && c.status !== clientStatusFilter) return false;
+        if (clientOwnerQ && String(c.owner_id || '') !== clientOwnerQ) return false;
+        if (q) {
+          const hay = [c.name, c.contact_name, c.working_notes, c.notes]
+            .filter(Boolean).join(' ').toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        if (clientPayQ) {
+          const n = daysUntil(c.next_charge_on);
+          if (clientPayQ === 'none')    return !c.next_charge_on;
+          if (clientPayQ === 'ending')  return !!c.ends_on;
+          if (n === null) return false;
+          if (clientPayQ === 'overdue') return n < 0;
+          return n >= 0 && n <= Number(clientPayQ);
+        }
+        return true;
+      });
+    }
+
+    function sortClients(list) {
+      const { key, dir } = clientSort;
+      const mul = dir === 'asc' ? 1 : -1;
+      const profilesById = {};
+      (clientProfilesCache || []).forEach(p => { profilesById[p.id] = p; });
+      return (list || []).slice().sort((a, b) => {
+        if (key === 'next_charge_on') {
+          // No date sorts last in both directions. A blank is not "earliest" -- it is
+          // "unknown", and burying the rows that need attention under it helps nobody.
+          if (!a.next_charge_on && !b.next_charge_on) return 0;
+          if (!a.next_charge_on) return 1;
+          if (!b.next_charge_on) return -1;
+          return (a.next_charge_on < b.next_charge_on ? -1 : a.next_charge_on > b.next_charge_on ? 1 : 0) * mul;
+        }
+        if (key === 'mrr_cents') return ((a.mrr_cents || 0) - (b.mrr_cents || 0)) * mul;
+        const av = key === 'owner' ? ((profilesById[a.owner_id] || {}).full_name || '')
+                 : String(a[key] || '');
+        const bv = key === 'owner' ? ((profilesById[b.owner_id] || {}).full_name || '')
+                 : String(b[key] || '');
+        return av.localeCompare(bv, undefined, { sensitivity: 'base' }) * mul;
+      });
+    }
+
+    // Wired once, on the document, so it survives re-renders of the table.
+    let clientFiltersWired = false;
+    function wireClientFilters() {
+      if (clientFiltersWired) return;
+      clientFiltersWired = true;
+      const search = document.getElementById('clientSearchInput');
+      const pay    = document.getElementById('clientPayFilter');
+      const owner  = document.getElementById('clientOwnerFilter');
+      const clear  = document.getElementById('clientClearFilters');
+      let t = null;
+      search?.addEventListener('input', () => {
+        // Debounced: re-rendering 58 rows on every keystroke is fine, doing it on every
+        // keystroke of a long list is not, and this is the one place that grows.
+        clearTimeout(t);
+        t = setTimeout(() => { clientSearchQ = search.value; renderClientRows(); }, 140);
+      });
+      pay?.addEventListener('change',   () => { clientPayQ = pay.value; renderClientRows(); });
+      owner?.addEventListener('change', () => { clientOwnerQ = owner.value; renderClientRows(); });
+      clear?.addEventListener('click', () => {
+        clientSearchQ = ''; clientPayQ = ''; clientOwnerQ = ''; clientStatusFilter = '';
+        if (search) search.value = ''; if (pay) pay.value = ''; if (owner) owner.value = '';
+        renderClientRows();
+      });
+      document.querySelectorAll('#clientTable .gthead [data-csort]').forEach(h => {
+        h.style.cursor = 'pointer';
+        h.addEventListener('click', () => {
+          const k = h.dataset.csort;
+          // Same column again reverses; a new column starts ascending, which is what
+          // somebody means the first time they click it.
+          clientSort = (clientSort.key === k)
+            ? { key: k, dir: clientSort.dir === 'asc' ? 'desc' : 'asc' }
+            : { key: k, dir: 'asc' };
+          renderClientRows();
+        });
+      });
+    }
+
+    function populateClientOwnerFilter() {
+      const sel = document.getElementById('clientOwnerFilter');
+      if (!sel) return;
+      const seen = new Map();
+      (allLoadedClients || []).forEach(c => {
+        if (!c.owner_id) return;
+        const p = (clientProfilesCache || []).find(x => x.id === c.owner_id);
+        if (p) seen.set(p.id, p.full_name || p.id);
+      });
+      const was = sel.value;
+      sel.innerHTML = '<option value="">Any owner</option>'
+        + [...seen.entries()]
+            .sort((a, b) => String(a[1]).localeCompare(String(b[1]), undefined, { sensitivity: 'base' }))
+            .map(([id, nm]) => '<option value="' + escClient(id) + '">' + escClient(nm) + '</option>').join('');
+      if (was) sel.value = was;
     }
 
     function renderClientRows() {
       const profilesById = {};
       (clientProfilesCache || []).forEach(p => { profilesById[p.id] = p; });
-      const clients = clientStatusFilter ? allLoadedClients.filter(c => c.status === clientStatusFilter) : allLoadedClients;
+      const clients = sortClients(filterClients(allLoadedClients));
 
       document.querySelectorAll('#clientStats .cs-filter').forEach(cell => {
         cell.classList.toggle('cs-active', cell.dataset.statusFilter === clientStatusFilter);
       });
+
+      // Which column is sorted, and which way. Without this the list silently reorders and
+      // nobody can tell why.
+      document.querySelectorAll('#clientTable .gthead [data-csort]').forEach(h => {
+        const on = h.dataset.csort === clientSort.key;
+        h.style.color = on ? 'var(--text)' : '';
+        h.textContent = h.textContent.replace(/[ ↑↓]+$/, '') + (on ? (clientSort.dir === 'asc' ? ' ↑' : ' ↓') : '');
+      });
+      const anyFilter = !!(clientSearchQ || clientPayQ || clientOwnerQ || clientStatusFilter);
+      const clearBtn = document.getElementById('clientClearFilters');
+      if (clearBtn) clearBtn.style.display = anyFilter ? '' : 'none';
+      const countEl = document.getElementById('clientFilterCount');
+      if (countEl) countEl.textContent = anyFilter
+        ? clients.length + ' of ' + (allLoadedClients || []).length : '';
 
       if (!clients.length) {
         clientRowsEl.innerHTML = '';
@@ -40778,18 +40931,30 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       });
     }
 
-    // Load clients when the Clients screen is opened
+    // Load clients whenever the screen becomes visible, however it got there.
+    //
+    // The boot-time check here looked for '.screen.active'. Screens are marked with '.on' --
+    // '.active' matches nothing in this app, so that branch has never run once. Clicking the
+    // nav item worked, so the screen looked fine; reloading the page while already on it left
+    // "Loading clients…" on screen for ever, with no error, because nothing ever called
+    // loadClients. A selector that matches nothing fails exactly this quietly.
+    //
+    // Watching the screen's own class rather than adding a third entry point: the entry
+    // points are the problem. This fires for a nav click, a reload, a restored tab, or any
+    // route that shows the screen later.
     let clientsLoaded = false;
-    document.querySelectorAll('.nav-item[data-screen="clients"]').forEach(n => {
-      n.addEventListener('click', () => {
-        if (!clientsLoaded) { loadClients(); clientsLoaded = true; }
-      });
-    });
-    // Also load if the user is already on the clients screen at boot
-    const initialScreen = document.querySelector('.screen.active');
-    if (initialScreen && initialScreen.dataset.screen === 'clients') {
-      loadClients(); clientsLoaded = true;
-    }
+    (function watchClientsScreen(){
+      const host = document.querySelector('.screen[data-screen="clients"]');
+      if (!host) { setTimeout(watchClientsScreen, 400); return; }
+      const ensure = () => { if (!clientsLoaded) { clientsLoaded = true; loadClients(); } };
+      let was = host.classList.contains('on');
+      new MutationObserver(() => {
+        const on = host.classList.contains('on');
+        if (on && !was) ensure();
+        was = on;
+      }).observe(host, { attributes: true, attributeFilter: ['class'] });
+      if (was) ensure();
+    })();
 
     // ── PROJECTS + DAILY FOCUS WIRING ────────────────────────────
     // Scope this session:
