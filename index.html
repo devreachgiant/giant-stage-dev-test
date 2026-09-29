@@ -941,6 +941,69 @@ select:not([class]):not([style]) {
   padding: 9px 30px 9px 11px; font-size: 13px;
 }
 
+/* Inline edits on a client row. The whole cell is the target, so there is nothing to aim
+   at, and the hover state is what says it can be clicked -- a row of text with three
+   secretly-clickable cells would be worse than no shortcut at all. */
+/* The whole cell, not the text inside it. A target the size of the words leaves dead
+   space around them that falls through to the row and opens the client instead -- which
+   reads as the shortcut being broken, because from the outside it is. */
+/* Fills its own cell and not one millimetre more. An earlier version widened the target
+   with calc(100% + 16px) and negative margins to make it feel generous, which put the hover
+   background on top of the neighbouring columns -- a bigger hit area is not worth a row that
+   looks broken when you move the mouse across it. The grid cell is already the right size;
+   the element just has to occupy it. */
+.cli-inline,.cli-pay{border-radius:7px;padding:4px 6px;cursor:pointer;
+  transition:background .12s,box-shadow .12s;display:flex;align-items:center;min-width:0;
+  width:100%;height:100%;box-sizing:border-box;}
+.cli-inline:hover,.cli-pay:hover{background:var(--surface-2);}
+.cli-inline:focus-visible,.cli-pay:focus-visible{outline:none;box-shadow:0 0 0 2px rgba(208,4,0,.35);}
+.cli-pay-hint{opacity:0;font-size:10.5px;color:var(--text-3);transition:opacity .12s;}
+/* The one thing on the row that opens the client, and it looks like it. */
+.cli-open-link{cursor:pointer;display:inline-block;border-radius:5px;}
+.cli-open-link:hover{text-decoration:underline;text-underline-offset:3px;}
+.cli-open-link:focus-visible{outline:none;box-shadow:0 0 0 2px rgba(208,4,0,.35);}
+.client-row{cursor:default;}
+.cli-pay:hover .cli-pay-hint{opacity:1;}
+/* A calendar, not a native date field. The browser's own widget renders in its own light
+   chrome no matter what the page is wearing, and it cannot be styled -- which is why it
+   looked like a form from another site dropped into a dark popup. */
+.cli-datepop{position:fixed;z-index:9999;background:var(--surface);border:1px solid var(--line-2);
+  border-radius:14px;padding:12px;box-shadow:0 24px 60px -14px rgba(0,0,0,.6);display:flex;
+  flex-direction:column;gap:10px;width:276px;}
+.cli-dp-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.cli-dp-title{font-size:12.5px;font-weight:800;color:var(--text);}
+.cli-dp-nav{display:flex;gap:4px;}
+.cli-dp-nav button{width:26px;height:26px;display:flex;align-items:center;justify-content:center;
+  border-radius:7px;border:1px solid transparent;background:transparent;color:var(--text-2);cursor:pointer;}
+.cli-dp-nav button:hover{background:var(--surface-2);color:var(--text);}
+.cli-dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+.cli-dp-dow{font-size:9.5px;font-weight:800;color:var(--text-3);text-align:center;padding:2px 0 4px;
+  letter-spacing:.06em;}
+.cli-dp-day{height:30px;border:none;background:transparent;border-radius:8px;color:var(--text);
+  font-size:12px;font-family:inherit;cursor:pointer;transition:background .1s;}
+.cli-dp-day:hover{background:var(--surface-2);}
+.cli-dp-day.other{color:var(--text-3);opacity:.45;}
+.cli-dp-day.today{box-shadow:inset 0 0 0 1px var(--line-2);font-weight:800;}
+.cli-dp-day.on{background:var(--red);color:#fff;font-weight:800;}
+.cli-dp-chips{display:flex;gap:5px;flex-wrap:wrap;}
+.cli-dp-chip{border:1px solid var(--line-2);background:var(--surface-2);color:var(--text-2);
+  border-radius:999px;padding:4px 8px;font-size:10.5px;font-weight:700;cursor:pointer;font-family:inherit;
+  white-space:nowrap;transition:border-color .12s,color .12s;}
+.cli-dp-chips{display:flex;gap:4px;}
+.cli-dp-chip:hover{border-color:var(--text-3);color:var(--text);}
+.cli-dp-chip.danger:hover{border-color:#EF4444;color:#EF4444;}
+.cli-dp-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  border-top:1px solid var(--line);padding-top:9px;}
+.cli-dp-current{font-size:11px;color:var(--text-3);}
+
+/* And the native date inputs that remain, in the Add client form: appearance:none the same
+   way selects were, so the field stops being the one white box on a dark page. */
+input[type="date"]{background:var(--surface-2);border:1px solid var(--line-2);border-radius:9px;
+  padding:9px 11px;font-size:13px;color:var(--text);font-family:inherit;outline:none;
+  color-scheme:dark;width:100%;box-sizing:border-box;}
+input[type="date"]:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(208,4,0,.16);}
+input[type="date"]::-webkit-calendar-picker-indicator{filter:invert(.6);cursor:pointer;}
+
 /* giantPickMenu — the floating list, and the pill that opens it */
 .giant-pick{position:fixed;z-index:9999;background:var(--surface);border:1px solid var(--line-2);
   border-radius:12px;padding:5px;min-width:190px;max-height:320px;overflow-y:auto;
@@ -11559,6 +11622,11 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                 </select>
               </div>
               <div class="m-field" data-role-min="owner"><label>Monthly retainer (MRR)</label><input type="number" id="addClientMrr" placeholder="0" min="0"></div>
+              <div class="m-field"><label>Billed to (cardholder)</label><input type="text" id="addClientContact" placeholder="Name on the card — often not the company"></div>
+              <div style="display:flex;gap:10px;">
+                <div class="m-field" style="flex:1;"><label>Next payment</label><input type="date" id="addClientNextCharge"></div>
+                <div class="m-field" style="flex:1;"><label>Ends (optional)</label><input type="date" id="addClientEndsOn"></div>
+              </div>
               <div class="m-field"><label>Notes (optional)</label><input type="text" id="addClientNotes" placeholder="e.g. Referred by Mark"></div>
               <div class="m-field">
                 <label>Assign team members</label>
@@ -11614,9 +11682,10 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                        tab, so there is one place a date is changed rather than two that can
                        disagree. The warning line below them is the point: a client whose
                        last day has passed with the Stripe payment still running. -->
-                  <div class="cd-field" data-role-min="manager"><span class="cd-lbl">Next charge</span><span class="cd-val" data-cd-nextcharge>—</span></div>
-                  <div class="cd-field" data-role-min="manager"><span class="cd-lbl">Last day</span><span class="cd-val" data-cd-endson>—</span></div>
+                  <div class="cd-field" data-role-min="manager"><span class="cd-lbl">Next charge</span><span class="cd-val cli-pay" data-cd-nextcharge data-cd-datefield="next_charge_on" title="Click to change" role="button" tabindex="0">—</span></div>
+                  <div class="cd-field" data-role-min="manager"><span class="cd-lbl">Last day</span><span class="cd-val cli-pay" data-cd-endson data-cd-datefield="ends_on" title="Click to change" role="button" tabindex="0">—</span></div>
                   <div class="cd-field"><span class="cd-lbl">Services</span><span class="cd-val" data-cd-field="services">—</span></div>
+                  <div class="cd-field"><span class="cd-lbl">Billed to (cardholder)</span><span class="cd-val" data-cd-field="contact_name">—</span></div>
                   <div class="cd-field"><span class="cd-lbl">Notes</span><span class="cd-val" data-cd-field="notes">—</span></div>
                 </div>
                 <div data-cd-billwarn style="display:none;align-items:center;gap:10px;margin-top:14px;
@@ -39839,15 +39908,23 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       clientEmpty.style.display = 'none';
       clientRowsEl.innerHTML = '';
 
-      // Owners → raw table (incl. MRR). Others → clients_public view (no MRR).
-      const table = isOwner ? 'clients' : 'clients_public';
+      // Owner → raw table (incl. MRR). Manager → clients_manager, which carries contact
+      // info. Everyone else → clients_public. This used to send managers to clients_public
+      // too, so a manager silently lost the cardholder name that their own tier is allowed
+      // to see; clientTableForRole already encodes the three tiers correctly.
+      const table = clientTableForRole();
       // contact_name, next_charge_on, ends_on and working_notes are what the list shows now.
       // Named explicitly rather than select('*') so the columns a client-facing screen reads
       // stay a deliberate list -- the same reason the rest of this query is written out.
-      const BILLING = 'contact_name, next_charge_on, ends_on, working_notes';
-      const cols  = isOwner
-        ? 'id, name, slug, initial, avatar_bg, avatar_fg, status, owner_id, mrr_cents, started_at, notes, created_at, ' + BILLING
-        : 'id, name, slug, initial, avatar_bg, avatar_fg, status, owner_id, started_at, notes, created_at, ' + BILLING;
+      // Asked for per tier, because the views genuinely differ: clients_public has the
+      // dates but not the cardholder, and requesting a column a view does not have fails
+      // the whole query rather than returning it empty.
+      const BASE = 'id, name, slug, initial, avatar_bg, avatar_fg, status, owner_id, started_at, notes, created_at';
+      const cols = isOwner
+        ? BASE + ', mrr_cents, contact_name, next_charge_on, ends_on'
+        : canSeeClientContact
+          ? BASE + ', contact_name, next_charge_on, ends_on'
+          : BASE + ', next_charge_on, ends_on';
 
       const [clientsRes, profilesRes] = await Promise.all([
         supabase.from(table).select(cols).order('name', { ascending: true }),
@@ -39887,6 +39964,8 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       // The owner list is built from the clients that just loaded, so it has to come
       // after them rather than at wiring time.
       wireClientFilters();
+      wireClientInlineEdits();
+      wireClientModalDates();
       populateClientOwnerFilter();
       renderClientRows();
     }
@@ -39909,7 +39988,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         if (clientStatusFilter && c.status !== clientStatusFilter) return false;
         if (clientOwnerQ && String(c.owner_id || '') !== clientOwnerQ) return false;
         if (q) {
-          const hay = [c.name, c.contact_name, c.working_notes, c.notes]
+          const hay = [c.name, c.contact_name, c.notes]
             .filter(Boolean).join(' ').toLowerCase();
           if (!hay.includes(q)) return false;
         }
@@ -39946,6 +40025,210 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
                  : String(b[key] || '');
         return av.localeCompare(bv, undefined, { sensitivity: 'base' }) * mul;
       });
+    }
+
+    // ── Editing a row where you are looking at it ────────────────────────────
+    // Status, owner and the payment date are the three things that change often, and each
+    // otherwise costs opening the client, finding the field, saving and closing. Delegated
+    // from the table so it survives every re-render, and each handler stops the click
+    // reaching the row -- which would open the client underneath the picker.
+    const CLIENT_STATUSES = [
+      { value:'active',     label:'Active',     tint:'#10B981' },
+      { value:'onboarding', label:'Onboarding', tint:'#3B82F6' },
+      { value:'at_risk',    label:'At risk',    tint:'#EF4444' },
+      { value:'paused',     label:'Paused',     tint:'#F59E0B' },
+      { value:'churned',    label:'Churned',    tint:'#9CA3AF' },
+    ];
+
+    async function saveClientField(id, patch, label) {
+      // .select() so a refusal is visible. clients_update_mgr is is_manager_or_owner(), and
+      // an update the policy refuses is not an error -- it is zero rows changed. Without
+      // this the cell would say "Saved", snap back on the next render, and give no hint why.
+      const { data, error } = await supabase.from('clients').update(patch).eq('id', id).select('id');
+      if (error || !(data && data.length)) {
+        if (typeof toast === 'function') toast({ type:'error', message: error
+          ? 'Could not save that: ' + error.message
+          : 'You do not have permission to change clients.' });
+        return false;
+      }
+      // Update the row we already have rather than refetching everything: the list is
+      // sorted and filtered client-side, so it re-renders into the right place by itself.
+      const row = (allLoadedClients || []).find(x => x.id === id);
+      if (row) Object.assign(row, patch);
+      renderClientRows();
+      if (label && typeof toast === 'function') toast({ type:'success', message: label, duration: 1400 });
+      return true;
+    }
+
+    // One date picker for this screen: the row and the client modal both open it.
+    //
+    // A calendar rather than <input type="date">. The native field renders in the browser's
+    // own light chrome whatever the page is wearing and cannot be restyled, so it arrived as
+    // a white box in a dark popup. This also removes a click: picking a day IS the answer,
+    // so it saves and closes rather than asking you to confirm what you just chose.
+    function openClientDatePopup(anchor, c, field, title) {
+      field = field || 'next_charge_on';
+      title = title || 'NEXT PAYMENT';
+      document.querySelector('.cli-datepop')?.remove();
+
+      const iso = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+                       + '-' + String(d.getDate()).padStart(2, '0');
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const selected = c[field] ? new Date(c[field] + 'T00:00:00') : null;
+      let view = new Date(selected || today); view.setDate(1);
+
+      const pop = document.createElement('div');
+      pop.className = 'cli-datepop';
+      document.body.appendChild(pop);
+
+      const draw = () => {
+        const first = new Date(view.getFullYear(), view.getMonth(), 1);
+        // Monday-first, which is how everyone here reads a week.
+        const lead = (first.getDay() + 6) % 7;
+        const gridStart = new Date(first); gridStart.setDate(1 - lead);
+        let days = '';
+        for (let i = 0; i < 42; i++) {
+          const d = new Date(gridStart); d.setDate(gridStart.getDate() + i);
+          const cls = ['cli-dp-day'];
+          if (d.getMonth() !== view.getMonth()) cls.push('other');
+          if (d.getTime() === today.getTime()) cls.push('today');
+          if (selected && d.getTime() === selected.getTime()) cls.push('on');
+          days += '<button type="button" class="' + cls.join(' ') + '" data-d="' + iso(d) + '">'
+                + d.getDate() + '</button>';
+        }
+        pop.innerHTML =
+          '<div class="cli-dp-head"><div class="cli-dp-title">' + title + '</div>'
+          + '<div class="cli-dp-nav"><button type="button" data-mv="-1" title="Previous month">‹</button>'
+          + '<button type="button" data-mv="1" title="Next month">›</button></div></div>'
+          + '<div class="cli-dp-title" style="font-weight:700;color:var(--text-2);font-size:12px;">'
+          + view.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) + '</div>'
+          + '<div class="cli-dp-grid">'
+          + ['M','T','W','T','F','S','S'].map(x => '<div class="cli-dp-dow">' + x + '</div>').join('')
+          + days + '</div>'
+          + '<div class="cli-dp-chips">'
+          + '<button type="button" class="cli-dp-chip" data-q="0">Today</button>'
+          + '<button type="button" class="cli-dp-chip" data-q="7">+1 week</button>'
+          + '<button type="button" class="cli-dp-chip" data-q="30">+30d</button>'
+          + '<button type="button" class="cli-dp-chip" data-q="month">Next month</button>'
+          + '</div>'
+          + '<div class="cli-dp-foot"><span class="cli-dp-current">'
+          + (c[field] ? new Date(c[field] + 'T00:00:00').toLocaleDateString('en-US',
+              { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not set')
+          + '</span><button type="button" class="cli-dp-chip danger" data-clear="1">Clear</button></div>';
+      };
+      draw();
+
+      // Positioned after the first draw, because its height is not known until it has one.
+      const r = anchor.getBoundingClientRect();
+      const place = () => {
+        const h = pop.offsetHeight, wdt = pop.offsetWidth;
+        pop.style.top = (window.innerHeight - r.bottom < h + 12 && r.top > h + 12
+          ? Math.max(8, r.top - h - 6) : r.bottom + 6) + 'px';
+        pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - wdt - 8)) + 'px';
+      };
+      place();
+
+      const close = () => {
+        pop.remove();
+        document.removeEventListener('mousedown', outside, true);
+        document.removeEventListener('keydown', onKey, true);
+      };
+      const outside = (e) => { if (!pop.contains(e.target) && e.target !== anchor) close(); };
+      const onKey = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+      document.addEventListener('mousedown', outside, true);
+      document.addEventListener('keydown', onKey, true);
+
+      const commit = async (value, label) => { close(); await saveClientField(c.id, { [field]: value }, label); };
+
+      pop.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const mv = e.target.closest('[data-mv]');
+        if (mv) { view.setMonth(view.getMonth() + Number(mv.dataset.mv)); draw(); place(); return; }
+        const day = e.target.closest('[data-d]');
+        if (day) return commit(day.dataset.d, 'Date set');
+        const q = e.target.closest('[data-q]');
+        if (q) {
+          const d = new Date(today);
+          if (q.dataset.q === 'month') d.setMonth(d.getMonth() + 1);
+          else d.setDate(d.getDate() + Number(q.dataset.q));
+          return commit(iso(d), 'Date set');
+        }
+        if (e.target.closest('[data-clear]')) return commit(null, 'Date cleared');
+      });
+    }
+
+    // The same two dates inside the client modal. Wired once on the modal, in capture, for
+    // the same reason as the row: the modal has its own click handling.
+    let clientModalDatesWired = false;
+    function wireClientModalDates() {
+      if (clientModalDatesWired) return;
+      clientModalDatesWired = true;
+      const modal = document.getElementById('clientDetailModal');
+      modal?.addEventListener('click', (e) => {
+        const cell = e.target.closest('[data-cd-datefield]');
+        if (!cell || !canSeeClientContact) return;
+        const c = window._activeClient;
+        if (!c) return;
+        e.stopPropagation();
+        e.preventDefault();
+        const field = cell.dataset.cdDatefield;
+        openClientDatePopup(cell, c, field,
+          field === 'ends_on' ? 'LAST DAY' : 'NEXT CHARGE');
+      }, true);
+    }
+
+    let clientInlineWired = false;
+    function wireClientInlineEdits() {
+      if (clientInlineWired) return;
+      clientInlineWired = true;
+      // CAPTURE phase, not bubble. Each row has its own click listener attached directly to
+      // it, and a listener on the row runs before one on the container during bubbling -- so
+      // calling stopPropagation here was always too late and the client modal opened behind
+      // the picker. Capture runs outside-in, which is the only way to get in front of it.
+      clientRowsEl?.addEventListener('click', (e) => {
+        // Managers and owners only, matching clients_update_mgr. Offering an edit to
+        // somebody the database will refuse is a worse experience than not offering it.
+        if (!canSeeClientContact) return;
+        const byId = (id) => (allLoadedClients || []).find(x => x.id === id);
+
+        const pay = e.target.closest('[data-cli-pay]');
+        if (pay) {
+          e.stopPropagation();
+          const c = byId(pay.dataset.cliPay);
+          e.preventDefault();
+          if (c) openClientDatePopup(pay, c, 'next_charge_on', 'NEXT PAYMENT');
+          return;
+        }
+        const st = e.target.closest('[data-cli-status]');
+        if (st) {
+          e.stopPropagation();
+          const c = byId(st.dataset.cliStatus);
+          if (!c) return;
+          window.giantPickMenu(st, {
+            options: CLIENT_STATUSES, value: c.status,
+            onPick: (v, o) => saveClientField(c.id, { status: v }, 'Status set to ' + o.label),
+          });
+          return;
+        }
+        const ow = e.target.closest('[data-cli-owner]');
+        if (ow) {
+          e.stopPropagation();
+          const c = byId(ow.dataset.cliOwner);
+          if (!c) return;
+          const people = (clientProfilesCache || [])
+            .slice()
+            .sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || ''), undefined, { sensitivity: 'base' }))
+            .map(p => ({ value: p.id, label: p.full_name || p.id }));
+          window.giantPickMenu(ow, {
+            // "No owner" first, because unassigning is a real action and hunting for it at
+            // the bottom of a list of names is the wrong way round.
+            options: [{ value: '', label: 'No owner' }].concat(people),
+            value: c.owner_id || '',
+            onPick: (v, o) => saveClientField(c.id, { owner_id: v || null },
+              v ? 'Owner set to ' + o.label : 'Owner cleared'),
+          });
+        }
+      }, true);   // capture
     }
 
     // Wired once, on the document, so it survives re-renders of the table.
@@ -40039,11 +40322,19 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       // The next payment, and how close it is. A date on its own makes you do the
       // subtraction; "in 2 days" is the thing you were working out anyway. Overdue is
       // called out because a date that has passed and still says "next" is a question.
+      // Clickable, because changing a payment date is the most common edit on this screen
+      // and the alternative is opening the client, finding the field, editing, saving,
+      // closing. data-cli-pay carries the id; the handler stops the click reaching the row,
+      // which would otherwise open the client underneath the picker.
       const payCell = (c) => {
+        const wrap = (inner) => canSeeClientContact
+          ? '<div class="cli-pay" data-cli-pay="' + escClient(c.id)
+            + '" title="Click to change the payment date" tabindex="0" role="button">' + inner + '</div>'
+          : '<div>' + inner + '</div>';
         if (!c.next_charge_on) {
-          return c.ends_on
-            ? `<div style="font-size:11.5px;color:var(--text-3);">Ends ${escClient(new Date(c.ends_on + 'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}))}</div>`
-            : '<div style="font-size:11.5px;color:var(--text-3);">—</div>';
+          return wrap(c.ends_on
+            ? `<span style="font-size:11.5px;color:var(--text-3);">Ends ${escClient(new Date(c.ends_on + 'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}))}</span>`
+            : '<span style="font-size:11.5px;color:var(--text-3);">— <span class="cli-pay-hint">set</span></span>');
         }
         const d = new Date(c.next_charge_on + 'T00:00:00');
         const today = new Date(); today.setHours(0,0,0,0);
@@ -40051,9 +40342,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         const near = days < 0 ? 'var(--red)' : days <= 7 ? '#F59E0B' : 'var(--text-2)';
         const when = days < 0 ? Math.abs(days) + 'd overdue'
                    : days === 0 ? 'today' : days === 1 ? 'tomorrow' : 'in ' + days + 'd';
-        return `<div style="font-size:11.5px;color:${near};font-weight:600;">`
+        return wrap(`<span style="font-size:11.5px;color:${near};font-weight:600;">`
           + escClient(d.toLocaleDateString('en-US',{month:'short',day:'numeric'}))
-          + `<span style="opacity:.7;font-weight:500;"> · ${escClient(when)}</span></div>`;
+          + `<span style="opacity:.7;font-weight:500;"> · ${escClient(when)}</span></span>`);
       };
       // Also update the gthead grid if needed (hide MRR header for non-owners)
       const gthead = document.querySelector('#clientTable .gthead');
@@ -40081,10 +40372,14 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
               <div class="a-ava" style="background:${escClient(c.avatar_bg||'#22344F')};color:${escClient(c.avatar_fg||'#9DC0F0')};border-radius:8px;width:30px;height:30px;">${escClient(initial)}</div>
               <div><div class="nm">${escClient(c.name)}</div><div class="sub">${c.contact_name ? escClient(c.contact_name) + ' · ' : ''}${escClient(fmtClientStarted(c.started_at || c.created_at))}${health ? ' · ' + health : ''}</div></div>
             </div>
-            <div>${statusPill(c.status)}</div>
+            ${canSeeClientContact
+              ? `<div class="cli-inline" data-cli-status="${escClient(c.id)}" title="Click to change status" tabindex="0" role="button">${statusPill(c.status)}</div>`
+              : `<div>${statusPill(c.status)}</div>`}
             ${payCell(c)}
-            <div style="font-size:11.5px;color:var(--text-2);line-height:1.45;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;" title="${escClient(c.working_notes || '')}">${escClient(c.working_notes || '')}</div>
-            ${ownerCell}
+            <div style="font-size:11.5px;color:var(--text-2);line-height:1.45;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;" title="${escClient(c.notes || '')}">${escClient(c.notes || '')}</div>
+            ${canSeeClientContact
+              ? `<div class="cli-inline" data-cli-owner="${escClient(c.id)}" title="Click to change owner" tabindex="0" role="button">${ownerCell}</div>`
+              : `<div>${ownerCell}</div>`}
             ${mrrCell}
             <div class="cli-menu-cell"><span class="cli-menu-trigger"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="3" cy="8" r="1.3" fill="currentColor"/><circle cx="8" cy="8" r="1.3" fill="currentColor"/><circle cx="13" cy="8" r="1.3" fill="currentColor"/></svg></span></div>
           </div>
@@ -40104,14 +40399,26 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           e.stopPropagation();
           openClientMenuDynamic(row);
         });
-        // Row click → open the read-only detail modal (Details/Onboarding), same as
-        // the original Clients module (leave the three-dot menu / other call sites
-        // untouched). The embedded Chat 2.0 client hub this used to route a beta
-        // allowlist into has been reverted — back to the plain modal for everyone.
-        row.addEventListener('click', (e) => {
-          if (e.target.closest('.cli-menu-trigger') || e.target.closest('.cli-menu')) return;
-          openClientDetailFromRow(row, /*editMode*/ false);
-        });
+        // The NAME opens the client, not the whole row.
+        //
+        // A row-wide link and per-cell editing cannot share the same surface: every click
+        // becomes a gamble on whether you hit the cell or the gap beside it, and the wrong
+        // guess throws a modal over what you were doing. So the row is inert, the editable
+        // cells do their own thing, and opening the client is a named target you can aim at
+        // -- which is also the only one of the three that is obvious without being told.
+        const nameCell = row.querySelector('.tname .nm');
+        if (nameCell && !nameCell.dataset.wired) {
+          nameCell.dataset.wired = '1';
+          nameCell.classList.add('cli-open-link');
+          nameCell.setAttribute('role', 'button');
+          nameCell.setAttribute('tabindex', '0');
+          nameCell.title = 'Open this client';
+          const open = (e) => { e.stopPropagation(); openClientDetailFromRow(row, /*editMode*/ false); };
+          nameCell.addEventListener('click', open);
+          nameCell.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(e); }
+          });
+        }
       });
     }
 
@@ -40482,14 +40789,32 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           // All cd-val with data-cd-field — skip anything hidden by role (e.g. contact
           // info for a role that can't see it): its "—" placeholder isn't a real edit,
           // and c[field] is undefined here since it was never fetched for this role.
+          let dateProblem = false;
           document.querySelectorAll('#clientDetailModal [data-cd-field][contenteditable="true"]').forEach(el => {
             const roleGate = el.closest('[data-role-min]');
             if (roleGate && roleGate.style.display === 'none') return;
             const field = el.dataset.cdField;
-            const newVal = el.textContent.trim();
-            if (newVal !== String(c[field] || '')) {
-              updates[field] = newVal;
+            const raw = el.textContent.trim();
+            const newVal = raw === '—' ? '' : raw;
+            if (newVal === String(c[field] || '')) return;
+            // next_charge_on and ends_on are real date columns, and this is a free-text
+            // span: cleared it gives '' and typed by hand it gives whatever a person types.
+            // '' is not a date, so it has to become null, and anything unparseable has to
+            // be refused here rather than rejected by Postgres with a message about input
+            // syntax for type date.
+            if (field === 'next_charge_on' || field === 'ends_on') {
+              if (!newVal) { updates[field] = null; return; }
+              const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(newVal) ? newVal + 'T00:00:00' : newVal);
+              if (isNaN(d.getTime())) {
+                if (typeof toast === 'function') toast({ type:'error',
+                  message:'"' + newVal + '" is not a date I can read. Try 2026-10-24.' });
+                dateProblem = true;
+                return;
+              }
+              updates[field] = d.toISOString().slice(0, 10);
+              return;
             }
+            updates[field] = newVal;
           });
           // Also collect custom field edits (cd-cf-key spans)
           const cfEdits = {};
@@ -40505,6 +40830,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
             // Merge with existing custom_fields (we may have keys that aren't visible)
             updates.custom_fields = { ...(c.custom_fields || {}), ...cfEdits };
           }
+          // A date that could not be read must stop the save, not be quietly dropped while
+          // everything else goes through and the field snaps back looking unchanged.
+          if (dateProblem) return;
           if (Object.keys(updates).length === 0) {
             if (typeof toast === 'function') toast({type:'info', message:'No changes to save', duration:1500});
             return;
@@ -40601,6 +40929,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     const addClientStatusI = document.getElementById('addClientStatus');
     const addClientMrrI    = document.getElementById('addClientMrr');
     const addClientNotesI  = document.getElementById('addClientNotes');
+    const addClientContactI = document.getElementById('addClientContact');
+    const addClientNextI    = document.getElementById('addClientNextCharge');
+    const addClientEndsI    = document.getElementById('addClientEndsOn');
 
     function openAddClient() {
       addClientAlert.className = 'auth-alert';
@@ -40610,6 +40941,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       if (addClientStatusI) addClientStatusI.value = 'active';
       if (addClientMrrI)    addClientMrrI.value = '';
       if (addClientNotesI)  addClientNotesI.value = '';
+      if (addClientContactI) addClientContactI.value = '';
+      if (addClientNextI)    addClientNextI.value = '';
+      if (addClientEndsI)    addClientEndsI.value = '';
       if (typeof openModal === 'function') openModal('addClientModal');
       else addClientModalEl.classList.add('on');
       setTimeout(() => addClientNameI && addClientNameI.focus(), 100);
@@ -40761,6 +41095,11 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           email,
           status: addClientStatusI.value || 'active',
           notes: (addClientNotesI.value || '').trim() || null,
+          // Empty date inputs give '' and the column is a date: '' is not a date and the
+          // insert would be rejected, so an untouched field has to become null.
+          contact_name:    (addClientContactI?.value || '').trim() || null,
+          next_charge_on:  (addClientNextI?.value || '').trim() || null,
+          ends_on:         (addClientEndsI?.value || '').trim() || null,
           owner_id: session.user.id
         };
         if (isOwner) payload.mrr_cents = mrrEuros * 100;

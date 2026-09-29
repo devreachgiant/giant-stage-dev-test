@@ -7490,6 +7490,82 @@ check('Decline asks first, and cancelling the question changes nothing',
     && mt.stillConfirmedAfterCancelling,
   JSON.stringify(mt));
 
+// ── The Clients screen ───────────────────────────────────────────────────────
+// This screen had NO coverage at all -- 'data-screen="clients"' appeared nowhere in this
+// file -- which is how it shipped with the payment cell opening its picker AND the client
+// modal behind it, while parse, audit and isolation all reported clean. None of those three
+// opens a page.
+//
+// The click tests matter more than the render ones here: every row has its own click
+// handler, so a cell handler that does not run in the capture phase is too late to stop the
+// modal, and the two popups sit on top of each other.
+const cli = await step('Clients lists rows and edits them in place', async () => {
+  return await page.evaluate(async () => {
+    const w = ms => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    const grp = document.querySelector('.nav-group-toggle[data-navgroup="work"]');
+    if (grp && grp.classList.contains('nav-group-collapsed')) { grp.click(); await w(400); }
+    const nav = document.querySelector('.nav-item[data-screen="clients"]');
+    out.navExists = !!nav;
+    if (!nav) return out;
+    nav.click();
+    for (let i = 0; i < 40; i++) { await w(250); if (document.querySelectorAll('#clientRows .client-row').length) break; }
+    out.rows = document.querySelectorAll('#clientRows .client-row').length;
+    out.loadingGone = (document.getElementById('clientLoading') || {}).style?.display === 'none';
+    if (!out.rows) return out;
+
+    // The columns the Stripe list made worth having.
+    out.hasPaymentHeader = /next payment/i.test(
+      (document.querySelector('#clientTable .gthead') || {}).textContent || '');
+    out.hasToolbar = !!document.getElementById('clientSearchInput')
+      && !!document.getElementById('clientPayFilter');
+    out.sortableHeaders = document.querySelectorAll('#clientTable .gthead [data-csort]').length;
+
+    // Clicking a payment cell must open ONE thing. The client modal opening behind it is
+    // the bug this whole check exists for.
+    document.querySelector('.cli-datepop')?.remove();
+    document.querySelectorAll('.modal-overlay.on').forEach(m => m.classList.remove('on'));
+    const payCell = document.querySelector('#clientRows [data-cli-pay]');
+    out.payCellClickable = !!payCell;
+    if (payCell) {
+      payCell.click(); await w(500);
+      out.datePickerOpened = !!document.querySelector('.cli-datepop');
+      out.clientModalStayedShut = !document.getElementById('clientDetailModal')?.classList.contains('on');
+      document.querySelector('.cli-datepop')?.remove();
+    }
+    // Same for status: the pill menu, and nothing behind it.
+    const stCell = document.querySelector('#clientRows [data-cli-status]');
+    out.statusCellClickable = !!stCell;
+    if (stCell) {
+      stCell.click(); await w(500);
+      out.statusMenuOpened = !!document.querySelector('.giant-pick');
+      out.modalStillShutAfterStatus = !document.getElementById('clientDetailModal')?.classList.contains('on');
+      document.querySelector('.giant-pick')?.remove();
+    }
+    // The row itself is inert now: a row-wide link and per-cell editing cannot share one
+    // surface without every click being a gamble. Clicking dead space must do NOTHING...
+    document.querySelectorAll('.modal-overlay.on').forEach(m => m.classList.remove('on'));
+    const dead = document.querySelector('#clientRows .client-row > div:not([data-cli-pay]):not([data-cli-status]):not([data-cli-owner]):not(.tname):not(.cli-menu-cell)');
+    if (dead) { dead.click(); await w(600); }
+    out.deadSpaceOpensNothing = !document.getElementById('clientDetailModal')?.classList.contains('on');
+    // ...and the client NAME must still open it, or there is no way in from this list.
+    const nameLink = document.querySelector('#clientRows .client-row .nm');
+    if (nameLink) { nameLink.click(); await w(900); }
+    out.nameOpensClient = !!document.getElementById('clientDetailModal')?.classList.contains('on');
+    document.querySelectorAll('.modal-overlay.on').forEach(m => m.classList.remove('on'));
+    return out;
+  });
+}) || {};
+check('the Clients screen loads its rows and shows the payment column',
+  cli.navExists && cli.rows > 0 && cli.loadingGone && cli.hasPaymentHeader
+    && cli.hasToolbar && cli.sortableHeaders >= 4, JSON.stringify(cli));
+check('clicking a payment cell opens the date picker and NOT the client modal',
+  cli.payCellClickable && cli.datePickerOpened && cli.clientModalStayedShut, JSON.stringify(cli));
+check('clicking a status cell opens the status menu and NOT the client modal',
+  cli.statusCellClickable && cli.statusMenuOpened && cli.modalStillShutAfterStatus, JSON.stringify(cli));
+check('dead space on the row opens nothing, and the name still opens the client',
+  cli.deadSpaceOpensNothing && cli.nameOpensClient, JSON.stringify(cli));
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
