@@ -7687,6 +7687,7 @@ const ren = await step('renaming a channel', async () => {
     out.foundOtherDeptTab = !!adsTab;
     if (adsTab) { adsTab.click(); await w(1300); }
     out.headerOnOtherDeptBefore = (document.getElementById('nc_chatHeadName') || {}).textContent;
+    out.headAvatarBefore = ((document.getElementById('nc_chatHeadAva') || {}).textContent || '').trim();
 
     window.giantPrompt = async () => 'stencillab.ai';
     try {
@@ -7702,6 +7703,43 @@ const ren = await step('renaming a channel', async () => {
     // the sidebar repaints, but the header is only written when a conversation is opened.
     out.headerOnOtherDeptAfter = (document.getElementById('nc_chatHeadName') || {}).textContent;
     out.headerFollowedRename = out.headerOnOtherDeptAfter === 'stencillab.ai';
+
+    // 7. EVERY surface that names this conversation, not just the two that were reported.
+    //    A name you chose is only useful if the app agrees with itself about it.
+    out.placeholder = (document.getElementById('nc_chatInput') || {}).placeholder || '';
+    out.placeholderFollowed = out.placeholder.includes('stencillab.ai');
+    // The sidebar row's avatar already followed the chosen name; the header's did not,
+    // which put two different pairs of initials on one conversation.
+    out.headAvatar = ((document.getElementById('nc_chatHeadAva') || {}).textContent || '').trim();
+    // Initials come off the chosen name now, not the client's -- "SA" for stencillab.ai
+    // rather than the client's two letters. Asserted as "changed, and starts with S"
+    // rather than a literal, so this does not break if initialsOf is ever retuned.
+    out.avatarFollowed = !!out.headAvatar && out.headAvatar !== out.headAvatarBefore
+      && /^s/i.test(out.headAvatar);
+
+    // The jump box is how you FIND a conversation, so it is the one that matters most.
+    const jump = document.getElementById('nc_chatJumpToInput');
+    if (jump) {
+      jump.value = 'stencillab';
+      jump.dispatchEvent(new Event('input', { bubbles: true }));
+      await w(700);
+      const res = document.getElementById('nc_jumpResults');
+      out.jumpFound = true;
+      out.jumpText = res ? res.textContent.slice(0, 200) : '';
+      out.jumpFindsChosenName = !!res && /stencillab\.ai/i.test(res.textContent);
+      jump.value = ''; jump.dispatchEvent(new Event('input', { bubbles: true })); await w(300);
+    }
+
+    // A thread says which conversation it is in.
+    const msg = { id: 'mc-msg', channel_id: 'mc-gen', author_id: window.giantSession.user.id,
+      body: 'probe', created_at: new Date().toISOString(), parent_id: null, reply_count: 0 };
+    window.__mock.db.messages.push(msg);
+    if (typeof window.nc_openThread === 'function') {
+      try { await window.nc_openThread('mc-msg'); } catch (e) { out.threadThrew = String(e.message).slice(0, 80); }
+      await w(900);
+      out.threadSub = (document.getElementById('nc_threadHeadSub') || {}).textContent || '';
+      out.threadFollowed = /stencillab\.ai/i.test(out.threadSub);
+    }
     return out;
   });
 }) || {};
@@ -7720,6 +7758,10 @@ check('every department of a client conversation is renamed, not just the row yo
   ren.twoDeptRowFound && ren.foundOtherDeptTab && ren.everyDeptRenamed, JSON.stringify(ren));
 check('the open conversation header follows the rename, on whichever department you are on',
   ren.headerFollowedRename, JSON.stringify(ren));
+check('the message box, the header avatar and the jump box all use the chosen name',
+  ren.placeholderFollowed && ren.avatarFollowed && ren.jumpFindsChosenName, JSON.stringify(ren));
+check('a thread says which conversation it is in, by the chosen name',
+  ren.threadFollowed, JSON.stringify(ren));
 
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({

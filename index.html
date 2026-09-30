@@ -74719,7 +74719,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       (chatChannels || []).forEach(c => {
         if (c.is_dm) return;
         const cl = c.client_id ? ncClients[c.client_id] : null;
-        const name = cl ? cl.name : c.name;
+        // The name somebody chose, if there is one -- the jump box is how you FIND a
+        // conversation, so it is the last place that should still use the old name.
+        const name = ncChannelLabel(c) || (cl ? cl.name : c.name);
         const dept = c.department && c.department !== 'general'
           ? (NC_DEPTS.find(d => d.key === c.department) || {}).label : null;
         const label = (name || c.name) + (dept ? ' · ' + dept : '');
@@ -74779,7 +74781,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const c = (chatChannels || []).find(x => x.id === m.channel_id)
                || (chatDmChannels || []).find(x => x.id === m.channel_id);
         const cl = c && c.client_id ? ncClients[c.client_id] : null;
-        const where = cl ? cl.name : (c && c.name ? '#' + c.name : 'a conversation');
+        const lbl = c ? ncChannelLabel(c) : '';
+        const where = lbl ? (cl ? lbl : '#' + lbl) : 'a conversation';
         const who = (chatProfilesCache[m.author_id] || {});
         return { kind: 'Message',
                  label: String(m.body || '').replace(/\s+/g, ' ').slice(0, 70),
@@ -74966,7 +74969,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // everyone except whoever created the conversation, so it is right for them and
         // wrong for the person being messaged. This read "Nishchay" on a message from Mave.
         let label = cl
-          ? (cl.name || 'Client') + (c.department && c.department !== 'general' ? ' · ' + c.department : '')
+          ? (ncChannelLabel(c) || cl.name || 'Client') + (c.department && c.department !== 'general' ? ' · ' + c.department : '')
           : c.is_dm ? ncDmLabelFor(c, painted)
           : (c.name || '');
         if (!label && painted) {
@@ -78941,6 +78944,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       return ids.length ? ids : [channel.id];
     }
 
+    // The header, the avatar's initials and the box you type in, from ONE label. Pulled
+    // out of switchChannel because a rename has to repaint them without re-opening the
+    // conversation -- re-running switchChannel would refetch every message and throw away
+    // the scroll position, and copying these four lines into the rename path is how they
+    // drift apart. The sidebar row's avatar already follows the chosen name, so a header
+    // that did not put a different pair of initials beside the same conversation.
+    function ncRenderClientHead(c, hdrClient, hdrDept) {
+      const hdrLabel = ncChannelLabel(c) || (hdrClient ? hdrClient.name : c.name);
+      chatHeadName.textContent = hdrLabel;
+      ncSetHeadAvatar(hdrClient
+        ? { name: hdrLabel, bg: hdrClient.avatar_bg, fg: hdrClient.avatar_fg }
+        : { name: hdrLabel });
+      chatHeadTopic.textContent = ncHeadTopicBase(c);
+      chatInput.placeholder = hdrClient
+        ? `Message ${hdrLabel}${hdrDept ? ' · ' + hdrDept.label : ''}…`
+        : `Message #${hdrLabel}…`;
+    }
+
     // The conversation you are LOOKING AT has to change too. loadChannels() repaints the
     // sidebar, but the header is written only when a conversation is opened -- so after a
     // rename the list said the new name and the header above the messages still said the
@@ -78948,7 +78969,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     function ncApplyRename(ids, newName) {
       const set = new Set(ids);
       (chatChannels || []).forEach(c => { if (set.has(c.id)) c.display_name = newName; });
-      if (set.has(activeChannelId) && chatHeadName) chatHeadName.textContent = newName;
+      if (!set.has(activeChannelId)) return;
+      const c = (chatChannels || []).find(x => x.id === activeChannelId);
+      if (!c) { if (chatHeadName) chatHeadName.textContent = newName; return; }
+      const hdrClient = c.kind === 'client_dept' && c.client_id ? ncClients[c.client_id] : null;
+      const hdrDept = hdrClient ? (NC_DEPTS.find(d => d.key === (c.department || 'general')) || null) : null;
+      ncRenderClientHead(c, hdrClient, hdrDept);
     }
 
     async function loadChannels() {
@@ -79636,7 +79662,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // group conversation are the same needs as on a channel.
       const channel = (chatChannels || []).find(c => c.id === channelId)
                    || (chatDmChannels || []).find(c => c.id === channelId);
-      const channelName = channel ? (channel.name || 'conversation') : 'channel';
+      const channelName = channel ? (ncChannelLabel(channel) || channel.name || 'conversation') : 'channel';
       const isDm = !!(channel && channel.is_dm);
       // Group-ness comes from the row the list already stamped, not from a second
       // derivation here. is_group is unset on plenty of real group conversations, and
@@ -79898,17 +79924,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // department strip directly below it is showing.
         const hdrClient = c.kind === 'client_dept' && c.client_id ? ncClients[c.client_id] : null;
         const hdrDept = hdrClient ? (NC_DEPTS.find(d => d.key === (c.department || 'general')) || null) : null;
-        // Same label as the sidebar. Without this a renamed channel reads one way in the
-        // list and another once you open it, which makes the rename look like it half
-        // worked.
-        chatHeadName.textContent = ncChannelLabel(c) || (hdrClient ? hdrClient.name : c.name);
-        ncSetHeadAvatar(hdrClient
-          ? { name: hdrClient.name, bg: hdrClient.avatar_bg, fg: hdrClient.avatar_fg }
-          : { name: c.name });
-        chatHeadTopic.textContent = ncHeadTopicBase(c);
-        chatInput.placeholder = hdrClient
-          ? `Message ${hdrClient.name}${hdrDept ? ' · ' + hdrDept.label : ''}…`
-          : `Message #${c.name}…`;
+        ncRenderClientHead(c, hdrClient, hdrDept);
         const membersBtn = document.getElementById('nc_chatHeadMembersBtn');
         if (membersBtn) membersBtn.style.display = '';
         const privacyBtn = document.getElementById('nc_chatHeadPrivacyBtn');
@@ -84541,7 +84557,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       }
       activeThreadParent = parent;
       const channel = chatChannels.find(c => c.id === parent.channel_id) || chatDmChannels.find(c => c.id === parent.channel_id);
-      threadHeadSub.textContent = channel ? (channel.is_dm ? `with @${channel.name}` : `in #${channel.name}`) : '';
+      // A thread says which conversation it is in, so it has to say the name people use.
+      threadHeadSub.textContent = channel
+        ? (channel.is_dm ? `with @${channel.name}` : `in #${ncChannelLabel(channel) || channel.name}`)
+        : '';
       await hydrateProfiles([parent.author_id]);
       // Load replies
       const { data: replies, error: repliesError } = await queryWithRetry(() => window.giantSupabase.from('messages')
