@@ -75132,8 +75132,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (!rowsByClient.has(c.client_id)) rowsByClient.set(c.client_id, []);
         rowsByClient.get(c.client_id).push({ row, c });
       });
+      // Sorted by the name the row actually SHOWS. Renaming Tomwellywells to stencillab.ai
+      // and leaving it filed under T is the same bug as the rename not showing at all:
+      // the whole point of a name you chose is that you can find it again.
+      const ncClientSortKey = (cl) => {
+        const mine = rowsByClient.get(cl.id) || [];
+        const chosen = mine.map(x => x.c.display_name).find(Boolean);
+        return chosen || cl.name || '';
+      };
       Object.values(ncClients)
-        .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+        .sort((a, b) => ncClientSortKey(a).localeCompare(ncClientSortKey(b), undefined, { sensitivity: 'base' }))
         .forEach(cl => {
           // ONE row per client. A client's departments are threads INSIDE it, reached
           // from the department strip at the top of the conversation -- General, Google
@@ -78916,6 +78924,33 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       return c.name || '';
     }
 
+    // Every channel that makes up one conversation. A client row is a CONVERSATION with
+    // departments as tabs inside it -- General, Google Ads, Meta Ads, SEO, Web -- and each
+    // of those is its own channel row. Renaming only the one the sidebar row points at
+    // (General) left the header still reading the client's name the moment you clicked
+    // any other tab, which is exactly what renaming was supposed to stop.
+    //
+    // Delete already works this way, for the same reason: "everything the row unions goes,
+    // or none of it". A rename unions the same set.
+    function ncConversationIds(channel) {
+      if (!channel) return [];
+      if (channel.kind !== 'client_dept' || !channel.client_id) return [channel.id];
+      const ids = (chatChannels || [])
+        .filter(c => c.kind === 'client_dept' && c.client_id === channel.client_id)
+        .map(c => c.id);
+      return ids.length ? ids : [channel.id];
+    }
+
+    // The conversation you are LOOKING AT has to change too. loadChannels() repaints the
+    // sidebar, but the header is written only when a conversation is opened -- so after a
+    // rename the list said the new name and the header above the messages still said the
+    // old one, which reads as the rename half working.
+    function ncApplyRename(ids, newName) {
+      const set = new Set(ids);
+      (chatChannels || []).forEach(c => { if (set.has(c.id)) c.display_name = newName; });
+      if (set.has(activeChannelId) && chatHeadName) chatHeadName.textContent = newName;
+    }
+
     async function loadChannels() {
       // Wire the Team/Clients scope toggle (once, idempotent)
       if (!window.nc__chatScopeToggleWired) {
@@ -79485,7 +79520,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           // display_name, not name: `name` is what the app generated and other code still
           // matches on, and the slug is in URLs. This renames the conversation and nothing
           // else -- in particular it does not touch the CLIENT's name.
-          const { data: updated, error } = await window.giantSupabase.from('channels').update({ display_name: newName }).eq('id', channelId).select();
+          //
+          // Every department of the conversation, not just the one this row points at --
+          // see ncConversationIds. Renaming only General left the header reading the
+          // client's name again as soon as you clicked Google Ads.
+          const renameIds = ncConversationIds(channel);
+          const { data: updated, error } = await window.giantSupabase.from('channels').update({ display_name: newName }).in('id', renameIds).select();
           if (error) {
             if (typeof toast === 'function') toast({type:'error', message:'Rename failed: ' + error.message, duration:3500});
             return;
@@ -79495,6 +79535,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             return;
           }
           if (typeof toast === 'function') toast({type:'success', message:'Channel renamed', duration:1500});
+          ncApplyRename(renameIds, newName);
           // Reload channels to reflect the new name
           if (typeof loadChannels === 'function') loadChannels();
         });
@@ -79667,7 +79708,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               if (typeof toast === 'function') toast({type:'error', message:'Channel name too long (max 50 chars)'});
               return;
             }
-            const { data: updated, error } = await window.giantSupabase.from('channels').update({ display_name: newName }).eq('id', channelId).select();
+            // ch can be missing if the row outlived a reload; rename the row's own channel
+            // rather than sending an empty list, which would read as a refusal.
+            const renameIds = ch ? ncConversationIds(ch) : [channelId];
+            const { data: updated, error } = await window.giantSupabase.from('channels').update({ display_name: newName }).in('id', renameIds).select();
             if (error) {
               if (typeof toast === 'function') toast({type:'error', message:'Rename failed: ' + error.message});
               return;
@@ -79677,6 +79721,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               return;
             }
             if (typeof toast === 'function') toast({type:'success', message:'Channel renamed', duration:1500});
+            ncApplyRename(renameIds, newName);
             if (typeof loadChannels === 'function') loadChannels();
           } else if (act === 'delete') {
             // A client row is a CONVERSATION, not a channel: duplicate channels for the

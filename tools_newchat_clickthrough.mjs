@@ -7664,6 +7664,44 @@ const ren = await step('renaming a channel', async () => {
     await w(600);
     const teamEl = findRow(team.id);
     out.teamSidebarShowsNewName = !!teamEl && teamEl.textContent.includes('Sales & Renewals');
+
+    // 6. A client row is a CONVERSATION, and each department inside it -- General, Google
+    //    Ads, Meta Ads, SEO, Web -- is its OWN channels row. Rename wrote to one of them,
+    //    so the header said the client's name again the moment you clicked another
+    //    department. Reported as the rename not working at all; it had worked, on one row
+    //    of two. The single-department client above could not catch this.
+    const cl2 = window.__mock.db.clients.find(c => c.id !== row.client_id) || client;
+    window.__mock.db.channels = window.__mock.db.channels.filter(c => c.client_id !== cl2.id);
+    window.__mock.db.channels.push(
+      { id: 'mc-gen', name: cl2.name, display_name: null, slug: 'mc-gen',
+        kind: 'client_dept', client_id: cl2.id, department: 'general', section_id: 'sec-clients' },
+      { id: 'mc-ads', name: cl2.name + ' googleAds', display_name: null, slug: 'mc-ads',
+        kind: 'client_dept', client_id: cl2.id, department: 'googleAds', section_id: 'sec-clients' });
+    await window.nc_loadChannels(); await w(1400);
+
+    const genRow = findRow('mc-gen');
+    out.twoDeptRowFound = !!genRow;
+    if (genRow) { genRow.click(); await w(1300); }
+    const adsTab = [...document.querySelectorAll('[data-nc-dept], .nc_dept-tab')]
+      .find(t => /google/i.test(t.textContent));
+    out.foundOtherDeptTab = !!adsTab;
+    if (adsTab) { adsTab.click(); await w(1300); }
+    out.headerOnOtherDeptBefore = (document.getElementById('nc_chatHeadName') || {}).textContent;
+
+    window.giantPrompt = async () => 'stencillab.ai';
+    try {
+      window.nc_openChannelContextMenu(40, 40, 'mc-gen'); await w(450);
+      const it3 = [...document.querySelectorAll('.channel-ctx-item, [data-action]')]
+        .find(e => e.dataset && e.dataset.action === 'rename' && e.offsetParent !== null);
+      if (it3) { it3.click(); await w(1900); }
+    } finally { window.giantPrompt = realPrompt; }
+
+    const both = window.__mock.db.channels.filter(c => ['mc-gen', 'mc-ads'].includes(c.id));
+    out.everyDeptRenamed = both.length === 2 && both.every(c => c.display_name === 'stencillab.ai');
+    // And the conversation you are LOOKING AT says so, on the department you are on --
+    // the sidebar repaints, but the header is only written when a conversation is opened.
+    out.headerOnOtherDeptAfter = (document.getElementById('nc_chatHeadName') || {}).textContent;
+    out.headerFollowedRename = out.headerOnOtherDeptAfter === 'stencillab.ai';
     return out;
   });
 }) || {};
@@ -7678,6 +7716,10 @@ check('and the new name is actually visible in the sidebar afterwards',
 check('a team channel renames the same way',
   ren.teamWroteDisplayName && ren.teamLeftNameAlone && ren.teamSidebarShowsNewName,
   JSON.stringify(ren));
+check('every department of a client conversation is renamed, not just the row you clicked',
+  ren.twoDeptRowFound && ren.foundOtherDeptTab && ren.everyDeptRenamed, JSON.stringify(ren));
+check('the open conversation header follows the rename, on whichever department you are on',
+  ren.headerFollowedRename, JSON.stringify(ren));
 
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
