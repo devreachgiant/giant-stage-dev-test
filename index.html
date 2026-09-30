@@ -78903,6 +78903,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     window.nc_openMediaForChannel = openMediaForChannel;
 
     // ── Load all channels + select first ─────────────────────────
+    // What this channel is CALLED on screen: a name somebody chose, else the client's name
+    // for a client conversation, else whatever the app generated. One definition, so the
+    // rename box and the sidebar can never disagree about it again.
+    function ncChannelLabel(c) {
+      if (!c) return '';
+      if (c.display_name) return c.display_name;
+      if (c.kind === 'client_dept' && c.client_id) {
+        const cl = ncClients[c.client_id];
+        if (cl && cl.name) return cl.name;
+      }
+      return c.name || '';
+    }
+
     async function loadChannels() {
       // Wire the Team/Clients scope toggle (once, idempotent)
       if (!window.nc__chatScopeToggleWired) {
@@ -78942,7 +78955,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // in the module. A two-person group conversation then read as a one-to-one -- the
         // other person's name and face instead of the group's -- and landed under DIRECT.
         // Only conversations with three or more people were caught, by counting members.
-        .select('id, name, slug, description, is_private, is_dm, is_group, dm_pair, emoji, position, section_id, kind, client_id, department, created_by')
+        .select('id, name, display_name, slug, description, is_private, is_dm, is_group, dm_pair, emoji, position, section_id, kind, client_id, department, created_by')
         .order('position', { ascending: true })
         .order('name', { ascending: true });
       if (error) {
@@ -79372,7 +79385,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // the sidebar now, and a row should not read differently depending on a toggle
       // that no longer has a control.
       topLevel = topLevel.map(c => {
-        if (!c.client_id || c.kind !== 'client_dept') return c;
+        // A chosen name wins for every kind of channel, not only client ones.
+        if (!c.client_id || c.kind !== 'client_dept') {
+          return c.display_name ? Object.assign({}, c, { name: c.display_name }) : c;
+        }
         const cl = ncClients[c.client_id];
         const dept = c.department || 'general';
         const deptLabel = (NC_DEPTS.find(d => d.key === dept) || {}).label || dept;
@@ -79380,7 +79396,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // Named for the client alone. The department is shown by the strip inside the
         // conversation, and putting it in the sidebar label made one client read as
         // several.
-        return Object.assign({}, c, { name: base, _isClientRow: true });
+        //
+        // Unless somebody has renamed it. A derived label cannot be changed, which is why
+        // renaming a client conversation used to appear to do nothing at all: the rename
+        // saved and the sidebar went on deriving the same name. display_name is the one a
+        // person chose, so it wins.
+        return Object.assign({}, c, { name: (c.display_name || base), _isClientRow: true });
       });
       // Helper to recursively render a channel + its children
       function renderOne(c, depth) {
@@ -79450,20 +79471,27 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           // Find the current name (last text node, before the muted icon)
           const channel = (chatChannels || []).find(c => c.id === channelId);
           if (!channel) return;
-          const current = channel.name || '';
+          // Prefill what is ON SCREEN, not what is in the row. A client conversation is
+          // stored as "<client> <department>" and displayed as just the client, so this box
+          // used to open with "SERVPRO Team Wall general" -- a name nobody had ever seen,
+          // with the department looking like part of it.
+          const current = ncChannelLabel(channel);
           const newName = (await window.giantPrompt('Rename channel:', current) || '').trim();
           if (!newName || newName === current) return;
           if (newName.length > 50) {
             if (typeof toast === 'function') toast({type:'error', message:'Channel name too long (max 50 chars)'});
             return;
           }
-          const { data: updated, error } = await window.giantSupabase.from('channels').update({ name: newName }).eq('id', channelId).select();
+          // display_name, not name: `name` is what the app generated and other code still
+          // matches on, and the slug is in URLs. This renames the conversation and nothing
+          // else -- in particular it does not touch the CLIENT's name.
+          const { data: updated, error } = await window.giantSupabase.from('channels').update({ display_name: newName }).eq('id', channelId).select();
           if (error) {
             if (typeof toast === 'function') toast({type:'error', message:'Rename failed: ' + error.message, duration:3500});
             return;
           }
           if (!updated || !updated.length) {
-            if (typeof toast === 'function') toast({type:'error', message:'Rename blocked — RLS policy prevented update. Run the latest SQL migration (batch6).', duration:4500});
+            if (typeof toast === 'function') toast({type:'error', message:'You do not have permission to rename this channel.', duration:4000});
             return;
           }
           if (typeof toast === 'function') toast({type:'success', message:'Channel renamed', duration:1500});
@@ -79629,19 +79657,23 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             if (nameEl) nameEl.textContent = '#' + channelName;
             if (typeof openModal === 'function') openModal('nc_inviteToChannelModal');
           } else if (act === 'rename') {
-            const newName = (await window.giantPrompt('Rename channel:', channelName) || '').trim();
-            if (!newName || newName === channelName) return;
+            // Same label the sidebar shows, from the same helper -- channelName here comes
+            // from the row's text and can carry a badge or the department with it.
+            const ch = (chatChannels || []).find(c => c.id === channelId);
+            const current = ch ? ncChannelLabel(ch) : channelName;
+            const newName = (await window.giantPrompt('Rename channel:', current) || '').trim();
+            if (!newName || newName === current) return;
             if (newName.length > 50) {
               if (typeof toast === 'function') toast({type:'error', message:'Channel name too long (max 50 chars)'});
               return;
             }
-            const { data: updated, error } = await window.giantSupabase.from('channels').update({ name: newName }).eq('id', channelId).select();
+            const { data: updated, error } = await window.giantSupabase.from('channels').update({ display_name: newName }).eq('id', channelId).select();
             if (error) {
               if (typeof toast === 'function') toast({type:'error', message:'Rename failed: ' + error.message});
               return;
             }
             if (!updated || !updated.length) {
-              if (typeof toast === 'function') toast({type:'error', message:'Rename blocked — RLS policy prevented update. Run the latest SQL migration (batch6).', duration:4500});
+              if (typeof toast === 'function') toast({type:'error', message:'You do not have permission to rename this channel.', duration:4000});
               return;
             }
             if (typeof toast === 'function') toast({type:'success', message:'Channel renamed', duration:1500});
@@ -79821,7 +79853,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // department strip directly below it is showing.
         const hdrClient = c.kind === 'client_dept' && c.client_id ? ncClients[c.client_id] : null;
         const hdrDept = hdrClient ? (NC_DEPTS.find(d => d.key === (c.department || 'general')) || null) : null;
-        chatHeadName.textContent = hdrClient ? hdrClient.name : c.name;
+        // Same label as the sidebar. Without this a renamed channel reads one way in the
+        // list and another once you open it, which makes the rename look like it half
+        // worked.
+        chatHeadName.textContent = ncChannelLabel(c) || (hdrClient ? hdrClient.name : c.name);
         ncSetHeadAvatar(hdrClient
           ? { name: hdrClient.name, bg: hdrClient.avatar_bg, fg: hdrClient.avatar_fg }
           : { name: c.name });

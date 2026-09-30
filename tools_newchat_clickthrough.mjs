@@ -7566,6 +7566,119 @@ check('clicking a status cell opens the status menu and NOT the client modal',
 check('dead space on the row opens nothing, and the name still opens the client',
   cli.deadSpaceOpensNothing && cli.nameOpensClient, JSON.stringify(cli));
 
+// ── Renaming a channel ───────────────────────────────────────────────────────
+// Reported: renaming "SERVPRO Team Wall" opened a box saying "SERVPRO Team Wall general".
+// Two bugs, and the second is why fixing the first alone would have changed nothing:
+// the box prefilled the raw channels.name (built as "<client> <department>"), and the
+// sidebar DERIVES a client row's label from the client, so a rename had no visible effect.
+const ren = await step('renaming a channel', async () => {
+  await page.evaluate(() => {
+    // Whatever the previous check left open would swallow the click.
+    document.querySelectorAll('.modal-overlay.on, .nc_modal-overlay.on').forEach(m => m.classList.remove('on'));
+    document.querySelectorAll('.giant-pick, .channel-ctx-menu, .ch-popmenu').forEach(m => m.remove());
+    document.querySelector('.nav-item[data-screen="newchat"]')?.click();
+  });
+  await page.waitForTimeout(1500);
+  return await page.evaluate(async () => {
+    const w = ms => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    // Reproduce the reported row exactly: the stored name carries the department, and
+    // nothing has been renamed yet. Picked by shape rather than by id, because earlier
+    // checks delete client conversations and a hardcoded id had already gone by here.
+    const byId = new Map(window.__mock.db.clients.map(c => [c.id, c]));
+    const row = window.__mock.db.channels.find(c =>
+      c.kind === 'client_dept' && c.client_id && byId.has(c.client_id)
+      && (c.department || 'general') === 'general');
+    if (!row) { out.noClientChannelLeft = true; return out; }
+    out.channelId = row.id;
+    const client = byId.get(row.client_id);
+    out.clientName = client.name;
+    row.name = client.name + ' general';
+    row.display_name = null;
+    out.storedName = row.name;
+    const clientNameBefore = client.name;
+    const slugBefore = row.slug;
+
+    if (typeof window.nc_loadChannels !== 'function') { out.noLoader = true; return out; }
+    await window.nc_loadChannels();
+    await w(900);
+
+    const findRow = (id) => [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item, '
+      + '#nc_cardTeamsBody .nc_ch-item, #nc_chatChannelList .nc_ch-item')]
+      .find(el => (el.dataset.ncChannelId || el.dataset.ncDmChannelId) === id);
+    const rowEl = () => findRow(row.id);
+    out.rowFound = !!rowEl();
+    out.sidebarBefore = rowEl() ? rowEl().textContent.trim() : '';
+    // The department must not be in the sidebar label -- that is the name people know.
+    out.sidebarIsClientName = out.sidebarBefore.includes(clientNameBefore)
+      && !/general/i.test(out.sidebarBefore);
+
+    // Drive the real rename through the real menu, capturing what it prefills.
+    const NEW = 'Servpro (wall)';
+    const realPrompt = window.giantPrompt;
+    window.giantPrompt = async (_label, prefill) => { out.prefill = prefill; return NEW; };
+    try {
+      window.nc_openChannelContextMenu(40, 40, row.id);
+      await w(400);
+      const item = [...document.querySelectorAll('.channel-ctx-item, [data-action]')]
+        .find(el => el.dataset && el.dataset.action === 'rename' && el.offsetParent !== null);
+      out.menuOffersRename = !!item;
+      if (item) { item.click(); await w(1400); }
+    } finally { window.giantPrompt = realPrompt; }
+
+    // 1. The box opened with the name that was on screen, not the stored one.
+    out.prefilledDisplayedName = out.prefill === clientNameBefore;
+    out.prefillHadDepartment = /general/i.test(out.prefill || '');
+
+    // 2. It wrote display_name and left `name` and the slug alone -- other code matches
+    //    on them and the slug is in URLs.
+    const after = window.__mock.db.channels.find(c => c.id === row.id);
+    out.wroteDisplayName = after.display_name === NEW;
+    out.leftNameAlone = after.name === clientNameBefore + ' general';
+    out.leftSlugAlone = after.slug === slugBefore;
+
+    // 3. "do not affect client name" -- the client is untouched everywhere else.
+    const clientAfter = window.__mock.db.clients.find(c => c.id === row.client_id);
+    out.clientNameUntouched = clientAfter.name === clientNameBefore;
+
+    // 4. And it is actually visible, which is the half that used to silently fail.
+    await w(600);
+    out.sidebarAfter = rowEl() ? rowEl().textContent.trim() : '';
+    out.sidebarShowsNewName = out.sidebarAfter.includes(NEW);
+
+    // 5. A team channel renames too -- the ask was every channel, not only client ones.
+    const team = window.__mock.db.channels.find(c => c.kind === 'team_channel' && !c.display_name);
+    if (!team) { out.noTeamChannelLeft = true; return out; }
+    const teamNameBefore = team.name;
+    window.giantPrompt = async () => 'Sales & Renewals';
+    try {
+      window.nc_openChannelContextMenu(40, 40, team.id);
+      await w(400);
+      const item2 = [...document.querySelectorAll('.channel-ctx-item, [data-action]')]
+        .find(el => el.dataset && el.dataset.action === 'rename' && el.offsetParent !== null);
+      if (item2) { item2.click(); await w(1400); }
+    } finally { window.giantPrompt = realPrompt; }
+    const teamAfter = window.__mock.db.channels.find(c => c.id === team.id);
+    out.teamWroteDisplayName = teamAfter.display_name === 'Sales & Renewals';
+    out.teamLeftNameAlone = teamAfter.name === teamNameBefore;
+    await w(600);
+    const teamEl = findRow(team.id);
+    out.teamSidebarShowsNewName = !!teamEl && teamEl.textContent.includes('Sales & Renewals');
+    return out;
+  });
+}) || {};
+check('the rename box opens with the name that is on screen, not the stored one',
+  ren.sidebarIsClientName && ren.prefilledDisplayedName && !ren.prefillHadDepartment,
+  JSON.stringify(ren));
+check('renaming writes a chosen name and leaves name, slug and the CLIENT alone',
+  ren.wroteDisplayName && ren.leftNameAlone && ren.leftSlugAlone && ren.clientNameUntouched,
+  JSON.stringify(ren));
+check('and the new name is actually visible in the sidebar afterwards',
+  ren.sidebarShowsNewName, JSON.stringify(ren));
+check('a team channel renames the same way',
+  ren.teamWroteDisplayName && ren.teamLeftNameAlone && ren.teamSidebarShowsNewName,
+  JSON.stringify(ren));
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
