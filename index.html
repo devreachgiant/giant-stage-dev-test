@@ -42773,17 +42773,37 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           let customPrios = [];
           if (Array.isArray(bucket)) customPrios = bucket;
           else if (bucket && typeof bucket === 'object') customPrios = bucket.priority || [];
-          const presets = [
+          // The order you set in Edit labels is the order you get here.
+          //
+          // This used to be `[...presets, ...extraOptions]` with Fire, Medium and Low
+          // hardcoded in front, and the custom labels appended after. Dragging a label
+          // to the top of Edit labels saved its position and changed nothing in this
+          // menu, because nothing in this menu ever read position -- reported as "I can
+          // do the up and down thing but I can't select which ones come first".
+          //
+          // Fire, Medium and Low are not special: loadProjectPriorities SEEDS them as
+          // real project_priorities rows at positions 1-3, and the old code then filtered
+          // them back out of extraOptions to avoid showing them twice. So the whole list
+          // is just project_priorities, in position order, and the presets are only a
+          // fallback for a project whose rows have not loaded yet.
+          const PRESET_BY_LABEL = {
+            fire:   { val: 'fire',   cls: 'pp-fire' },
+            medium: { val: 'medium', cls: 'pp-today' },
+            low:    { val: 'low',    cls: 'pp-nextweek' }
+          };
+          // A seeded row keeps its legacy value ('fire', not 'Fire'), because that is what
+          // is stored on every task already -- changing it here would orphan them.
+          let options = customPrios.map(p => {
+            const preset = PRESET_BY_LABEL[String(p.label).toLowerCase()];
+            return preset
+              ? { val: preset.val, label: p.label, cls: preset.cls }
+              : { val: p.label, label: p.label, cls: 'pp-custom', color: p.color };
+          });
+          if (!options.length) options = [
             { val: 'fire',   label: 'Fire',    cls: 'pp-fire' },
             { val: 'medium', label: 'Medium',  cls: 'pp-today' },
             { val: 'low',    label: 'Low',     cls: 'pp-nextweek' }
           ];
-          // Add custom prios that aren't aliases of presets
-          const presetLabels = new Set(['fire', 'medium', 'low']);
-          const extraOptions = customPrios
-            .filter(p => !presetLabels.has(String(p.label).toLowerCase()))
-            .map(p => ({ val: p.label, label: p.label, cls: 'pp-custom', color: p.color }));
-          const options = [...presets, ...extraOptions];
           // Detect if current priority is a custom value (not in the 3 presets)
           const isCustomCurrent = current && !options.some(o => o.val === current);
           const html = `
