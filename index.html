@@ -768,6 +768,74 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
    is -- the same idea as the inline fields on the Pod board. */
 #p2_root .prj-cell[data-col="status"] select{transition:background .12s ease,border-color .12s ease;}
 #p2_root .prj-cell[data-col="status"] select:hover{background:var(--surface-2);border-color:var(--line-2);}
+/* Custom columns. Chip geometry follows Luke's Stitch export: full pill radius, a tinted
+   wash of the option's own colour rather than a flat fill, and 11px/600 so a cell holding
+   three of them still reads as one line. Colours come from the option, so the palette is
+   the project's, not a hardcoded ramp. */
+#p2_root .p2-fieldchip{display:inline-flex;align-items:center;max-width:100%;padding:2px 9px;
+  border-radius:9999px;font-size:11px;font-weight:600;line-height:1.5;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;background:var(--surface-2);
+  border:1px solid var(--line-2);color:var(--text-2);}
+#p2_root .p2-fieldcell{gap:4px;flex-wrap:nowrap;overflow:hidden;}
+#p2_root .p2-fieldcell .p2-fieldchip + .p2-fieldchip{margin-left:4px;}
+#p2_root .p2-fielddate{font-size:12px;color:var(--text-2);white-space:nowrap;}
+/* The add-column control sits in the delete heading, which is 92px of otherwise dead
+   width at the end of the header row -- the one place a new column can appear without
+   pushing a heading off the edge. */
+#p2_root .p2-addcol{display:inline-flex;align-items:center;justify-content:center;
+  width:20px;height:20px;border-radius:6px;cursor:pointer;color:#fff;opacity:.75;
+  transition:opacity .12s,background .12s;}
+#p2_root .p2-addcol:hover{opacity:1;background:rgba(255,255,255,.16);}
+/* The floating panel. Surface 3 and the rim shadow from the export: a hairline of light
+   at the edge instead of a heavy blur, which is what stops a popover looking stuck to
+   the page. */
+.p2-colpop{position:fixed;z-index:9000;width:288px;background:var(--surface);
+  border:1px solid var(--line-2);border-radius:16px;
+  box-shadow:0 12px 32px -4px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.08);
+  overflow:hidden;font-family:inherit;}
+.p2-colpop-head{padding:12px 13px 11px;border-bottom:1px solid var(--line);}
+.p2-colpop-eyebrow{display:flex;align-items:center;justify-content:space-between;
+  font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--text-3);margin-bottom:9px;}
+.p2-colpop-eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--red);
+  margin-right:7px;flex-shrink:0;}
+.p2-colpop-x{cursor:pointer;color:var(--text-3);padding:2px 4px;border-radius:5px;
+  line-height:1;transition:color .12s,background .12s;}
+.p2-colpop-x:hover{color:var(--text);background:var(--surface-2);}
+.p2-colpop input[type=text]{width:100%;box-sizing:border-box;background:var(--surface-2);
+  border:1px solid var(--line-2);border-radius:8px;padding:8px 10px;font-size:12.5px;
+  font-weight:500;color:var(--text);font-family:inherit;outline:none;transition:border-color .12s;}
+.p2-colpop input[type=text]:focus{border-color:var(--red);}
+.p2-colpop-sub{display:flex;align-items:center;justify-content:space-between;
+  padding:10px 13px 5px;font-size:10px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--text-3);}
+.p2-colpop-sub .esc{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  text-transform:lowercase;letter-spacing:0;font-size:9.5px;color:var(--text-3);opacity:.8;}
+.p2-colpop-list{padding:5px;max-height:288px;overflow-y:auto;}
+.p2-type{display:flex;align-items:center;justify-content:space-between;width:100%;
+  gap:10px;padding:8px 9px;border-radius:12px;border:1px solid transparent;
+  background:transparent;cursor:pointer;text-align:left;font-family:inherit;
+  transition:background .12s,border-color .12s;}
+.p2-type:hover{background:var(--surface-2);border-color:var(--line);}
+.p2-type.on{background:var(--surface-2);border-color:rgba(232,35,42,.45);}
+.p2-type-ic{width:26px;height:26px;border-radius:9px;background:var(--surface);
+  border:1px solid var(--line-2);display:flex;align-items:center;justify-content:center;
+  color:var(--text-2);flex-shrink:0;}
+.p2-type.on .p2-type-ic{color:var(--red);}
+.p2-type-t{font-size:12.5px;font-weight:600;color:var(--text);line-height:1.3;}
+.p2-type-h{font-size:10px;color:var(--text-3);line-height:1.4;}
+.p2-type-ck{color:var(--red);font-size:12px;font-weight:800;opacity:0;flex-shrink:0;}
+.p2-type.on .p2-type-ck{opacity:1;}
+.p2-colpop-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;
+  padding:10px 13px;border-top:1px solid var(--line);}
+.p2-colpop-foot button{font-family:inherit;font-size:11.5px;font-weight:700;
+  border-radius:8px;padding:7px 14px;cursor:pointer;border:1px solid transparent;
+  transition:background .12s,color .12s;}
+.p2-colpop-cancel{background:transparent;color:var(--text-3);}
+.p2-colpop-cancel:hover{color:var(--text);background:var(--surface-2);}
+.p2-colpop-go{background:var(--red);color:#fff;}
+.p2-colpop-go:hover{background:#c9161c;}
+.p2-colpop-go[disabled]{opacity:.45;cursor:not-allowed;}
 #p2_root .prj-cell[data-col="status"] select:focus{border-color:var(--red);background:var(--surface-2);}
 #p2_root .prj-cell[data-col="status"] select option{background:var(--surface);color:var(--text);}
 /* The section card. .p2-section had no styling at all, so the table sat as a square slab
@@ -86148,13 +86216,186 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   // it behind the timer would mean reading past a column of digits to find it.
   const P2_COL_ORDER = ['name', 'status', 'timer', 'priority', 'assignee', 'client', 'department', 'task_details'];
   const P2_COL_MIN = 72;
+  // Custom columns, from project_fields, in position order. Loaded per project alongside
+  // the tasks. The eight above are built in; these are whatever this project decided it
+  // also needed, and they sit after them and before the delete column.
+  //
+  // The feature existed on paper and nowhere else: project_fields has had name, type,
+  // options and position since the first schema, tasks.custom_fields has had the values,
+  // and the only renderer -- renderProjectFieldHeaders, written for the ORIGINAL projects
+  // screen -- began `document.getElementById('prjCustomColHeaders')` against an id that
+  // appears nowhere in this file, so it returned on its first line every time. Columns
+  // loaded from the database into a container that was never built.
+  p2.fields = [];
+  const P2_FIELD_W = 150;
+  const fieldKey = (f) => 'custom:' + f.id;
+  const fieldById = (id) => (p2.fields || []).find(f => f.id === id) || null;
+  // Five types, the ones Luke asked for, each with what it is FOR rather than what it is.
+  // The old unwired menu offered thirteen including Formula, Rollup and "Fields with AI
+  // Studio", none of which had any code behind them.
+  const P2_FIELD_TYPES = [
+    { key: 'single_select', label: 'Single-select', hint: 'Tags, category, choice' },
+    { key: 'multi_select',  label: 'Multi-select',  hint: 'Multiple tags & labels' },
+    { key: 'date',          label: 'Date',          hint: 'Due dates, milestones' },
+    { key: 'people',        label: 'People',        hint: 'Assignee, collaborators' },
+    { key: 'text',          label: 'Text',          hint: 'Notes, descriptions, links' }
+  ];
+  // Who may change the SHAPE of a board. Filling a column in is everybody's job; adding,
+  // renaming, retyping, reordering and deleting one changes what the whole team sees, so
+  // it follows the same floor as the rest of Projects 2.0.
+  // Read off giantCurrentProfile, the same source canDeleteTask uses -- window.giantRole
+  // is not a thing this app sets, and a permission that reads undefined refuses everybody.
+  const canEditColumns = () => ['owner', 'manager', 'inhouse_dev']
+    .includes(String((window.giantCurrentProfile || {}).role || '').toLowerCase());
   try { const raw = JSON.parse(localStorage.getItem('giant_p2_colw') || '{}');
         Object.keys(P2_COLW).forEach(k => { if (+raw[k] > 0) p2.colw[k] = +raw[k]; }); } catch (_) {}
-  const colWidth = (k) => Math.max(P2_COL_MIN, p2.colw[k] || P2_COLW[k]);
+  const colWidth = (k) => Math.max(P2_COL_MIN, p2.colw[k] || P2_COLW[k] || P2_FIELD_W);
+  // ── Add a column ────────────────────────────────────────────────────────────
+  // The floating panel from Luke's Stitch export: name first, then the type, with each
+  // type saying what it is FOR. Built on <body> rather than inside the table, because the
+  // table scrolls and clips and a panel anchored in it would be cut off at the edge.
+  const P2_TYPE_IC = {
+    single_select: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path d="M9 11l3 3 3-3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    multi_select:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>',
+    date:          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4" stroke-linecap="round"/></svg>',
+    people:        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c.9-3.6 3.8-5.4 7-5.4s6.1 1.8 7 5.4" stroke-linecap="round"/></svg>',
+    text:          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M5 6h14M9 6v13M15 6v13M7 19h4M13 19h4"/></svg>'
+  };
+  let p2ColPop = null;
+  function closeColPop(){
+    if (p2ColPop) { p2ColPop.remove(); p2ColPop = null; }
+    document.removeEventListener('mousedown', colPopAway, true);
+    document.removeEventListener('keydown', colPopKey, true);
+  }
+  function colPopAway(e){ if (p2ColPop && !p2ColPop.contains(e.target)) closeColPop(); }
+  function colPopKey(e){
+    if (e.key === 'Escape') { e.stopPropagation(); closeColPop(); return; }
+    // Enter submits from the name box, which is where the cursor starts.
+    if (e.key === 'Enter' && p2ColPop && p2ColPop.contains(e.target)) {
+      const go = p2ColPop.querySelector('.p2-colpop-go');
+      if (go && !go.disabled) { e.preventDefault(); go.click(); }
+    }
+  }
+  function openAddColumn(anchorEl){
+    if (!canEditColumns()) return;
+    closeColPop();
+    const pop = document.createElement('div');
+    pop.className = 'p2-colpop';
+    let picked = 'single_select';
+    pop.innerHTML =
+      '<div class="p2-colpop-head">'
+      + '<div class="p2-colpop-eyebrow"><span style="display:flex;align-items:center;">'
+      +   '<span class="dot"></span>New column</span>'
+      +   '<span class="p2-colpop-x" data-x="1" title="Close">&#10005;</span></div>'
+      + '<input type="text" id="p2_colName" placeholder="Column name…" autocomplete="off" spellcheck="false">'
+      + '</div>'
+      + '<div class="p2-colpop-sub"><span>Select property type</span><span class="esc">esc to exit</span></div>'
+      + '<div class="p2-colpop-list">'
+      + P2_FIELD_TYPES.map(t =>
+          '<button type="button" class="p2-type' + (t.key === picked ? ' on' : '') + '" data-type="' + t.key + '">'
+          + '<span style="display:flex;align-items:center;gap:10px;min-width:0;">'
+          +   '<span class="p2-type-ic">' + P2_TYPE_IC[t.key] + '</span>'
+          +   '<span style="min-width:0;"><span class="p2-type-t" style="display:block;">' + t.label + '</span>'
+          +   '<span class="p2-type-h" style="display:block;">' + t.hint + '</span></span>'
+          + '</span><span class="p2-type-ck">&#10003;</span></button>').join('')
+      + '</div>'
+      + '<div class="p2-colpop-foot">'
+      +   '<button type="button" class="p2-colpop-cancel" data-x="1">Cancel</button>'
+      +   '<button type="button" class="p2-colpop-go" disabled>Create column</button>'
+      + '</div>';
+    document.body.appendChild(pop);
+    p2ColPop = pop;
+    // Anchored under the control, then pulled back inside the viewport. The add button is
+    // at the far right of the header, so a panel left at its x would hang off the edge.
+    const r = anchorEl.getBoundingClientRect();
+    const w = 288;
+    pop.style.top = Math.min(r.bottom + 6, window.innerHeight - 380) + 'px';
+    pop.style.left = Math.max(10, Math.min(r.right - w, window.innerWidth - w - 10)) + 'px';
+
+    const nameEl = pop.querySelector('#p2_colName');
+    const goEl = pop.querySelector('.p2-colpop-go');
+    const sync = () => { goEl.disabled = !nameEl.value.trim(); };
+    nameEl.addEventListener('input', sync);
+    setTimeout(() => nameEl.focus(), 30);
+    pop.querySelectorAll('.p2-type').forEach(b => b.addEventListener('click', () => {
+      picked = b.dataset.type;
+      pop.querySelectorAll('.p2-type').forEach(x => x.classList.toggle('on', x === b));
+      nameEl.focus();
+    }));
+    pop.querySelectorAll('[data-x]').forEach(x => x.addEventListener('click', closeColPop));
+    goEl.addEventListener('click', async () => {
+      const name = nameEl.value.trim();
+      if (!name) return;
+      goEl.disabled = true;
+      await createColumn(name, picked);
+    });
+    document.addEventListener('mousedown', colPopAway, true);
+    document.addEventListener('keydown', colPopKey, true);
+  }
+
+  async function createColumn(name, type){
+    const pos = (p2.fields || []).reduce((m, f) => Math.max(m, f.position || 0), 0) + 1;
+    // A select column with no options is a column you cannot put anything in, so the two
+    // select types start with one. It is editable and deletable like any other.
+    const options = (type === 'single_select' || type === 'multi_select')
+      ? [{ label: 'Option 1', color: null }] : [];
+    const { data, error } = await sb().from('project_fields')
+      .insert({ project_id: p2.activeId, name: name, type: type, options: options, position: pos })
+      .select();
+    if (error) {
+      // The unique index is (project_id, name), so this is the common one and deserves to
+      // say what happened rather than show the constraint's name.
+      const dupe = /duplicate key|unique/i.test(error.message || '');
+      if (typeof toast === 'function') toast({ type: 'error', duration: 4000,
+        message: dupe ? 'There is already a column called "' + name + '" on this board.'
+                      : 'Could not add the column: ' + error.message });
+      const go = p2ColPop && p2ColPop.querySelector('.p2-colpop-go');
+      if (go) go.disabled = false;
+      return;
+    }
+    // RLS refuses by returning no rows, not by erroring.
+    if (!data || !data.length) {
+      if (typeof toast === 'function') toast({ type: 'error', duration: 4000,
+        message: 'You do not have permission to change the columns on this board.' });
+      return;
+    }
+    closeColPop();
+    if (typeof toast === 'function') toast({ type: 'success', message: 'Column added', duration: 1500 });
+    await loadFields();
+    // Widths before paint: the grid template has to know about the new track before the
+    // header and the rows are written into it, or the first paint is one column short and
+    // every cell after it lands under the wrong heading.
+    applyColumnWidths();
+    renderTasks();
+  }
+
+  // The project's custom columns. A failure here is not a failure of the screen: the
+  // tasks are the point and the columns are extra, so this logs and leaves p2.fields
+  // empty rather than blanking a board somebody is working from.
+  async function loadFields(){
+    if (!p2.activeId) { p2.fields = []; return; }
+    const { data, error } = await sb().from('project_fields')
+      .select('id, name, type, options, position')
+      .eq('project_id', p2.activeId)
+      .order('position', { ascending: true });
+    if (error) { console.warn('[p2 columns] load failed:', error.message); p2.fields = []; return; }
+    p2.fields = (data || []).map(f => Object.assign({}, f, {
+      // options is jsonb and has been written by more than one thing over the years, so
+      // it arrives as an array of strings, an array of {label,color}, or null.
+      options: Array.isArray(f.options) ? f.options.map(o =>
+        (o && typeof o === 'object') ? { label: String(o.label == null ? '' : o.label), color: o.color || null }
+                                     : { label: String(o == null ? '' : o), color: null }) : []
+    }));
+  }
+
   function applyColumnWidths(){
     const tbl = $('prjTable');
     if (!tbl) return;
-    tbl.style.setProperty('--prj-cols', P2_COL_ORDER.map(k => colWidth(k) + 'px').join(' ') + ' 92px');
+    const builtIn = P2_COL_ORDER.map(k => colWidth(k) + 'px');
+    const custom = (p2.fields || []).map(f => colWidth(fieldKey(f)) + 'px');
+    // 92px is the delete column and stays last, so a custom column is never the thing
+    // you reach past to delete a task.
+    tbl.style.setProperty('--prj-cols', builtIn.concat(custom).join(' ') + ' 92px');
   }
   function saveColumnWidths(){
     try { localStorage.setItem('giant_p2_colw', JSON.stringify(p2.colw)); } catch (_) {}
@@ -86499,7 +86740,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       return;
     }
     p2.tasks = data || [];
-    await Promise.all([hydratePeople(p2.tasks.flatMap(assignees)), loadClients(), loadTime()]);
+    await Promise.all([hydratePeople(p2.tasks.flatMap(assignees)), loadClients(), loadTime(),
+                       loadFields()]);
     renderTasks();
   }
 
@@ -87593,6 +87835,49 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         + '</span>';
     };
 
+    // What one custom cell shows. Empty reads as empty -- a dash or a placeholder in
+    // every blank cell of a new column turns an empty column into visual noise across
+    // every row, and the column heading already says what is missing.
+    const fieldVal = (f, t) => {
+      const bag = (t && t.custom_fields && typeof t.custom_fields === 'object') ? t.custom_fields : {};
+      return bag[f.id];
+    };
+    const fieldChip = (label, color) => '<span class="p2-fieldchip"'
+      + (color ? ' style="background:' + esc(color) + '1f;border-color:' + esc(color)
+                 + '55;color:' + esc(color) + ';"' : '')
+      + '>' + esc(label) + '</span>';
+    const fieldCellHtml = (f, t) => {
+      const v = fieldVal(f, t);
+      if (v == null || v === '' || (Array.isArray(v) && !v.length)) return '';
+      const optColor = (label) => {
+        const o = (f.options || []).find(x => x.label === label);
+        return o && o.color ? o.color : null;
+      };
+      if (f.type === 'single_select') return fieldChip(String(v), optColor(String(v)));
+      if (f.type === 'multi_select') {
+        const arr = Array.isArray(v) ? v : [v];
+        return arr.map(x => fieldChip(String(x), optColor(String(x)))).join('');
+      }
+      if (f.type === 'date') {
+        // Rendered in the viewer's own zone from a plain date string, with no Date parse:
+        // new Date('2026-10-01') is UTC midnight, which is the previous day for anyone
+        // west of Greenwich. That is how a due date lands a day early.
+        const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) return esc(String(v));
+        const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return '<span class="p2-fielddate">' + (+m[3]) + ' ' + MON[+m[2] - 1] + ' ' + m[1] + '</span>';
+      }
+      if (f.type === 'people') {
+        const ids = Array.isArray(v) ? v : [v];
+        return ids.map(id => {
+          const pr = p2.people && p2.people[id];
+          const nm = pr ? (pr.display_name || pr.full_name || pr.email || 'Someone') : 'Someone';
+          return '<span class="p2-fieldchip">' + esc(nm) + '</span>';
+        }).join('');
+      }
+      return esc(String(v));
+    };
+
     const rowHtml = (t) => {
       const isDone = done(t);
       return '<div class="prj-row" data-p2-task="' + esc(t.id) + '"'
@@ -87610,6 +87895,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         + '<div class="prj-cell" data-col="client">' + clientCell(t.client_id) + '</div>'
         + '<div class="prj-cell" data-col="department">' + cell('_renderPrjDepartmentCell', t.department) + '</div>'
         + '<div class="prj-cell" data-col="task_details">' + cell('_renderPrjTaskDetailsCell', t.description) + '</div>'
+        + (p2.fields || []).map(f =>
+            '<div class="prj-cell p2-fieldcell" data-col="' + esc(fieldKey(f)) + '"'
+            + ' data-p2-field="' + esc(f.id) + '" data-p2-field-task="' + esc(t.id) + '">'
+            + fieldCellHtml(f, t) + '</div>').join('')
         + '<div class="prj-cell prj-cell-pad" data-col="pad">'
         // No control at all for somebody who cannot delete it. A visible button that
         // refuses on click teaches people the app is unreliable; an absent one teaches
@@ -87654,7 +87943,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       + th('client', 'Client')
       + th('department', 'Department')
       + th('task_details', 'Task infos')
-      + '<div class="prj-th" data-col="pad">Delete</div>'
+      + (p2.fields || []).map(f => th(fieldKey(f), f.name)).join('')
+      + '<div class="prj-th" data-col="pad">'
+      // Adding a column lives on the header row, where the columns are, rather than in a
+      // toolbar menu three clicks away. Hidden entirely below manager: a control that
+      // refuses on click teaches people the app is unreliable.
+      +   (canEditColumns()
+            ? '<span class="p2-addcol" data-p2-addcol="1" title="Add a column">'
+              + '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10"'
+              + ' stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></span>'
+            : 'Delete')
+      + '</div>'
       + '</div>';
 
     // One section, named for where you actually are. It grouped by client before and
@@ -87800,6 +88099,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           onPick: (v) => setTaskStage(id, v),
         });
       });
+    });
+    // The add-column control lives in the header row, which is injected per section, so
+    // it is wired here with everything else rather than once at startup.
+    body.querySelectorAll('[data-p2-addcol]').forEach(el => {
+      el.addEventListener('click', (e) => { e.stopPropagation(); openAddColumn(el); });
     });
     body.querySelectorAll('[data-p2-task-del]').forEach(el => {
       el.addEventListener('click', async (e) => {

@@ -5146,11 +5146,124 @@ await step('the table sorts, and the Filter button actually filters', async () =
     !r.skipped && r.boardCards === r.rowsFiltered, JSON.stringify(r));
 });
 
+// ── Custom columns ───────────────────────────────────────────────────────────
+// The feature shipped as three disconnected halves: project_fields and
+// tasks.custom_fields in the schema, a renderer that began getElementById on an id that
+// appears nowhere in index.html so it returned on its first line, and a menu of thirteen
+// field types with no JavaScript referencing it. Columns loaded from the database into a
+// container that was never built.
+await step('custom columns', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const out = {};
+    window.p2SetView('table'); await w(700);
+    out.fields = (window.p2State.fields || []).map(f => f.name + ':' + f.type);
+
+    const heads = [...document.querySelectorAll('#p2_prjDailyBody .prj-section-thead .prj-th')];
+    const row = document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task]');
+    const cells = row ? [...row.querySelectorAll('.prj-cell')] : [];
+    out.customHeadings = heads.filter(h => (h.dataset.col || '').startsWith('custom:')).length;
+    // Headings, cells and grid tracks must agree, or every cell after the first custom
+    // column sits under the wrong heading -- which is the failure mode that makes a table
+    // look fine and read wrong.
+    out.headingCount = heads.length;
+    out.cellCount = cells.length;
+    out.trackCount = (document.getElementById('p2_prjTable').style
+      .getPropertyValue('--prj-cols') || '').trim().split(/\s+/).length;
+    out.aligned = out.headingCount === out.cellCount && out.cellCount === out.trackCount;
+    // and they must line up on screen, not just in count
+    out.edgesMatch = JSON.stringify(heads.map(e => Math.round(e.getBoundingClientRect().left)))
+      === JSON.stringify(cells.map(e => Math.round(e.getBoundingClientRect().left)));
+
+    // Values render per type: one chip, several chips, raw text.
+    const t0 = window.p2State.tasks[0];
+    t0.custom_fields = { 'pf-1': 'Draft', 'pf-2': ['SEO', 'Ads'], 'pf-3': 'a note' };
+    const dbT = window.__mock.db.tasks.find(x => x.id === t0.id);
+    if (dbT) dbT.custom_fields = t0.custom_fields;
+    window.p2SetView('board'); await w(250); window.p2SetView('table'); await w(800);
+    const r0 = document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task="' + t0.id + '"]');
+    out.chips = r0 ? [...r0.querySelectorAll('.p2-fieldchip')].map(c => c.textContent.trim()) : [];
+    out.textValue = r0 ? (r0.querySelector('[data-col="custom:pf-3"]') || {}).textContent : '';
+    // An empty cell stays empty -- a dash in every blank cell of a new column is noise on
+    // every row, and the heading already says what is missing.
+    const other = [...document.querySelectorAll('#p2_prjDailyBody .prj-row[data-p2-task]')]
+      .find(x => x !== r0);
+    out.emptyStaysEmpty = !other
+      || ((other.querySelector('[data-col="custom:pf-1"]') || {}).textContent || '').trim() === '';
+
+    // Adding one, through the real popover.
+    const add = document.querySelector('[data-p2-addcol]');
+    out.addOffered = !!add;
+    if (add) {
+      add.click(); await w(450);
+      const pop = document.querySelector('.p2-colpop');
+      out.popOpened = !!pop;
+      out.types = pop ? [...pop.querySelectorAll('.p2-type-t')].map(e => e.textContent.trim()) : [];
+      // Each type says what it is FOR. That copy is the whole point of the panel.
+      out.hints = pop ? [...pop.querySelectorAll('.p2-type-h')].map(e => e.textContent.trim()) : [];
+      out.refusesEmptyName = pop ? pop.querySelector('.p2-colpop-go').disabled : null;
+      const nm = pop.querySelector('#p2_colName');
+      nm.value = 'Budget'; nm.dispatchEvent(new Event('input', { bubbles: true }));
+      out.acceptsName = !pop.querySelector('.p2-colpop-go').disabled;
+      pop.querySelector('.p2-type[data-type="text"]').click();
+      pop.querySelector('.p2-colpop-go').click();
+      await w(2200);
+      out.closedAfter = !document.querySelector('.p2-colpop');
+      const made = window.__mock.db.project_fields.find(f => f.name === 'Budget');
+      out.wroteType = made ? made.type : null;
+      // Position after the last one, so a new column lands on the end rather than on top
+      // of an existing one -- (project_id, name) is unique but position is not.
+      out.wrotePosition = made ? made.position : null;
+      const heads2 = [...document.querySelectorAll('#p2_prjDailyBody .prj-section-thead .prj-th')];
+      const row2 = document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task]');
+      out.headingAppeared = heads2.some(h => h.textContent.indexOf('Budget') >= 0);
+      out.alignedAfter = heads2.length === row2.querySelectorAll('.prj-cell').length
+        && heads2.length === (document.getElementById('p2_prjTable').style
+             .getPropertyValue('--prj-cols') || '').trim().split(/\s+/).length;
+    }
+
+    // Escape closes it without writing anything.
+    const before = window.__mock.db.project_fields.length;
+    document.querySelector('[data-p2-addcol]')?.click(); await w(400);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await w(300);
+    out.escClosed = !document.querySelector('.p2-colpop');
+    out.escWroteNothing = window.__mock.db.project_fields.length === before;
+    return out;
+  });
+  return r;
+}).then(r => {
+  r = r || {};
+  check('a project\'s custom columns are drawn, and headings, cells and tracks all agree',
+    r.customHeadings >= 3 && r.aligned && r.edgesMatch, JSON.stringify(r));
+  check('each type renders its own way, and an empty cell stays empty',
+    JSON.stringify(r.chips) === JSON.stringify(['Draft', 'SEO', 'Ads'])
+      && (r.textValue || '').trim() === 'a note' && r.emptyStaysEmpty, JSON.stringify(r));
+  check('the add-column panel offers the five types, each saying what it is for',
+    r.addOffered && r.popOpened
+      && JSON.stringify(r.types) === JSON.stringify(
+           ['Single-select', 'Multi-select', 'Date', 'People', 'Text'])
+      && JSON.stringify(r.hints) === JSON.stringify(
+           ['Tags, category, choice', 'Multiple tags & labels', 'Due dates, milestones',
+            'Assignee, collaborators', 'Notes, descriptions, links']), JSON.stringify(r));
+  check('it refuses an unnamed column and creates a named one, on the end',
+    r.refusesEmptyName === true && r.acceptsName === true && r.closedAfter
+      && r.wroteType === 'text' && r.wrotePosition === 4
+      && r.headingAppeared && r.alignedAfter, JSON.stringify(r));
+  check('escape closes the panel without creating anything',
+    r.escClosed && r.escWroteNothing, JSON.stringify(r));
+});
+
 // Column widths were baked into the stylesheet, so a name that needed more room and a
 // Time column that needed less were both somebody else's decision.
 await step('table columns can be dragged wider and narrower', async () => {
   const start = await page.evaluate(() => ({
     grips: document.querySelectorAll('#p2_prjDailyBody [data-p2-grip]').length,
+    // Counted, not hardcoded: a board can have custom columns now, and every one of them
+    // is resizable like the built-in eight. The rule is "every heading except the delete
+    // one has a grip", which is what this asserts -- 8 was that number before columns
+    // existed, and pinning it meant adding one legitimately broke the check.
+    headings: document.querySelectorAll('#p2_prjDailyBody .prj-section-thead .prj-th').length,
     // scoped: a bare .prj-cell also matches the original Projects screen, which is hidden
     timer: Math.round(document.querySelector('#p2_prjDailyBody .prj-cell[data-col="timer"]').getBoundingClientRect().width),
     // the delete column held nothing but a divider, which read as a stray box on the end
@@ -5190,7 +5303,8 @@ await step('table columns can be dragged wider and narrower', async () => {
     cleared: !(JSON.parse(localStorage.getItem('giant_p2_colw') || '{}')).timer,
   }));
   check('every column but the delete one has a grip, and the last one has no divider',
-    start.grips === 8 && start.padBorder === '0px' && start.gripWidth >= 14
+    start.grips === start.headings - 1 && start.grips >= 8
+      && start.padBorder === '0px' && start.gripWidth >= 14
       && start.dividerVisible, JSON.stringify(start));
   check('dragging narrows the column, moves the heading with it and is remembered',
     after.cell === start.timer - 60 && after.head === after.cell
