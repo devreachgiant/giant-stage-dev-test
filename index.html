@@ -923,6 +923,26 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 #p2_root .prj-sect-body{border-top:1px solid var(--line);}
 #p2_root .prj-row{border-bottom:1px solid var(--line);}
 #p2_root .prj-row:last-child{border-bottom:none;}
+/* An empty custom cell still has to be clickable, or a column starts out impossible to
+   fill in -- the cell is the target, not the chip inside it. */
+/* The task name stays put. Add a few columns and the table is wider than the window, so
+   scrolling right to fill one in took the name of the task you were filling it in FOR off
+   the left edge -- found by measuring a drag that was landing on the sidebar, with the
+   table 636px across. Needs its own background: a sticky cell with a transparent one has
+   the scrolling columns slide visibly underneath it. */
+#p2_root .prj-section-thead .prj-th[data-col="name"]{position:sticky;left:0;z-index:7;
+  background:var(--surface-2);}
+#p2_root .prj-cell-name{position:sticky;left:0;z-index:4;background:var(--bg);}
+#p2_root .prj-row:hover .prj-cell-name{background:var(--surface);}
+#p2_root .p2-fieldcell{cursor:pointer;}
+#p2_root .p2-fieldcell:hover{background:var(--surface);}
+#p2_root .p2-cellinput{width:100%;box-sizing:border-box;background:var(--surface-2);
+  border:1px solid var(--red);border-radius:6px;padding:4px 7px;font-size:12px;
+  color:var(--text);font-family:inherit;outline:none;}
+.p2-multipick{width:258px;}
+.p2-pickrow{cursor:pointer;}
+.p2-pickrow.on{border-color:rgba(232,35,42,.45);}
+.p2-pick-ck{color:var(--red);font-size:11px;font-weight:800;flex-shrink:0;width:12px;}
 #p2_root .prj-cell[data-col="status"] select:focus{border-color:var(--red);background:var(--surface-2);}
 #p2_root .prj-cell[data-col="status"] select option{background:var(--surface);color:var(--text);}
 /* The section card. .p2-section had no styling at all, so the table sat as a square slab
@@ -86326,6 +86346,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   const P2_FIELD_W = 150;
   const fieldKey = (f) => 'custom:' + f.id;
   const fieldById = (id) => (p2.fields || []).find(f => f.id === id) || null;
+  // Module scope, not inside renderTable: the cell editor reads it too, and a copy in
+  // each place is two answers to "what is in this cell".
+  const fieldVal = (f, t) => {
+    const bag = (t && t.custom_fields && typeof t.custom_fields === 'object') ? t.custom_fields : {};
+    return bag[f.id];
+  };
   // Five types, the ones Luke asked for, each with what it is FOR rather than what it is.
   // The old unwired menu offered thirteen including Formula, Rollup and "Fields with AI
   // Studio", none of which had any code behind them.
@@ -86426,6 +86452,166 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       goEl.disabled = true;
       await createColumn(name, picked);
     });
+    document.addEventListener('mousedown', colPopAway, true);
+    document.addEventListener('keydown', colPopKey, true);
+  }
+
+  // ── Filling a column in ─────────────────────────────────────────────────────
+  // A column nobody can put anything into is decoration, which is what the last one was.
+  // Click the cell, get the right control for the type. Anyone who can see the board can
+  // do this -- it is the column's SHAPE that is manager-only, not its contents.
+  async function setFieldValue(taskId, fieldId, value){
+    const t = p2.tasks.find(x => x.id === taskId);
+    if (!t) return;
+    const bag = Object.assign({}, (t.custom_fields && typeof t.custom_fields === 'object') ? t.custom_fields : {});
+    if (value == null || value === '' || (Array.isArray(value) && !value.length)) delete bag[fieldId];
+    else bag[fieldId] = value;
+    // Whole object, because custom_fields is one jsonb column -- there is no way to write
+    // a single key, so the merge happens here and the read it merges onto is the row we
+    // already have.
+    const { data, error } = await sb().from('tasks')
+      .update({ custom_fields: bag }).eq('id', taskId).select('id');
+    if (error) {
+      if (typeof toast === 'function') toast({type:'error', message:'Could not save: ' + error.message});
+      return;
+    }
+    if (!data || !data.length) {
+      if (typeof toast === 'function') toast({type:'error', duration:4000,
+        message:'You do not have permission to change this task.'});
+      return;
+    }
+    t.custom_fields = bag;
+    renderTasks();
+  }
+
+  // Several values at once: options you tick, people you tick. One popover for both,
+  // because they are the same interaction over a different list.
+  function openMultiPick(anchorEl, items, chosen, onDone){
+    closeColPop();
+    const picked = new Set(chosen || []);
+    const pop = document.createElement('div');
+    pop.className = 'p2-colpop p2-multipick';
+    const draw = () => {
+      pop.innerHTML = '<div class="p2-colpop-sub"><span>Choose any</span>'
+        + '<span class="esc">click to toggle</span></div>'
+        + '<div class="p2-optlist" style="max-height:250px;">'
+        + (items.length ? items.map(it =>
+            '<div class="p2-opt p2-pickrow' + (picked.has(it.value) ? ' on' : '') + '"'
+            + ' data-v="' + esc(it.value) + '">'
+            + '<span class="p2-opt-sw" style="background:' + (it.color || 'var(--line-2)') + ';"></span>'
+            + '<span class="p2-opt-name" style="pointer-events:none;">' + esc(it.label) + '</span>'
+            + '<span class="p2-pick-ck">' + (picked.has(it.value) ? '&#10003;' : '') + '</span></div>').join('')
+           : '<div class="p2-opt-empty">This column has no options yet. A manager can add '
+             + 'them from the column menu.</div>')
+        + '</div>'
+        + '<div class="p2-colpop-foot">'
+        +   '<button type="button" class="p2-colpop-cancel" data-clear="1">Clear</button>'
+        +   '<span style="flex:1;"></span>'
+        +   '<button type="button" class="p2-colpop-go">Done</button></div>';
+      pop.querySelectorAll('[data-v]').forEach(r => r.addEventListener('click', () => {
+        const v = r.dataset.v;
+        if (picked.has(v)) picked.delete(v); else picked.add(v);
+        draw();
+      }));
+      pop.querySelector('[data-clear]').addEventListener('click', () => { closeColPop(); onDone([]); });
+      pop.querySelector('.p2-colpop-go').addEventListener('click', () => { closeColPop(); onDone([...picked]); });
+    };
+    document.body.appendChild(pop);
+    p2ColPop = pop;
+    draw();
+    const r = anchorEl.getBoundingClientRect();
+    pop.style.left = Math.max(10, Math.min(r.left, window.innerWidth - 270)) + 'px';
+    pop.style.top = Math.max(10, Math.min(r.bottom + 4, window.innerHeight - 340)) + 'px';
+    document.addEventListener('mousedown', colPopAway, true);
+    document.addEventListener('keydown', colPopKey, true);
+  }
+
+  function openFieldEditor(cellEl, fieldId, taskId){
+    const f = fieldById(fieldId);
+    const t = p2.tasks.find(x => x.id === taskId);
+    if (!f || !t) return;
+    const cur = fieldVal(f, t);
+    if (f.type === 'single_select') {
+      const opts = (f.options || []).map(o => ({ value: o.label, label: o.label, tint: o.color }));
+      if (!opts.length) {
+        if (typeof toast === 'function') toast({type:'info', duration:3500,
+          message:'"' + f.name + '" has no options yet. A manager can add them from the column menu.'});
+        return;
+      }
+      // Clearing has to be reachable, or a value set by mistake is permanent.
+      opts.push({ value: '', label: '— Clear —' });
+      window.giantPickMenu(cellEl, { options: opts, value: cur == null ? '' : String(cur),
+        onPick: (v) => setFieldValue(taskId, fieldId, v || null) });
+      return;
+    }
+    if (f.type === 'multi_select') {
+      openMultiPick(cellEl, (f.options || []).map(o => ({ value: o.label, label: o.label, color: o.color })),
+        Array.isArray(cur) ? cur : (cur ? [cur] : []),
+        (vals) => setFieldValue(taskId, fieldId, vals));
+      return;
+    }
+    if (f.type === 'people') {
+      const people = Object.values(p2.people || {})
+        .map(pr => ({ value: pr.id, label: pr.display_name || pr.full_name || pr.email || 'Someone' }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+      openMultiPick(cellEl, people, Array.isArray(cur) ? cur : (cur ? [cur] : []),
+        (vals) => setFieldValue(taskId, fieldId, vals));
+      return;
+    }
+    if (f.type === 'date') {
+      openDatePick(cellEl, cur, (v) => setFieldValue(taskId, fieldId, v));
+      return;
+    }
+    // text, edited in place rather than in a popover -- it is the one type where a panel
+    // is more ceremony than the edit is worth.
+    if (cellEl.querySelector('input')) return;
+    const was = cur == null ? '' : String(cur);
+    cellEl.innerHTML = '<input type="text" class="p2-cellinput" value="' + esc(was) + '" spellcheck="false">';
+    const inp = cellEl.querySelector('input');
+    inp.focus(); inp.select();
+    let settled = false;
+    const finish = (save) => {
+      if (settled) return;
+      settled = true;
+      const v = inp.value;
+      if (save && v !== was) setFieldValue(taskId, fieldId, v);
+      else renderTasks();
+    };
+    inp.addEventListener('keydown', e => {
+      e.stopPropagation();
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    inp.addEventListener('blur', () => finish(true));
+  }
+
+  // A date, as a plain yyyy-mm-dd string. Never a Date object: new Date('2026-10-01') is
+  // UTC midnight and reads as the previous day west of Greenwich, which is how a due date
+  // lands a day early.
+  function openDatePick(anchorEl, cur, onDone){
+    closeColPop();
+    const pop = document.createElement('div');
+    pop.className = 'p2-colpop p2-multipick';
+    pop.innerHTML = '<div class="p2-colpop-sub"><span>Pick a date</span></div>'
+      + '<div style="padding:4px 10px 10px;">'
+      + '<input type="date" id="p2_dateIn" value="' + esc(cur ? String(cur).slice(0, 10) : '') + '"'
+      + ' style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);'
+      + 'border-radius:8px;padding:8px 10px;font-size:12.5px;color:var(--text);font-family:inherit;outline:none;"></div>'
+      + '<div class="p2-colpop-foot">'
+      +   '<button type="button" class="p2-colpop-cancel" data-clear="1">Clear</button>'
+      +   '<span style="flex:1;"></span>'
+      +   '<button type="button" class="p2-colpop-go">Save</button></div>';
+    document.body.appendChild(pop);
+    p2ColPop = pop;
+    const r = anchorEl.getBoundingClientRect();
+    pop.style.left = Math.max(10, Math.min(r.left, window.innerWidth - 270)) + 'px';
+    pop.style.top = Math.max(10, Math.min(r.bottom + 4, window.innerHeight - 220)) + 'px';
+    pop.querySelector('[data-clear]').addEventListener('click', () => { closeColPop(); onDone(null); });
+    pop.querySelector('.p2-colpop-go').addEventListener('click', () => {
+      const v = pop.querySelector('#p2_dateIn').value;
+      closeColPop(); onDone(v || null);
+    });
+    setTimeout(() => { const d = pop.querySelector('#p2_dateIn'); if (d) d.focus(); }, 30);
     document.addEventListener('mousedown', colPopAway, true);
     document.addEventListener('keydown', colPopKey, true);
   }
@@ -88183,10 +88369,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // What one custom cell shows. Empty reads as empty -- a dash or a placeholder in
     // every blank cell of a new column turns an empty column into visual noise across
     // every row, and the column heading already says what is missing.
-    const fieldVal = (f, t) => {
-      const bag = (t && t.custom_fields && typeof t.custom_fields === 'object') ? t.custom_fields : {};
-      return bag[f.id];
-    };
     const fieldChip = (label, color) => '<span class="p2-fieldchip"'
       + (color ? ' style="background:' + esc(color) + '1f;border-color:' + esc(color)
                  + '55;color:' + esc(color) + ';"' : '')
@@ -88463,6 +88645,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // it is wired here with everything else rather than once at startup.
     body.querySelectorAll('[data-p2-addcol]').forEach(el => {
       el.addEventListener('click', (e) => { e.stopPropagation(); openAddColumn(el); });
+    });
+    // Filling a column in is everybody's job, so this is not gated -- RLS on tasks
+    // decides, and a refusal comes back as zero rows, which setFieldValue reports.
+    body.querySelectorAll('.p2-fieldcell').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('input')) return;
+        e.stopPropagation();
+        openFieldEditor(el, el.dataset.p2Field, el.dataset.p2FieldTask);
+      });
     });
     body.querySelectorAll('[data-p2-colmenu]').forEach(el => {
       el.addEventListener('click', (e) => { e.stopPropagation(); openColumnMenu(el, el.dataset.p2Colmenu); });

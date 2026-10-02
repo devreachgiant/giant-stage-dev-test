@@ -5254,6 +5254,114 @@ await step('custom columns', async () => {
     r.escClosed && r.escWroteNothing, JSON.stringify(r));
 });
 
+// A column you cannot put anything into is decoration, which is what the last one was.
+await step('filling a custom column in', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const out = {};
+    window.p2SetView('table'); await w(700);
+    const db = window.__mock.db;
+    const tid = window.p2State.tasks[0].id;
+    const cell = (fid) => document.querySelector(
+      '.p2-fieldcell[data-p2-field="' + fid + '"][data-p2-field-task="' + tid + '"]');
+    const saved = (fid) => ((db.tasks.find(t => t.id === tid) || {}).custom_fields || {})[fid];
+    // Start from empty. An earlier check writes values onto this same task to prove the
+    // cells RENDER; ticking an option that is already ticked turns it off, so without
+    // this the multi-select test measured its own setup rather than the control.
+    window.p2State.tasks[0].custom_fields = {};
+    const dbT = db.tasks.find(t => t.id === tid); if (dbT) dbT.custom_fields = {};
+    window.p2SetView('board'); await w(200); window.p2SetView('table'); await w(700);
+
+    // One choice. The menu has to offer a way back to empty, or a value set by mistake
+    // is permanent.
+    let c = cell('pf-1');
+    out.cellClickable = !!c;
+    if (c) {
+      c.click(); await w(450);
+      const menu = document.querySelector('.giant-pick');
+      out.singleMenuOpened = !!menu;
+      out.offersClear = !!menu && /Clear/.test(menu.textContent);
+      const pick = menu && [...menu.querySelectorAll('*')]
+        .find(e => e.textContent.trim() === 'Shipped' && !e.children.length);
+      if (pick) { pick.click(); await w(1300); }
+    }
+    out.singleSaved = saved('pf-1');
+
+    // Several. Same popover as people, because it is the same interaction.
+    c = cell('pf-2');
+    if (c) {
+      c.click(); await w(450);
+      const pop = document.querySelector('.p2-multipick');
+      out.multiOpened = !!pop;
+      if (pop) {
+        // Re-queried per click: every toggle redraws the list, so a snapshot taken up
+        // front holds detached nodes after the first one.
+        for (const want of ['SEO', 'Ads']) {
+          const r2 = document.querySelector('.p2-multipick [data-v="' + want + '"]');
+          if (r2) { r2.click(); await w(150); }
+        }
+        document.querySelector('.p2-multipick .p2-colpop-go').click(); await w(1300);
+      }
+    }
+    out.multiSaved = saved('pf-2');
+
+    // Text edits in place: a panel is more ceremony than the edit is worth.
+    c = cell('pf-3');
+    if (c) {
+      c.click(); await w(350);
+      const inp = c.querySelector('input');
+      out.textEditsInPlace = !!inp;
+      if (inp) {
+        inp.value = 'typed in place';
+        inp.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        await w(1300);
+      }
+    }
+    out.textSaved = saved('pf-3');
+
+    const row = document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task="' + tid + '"]');
+    out.rowShows = row ? [...row.querySelectorAll('.p2-fieldchip')].map(x => x.textContent.trim()) : [];
+
+    // Clearing removes the key rather than storing an empty string, so an unset cell and
+    // a cleared one are the same thing.
+    c = cell('pf-1');
+    if (c) {
+      c.click(); await w(450);
+      const menu = document.querySelector('.giant-pick');
+      const cl = menu && [...menu.querySelectorAll('*')]
+        .find(e => /Clear/.test(e.textContent) && !e.children.length);
+      if (cl) { cl.click(); await w(1300); }
+    }
+    out.clearedIsAbsent = saved('pf-1') === undefined;
+    // Closed through the app's own paths, not by ripping the nodes out: these panels
+    // install document-level capture listeners, and removing the element leaves those
+    // behind to interfere with whatever the next check does with the mouse.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    // And nothing focused inside a cell. A text cell's input commits on blur and that
+    // repaints the table -- if it fires during the next check's drag, the heading the
+    // mouse is holding is replaced mid-gesture and the drag goes nowhere.
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    await w(600);
+    out.nothingLeftOpen = !document.querySelector('.p2-colpop')
+      && !document.querySelector('.giant-pick')
+      && !document.querySelector('.p2-cellinput');
+    return out;
+  });
+  return r;
+}).then(r => {
+  r = r || {};
+  check('one choice is picked from a menu that also offers a way back to empty',
+    r.cellClickable && r.singleMenuOpened && r.offersClear && r.singleSaved === 'Shipped',
+    JSON.stringify(r));
+  check('several are ticked in one popover, and text edits in the cell itself',
+    r.multiOpened && JSON.stringify(r.multiSaved) === JSON.stringify(['SEO', 'Ads'])
+      && r.textEditsInPlace && r.textSaved === 'typed in place', JSON.stringify(r));
+  check('what was saved is what the row then shows, and clearing removes the key',
+    JSON.stringify(r.rowShows) === JSON.stringify(['Shipped', 'SEO', 'Ads'])
+      && r.clearedIsAbsent && r.nothingLeftOpen, JSON.stringify(r));
+});
+
 // Editing one: its name, its type, its options, and the order they appear in.
 await step('the column editor', async () => {
   const r = await page.evaluate(async () => {
@@ -5390,6 +5498,15 @@ await step('table columns can be dragged wider and narrower', async () => {
     dividerVisible: getComputedStyle(document.querySelector('#p2_prjDailyBody [data-p2-grip]'),
       '::after').backgroundColor !== 'rgba(0, 0, 0, 0)',
   }));
+  // Back to the left edge first. A board with custom columns is wider than the viewport,
+  // and opening a column's menu scrolls it into view -- which had left the table 636px
+  // across, putting the Time grip at x=219, underneath the sidebar. The drag was landing
+  // on the nav rail, measured with elementFromPoint rather than guessed at.
+  await page.evaluate(() => {
+    const sc = document.querySelector('#p2_prjTable');
+    if (sc) sc.scrollLeft = 0;
+  });
+  await page.waitForTimeout(300);
   const grip = await page.$('#p2_prjDailyBody [data-p2-grip="timer"]');
   if (!grip) { check('table columns can be dragged wider and narrower', false, 'no grip'); return; }
   const box = await grip.boundingBox();
