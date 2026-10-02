@@ -5254,6 +5254,121 @@ await step('custom columns', async () => {
     r.escClosed && r.escWroteNothing, JSON.stringify(r));
 });
 
+// Editing one: its name, its type, its options, and the order they appear in.
+await step('the column editor', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const out = {};
+    window.p2SetView('table'); await w(600);
+    // The strip is hidden and the breadcrumb still carries its label, which is the whole
+    // reason hiding it costs nothing: Projects 2.0 never filtered by the active tab.
+    const strip = document.getElementById('p2_prjVtabs');
+    out.stripHidden = !strip || getComputedStyle(strip).display === 'none';
+    const lbl = document.getElementById('p2_prjVtabsLabel');
+    out.labelHidden = !lbl || getComputedStyle(lbl).display === 'none';
+    out.breadcrumbKeepsIt = /\/\s*Daily/.test(
+      (document.querySelector('#p2_prjDailyBody [data-p2-folder-head]') || {}).textContent || '');
+    // The toolbar entry point, because the one on the header row is past the right edge
+    // of a table that scrolls.
+    const tb = document.getElementById('p2_prjAddColBtn');
+    out.toolbarAddShown = !!tb && getComputedStyle(tb).display !== 'none';
+
+    const open = async (id) => {
+      document.querySelectorAll('.p2-colpop').forEach(x => x.remove());
+      const b = document.querySelector('[data-p2-colmenu="' + id + '"]');
+      if (!b) return null;
+      b.click(); await w(400);
+      return document.querySelector('.p2-colpop');
+    };
+    let pop = await open('pf-1');
+    out.opened = !!pop;
+    if (!pop) return out;
+    out.name = pop.querySelector('#p2_colEditName').value;
+    out.options = [...pop.querySelectorAll('.p2-opt-name')].map(e => e.value);
+
+    // Drag the second option onto the first. The array IS the order -- there is no second
+    // place storing it to disagree, which is what the old up/down buttons did.
+    const rows = [...pop.querySelectorAll('.p2-opt')];
+    const dt = new DataTransfer();
+    rows[1].dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+    rows[0].dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    rows[0].dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    await w(250);
+    pop = document.querySelector('.p2-colpop');
+    out.afterDrag = [...pop.querySelectorAll('.p2-opt-name')].map(e => e.value);
+
+    const ni = pop.querySelector('#p2_optNew');
+    ni.value = 'Archived'; pop.querySelector('#p2_optAdd').click(); await w(250);
+    pop = document.querySelector('.p2-colpop');
+    out.afterAdd = [...pop.querySelectorAll('.p2-opt-name')].map(e => e.value);
+    // A duplicate is refused rather than silently added twice.
+    const n2 = pop.querySelector('#p2_optNew');
+    n2.value = 'Archived'; pop.querySelector('#p2_optAdd').click(); await w(250);
+    pop = document.querySelector('.p2-colpop');
+    out.refusedDuplicate = [...pop.querySelectorAll('.p2-opt-name')].map(e => e.value).length === 3;
+
+    const nm = pop.querySelector('#p2_colEditName');
+    nm.value = 'Phase'; nm.dispatchEvent(new Event('input', { bubbles: true }));
+    pop.querySelector('.p2-colpop-go').click(); await w(1800);
+    const f = window.__mock.db.project_fields.find(x => x.id === 'pf-1');
+    out.savedName = f.name;
+    out.savedOrder = (f.options || []).map(x => x.label);
+    out.headingFollowed = [...document.querySelectorAll('#p2_prjDailyBody .prj-section-thead .prj-th')]
+      .some(h => h.textContent.indexOf('Phase') >= 0);
+
+    // Move left, which rewrites every position rather than swapping two -- position has
+    // never been unique and a board edited for a while can hold several claiming one.
+    pop = await open('pf-2');
+    if (pop) { pop.querySelector('[data-move="-1"]').click(); await w(1800); }
+    out.orderAfterMove = window.__mock.db.project_fields
+      .filter(x => x.project_id === 'p-1').slice()
+      .sort((a, b) => a.position - b.position).map(x => x.name);
+
+    // Delete asks for the word, and window.confirm is a NO-OP in the desktop build, so
+    // this is giantPrompt -- the old right-click delete used confirm() and therefore did
+    // nothing at all for anyone on Electron.
+    const real = window.giantPrompt;
+    const before = window.__mock.db.project_fields.length;
+    window.giantPrompt = async () => 'yes';
+    pop = await open('pf-3');
+    if (pop) { pop.querySelector('[data-del]').click(); await w(700); }
+    out.survivedWrongWord = window.__mock.db.project_fields.length === before;
+    window.giantPrompt = async () => 'delete';
+    pop = await open('pf-3');
+    if (pop) { pop.querySelector('[data-del]').click(); await w(1800); }
+    window.giantPrompt = real;
+    out.goneOnTheWord = !window.__mock.db.project_fields.some(x => x.id === 'pf-3');
+    const heads = [...document.querySelectorAll('#p2_prjDailyBody .prj-section-thead .prj-th')];
+    const row = document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task]');
+    out.alignedAfterDelete = !!row && heads.length === row.querySelectorAll('.prj-cell').length;
+    document.querySelectorAll('.p2-colpop').forEach(x => x.remove());
+    return out;
+  });
+  return r;
+}).then(r => {
+  r = r || {};
+  check('the sub-project strip is gone and its label with it, and the breadcrumb still names it',
+    r.stripHidden && r.labelHidden && r.breadcrumbKeepsIt, JSON.stringify(r));
+  check('Add column is reachable from the toolbar, not only off the end of the table',
+    r.toolbarAddShown, JSON.stringify(r));
+  check('dragging an option reorders it, and adding one refuses a duplicate',
+    r.opened && JSON.stringify(r.afterDrag) === JSON.stringify(['Shipped', 'Draft'])
+      && JSON.stringify(r.afterAdd) === JSON.stringify(['Shipped', 'Draft', 'Archived'])
+      && r.refusedDuplicate, JSON.stringify(r));
+  check('saving writes the new name and the order you dragged, and the board follows',
+    r.savedName === 'Phase'
+      && JSON.stringify(r.savedOrder) === JSON.stringify(['Shipped', 'Draft', 'Archived'])
+      && r.headingFollowed, JSON.stringify(r));
+  // Asserted as "these two swapped", not as a whole-list literal: the step above this one
+  // creates a column of its own in the same run, so pinning the full list made a passing
+  // move look like a failure.
+  check('a column can be moved left, past the one that was before it',
+    (r.orderAfterMove || []).indexOf('Channels') === 0
+      && (r.orderAfterMove || []).indexOf('Phase') === 1, JSON.stringify(r));
+  check('deleting demands the word, and the table stays aligned once it is gone',
+    r.survivedWrongWord && r.goneOnTheWord && r.alignedAfterDelete, JSON.stringify(r));
+});
+
 // Column widths were baked into the stylesheet, so a name that needed more room and a
 // Time column that needed less were both somebody else's decision.
 await step('table columns can be dragged wider and narrower', async () => {
