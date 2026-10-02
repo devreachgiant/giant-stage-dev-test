@@ -5288,7 +5288,29 @@ await step('the project strip', async () => {
       // Readable, not squashed to a dot. Shrinking them to fit was measured doing exactly
       // that -- sixteen chips, no legible name on any of them.
       namesReadable: vis.every(e => e.textContent.trim().length > 2),
-      keepsTheColourDot: vis.every(e => e.querySelector('span[style*="border-radius:50%"]')),
+      // Measured, not merely present. The dot WAS present the whole time the fit logic was
+      // clearing the chip's inline display with '' -- which deletes it, so the chip stopped
+      // being a flex container and every dot computed to 0px wide. A check for existence
+      // passed against an invisible dot; a check for width is the one that catches it.
+      keepsTheColourDot: vis.every(e => {
+        const d = e.querySelector('span[style*="border-radius:50%"]');
+        return d && Math.round(d.getBoundingClientRect().width) >= 6;
+      }),
+      // Status reads as a status: tinted, bordered, with its own dot, not plain text.
+      statusLooksLikeAStatus: (() => {
+        const pill = document.querySelector('#p2_prjDailyBody .p2-statuspill');
+        if (!pill) return false;
+        const cs = getComputedStyle(pill);
+        const dot = pill.querySelector('.p2-statusdot');
+        return !!dot && Math.round(dot.getBoundingClientRect().width) >= 5
+          && cs.borderTopWidth !== '0px'
+          && cs.backgroundColor !== 'rgba(0, 0, 0, 0)';
+      })(),
+      // and is wide enough to say what it is, rather than clipping to "Needs more d...".
+      statusNotClipped: (() => {
+        const pill = document.querySelector('#p2_prjDailyBody .p2-statuspill .lbl');
+        return !pill || pill.scrollWidth <= pill.clientWidth + 1;
+      })(),
       // The one you are looking at is never the one hidden.
       activeVisible: vis.some(e => e.dataset.p2Project === window.p2State.activeId),
     };
@@ -5311,6 +5333,8 @@ await step('the project strip', async () => {
   check('the project strip is one line with no scrollbar, and the names stay readable',
     r.oneLine && r.noScroll && r.overflowX === 'hidden' && r.allInside
       && r.namesReadable && r.keepsTheColourDot && r.activeVisible, JSON.stringify(r));
+  check('a status reads as a status -- dot, tint and border -- and is not clipped',
+    r.statusLooksLikeAStatus && r.statusNotClipped, JSON.stringify(r));
   check('what does not fit is counted and one click away, not silently dropped',
     r.total >= 12 && r.visible < r.total && r.accountedFor === r.total
       && r.overflowOpens && r.overflowLists === r.total - r.visible, JSON.stringify(r));

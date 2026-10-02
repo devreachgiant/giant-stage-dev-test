@@ -925,6 +925,28 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 #p2_root .prj-row:last-child{border-bottom:none;}
 /* An empty custom cell still has to be clickable, or a column starts out impossible to
    fill in -- the cell is the target, not the chip inside it. */
+/* Matching the Stitch mock, element by element, from the side-by-side comparison.
+
+   Status: a pill with a leading dot and a border in its own colour. It already had the
+   tint, at 12% alpha and no border, which next to the mock read as plain text with a
+   chevron rather than as a status. */
+#p2_root .p2-statusdot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+#p2_root .p2-statuspill{padding:3px 10px;border-width:1px;border-style:solid;}
+#p2_root .p2-statuspill .giant-pill-caret{opacity:.5;}
+#p2_root .p2-statuspill:hover .giant-pill-caret{opacity:1;}
+
+/* The active project is the mock's red-tinted chip with a red border, not a grey one.
+   Red is this app's "you are here" everywhere else; the strip was the odd one out. */
+#p2_root .prj-proj-chip.active{background:rgba(232,35,42,.12)!important;
+  border-color:rgba(232,35,42,.38)!important;color:var(--text)!important;}
+
+/* Column headings carry a grab affordance, as the mock's do. The grip that resizes is a
+   separate 16px strip on the right edge; this is the one that says "this is a column". */
+#p2_root .prj-section-thead .prj-th::before{content:'⠿';margin-right:7px;font-size:10px;
+  line-height:1;color:var(--text-4);flex-shrink:0;opacity:.65;}
+#p2_root .prj-section-thead .prj-th[data-col="pad"]::before{content:none;}
+#p2_root .prj-section-thead .prj-th[data-p2-coldrag]:hover::before{opacity:1;color:var(--text-2);}
+
 /* The project strip is one line with no scrollbar. It was overflow-x:auto, so everything
    past the right edge was hidden behind a 4px strip. The chips share the width instead --
    they shrink and their names ellipsis -- so every project stays on screen, on one row.
@@ -86332,7 +86354,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                filters: {}, sort: null };
   // Column widths, per person, in this browser. No migration for it: it is a preference
   // about looking at a table, not a fact about the work.
-  const P2_COLW = { name: 264, status: 170, timer: 150, priority: 130, assignee: 150,
+  // status 170 -> 196: the pill carries a leading dot and a border now, and "Needs more
+  // detail" was clipping to "Needs more d...".
+  const P2_COLW = { name: 264, status: 196, timer: 150, priority: 130, assignee: 150,
                     client: 150, department: 130, task_details: 240 };
   // Status sits straight after the name: it is the thing you scan a list for, and putting
   // it behind the timer would mean reading past a column of digits to find it.
@@ -87108,7 +87132,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (!chips.length) return;
     let more = bar.querySelector('[data-p2-more]');
     if (more) more.remove();
-    chips.forEach(c => { c.style.display = ''; });
+    // inline-flex, NOT '' -- an empty string DELETES the inline display, and the chip is
+    // written with display:inline-flex inline. Clearing it left the chips as blocks, which
+    // silently killed every colour dot: width on a child of a non-flex inline box does
+    // nothing, so they computed to 0px wide and vanished.
+    chips.forEach(c => { c.style.display = 'inline-flex'; });
     // Nothing to do until the bar has a width -- on first paint it can be 0, and every
     // chip would then be measured as overflowing and hidden.
     // clientWidth INCLUDES the bar's own padding, and laying chips out against it
@@ -88372,9 +88400,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // A pill, not a form field. The colour IS the value here -- which is the one thing a
       // native select cannot show in its list, and the reason this single control is worth
       // having its own menu when the other hundred dropdowns are better off native.
-      return '<button type="button" class="giant-pill-btn" data-p2-stage="' + esc(t.id) + '"'
+      // Dot, tint and a border of the same colour -- the Stitch treatment. At 1f alpha with
+      // no border and no dot it read as plain text with a chevron next to it, which is
+      // what the comparison screenshot showed against the mock's pills.
+      return '<button type="button" class="giant-pill-btn p2-statuspill" data-p2-stage="' + esc(t.id) + '"'
         + ' aria-haspopup="listbox" title="' + esc(d.label) + '"'
-        + ' style="background:' + esc(d.tint) + '1f;color:' + esc(d.tint) + ';">'
+        + ' style="background:' + esc(d.tint) + '1f;color:' + esc(d.tint)
+        + ';border-color:' + esc(d.tint) + '4d;">'
+        + '<span class="p2-statusdot" style="background:' + esc(d.tint) + ';"></span>'
         + '<span class="lbl">' + esc(d.label) + '</span>'
         + '<svg class="giant-pill-caret" width="10" height="10" viewBox="0 0 12 12" fill="none">'
         + '<path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
