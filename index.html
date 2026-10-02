@@ -909,7 +909,7 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 
    Scoped to #p2_root, so the original Projects screen is untouched. */
 #p2_root .prj-section{border-radius:10px;box-shadow:none;border-color:var(--line);}
-#p2_root .prj-section-thead{background:var(--surface-2);border-bottom:1px solid var(--line-2);}
+#p2_root .prj-section-thead{background:var(--surface);border-bottom:1px solid var(--line-2);}
 #p2_root .prj-section-thead .prj-th{color:var(--text-2);font-size:11px;letter-spacing:.06em;
   padding:9px 14px;}
 #p2_root .p2-addcol,#p2_root .p2-colmenu{color:var(--text-2);}
@@ -920,11 +920,17 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 #p2_root .prj-th.p2-th-over{box-shadow:inset 3px 0 0 var(--red);}
 /* No vertical rules. The pad cell already had none; now none of them do. */
 #p2_root .prj-cell{border-right:none;min-height:44px;padding:10px 14px;}
-#p2_root .prj-sect-body{border-top:1px solid var(--line);}
-#p2_root .prj-row{border-bottom:1px solid var(--line);}
+#p2_root .prj-sect-body{border-top:1px solid var(--line);background:var(--surface);}
+#p2_root .prj-row{border-bottom:1px solid var(--line);background:transparent;}
 #p2_root .prj-row:last-child{border-bottom:none;}
 /* An empty custom cell still has to be clickable, or a column starts out impossible to
    fill in -- the cell is the target, not the chip inside it. */
+/* One surface for the whole table. The card was var(--surface), its heading row
+   var(--surface-2) and its rows var(--bg) -- three tones stacked inside one card, which
+   is what "the row colour is different than header and bg" is. Now they share the card's
+   surface and the hairlines do the separating, which is how the mock reads: one panel
+   with divider lines, not three shades of grey. */
+
 /* Matching the Stitch mock, element by element, from the side-by-side comparison.
 
    Status: a pill with a leading dot and a border in its own colour. It already had the
@@ -959,9 +965,9 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
    table 636px across. Needs its own background: a sticky cell with a transparent one has
    the scrolling columns slide visibly underneath it. */
 #p2_root .prj-section-thead .prj-th[data-col="name"]{position:sticky;left:0;z-index:7;
-  background:var(--surface-2);}
-#p2_root .prj-cell-name{position:sticky;left:0;z-index:4;background:var(--bg);}
-#p2_root .prj-row:hover .prj-cell-name{background:var(--surface);}
+  background:var(--surface);}
+#p2_root .prj-cell-name{position:sticky;left:0;z-index:4;background:var(--surface);}
+#p2_root .prj-row:hover .prj-cell-name{background:var(--surface-2);}
 #p2_root .p2-fieldcell{cursor:pointer;}
 #p2_root .p2-fieldcell:hover{background:var(--surface);}
 #p2_root .p2-cellinput{width:100%;box-sizing:border-box;background:var(--surface-2);
@@ -1009,7 +1015,7 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 #p2_root .p2-timer-stop{opacity:.6;transition:opacity .12s ease,color .12s ease;}
 #p2_root .p2-timer-stop:hover{opacity:1;color:var(--text);}
 #p2_root .prj-row{transition:background .12s ease;}
-#p2_root .prj-row:hover{background:var(--surface);}
+#p2_root .prj-row:hover{background:var(--surface-2);}
 #p2_root .prj-row .prj-name{transition:color .12s ease;}
 #p2_root .prj-row .prj-name:hover{color:var(--red);text-decoration:underline;text-underline-offset:2px;}
 #p2_root .p2-card{transition:border-color .12s ease,transform .08s ease;}
@@ -10963,7 +10969,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
 
           <!-- controls bar -->
           <div class="prj-controls">
-            <div class="prj-spacer"></div>
+            <div class="prj-spacer" id="p2_prjCrumb" style="display:flex;align-items:center;gap:9px;min-width:0;"></div>
             <div class="prj-status-toggle" id="p2_prjMineToggle" style="display:flex;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px;margin-right:8px;"><button class="prj-st-btn active" data-p2-mine="0" style="background:var(--surface-2);color:var(--text);border:none;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">All tasks</button><button class="prj-st-btn" data-p2-mine="1" style="background:transparent;color:var(--text-2);border:none;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">My tasks</button></div>
             <div class="prj-status-toggle" id="p2_prjStatusToggle" style="display:flex;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px;margin-right:8px;">
               <button class="prj-st-btn active" data-status="active" style="background:var(--surface-2);color:var(--text);border:none;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">Active <span class="prj-st-count" id="p2_prjStCountActive" style="opacity:.6;margin-left:3px;">0</span></button>
@@ -88649,18 +88655,26 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       + (sub ? '<span style="color:var(--text-4);font-size:12px;">/</span>'
              + '<span style="font-size:12.5px;font-weight:600;color:var(--text-2);">' + esc(sub) + '</span>' : '');
     const shut = !!p2.collapsed.__all__;
+    const crumbHost = $('prjCrumb');
+    if (crumbHost) {
+      crumbHost.innerHTML =
+        '<span data-p2-folder-head="__all__" style="display:flex;align-items:center;gap:9px;'
+        + 'min-width:0;cursor:pointer;">'
+        + '<span style="color:var(--text-3);display:inline-flex;flex-shrink:0;transition:transform .15s;'
+        + (shut ? 'transform:rotate(-90deg);' : '') + '">'
+        + '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4"'
+        + ' stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+        + '</span>'
+        + dot + crumb
+        + '<span style="font-size:11px;font-weight:700;color:var(--text-3);background:var(--surface-2);'
+        + 'border-radius:20px;padding:1px 8px;flex-shrink:0;">' + shown.length + '</span>'
+        + '</span>';
+    }
     body.innerHTML = '<div class="p2-section">'
-      + '<div data-p2-folder-head="__all__"'
-      + ' style="display:flex;align-items:center;gap:9px;padding:10px 14px;cursor:pointer;'
-      + 'background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2;">'
-      +   '<span style="color:var(--text-3);display:inline-flex;flex-shrink:0;transition:transform .15s;'
-      +   (shut ? 'transform:rotate(-90deg);' : '') + '">'
-      +   '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-      +   '</span>'
-      +   dot + crumb
-      +   '<span style="font-size:11px;font-weight:700;color:var(--text-3);background:var(--surface-2);'
-      +   'border-radius:20px;padding:1px 8px;">' + shown.length + '</span>'
-      + '</div>'
+      // The crumb is NOT in the table. It was a sticky row inside the card, which made the
+      // card look like it had two headers -- one naming the list and one naming the
+      // columns. It goes on the toolbar line instead, in the space that was being held
+      // open by an empty spacer, with its collapse control and its count intact.
       + '<div data-p2-folder-body="__all__"' + (shut ? ' style="display:none;"' : '') + '>'
       + headerHtml
       // Above the list, not under it. At the bottom it sat behind however many tasks the
@@ -88884,7 +88898,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (row) openTask(row.dataset.p2Task);
       });
     });
-    body.querySelectorAll('[data-p2-folder-head]').forEach(h => {
+    // The crumb carries this control and it lives on the toolbar now, outside `body` --
+    // so it is wired from the document, not from the table it used to sit in.
+    [...body.querySelectorAll('[data-p2-folder-head]'),
+     ...document.querySelectorAll('#p2_prjCrumb [data-p2-folder-head]')].forEach(h => {
       h.addEventListener('click', () => {
         const k = h.dataset.p2FolderHead;
         p2.collapsed[k] = !p2.collapsed[k];

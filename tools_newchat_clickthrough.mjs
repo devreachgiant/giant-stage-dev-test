@@ -5340,6 +5340,53 @@ await step('the project strip', async () => {
       && r.overflowOpens && r.overflowLists === r.total - r.visible, JSON.stringify(r));
 });
 
+// The card was var(--surface), its heading row var(--surface-2) and its rows var(--bg):
+// three tones stacked inside one card. And the crumb was a second sticky header INSIDE
+// the table, so the card looked like it had two headers -- one naming the list, one
+// naming the columns.
+await step('one surface, and the crumb on the toolbar', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    window.p2SetView('table'); await w(700);
+    const bg = e => e ? getComputedStyle(e).backgroundColor : null;
+    const row = document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task]');
+    const thead = document.querySelector('#p2_prjDailyBody .prj-section-thead');
+    const nameCell = row && row.querySelector('.prj-cell-name');
+    const theadName = document.querySelector('#p2_prjDailyBody .prj-section-thead .prj-th[data-col="name"]');
+    const out = {
+      thead: bg(thead), theadName: bg(theadName), nameCell: bg(nameCell), row: bg(row),
+      // The pinned cell is opaque -- it has to repaint, or the columns scrolling under it
+      // show through -- so it is the one that must MATCH rather than be transparent.
+      oneSurface: bg(thead) === bg(theadName) && bg(theadName) === bg(nameCell),
+      rowTransparent: bg(row) === 'rgba(0, 0, 0, 0)',
+    };
+    // The crumb is on the toolbar, outside the table, and still works.
+    const crumb = document.getElementById('p2_prjCrumb');
+    out.crumbOnToolbar = !!crumb && !!crumb.querySelector('[data-p2-folder-head]');
+    out.crumbNamesTheList = !!crumb && /\/\s*Daily/.test(crumb.textContent || '');
+    out.crumbNotInTable = !document.querySelector('#p2_prjDailyBody [data-p2-folder-head]');
+    // Collapsing sets display:none on the folder BODY -- the rows stay in the DOM, so a
+    // count finds them all either way and the check passed against a collapse that had
+    // not happened. Counting what is actually visible is the version that fails.
+    const visibleRows = () => [...document.querySelectorAll('#p2_prjDailyBody .prj-row[data-p2-task]')]
+      .filter(e => e.offsetParent !== null).length;
+    const before = visibleRows();
+    crumb.querySelector('[data-p2-folder-head]').click(); await w(600);
+    out.collapsesFromThere = before > 0 && visibleRows() === 0;
+    document.querySelector('#p2_prjCrumb [data-p2-folder-head]').click(); await w(600);
+    out.expandsAgain = visibleRows() === before;
+    return out;
+  });
+  return r;
+}).then(r => {
+  r = r || {};
+  check('the heading row, the pinned cell and the rows are all one surface',
+    r.oneSurface && r.rowTransparent, JSON.stringify(r));
+  check('the crumb sits on the toolbar, not in the table, and still collapses the list',
+    r.crumbOnToolbar && r.crumbNamesTheList && r.crumbNotInTable
+      && r.collapsesFromThere && r.expandsAgain, JSON.stringify(r));
+});
+
 // A column you cannot put anything into is decoration, which is what the last one was.
 await step('filling a custom column in', async () => {
   const r = await page.evaluate(async () => {
@@ -5461,7 +5508,7 @@ await step('the column editor', async () => {
     const lbl = document.getElementById('p2_prjVtabsLabel');
     out.labelHidden = !lbl || getComputedStyle(lbl).display === 'none';
     out.breadcrumbKeepsIt = /\/\s*Daily/.test(
-      (document.querySelector('#p2_prjDailyBody [data-p2-folder-head]') || {}).textContent || '');
+      (document.getElementById('p2_prjCrumb') || {}).textContent || '');
     // The toolbar entry point, because the one on the header row is past the right edge
     // of a table that scrolls.
     const tb = document.getElementById('p2_prjAddColBtn');
@@ -6249,13 +6296,15 @@ await step('clicking a task opens it in full, with a per-person time breakdown',
 // named after a field they had not filled in.
 await step('the table is headed by where you are, not by a folder', async () => {
   const r = await page.evaluate(async () => {
-    const head = document.querySelector('#p2_prjDailyBody [data-p2-folder-head]');
+    // The crumb moved onto the toolbar, out of the table -- inside the card it was a
+    // second sticky header, one naming the list and one naming the columns.
+    const head = document.querySelector('#p2_prjCrumb [data-p2-folder-head]');
     const body = document.getElementById('p2_prjDailyBody');
     const ap = window.p2State.projects.find(p => p.id === window.p2State.activeId);
     return {
       folderButtonGone: !document.getElementById('p2_addFolderBtn'),
       noUnfiled: !/Unfiled/.test(body.innerText),
-      sections: document.querySelectorAll('#p2_prjDailyBody [data-p2-folder-head]').length,
+      sections: document.querySelectorAll('[data-p2-folder-head]').length,
       headText: head ? head.innerText.replace(/\n/g, ' ').trim() : null,
       namesProject: !!(head && ap && head.innerText.includes(ap.name)),
       namesSubproject: !!(head && head.innerText.includes('Daily')),
