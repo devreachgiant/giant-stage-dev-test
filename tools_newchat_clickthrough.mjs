@@ -5254,6 +5254,68 @@ await step('custom columns', async () => {
     r.escClosed && r.escWroteNothing, JSON.stringify(r));
 });
 
+// The project strip was one line behind a scrollbar, so with a dozen lists every project
+// past the right edge was hidden and the scrollbar sat across the bar itself.
+await step('the project strip', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    // The fixture has four projects and four always fits; production has a dozen-plus.
+    const base = window.p2State.projects[0];
+    for (let i = 0; i < 12; i++) {
+      window.p2State.projects.push({ id: 'pw-' + i, name: 'Wrapping list number ' + i,
+        client_id: null, created_by: base.created_by, created_at: base.created_at,
+        color: '#e8232a' });
+    }
+    window.p2RenderProjectsBar(); await w(600);
+    const bar = document.getElementById('p2_prjProjectsBar');
+    if (!bar) return { noBar: true };
+    const vis = [...bar.querySelectorAll('[data-p2-project]')].filter(e => e.offsetParent !== null);
+    const more = bar.querySelector('[data-p2-more]');
+    const br = bar.getBoundingClientRect();
+    const out = {
+      total: window.p2State.projects.length,
+      visible: vis.length,
+      more: more ? more.textContent.trim() : null,
+      // One line: every visible chip shares a top edge.
+      oneLine: [...new Set(vis.map(e => Math.round(e.getBoundingClientRect().top)))].length === 1,
+      // No scrollbar, and nothing poking out past the edge.
+      noScroll: bar.scrollWidth <= bar.clientWidth + 1,
+      overflowX: getComputedStyle(bar).overflowX,
+      allInside: vis.every(e => {
+        const q = e.getBoundingClientRect();
+        return q.left >= br.left - 1 && q.right <= br.right + 1;
+      }),
+      // Readable, not squashed to a dot. Shrinking them to fit was measured doing exactly
+      // that -- sixteen chips, no legible name on any of them.
+      namesReadable: vis.every(e => e.textContent.trim().length > 2),
+      keepsTheColourDot: vis.every(e => e.querySelector('span[style*="border-radius:50%"]')),
+      // The one you are looking at is never the one hidden.
+      activeVisible: vis.some(e => e.dataset.p2Project === window.p2State.activeId),
+    };
+    // Nothing is hidden without being counted, and the count opens a list of them.
+    out.accountedFor = out.visible + (more ? parseInt(more.textContent.replace('+', ''), 10) : 0);
+    if (more) {
+      more.click(); await w(450);
+      const m = document.querySelector('.giant-pick');
+      out.overflowOpens = !!m;
+      out.overflowLists = m ? m.querySelectorAll('.giant-pick-item').length : 0;
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+      await w(300);
+    }
+    return out;
+  });
+  return r;
+}).then(r => {
+  r = r || {};
+  check('the project strip is one line with no scrollbar, and the names stay readable',
+    r.oneLine && r.noScroll && r.overflowX === 'hidden' && r.allInside
+      && r.namesReadable && r.keepsTheColourDot && r.activeVisible, JSON.stringify(r));
+  check('what does not fit is counted and one click away, not silently dropped',
+    r.total >= 12 && r.visible < r.total && r.accountedFor === r.total
+      && r.overflowOpens && r.overflowLists === r.total - r.visible, JSON.stringify(r));
+});
+
 // A column you cannot put anything into is decoration, which is what the last one was.
 await step('filling a custom column in', async () => {
   const r = await page.evaluate(async () => {

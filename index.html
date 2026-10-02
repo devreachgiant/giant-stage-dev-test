@@ -925,6 +925,12 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 #p2_root .prj-row:last-child{border-bottom:none;}
 /* An empty custom cell still has to be clickable, or a column starts out impossible to
    fill in -- the cell is the target, not the chip inside it. */
+/* The project strip is one line with no scrollbar. It was overflow-x:auto, so everything
+   past the right edge was hidden behind a 4px strip. The chips share the width instead --
+   they shrink and their names ellipsis -- so every project stays on screen, on one row.
+   Scoped to #p2_root: the original Projects screen keeps its strip as it was. */
+#p2_root .prj-projects-bar{flex-wrap:nowrap;overflow-x:hidden;}
+
 /* The task name stays put. Add a few columns and the table is wider than the window, so
    scrolling right to fill one in took the name of the task you were filling it in FOR off
    the left edge -- found by measuring a drag that was landing on the sidebar, with the
@@ -87082,6 +87088,87 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (error && window.toast) toast({ type:'error', message:'Could not save that order: ' + error.message });
   }
 
+  // One line, no scrollbar, and every project still reachable.
+  //
+  // Those three do not all fit by themselves once there are a dozen lists, and each way of
+  // resolving it fails differently:
+  //
+  //   scroll          what was there before -- everything past the right edge hidden
+  //                   behind a 4px strip you had to find and drag
+  //   wrap            honest, but the bar grows into a block three rows deep and pushes
+  //                   the table down
+  //   shrink to fit   measured: sixteen projects became sixteen coloured dots with no
+  //                   readable name on any of them
+  //
+  // So: show what fits at its natural width, and put the rest behind one "+N" chip. The
+  // row stays one line, nothing is hidden without saying so, and the overflow is a click.
+  function fitProjectsBar(bar, addBtn){
+    if (!bar) return;
+    const chips = [...bar.querySelectorAll('[data-p2-project]')];
+    if (!chips.length) return;
+    let more = bar.querySelector('[data-p2-more]');
+    if (more) more.remove();
+    chips.forEach(c => { c.style.display = ''; });
+    // Nothing to do until the bar has a width -- on first paint it can be 0, and every
+    // chip would then be measured as overflowing and hidden.
+    // clientWidth INCLUDES the bar's own padding, and laying chips out against it
+    // overflowed by exactly that much -- measured at 1438 against a 1402 bar.
+    const cs = getComputedStyle(bar);
+    const avail = bar.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+    if (avail <= 0) { requestAnimationFrame(() => fitProjectsBar(bar, addBtn)); return; }
+    const addW = addBtn ? addBtn.offsetWidth + 6 : 0;
+    const MORE_W = 72;                      // the "+N" chip, reserved before measuring
+    const widths = chips.map(c => c.offsetWidth + 6);
+    const total = widths.reduce((a, b) => a + b, 0);
+    if (total + addW <= avail) return;      // they all fit; no overflow chip at all
+    const budget = avail - addW - MORE_W;
+    let used = 0;
+    const hidden = [];
+    chips.forEach((c, i) => {
+      // The one you are looking at is never the one that gets hidden.
+      const isActive = c.dataset.p2Project === p2.activeId;
+      if (isActive) { used += widths[i]; return; }
+      if (used + widths[i] <= budget) { used += widths[i]; return; }
+      c.style.display = 'none';
+      hidden.push(c.dataset.p2Project);
+    });
+    if (!hidden.length) return;
+    more = document.createElement('span');
+    more.setAttribute('data-p2-more', '1');
+    more.title = hidden.length + ' more project' + (hidden.length > 1 ? 's' : '');
+    more.style.cssText = 'display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;'
+      + 'background:var(--surface-2);border:1px solid var(--line);border-radius:9px;'
+      + 'padding:6px 10px;margin:0 6px 0 0;font-size:12px;font-weight:700;'
+      + 'color:var(--text-2);cursor:pointer;font-family:inherit;';
+    more.textContent = '+' + hidden.length;
+    more.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const byId = {};
+      (p2.projects || []).forEach(x => { byId[x.id] = x; });
+      window.giantPickMenu(more, {
+        options: hidden.map(id => ({ value: id, label: (byId[id] || {}).name || 'Project',
+                                     tint: (byId[id] || {}).color })),
+        value: '',
+        onPick: (v) => { if (v) selectProject(v); },
+      });
+    });
+    if (addBtn && addBtn.parentElement === bar) bar.insertBefore(more, addBtn);
+    else bar.appendChild(more);
+  }
+
+  // Re-fit when the window changes, or the bar keeps whatever fitted at the old width.
+  if (!window.__p2BarFitWired) {
+    window.__p2BarFitWired = true;
+    let t = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        const bar = document.getElementById('p2_prjProjectsBar');
+        if (bar && bar.offsetParent) fitProjectsBar(bar, document.getElementById('p2_prjProjAdd'));
+      }, 150);
+    });
+  }
+
   function renderProjectsBar(){
     const bar = $('prjProjectsBar');
     if (!bar) return;
@@ -87099,13 +87186,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         + ' data-p2-project="' + esc(p.id) + '" title="Drag to reorder"'
         // nowrap: the chip was sizing to the bar and breaking "Master List" over two lines,
         // which made a row of projects twice as tall as it needed to be and hard to scan.
-        + ' style="display:inline-flex;align-items:center;gap:7px;white-space:nowrap;flex-shrink:0;background:'
+        // Natural width, and nothing shrinks. Letting the chips share the width instead put
+        // sixteen projects on one line as sixteen coloured dots with no readable name on
+        // any of them -- one line and no scrollbar, and useless. What does not fit is
+        // moved into the "+N" chip at the end, where it is still one click away.
+        + ' style="display:inline-flex;align-items:center;gap:7px;white-space:nowrap;'
+        + 'flex:0 0 auto;background:'
         + (on ? 'var(--surface-2)' : 'transparent')
         + ';border:1px solid transparent;border-radius:9px;padding:6px 9px 6px 11px;'
-        + 'margin:0 6px 0 0;font-size:12px;font-weight:600;color:var(--text);cursor:grab;font-family:inherit;">'
+        + 'margin:0 6px 0 0;font-size:12px;font-weight:600;color:var(--text);cursor:grab;'
+        + 'font-family:inherit;">'
         + '<span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:'
         + esc(p.color || 'var(--red)') + ';"></span>'
-        + esc(p.name)
+        + '<span>' + esc(p.name) + '</span>'
         + '<span class="p2-star' + (pref.starred ? ' p2-star-on' : '') + '" data-p2-star="' + esc(p.id) + '"'
         + ' title="' + (pref.starred ? 'Unstar' : 'Star, to keep it at the front') + '"'
         + ' style="display:inline-flex;align-items:center;flex-shrink:0;padding:1px;border-radius:4px;color:'
@@ -87118,11 +87211,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         + '</span>';
     }).join('');
     if (addBtn) { addBtn.style.flexShrink = '0'; bar.appendChild(addBtn); }
-    // One line that scrolls, rather than a block that grows downward.
+    fitProjectsBar(bar, addBtn);
+    // One line, and no scrollbar on it. It was nowrap + overflow-x:auto, so every project
+    // past the right edge was hidden behind a 4px strip you had to drag to find out what
+    // was even there. Now the chips share the width instead: they shrink and their names
+    // ellipsis, so all of them stay on screen on one row.
+    //
+    // Set here and not only in the stylesheet because these are INLINE styles, which beat
+    // any rule however specific -- an #id selector in the sheet lost to this silently,
+    // which is why the first attempt at this appeared to change nothing at all.
     bar.style.display = 'flex';
     bar.style.flexWrap = 'nowrap';
     bar.style.alignItems = 'center';
-    bar.style.overflowX = 'auto';
+    bar.style.overflowX = 'hidden';
     bar.style.overflowY = 'hidden';
 
     let dragId = null;
@@ -87352,6 +87453,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     renderTasks();
   }
   window.p2SetView = setView;
+  // Exposed so the strip's one-line fit can be checked against a realistic number of
+  // projects; the fixture has four and four always fits.
+  window.p2RenderProjectsBar = renderProjectsBar;
 
   // ── shared card furniture ────────────────────────────────────────────────────
   function personChip(id){
