@@ -5732,10 +5732,6 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
   overflow:hidden;text-overflow:ellipsis;}
 .nc_fwd-ck{color:var(--red);font-size:11px;font-weight:800;width:12px;flex-shrink:0;}
 .nc_fwd-empty{padding:16px 10px;text-align:center;font-size:11.5px;color:var(--text-3);}
-.nc_fwd-note{width:calc(100% - 24px);margin:9px 12px 0;box-sizing:border-box;resize:none;
-  background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;
-  padding:7px 10px;font-size:12px;color:var(--text);font-family:inherit;outline:none;}
-.nc_fwd-note:focus{border-color:var(--red);}
 .nc_fwd-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;
   padding:10px 12px;}
 .nc_fwd-foot button{font-family:inherit;font-size:11.5px;font-weight:700;border-radius:8px;
@@ -5745,16 +5741,10 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .nc_fwd-go{background:var(--red);color:#fff;}
 .nc_fwd-go:hover{background:#c9161c;}
 .nc_fwd-go[disabled]{opacity:.45;cursor:not-allowed;}
-/* The quote, as it appears in the conversation it was forwarded into. */
-.nc_fwd-quoted{margin:2px 0 5px;padding:7px 11px;border-left:2px solid var(--line-2);
-  background:var(--surface);border-radius:0 8px 8px 0;}
-.nc_fwd-quoted-head{display:flex;align-items:center;gap:6px;font-size:10.5px;
-  color:var(--text-3);margin-bottom:3px;}
-.nc_fwd-quoted-head b{color:var(--text-2);font-weight:700;}
-/* Not pre-wrap: line breaks are <br> now, the same as any other message body, and
-   keeping both turned every newline into a blank line. */
-.nc_fwd-quoted-body{font-size:12.5px;color:var(--text-2);line-height:1.55;
-  overflow-wrap:anywhere;}
+/* All a forwarded message says about itself -- the WhatsApp mark. Quiet and above the
+   text, so the message reads as a message and not as a citation. */
+.nc_fwd-mark{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;
+  font-style:italic;color:var(--text-3);margin-bottom:2px;}
 
 /* Downloading an attachment.
    The button is always in the DOM and only fades in on hover, rather than being added on
@@ -84730,23 +84720,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               + '<span class="nc_fwd-ck">' + (chosen.has(t.id) ? '✓' : '') + '</span></div>').join('')
              : '<div class="nc_fwd-empty">Nothing matches that.</div>')
           + '</div>'
-          + '<textarea class="nc_fwd-note" rows="2" placeholder="Add a message (optional)"></textarea>'
           + '<div class="nc_fwd-foot">'
           +   '<button type="button" class="nc_fwd-cancel" data-x="1">Cancel</button>'
           +   '<button type="button" class="nc_fwd-go"' + (chosen.size ? '' : ' disabled') + '>'
           +   'Forward' + (chosen.size > 1 ? ' to ' + chosen.size : '') + '</button>'
           + '</div>';
-        const note = pop.querySelector('.nc_fwd-note');
-        if (note) note.value = pop.dataset.note || '';
         wire();
       };
       const wire = () => {
         pop.querySelectorAll('[data-x]').forEach(x => x.addEventListener('click', closeForward));
         const search = pop.querySelector('.nc_fwd-search');
         search.addEventListener('input', () => {
-          // The note survives a re-filter. Retyping it because you searched again is the
-          // kind of thing that stops people using a feature twice.
-          pop.dataset.note = pop.querySelector('.nc_fwd-note').value;
           const at = search.selectionStart;
           draw(search.value);
           const s2 = pop.querySelector('.nc_fwd-search');
@@ -84755,13 +84739,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         pop.querySelectorAll('[data-t]').forEach(r => r.addEventListener('click', () => {
           const id = r.dataset.t;
           if (chosen.has(id)) chosen.delete(id); else chosen.add(id);
-          pop.dataset.note = pop.querySelector('.nc_fwd-note').value;
           draw(pop.querySelector('.nc_fwd-search').value);
         }));
         const go = pop.querySelector('.nc_fwd-go');
         go.addEventListener('click', async () => {
           go.disabled = true; go.textContent = 'Sending…';
-          await sendForward(messageId, [...chosen], pop.querySelector('.nc_fwd-note').value.trim());
+          await sendForward(messageId, [...chosen]);
         });
       };
       document.body.appendChild(pop);
@@ -84777,44 +84760,50 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
     // Built here and not at render time, so the quote is what was on screen when somebody
     // decided to forward it.
+    // Messages live per channel in chatMsgsCache, keyed by channel id -- there is no flat
+    // list. The active channel first, then the rest, so a message forwarded from a thread
+    // panel still resolves.
+    function findLoadedMessage(id) {
+      const active = (chatMsgsCache[activeChannelId] || {}).msgs || [];
+      const hit = active.find(m => m.id === id);
+      if (hit) return hit;
+      for (const k of Object.keys(chatMsgsCache)) {
+        const m = ((chatMsgsCache[k] || {}).msgs || []).find(x => x.id === id);
+        if (m) return m;
+      }
+      return null;
+    }
+
+    // A forward is a COPY, not a quote. The message arrives looking exactly like one you
+    // sent -- same text, same files -- marked only by a small "Forwarded" label.
+    //
+    // Nothing records who wrote it, where it came from or when. That was the Slack model,
+    // and the point here is to pass something along rather than to cite it. The original's
+    // id is kept so a forward stays traceable in the data; nothing renders it.
     function forwardSnapshot(messageId) {
-      // Messages live per channel in chatMsgsCache, keyed by channel id -- there is no
-      // flat list of them. Searching the ACTIVE channel's cache first and falling back to
-      // the rest means a message forwarded from a thread panel still resolves.
-      const findMsg = (id) => {
-        const active = (chatMsgsCache[activeChannelId] || {}).msgs || [];
-        const hit = active.find(m => m.id === id);
-        if (hit) return hit;
-        for (const k of Object.keys(chatMsgsCache)) {
-          const m = ((chatMsgsCache[k] || {}).msgs || []).find(x => x.id === id);
-          if (m) return m;
-        }
-        return null;
-      };
-      const src = findMsg(messageId);
-      const author = src ? (chatProfilesCache[src.author_id] || {}) : {};
-      const srcChannel = (chatChannels || []).find(c => c.id === (src && src.channel_id));
-      return {
-        message_id: messageId,
-        author_id: src ? src.author_id : null,
-        author_name: author.display_name || author.full_name || author.email || 'Someone',
-        channel_id: src ? src.channel_id : null,
-        channel_name: srcChannel ? ncChannelLabel(srcChannel) : '',
-        body: src ? (src.body || '') : '',
-        created_at: src ? src.created_at : null,
-      };
+      return { forwarded: true, message_id: messageId };
     }
     window.nc_forwardSnapshot = forwardSnapshot;
 
-    async function sendForward(messageId, targets, note) {
+    // "@Luke can you look" forwarded elsewhere would mention Luke again, in a conversation
+    // he was never part of. Mentions are plain @name in the body, resolved at render, so
+    // dropping the @ is enough: the sentence still reads and nobody is pulled in.
+    function stripMentions(body) {
+      return String(body || '').replace(/@([a-zA-Z][a-zA-Z0-9_-]{0,})/g, '$1');
+    }
+    window.nc_stripMentions = stripMentions;
+
+    async function sendForward(messageId, targets) {
       if (!targets.length) return;
+      const src = findLoadedMessage(messageId);
+      const body = stripMentions(src ? (src.body || '') : '');
       const snapshot = forwardSnapshot(messageId);
       const atts = chatAttachmentsCache[messageId] || [];
       let ok = 0, failed = 0, attachmentsLost = 0;
       for (const chId of targets) {
         const { data, error } = await window.giantSupabase.from('messages')
           .insert({ channel_id: chId, author_id: window.giantSession.user.id,
-                    body: note || '', forwarded_from: snapshot })
+                    body: body, forwarded_from: snapshot })
           .select('id');
         // RLS refuses by returning no rows rather than erroring, so both are failures.
         if (error || !data || !data.length) { failed++; continue; }
@@ -84844,7 +84833,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           message: 'Forwarded to ' + ok + ' conversation' + (ok > 1 ? 's' : '') });
         else if (ok && !failed) toast({ type: 'info', duration: 4500,
           message: 'Forwarded to ' + ok + ', but ' + attachmentsLost
-                   + ' attachment' + (attachmentsLost > 1 ? 's' : '') + ' did not copy.' });
+                   + ' file' + (attachmentsLost > 1 ? 's' : '') + ' did not copy.' });
         else if (ok && failed) toast({ type: 'info', duration: 4500,
           message: 'Forwarded to ' + ok + '. ' + failed + ' did not send — you may not be able to post there.' });
         else toast({ type: 'error', duration: 4500,
@@ -84855,24 +84844,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // What a forwarded message shows above whatever the sender added.
     function forwardQuoteHtml(snap) {
       if (!snap || typeof snap !== 'object') return '';
-      const when = snap.created_at ? new Date(snap.created_at) : null;
-      const whenTxt = when && !isNaN(when.getTime())
-        ? when.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
-      const body = String(snap.body || '');
-      return '<div class="nc_fwd-quoted">'
-        + '<div class="nc_fwd-quoted-head">'
-        +   '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M9 3l4 4-4 4V8.5H3v-3h6V3Z"'
-        +   ' stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>'
-        +   '<span>Forwarded from <b>' + chatEsc(snap.author_name || 'Someone') + '</b>'
-        +   (snap.channel_name ? ' in ' + chatEsc(snap.channel_name) : '')
-        +   (whenTxt ? ' · ' + chatEsc(whenTxt) : '') + '</span>'
-        + '</div>'
-        // Rendered the way every other message body is rendered. Escaping it instead
-        // turned mentions, links and line breaks into literal characters, which is the
-        // "breaks the format" part -- a quote has to look like what it is quoting.
-        + (body ? '<div class="nc_fwd-quoted-body">'
-                  + parseMentions(body).replace(/\n/g, '<br>') + '</div>' : '')
-        + '</div>';
+      return '<div class="nc_fwd-mark">'
+        + '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M9 3l4 4-4 4V8.5H3v-3h6V3Z"'
+        + ' stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Forwarded</div>';
     }
     window.nc_forwardQuoteHtml = forwardQuoteHtml;
 

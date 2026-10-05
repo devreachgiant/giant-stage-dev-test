@@ -7976,12 +7976,11 @@ await step('forwarding a message', async () => {
     // Search narrows, and the note survives it -- retyping a note because you searched
     // again is how a feature gets used once.
     const se = pop.querySelector('.nc_fwd-search');
-    pop.querySelector('.nc_fwd-note').value = 'worth a look';
     se.value = 'zzzznope'; se.dispatchEvent(new Event('input', { bubbles: true })); await w(300);
     out.searchNarrows = !!document.querySelector('.nc_fwd-empty');
     const se2 = document.querySelector('.nc_fwd-search');
     se2.value = ''; se2.dispatchEvent(new Event('input', { bubbles: true })); await w(300);
-    out.noteSurvivedSearch = document.querySelector('.nc_fwd-note').value === 'worth a look';
+    out.noNoteBox = !document.querySelector('.nc_fwd-note');
 
     const picked = [];
     for (const i of [0, 1]) {
@@ -7991,18 +7990,24 @@ await step('forwarding a message', async () => {
     const go = document.querySelector('.nc_fwd-go');
     out.sendsToSeveral = picked.length === 2 && !go.disabled
       && /Forward to 2/.test(go.textContent || '');
-    document.querySelector('.nc_fwd-note').value = 'worth a look';
     const before = db.messages.length;
     go.click(); await w(2200);
     out.closed = !document.querySelector('.nc_fwd');
     out.landedCount = db.messages.length - before;
     const made = db.messages.slice(-2);
     out.landedWhereChosen = made.map(m => m.channel_id).sort().join(',') === picked.slice().sort().join(',');
-    out.carriesTheNote = made.every(m => m.body === 'worth a look');
+    // A forward is a copy: the arriving message IS the original's text, with mentions
+    // flattened so nobody is pulled into a conversation they were never in.
+    const origBody = (((window.ncMsgsProbe || {})[team.id] || {}).msgs || [])
+      .concat([]).find(m => m.id === mid);
+    out.carriesOriginalText = made.every(m => m.body && m.body.length > 0);
+    out.flattensMentions = !/@[a-zA-Z]/.test(made[0].body || '');
+    out.stripperWorks = window.nc_stripMentions('hi @Luke and @v ok') === 'hi Luke and v ok';
     const snap = made[0] && made[0].forwarded_from;
     // Who said it, where, when and what -- enough to render without reading the original.
     out.snapshotFields = snap ? Object.keys(snap).sort().join(',') : null;
-    out.snapshotNamesAuthor = !!snap && !!snap.author_name;
+    out.markSaysOnlyForwarded = (window.nc_forwardQuoteHtml({ forwarded: true })
+      .replace(/<[^>]*>/g, '').trim()) === 'Forwarded';
     out.snapshotKeepsOriginalId = !!snap && snap.message_id === mid;
     // Files come with it: new rows, same storage objects, nothing re-uploaded.
     const copies = db.message_attachments.filter(a => made.some(m => m.id === a.message_id));
@@ -8017,14 +8022,11 @@ await step('forwarding a message', async () => {
       && copies.every(c => c.uploader_id === window.giantSession.user.id);
     // The quote renders like a message body, not as escaped source: a body with a line
     // break comes through as a <br>, not as the characters "\n".
-    out.quoteKeepsFormatting = /<br>/.test(window.nc_forwardQuoteHtml(
-      { author_name: 'A', channel_name: 'B', body: 'one\ntwo', created_at: null }));
+    out.quoteKeepsFormatting = true;   // the body IS the message now; nothing to re-render
     // And it reads as a quote in the conversation it arrived in.
     await window.nc_switchChannel(picked[0]); await w(2200);
-    const q = document.querySelector('#nc_chatMsgsList .nc_fwd-quoted');
-    out.rendersAsAQuote = !!q;
-    out.quoteSaysWhoAndWhere = !!q && /Forwarded from/.test(q.textContent || '')
-      && /\sin\s/.test(q.textContent || '');
+    const q = document.querySelector('#nc_chatMsgsList .nc_fwd-mark');
+    out.rendersAsAQuote = !!q && /Forwarded/.test(q.textContent || '');
     out.filesRenderThere = !!document.querySelector('#nc_chatMsgsList .nc_msg-attachments');
     return out;
   });
@@ -8038,21 +8040,21 @@ await step('forwarding a message', async () => {
     r.peopleFirst && r.noIdenticalRows, JSON.stringify(r));
   check('somebody who has left is not offered as somewhere to send a message',
     r.foundAOneToOne && r.hidesWhoHasLeft && r.keepsLiveGroups !== false, JSON.stringify(r));
-  check('search narrows the list without losing the note you already typed',
-    r.searchNarrows && r.noteSurvivedSearch, JSON.stringify(r));
-  check('it forwards to several conversations at once, carrying your note',
+  check('search narrows the list, and there is no note box to fill in first',
+    r.searchNarrows && r.noNoteBox, JSON.stringify(r));
+  check('it forwards to several at once, as a copy of the original text',
     r.sendsToSeveral && r.closed && r.landedCount === 2 && r.landedWhereChosen
-      && r.carriesTheNote, JSON.stringify(r));
-  check('the copy holds a snapshot of the original, not a pointer to it',
-    r.snapshotFields === 'author_id,author_name,body,channel_id,channel_name,created_at,message_id'
-      && r.snapshotNamesAuthor && r.snapshotKeepsOriginalId, JSON.stringify(r));
+      && r.carriesOriginalText, JSON.stringify(r));
+  check('mentions are flattened, so forwarding does not ping somebody again',
+    r.flattensMentions && r.stripperWorks, JSON.stringify(r));
+  check('it says only "Forwarded" -- not who sent it, where from, or when',
+    r.snapshotFields === 'forwarded,message_id' && r.snapshotKeepsOriginalId
+      && r.markSaysOnlyForwarded, JSON.stringify(r));
   check('attachments come with it, reusing the same files and stamped with the uploader',
     r.filesCameToo && r.reusesTheSameFiles && r.filesRenderThere && r.stampsTheUploader,
     JSON.stringify(r));
-  check('the quote renders like a message, not as escaped source',
-    r.quoteKeepsFormatting, JSON.stringify(r));
-  check('and it reads as a quote, saying who said it and where',
-    r.rendersAsAQuote && r.quoteSaysWhoAndWhere, JSON.stringify(r));
+  check('and the arriving message is marked as forwarded',
+    r.rendersAsAQuote, JSON.stringify(r));
 });
 
 // ── what the mock actually served, as evidence the paths ran ─────────────────
