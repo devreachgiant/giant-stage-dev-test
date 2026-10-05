@@ -185,6 +185,21 @@
     file_size: 40000 + i * 9000, mime_type: i % 3 === 0 ? 'application/pdf' : 'image/png',
     storage_path: 'c/' + i + '/file-' + i, width: i % 3 === 0 ? null : 1200, height: i % 3 === 0 ? null : 800
   }));
+  // The reported bug is about a message with SEVERAL files on it, and every row above
+  // gives a message exactly one -- so the case could not arise. This is one message with
+  // four, of four different kinds, which is what "multiple files sent in a message" is.
+  const multiMsg = DB.messages[30];
+  if (multiMsg) {
+    [['contract.pdf', 'application/pdf', 220000],
+     ['mockup.png', 'image/png', 180000],
+     ['walkthrough.mp4', 'video/mp4', 900000],
+     ['voice-note.m4a', 'audio/mp4', 60000]].forEach(([nm, mt, sz], i) => {
+      DB.message_attachments.push({ id: 'att-multi-' + i, message_id: multiMsg.id,
+        file_name: nm, file_size: sz, mime_type: mt,
+        storage_path: 'c/multi/' + nm, width: null, height: null });
+    });
+  }
+
   DB.message_reactions = DB.messages.slice(0, 30).map((m, i) => ({
     id: 'rx-' + i, message_id: m.id, profile_id: 'u-' + (i + 1), emoji: pick(['👍', '🔥', '🎉', '👀'])
   }));
@@ -853,7 +868,17 @@
           // <img src>, and a https://mock.local/... URL made the browser try to resolve
           // it -- six DNS failures in the console per run, which is exactly the signal
           // this harness exists to keep clean.
-          getPublicUrl: (path) => ({ data: { publicUrl: PLACEHOLDER_IMG } }),
+          // Shaped like the real one: a cross-origin object URL carrying the path. It was
+          // a fixed data: URI, which renders fine and makes it impossible to tell whether
+          // a link was built for the right file -- or, now, asked to download at all.
+          getPublicUrl: (path) => ({ data: { publicUrl:
+            /\.(png|jpe?g|gif|webp|svg)$/i.test(String(path || '')) || /shot|img|image/i.test(String(path || ''))
+              ? PLACEHOLDER_IMG
+              // NOT *.supabase.co: the click-through aborts every request to that host as
+              // a backstop against reaching the real project, and a <video src> pointing
+              // at one made the route handler throw.
+              : 'https://files.example.test/storage/v1/object/public/chat-attachments/'
+                + String(path || '').split('/').map(encodeURIComponent).join('/') } }),
           createSignedUrl: (path) => Promise.resolve({ data: { signedUrl: 'https://mock.local/' + bucket + '/' + path }, error: null }),
           remove: (paths) => { log.storage.push('remove:' + bucket + '/' + [].concat(paths || []).join(',')); return Promise.resolve({ data: [], error: null }); },
           list: () => Promise.resolve({ data: [], error: null }),

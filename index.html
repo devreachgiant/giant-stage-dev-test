@@ -5700,6 +5700,36 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .nc_thread-panel .nc_msg-attach-img{max-width:240px;max-height:180px;}
 .nc_thread-panel .nc_msg-attach-video{max-width:240px !important;max-height:180px !important;}
 .nc_msg-attach-img:hover{transform:scale(1.01);border-color:var(--text-3);}
+/* Downloading an attachment.
+   The button is always in the DOM and only fades in on hover, rather than being added on
+   hover: a control that does not exist until you find it is a control most people never
+   find, and on a touch screen there is no hover to find it with -- so it stays visible
+   below 820px. */
+.nc_att-wrap{position:relative;display:inline-block;max-width:100%;}
+.nc_att-dl{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;
+  border-radius:7px;border:1px solid var(--line);background:var(--surface);color:var(--text-2);
+  cursor:pointer;flex-shrink:0;padding:0;font-family:inherit;transition:background .12s,color .12s,opacity .12s;}
+.nc_att-dl:hover{background:var(--surface-2);color:var(--text);}
+.nc_att-dl-float{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.62);
+  border-color:rgba(255,255,255,.22);color:#fff;opacity:0;}
+.nc_att-wrap:hover .nc_att-dl-float,.nc_att-dl-float:focus-visible{opacity:1;}
+.nc_chat-media-thumb{position:relative;}
+.nc_chat-media-thumb .nc_att-dl-float{top:6px;right:6px;width:24px;height:24px;}
+.nc_chat-media-thumb:hover .nc_att-dl-float{opacity:1;}
+@media (hover:none){.nc_att-dl-float{opacity:1;}}
+@media (max-width:820px){.nc_att-dl-float{opacity:1;}}
+/* Said once, above a set of them. */
+.nc_att-bar{display:flex;align-items:center;gap:10px;margin:4px 0 6px;font-size:11px;
+  font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);}
+.nc_att-dlall{display:inline-flex;align-items:center;gap:6px;background:var(--surface);
+  border:1px solid var(--line);border-radius:7px;padding:4px 10px;color:var(--text-2);
+  font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;text-transform:none;
+  letter-spacing:0;transition:background .12s,color .12s;}
+.nc_att-dlall:hover{background:var(--surface-2);color:var(--text);}
+/* The file row is itself a download link, but it was the only attachment with no icon on
+   it -- so scanning a message for "the download thing" skipped exactly the attachments
+   that already worked. It gets the same button as the rest. */
+.nc_msg-attach-file .nc_att-dl{margin-left:auto;}
 .nc_msg-attach-file{display:inline-flex;align-items:center;gap:9px;padding:9px 12px;background:var(--surface);border:1px solid var(--line);border-radius:9px;font-size:11.5px;cursor:pointer;transition:.15s;max-width:280px;}
 .nc_msg-attach-file:hover{background:var(--surface-2);border-color:var(--text-3);}
 .nc_msg-attach-file-ico{width:28px;height:28px;border-radius:6px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;color:var(--text-2);flex-shrink:0;}
@@ -84367,6 +84397,70 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       return data?.publicUrl || '';
     }
 
+    // The same object, asked for as a DOWNLOAD rather than as something to look at.
+    //
+    // The HTML download attribute is honoured only for same-origin URLs. Storage is on
+    // <project>.supabase.co and the app is not, so `download` on these links was being
+    // dropped on the floor by every browser and the file opened in a tab instead. That is
+    // the whole bug -- and why the only thing the Media tab could do with a file was
+    // window.open it.
+    //
+    // Storage takes ?download=<name> and answers with Content-Disposition: attachment.
+    // Measured against production on 2026-10-05, on a real attachment:
+    //
+    //   .../chat-attachments/<path>                 content-type: image/png
+    //   .../chat-attachments/<path>?download=x.png  content-type: image/png
+    //                                               content-disposition: attachment; filename=x.png
+    //
+    // Built by hand rather than through getPublicUrl's { download } option so it does not
+    // depend on which supabase-js the CDN served us.
+    function downloadAttachmentUrl(path, fileName) {
+      const base = publicAttachmentUrl(path);
+      if (!base) return '';
+      const name = String(fileName || '').trim();
+      return base + (base.indexOf('?') >= 0 ? '&' : '?')
+        + 'download=' + encodeURIComponent(name || 'file');
+    }
+    window.nc_downloadAttachmentUrl = downloadAttachmentUrl;
+    window.nc_startDownload = startDownload;
+    window.nc_downloadAllAttachments = downloadAllAttachments;
+
+    // One download, started without navigating. A plain anchor click is enough once the
+    // response carries Content-Disposition, and it does not blank the page the way
+    // assigning location would.
+    function startDownload(url, fileName) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName || '';
+      a.rel = 'noopener';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => a.remove(), 0);
+    }
+
+    // Several at once. Browsers rate-limit and sometimes silently drop downloads fired in
+    // the same tick, so they are spaced out -- which is also why this reports progress
+    // instead of looking like nothing happened.
+    async function downloadAllAttachments(atts, btn) {
+      if (!atts || !atts.length) return;
+      const label = btn ? btn.textContent : null;
+      for (let i = 0; i < atts.length; i++) {
+        if (btn) btn.textContent = 'Downloading ' + (i + 1) + ' of ' + atts.length + '…';
+        startDownload(downloadAttachmentUrl(atts[i].storage_path, atts[i].file_name), atts[i].file_name);
+        if (i < atts.length - 1) await new Promise(r => setTimeout(r, 450));
+      }
+      if (btn) {
+        btn.textContent = 'Saved ' + atts.length;
+        setTimeout(() => { btn.textContent = label; }, 2200);
+      }
+    }
+
+    const dlIcoSvg = () => '<svg width="12" height="12" viewBox="0 0 16 16" fill="none">'
+      + '<path d="M8 2.5v7.5M4.8 7.2L8 10.4l3.2-3.2M3 12.8h10" stroke="currentColor"'
+      + ' stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    window.nc_dlIco = dlIcoSvg;
+
     function renderAttachmentsForMsg(msgEl, messageId) {
       const atts = chatAttachmentsCache[messageId] || [];
       if (!atts.length) return;
@@ -84376,7 +84470,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (attEl) attEl.remove();
       attEl = document.createElement('div');
       attEl.className = 'nc_msg-attachments';
-      attEl.innerHTML = atts.map(a => {
+      // Every attachment gets a download control, not just the ones that happen to be
+      // rendered as a link. An image, a video and an audio clip were a preview and nothing
+      // else -- there was no way to save any of them -- and that is most of "you can't
+      // download them".
+      const dlBtn = (a, cls) => `<button type="button" class="nc_att-dl ${cls || ''}"`
+        + ` data-dl-path="${chatEsc(a.storage_path)}" data-dl-name="${chatEsc(a.file_name)}"`
+        + ` title="Download ${chatEsc(a.file_name)}">${dlIcoSvg()}</button>`;
+      attEl.innerHTML = (atts.length > 1
+        // Said once, above the set: downloading six things one at a time is the complaint,
+        // not the fix.
+        ? `<div class="nc_att-bar"><span>${atts.length} files</span>`
+          + `<button type="button" class="nc_att-dlall">${dlIcoSvg()} Download all</button></div>`
+        : '')
+        + atts.map(a => {
         const url = publicAttachmentUrl(a.storage_path);
         const mime = a.mime_type || '';
         const isImage = mime.startsWith('image/');
@@ -84385,9 +84492,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // Common data attrs so the element can be dragged into Reach AI as a context attachment
         const dragAttrs = `draggable="true" data-attach-url="${chatEsc(url)}" data-attach-name="${chatEsc(a.file_name)}" data-attach-mime="${chatEsc(mime)}" data-attach-size="${chatEsc(String(a.file_size||0))}"`;
         if (isImage) {
-          return `<img class="nc_msg-attach-img" src="${chatEsc(url)}" alt="${chatEsc(a.file_name)}" data-zoom="${chatEsc(url)}" ${dragAttrs}>`;
+          return `<span class="nc_att-wrap">`
+            + `<img class="nc_msg-attach-img" src="${chatEsc(url)}" alt="${chatEsc(a.file_name)}" data-zoom="${chatEsc(url)}" ${dragAttrs}>`
+            + dlBtn(a, 'nc_att-dl-float') + `</span>`;
         } else if (isVideo) {
-          return `<video class="nc_msg-attach-video" src="${chatEsc(url)}" controls preload="metadata" style="max-width:380px;max-height:280px;border-radius:8px;display:block;margin-top:4px;background:#000;" ${dragAttrs}></video>`;
+          return `<span class="nc_att-wrap">`
+            + `<video class="nc_msg-attach-video" src="${chatEsc(url)}" controls preload="metadata" style="max-width:380px;max-height:280px;border-radius:8px;display:block;margin-top:4px;background:#000;" ${dragAttrs}></video>`
+            + dlBtn(a, 'nc_att-dl-float') + `</span>`;
         } else if (isAudio) {
           return `<div ${dragAttrs} style="display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:10px 12px;max-width:380px;margin-top:4px;cursor:grab;">
             <div style="flex-shrink:0;color:var(--red);">${audioIcoSvg()}</div>
@@ -84395,14 +84506,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               <div style="font-size:12px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${chatEsc(a.file_name)}</div>
               <audio src="${chatEsc(url)}" controls preload="metadata" style="width:100%;margin-top:4px;height:32px;"></audio>
             </div>
+            ${dlBtn(a)}
           </div>`;
         } else {
-          return `<a class="nc_msg-attach-file" href="${chatEsc(url)}" target="_blank" rel="noopener" download="${chatEsc(a.file_name)}" ${dragAttrs}>
+          // href is the ?download= URL. It was the plain object URL with a download
+          // attribute, which cross-origin means "open this in a tab".
+          return `<a class="nc_msg-attach-file" href="${chatEsc(downloadAttachmentUrl(a.storage_path, a.file_name))}" rel="noopener" download="${chatEsc(a.file_name)}" ${dragAttrs}>
             <div class="nc_msg-attach-file-ico">${fileIcoSvg()}</div>
             <div class="nc_msg-attach-file-info">
               <div class="nc_msg-attach-file-name">${chatEsc(a.file_name)}</div>
               <div class="nc_msg-attach-file-meta">${chatEsc(formatBytes(a.file_size||0))} · ${chatEsc((a.mime_type||'file').split('/').pop())}</div>
             </div>
+            ${dlBtn(a)}
           </a>`;
         }
       }).join('');
@@ -84410,6 +84525,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const reactionsEl = body.querySelector('.nc_reactions');
       if (reactionsEl) body.insertBefore(attEl, reactionsEl);
       else body.appendChild(attEl);
+
+      attEl.querySelectorAll('.nc_att-dl').forEach(b => {
+        b.addEventListener('click', (e) => {
+          // Inside a zoomable image and, for a file, inside a link -- so both have to be
+          // stopped or the click previews or navigates instead of saving.
+          e.preventDefault(); e.stopPropagation();
+          startDownload(downloadAttachmentUrl(b.dataset.dlPath, b.dataset.dlName), b.dataset.dlName);
+        });
+      });
+      const allBtn = attEl.querySelector('.nc_att-dlall');
+      if (allBtn) allBtn.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        downloadAllAttachments(atts, allBtn);
+      });
 
       // Wire image zoom
       attEl.querySelectorAll('[data-zoom]').forEach(img => {
@@ -85135,7 +85264,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if(media.length){
           html+='<div class="nc_chat-media-section-title">Photos &amp; videos · '+media.length+'</div><div class="nc_chat-media-grid">';
           html+=media.map(a=>{ const u=pubUrl(a.storage_path); const v=/^video\//.test(a.mime_type||'');
-            return '<div class="nc_chat-media-thumb" data-url="'+u+'">'+(v
+            return '<div class="nc_chat-media-thumb" data-url="'+u+'">'
+              +'<button type="button" class="nc_att-dl nc_att-dl-float" data-dl-path="'+esc(a.storage_path)+'" data-dl-name="'+esc(a.file_name||'file')+'" title="Download">'+window.nc_dlIco()+'</button>'
+              +(v
               ? '<video src="'+u+'#t=0.1" muted preload="metadata"></video><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;"><div style="width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;"><svg width="13" height="13" viewBox="0 0 16 16" fill="#fff"><path d="M5 3.5v9l7-4.5z"/></svg></div></div>'
               : '<img src="'+u+'" loading="lazy">')+'</div>';
           }).join('')+'</div>';
@@ -85143,12 +85274,27 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if(docs.length){
           html+='<div class="nc_chat-media-section-title">Documents · '+docs.length+'</div>';
           html+=docs.map(a=>{ const u=pubUrl(a.storage_path); const kb=a.file_size?Math.round(a.file_size/1024):0; const sz=kb>1024?(kb/1024).toFixed(1)+' MB':(kb+' KB');
-            return '<div class="nc_chat-media-doc" data-url="'+u+'"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" style="color:var(--red);flex-shrink:0;"><path d="M4 1.5h5l3 3V14a.5.5 0 01-.5.5h-7A.5.5 0 014 14V2a.5.5 0 01.5-.5z" stroke="currentColor" stroke-width="1.3"/><path d="M9 1.5V4.5h3" stroke="currentColor" stroke-width="1.3"/></svg><div style="min-width:0;"><div style="font-size:12.5px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(a.file_name||'file')+'</div><div style="font-size:10.5px;color:var(--text-3);">'+sz+'</div></div></div>';
+            return '<div class="nc_chat-media-doc" data-url="'+u+'"><svg width="20" height="20" viewBox="0 0 16 16" fill="none" style="color:var(--red);flex-shrink:0;"><path d="M4 1.5h5l3 3V14a.5.5 0 01-.5.5h-7A.5.5 0 014 14V2a.5.5 0 01.5-.5z" stroke="currentColor" stroke-width="1.3"/><path d="M9 1.5V4.5h3" stroke="currentColor" stroke-width="1.3"/></svg><div style="min-width:0;"><div style="font-size:12.5px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+esc(a.file_name||'file')+'</div><div style="font-size:10.5px;color:var(--text-3);">'+sz+'</div></div>'
+              +'<button type="button" class="nc_att-dl" style="margin-left:auto;" data-dl-path="'+esc(a.storage_path)+'" data-dl-name="'+esc(a.file_name||'file')+'" title="Download">'+window.nc_dlIco()+'</button></div>';
           }).join('');
         }
+        if(html && atts.length>1) html='<div class="nc_att-bar" style="margin:0 14px 8px;"><span>'+atts.length+' files</span>'
+          +'<button type="button" class="nc_att-dlall" data-dl-all="1">'+window.nc_dlIco()+' Download all</button></div>'+html;
         if(!html) html='<div style="padding:34px 20px;text-align:center;color:var(--text-3);font-size:12.5px;">No files match “'+esc(q)+'”.</div>';
         box.innerHTML=html;
+        // Opening a tab was the ONLY thing this tab could do with a file -- "in the media
+        // section, it only lets you see files as a link". Clicking still previews; the
+        // button saves, and Download all saves the lot.
         box.querySelectorAll('[data-url]').forEach(el=>el.addEventListener('click',()=>{ if(el.dataset.url) window.open(el.dataset.url,'_blank'); }));
+        box.querySelectorAll('[data-dl-path]').forEach(b=>b.addEventListener('click',(e)=>{
+          e.preventDefault(); e.stopPropagation();
+          window.nc_startDownload(window.nc_downloadAttachmentUrl(b.dataset.dlPath, b.dataset.dlName), b.dataset.dlName);
+        }));
+        const all=box.querySelector('[data-dl-all]');
+        if(all) all.addEventListener('click',(e)=>{
+          e.preventDefault(); e.stopPropagation();
+          window.nc_downloadAllAttachments(atts, all);
+        });
       }
 
       // ── Canvas ──

@@ -7763,6 +7763,91 @@ check('the message box, the header avatar and the jump box all use the chosen na
 check('a thread says which conversation it is in, by the chosen name',
   ren.threadFollowed, JSON.stringify(ren));
 
+// ── Downloading what somebody sent you ───────────────────────────────────────
+// Reported: "if there's multiple files sent in a message, it doesn't seem you can
+// download them. And then in the media section, it only lets you see files as a link."
+//
+// Root cause, measured against production storage on 2026-10-05: the HTML download
+// attribute is honoured only SAME-ORIGIN, and storage is on another host, so it was being
+// dropped and the link opened a tab. Storage answers ?download=<name> with
+// Content-Disposition: attachment -- without it, the response carries no disposition
+// header at all. And images, video and audio had no download control of any kind: they
+// were a preview and nothing else.
+await step('downloading attachments', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const out = {};
+    const db = window.__mock.db;
+    const multi = db.message_attachments.filter(a => String(a.id).indexOf('att-multi') === 0);
+    out.filesOnOneMessage = multi.length;
+    // Moved onto a message that is ON SCREEN in whatever channel is open. Which fixture
+    // message the four files start on decides nothing about this fix, and pinning them to
+    // one meant the check depended on that message's channel still being open and its
+    // attachments still being in the fetched window -- which, this far into the run, it
+    // was not: the message was rendered and no attachment block existed anywhere in it.
+    // An ordinary team channel, explicitly. Whatever was open at this point in the run was
+    // ch-home, which paints its messages through the announcements view -- 229 message
+    // elements and not one attachment block in any of them, which is not what this check
+    // is about.
+    const team = db.channels.find(c => c.kind === 'team_channel'
+      && db.messages.some(m => m.channel_id === c.id));
+    if (!team || typeof window.nc_switchChannel !== 'function') { out.noTeamChannel = true; return out; }
+    await window.nc_switchChannel(team.id);
+    await w(2200);
+    const onScreen = document.querySelector('#nc_chatMsgsList .nc_msg[data-msg-id]');
+    if (!onScreen) { out.noMessagesOnScreen = true; return out; }
+    const mid = onScreen.dataset.msgId;
+    // Moved onto a message that is ON SCREEN. Which fixture message the four files start
+    // on decides nothing about this fix, and pinning them to one made the check depend on
+    // that message's channel being open and its attachments being in the fetched window.
+    multi.forEach(a => { a.message_id = mid; });
+    const msg = db.messages.find(m => m.id === mid);
+    // Re-open so the attachment fetch runs again over these rows.
+    await window.nc_switchChannel(team.id === (msg && msg.channel_id) ? team.id : (msg && msg.channel_id));
+    await w(2500);
+    // Attachments are fetched and painted after the messages, so this waits for the block
+    // rather than reading straight after the click.
+    let atts = null;
+    for (let i = 0; i < 40; i++) {
+      const el = document.querySelector('#nc_chatMsgsList .nc_msg[data-msg-id="' + mid + '"]');
+      atts = el && el.querySelector('.nc_msg-attachments');
+      if (atts) break;
+      await w(250);
+    }
+    out.rendered = !!atts;
+    if (!atts) return out;
+
+    // One control per file, whatever its type -- the point of the bug.
+    out.files = atts.querySelectorAll('[data-dl-path]').length;
+    out.hasDownloadAll = !!atts.querySelector('.nc_att-dlall');
+    out.saysHowMany = /4 files/.test((atts.querySelector('.nc_att-bar') || {}).textContent || '');
+    // Images and video are previews; their control is the floating one over the preview.
+    out.onThePreviews = atts.querySelectorAll('.nc_att-wrap .nc_att-dl-float').length;
+    // The plain-file link asks storage to send it as an attachment rather than show it.
+    const link = atts.querySelector('a.nc_msg-attach-file');
+    out.fileLinkAsksForDownload = !!link && /[?&]download=/.test(link.getAttribute('href') || '');
+    // and it names the file, so it does not land as "object" in the downloads folder
+    out.downloadUrlNamesTheFile =
+      /[?&]download=contract\.pdf$/.test(window.nc_downloadAttachmentUrl('c/multi/contract.pdf', 'contract.pdf'));
+    // A name with a space or a slash has to survive the round trip.
+    out.encodesAwkwardNames =
+      /download=my%20report%20%2B%20notes\.pdf$/.test(
+        window.nc_downloadAttachmentUrl('c/x', 'my report + notes.pdf'));
+    return out;
+  });
+  return r;
+}).then(r => {
+  r = r || {};
+  check('a message with several files offers a download for every one of them',
+    r.rendered && r.filesOnOneMessage === 4 && r.files === 4 && r.onThePreviews >= 2,
+    JSON.stringify(r));
+  check('and one control to save the lot, saying how many there are',
+    r.hasDownloadAll && r.saysHowMany, JSON.stringify(r));
+  check('the link asks storage for an attachment, named, and survives an awkward filename',
+    r.fileLinkAsksForDownload && r.downloadUrlNamesTheFile && r.encodesAwkwardNames,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
