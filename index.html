@@ -79287,6 +79287,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // that check did and why it measured nothing.
       window.ncDmOthersProbe = channelToOthers;
       window.ncProfilesProbe = chatProfilesCache;
+      window.ncMsgsCacheProbe = chatMsgsCache;
       // Pull profiles from the in-memory cache (populated by hydrateAllWorkspaceProfiles at boot).
       // If any are missing, fetch them in a single batch query.
       const allOtherIds = [...new Set(Object.values(channelToOthers).flat())];
@@ -84791,7 +84792,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // he was never part of. Mentions are plain @name in the body, resolved at render, so
     // dropping the @ is enough: the sentence still reads and nobody is pulled in.
     function stripMentions(body) {
-      return String(body || '').replace(/@([a-zA-Z][a-zA-Z0-9_-]{0,})/g, '$1');
+      // Only at a mention boundary -- start of the message or after whitespace. Stripping
+      // every @ turned "mail bob@example.com" into "mail bobexample.com", which corrupts
+      // the text permanently: the forwarded body is what is stored, not a rendering of it.
+      return String(body || '').replace(/(^|\s)@([a-zA-Z][a-zA-Z0-9_-]{0,})/g, '$1$2');
     }
     window.nc_stripMentions = stripMentions;
 

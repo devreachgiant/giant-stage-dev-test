@@ -8002,7 +8002,53 @@ await step('forwarding a message', async () => {
       .concat([]).find(m => m.id === mid);
     out.carriesOriginalText = made.every(m => m.body && m.body.length > 0);
     out.flattensMentions = !/@[a-zA-Z]/.test(made[0].body || '');
-    out.stripperWorks = window.nc_stripMentions('hi @Luke and @v ok') === 'hi Luke and v ok';
+    out.stripperWorks = window.nc_stripMentions('hi @Luke and @v ok') === 'hi Luke and v ok'
+      && window.nc_stripMentions('@Luke hi') === 'Luke hi'
+      && window.nc_stripMentions('one\n@Luke two') === 'one\nLuke two';
+    // Only at a mention boundary. Stripping every @ turned "mail bob@example.com" into
+    // "mail bobexample.com" -- and the forwarded body is what gets STORED, so that
+    // corruption is permanent rather than a rendering quirk.
+    out.leavesEmailsAlone =
+      window.nc_stripMentions('mail bob@example.com please') === 'mail bob@example.com please';
+
+    // A message with no text at all -- just files. It still forwards, still gets the mark,
+    // and still carries the files.
+    const noTextSrc = made[0];
+    (window.ncMsgsCacheProbe && Object.keys(window.ncMsgsCacheProbe) || []).forEach(k => {
+      ((window.ncMsgsCacheProbe[k] || {}).msgs || []).forEach(m => { if (m.id === mid) m.body = ''; });
+    });
+    const openOn = async (id) => {
+      document.querySelectorAll('.nc_fwd').forEach(x => x.remove());
+      const e = document.querySelector('#nc_chatMsgsList .nc_msg[data-msg-id="' + id + '"]');
+      if (!e) return null;
+      e.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })); await w(350);
+      const btn = e.querySelector('[data-action="forward"]');
+      if (!btn) return null;
+      btn.click(); await w(450);
+      return document.querySelector('.nc_fwd');
+    };
+    const pEmpty = await openOn(mid);
+    if (pEmpty) {
+      const b0 = db.messages.length;
+      pEmpty.querySelector('.nc_fwd-row').click(); await w(250);
+      document.querySelector('.nc_fwd-go').click(); await w(2000);
+      const m0 = db.messages[db.messages.length - 1];
+      out.emptyForwards = db.messages.length === b0 + 1 && m0.body === ''
+        && !!(m0.forwarded_from && m0.forwarded_from.forwarded)
+        && db.message_attachments.filter(a => a.message_id === m0.id).length === 4;
+      // Forwarding a forward does not nest or lose anything.
+      const pAgain = await openOn(m0.id);
+      if (pAgain) {
+        const b1 = db.messages.length;
+        pAgain.querySelector('.nc_fwd-row').click(); await w(250);
+        document.querySelector('.nc_fwd-go').click(); await w(2000);
+        const m1 = db.messages[db.messages.length - 1];
+        out.forwardOfAForward = db.messages.length === b1 + 1
+          && Object.keys(m1.forwarded_from || {}).sort().join(',') === 'forwarded,message_id'
+          && db.message_attachments.filter(a => a.message_id === m1.id).length === 4;
+      }
+      document.querySelectorAll('.nc_fwd').forEach(x => x.remove());
+    }
     const snap = made[0] && made[0].forwarded_from;
     // Who said it, where, when and what -- enough to render without reading the original.
     out.snapshotFields = snap ? Object.keys(snap).sort().join(',') : null;
@@ -8047,6 +8093,12 @@ await step('forwarding a message', async () => {
       && r.carriesOriginalText, JSON.stringify(r));
   check('mentions are flattened, so forwarding does not ping somebody again',
     r.flattensMentions && r.stripperWorks, JSON.stringify(r));
+  check('an email address survives the flattening',
+    r.leavesEmailsAlone, JSON.stringify(r));
+  check('a message with only files forwards, marked, with its files',
+    r.emptyForwards, JSON.stringify(r));
+  check('and a forward can itself be forwarded without nesting or losing anything',
+    r.forwardOfAForward, JSON.stringify(r));
   check('it says only "Forwarded" -- not who sent it, where from, or when',
     r.snapshotFields === 'forwarded,message_id' && r.snapshotKeepsOriginalId
       && r.markSaysOnlyForwarded, JSON.stringify(r));
