@@ -7829,10 +7829,34 @@ await step('downloading attachments', async () => {
     // and it names the file, so it does not land as "object" in the downloads folder
     out.downloadUrlNamesTheFile =
       /[?&]download=contract\.pdf$/.test(window.nc_downloadAttachmentUrl('c/multi/contract.pdf', 'contract.pdf'));
-    // A name with a space or a slash has to survive the round trip.
+    // A name with a space or a plus has to survive the round trip.
     out.encodesAwkwardNames =
       /download=my%20report%20%2B%20notes\.pdf$/.test(
         window.nc_downloadAttachmentUrl('c/x', 'my report + notes.pdf'));
+
+    // Download all produces ONE archive. Firing one download per attachment does not
+    // work: only the first is inside the click's user gesture and Chrome blocks the rest,
+    // which is what "the button is displaying but it's not downloading all files" was.
+    //
+    // The writer is exercised directly rather than through a click -- clicking starts a
+    // real download, which navigates and tears down the page. Whether the bytes are a
+    // VALID zip is proven outside this file, by generating one through the UI and running
+    // the system unzip over it; what this pins is the structure and the naming.
+    const enc = new TextEncoder();
+    const blob = window.nc_zipStore([
+      { name: 'a.txt', bytes: enc.encode('hello') },
+      { name: 'b.txt', bytes: enc.encode('world!') },
+    ]);
+    out.zipType = blob && blob.type;
+    const head = new Uint8Array(await blob.slice(0, 4).arrayBuffer());
+    // PK\x03\x04 -- a local file header, so it is at least shaped like an archive.
+    out.zipSignature = Array.from(head).join(',');
+    out.zipHasBothEntries = blob.size > 'hello'.length + 'world!'.length + 60;
+    // Two files called the same thing is normal -- two screenshots, two "image.png" --
+    // and a zip holding one name twice unpacks to a single file.
+    out.dedupes = JSON.stringify(window.nc_uniqueNames([
+      { file_name: 'shot.png' }, { file_name: 'shot.png' }, { file_name: 'shot.png' },
+    ]));
     return out;
   });
   return r;
@@ -7845,6 +7869,11 @@ await step('downloading attachments', async () => {
     r.hasDownloadAll && r.saysHowMany, JSON.stringify(r));
   check('the link asks storage for an attachment, named, and survives an awkward filename',
     r.fileLinkAsksForDownload && r.downloadUrlNamesTheFile && r.encodesAwkwardNames,
+    JSON.stringify(r));
+  check('Download all builds one archive, and two files of the same name stay two files',
+    r.zipType === 'application/zip' && r.zipSignature === '80,75,3,4'
+      && r.zipHasBothEntries
+      && r.dedupes === JSON.stringify(['shot.png', 'shot (1).png', 'shot (2).png']),
     JSON.stringify(r));
 });
 

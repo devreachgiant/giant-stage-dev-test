@@ -84423,6 +84423,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
     window.nc_downloadAttachmentUrl = downloadAttachmentUrl;
     window.nc_startDownload = startDownload;
+    // The archive writer and the name de-duplicator are the risky half of this -- a
+    // hand-written zip is either byte-correct or silently corrupt -- so they are reachable
+    // on their own rather than only through a click that starts a real download.
+    window.nc_zipStore = zipStore;
+    window.nc_uniqueNames = uniqueNames;
     window.nc_downloadAllAttachments = downloadAllAttachments;
 
     // One download, started without navigating. A plain anchor click is enough once the
@@ -84439,21 +84444,125 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       setTimeout(() => a.remove(), 0);
     }
 
-    // Several at once. Browsers rate-limit and sometimes silently drop downloads fired in
-    // the same tick, so they are spaced out -- which is also why this reports progress
-    // instead of looking like nothing happened.
-    async function downloadAllAttachments(atts, btn) {
+    // ── Several at once: one zip, one download ──────────────────────────────────
+    //
+    // Firing one download per file does not work, and spacing them out makes it worse.
+    // Only the FIRST is inside the click's user gesture; everything after an await is an
+    // automatic download, which Chrome blocks or hides behind a "download multiple files"
+    // prompt. Reported as exactly that -- the button appears, one file arrives.
+    //
+    // So the files are fetched and packed into a single archive, which is one download
+    // from one gesture and needs no permission at all. Fetching them is allowed:
+    // storage answers with access-control-allow-origin: * (checked against production).
+    //
+    // Stored, not deflated. These are already-compressed images, video and PDFs, so
+    // deflate would cost CPU on every byte to save almost nothing -- and "store" needs no
+    // compressor, which is the difference between sixty lines here and a dependency.
+    const CRC_TABLE = (() => {
+      const t = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        t[n] = c >>> 0;
+      }
+      return t;
+    })();
+    function crc32(bytes) {
+      let c = 0xFFFFFFFF;
+      for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+      return (c ^ 0xFFFFFFFF) >>> 0;
+    }
+    function zipStore(files) {
+      const enc = new TextEncoder();
+      const chunks = [], central = [];
+      let offset = 0;
+      // A real MS-DOS timestamp. Zeroes list as "00-00-1980", which is not a date -- unzip
+      // shrugs at it, stricter tools (Windows Explorer among them) do not.
+      const now = new Date();
+      const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+      const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+      files.forEach(f => {
+        const name = enc.encode(f.name);
+        const crc = crc32(f.bytes), size = f.bytes.length;
+        const local = new DataView(new ArrayBuffer(30));
+        local.setUint32(0, 0x04034b50, true);
+        local.setUint16(4, 20, true);
+        local.setUint16(6, 0x0800, true);   // UTF-8 names, so accents survive
+        local.setUint16(8, 0, true);        // stored
+        local.setUint16(10, dosTime, true); local.setUint16(12, dosDate, true);
+        local.setUint32(14, crc, true);
+        local.setUint32(18, size, true); local.setUint32(22, size, true);
+        local.setUint16(26, name.length, true); local.setUint16(28, 0, true);
+        chunks.push(new Uint8Array(local.buffer), name, f.bytes);
+
+        const cd = new DataView(new ArrayBuffer(46));
+        cd.setUint32(0, 0x02014b50, true);
+        cd.setUint16(4, 20, true); cd.setUint16(6, 20, true);
+        cd.setUint16(8, 0x0800, true); cd.setUint16(10, 0, true);
+        cd.setUint16(12, dosTime, true); cd.setUint16(14, dosDate, true);
+        cd.setUint32(16, crc, true);
+        cd.setUint32(20, size, true); cd.setUint32(24, size, true);
+        cd.setUint16(28, name.length, true);
+        cd.setUint16(30, 0, true); cd.setUint16(32, 0, true);
+        cd.setUint16(34, 0, true); cd.setUint16(36, 0, true);
+        cd.setUint32(38, 0, true);
+        cd.setUint32(42, offset, true);
+        central.push(new Uint8Array(cd.buffer), name);
+        offset += 30 + name.length + size;
+      });
+      const cdSize = central.reduce((n, c) => n + c.length, 0);
+      const end = new DataView(new ArrayBuffer(22));
+      end.setUint32(0, 0x06054b50, true);
+      end.setUint16(4, 0, true); end.setUint16(6, 0, true);
+      end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+      end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+      end.setUint16(20, 0, true);
+      return new Blob(chunks.concat(central, [new Uint8Array(end.buffer)]),
+                      { type: 'application/zip' });
+    }
+    // Two files called the same thing is normal -- two screenshots, two "image.png" --
+    // and a zip holding the same name twice unpacks to one file.
+    function uniqueNames(atts) {
+      const seen = Object.create(null);
+      return atts.map(a => {
+        let nm = (a.file_name || 'file').replace(/[\\/]/g, '_');
+        if (seen[nm] == null) { seen[nm] = 0; return nm; }
+        const n = ++seen[nm];
+        const dot = nm.lastIndexOf('.');
+        return dot > 0 ? nm.slice(0, dot) + ' (' + n + ')' + nm.slice(dot) : nm + ' (' + n + ')';
+      });
+    }
+    async function downloadAllAttachments(atts, btn, zipName) {
       if (!atts || !atts.length) return;
       const label = btn ? btn.textContent : null;
-      for (let i = 0; i < atts.length; i++) {
-        if (btn) btn.textContent = 'Downloading ' + (i + 1) + ' of ' + atts.length + '…';
-        startDownload(downloadAttachmentUrl(atts[i].storage_path, atts[i].file_name), atts[i].file_name);
-        if (i < atts.length - 1) await new Promise(r => setTimeout(r, 450));
+      const say = (t) => { if (btn) btn.textContent = t; };
+      try {
+        const names = uniqueNames(atts);
+        const files = [];
+        for (let i = 0; i < atts.length; i++) {
+          say('Preparing ' + (i + 1) + ' of ' + atts.length + '…');
+          const res = await fetch(publicAttachmentUrl(atts[i].storage_path));
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          files.push({ name: names[i], bytes: new Uint8Array(await res.arrayBuffer()) });
+        }
+        say('Zipping…');
+        const url = URL.createObjectURL(zipStore(files));
+        // Same-origin blob, so the download attribute is honoured and names the file.
+        startDownload(url, (zipName || 'attachments') + '.zip');
+        setTimeout(() => URL.revokeObjectURL(url), 60000);
+        say('Saved ' + atts.length);
+      } catch (e) {
+        // Anything at all -- one file 404s, the network drops, a browser with no
+        // TextEncoder -- and it falls back to one download per file rather than nothing.
+        console.warn('[attachments] zip failed, downloading individually:', e && e.message);
+        say('Downloading…');
+        for (let i = 0; i < atts.length; i++) {
+          startDownload(downloadAttachmentUrl(atts[i].storage_path, atts[i].file_name), atts[i].file_name);
+          if (i < atts.length - 1) await new Promise(r => setTimeout(r, 400));
+        }
+        say('Saved ' + atts.length);
       }
-      if (btn) {
-        btn.textContent = 'Saved ' + atts.length;
-        setTimeout(() => { btn.textContent = label; }, 2200);
-      }
+      if (btn) setTimeout(() => { btn.textContent = label; }, 2500);
     }
 
     const dlIcoSvg = () => '<svg width="12" height="12" viewBox="0 0 16 16" fill="none">'
