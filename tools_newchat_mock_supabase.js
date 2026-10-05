@@ -177,7 +177,7 @@
       DB.messages.push({ id: 'm-' + (++mid), channel_id: m.channel_id, author_id: 'u-' + (i + 1),
         body: 'Reply ' + (k + 1), created_at: iso(1, i * 3 + k), parent_id: m.id, reply_count: 0,
         edited_at: null, voice_note_url: null, voice_note_duration_ms: null, flagged: false,
-        pinned_at: null, pinned_by: null });
+        pinned_at: null, pinned_by: null, forwarded_from: null });
   });
 
   DB.message_attachments = DB.messages.slice(0, 24).map((m, i) => ({

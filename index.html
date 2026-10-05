@@ -5700,6 +5700,60 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .nc_thread-panel .nc_msg-attach-img{max-width:240px;max-height:180px;}
 .nc_thread-panel .nc_msg-attach-video{max-width:240px !important;max-height:180px !important;}
 .nc_msg-attach-img:hover{transform:scale(1.01);border-color:var(--text-3);}
+/* Forwarding a message. The panel is built on <body> and positioned, not nested in the
+   message: the message list scrolls and clips, and a panel inside it gets cut off at the
+   edge of the pane. */
+.nc_fwd{position:fixed;z-index:9200;width:320px;background:var(--surface);
+  border:1px solid var(--line-2);border-radius:14px;overflow:hidden;font-family:inherit;
+  box-shadow:0 12px 32px -4px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.08);}
+.nc_fwd-head{display:flex;align-items:center;justify-content:space-between;
+  padding:11px 13px;border-bottom:1px solid var(--line);font-size:12px;font-weight:700;
+  color:var(--text);}
+.nc_fwd-x{cursor:pointer;color:var(--text-3);padding:2px 5px;border-radius:5px;line-height:1;}
+.nc_fwd-x:hover{color:var(--text);background:var(--surface-2);}
+/* What you are about to send, so it cannot quietly be the wrong message. */
+.nc_fwd-quote{margin:10px 12px;padding:8px 10px;border-left:2px solid var(--red);
+  background:var(--surface-2);border-radius:0 8px 8px 0;font-size:11.5px;color:var(--text-2);
+  line-height:1.5;max-height:72px;overflow:hidden;}
+.nc_fwd-att{margin-top:5px;font-size:10.5px;font-weight:700;color:var(--text-3);}
+.nc_fwd-search{width:calc(100% - 24px);margin:0 12px 8px;box-sizing:border-box;
+  background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;
+  padding:7px 10px;font-size:12px;color:var(--text);font-family:inherit;outline:none;}
+.nc_fwd-search:focus{border-color:var(--red);}
+.nc_fwd-list{max-height:198px;overflow-y:auto;padding:0 8px;}
+.nc_fwd-row{display:flex;align-items:center;gap:8px;padding:7px 8px;border-radius:8px;
+  cursor:pointer;border:1px solid transparent;}
+.nc_fwd-row:hover{background:var(--surface-2);}
+.nc_fwd-row.on{background:var(--surface-2);border-color:rgba(232,35,42,.45);}
+.nc_fwd-kind{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--text-3);background:var(--surface);border:1px solid var(--line);
+  border-radius:5px;padding:1px 6px;flex-shrink:0;}
+.nc_fwd-label{flex:1;min-width:0;font-size:12px;color:var(--text);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;}
+.nc_fwd-ck{color:var(--red);font-size:11px;font-weight:800;width:12px;flex-shrink:0;}
+.nc_fwd-empty{padding:16px 10px;text-align:center;font-size:11.5px;color:var(--text-3);}
+.nc_fwd-note{width:calc(100% - 24px);margin:9px 12px 0;box-sizing:border-box;resize:none;
+  background:var(--surface-2);border:1px solid var(--line-2);border-radius:8px;
+  padding:7px 10px;font-size:12px;color:var(--text);font-family:inherit;outline:none;}
+.nc_fwd-note:focus{border-color:var(--red);}
+.nc_fwd-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;
+  padding:10px 12px;}
+.nc_fwd-foot button{font-family:inherit;font-size:11.5px;font-weight:700;border-radius:8px;
+  padding:7px 14px;cursor:pointer;border:1px solid transparent;}
+.nc_fwd-cancel{background:transparent;color:var(--text-3);}
+.nc_fwd-cancel:hover{color:var(--text);background:var(--surface-2);}
+.nc_fwd-go{background:var(--red);color:#fff;}
+.nc_fwd-go:hover{background:#c9161c;}
+.nc_fwd-go[disabled]{opacity:.45;cursor:not-allowed;}
+/* The quote, as it appears in the conversation it was forwarded into. */
+.nc_fwd-quoted{margin:2px 0 5px;padding:7px 11px;border-left:2px solid var(--line-2);
+  background:var(--surface);border-radius:0 8px 8px 0;}
+.nc_fwd-quoted-head{display:flex;align-items:center;gap:6px;font-size:10.5px;
+  color:var(--text-3);margin-bottom:3px;}
+.nc_fwd-quoted-head b{color:var(--text-2);font-weight:700;}
+.nc_fwd-quoted-body{font-size:12.5px;color:var(--text-2);line-height:1.55;
+  white-space:pre-wrap;overflow-wrap:anywhere;}
+
 /* Downloading an attachment.
    The button is always in the DOM and only fades in on hover, rather than being added on
    hover: a control that does not exist until you find it is a control most people never
@@ -80167,7 +80221,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
       const { data, error } = await queryWithRetry(() => window.giantSupabase
         .from('messages')
-        .select('id, body, created_at, edited_at, author_id, channel_id, parent_id, reply_count, voice_note_url, voice_note_duration_ms, flagged')
+        .select('id, body, created_at, edited_at, author_id, channel_id, parent_id, reply_count, voice_note_url, voice_note_duration_ms, flagged, forwarded_from')
         .in('channel_id', ncChannelScope(channelId))
         .is('parent_id', null)
         .order('created_at', { ascending: false })
@@ -80250,7 +80304,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         : 0;
       const { data, error } = await window.giantSupabase
         .from('messages')
-        .select('id, body, created_at, edited_at, author_id, channel_id, parent_id, reply_count, voice_note_url, voice_note_duration_ms, flagged')
+        .select('id, body, created_at, edited_at, author_id, channel_id, parent_id, reply_count, voice_note_url, voice_note_duration_ms, flagged, forwarded_from')
         .in('channel_id', ncChannelScope(channelId))
         .is('parent_id', null)
         .lt('created_at', page.oldestTs)
@@ -80464,6 +80518,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             <div class="nc_msg nc_msg-grouped${m.flagged ? ' nc_flagged' : ''}" data-msg-id="${chatEsc(m.id)}" data-author-id="${chatEsc(m.author_id)}" data-ts="${d.getTime()}">
               <div class="nc_ava-slot" title="${chatEsc(formatChatTime(m.created_at))}"><span class="nc_grouped-time">${chatEsc(formatChatTimeShort(m.created_at))}</span></div>
               <div class="nc_body">
+                ${forwardQuoteHtml(m.forwarded_from)}
                 <div class="nc_text" data-msg-body data-msg-id="${chatEsc(m.id)}" data-msg-mine="${isMine ? '1' : '0'}">${parseMentions(m.body).replace(/\n/g, "<br>")}${voiceHtml}${m.edited_at ? ' <span style="color:var(--text-3);font-size:9.5px;">(edited)</span>' : ''}</div>
               </div>
               ${deleteBtn}
@@ -80474,6 +80529,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             <div class="ava ${(window.giantOnlineProfiles && window.giantOnlineProfiles.has(m.author_id)) ? 'online' : ''}" data-presence-for="${chatEsc(m.author_id)}" style="${avaStyle}">${avaInner}</div>
             <div class="nc_body">
               <div class="nc_head"><span class="nc_name">${chatEsc(p.full_name || p.email)}</span><span class="nc_time">${chatEsc(formatChatTime(m.created_at))}${m.edited_at ? " <span style=\"color:var(--text-3);font-size:9.5px;\">(edited)</span>" : ""}</span></div>
+              ${forwardQuoteHtml(m.forwarded_from)}
               <div class="nc_text" data-msg-body data-msg-id="${chatEsc(m.id)}" data-msg-mine="${m.author_id === window.giantSession.user.id ? "1" : "0"}">${parseMentions(m.body).replace(/\n/g, "<br>")}${voiceHtml}</div>
             </div>
             ${deleteBtn}
@@ -82510,7 +82566,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // Delete button — only the author can delete their own message
       const deleteHtml = isMine ? `<div class="nc_msg-react-bar-more" data-action="delete" title="Delete message" style="color:var(--red);"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3.5 4.5h9M6 4.5v-1a1 1 0 011-1h2a1 1 0 011 1v1M5 4.5l.5 8a1 1 0 001 .9h3a1 1 0 001-.9l.5-8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>` : '';
       const editHtml = isMine ? `<div class="nc_msg-react-bar-more" data-action="edit" title="Edit message"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M11 2.2l2.6 2.6M3 12.5l8.2-8.2 2.6 2.6-8.2 8.2H3v-2.6z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></div>` : '';
-      bar.innerHTML = emojisHtml + moreEmojiHtml + sepHtml + aiHtml + createTaskHtml + pinHtml + markUnreadHtml + editHtml + deleteHtml;
+      // Forward -- on every message, including your own: passing something of yours on to
+      // another channel is as ordinary as passing on somebody else's.
+      const forwardHtml = `<div class="nc_msg-react-bar-more" data-action="forward" title="Forward this message"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M9 3l4.5 4L9 11V8.2C5.8 8.2 3.8 9.2 2.5 11.5c.2-3.6 2.3-5.8 6.5-6V3Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg></div>`;
+      bar.innerHTML = emojisHtml + moreEmojiHtml + sepHtml + aiHtml + createTaskHtml + forwardHtml + pinHtml + markUnreadHtml + editHtml + deleteHtml;
+      const fwdBtn = bar.querySelector('[data-action="forward"]');
+      if (fwdBtn) fwdBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openForward(fwdBtn, liveId(), msgEl);
+      });
       msgEl.appendChild(bar);
       bar.querySelectorAll('.nc_msg-react-bar-emoji').forEach(el => {
         el.addEventListener('click', (e) => {
@@ -84569,6 +84633,192 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       + '<path d="M8 2.5v7.5M4.8 7.2L8 10.4l3.2-3.2M3 12.8h10" stroke="currentColor"'
       + ' stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
     window.nc_dlIco = dlIcoSvg;
+
+    // ── Forwarding a message ────────────────────────────────────────────────────
+    // Pick where it goes, optionally say something about it, send. The copy carries a
+    // snapshot of what it quotes rather than a pointer -- see the migration for why.
+    let fwdPanel = null;
+    function closeForward() {
+      if (fwdPanel) { fwdPanel.remove(); fwdPanel = null; }
+      document.removeEventListener('mousedown', fwdAway, true);
+      document.removeEventListener('keydown', fwdKey, true);
+    }
+    function fwdAway(e) { if (fwdPanel && !fwdPanel.contains(e.target)) closeForward(); }
+    function fwdKey(e) { if (e.key === 'Escape') { e.stopPropagation(); closeForward(); } }
+
+    // Everywhere you could send this. A DM's own `name` column lists everyone except its
+    // creator, so it is wrong for one of the two people in it and is not used here.
+    function forwardTargets() {
+      const out = [];
+      (chatChannels || []).forEach(c => {
+        if (c.is_dm) return;
+        out.push({ id: c.id, label: ncChannelLabel(c), kind: c.kind === 'client_dept' ? 'Client' : 'Channel' });
+      });
+      (chatDmChannels || []).forEach(c => {
+        out.push({ id: c.id, label: (typeof ncDmLabelFor === 'function' ? ncDmLabelFor(c, null) : (c.name || 'Direct message')),
+                   kind: (c.is_group || c.kind === 'group_dm') ? 'Group' : 'Direct' });
+      });
+      return out.filter(t => t.label).sort((a, b) => a.label.localeCompare(b.label));
+    }
+
+    function openForward(anchorEl, messageId, msgEl) {
+      closeForward();
+      const chosen = new Set();
+      const all = forwardTargets();
+      const bodyEl = msgEl && msgEl.querySelector('[data-msg-body]');
+      const preview = bodyEl ? (bodyEl.textContent || '').trim() : '';
+      const nAtt = (chatAttachmentsCache[messageId] || []).length;
+      const pop = document.createElement('div');
+      pop.className = 'nc_fwd';
+      const draw = (filter) => {
+        const q = (filter || '').trim().toLowerCase();
+        const list = q ? all.filter(t => t.label.toLowerCase().indexOf(q) >= 0) : all;
+        pop.innerHTML =
+          '<div class="nc_fwd-head"><span>Forward this message</span>'
+          + '<span class="nc_fwd-x" data-x="1" title="Close">&#10005;</span></div>'
+          + '<div class="nc_fwd-quote">' + (preview
+              ? chatEsc(preview.length > 180 ? preview.slice(0, 180) + '…' : preview)
+              : '<span style="color:var(--text-3);font-style:italic;">No text</span>')
+            + (nAtt ? '<div class="nc_fwd-att">' + nAtt + ' attachment'
+                      + (nAtt > 1 ? 's' : '') + ' included</div>' : '')
+          + '</div>'
+          + '<input type="text" class="nc_fwd-search" placeholder="Search channels and people…"'
+          + ' value="' + chatEsc(filter || '') + '" spellcheck="false">'
+          + '<div class="nc_fwd-list">'
+          + (list.length ? list.map(t =>
+              '<div class="nc_fwd-row' + (chosen.has(t.id) ? ' on' : '') + '" data-t="' + chatEsc(t.id) + '">'
+              + '<span class="nc_fwd-kind">' + chatEsc(t.kind) + '</span>'
+              + '<span class="nc_fwd-label">' + chatEsc(t.label) + '</span>'
+              + '<span class="nc_fwd-ck">' + (chosen.has(t.id) ? '✓' : '') + '</span></div>').join('')
+             : '<div class="nc_fwd-empty">Nothing matches that.</div>')
+          + '</div>'
+          + '<textarea class="nc_fwd-note" rows="2" placeholder="Add a message (optional)"></textarea>'
+          + '<div class="nc_fwd-foot">'
+          +   '<button type="button" class="nc_fwd-cancel" data-x="1">Cancel</button>'
+          +   '<button type="button" class="nc_fwd-go"' + (chosen.size ? '' : ' disabled') + '>'
+          +   'Forward' + (chosen.size > 1 ? ' to ' + chosen.size : '') + '</button>'
+          + '</div>';
+        const note = pop.querySelector('.nc_fwd-note');
+        if (note) note.value = pop.dataset.note || '';
+        wire();
+      };
+      const wire = () => {
+        pop.querySelectorAll('[data-x]').forEach(x => x.addEventListener('click', closeForward));
+        const search = pop.querySelector('.nc_fwd-search');
+        search.addEventListener('input', () => {
+          // The note survives a re-filter. Retyping it because you searched again is the
+          // kind of thing that stops people using a feature twice.
+          pop.dataset.note = pop.querySelector('.nc_fwd-note').value;
+          const at = search.selectionStart;
+          draw(search.value);
+          const s2 = pop.querySelector('.nc_fwd-search');
+          s2.focus(); try { s2.setSelectionRange(at, at); } catch (_) {}
+        });
+        pop.querySelectorAll('[data-t]').forEach(r => r.addEventListener('click', () => {
+          const id = r.dataset.t;
+          if (chosen.has(id)) chosen.delete(id); else chosen.add(id);
+          pop.dataset.note = pop.querySelector('.nc_fwd-note').value;
+          draw(pop.querySelector('.nc_fwd-search').value);
+        }));
+        const go = pop.querySelector('.nc_fwd-go');
+        go.addEventListener('click', async () => {
+          go.disabled = true; go.textContent = 'Sending…';
+          await sendForward(messageId, [...chosen], pop.querySelector('.nc_fwd-note').value.trim());
+        });
+      };
+      document.body.appendChild(pop);
+      fwdPanel = pop;
+      draw('');
+      const r = anchorEl.getBoundingClientRect();
+      pop.style.top = Math.max(10, Math.min(r.bottom + 6, window.innerHeight - 470)) + 'px';
+      pop.style.left = Math.max(10, Math.min(r.left - 150, window.innerWidth - 330)) + 'px';
+      setTimeout(() => { const s2 = pop.querySelector('.nc_fwd-search'); if (s2) s2.focus(); }, 30);
+      document.addEventListener('mousedown', fwdAway, true);
+      document.addEventListener('keydown', fwdKey, true);
+    }
+
+    // Built here and not at render time, so the quote is what was on screen when somebody
+    // decided to forward it.
+    function forwardSnapshot(messageId) {
+      // Messages live per channel in chatMsgsCache, keyed by channel id -- there is no
+      // flat list of them. Searching the ACTIVE channel's cache first and falling back to
+      // the rest means a message forwarded from a thread panel still resolves.
+      const findMsg = (id) => {
+        const active = (chatMsgsCache[activeChannelId] || {}).msgs || [];
+        const hit = active.find(m => m.id === id);
+        if (hit) return hit;
+        for (const k of Object.keys(chatMsgsCache)) {
+          const m = ((chatMsgsCache[k] || {}).msgs || []).find(x => x.id === id);
+          if (m) return m;
+        }
+        return null;
+      };
+      const src = findMsg(messageId);
+      const author = src ? (chatProfilesCache[src.author_id] || {}) : {};
+      const srcChannel = (chatChannels || []).find(c => c.id === (src && src.channel_id));
+      return {
+        message_id: messageId,
+        author_id: src ? src.author_id : null,
+        author_name: author.display_name || author.full_name || author.email || 'Someone',
+        channel_id: src ? src.channel_id : null,
+        channel_name: srcChannel ? ncChannelLabel(srcChannel) : '',
+        body: src ? (src.body || '') : '',
+        created_at: src ? src.created_at : null,
+      };
+    }
+    window.nc_forwardSnapshot = forwardSnapshot;
+
+    async function sendForward(messageId, targets, note) {
+      if (!targets.length) return;
+      const snapshot = forwardSnapshot(messageId);
+      const atts = chatAttachmentsCache[messageId] || [];
+      let ok = 0, failed = 0;
+      for (const chId of targets) {
+        const { data, error } = await window.giantSupabase.from('messages')
+          .insert({ channel_id: chId, author_id: window.giantSession.user.id,
+                    body: note || '', forwarded_from: snapshot })
+          .select('id');
+        // RLS refuses by returning no rows rather than erroring, so both are failures.
+        if (error || !data || !data.length) { failed++; continue; }
+        ok++;
+        if (atts.length) {
+          // Same storage objects, new rows. No file is re-uploaded.
+          await window.giantSupabase.from('message_attachments').insert(
+            atts.map(a => ({ message_id: data[0].id, file_name: a.file_name,
+                             file_size: a.file_size, mime_type: a.mime_type,
+                             storage_path: a.storage_path })));
+        }
+      }
+      closeForward();
+      if (typeof toast === 'function') {
+        if (ok && !failed) toast({ type: 'success', duration: 2000,
+          message: 'Forwarded to ' + ok + ' conversation' + (ok > 1 ? 's' : '') });
+        else if (ok && failed) toast({ type: 'info', duration: 4500,
+          message: 'Forwarded to ' + ok + '. ' + failed + ' did not send — you may not be able to post there.' });
+        else toast({ type: 'error', duration: 4500,
+          message: 'Could not forward. You may not have permission to post there.' });
+      }
+    }
+
+    // What a forwarded message shows above whatever the sender added.
+    function forwardQuoteHtml(snap) {
+      if (!snap || typeof snap !== 'object') return '';
+      const when = snap.created_at ? new Date(snap.created_at) : null;
+      const whenTxt = when && !isNaN(when.getTime())
+        ? when.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
+      const body = String(snap.body || '');
+      return '<div class="nc_fwd-quoted">'
+        + '<div class="nc_fwd-quoted-head">'
+        +   '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M9 3l4 4-4 4V8.5H3v-3h6V3Z"'
+        +   ' stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>'
+        +   '<span>Forwarded from <b>' + chatEsc(snap.author_name || 'Someone') + '</b>'
+        +   (snap.channel_name ? ' in ' + chatEsc(snap.channel_name) : '')
+        +   (whenTxt ? ' · ' + chatEsc(whenTxt) : '') + '</span>'
+        + '</div>'
+        + (body ? '<div class="nc_fwd-quoted-body">' + chatEsc(body) + '</div>' : '')
+        + '</div>';
+    }
+    window.nc_forwardQuoteHtml = forwardQuoteHtml;
 
     function renderAttachmentsForMsg(msgEl, messageId) {
       const atts = chatAttachmentsCache[messageId] || [];

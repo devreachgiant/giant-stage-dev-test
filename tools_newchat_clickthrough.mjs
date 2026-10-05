@@ -7877,6 +7877,108 @@ await step('downloading attachments', async () => {
     JSON.stringify(r));
 });
 
+// ── Forwarding a message ─────────────────────────────────────────────────────
+// The forwarded copy carries a SNAPSHOT of what it quotes, not a reference. A reference
+// would be the obvious schema and it is wrong here: rendering it means joining back to
+// the original, which usually lives in a channel the reader is not in -- forwarding exists
+// to cross that line -- so the join returns nothing and the quote renders blank for
+// exactly the people it was sent to.
+await step('forwarding a message', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const out = {};
+    const db = window.__mock.db;
+    const team = db.channels.find(c => c.kind === 'team_channel'
+      && db.messages.some(m => m.channel_id === c.id));
+    if (!team) { out.noChannel = true; return out; }
+    await window.nc_switchChannel(team.id); await w(2000);
+    const el0 = document.querySelector('#nc_chatMsgsList .nc_msg[data-msg-id]');
+    if (!el0) { out.noMessage = true; return out; }
+    const mid = el0.dataset.msgId;
+    // Files on it, so the copy's attachments can be checked too.
+    db.message_attachments.filter(a => String(a.id).indexOf('att-multi') === 0)
+      .forEach(a => { a.message_id = mid; });
+    await window.nc_switchChannel(team.id); await w(2200);
+    const msgEl = document.querySelector('#nc_chatMsgsList .nc_msg[data-msg-id="' + mid + '"]');
+    if (!msgEl) { out.noMessage = true; return out; }
+    // The action bar is built on hover, not at render.
+    msgEl.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })); await w(400);
+    const btn = msgEl.querySelector('[data-action="forward"]');
+    out.offered = !!btn;
+    if (!btn) return out;
+    btn.click(); await w(450);
+    const pop = document.querySelector('.nc_fwd');
+    out.opened = !!pop;
+    if (!pop) return out;
+    // You can see WHAT you are about to send, so it cannot quietly be the wrong message.
+    out.showsWhatIsBeingSent = !!pop.querySelector('.nc_fwd-quote');
+    out.listsSomewhereToSendIt = pop.querySelectorAll('.nc_fwd-row').length > 1;
+    out.refusesWithNoTarget = pop.querySelector('.nc_fwd-go').disabled === true;
+    // Search narrows, and the note survives it -- retyping a note because you searched
+    // again is how a feature gets used once.
+    const se = pop.querySelector('.nc_fwd-search');
+    pop.querySelector('.nc_fwd-note').value = 'worth a look';
+    se.value = 'zzzznope'; se.dispatchEvent(new Event('input', { bubbles: true })); await w(300);
+    out.searchNarrows = !!document.querySelector('.nc_fwd-empty');
+    const se2 = document.querySelector('.nc_fwd-search');
+    se2.value = ''; se2.dispatchEvent(new Event('input', { bubbles: true })); await w(300);
+    out.noteSurvivedSearch = document.querySelector('.nc_fwd-note').value === 'worth a look';
+
+    const picked = [];
+    for (const i of [0, 1]) {
+      const row = document.querySelectorAll('.nc_fwd-row')[i];
+      if (row) { picked.push(row.dataset.t); row.click(); await w(250); }
+    }
+    const go = document.querySelector('.nc_fwd-go');
+    out.sendsToSeveral = picked.length === 2 && !go.disabled
+      && /Forward to 2/.test(go.textContent || '');
+    document.querySelector('.nc_fwd-note').value = 'worth a look';
+    const before = db.messages.length;
+    go.click(); await w(2200);
+    out.closed = !document.querySelector('.nc_fwd');
+    out.landedCount = db.messages.length - before;
+    const made = db.messages.slice(-2);
+    out.landedWhereChosen = made.map(m => m.channel_id).sort().join(',') === picked.slice().sort().join(',');
+    out.carriesTheNote = made.every(m => m.body === 'worth a look');
+    const snap = made[0] && made[0].forwarded_from;
+    // Who said it, where, when and what -- enough to render without reading the original.
+    out.snapshotFields = snap ? Object.keys(snap).sort().join(',') : null;
+    out.snapshotNamesAuthor = !!snap && !!snap.author_name;
+    out.snapshotKeepsOriginalId = !!snap && snap.message_id === mid;
+    // Files come with it: new rows, same storage objects, nothing re-uploaded.
+    const copies = db.message_attachments.filter(a => made.some(m => m.id === a.message_id));
+    out.filesCameToo = copies.length === 8;
+    out.reusesTheSameFiles = copies.length > 0 && copies.every(c =>
+      db.message_attachments.some(o => o.message_id === mid && o.storage_path === c.storage_path));
+    // And it reads as a quote in the conversation it arrived in.
+    await window.nc_switchChannel(picked[0]); await w(2200);
+    const q = document.querySelector('#nc_chatMsgsList .nc_fwd-quoted');
+    out.rendersAsAQuote = !!q;
+    out.quoteSaysWhoAndWhere = !!q && /Forwarded from/.test(q.textContent || '')
+      && /\sin\s/.test(q.textContent || '');
+    out.filesRenderThere = !!document.querySelector('#nc_chatMsgsList .nc_msg-attachments');
+    return out;
+  });
+  return r;
+}).then(r => {
+  r = r || {};
+  check('every message offers a forward, and the panel shows what is being sent',
+    r.offered && r.opened && r.showsWhatIsBeingSent && r.listsSomewhereToSendIt
+      && r.refusesWithNoTarget, JSON.stringify(r));
+  check('search narrows the list without losing the note you already typed',
+    r.searchNarrows && r.noteSurvivedSearch, JSON.stringify(r));
+  check('it forwards to several conversations at once, carrying your note',
+    r.sendsToSeveral && r.closed && r.landedCount === 2 && r.landedWhereChosen
+      && r.carriesTheNote, JSON.stringify(r));
+  check('the copy holds a snapshot of the original, not a pointer to it',
+    r.snapshotFields === 'author_id,author_name,body,channel_id,channel_name,created_at,message_id'
+      && r.snapshotNamesAuthor && r.snapshotKeepsOriginalId, JSON.stringify(r));
+  check('attachments come with it, reusing the same files rather than re-uploading',
+    r.filesCameToo && r.reusesTheSameFiles && r.filesRenderThere, JSON.stringify(r));
+  check('and it reads as a quote, saying who said it and where',
+    r.rendersAsAQuote && r.quoteSaysWhoAndWhere, JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
