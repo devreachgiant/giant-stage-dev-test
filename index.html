@@ -5751,8 +5751,10 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .nc_fwd-quoted-head{display:flex;align-items:center;gap:6px;font-size:10.5px;
   color:var(--text-3);margin-bottom:3px;}
 .nc_fwd-quoted-head b{color:var(--text-2);font-weight:700;}
+/* Not pre-wrap: line breaks are <br> now, the same as any other message body, and
+   keeping both turned every newline into a blank line. */
 .nc_fwd-quoted-body{font-size:12.5px;color:var(--text-2);line-height:1.55;
-  white-space:pre-wrap;overflow-wrap:anywhere;}
+  overflow-wrap:anywhere;}
 
 /* Downloading an attachment.
    The button is always in the DOM and only fades in on hover, rather than being added on
@@ -84648,17 +84650,33 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
     // Everywhere you could send this. A DM's own `name` column lists everyone except its
     // creator, so it is wrong for one of the two people in it and is not used here.
+    // People first, then clients, then channels. Forwarding is usually "send this to
+    // someone", and alphabetical-across-everything buried every person under forty client
+    // conversations starting with A.
+    const FWD_RANK = { Direct: 0, Group: 1, Client: 2, Channel: 3 };
     function forwardTargets() {
       const out = [];
       (chatChannels || []).forEach(c => {
         if (c.is_dm) return;
-        out.push({ id: c.id, label: ncChannelLabel(c), kind: c.kind === 'client_dept' ? 'Client' : 'Channel' });
+        const isClient = c.kind === 'client_dept';
+        // A client's departments are separate channels that all derive the SAME label --
+        // the client's name -- so A X E appeared three times with nothing to tell the rows
+        // apart. The department is what distinguishes them, so it is on the row.
+        let label = ncChannelLabel(c);
+        if (isClient) {
+          const dept = c.department || 'general';
+          const d = (NC_DEPTS || []).find(x => x.key === dept);
+          const deptLabel = d ? d.label : dept;
+          if (dept !== 'general') label += ' · ' + deptLabel;
+        }
+        out.push({ id: c.id, label: label, kind: isClient ? 'Client' : 'Channel' });
       });
       (chatDmChannels || []).forEach(c => {
         out.push({ id: c.id, label: (typeof ncDmLabelFor === 'function' ? ncDmLabelFor(c, null) : (c.name || 'Direct message')),
                    kind: (c.is_group || c.kind === 'group_dm') ? 'Group' : 'Direct' });
       });
-      return out.filter(t => t.label).sort((a, b) => a.label.localeCompare(b.label));
+      return out.filter(t => t.label).sort((a, b) =>
+        (FWD_RANK[a.kind] - FWD_RANK[b.kind]) || a.label.localeCompare(b.label));
     }
 
     function openForward(anchorEl, messageId, msgEl) {
@@ -84772,7 +84790,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (!targets.length) return;
       const snapshot = forwardSnapshot(messageId);
       const atts = chatAttachmentsCache[messageId] || [];
-      let ok = 0, failed = 0;
+      let ok = 0, failed = 0, attachmentsLost = 0;
       for (const chId of targets) {
         const { data, error } = await window.giantSupabase.from('messages')
           .insert({ channel_id: chId, author_id: window.giantSession.user.id,
@@ -84783,16 +84801,30 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         ok++;
         if (atts.length) {
           // Same storage objects, new rows. No file is re-uploaded.
-          await window.giantSupabase.from('message_attachments').insert(
-            atts.map(a => ({ message_id: data[0].id, file_name: a.file_name,
-                             file_size: a.file_size, mime_type: a.mime_type,
-                             storage_path: a.storage_path })));
+          //
+          // uploader_id is REQUIRED: the insert policy is WITH CHECK (uploader_id =
+          // auth.uid()), so leaving it null made RLS refuse every copy. It did that
+          // quietly -- an RLS refusal is zero rows, not an error -- and because nothing
+          // looked at the result, the forward reported success with no files on it.
+          const { data: made, error: attErr } = await window.giantSupabase
+            .from('message_attachments').insert(
+              atts.map(a => ({ message_id: data[0].id, file_name: a.file_name,
+                               file_size: a.file_size, mime_type: a.mime_type,
+                               storage_path: a.storage_path,
+                               uploader_id: window.giantSession.user.id })))
+            .select('id');
+          if (attErr || !made || made.length !== atts.length) {
+            attachmentsLost += atts.length - ((made && made.length) || 0);
+          }
         }
       }
       closeForward();
       if (typeof toast === 'function') {
-        if (ok && !failed) toast({ type: 'success', duration: 2000,
+        if (ok && !failed && !attachmentsLost) toast({ type: 'success', duration: 2000,
           message: 'Forwarded to ' + ok + ' conversation' + (ok > 1 ? 's' : '') });
+        else if (ok && !failed) toast({ type: 'info', duration: 4500,
+          message: 'Forwarded to ' + ok + ', but ' + attachmentsLost
+                   + ' attachment' + (attachmentsLost > 1 ? 's' : '') + ' did not copy.' });
         else if (ok && failed) toast({ type: 'info', duration: 4500,
           message: 'Forwarded to ' + ok + '. ' + failed + ' did not send — you may not be able to post there.' });
         else toast({ type: 'error', duration: 4500,
@@ -84815,7 +84847,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         +   (snap.channel_name ? ' in ' + chatEsc(snap.channel_name) : '')
         +   (whenTxt ? ' · ' + chatEsc(whenTxt) : '') + '</span>'
         + '</div>'
-        + (body ? '<div class="nc_fwd-quoted-body">' + chatEsc(body) + '</div>' : '')
+        // Rendered the way every other message body is rendered. Escaping it instead
+        // turned mentions, links and line breaks into literal characters, which is the
+        // "breaks the format" part -- a quote has to look like what it is quoting.
+        + (body ? '<div class="nc_fwd-quoted-body">'
+                  + parseMentions(body).replace(/\n/g, '<br>') + '</div>' : '')
         + '</div>';
     }
     window.nc_forwardQuoteHtml = forwardQuoteHtml;

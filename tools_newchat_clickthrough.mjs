@@ -7913,6 +7913,19 @@ await step('forwarding a message', async () => {
     // You can see WHAT you are about to send, so it cannot quietly be the wrong message.
     out.showsWhatIsBeingSent = !!pop.querySelector('.nc_fwd-quote');
     out.listsSomewhereToSendIt = pop.querySelectorAll('.nc_fwd-row').length > 1;
+    // People first, then clients, then channels. Alphabetical across everything buried
+    // every person under forty client conversations beginning with A.
+    const kinds = [...pop.querySelectorAll('.nc_fwd-row .nc_fwd-kind')].map(e => e.textContent.trim());
+    // Keyed off the text as it actually is. CSS uppercases these for display, but
+    // textContent keeps the original case -- an uppercase map looked up undefined for
+    // every row and the comparison was false against a list that was correctly ordered.
+    const RANK = { Direct: 0, Group: 1, Client: 2, Channel: 3 };
+    out.kindOrder = [...new Set(kinds)].join(',');
+    out.peopleFirst = kinds.every((k, i) => i === 0 || RANK[kinds[i - 1]] <= RANK[k]);
+    // A client's departments are separate channels deriving the SAME label, so three of
+    // them read as three identical rows with nothing to choose between.
+    const labels = [...pop.querySelectorAll('.nc_fwd-row .nc_fwd-label')].map(e => e.textContent.trim());
+    out.noIdenticalRows = labels.length === new Set(labels).size;
     out.refusesWithNoTarget = pop.querySelector('.nc_fwd-go').disabled === true;
     // Search narrows, and the note survives it -- retyping a note because you searched
     // again is how a feature gets used once.
@@ -7950,6 +7963,16 @@ await step('forwarding a message', async () => {
     out.filesCameToo = copies.length === 8;
     out.reusesTheSameFiles = copies.length > 0 && copies.every(c =>
       db.message_attachments.some(o => o.message_id === mid && o.storage_path === c.storage_path));
+    // uploader_id is what the insert policy checks -- WITH CHECK (uploader_id = auth.uid())
+    // -- and leaving it null made production refuse every copy while the mock, which does
+    // not enforce RLS, accepted them. The check passed against a forward that dropped
+    // every file. Asserted explicitly now, because the fixture cannot catch it.
+    out.stampsTheUploader = copies.length > 0
+      && copies.every(c => c.uploader_id === window.giantSession.user.id);
+    // The quote renders like a message body, not as escaped source: a body with a line
+    // break comes through as a <br>, not as the characters "\n".
+    out.quoteKeepsFormatting = /<br>/.test(window.nc_forwardQuoteHtml(
+      { author_name: 'A', channel_name: 'B', body: 'one\ntwo', created_at: null }));
     // And it reads as a quote in the conversation it arrived in.
     await window.nc_switchChannel(picked[0]); await w(2200);
     const q = document.querySelector('#nc_chatMsgsList .nc_fwd-quoted');
@@ -7965,6 +7988,8 @@ await step('forwarding a message', async () => {
   check('every message offers a forward, and the panel shows what is being sent',
     r.offered && r.opened && r.showsWhatIsBeingSent && r.listsSomewhereToSendIt
       && r.refusesWithNoTarget, JSON.stringify(r));
+  check('people come first, then clients, then channels, with no two rows reading the same',
+    r.peopleFirst && r.noIdenticalRows, JSON.stringify(r));
   check('search narrows the list without losing the note you already typed',
     r.searchNarrows && r.noteSurvivedSearch, JSON.stringify(r));
   check('it forwards to several conversations at once, carrying your note',
@@ -7973,8 +7998,11 @@ await step('forwarding a message', async () => {
   check('the copy holds a snapshot of the original, not a pointer to it',
     r.snapshotFields === 'author_id,author_name,body,channel_id,channel_name,created_at,message_id'
       && r.snapshotNamesAuthor && r.snapshotKeepsOriginalId, JSON.stringify(r));
-  check('attachments come with it, reusing the same files rather than re-uploading',
-    r.filesCameToo && r.reusesTheSameFiles && r.filesRenderThere, JSON.stringify(r));
+  check('attachments come with it, reusing the same files and stamped with the uploader',
+    r.filesCameToo && r.reusesTheSameFiles && r.filesRenderThere && r.stampsTheUploader,
+    JSON.stringify(r));
+  check('the quote renders like a message, not as escaped source',
+    r.quoteKeepsFormatting, JSON.stringify(r));
   check('and it reads as a quote, saying who said it and where',
     r.rendersAsAQuote && r.quoteSaysWhoAndWhere, JSON.stringify(r));
 });
