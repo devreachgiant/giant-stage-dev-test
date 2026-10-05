@@ -81107,6 +81107,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         div.innerHTML = `<div class="nc_msg nc_msg-grouped nc_msg-new" data-msg-id="${chatEsc(m.id)}" data-author-id="${chatEsc(m.author_id)}" data-ts="${d.getTime()}">
           <div class="nc_ava-slot" title="${chatEsc(formatChatTime(m.created_at))}"><span class="nc_grouped-time">${chatEsc(formatChatTimeShort(m.created_at))}</span></div>
           <div class="nc_body">
+            ${forwardQuoteHtml(m.forwarded_from)}
             <div class="nc_text" data-msg-body data-msg-id="${chatEsc(m.id)}" data-msg-mine="${isMine ? '1' : '0'}">${parseMentions(m.body).replace(/\n/g, "<br>")}${voiceHtml}${m.edited_at ? ' <span style="color:var(--text-3);font-size:9.5px;">(edited)</span>' : ''}</div>
           </div>
           ${deleteBtn}
@@ -81116,6 +81117,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           <div class="ava ${(window.giantOnlineProfiles && window.giantOnlineProfiles.has(m.author_id)) ? 'online' : ''}" data-presence-for="${chatEsc(m.author_id)}" style="${avaStyle}">${avaInner}</div>
           <div class="nc_body">
             <div class="nc_head"><span class="nc_name">${chatEsc(p.full_name || p.email)}</span><span class="nc_time">${chatEsc(formatChatTime(m.created_at))}${m.edited_at ? " <span style=\"color:var(--text-3);font-size:9.5px;\">(edited)</span>" : ""}</span></div>
+            ${forwardQuoteHtml(m.forwarded_from)}
             <div class="nc_text" data-msg-body data-msg-id="${chatEsc(m.id)}" data-msg-mine="${m.author_id === window.giantSession.user.id ? "1" : "0"}">${parseMentions(m.body).replace(/\n/g, "<br>")}${voiceHtml}</div>
           </div>
           ${deleteBtn}
@@ -85036,6 +85038,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       div.innerHTML = `<div class="ava ${(window.giantOnlineProfiles && window.giantOnlineProfiles.has(m.author_id)) ? 'online' : ''}" data-presence-for="${chatEsc(m.author_id)}" style="${avaStyle}">${avaInner}</div>
         <div class="nc_body">
           <div class="nc_head"><span class="nc_name">${chatEsc(p.full_name || p.email)}</span><span class="nc_time">${chatEsc(formatChatTime(m.created_at))}${m.edited_at?' <span style="color:var(--text-3);font-size:9.5px;">(edited)</span>':''}</span></div>
+          ${forwardQuoteHtml(m.forwarded_from)}
           <div class="nc_text" data-msg-body data-msg-id="${chatEsc(m.id)}" data-msg-mine="${isMine ? '1' : '0'}">${parseMentions(m.body).replace(/\n/g,'<br>')}</div>
         </div>`;
       container.appendChild(div);
