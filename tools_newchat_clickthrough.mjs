@@ -7907,7 +7907,7 @@ await step('forwarding a message', async () => {
     out.offered = !!btn;
     if (!btn) return out;
     btn.click(); await w(450);
-    const pop = document.querySelector('.nc_fwd');
+    let pop = document.querySelector('.nc_fwd');
     out.opened = !!pop;
     if (!pop) return out;
     // You can see WHAT you are about to send, so it cannot quietly be the wrong message.
@@ -7926,6 +7926,52 @@ await step('forwarding a message', async () => {
     // them read as three identical rows with nothing to choose between.
     const labels = [...pop.querySelectorAll('.nc_fwd-row .nc_fwd-label')].map(e => e.textContent.trim());
     out.noIdenticalRows = labels.length === new Set(labels).size;
+
+    // Somebody who has left. A one-to-one with them is a dead end -- they cannot read it
+    // or reply -- and they are hidden everywhere else in the app, so this list reading
+    // chatDmChannels raw made it the one place they still appeared.
+    const others = window.ncDmOthersProbe || {};
+    // The cache the code reads, not the database row -- setting it on the row leaves the
+    // cache stale and the check measures nothing.
+    const profById = (id) => (window.ncProfilesProbe || {})[id];
+    // Must be a one-to-one whose other member actually RESOLVES to a profile -- the
+    // fixture has DM rows whose members are not in the profiles table, and flipping
+    // deactivated_at on undefined is what took the whole step down.
+    const dmWithOne = (window.__mock.db.channels || []).find(c => c.is_dm
+      && !c.is_group && (others[c.id] || []).length === 1 && profById(others[c.id][0]));
+    out.foundAOneToOne = !!dmWithOne;
+    if (dmWithOne) {
+      const otherId = others[dmWithOne.id][0];
+      const prof = profById(otherId);
+      const before = document.querySelectorAll('.nc_fwd-row').length;
+      prof.deactivated_at = new Date().toISOString();
+      // Re-open so the list is rebuilt.
+      document.querySelector('.nc_fwd-x').click(); await w(250);
+      msgEl.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })); await w(300);
+      msgEl.querySelector('[data-action="forward"]').click(); await w(450);
+      const after = document.querySelectorAll('.nc_fwd-row').length;
+      out.hidesWhoHasLeft = after === before - 1;
+      prof.deactivated_at = null;
+      // and a GROUP with one departed member stays, because the rest of it is live
+      const grp = (window.__mock.db.channels || []).find(c => c.is_dm
+        && (others[c.id] || []).length > 1 && profById(others[c.id][0]));
+      if (grp) {
+        const gp = profById(others[grp.id][0]);
+        gp.deactivated_at = new Date().toISOString();
+        document.querySelector('.nc_fwd-x').click(); await w(250);
+        msgEl.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })); await w(300);
+        msgEl.querySelector('[data-action="forward"]').click(); await w(450);
+        // That group's OWN row, not a total. The same person usually has a one-to-one as
+        // well, so deactivating them legitimately removes a different row and a count
+        // reads that as the group having gone.
+        out.keepsLiveGroups = !!document.querySelector('.nc_fwd-row[data-t="' + grp.id + '"]');
+        gp.deactivated_at = null;
+      }
+      document.querySelector('.nc_fwd-x').click(); await w(250);
+      msgEl.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true })); await w(300);
+      msgEl.querySelector('[data-action="forward"]').click(); await w(450);
+    }
+    pop = document.querySelector('.nc_fwd');
     out.refusesWithNoTarget = pop.querySelector('.nc_fwd-go').disabled === true;
     // Search narrows, and the note survives it -- retyping a note because you searched
     // again is how a feature gets used once.
@@ -7990,6 +8036,8 @@ await step('forwarding a message', async () => {
       && r.refusesWithNoTarget, JSON.stringify(r));
   check('people come first, then clients, then channels, with no two rows reading the same',
     r.peopleFirst && r.noIdenticalRows, JSON.stringify(r));
+  check('somebody who has left is not offered as somewhere to send a message',
+    r.foundAOneToOne && r.hidesWhoHasLeft && r.keepsLiveGroups !== false, JSON.stringify(r));
   check('search narrows the list without losing the note you already typed',
     r.searchNarrows && r.noteSurvivedSearch, JSON.stringify(r));
   check('it forwards to several conversations at once, carrying your note',

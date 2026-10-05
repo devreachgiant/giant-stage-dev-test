@@ -79291,6 +79291,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       });
       // Shared, so Needs you and the jump box name a DM the same way this list does.
       ncDmOthers = channelToOthers;
+      // Exposed so a check can tell a one-to-one from a group the same way this does, and
+      // can reach the profile cache the deactivated test actually reads -- flipping the
+      // database row leaves this cache stale, which is exactly what the first version of
+      // that check did and why it measured nothing.
+      window.ncDmOthersProbe = channelToOthers;
+      window.ncProfilesProbe = chatProfilesCache;
       // Pull profiles from the in-memory cache (populated by hydrateAllWorkspaceProfiles at boot).
       // If any are missing, fetch them in a single batch query.
       const allOtherIds = [...new Set(Object.values(channelToOthers).flat())];
@@ -84672,8 +84678,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         out.push({ id: c.id, label: label, kind: isClient ? 'Client' : 'Channel' });
       });
       (chatDmChannels || []).forEach(c => {
+        const others = (ncDmOthers && ncDmOthers[c.id]) || [];
+        const isGroup = c.is_group === true || c.kind === 'group_dm' || others.length > 1;
+        // The same rule the sidebar applies, for the same reason: a one-to-one with
+        // somebody who has left is a dead end -- they cannot read it and cannot reply --
+        // and they are hidden everywhere else, so offering them here as somewhere to send
+        // a message is offering a place the message goes to die. A GROUP with one departed
+        // member is left alone, because the rest of it is live.
+        //
+        // The list was reading chatDmChannels raw, which is why deactivated people were
+        // the one place in the app they still showed up.
+        if (!isGroup) {
+          const other = others[0];
+          if (other && ncIsDeactivated(chatProfilesCache[other])) return;
+        }
         out.push({ id: c.id, label: (typeof ncDmLabelFor === 'function' ? ncDmLabelFor(c, null) : (c.name || 'Direct message')),
-                   kind: (c.is_group || c.kind === 'group_dm') ? 'Group' : 'Direct' });
+                   kind: isGroup ? 'Group' : 'Direct' });
       });
       return out.filter(t => t.label).sort((a, b) =>
         (FWD_RANK[a.kind] - FWD_RANK[b.kind]) || a.label.localeCompare(b.label));
