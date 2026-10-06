@@ -342,6 +342,19 @@
   DB.project_priorities = ['Fire', 'Medium', 'Low'].map((label, i) => ({
     id: 'pp-' + i, project_id: 'p-1', label, color: ['#FF6B3B', '#F2A93B', '#7C8797'][i],
     emoji: null, position: i + 1, kind: 'priority', created_at: iso(30, 0) }));
+  // Custom columns. One of each select kind plus a plain text one, because the three
+  // behave differently in a cell: a chip, several chips, and raw text. Values live on
+  // tasks.custom_fields keyed by field id, which is how the real rows are shaped.
+  DB.project_fields = [
+    { id: 'pf-1', project_id: 'p-1', name: 'Stage', type: 'single_select', position: 1,
+      options: [{ label: 'Draft', color: '#6fb1ff' }, { label: 'Shipped', color: '#34c77b' }],
+      created_at: iso(30, 0) },
+    { id: 'pf-2', project_id: 'p-1', name: 'Channels', type: 'multi_select', position: 2,
+      options: [{ label: 'SEO', color: '#e8232a' }, { label: 'Ads', color: '#f0a500' }],
+      created_at: iso(30, 0) },
+    { id: 'pf-3', project_id: 'p-1', name: 'Notes', type: 'text', position: 3,
+      options: [], created_at: iso(30, 0) }];
+
   // The real Team Pay module: everyone on a fixed weekly base except one hourly, which is
   // what the Pod System's Monthly/Weekly switch exists to reconcile against a monthly card.
   // ideal_accounts/max_accounts/cap_label ship in migration 20260915160000: the capacity a

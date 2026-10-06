@@ -768,6 +768,215 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
    is -- the same idea as the inline fields on the Pod board. */
 #p2_root .prj-cell[data-col="status"] select{transition:background .12s ease,border-color .12s ease;}
 #p2_root .prj-cell[data-col="status"] select:hover{background:var(--surface-2);border-color:var(--line-2);}
+/* Custom columns. Chip geometry follows Luke's Stitch export: full pill radius, a tinted
+   wash of the option's own colour rather than a flat fill, and 11px/600 so a cell holding
+   three of them still reads as one line. Colours come from the option, so the palette is
+   the project's, not a hardcoded ramp. */
+#p2_root .p2-fieldchip{display:inline-flex;align-items:center;max-width:100%;padding:2px 7px;
+  border-radius:3px;font-size:11px;font-weight:600;line-height:1.5;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;background:var(--surface-2);
+  border:1px solid var(--line-2);color:var(--text-2);}
+#p2_root .p2-fieldcell{gap:4px;flex-wrap:nowrap;overflow:hidden;}
+#p2_root .p2-fieldcell .p2-fieldchip + .p2-fieldchip{margin-left:4px;}
+#p2_root .p2-fielddate{font-size:12px;color:var(--text-2);white-space:nowrap;}
+/* The add-column control sits in the delete heading, which is 92px of otherwise dead
+   width at the end of the header row -- the one place a new column can appear without
+   pushing a heading off the edge. */
+#p2_root .p2-addcol{display:inline-flex;align-items:center;justify-content:center;
+  width:20px;height:20px;border-radius:6px;cursor:pointer;color:#fff;opacity:.75;
+  transition:opacity .12s,background .12s;}
+#p2_root .p2-addcol:hover{opacity:1;background:rgba(255,255,255,.16);}
+/* The floating panel. Surface 3 and the rim shadow from the export: a hairline of light
+   at the edge instead of a heavy blur, which is what stops a popover looking stuck to
+   the page. */
+.p2-colpop{position:fixed;z-index:9000;width:288px;background:var(--surface);
+  border:1px solid var(--line-2);border-radius:8px;
+  box-shadow:0 12px 32px -4px rgba(0,0,0,.75),0 0 0 1px rgba(255,255,255,.08);
+  overflow:hidden;font-family:inherit;}
+.p2-colpop-head{padding:12px 13px 11px;border-bottom:1px solid var(--line);}
+.p2-colpop-eyebrow{display:flex;align-items:center;justify-content:space-between;
+  font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--text-3);margin-bottom:9px;}
+.p2-colpop-eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--red);
+  margin-right:7px;flex-shrink:0;}
+.p2-colpop-x{cursor:pointer;color:var(--text-3);padding:2px 4px;border-radius:5px;
+  line-height:1;transition:color .12s,background .12s;}
+.p2-colpop-x:hover{color:var(--text);background:var(--surface-2);}
+.p2-colpop input[type=text]{width:100%;box-sizing:border-box;background:var(--surface-2);
+  border:1px solid var(--line-2);border-radius:4px;padding:8px 10px;font-size:12.5px;
+  font-weight:500;color:var(--text);font-family:inherit;outline:none;transition:border-color .12s;}
+.p2-colpop input[type=text]:focus{border-color:var(--red);}
+.p2-colpop-sub{display:flex;align-items:center;justify-content:space-between;
+  padding:10px 13px 5px;font-size:10px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--text-3);}
+.p2-colpop-sub .esc{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+  text-transform:lowercase;letter-spacing:0;font-size:9.5px;color:var(--text-3);opacity:.8;}
+.p2-colpop-list{padding:5px;max-height:288px;overflow-y:auto;}
+.p2-type{display:flex;align-items:center;justify-content:space-between;width:100%;
+  gap:10px;padding:8px 9px;border-radius:4px;border:1px solid transparent;
+  background:transparent;cursor:pointer;text-align:left;font-family:inherit;
+  transition:background .12s,border-color .12s;}
+.p2-type:hover{background:var(--surface-2);border-color:var(--line);}
+.p2-type.on{background:var(--surface-2);border-color:rgba(232,35,42,.45);}
+.p2-type-ic{width:26px;height:26px;border-radius:4px;background:var(--surface);
+  border:1px solid var(--line-2);display:flex;align-items:center;justify-content:center;
+  color:var(--text-2);flex-shrink:0;}
+.p2-type.on .p2-type-ic{color:var(--red);}
+.p2-type-t{font-size:12.5px;font-weight:600;color:var(--text);line-height:1.3;}
+.p2-type-h{font-size:10px;color:var(--text-3);line-height:1.4;}
+.p2-type-ck{color:var(--red);font-size:12px;font-weight:800;opacity:0;flex-shrink:0;}
+.p2-type.on .p2-type-ck{opacity:1;}
+.p2-colpop-foot{display:flex;align-items:center;justify-content:flex-end;gap:8px;
+  padding:10px 13px;border-top:1px solid var(--line);}
+.p2-colpop-foot button{font-family:inherit;font-size:11.5px;font-weight:700;
+  border-radius:4px;padding:7px 14px;cursor:pointer;border:1px solid transparent;
+  transition:background .12s,color .12s;}
+.p2-colpop-cancel{background:transparent;color:var(--text-3);}
+.p2-colpop-cancel:hover{color:var(--text);background:var(--surface-2);}
+.p2-colpop-go{background:var(--red);color:#fff;}
+.p2-colpop-go:hover{background:#c9161c;}
+.p2-colpop-go[disabled]{opacity:.45;cursor:not-allowed;}
+.p2-colpop-wide{width:320px;}
+/* The menu trigger on a custom heading. Always drawn, never hover-only: a control you
+   have to discover by sweeping the mouse along a red header bar is a control most people
+   never find, which is how rename ended up on double-click and delete on right-click. */
+#p2_root .p2-colmenu{display:inline-flex;align-items:center;justify-content:center;
+  width:18px;height:18px;border-radius:5px;margin-left:4px;flex-shrink:0;cursor:pointer;
+  color:#fff;opacity:.6;transition:opacity .12s,background .12s;}
+#p2_root .p2-colmenu:hover{opacity:1;background:rgba(255,255,255,.18);}
+.p2-type-slim{padding:6px 9px;}
+.p2-type-slim .p2-type-ic{width:22px;height:22px;border-radius:3px;}
+.p2-optlist{padding:3px 8px 6px;max-height:210px;overflow-y:auto;}
+.p2-opt{display:flex;align-items:center;gap:7px;padding:5px 6px;border-radius:3px;
+  border:1px solid transparent;background:var(--surface-2);margin-bottom:5px;}
+.p2-opt.over{border-color:var(--red);}
+.p2-opt-grip{color:var(--text-3);cursor:grab;font-size:11px;letter-spacing:-2px;
+  user-select:none;flex-shrink:0;}
+.p2-opt-grip:active{cursor:grabbing;}
+.p2-opt-sw{width:13px;height:13px;border-radius:50%;flex-shrink:0;cursor:pointer;
+  border:1px solid rgba(255,255,255,.18);}
+.p2-opt-name{flex:1;min-width:0;background:transparent;border:none;outline:none;
+  color:var(--text);font-size:12px;font-family:inherit;padding:2px 0;}
+.p2-opt-del{color:var(--text-3);cursor:pointer;font-size:11px;padding:2px 5px;
+  border-radius:5px;flex-shrink:0;transition:color .12s,background .12s;}
+.p2-opt-del:hover{color:var(--red);background:var(--surface);}
+.p2-opt-empty{font-size:11.5px;color:var(--text-3);padding:7px 4px 9px;font-style:italic;}
+.p2-optadd{display:flex;gap:6px;padding:0 8px 9px;}
+.p2-optadd input{flex:1;min-width:0;box-sizing:border-box;background:var(--surface-2);
+  border:1px solid var(--line-2);border-radius:4px;padding:7px 9px;font-size:12px;
+  color:var(--text);font-family:inherit;outline:none;}
+.p2-optadd input:focus{border-color:var(--red);}
+.p2-optadd button{background:var(--surface-2);border:1px solid var(--line-2);
+  color:var(--text);border-radius:4px;padding:7px 12px;font-size:11.5px;font-weight:700;
+  cursor:pointer;font-family:inherit;transition:background .12s;}
+.p2-optadd button:hover{background:var(--surface);}
+.p2-colpop-moves{display:flex;gap:6px;padding:4px 8px 9px;}
+.p2-colpop-moves button{flex:1;background:var(--surface-2);border:1px solid var(--line-2);
+  color:var(--text-2);border-radius:4px;padding:7px 6px;font-size:11px;font-weight:600;
+  cursor:pointer;font-family:inherit;transition:background .12s,color .12s;}
+.p2-colpop-moves button:hover:not([disabled]){background:var(--surface);color:var(--text);}
+.p2-colpop-moves button[disabled]{opacity:.35;cursor:not-allowed;}
+.p2-colpop-del{background:transparent;color:var(--red);}
+.p2-colpop-del:hover{background:rgba(232,35,42,.12);}
+#p2_root .prj-th[data-p2-coldrag]{cursor:grab;}
+#p2_root .prj-th.p2-th-dragging{opacity:.4;}
+#p2_root .prj-th.p2-th-over{box-shadow:inset 3px 0 0 #fff;}
+/* Sub-projects are gone from the screen, and NOT from the database. Luke asked for them
+   removed; the tabs are rows with tasks attached, so this hides the strip and keeps every
+   row, which is reversible by deleting these three lines.
+   Nothing is lost by hiding it: Projects 2.0 loads every task in the project and has never
+   filtered by the active tab, so the strip selected a label and nothing else. That label
+   still shows -- the section header renders "Project / Daily" as a breadcrumb, reading off
+   the active tab, which is still in the DOM and still marked active. Same information,
+   one line instead of a row of tabs, which is how the Stitch mock shows it too. */
+#p2_root #p2_prjVtabs,#p2_root #p2_prjVtabsLabel{display:none!important;}
+
+/* ── The visual pass ────────────────────────────────────────────────────────
+   Luke: "a little bit dated, a little bit ugly ... everything's a little clunky."
+   Four things, from his Stitch export, in the order they actually matter:
+
+   1. The vertical rules. Every cell carried border-right, so the table was drawn as a
+      full grid -- a spreadsheet. The export has horizontal hairlines only, which is the
+      single biggest difference between the two screenshots and most of what "scruffy"
+      means here. Rows are a list; the headings already say where the columns are.
+   2. The header bar. A solid red band on top of every section card, repeated down the
+      page. DESIGN.md allows "solid red OR deep obsidian" and Luke's mock uses the dark
+      one, with the colour kept for things you can act on.
+   3. Row height, 38px to 44px, which is the export's figure and what stops a long list
+      reading as a wall.
+   4. Softer edges: 10px on the card per the export's 8-10px for tables, and the red
+      glow dropped -- elevation there is tonal, not a halo.
+
+   Scoped to #p2_root, so the original Projects screen is untouched. */
+#p2_root .prj-section{border-radius:6px;box-shadow:none;border-color:var(--line);}
+#p2_root .prj-section-thead{background:var(--surface);border-bottom:1px solid var(--line-2);}
+#p2_root .prj-section-thead .prj-th{color:var(--text-2);font-size:11px;letter-spacing:.06em;
+  padding:9px 14px;}
+#p2_root .p2-addcol,#p2_root .p2-colmenu{color:var(--text-2);}
+#p2_root .p2-addcol:hover,#p2_root .p2-colmenu:hover{color:var(--text);
+  background:rgba(255,255,255,.08);}
+#p2_root .p2-colgrip::after{background:var(--line-2);}
+#p2_root .p2-colgrip:hover::after,#p2_root .p2-colgrip:active::after{background:var(--text-3);}
+#p2_root .prj-th.p2-th-over{box-shadow:inset 3px 0 0 var(--red);}
+/* No vertical rules. The pad cell already had none; now none of them do. */
+#p2_root .prj-cell{border-right:none;min-height:44px;padding:10px 14px;}
+#p2_root .prj-sect-body{border-top:1px solid var(--line);background:var(--surface);}
+#p2_root .prj-row{border-bottom:1px solid var(--line);background:transparent;}
+#p2_root .prj-row:last-child{border-bottom:none;}
+/* An empty custom cell still has to be clickable, or a column starts out impossible to
+   fill in -- the cell is the target, not the chip inside it. */
+/* One surface for the whole table. The card was var(--surface), its heading row
+   var(--surface-2) and its rows var(--bg) -- three tones stacked inside one card, which
+   is what "the row colour is different than header and bg" is. Now they share the card's
+   surface and the hairlines do the separating, which is how the mock reads: one panel
+   with divider lines, not three shades of grey. */
+
+/* Matching the Stitch mock, element by element, from the side-by-side comparison.
+
+   Status: a pill with a leading dot and a border in its own colour. It already had the
+   tint, at 12% alpha and no border, which next to the mock read as plain text with a
+   chevron rather than as a status. */
+#p2_root .p2-statusdot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+#p2_root .p2-statuspill{padding:3px 9px;border-width:1px;border-style:solid;border-radius:4px;}
+#p2_root .p2-statuspill .giant-pill-caret{opacity:.5;}
+#p2_root .p2-statuspill:hover .giant-pill-caret{opacity:1;}
+
+/* The active project is the mock's red-tinted chip with a red border, not a grey one.
+   Red is this app's "you are here" everywhere else; the strip was the odd one out. */
+#p2_root .prj-proj-chip.active{background:rgba(232,35,42,.12)!important;
+  border-color:rgba(232,35,42,.38)!important;color:var(--text)!important;}
+
+/* Column headings carry a grab affordance, as the mock's do. The grip that resizes is a
+   separate 16px strip on the right edge; this is the one that says "this is a column". */
+#p2_root .prj-section-thead .prj-th::before{content:'⠿';margin-right:7px;font-size:10px;
+  line-height:1;color:var(--text-4);flex-shrink:0;opacity:.65;}
+#p2_root .prj-section-thead .prj-th[data-col="pad"]::before{content:none;}
+#p2_root .prj-section-thead .prj-th[data-p2-coldrag]:hover::before{opacity:1;color:var(--text-2);}
+
+/* The project strip is one line with no scrollbar. It was overflow-x:auto, so everything
+   past the right edge was hidden behind a 4px strip. The chips share the width instead --
+   they shrink and their names ellipsis -- so every project stays on screen, on one row.
+   Scoped to #p2_root: the original Projects screen keeps its strip as it was. */
+#p2_root .prj-projects-bar{flex-wrap:nowrap;overflow-x:hidden;}
+
+/* The task name stays put. Add a few columns and the table is wider than the window, so
+   scrolling right to fill one in took the name of the task you were filling it in FOR off
+   the left edge -- found by measuring a drag that was landing on the sidebar, with the
+   table 636px across. Needs its own background: a sticky cell with a transparent one has
+   the scrolling columns slide visibly underneath it. */
+#p2_root .prj-section-thead .prj-th[data-col="name"]{position:sticky;left:-12px;z-index:7;
+  background:var(--surface);}
+#p2_root .prj-cell-name{position:sticky;left:-12px;z-index:4;background:var(--surface);}
+#p2_root .prj-row:hover .prj-cell-name{background:var(--surface-2);}
+#p2_root .p2-fieldcell{cursor:pointer;}
+#p2_root .p2-fieldcell:hover{background:var(--surface);}
+#p2_root .p2-cellinput{width:100%;box-sizing:border-box;background:var(--surface-2);
+  border:1px solid var(--red);border-radius:3px;padding:4px 7px;font-size:12px;
+  color:var(--text);font-family:inherit;outline:none;}
+.p2-multipick{width:258px;}
+.p2-pickrow{cursor:pointer;}
+.p2-pickrow.on{border-color:rgba(232,35,42,.45);}
+.p2-pick-ck{color:var(--red);font-size:11px;font-weight:800;flex-shrink:0;width:12px;}
 #p2_root .prj-cell[data-col="status"] select:focus{border-color:var(--red);background:var(--surface-2);}
 #p2_root .prj-cell[data-col="status"] select option{background:var(--surface);color:var(--text);}
 /* The section card. .p2-section had no styling at all, so the table sat as a square slab
@@ -777,16 +986,16 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
    head inside is position:sticky against the outer scroller -- clipping here would stop it
    sticking. The corners are rounded on the children instead, which costs two rules and
    keeps the header behaving. */
-#p2_root .p2-section{background:var(--surface);border:1px solid var(--line);border-radius:12px;
-  margin-bottom:14px;box-shadow:0 4px 18px -10px rgba(208,4,0,.22);}
-#p2_root .p2-section > [data-p2-folder-head]{border-radius:11px 11px 0 0;}
+#p2_root .p2-section{background:var(--surface);border:1px solid var(--line);border-radius:6px;
+  margin-bottom:14px;box-shadow:none;}
+#p2_root .p2-section > [data-p2-folder-head]{border-radius:5px 5px 0 0;}
 /* Last row in the card carries the bottom curve, and drops the divider that would
    otherwise cut straight across it. */
-#p2_root .p2-section > [data-p2-folder-body] > *:last-child{border-radius:0 0 11px 11px;
+#p2_root .p2-section > [data-p2-folder-body] > *:last-child{border-radius:0 0 5px 5px;
   border-bottom:none;}
 /* Collapsed, the head IS the card, so it rounds on all four corners. */
 #p2_root .p2-section:has(> [data-p2-folder-body][style*="display:none"]) > [data-p2-folder-head]{
-  border-radius:11px;border-bottom:none;}
+  border-radius:5px;border-bottom:none;}
 /* The last column held nothing but a divider, which read as a stray empty box at the end
    of the red header. It is the delete column; it needs no heading and no divider. */
 #p2_root .prj-th[data-col="pad"]{border-right:none;}
@@ -794,7 +1003,7 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 /* These two cells are control strips, not prose, so they set their own padding. */
 #p2_root .prj-cell[data-col="timer"]{padding-left:12px;padding-right:8px;gap:0;}
 #p2_root .prj-cell[data-col="pad"]{padding-left:12px;padding-right:12px;justify-content:center;}
-#p2_root .prj-row .p2-row-del{width:20px;height:20px;border-radius:6px;}
+#p2_root .prj-row .p2-row-del{width:20px;height:20px;border-radius:3px;}
 #p2_root .prj-row .p2-row-del:hover{background:rgba(208,4,0,.12);}
 /* The last column was being drawn and left empty; the original puts delete there, and
    keeps it visible -- a control you have to hover to discover is one nobody finds. */
@@ -806,7 +1015,7 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 #p2_root .p2-timer-stop{opacity:.6;transition:opacity .12s ease,color .12s ease;}
 #p2_root .p2-timer-stop:hover{opacity:1;color:var(--text);}
 #p2_root .prj-row{transition:background .12s ease;}
-#p2_root .prj-row:hover{background:var(--surface);}
+#p2_root .prj-row:hover{background:var(--surface-2);}
 #p2_root .prj-row .prj-name{transition:color .12s ease;}
 #p2_root .prj-row .prj-name:hover{color:var(--red);text-decoration:underline;text-underline-offset:2px;}
 #p2_root .p2-card{transition:border-color .12s ease,transform .08s ease;}
@@ -821,6 +1030,100 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 #p2_root .prj-cell[data-col="task_details"],
 #p2_root .prj-cell[data-col="department"],
 #p2_root .prj-cell[data-col="client"]{text-overflow:ellipsis;}
+/* Flatter, per Luke: "not overly rounded or card-heavy". The toolbar controls and the
+   project chips set border-radius INLINE (9px), and inline beats any selector, so these
+   need !important -- the one place in this block that does. Scoped to #p2_root: the
+   original Projects screen keeps its shapes. */
+#p2_root .prj-proj-chip,#p2_root [data-p2-more]{border-radius:4px!important;}
+#p2_root #p2_prjAddColBtn,#p2_root #p2_prjEditColsBtn,#p2_root #p2_prjFilterBtn,
+#p2_root #p2_prjMineToggle,#p2_root #p2_prjStatusToggle,#p2_root .prj-view-toggle,
+#p2_root .prj-projects-bar{border-radius:5px!important;}
+#p2_root #p2_prjMineToggle > button,#p2_root #p2_prjStatusToggle > button,
+#p2_root .prj-vt-btn{border-radius:3px!important;}
+#p2_root .p2-addcol,#p2_root .p2-colmenu{border-radius:3px;}
+/* Matched to Luke's reference (stitch code.html), element by element.
+   The project strip is a row of chips on the page, not a boxed bar. */
+#p2_root .prj-projects-bar{background:transparent;border:none;padding:4px 0;}
+#p2_root .prj-proj-add{display:inline-flex;align-items:center;gap:6px;width:auto!important;
+  padding:6px 9px;font-size:12px;font-weight:600;color:var(--text-3);white-space:nowrap;}
+#p2_root .prj-proj-add:hover{color:var(--text);}
+/* The count is the reference's mono tag: "56 tasks". */
+#p2_root .p2-crumbcount{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;
+  font-weight:600;color:var(--text-2);background:var(--surface-2);border:1px solid var(--line-2);
+  border-radius:3px;padding:1px 7px;flex-shrink:0;}
+/* Headings: no divider between them, and the menu quiet until the heading is pointed at.
+   Not hidden outright -- a control nobody can see is a control nobody finds -- but at a
+   third of its strength it stops eleven "..." from reading as part of every label. The
+   resize grip shows its line only when you are near it. */
+#p2_root .prj-section-thead .p2-colmenu{opacity:.3;}
+#p2_root .prj-section-thead .prj-th:hover .p2-colmenu{opacity:.85;}
+#p2_root .prj-section-thead .p2-colmenu:hover{opacity:1;}
+#p2_root .prj-section-thead .p2-colgrip::after{background:transparent;}
+#p2_root .prj-section-thead .prj-th:hover .p2-colgrip::after{background:var(--line-2);}
+#p2_root .prj-section-thead .p2-colgrip:hover::after,
+#p2_root .prj-section-thead .p2-colgrip:active::after{background:var(--text-3);}
+/* "+ Add" with the word, in the reference's red. */
+#p2_root .p2-addcol{width:auto;padding:0 6px;gap:4px;color:var(--red);opacity:.9;}
+#p2_root .p2-addcol-t{font-size:11px;font-weight:700;letter-spacing:0;text-transform:none;color:var(--text-2);}
+#p2_root .p2-addcol:hover .p2-addcol-t{color:var(--text);}
+/* The quick-add row's Enter cue. */
+#p2_root .p2-quickadd-k{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;
+  color:var(--text-4);flex-shrink:0;white-space:nowrap;}
+#p2_root .p2-quickadd input::placeholder{color:var(--text-3);}
+/* Board column head, as the reference draws it: name in sentence case, a count tag, and
+   the column's own controls on the right. */
+#p2_root .p2-lanehead{display:flex;align-items:center;gap:7px;margin-bottom:10px;min-height:22px;}
+#p2_root .p2-lanehead-t{font-size:12.5px;font-weight:700;color:var(--text);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;min-width:0;}
+#p2_root .p2-lanehead-n{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;
+  color:var(--text-3);background:var(--surface);border:1px solid var(--line);border-radius:3px;
+  padding:0 5px;flex-shrink:0;}
+#p2_root .p2-lanebtn{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;
+  border-radius:3px;color:var(--text-3);cursor:pointer;font-size:12px;flex-shrink:0;
+  transition:background .12s,color .12s;}
+#p2_root .p2-lanebtn:hover{background:var(--surface);color:var(--text);}
+/* Move left/right appear when the column is pointed at, so a long stage name keeps the
+   room it needs the rest of the time -- "Needs more detail" was clipping with them shown. */
+#p2_root .p2-lanebtn[data-p2-lanemove]{display:none;}
+#p2_root [data-p2-col]:hover .p2-lanebtn[data-p2-lanemove]{display:inline-flex;}
+/* The shared renderers' tags (priority, department, people, client) are pills on the
+   original screen; here they are the same small-radius tags as everything else. */
+#p2_root .prj-lbl{border-radius:3px;}
+#p2_root .prj-cell-ava{border-radius:4px;}
+/* Every heading but the task name can be dragged now, not only custom ones. */
+#p2_root .prj-section-thead .prj-th[data-p2-coldrag]{cursor:grab;}
+#p2_root .prj-section-thead .prj-th[data-p2-coldrag]:hover::before{opacity:1;color:var(--text-2);}
+/* Edit columns: one row per column, hairline-separated, the way the table itself reads. */
+.p2-mcols{padding:2px 8px 6px;max-height:min(480px,calc(100vh - 230px));overflow-y:auto;}
+.p2-mcol{display:flex;align-items:center;gap:8px;padding:7px 6px;border-bottom:1px solid var(--line);
+  background:transparent;transition:background .12s,opacity .12s;}
+.p2-mcol:last-child{border-bottom:none;}
+.p2-mcol[draggable]{cursor:grab;}
+.p2-mcol[draggable]:hover{background:var(--surface-2);}
+.p2-mcol.dragging{opacity:.4;}
+.p2-mcol.over{box-shadow:inset 0 2px 0 var(--red);}
+.p2-mcol.off .p2-mcol-name{color:var(--text-4);}
+.p2-mcol-name{flex:1;min-width:0;font-size:12.5px;font-weight:600;color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.p2-mcol-tag{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--text-3);border:1px solid var(--line-2);border-radius:3px;padding:1px 5px;flex-shrink:0;}
+.p2-mcol-tag.custom{color:var(--red);border-color:rgba(232,35,42,.4);}
+.p2-mcol-btn{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:3px;color:var(--text-3);cursor:pointer;flex-shrink:0;transition:background .12s,color .12s;}
+.p2-mcol-btn:hover{background:var(--surface-2);color:var(--text);}
+.p2-mcol-add{padding:2px 8px 9px;}
+.p2-mcol-add button{width:100%;text-align:left;background:transparent;border:1px dashed var(--line-2);
+  border-radius:4px;padding:7px 10px;color:var(--text-2);font-family:inherit;font-size:12px;
+  font-weight:600;cursor:pointer;transition:border-color .12s,color .12s;}
+.p2-mcol-add button:hover{border-color:var(--red);color:var(--text);}
+/* A built-in heading's menu. */
+.p2-colmenu-pop{width:200px;}
+.p2-menulist{padding:2px 4px 5px;}
+.p2-menuitem{display:block;width:100%;text-align:left;background:transparent;border:none;
+  border-radius:3px;padding:7px 10px;font-family:inherit;font-size:12.5px;color:var(--text);cursor:pointer;}
+.p2-menuitem:hover:not([disabled]){background:var(--surface-2);}
+.p2-menuitem[disabled]{opacity:.35;cursor:not-allowed;}
+.p2-menusep{height:1px;background:var(--line);margin:4px 2px;}
 .prj-cell:last-child{border-right:none;}
 .prj-cell.editable{cursor:text;transition:background .14s,box-shadow .14s;}
 .prj-cell.editable:hover{background:var(--surface-2);}
@@ -10745,11 +11048,11 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
           <div class="prj-projects-bar" id="p2_prjProjectsBar">
             <div class="prj-proj prj-proj-icon"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="8.5" y="2" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.4"/></svg></div>
             <!-- dynamic project tabs injected here -->
-            <div class="prj-proj prj-proj-add" id="p2_prjProjAdd" title="Create project"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+            <div class="prj-proj prj-proj-add" id="p2_prjProjAdd" title="Create project"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span class="p2-projadd-t">Add project</span></div>
           </div>
 
           <!-- view tabs (level 2: per-project sub-views) -->
-          <div style="font-size:10.5px;font-weight:800;color:var(--text-3);text-transform:uppercase;letter-spacing:.10em;margin:6px 0 6px;display:flex;align-items:center;gap:7px;">
+          <div id="p2_prjVtabsLabel" style="font-size:10.5px;font-weight:800;color:var(--text-3);text-transform:uppercase;letter-spacing:.10em;margin:6px 0 6px;display:flex;align-items:center;gap:7px;">
             <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 4h4l1 1.2h5v6.8a1 1 0 01-1 1H3a1 1 0 01-1-1V5a1 1 0 011-1Z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
             Subprojects
           </div>
@@ -10760,7 +11063,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
 
           <!-- controls bar -->
           <div class="prj-controls">
-            <div class="prj-spacer"></div>
+            <div class="prj-spacer" id="p2_prjCrumb" style="display:flex;align-items:center;gap:9px;min-width:0;"></div>
             <div class="prj-status-toggle" id="p2_prjMineToggle" style="display:flex;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px;margin-right:8px;"><button class="prj-st-btn active" data-p2-mine="0" style="background:var(--surface-2);color:var(--text);border:none;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">All tasks</button><button class="prj-st-btn" data-p2-mine="1" style="background:transparent;color:var(--text-2);border:none;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">My tasks</button></div>
             <div class="prj-status-toggle" id="p2_prjStatusToggle" style="display:flex;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px;margin-right:8px;">
               <button class="prj-st-btn active" data-status="active" style="background:var(--surface-2);color:var(--text);border:none;border-radius:6px;padding:5px 11px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;">Active <span class="prj-st-count" id="p2_prjStCountActive" style="opacity:.6;margin-left:3px;">0</span></button>
@@ -10778,6 +11081,22 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <!-- One pool of tasks, three ways of looking at it. The original hid this
                  because each view tab kept its own mode and two controls disagreed; here
                  a view is a presentation over the same tasks, so one switcher is right. -->
+            <!-- Add column lives here as well as on the header row. The header's control
+                 sits in the delete column, which on a board with a few custom columns is
+                 past the right edge of a table that scrolls horizontally -- so on a real
+                 board it cannot be reached without going looking for it. Found by looking
+                 at the screen; every count had already passed. -->
+            <button id="p2_prjAddColBtn" title="Add a column to this board" style="display:none;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:6px 11px;color:var(--text-2);cursor:pointer;font-family:inherit;align-items:center;gap:6px;font-size:11.5px;font-weight:600;margin-right:8px;">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              Column
+            </button>
+            <!-- Edit columns: order and visibility for every column, built-in included.
+                 Shown to everyone on the table -- arranging your own view is not a
+                 manager's decision; only custom columns' shared positions are. -->
+            <button id="p2_prjEditColsBtn" title="Reorder, show or hide columns" style="display:none;background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:6px 11px;color:var(--text-2);cursor:pointer;font-family:inherit;align-items:center;gap:6px;font-size:11.5px;font-weight:600;margin-right:8px;">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M3 3.5v9M8 3.5v9M13 3.5v9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              Columns
+            </button>
             <div class="prj-view-toggle" id="p2_prjViewToggle">
               <button class="prj-vt-btn active" data-p2-view="table"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Table</button>
               <button class="prj-vt-btn" data-p2-view="board"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="3.5" height="10" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="6.5" y="3" width="3.5" height="7" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="11" y="3" width="3" height="9" rx="1" stroke="currentColor" stroke-width="1.4"/></svg>Board</button>
@@ -42773,17 +43092,37 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           let customPrios = [];
           if (Array.isArray(bucket)) customPrios = bucket;
           else if (bucket && typeof bucket === 'object') customPrios = bucket.priority || [];
-          const presets = [
+          // The order you set in Edit labels is the order you get here.
+          //
+          // This used to be `[...presets, ...extraOptions]` with Fire, Medium and Low
+          // hardcoded in front, and the custom labels appended after. Dragging a label
+          // to the top of Edit labels saved its position and changed nothing in this
+          // menu, because nothing in this menu ever read position -- reported as "I can
+          // do the up and down thing but I can't select which ones come first".
+          //
+          // Fire, Medium and Low are not special: loadProjectPriorities SEEDS them as
+          // real project_priorities rows at positions 1-3, and the old code then filtered
+          // them back out of extraOptions to avoid showing them twice. So the whole list
+          // is just project_priorities, in position order, and the presets are only a
+          // fallback for a project whose rows have not loaded yet.
+          const PRESET_BY_LABEL = {
+            fire:   { val: 'fire',   cls: 'pp-fire' },
+            medium: { val: 'medium', cls: 'pp-today' },
+            low:    { val: 'low',    cls: 'pp-nextweek' }
+          };
+          // A seeded row keeps its legacy value ('fire', not 'Fire'), because that is what
+          // is stored on every task already -- changing it here would orphan them.
+          let options = customPrios.map(p => {
+            const preset = PRESET_BY_LABEL[String(p.label).toLowerCase()];
+            return preset
+              ? { val: preset.val, label: p.label, cls: preset.cls }
+              : { val: p.label, label: p.label, cls: 'pp-custom', color: p.color };
+          });
+          if (!options.length) options = [
             { val: 'fire',   label: 'Fire',    cls: 'pp-fire' },
             { val: 'medium', label: 'Medium',  cls: 'pp-today' },
             { val: 'low',    label: 'Low',     cls: 'pp-nextweek' }
           ];
-          // Add custom prios that aren't aliases of presets
-          const presetLabels = new Set(['fire', 'medium', 'low']);
-          const extraOptions = customPrios
-            .filter(p => !presetLabels.has(String(p.label).toLowerCase()))
-            .map(p => ({ val: p.label, label: p.label, cls: 'pp-custom', color: p.color }));
-          const options = [...presets, ...extraOptions];
           // Detect if current priority is a custom value (not in the 3 presets)
           const isCustomCurrent = current && !options.some(o => o.val === current);
           const html = `
@@ -86122,19 +86461,962 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                filters: {}, sort: null };
   // Column widths, per person, in this browser. No migration for it: it is a preference
   // about looking at a table, not a fact about the work.
-  const P2_COLW = { name: 264, status: 170, timer: 150, priority: 130, assignee: 150,
+  // status 170 -> 196: the pill carries a leading dot and a border now, and "Needs more
+  // detail" was clipping to "Needs more d...". 196 -> 228: "Waiting on another team",
+  // the longest of the nine, still clipped to "Waiting on another..." at 196.
+  const P2_COLW = { name: 264, status: 228, timer: 150, priority: 130, assignee: 150,
                     client: 150, department: 130, task_details: 240 };
   // Status sits straight after the name: it is the thing you scan a list for, and putting
   // it behind the timer would mean reading past a column of digits to find it.
   const P2_COL_ORDER = ['name', 'status', 'timer', 'priority', 'assignee', 'client', 'department', 'task_details'];
   const P2_COL_MIN = 72;
+  // What each built-in heading says. One place, because the heading, the Edit columns
+  // panel and the heading menu all name the same eight columns.
+  const P2_COL_LABEL = { name: 'Task name', status: 'Status', timer: 'Time', priority: 'Priority',
+                         assignee: 'Assignee', client: 'Client', department: 'Department',
+                         task_details: 'Task infos' };
+  // Custom columns, from project_fields, in position order. Loaded per project alongside
+  // the tasks. The eight above are built in; these are whatever this project decided it
+  // also needed, and they sit after them and before the delete column.
+  //
+  // The feature existed on paper and nowhere else: project_fields has had name, type,
+  // options and position since the first schema, tasks.custom_fields has had the values,
+  // and the only renderer -- renderProjectFieldHeaders, written for the ORIGINAL projects
+  // screen -- began `document.getElementById('prjCustomColHeaders')` against an id that
+  // appears nowhere in this file, so it returned on its first line every time. Columns
+  // loaded from the database into a container that was never built.
+  p2.fields = [];
+  const P2_FIELD_W = 150;
+  const fieldKey = (f) => 'custom:' + f.id;
+  const fieldById = (id) => (p2.fields || []).find(f => f.id === id) || null;
+
+  // ── Column order ────────────────────────────────────────────────────────────
+  // ONE list of column keys -- built-in and custom alike -- that the heading row, every
+  // task row and the grid template all read. They were three hand-written sequences
+  // before, which is why only custom columns could move: moving a built-in one meant
+  // keeping three lists in step by hand.
+  //
+  // Where it is kept: this browser, per board, beside the column widths
+  // (giant_p2_colw). There is no table for the order of the built-in eight, and the
+  // position of a CUSTOM column is still written to project_fields when a manager moves
+  // it, so the team's default for those stays shared. What this adds on top is a
+  // person's own arrangement and their hidden columns -- a preference about looking at a
+  // table, the same kind of thing a width is.
+  //
+  // The task name is always first and can never be hidden: it is the pinned column, and
+  // a row with no name is a row nobody can identify.
+  const P2_COLPREF_KEY = 'giant_p2_colorder';
+  function readColPrefs(){
+    try {
+      const all = JSON.parse(localStorage.getItem(P2_COLPREF_KEY) || '{}') || {};
+      const mine = all[p2.activeId] || {};
+      return { order: Array.isArray(mine.order) ? mine.order : [],
+               hidden: Array.isArray(mine.hidden) ? mine.hidden : [] };
+    } catch (_) { return { order: [], hidden: [] }; }
+  }
+  function writeColPrefs(pref){
+    try {
+      const all = JSON.parse(localStorage.getItem(P2_COLPREF_KEY) || '{}') || {};
+      all[p2.activeId] = { order: pref.order || [], hidden: pref.hidden || [] };
+      localStorage.setItem(P2_COLPREF_KEY, JSON.stringify(all));
+    } catch (_) {}
+  }
+  // Every column on this board in display order, hidden ones included. A key that was
+  // saved and no longer exists (a deleted custom column) drops out; one that exists and
+  // was never saved (a column added since) goes at the end, which is where a new column
+  // appears anyway.
+  function allColumns(){
+    const known = P2_COL_ORDER.concat((p2.fields || []).map(fieldKey));
+    const saved = readColPrefs().order.filter(k => known.indexOf(k) >= 0);
+    const order = saved.concat(known.filter(k => saved.indexOf(k) < 0));
+    return ['name'].concat(order.filter(k => k !== 'name'));
+  }
+  function hiddenColumns(){
+    return readColPrefs().hidden.filter(k => k !== 'name');
+  }
+  function visibleColumns(){
+    const hid = hiddenColumns();
+    return allColumns().filter(k => hid.indexOf(k) < 0);
+  }
+  const colLabel = (k) => {
+    if (P2_COL_LABEL[k]) return P2_COL_LABEL[k];
+    const f = k.indexOf('custom:') === 0 ? fieldById(k.slice(7)) : null;
+    return f ? f.name : k;
+  };
+  // Module scope, not inside renderTable: the cell editor reads it too, and a copy in
+  // each place is two answers to "what is in this cell".
+  const fieldVal = (f, t) => {
+    const bag = (t && t.custom_fields && typeof t.custom_fields === 'object') ? t.custom_fields : {};
+    return bag[f.id];
+  };
+  // Five types, the ones Luke asked for, each with what it is FOR rather than what it is.
+  // The old unwired menu offered thirteen including Formula, Rollup and "Fields with AI
+  // Studio", none of which had any code behind them.
+  const P2_FIELD_TYPES = [
+    { key: 'single_select', label: 'Single-select', hint: 'Tags, category, choice' },
+    { key: 'multi_select',  label: 'Multi-select',  hint: 'Multiple tags & labels' },
+    { key: 'date',          label: 'Date',          hint: 'Due dates, milestones' },
+    { key: 'people',        label: 'People',        hint: 'Assignee, collaborators' },
+    { key: 'text',          label: 'Text',          hint: 'Notes, descriptions, links' }
+  ];
+  // Who may change the SHAPE of a board. Filling a column in is everybody's job; adding,
+  // renaming, retyping, reordering and deleting one changes what the whole team sees, so
+  // it follows the same floor as the rest of Projects 2.0.
+  // Read off giantCurrentProfile, the same source canDeleteTask uses -- window.giantRole
+  // is not a thing this app sets, and a permission that reads undefined refuses everybody.
+  const canEditColumns = () => ['owner', 'manager', 'inhouse_dev']
+    .includes(String((window.giantCurrentProfile || {}).role || '').toLowerCase());
   try { const raw = JSON.parse(localStorage.getItem('giant_p2_colw') || '{}');
         Object.keys(P2_COLW).forEach(k => { if (+raw[k] > 0) p2.colw[k] = +raw[k]; }); } catch (_) {}
-  const colWidth = (k) => Math.max(P2_COL_MIN, p2.colw[k] || P2_COLW[k]);
+  const colWidth = (k) => Math.max(P2_COL_MIN, p2.colw[k] || P2_COLW[k] || P2_FIELD_W);
+  // ── Add a column ────────────────────────────────────────────────────────────
+  // The floating panel from Luke's Stitch export: name first, then the type, with each
+  // type saying what it is FOR. Built on <body> rather than inside the table, because the
+  // table scrolls and clips and a panel anchored in it would be cut off at the edge.
+  const P2_TYPE_IC = {
+    single_select: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path d="M9 11l3 3 3-3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    multi_select:  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h10"/></svg>',
+    date:          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4" stroke-linecap="round"/></svg>',
+    people:        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c.9-3.6 3.8-5.4 7-5.4s6.1 1.8 7 5.4" stroke-linecap="round"/></svg>',
+    text:          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M5 6h14M9 6v13M15 6v13M7 19h4M13 19h4"/></svg>'
+  };
+  let p2ColPop = null;
+  let p2DragCol = null;
+  function closeColPop(){
+    if (p2ColPop) { p2ColPop.remove(); p2ColPop = null; }
+    document.removeEventListener('mousedown', colPopAway, true);
+    document.removeEventListener('keydown', colPopKey, true);
+  }
+  function colPopAway(e){ if (p2ColPop && !p2ColPop.contains(e.target)) closeColPop(); }
+  function colPopKey(e){
+    if (e.key === 'Escape') { e.stopPropagation(); closeColPop(); return; }
+    // Enter submits from the name box, which is where the cursor starts.
+    if (e.key === 'Enter' && p2ColPop && p2ColPop.contains(e.target)) {
+      const go = p2ColPop.querySelector('.p2-colpop-go');
+      if (go && !go.disabled) { e.preventDefault(); go.click(); }
+    }
+  }
+  function openAddColumn(anchorEl){
+    if (!canEditColumns()) return;
+    closeColPop();
+    const pop = document.createElement('div');
+    pop.className = 'p2-colpop';
+    let picked = 'single_select';
+    pop.innerHTML =
+      '<div class="p2-colpop-head">'
+      + '<div class="p2-colpop-eyebrow"><span style="display:flex;align-items:center;">'
+      +   '<span class="dot"></span>New column</span>'
+      +   '<span class="p2-colpop-x" data-x="1" title="Close">&#10005;</span></div>'
+      + '<input type="text" id="p2_colName" placeholder="Column name…" autocomplete="off" spellcheck="false">'
+      + '</div>'
+      + '<div class="p2-colpop-sub"><span>Select property type</span><span class="esc">esc to exit</span></div>'
+      + '<div class="p2-colpop-list">'
+      + P2_FIELD_TYPES.map(t =>
+          '<button type="button" class="p2-type' + (t.key === picked ? ' on' : '') + '" data-type="' + t.key + '">'
+          + '<span style="display:flex;align-items:center;gap:10px;min-width:0;">'
+          +   '<span class="p2-type-ic">' + P2_TYPE_IC[t.key] + '</span>'
+          +   '<span style="min-width:0;"><span class="p2-type-t" style="display:block;">' + t.label + '</span>'
+          +   '<span class="p2-type-h" style="display:block;">' + t.hint + '</span></span>'
+          + '</span><span class="p2-type-ck">&#10003;</span></button>').join('')
+      + '</div>'
+      + '<div class="p2-colpop-foot">'
+      +   '<button type="button" class="p2-colpop-cancel" data-x="1">Cancel</button>'
+      +   '<button type="button" class="p2-colpop-go" disabled>Create column</button>'
+      + '</div>';
+    document.body.appendChild(pop);
+    p2ColPop = pop;
+    // Anchored under the control, then pulled back inside the viewport. The add button is
+    // at the far right of the header, so a panel left at its x would hang off the edge.
+    const r = anchorEl.getBoundingClientRect();
+    const w = 288;
+    pop.style.top = Math.min(r.bottom + 6, window.innerHeight - 380) + 'px';
+    pop.style.left = Math.max(10, Math.min(r.right - w, window.innerWidth - w - 10)) + 'px';
+
+    const nameEl = pop.querySelector('#p2_colName');
+    const goEl = pop.querySelector('.p2-colpop-go');
+    const sync = () => { goEl.disabled = !nameEl.value.trim(); };
+    nameEl.addEventListener('input', sync);
+    setTimeout(() => nameEl.focus(), 30);
+    pop.querySelectorAll('.p2-type').forEach(b => b.addEventListener('click', () => {
+      picked = b.dataset.type;
+      pop.querySelectorAll('.p2-type').forEach(x => x.classList.toggle('on', x === b));
+      nameEl.focus();
+    }));
+    pop.querySelectorAll('[data-x]').forEach(x => x.addEventListener('click', closeColPop));
+    goEl.addEventListener('click', async () => {
+      const name = nameEl.value.trim();
+      if (!name) return;
+      goEl.disabled = true;
+      await createColumn(name, picked);
+    });
+    document.addEventListener('mousedown', colPopAway, true);
+    document.addEventListener('keydown', colPopKey, true);
+  }
+
+  // ── Filling a column in ─────────────────────────────────────────────────────
+  // A column nobody can put anything into is decoration, which is what the last one was.
+  // Click the cell, get the right control for the type. Anyone who can see the board can
+  // do this -- it is the column's SHAPE that is manager-only, not its contents.
+  async function setFieldValue(taskId, fieldId, value){
+    const t = p2.tasks.find(x => x.id === taskId);
+    if (!t) return;
+    const bag = Object.assign({}, (t.custom_fields && typeof t.custom_fields === 'object') ? t.custom_fields : {});
+    if (value == null || value === '' || (Array.isArray(value) && !value.length)) delete bag[fieldId];
+    else bag[fieldId] = value;
+    // Whole object, because custom_fields is one jsonb column -- there is no way to write
+    // a single key, so the merge happens here and the read it merges onto is the row we
+    // already have.
+    const { data, error } = await sb().from('tasks')
+      .update({ custom_fields: bag }).eq('id', taskId).select('id');
+    if (error) {
+      if (typeof toast === 'function') toast({type:'error', message:'Could not save: ' + error.message});
+      return;
+    }
+    if (!data || !data.length) {
+      if (typeof toast === 'function') toast({type:'error', duration:4000,
+        message:'You do not have permission to change this task.'});
+      return;
+    }
+    t.custom_fields = bag;
+    renderTasks();
+  }
+
+  // Several values at once: options you tick, people you tick. One popover for both,
+  // because they are the same interaction over a different list.
+  function openMultiPick(anchorEl, items, chosen, onDone){
+    closeColPop();
+    const picked = new Set(chosen || []);
+    const pop = document.createElement('div');
+    pop.className = 'p2-colpop p2-multipick';
+    const draw = () => {
+      pop.innerHTML = '<div class="p2-colpop-sub"><span>Choose any</span>'
+        + '<span class="esc">click to toggle</span></div>'
+        + '<div class="p2-optlist" style="max-height:250px;">'
+        + (items.length ? items.map(it =>
+            '<div class="p2-opt p2-pickrow' + (picked.has(it.value) ? ' on' : '') + '"'
+            + ' data-v="' + esc(it.value) + '">'
+            + '<span class="p2-opt-sw" style="background:' + (it.color || 'var(--line-2)') + ';"></span>'
+            + '<span class="p2-opt-name" style="pointer-events:none;">' + esc(it.label) + '</span>'
+            + '<span class="p2-pick-ck">' + (picked.has(it.value) ? '&#10003;' : '') + '</span></div>').join('')
+           : '<div class="p2-opt-empty">This column has no options yet. A manager can add '
+             + 'them from the column menu.</div>')
+        + '</div>'
+        + '<div class="p2-colpop-foot">'
+        +   '<button type="button" class="p2-colpop-cancel" data-clear="1">Clear</button>'
+        +   '<span style="flex:1;"></span>'
+        +   '<button type="button" class="p2-colpop-go">Done</button></div>';
+      pop.querySelectorAll('[data-v]').forEach(r => r.addEventListener('click', () => {
+        const v = r.dataset.v;
+        if (picked.has(v)) picked.delete(v); else picked.add(v);
+        draw();
+      }));
+      pop.querySelector('[data-clear]').addEventListener('click', () => { closeColPop(); onDone([]); });
+      pop.querySelector('.p2-colpop-go').addEventListener('click', () => { closeColPop(); onDone([...picked]); });
+    };
+    document.body.appendChild(pop);
+    p2ColPop = pop;
+    draw();
+    const r = anchorEl.getBoundingClientRect();
+    pop.style.left = Math.max(10, Math.min(r.left, window.innerWidth - 270)) + 'px';
+    pop.style.top = Math.max(10, Math.min(r.bottom + 4, window.innerHeight - 340)) + 'px';
+    document.addEventListener('mousedown', colPopAway, true);
+    document.addEventListener('keydown', colPopKey, true);
+  }
+
+  async function openFieldEditor(cellEl, fieldId, taskId){
+    const f = fieldById(fieldId);
+    const t = p2.tasks.find(x => x.id === taskId);
+    if (!f || !t) return;
+    const cur = fieldVal(f, t);
+    if (f.type === 'single_select') {
+      const opts = (f.options || []).map(o => ({ value: o.label, label: o.label, tint: o.color }));
+      if (!opts.length) {
+        if (typeof toast === 'function') toast({type:'info', duration:3500,
+          message:'"' + f.name + '" has no options yet. A manager can add them from the column menu.'});
+        return;
+      }
+      // Clearing has to be reachable, or a value set by mistake is permanent.
+      opts.push({ value: '', label: '— Clear —' });
+      window.giantPickMenu(cellEl, { options: opts, value: cur == null ? '' : String(cur),
+        onPick: (v) => setFieldValue(taskId, fieldId, v || null) });
+      return;
+    }
+    if (f.type === 'multi_select') {
+      openMultiPick(cellEl, (f.options || []).map(o => ({ value: o.label, label: o.label, color: o.color })),
+        Array.isArray(cur) ? cur : (cur ? [cur] : []),
+        (vals) => setFieldValue(taskId, fieldId, vals));
+      return;
+    }
+    if (f.type === 'people') {
+      // The whole team, not p2.people. p2.people is whoever happens to be assigned to
+      // something on THIS board, so on a real one the picker offered five people out of
+      // eighty -- the fixture never showed it because everyone in it was on every task.
+      // Same query as the assignee picker: staff, not clients, and nobody who has left.
+      if (!p2.team) {
+        const { data } = await sb().from('profiles')
+          .select('id, full_name, email, avatar_bg, avatar_fg')
+          .neq('role', 'client').is('deactivated_at', null).order('full_name');
+        p2.team = data || [];
+        p2.team.forEach(pp => { if (!p2.people[pp.id]) p2.people[pp.id] = pp; });
+      }
+      const people = p2.team
+        .map(pr => ({ value: pr.id, label: pr.display_name || pr.full_name || pr.email || 'Someone' }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+      openMultiPick(cellEl, people, Array.isArray(cur) ? cur : (cur ? [cur] : []),
+        (vals) => setFieldValue(taskId, fieldId, vals));
+      return;
+    }
+    if (f.type === 'date') {
+      openDatePick(cellEl, cur, (v) => setFieldValue(taskId, fieldId, v));
+      return;
+    }
+    // text, edited in place rather than in a popover -- it is the one type where a panel
+    // is more ceremony than the edit is worth.
+    if (cellEl.querySelector('input')) return;
+    const was = cur == null ? '' : String(cur);
+    cellEl.innerHTML = '<input type="text" class="p2-cellinput" value="' + esc(was) + '" spellcheck="false">';
+    const inp = cellEl.querySelector('input');
+    inp.focus(); inp.select();
+    let settled = false;
+    const finish = (save) => {
+      if (settled) return;
+      settled = true;
+      const v = inp.value;
+      if (save && v !== was) setFieldValue(taskId, fieldId, v);
+      else renderTasks();
+    };
+    inp.addEventListener('keydown', e => {
+      e.stopPropagation();
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    });
+    inp.addEventListener('blur', () => finish(true));
+  }
+
+  // A date, as a plain yyyy-mm-dd string. Never a Date object: new Date('2026-10-01') is
+  // UTC midnight and reads as the previous day west of Greenwich, which is how a due date
+  // lands a day early.
+  function openDatePick(anchorEl, cur, onDone){
+    closeColPop();
+    const pop = document.createElement('div');
+    pop.className = 'p2-colpop p2-multipick';
+    pop.innerHTML = '<div class="p2-colpop-sub"><span>Pick a date</span></div>'
+      + '<div style="padding:4px 10px 10px;">'
+      + '<input type="date" id="p2_dateIn" value="' + esc(cur ? String(cur).slice(0, 10) : '') + '"'
+      + ' style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line-2);'
+      + 'border-radius:8px;padding:8px 10px;font-size:12.5px;color:var(--text);font-family:inherit;outline:none;"></div>'
+      + '<div class="p2-colpop-foot">'
+      +   '<button type="button" class="p2-colpop-cancel" data-clear="1">Clear</button>'
+      +   '<span style="flex:1;"></span>'
+      +   '<button type="button" class="p2-colpop-go">Save</button></div>';
+    document.body.appendChild(pop);
+    p2ColPop = pop;
+    const r = anchorEl.getBoundingClientRect();
+    pop.style.left = Math.max(10, Math.min(r.left, window.innerWidth - 270)) + 'px';
+    pop.style.top = Math.max(10, Math.min(r.bottom + 4, window.innerHeight - 220)) + 'px';
+    pop.querySelector('[data-clear]').addEventListener('click', () => { closeColPop(); onDone(null); });
+    pop.querySelector('.p2-colpop-go').addEventListener('click', () => {
+      const v = pop.querySelector('#p2_dateIn').value;
+      closeColPop(); onDone(v || null);
+    });
+    setTimeout(() => { const d = pop.querySelector('#p2_dateIn'); if (d) d.focus(); }, 30);
+    document.addEventListener('mousedown', colPopAway, true);
+    document.addEventListener('keydown', colPopKey, true);
+  }
+
+  // ── Edit a column ───────────────────────────────────────────────────────────
+  // One panel for everything a column IS: its name, its type, and -- for the two select
+  // kinds -- its options, in the order they will appear. Luke's complaint about ordering
+  // was that the up/down buttons saved a position nothing read; here the list you drag IS
+  // the order, and it is written as the options array, which is the only thing that
+  // renders. There is no second source to disagree with.
+  const P2_OPT_COLORS = ['#e8232a', '#f0a500', '#34c77b', '#6fb1ff', '#b07cf0', '#8d93a0'];
+  function openColumnMenu(anchorEl, fieldId){
+    const f = fieldById(fieldId);
+    if (!f || !canEditColumns()) return;
+    closeColPop();
+    const isSelect = f.type === 'single_select' || f.type === 'multi_select';
+    // Worked on locally and saved on Save, so a half-finished rename or a dragged option
+    // never reaches the board until it is meant to.
+    let name = f.name;
+    let type = f.type;
+    // orig is what the option was called when the editor opened. A task stores the
+    // option's LABEL, so a rename is only a rename if every task holding the old label is
+    // moved to the new one -- orig is how saveColumn knows which old label became which.
+    let opts = (f.options || []).map(o => ({ label: o.label, color: o.color, orig: o.label }));
+    // Where it sits among the columns you can see, the task name included -- that is the
+    // list Move left and Move right walk.
+    const vis = visibleColumns();
+    const idx = vis.indexOf(fieldKey(f));
+    const last = vis.length - 1;
+
+    const pop = document.createElement('div');
+    pop.className = 'p2-colpop p2-colpop-wide';
+    const draw = () => {
+      const selectNow = type === 'single_select' || type === 'multi_select';
+      pop.innerHTML =
+        '<div class="p2-colpop-head">'
+        + '<div class="p2-colpop-eyebrow"><span style="display:flex;align-items:center;">'
+        +   '<span class="dot"></span>Edit column</span>'
+        +   '<span class="p2-colpop-x" data-x="1" title="Close">&#10005;</span></div>'
+        + '<input type="text" id="p2_colEditName" placeholder="Column name…" autocomplete="off"'
+        +   ' spellcheck="false" value="' + esc(name) + '">'
+        + '</div>'
+        + '<div class="p2-colpop-sub"><span>Type</span></div>'
+        + '<div class="p2-colpop-list" style="max-height:none;">'
+        + P2_FIELD_TYPES.map(t =>
+            '<button type="button" class="p2-type p2-type-slim' + (t.key === type ? ' on' : '') + '"'
+            + ' data-settype="' + t.key + '">'
+            + '<span style="display:flex;align-items:center;gap:9px;min-width:0;">'
+            +   '<span class="p2-type-ic">' + P2_TYPE_IC[t.key] + '</span>'
+            +   '<span class="p2-type-t">' + t.label + '</span></span>'
+            + '<span class="p2-type-ck">&#10003;</span></button>').join('')
+        + '</div>'
+        + (selectNow
+            ? '<div class="p2-colpop-sub"><span>Options</span>'
+              + '<span class="esc">drag to reorder</span></div>'
+              + '<div class="p2-optlist">'
+              + (opts.length
+                  ? opts.map((o, i) =>
+                      '<div class="p2-opt" draggable="true" data-oi="' + i + '">'
+                      + '<span class="p2-opt-grip" title="Drag to reorder">&#8942;&#8942;</span>'
+                      + '<span class="p2-opt-sw" data-swatch="' + i + '" title="Change colour"'
+                      +   ' style="background:' + (o.color || 'var(--line-2)') + ';"></span>'
+                      + '<input type="text" class="p2-opt-name" data-oname="' + i + '"'
+                      +   ' value="' + esc(o.label) + '" spellcheck="false">'
+                      + '<span class="p2-opt-del" data-odel="' + i + '" title="Remove this option">&#10005;</span>'
+                      + '</div>').join('')
+                  : '<div class="p2-opt-empty">No options yet. Add the first one below.</div>')
+              + '</div>'
+              + '<div class="p2-optadd">'
+              +   '<input type="text" id="p2_optNew" placeholder="Add an option…" spellcheck="false">'
+              +   '<button type="button" id="p2_optAdd">Add</button>'
+              + '</div>'
+            : '')
+        + '<div class="p2-colpop-moves">'
+        +   '<button type="button" data-move="-1"' + (idx <= 1 ? ' disabled' : '') + '>&#8592; Move left</button>'
+        +   '<button type="button" data-move="1"' + (idx >= last ? ' disabled' : '') + '>Move right &#8594;</button>'
+        + '</div>'
+        + '<div class="p2-colpop-foot">'
+        +   '<button type="button" class="p2-colpop-del" data-del="1">Delete column</button>'
+        +   '<span style="flex:1;"></span>'
+        +   '<button type="button" class="p2-colpop-cancel" data-x="1">Cancel</button>'
+        +   '<button type="button" class="p2-colpop-go">Save</button>'
+        + '</div>';
+      wire();
+    };
+
+    const wire = () => {
+      pop.querySelectorAll('[data-x]').forEach(x => x.addEventListener('click', closeColPop));
+      const nameEl = pop.querySelector('#p2_colEditName');
+      nameEl.addEventListener('input', () => { name = nameEl.value; });
+      pop.querySelectorAll('[data-settype]').forEach(b => b.addEventListener('click', () => {
+        const next = b.dataset.settype;
+        if (next === type) return;
+        const wasSelect = type === 'single_select' || type === 'multi_select';
+        const willSelect = next === 'single_select' || next === 'multi_select';
+        // Turning a select into something else keeps the options rather than dropping
+        // them: changing your mind twice should not cost you the list you typed.
+        if (willSelect && !wasSelect && !opts.length) opts = [{ label: 'Option 1', color: P2_OPT_COLORS[0] }];
+        type = next;
+        draw();
+      }));
+      pop.querySelectorAll('[data-oname]').forEach(el => el.addEventListener('input', () => {
+        opts[+el.dataset.oname].label = el.value;
+      }));
+      pop.querySelectorAll('[data-odel]').forEach(el => el.addEventListener('click', () => {
+        opts.splice(+el.dataset.odel, 1); draw();
+      }));
+      pop.querySelectorAll('[data-swatch]').forEach(el => el.addEventListener('click', () => {
+        const i = +el.dataset.swatch;
+        const cur = P2_OPT_COLORS.indexOf(opts[i].color);
+        opts[i].color = P2_OPT_COLORS[(cur + 1) % P2_OPT_COLORS.length];
+        el.style.background = opts[i].color;
+      }));
+      const addEl = pop.querySelector('#p2_optNew'), addBtn = pop.querySelector('#p2_optAdd');
+      const addOpt = () => {
+        const v = (addEl.value || '').trim();
+        if (!v) return;
+        if (opts.some(o => o.label.toLowerCase() === v.toLowerCase())) {
+          if (typeof toast === 'function') toast({type:'info', message:'"' + v + '" is already an option.', duration:2500});
+          return;
+        }
+        opts.push({ label: v, color: P2_OPT_COLORS[opts.length % P2_OPT_COLORS.length] });
+        addEl.value = ''; draw();
+        setTimeout(() => { const a = pop.querySelector('#p2_optNew'); if (a) a.focus(); }, 20);
+      };
+      if (addBtn) addBtn.addEventListener('click', addOpt);
+      if (addEl) addEl.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); addOpt(); }
+      });
+      // Drag an option into place. The array IS the order, so a drop rewrites it and the
+      // redraw shows exactly what will be saved.
+      let from = null;
+      pop.querySelectorAll('.p2-opt').forEach(row => {
+        row.addEventListener('dragstart', e => {
+          from = +row.dataset.oi; row.style.opacity = '.45';
+          try { e.dataTransfer.setData('text/plain', String(from)); } catch (_) {}
+          e.dataTransfer.effectAllowed = 'move';
+        });
+        row.addEventListener('dragend', () => { from = null; row.style.opacity = ''; });
+        row.addEventListener('dragover', e => {
+          if (from === null || from === +row.dataset.oi) return;
+          e.preventDefault(); row.classList.add('over');
+        });
+        row.addEventListener('dragleave', () => row.classList.remove('over'));
+        row.addEventListener('drop', e => {
+          e.preventDefault(); row.classList.remove('over');
+          const to = +row.dataset.oi;
+          if (from === null || from === to) return;
+          const [m] = opts.splice(from, 1);
+          opts.splice(to, 0, m);
+          from = null; draw();
+        });
+      });
+      pop.querySelectorAll('[data-move]').forEach(b => b.addEventListener('click', async () => {
+        await moveColumn(fieldKey(f), +b.dataset.move);
+      }));
+      pop.querySelector('[data-del]').addEventListener('click', () => deleteColumn(f));
+      pop.querySelector('.p2-colpop-go').addEventListener('click', () => saveColumn(f, name, type, opts));
+    };
+
+    document.body.appendChild(pop);
+    p2ColPop = pop;
+    draw();
+    const r = anchorEl.getBoundingClientRect();
+    const w = 320;
+    pop.style.left = Math.max(10, Math.min(r.left - 40, window.innerWidth - w - 10)) + 'px';
+    pop.style.top = Math.max(10, Math.min(r.bottom + 6, window.innerHeight - 440)) + 'px';
+    document.addEventListener('mousedown', colPopAway, true);
+    document.addEventListener('keydown', colPopKey, true);
+  }
+
+  // ── A built-in column's menu ────────────────────────────────────────────────
+  // Sort, move, hide, and the way into Edit columns. No rename and no delete: these eight
+  // are how a task works -- a status, a timer, an owner -- not something a board added,
+  // so they are arranged rather than edited.
+  function openSystemColumnMenu(anchorEl, key){
+    closeColPop();
+    const vis = visibleColumns();
+    const i = vis.indexOf(key);
+    const sortable = !!P2_SORTABLE[key];
+    const item = (act, label, off) => '<button type="button" class="p2-menuitem" data-act="' + act + '"'
+      + (off ? ' disabled' : '') + '>' + label + '</button>';
+    const pop = document.createElement('div');
+    pop.className = 'p2-colpop p2-colmenu-pop';
+    pop.innerHTML =
+      '<div class="p2-colpop-sub" style="padding-top:9px;"><span>' + esc(colLabel(key)) + '</span>'
+      + '<span class="esc">built-in</span></div>'
+      + '<div class="p2-menulist">'
+      + (sortable ? item('asc', 'Sort A &#8594; Z') + item('desc', 'Sort Z &#8594; A') : '')
+      + (sortable && p2.sort && p2.sort.col === key ? item('nosort', 'Clear sort') : '')
+      + '<div class="p2-menusep"></div>'
+      + item('left', '&#8592; Move left', key === 'name' || i <= 1)
+      + item('right', 'Move right &#8594;', key === 'name' || i < 0 || i >= vis.length - 1)
+      + (key === 'name' ? '' : item('hide', 'Hide column'))
+      + '<div class="p2-menusep"></div>'
+      + item('manage', 'Edit columns&#8230;')
+      + '</div>';
+    document.body.appendChild(pop);
+    p2ColPop = pop;
+    const r = anchorEl.getBoundingClientRect();
+    pop.style.left = Math.max(10, Math.min(r.left - 160, window.innerWidth - 210)) + 'px';
+    pop.style.top = Math.max(10, Math.min(r.bottom + 6, window.innerHeight - 300)) + 'px';
+    pop.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', async () => {
+      const act = b.dataset.act;
+      if (act === 'asc' || act === 'desc') { p2.sort = { col: key, dir: act }; closeColPop(); renderTasks(); return; }
+      if (act === 'nosort') { p2.sort = null; closeColPop(); renderTasks(); return; }
+      if (act === 'left' || act === 'right') { await moveColumn(key, act === 'left' ? -1 : 1); return; }
+      if (act === 'hide') {
+        await saveColumnOrder(allColumns(), hiddenColumns().concat([key]));
+        if (typeof toast === 'function') toast({type:'info', duration:2500,
+          message: colLabel(key) + ' hidden. Bring it back from Columns in the toolbar.'});
+        return;
+      }
+      if (act === 'manage') { closeColPop(); openManageColumns($('prjEditColsBtn') || anchorEl); }
+    }));
+    document.addEventListener('mousedown', colPopAway, true);
+    document.addEventListener('keydown', colPopKey, true);
+  }
+
+  // ── Edit columns ────────────────────────────────────────────────────────────
+  // Every column on the board in one list: drag to reorder, the eye to show or hide, and
+  // the pencil to edit a custom one. Worked on locally and written on Save, so dragging
+  // around to see how it looks costs nothing until you mean it.
+  //
+  // Built-in columns say so, and have no edit or delete: they can be arranged and hidden,
+  // not changed. The task name is pinned first and is always shown.
+  function openManageColumns(anchorEl){
+    closeColPop();
+    let order = allColumns();
+    let hidden = hiddenColumns().slice();
+    const manager = canEditColumns();
+    const typeLabel = (k) => {
+      if (k.indexOf('custom:') !== 0) return 'Built-in';
+      const f = fieldById(k.slice(7));
+      const t = f && P2_FIELD_TYPES.find(x => x.key === f.type);
+      return t ? t.label : 'Custom';
+    };
+    const eye = (on) => on
+      ? '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8Z" stroke="currentColor" stroke-width="1.4"/><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.4"/></svg>'
+      : '<svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M1.5 8s2.4-4.5 6.5-4.5S14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8Z" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 2.5l11 11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+    const pop = document.createElement('div');
+    pop.className = 'p2-colpop p2-colpop-wide p2-manage';
+    const draw = () => {
+      pop.innerHTML =
+        '<div class="p2-colpop-head" style="padding-bottom:9px;">'
+        + '<div class="p2-colpop-eyebrow" style="margin-bottom:0;"><span style="display:flex;align-items:center;">'
+        +   '<span class="dot"></span>Edit columns</span>'
+        +   '<span class="p2-colpop-x" data-x="1" title="Close">&#10005;</span></div>'
+        + '</div>'
+        + '<div class="p2-colpop-sub"><span>Columns</span><span class="esc">drag to reorder</span></div>'
+        + '<div class="p2-mcols">'
+        + order.map((k, i) => {
+            const pinned = k === 'name';
+            const isCustom = k.indexOf('custom:') === 0;
+            const shown = hidden.indexOf(k) < 0;
+            // A custom column moves the board for everyone, so only whoever may change
+            // the board's shape can drag one; everybody arranges the built-in ones.
+            const canDrag = !pinned && (!isCustom || manager);
+            return '<div class="p2-mcol' + (shown ? '' : ' off') + (pinned ? ' pinned' : '') + '"'
+              + (canDrag ? ' draggable="true"' : '') + ' data-mi="' + i + '" data-mkey="' + esc(k) + '">'
+              + '<span class="p2-opt-grip"' + (canDrag ? ' title="Drag to reorder"' : ' style="opacity:.25;cursor:default;"') + '>&#8942;&#8942;</span>'
+              + '<span class="p2-mcol-name">' + esc(colLabel(k)) + '</span>'
+              + '<span class="p2-mcol-tag' + (isCustom ? ' custom' : '') + '">' + (pinned ? 'Pinned' : typeLabel(k)) + '</span>'
+              + (isCustom && manager
+                  ? '<span class="p2-mcol-btn" data-medit="' + esc(k.slice(7)) + '" title="Edit this column">'
+                    + '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M11.5 2.5a1.5 1.5 0 012 2L6 12l-3 1 1-3 7.5-7.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>'
+                  : '<span class="p2-mcol-btn" style="visibility:hidden;"></span>')
+              + (pinned
+                  ? '<span class="p2-mcol-btn" style="opacity:.3;cursor:default;" title="The task name is always shown">' + eye(true) + '</span>'
+                  : '<span class="p2-mcol-btn" data-mhide="' + esc(k) + '" title="' + (shown ? 'Hide' : 'Show') + ' this column">' + eye(shown) + '</span>')
+              + '</div>';
+          }).join('')
+        + '</div>'
+        + (manager ? '<div class="p2-mcol-add"><button type="button" data-madd="1">+ Add column</button></div>' : '')
+        + '<div class="p2-colpop-foot">'
+        +   '<button type="button" class="p2-colpop-cancel" data-x="1">Cancel</button>'
+        +   '<button type="button" class="p2-colpop-go">Save changes</button>'
+        + '</div>';
+      wire();
+    };
+    const wire = () => {
+      pop.querySelectorAll('[data-x]').forEach(x => x.addEventListener('click', closeColPop));
+      pop.querySelectorAll('[data-mhide]').forEach(b => b.addEventListener('click', () => {
+        const k = b.dataset.mhide;
+        hidden = hidden.indexOf(k) >= 0 ? hidden.filter(x => x !== k) : hidden.concat([k]);
+        draw();
+      }));
+      pop.querySelectorAll('[data-medit]').forEach(b => b.addEventListener('click', () => {
+        // Unsaved arrangement first, or opening the editor would quietly drop it.
+        const id = b.dataset.medit;
+        const a = $('prjEditColsBtn') || anchorEl;
+        saveColumnOrder(order, hidden).then(() => openColumnMenu(a, id));
+      }));
+      const add = pop.querySelector('[data-madd]');
+      if (add) add.addEventListener('click', () => {
+        const a = $('prjEditColsBtn') || anchorEl;
+        saveColumnOrder(order, hidden).then(() => openAddColumn(a));
+      });
+      // Drag a row into place. The array IS the order, as with select options, so a drop
+      // rewrites it and the redraw shows exactly what Save will write. Nothing can be
+      // dropped above the task name.
+      let from = null;
+      pop.querySelectorAll('.p2-mcol').forEach(row => {
+        row.addEventListener('dragstart', e => {
+          if (!row.hasAttribute('draggable')) return;
+          from = +row.dataset.mi; row.classList.add('dragging');
+          try { e.dataTransfer.setData('text/plain', String(from)); } catch (_) {}
+          e.dataTransfer.effectAllowed = 'move';
+        });
+        row.addEventListener('dragend', () => { from = null; row.classList.remove('dragging'); });
+        row.addEventListener('dragover', e => {
+          const to = +row.dataset.mi;
+          if (from === null || from === to || to === 0) return;
+          e.preventDefault(); row.classList.add('over');
+        });
+        row.addEventListener('dragleave', () => row.classList.remove('over'));
+        row.addEventListener('drop', e => {
+          e.preventDefault(); row.classList.remove('over');
+          const to = +row.dataset.mi;
+          if (from === null || from === to || to === 0) return;
+          const [m] = order.splice(from, 1);
+          order.splice(to, 0, m);
+          from = null; draw();
+        });
+      });
+      pop.querySelector('.p2-colpop-go').addEventListener('click', async () => {
+        await saveColumnOrder(order, hidden);
+        if (typeof toast === 'function') toast({type:'success', message:'Columns saved', duration:1500});
+      });
+    };
+    document.body.appendChild(pop);
+    p2ColPop = pop;
+    draw();
+    const r = anchorEl.getBoundingClientRect();
+    const w = 320;
+    pop.style.left = Math.max(10, Math.min(r.right - w, window.innerWidth - w - 10)) + 'px';
+    pop.style.top = Math.max(10, Math.min(r.bottom + 6, window.innerHeight - 520)) + 'px';
+    document.addEventListener('mousedown', colPopAway, true);
+    document.addEventListener('keydown', colPopKey, true);
+  }
+
+  // What a task's value in this column becomes after the edit. Values are option LABELS,
+  // so renaming "Draft" to "In draft" without this left every task showing a "Draft" that
+  // was no longer an option -- uncoloured, and not ticked in its own picker.
+  //   select -> select   renamed labels follow, removed ones drop, single <-> multi converts
+  //   same type          untouched
+  //   anything else      cleared: a date read as text, or a person id read as a tag, is
+  //                      worse than an empty cell, and the save asks first.
+  function migratedFieldValue(v, fromType, toType, rename, removed){
+    if (v == null || v === '' || (Array.isArray(v) && !v.length)) return undefined;
+    const sel = (t) => t === 'single_select' || t === 'multi_select';
+    if (sel(fromType) && sel(toType)) {
+      let arr = (Array.isArray(v) ? v : [v]).map(x => String(x))
+        .filter(x => removed.indexOf(x) < 0)
+        .map(x => Object.prototype.hasOwnProperty.call(rename, x) ? rename[x] : x)
+        .filter(x => x);
+      arr = arr.filter((x, i) => arr.indexOf(x) === i);
+      if (!arr.length) return undefined;
+      return toType === 'single_select' ? arr[0] : arr;
+    }
+    if (fromType === toType) return v;
+    return undefined;
+  }
+
+  async function saveColumn(f, name, type, opts){
+    const nm = String(name || '').trim();
+    if (!nm) { if (typeof toast === 'function') toast({type:'info', message:'A column needs a name.'}); return; }
+    const clean = opts.map(o => ({ label: String(o.label || '').trim(), color: o.color || null }))
+                      .filter(o => o.label);
+    // What happened to each option that existed when the editor opened.
+    const rename = {}, kept = [];
+    opts.forEach(o => {
+      if (o.orig == null) return;
+      const now = String(o.label || '').trim();
+      if (!now) return;                                  // blanked out = removed
+      kept.push(o.orig);
+      if (now !== o.orig) rename[o.orig] = now;
+    });
+    const removed = (f.options || []).map(o => o.label).filter(l => kept.indexOf(l) < 0);
+    // Every task in the project, done ones included -- p2.tasks is the whole project, so a
+    // rename reaches the 271 finished tasks too, not only the ones on screen.
+    const changes = [];
+    let cleared = 0;
+    (p2.tasks || []).forEach(t => {
+      const bag = (t.custom_fields && typeof t.custom_fields === 'object') ? t.custom_fields : {};
+      if (!Object.prototype.hasOwnProperty.call(bag, f.id)) return;
+      const was = bag[f.id];
+      const now = migratedFieldValue(was, f.type, type, rename, removed);
+      if (JSON.stringify(now) === JSON.stringify(was)) return;
+      if (now === undefined) cleared++;
+      changes.push({ t, now });
+    });
+    if (cleared) {
+      const why = f.type !== type ? 'Changing the type' : 'Removing ' + (removed.length === 1 ? 'that option' : 'those options');
+      const ok = await window.giantConfirmWarn(
+        'Clear ' + cleared + ' task' + (cleared === 1 ? '' : 's') + '?',
+        why + ' empties "' + nm + '" on ' + cleared + ' task' + (cleared === 1 ? '' : 's')
+          + ' in this project. This cannot be undone.', 'Save and clear', 'warning');
+      if (!ok) return;
+    }
+    const { data, error } = await sb().from('project_fields')
+      .update({ name: nm, type: type, options: clean }).eq('id', f.id).select();
+    if (error) {
+      const dupe = /duplicate key|unique/i.test(error.message || '');
+      if (typeof toast === 'function') toast({type:'error', duration:4000,
+        message: dupe ? 'There is already a column called "' + nm + '" on this board.'
+                      : 'Could not save the column: ' + error.message});
+      return;
+    }
+    if (!data || !data.length) {
+      if (typeof toast === 'function') toast({type:'error', duration:4000,
+        message:'You do not have permission to change the columns on this board.'});
+      return;
+    }
+    // The column saved, so move the tasks' values to match. Ten at a time: a real board
+    // is a few hundred tasks, and one at a time is a long wait on a slow connection.
+    // Each write returns its row, because a refusal is zero rows, not an error.
+    let failed = 0;
+    for (let i = 0; i < changes.length; i += 10) {
+      await Promise.all(changes.slice(i, i + 10).map(async ({ t, now }) => {
+        const bag = Object.assign({}, t.custom_fields || {});
+        if (now === undefined) delete bag[f.id]; else bag[f.id] = now;
+        const { data: rows, error: err } = await sb().from('tasks')
+          .update({ custom_fields: bag }).eq('id', t.id).select('id');
+        if (err || !rows || !rows.length) { failed++; return; }
+        t.custom_fields = bag;
+      }));
+    }
+    closeColPop();
+    if (typeof toast === 'function') {
+      if (failed) toast({type:'error', duration:5000, message:'Column saved, but ' + failed + ' task'
+        + (failed === 1 ? '' : 's') + ' could not be updated to match. Reload to see what they hold.'});
+      else toast({type:'success', duration:1800, message: changes.length
+        ? 'Column saved, and ' + changes.length + ' task' + (changes.length === 1 ? '' : 's') + ' updated to match'
+        : 'Column saved'});
+    }
+    await loadFields(); applyColumnWidths(); renderTasks();
+  }
+
+  // Save a whole arrangement: the order and what is hidden. Every way of moving a column --
+  // dragging a heading, Move left/right, the Edit columns panel -- ends here, so there is
+  // one answer to "what order is this board in".
+  //
+  // The order is kept for this person (see readColPrefs). A manager's arrangement ALSO
+  // writes the custom columns' positions to project_fields, so the shared default for
+  // those follows what they did; anyone else's stays theirs.
+  async function saveColumnOrder(order, hidden){
+    const list = ['name'].concat((order || allColumns()).filter(k => k !== 'name'));
+    const hid = (hidden || hiddenColumns()).filter(k => k !== 'name' && list.indexOf(k) >= 0);
+    writeColPrefs({ order: list, hidden: hid });
+    if (canEditColumns()) {
+      const fields = list.filter(k => k.indexOf('custom:') === 0)
+        .map(k => fieldById(k.slice(7))).filter(Boolean);
+      await writePositions(fields);
+      return;
+    }
+    closeColPop();
+    applyColumnWidths(); renderTasks();
+  }
+
+  // Left or right by one, among the columns you can see -- moving past a hidden one would
+  // look like nothing happened.
+  async function moveColumn(key, dir){
+    const vis = visibleColumns();
+    const i = vis.indexOf(key), j = i + dir;
+    if (i < 1 || j < 1 || j >= vis.length) return;      // the task name stays first
+    const order = allColumns().filter(k => k !== key);
+    const at = order.indexOf(vis[j]);
+    order.splice(dir > 0 ? at + 1 : at, 0, key);
+    await saveColumnOrder(order);
+  }
+
+  // Drop one column where another is.
+  async function moveColumnTo(src, dst){
+    if (!src || !dst || src === dst || src === 'name') return;
+    const all = allColumns();
+    const from = all.indexOf(src);
+    const order = all.filter(k => k !== src);
+    let at = order.indexOf(dst);
+    if (at < 0) return;
+    // Dragging rightwards lands after the target, leftwards before it -- the way a list
+    // you drag in reads.
+    if (from <= all.indexOf(dst)) at += 1;
+    order.splice(Math.max(1, at), 0, src);
+    await saveColumnOrder(order);
+  }
+
+  // Positions are rewritten for the whole board rather than swapping two rows, because
+  // position has never been unique and a board that has been edited for a while can hold
+  // several columns claiming the same number -- swapping inside that does nothing you can
+  // see. A refusal is zero rows, not an error, so it is counted rather than assumed.
+  async function writePositions(list){
+    let refused = false;
+    for (let i = 0; i < list.length; i++) {
+      const want = i + 1;
+      if (list[i].position === want) continue;
+      const { data, error } = await sb().from('project_fields')
+        .update({ position: want }).eq('id', list[i].id).select('id');
+      if (error) {
+        if (typeof toast === 'function') toast({type:'error', message:'Could not reorder: ' + error.message});
+        break;
+      }
+      if (!data || !data.length) { refused = true; break; }
+    }
+    if (refused && typeof toast === 'function') toast({type:'error', duration:4000,
+      message:'You do not have permission to change the columns on this board.'});
+    closeColPop();
+    await loadFields(); applyColumnWidths(); renderTasks();
+  }
+
+  async function deleteColumn(f){
+    // Typed, not clicked. Deleting a column takes every task's value in it and there is
+    // no undo, so the confirmation asks for something you cannot do by reflex -- and it
+    // uses giantPrompt because window.confirm is a NO-OP in the desktop build, which is
+    // how the old right-click delete silently did nothing for anyone on Electron.
+    const typed = await window.giantPrompt(
+      'Deleting "' + f.name + '" removes it from every task on this board, and the values '
+      + 'in it are gone for good.\n\nType DELETE to confirm:', '');
+    if (String(typed || '').trim().toUpperCase() !== 'DELETE') return;
+    const { data, error } = await sb().from('project_fields').delete().eq('id', f.id).select('id');
+    if (error) {
+      if (typeof toast === 'function') toast({type:'error', message:'Could not delete: ' + error.message});
+      return;
+    }
+    if (!data || !data.length) {
+      if (typeof toast === 'function') toast({type:'error', duration:4000,
+        message:'You do not have permission to change the columns on this board.'});
+      return;
+    }
+    closeColPop();
+    if (typeof toast === 'function') toast({type:'success', message:'Column deleted', duration:1500});
+    await loadFields(); applyColumnWidths(); renderTasks();
+  }
+
+  async function createColumn(name, type){
+    const pos = (p2.fields || []).reduce((m, f) => Math.max(m, f.position || 0), 0) + 1;
+    // A select column with no options is a column you cannot put anything in, so the two
+    // select types start with one. It is editable and deletable like any other.
+    const options = (type === 'single_select' || type === 'multi_select')
+      ? [{ label: 'Option 1', color: null }] : [];
+    const { data, error } = await sb().from('project_fields')
+      .insert({ project_id: p2.activeId, name: name, type: type, options: options, position: pos })
+      .select();
+    if (error) {
+      // The unique index is (project_id, name), so this is the common one and deserves to
+      // say what happened rather than show the constraint's name.
+      const dupe = /duplicate key|unique/i.test(error.message || '');
+      if (typeof toast === 'function') toast({ type: 'error', duration: 4000,
+        message: dupe ? 'There is already a column called "' + name + '" on this board.'
+                      : 'Could not add the column: ' + error.message });
+      const go = p2ColPop && p2ColPop.querySelector('.p2-colpop-go');
+      if (go) go.disabled = false;
+      return;
+    }
+    // RLS refuses by returning no rows, not by erroring.
+    if (!data || !data.length) {
+      if (typeof toast === 'function') toast({ type: 'error', duration: 4000,
+        message: 'You do not have permission to change the columns on this board.' });
+      return;
+    }
+    closeColPop();
+    if (typeof toast === 'function') toast({ type: 'success', message: 'Column added', duration: 1500 });
+    await loadFields();
+    // Widths before paint: the grid template has to know about the new track before the
+    // header and the rows are written into it, or the first paint is one column short and
+    // every cell after it lands under the wrong heading.
+    applyColumnWidths();
+    renderTasks();
+  }
+
+  // The project's custom columns. A failure here is not a failure of the screen: the
+  // tasks are the point and the columns are extra, so this logs and leaves p2.fields
+  // empty rather than blanking a board somebody is working from.
+  async function loadFields(){
+    if (!p2.activeId) { p2.fields = []; return; }
+    const { data, error } = await sb().from('project_fields')
+      .select('id, name, type, options, position')
+      .eq('project_id', p2.activeId)
+      .order('position', { ascending: true });
+    if (error) { console.warn('[p2 columns] load failed:', error.message); p2.fields = []; return; }
+    p2.fields = (data || []).map(f => Object.assign({}, f, {
+      // options is jsonb and has been written by more than one thing over the years, so
+      // it arrives as an array of strings, an array of {label,color}, or null.
+      options: Array.isArray(f.options) ? f.options.map(o =>
+        (o && typeof o === 'object') ? { label: String(o.label == null ? '' : o.label), color: o.color || null }
+                                     : { label: String(o == null ? '' : o), color: null }) : []
+    }));
+  }
+
   function applyColumnWidths(){
     const tbl = $('prjTable');
     if (!tbl) return;
-    tbl.style.setProperty('--prj-cols', P2_COL_ORDER.map(k => colWidth(k) + 'px').join(' ') + ' 92px');
+    // Same order as the headings and the cells, from the same function -- if these three
+    // disagree, every cell after the first difference sits under the wrong heading.
+    // 92px is the delete column and stays last, so a custom column is never the thing
+    // you reach past to delete a task.
+    tbl.style.setProperty('--prj-cols', visibleColumns().map(k => colWidth(k) + 'px').join(' ') + ' 92px');
   }
   function saveColumnWidths(){
     try { localStorage.setItem('giant_p2_colw', JSON.stringify(p2.colw)); } catch (_) {}
@@ -86300,6 +87582,95 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (error && window.toast) toast({ type:'error', message:'Could not save that order: ' + error.message });
   }
 
+  // One line, no scrollbar, and every project still reachable.
+  //
+  // Those three do not all fit by themselves once there are a dozen lists, and each way of
+  // resolving it fails differently:
+  //
+  //   scroll          what was there before -- everything past the right edge hidden
+  //                   behind a 4px strip you had to find and drag
+  //   wrap            honest, but the bar grows into a block three rows deep and pushes
+  //                   the table down
+  //   shrink to fit   measured: sixteen projects became sixteen coloured dots with no
+  //                   readable name on any of them
+  //
+  // So: show what fits at its natural width, and put the rest behind one "+N" chip. The
+  // row stays one line, nothing is hidden without saying so, and the overflow is a click.
+  function fitProjectsBar(bar, addBtn){
+    if (!bar) return;
+    const chips = [...bar.querySelectorAll('[data-p2-project]')];
+    if (!chips.length) return;
+    let more = bar.querySelector('[data-p2-more]');
+    if (more) more.remove();
+    // inline-flex, NOT '' -- an empty string DELETES the inline display, and the chip is
+    // written with display:inline-flex inline. Clearing it left the chips as blocks, which
+    // silently killed every colour dot: width on a child of a non-flex inline box does
+    // nothing, so they computed to 0px wide and vanished.
+    chips.forEach(c => { c.style.display = 'inline-flex'; });
+    // Nothing to do until the bar has a width -- on first paint it can be 0, and every
+    // chip would then be measured as overflowing and hidden.
+    // clientWidth INCLUDES the bar's own padding, and laying chips out against it
+    // overflowed by exactly that much -- measured at 1438 against a 1402 bar.
+    const cs = getComputedStyle(bar);
+    const avail = bar.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+    if (avail <= 0) { requestAnimationFrame(() => fitProjectsBar(bar, addBtn)); return; }
+    const addW = addBtn ? addBtn.offsetWidth + 6 : 0;
+    const MORE_W = 72;                      // the "+N" chip, reserved before measuring
+    const widths = chips.map(c => c.offsetWidth + 6);
+    const total = widths.reduce((a, b) => a + b, 0);
+    if (total + addW <= avail) return;      // they all fit; no overflow chip at all
+    const budget = avail - addW - MORE_W;
+    // The one you are looking at is never the one that gets hidden, and its width is
+    // reserved BEFORE the others are laid out. It was added when the loop reached it, so
+    // opening a project from the "+N" list -- one that by definition did not fit -- spent
+    // the budget twice and pushed "+N" and "+" off the right edge, where nothing could
+    // reach them: 160px past a 1410px bar, measured with sixteen real-length names.
+    const ai = chips.findIndex(c => c.dataset.p2Project === p2.activeId);
+    let used = ai >= 0 ? widths[ai] : 0;
+    const hidden = [];
+    chips.forEach((c, i) => {
+      if (i === ai) return;
+      if (used + widths[i] <= budget) { used += widths[i]; return; }
+      c.style.display = 'none';
+      hidden.push(c.dataset.p2Project);
+    });
+    if (!hidden.length) return;
+    more = document.createElement('span');
+    more.setAttribute('data-p2-more', '1');
+    more.title = hidden.length + ' more project' + (hidden.length > 1 ? 's' : '');
+    more.style.cssText = 'display:inline-flex;align-items:center;gap:5px;flex:0 0 auto;'
+      + 'background:var(--surface-2);border:1px solid var(--line);border-radius:9px;'
+      + 'padding:6px 10px;margin:0 6px 0 0;font-size:12px;font-weight:700;'
+      + 'color:var(--text-2);cursor:pointer;font-family:inherit;';
+    more.textContent = '+' + hidden.length;
+    more.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const byId = {};
+      (p2.projects || []).forEach(x => { byId[x.id] = x; });
+      window.giantPickMenu(more, {
+        options: hidden.map(id => ({ value: id, label: (byId[id] || {}).name || 'Project',
+                                     tint: (byId[id] || {}).color })),
+        value: '',
+        onPick: (v) => { if (v) selectProject(v); },
+      });
+    });
+    if (addBtn && addBtn.parentElement === bar) bar.insertBefore(more, addBtn);
+    else bar.appendChild(more);
+  }
+
+  // Re-fit when the window changes, or the bar keeps whatever fitted at the old width.
+  if (!window.__p2BarFitWired) {
+    window.__p2BarFitWired = true;
+    let t = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        const bar = document.getElementById('p2_prjProjectsBar');
+        if (bar && bar.offsetParent) fitProjectsBar(bar, document.getElementById('p2_prjProjAdd'));
+      }, 150);
+    });
+  }
+
   function renderProjectsBar(){
     const bar = $('prjProjectsBar');
     if (!bar) return;
@@ -86317,13 +87688,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         + ' data-p2-project="' + esc(p.id) + '" title="Drag to reorder"'
         // nowrap: the chip was sizing to the bar and breaking "Master List" over two lines,
         // which made a row of projects twice as tall as it needed to be and hard to scan.
-        + ' style="display:inline-flex;align-items:center;gap:7px;white-space:nowrap;flex-shrink:0;background:'
+        // Natural width, and nothing shrinks. Letting the chips share the width instead put
+        // sixteen projects on one line as sixteen coloured dots with no readable name on
+        // any of them -- one line and no scrollbar, and useless. What does not fit is
+        // moved into the "+N" chip at the end, where it is still one click away.
+        + ' style="display:inline-flex;align-items:center;gap:7px;white-space:nowrap;'
+        + 'flex:0 0 auto;background:'
         + (on ? 'var(--surface-2)' : 'transparent')
         + ';border:1px solid transparent;border-radius:9px;padding:6px 9px 6px 11px;'
-        + 'margin:0 6px 0 0;font-size:12px;font-weight:600;color:var(--text);cursor:grab;font-family:inherit;">'
+        + 'margin:0 6px 0 0;font-size:12px;font-weight:600;color:var(--text);cursor:grab;'
+        + 'font-family:inherit;">'
         + '<span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:'
         + esc(p.color || 'var(--red)') + ';"></span>'
-        + esc(p.name)
+        + '<span>' + esc(p.name) + '</span>'
         + '<span class="p2-star' + (pref.starred ? ' p2-star-on' : '') + '" data-p2-star="' + esc(p.id) + '"'
         + ' title="' + (pref.starred ? 'Unstar' : 'Star, to keep it at the front') + '"'
         + ' style="display:inline-flex;align-items:center;flex-shrink:0;padding:1px;border-radius:4px;color:'
@@ -86336,11 +87713,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         + '</span>';
     }).join('');
     if (addBtn) { addBtn.style.flexShrink = '0'; bar.appendChild(addBtn); }
-    // One line that scrolls, rather than a block that grows downward.
+    fitProjectsBar(bar, addBtn);
+    // One line, and no scrollbar on it. It was nowrap + overflow-x:auto, so every project
+    // past the right edge was hidden behind a 4px strip you had to drag to find out what
+    // was even there. Now the chips share the width instead: they shrink and their names
+    // ellipsis, so all of them stay on screen on one row.
+    //
+    // Set here and not only in the stylesheet because these are INLINE styles, which beat
+    // any rule however specific -- an #id selector in the sheet lost to this silently,
+    // which is why the first attempt at this appeared to change nothing at all.
     bar.style.display = 'flex';
     bar.style.flexWrap = 'nowrap';
     bar.style.alignItems = 'center';
-    bar.style.overflowX = 'auto';
+    bar.style.overflowX = 'hidden';
     bar.style.overflowY = 'hidden';
 
     let dragId = null;
@@ -86479,7 +87864,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       return;
     }
     p2.tasks = data || [];
-    await Promise.all([hydratePeople(p2.tasks.flatMap(assignees)), loadClients(), loadTime()]);
+    await Promise.all([hydratePeople(p2.tasks.flatMap(assignees)), loadClients(), loadTime(),
+                       loadFields()]);
+    // Anyone a people column names, who is not also an assignee here. Without this they
+    // read "Someone" after a reload: hydratePeople only ever looked at assignees.
+    const named = [];
+    (p2.fields || []).filter(f => f.type === 'people').forEach(f => p2.tasks.forEach(t => {
+      const v = fieldVal(f, t);
+      (Array.isArray(v) ? v : (v ? [v] : [])).forEach(id => named.push(id));
+    }));
+    if (named.length) await hydratePeople(named);
     renderTasks();
   }
 
@@ -86532,6 +87926,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (st) st.style.display = p2.view === 'table' ? 'flex' : 'none';
     // Shown on every view, because "only mine" means the same thing on a board as in a
     // table -- unlike Active/Done, which is a filter only the table applies.
+    // Shown only to whoever may actually use it, and only on the table -- the board has
+    // no columns to add one to.
+    const ec = $('prjEditColsBtn');
+    if (ec) {
+      ec.style.display = p2.view === 'table' ? 'inline-flex' : 'none';
+      if (!ec.dataset.wired) {
+        ec.dataset.wired = '1';
+        ec.addEventListener('click', (e) => { e.stopPropagation(); openManageColumns(ec); });
+      }
+    }
+    const ac = $('prjAddColBtn');
+    if (ac) {
+      ac.style.display = (p2.view === 'table' && canEditColumns()) ? 'inline-flex' : 'none';
+      if (!ac.dataset.wired) {
+        ac.dataset.wired = '1';
+        ac.addEventListener('click', (e) => { e.stopPropagation(); openAddColumn(ac); });
+      }
+    }
     const mt = $('prjMineToggle');
     if (mt) mt.querySelectorAll('[data-p2-mine]').forEach(b => {
       const on = (b.dataset.p2Mine === '1') === !!p2.mine;
@@ -86559,6 +87971,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     renderTasks();
   }
   window.p2SetView = setView;
+  // Exposed so the strip's one-line fit can be checked against a realistic number of
+  // projects; the fixture has four and four always fits.
+  window.p2RenderProjectsBar = renderProjectsBar;
 
   // ── shared card furniture ────────────────────────────────────────────────────
   function personChip(id){
@@ -87028,6 +88443,27 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   // ── BOARD ────────────────────────────────────────────────────────────────────
+  // The order of the board's columns, for this person. The columns are the nine stages,
+  // which are the same for every project, so this is one list rather than one per board.
+  // Moving a column changes how the board reads, not the pipeline: sorting by Status
+  // still follows the stages' own order.
+  const P2_LANE_KEY = 'giant_p2_laneorder';
+  function laneOrder(){
+    const known = P2_COLS.map(c => c.key);
+    let saved = [];
+    try { saved = JSON.parse(localStorage.getItem(P2_LANE_KEY) || '[]') || []; } catch (_) {}
+    saved = saved.filter(k => known.indexOf(k) >= 0);
+    return saved.concat(known.filter(k => saved.indexOf(k) < 0));
+  }
+  function moveLane(key, dir){
+    const order = laneOrder();
+    const i = order.indexOf(key), j = i + dir;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    order.splice(i, 1); order.splice(j, 0, key);
+    try { localStorage.setItem(P2_LANE_KEY, JSON.stringify(order)); } catch (_) {}
+    renderBoard();
+  }
+
   function renderBoard(){
     const host = $('prjBoard');
     if (!host) return;
@@ -87047,7 +88483,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       (byCol[k] || byCol[P2_STAGE_DEFAULT]).push(t);
     });
     const cardHtml = (t) => '<div class="p2-card" draggable="true" data-p2-card="' + esc(t.id) + '"'
-      + ' style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 11px;'
+      + ' style="background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:10px 11px;'
       + 'margin-bottom:8px;cursor:grab;display:flex;flex-direction:column;gap:8px;">'
       + '<div style="display:flex;align-items:flex-start;gap:7px;">'
       +   prioDot(t)
@@ -87063,15 +88499,23 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       +   assignees(t).slice(0, 3).map(personChip).join('') + '</span>'
       + '</div>'
       + '</div>';
-    host.innerHTML = P2_COLS.map(c => {
+    // The reference's column head: dot, name, count, then move left, move right and add.
+    const order = laneOrder();
+    const lanes = order.map(k => P2_COLS.find(c => c.key === k)).filter(Boolean);
+    host.innerHTML = lanes.map((c, li) => {
       const rows = byCol[c.key];
-      return '<div data-p2-col="' + c.key + '" style="flex:0 0 232px;min-width:232px;display:flex;flex-direction:column;'
-        + 'background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:10px;">'
-        + '<div style="display:flex;align-items:center;gap:7px;margin-bottom:10px;">'
-        +   '<span style="width:7px;height:7px;border-radius:50%;background:' + c.tint + ';"></span>'
-        +   '<span style="font-size:11.5px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:var(--text-2);">'
-        +   c.label + '</span>'
-        +   '<span style="font-size:11px;font-weight:700;color:var(--text-3);">' + rows.length + '</span>'
+      // 256, not 232: the head carries move and add controls now, and at 232 "Needs more
+      // detail" and "Ready for review" were cut to "Needs mor..." beside them.
+      return '<div data-p2-col="' + c.key + '" style="flex:0 0 256px;min-width:256px;display:flex;flex-direction:column;'
+        + 'background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:10px;">'
+        + '<div class="p2-lanehead">'
+        +   '<span style="width:7px;height:7px;border-radius:50%;flex-shrink:0;background:' + c.tint + ';"></span>'
+        +   '<span class="p2-lanehead-t">' + c.label + '</span>'
+        +   '<span class="p2-lanehead-n">' + rows.length + '</span>'
+        +   '<span style="flex:1;"></span>'
+        +   (li > 0 ? '<span class="p2-lanebtn" data-p2-lanemove="' + c.key + '" data-dir="-1" title="Move column left">&#8592;</span>' : '')
+        +   (li < lanes.length - 1 ? '<span class="p2-lanebtn" data-p2-lanemove="' + c.key + '" data-dir="1" title="Move column right">&#8594;</span>' : '')
+        +   (c.key !== 'done' ? '<span class="p2-lanebtn" data-p2-laneadd="' + c.key + '" title="Add a task to ' + c.label + '">+</span>' : '')
         + '</div>'
         + '<div data-p2-drop="' + c.key + '" style="flex:1;min-height:60px;">'
         + (rows.length ? rows.map(cardHtml).join('')
@@ -87079,6 +88523,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         + '</div></div>';
     }).join('');
 
+    host.querySelectorAll('[data-p2-lanemove]').forEach(b => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      moveLane(b.dataset.p2Lanemove, +b.dataset.dir);
+    }));
+    // Add straight into a column: the task is created as usual, then moved to that stage
+    // through setTaskStage, so status and status_stage are written together as everywhere
+    // else. giantPrompt, not window.prompt, which does nothing in the desktop build.
+    host.querySelectorAll('[data-p2-laneadd]').forEach(b => b.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const stage = b.dataset.p2Laneadd;
+      const def = P2_COLS.find(c => c.key === stage);
+      const name = String(await window.giantPrompt('New task in ' + (def ? def.label : 'this column') + ':', '') || '').trim();
+      if (!name) return;
+      const row = await addTask(name);
+      if (row && stage !== stageOf(row)) await setTaskStage(row.id, stage);
+    }));
     let dragId = null;
     host.querySelectorAll('[data-p2-card]').forEach(el => {
       // A click that is not a drag opens the task; dragstart clears this so a drop does
@@ -87443,6 +88903,31 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     setTimeout(() => document.addEventListener('mousedown', away, true), 0);
   }
 
+  // The project name and its task count, on the toolbar line. The sub-project ("/ Daily")
+  // is no longer part of it: the sub-project strip was removed at Luke's request, and the
+  // crumb was the last place that layer still showed. Projects 2.0 has never filtered by
+  // sub-project, so the label named nothing the table was doing.
+  function renderCrumb(count){
+    const crumbHost = $('prjCrumb');
+    if (!crumbHost) return;
+    const ap = activeProject();
+    const shut = !!p2.collapsed.__all__;
+    crumbHost.innerHTML =
+      '<span data-p2-folder-head="__all__" style="display:flex;align-items:center;gap:9px;'
+      + 'min-width:0;cursor:pointer;">'
+      + '<span style="color:var(--text-3);display:inline-flex;flex-shrink:0;transition:transform .15s;'
+      + (shut ? 'transform:rotate(-90deg);' : '') + '">'
+      + '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4"'
+      + ' stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+      + '</span>'
+      + '<span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:'
+      + esc((ap && ap.color) || 'var(--red)') + ';"></span>'
+      + '<span style="font-size:12.5px;font-weight:700;color:var(--text);">'
+      + esc((ap && ap.name) || 'Project') + '</span>'
+      + '<span class="p2-crumbcount">' + count + ' task' + (count === 1 ? '' : 's') + '</span>'
+      + '</span>';
+  }
+
   function renderTable(){
     const body = $('prjDailyBody'), loading = $('prjDailyLoading'), empty = $('prjDailyEmpty');
     if (!body) return;
@@ -87453,6 +88938,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (!shown.length) {
       body.innerHTML = '';
       if (empty) empty.style.display = '';
+      // The crumb was only written further down, past this return -- so opening an empty
+      // project left the toolbar naming the last one, task count and all.
+      renderCrumb(0);
       return;
     }
     if (empty) empty.style.display = 'none';
@@ -87475,9 +88963,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // A pill, not a form field. The colour IS the value here -- which is the one thing a
       // native select cannot show in its list, and the reason this single control is worth
       // having its own menu when the other hundred dropdowns are better off native.
-      return '<button type="button" class="giant-pill-btn" data-p2-stage="' + esc(t.id) + '"'
+      // Dot, tint and a border of the same colour -- the Stitch treatment. At 1f alpha with
+      // no border and no dot it read as plain text with a chevron next to it, which is
+      // what the comparison screenshot showed against the mock's pills.
+      return '<button type="button" class="giant-pill-btn p2-statuspill" data-p2-stage="' + esc(t.id) + '"'
         + ' aria-haspopup="listbox" title="' + esc(d.label) + '"'
-        + ' style="background:' + esc(d.tint) + '1f;color:' + esc(d.tint) + ';">'
+        + ' style="background:' + esc(d.tint) + '1f;color:' + esc(d.tint)
+        + ';border-color:' + esc(d.tint) + '4d;">'
+        + '<span class="p2-statusdot" style="background:' + esc(d.tint) + ';"></span>'
         + '<span class="lbl">' + esc(d.label) + '</span>'
         + '<svg class="giant-pill-caret" width="10" height="10" viewBox="0 0 12 12" fill="none">'
         + '<path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
@@ -87573,23 +89066,71 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         + '</span>';
     };
 
+    // What one custom cell shows. Empty reads as empty -- a dash or a placeholder in
+    // every blank cell of a new column turns an empty column into visual noise across
+    // every row, and the column heading already says what is missing.
+    const fieldChip = (label, color) => '<span class="p2-fieldchip"'
+      + (color ? ' style="background:' + esc(color) + '1f;border-color:' + esc(color)
+                 + '55;color:' + esc(color) + ';"' : '')
+      + '>' + esc(label) + '</span>';
+    const fieldCellHtml = (f, t) => {
+      const v = fieldVal(f, t);
+      if (v == null || v === '' || (Array.isArray(v) && !v.length)) return '';
+      const optColor = (label) => {
+        const o = (f.options || []).find(x => x.label === label);
+        return o && o.color ? o.color : null;
+      };
+      if (f.type === 'single_select') return fieldChip(String(v), optColor(String(v)));
+      if (f.type === 'multi_select') {
+        const arr = Array.isArray(v) ? v : [v];
+        return arr.map(x => fieldChip(String(x), optColor(String(x)))).join('');
+      }
+      if (f.type === 'date') {
+        // Rendered in the viewer's own zone from a plain date string, with no Date parse:
+        // new Date('2026-10-01') is UTC midnight, which is the previous day for anyone
+        // west of Greenwich. That is how a due date lands a day early.
+        const m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) return esc(String(v));
+        const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return '<span class="p2-fielddate">' + (+m[3]) + ' ' + MON[+m[2] - 1] + ' ' + m[1] + '</span>';
+      }
+      if (f.type === 'people') {
+        const ids = Array.isArray(v) ? v : [v];
+        return ids.map(id => {
+          const pr = p2.people && p2.people[id];
+          const nm = pr ? (pr.display_name || pr.full_name || pr.email || 'Someone') : 'Someone';
+          return '<span class="p2-fieldchip">' + esc(nm) + '</span>';
+        }).join('');
+      }
+      return esc(String(v));
+    };
+
+    const cols = visibleColumns();
     const rowHtml = (t) => {
       const isDone = done(t);
       return '<div class="prj-row" data-p2-task="' + esc(t.id) + '"'
         + (isDone ? ' style="opacity:.5;"' : '') + '>'
-        + '<div class="prj-cell prj-cell-name" data-col="name">'
-        +   '<span class="prj-tick' + (isDone ? ' done' : '') + '" data-p2-toggle="' + esc(t.id)
-        +   '" style="cursor:pointer;"></span>'
-        +   '<span class="prj-name"' + (isDone ? ' style="text-decoration:line-through;"' : '') + '>'
-        +   esc(t.name) + '</span>'
-        + '</div>'
-        + '<div class="prj-cell" data-col="status">' + stageCell(t) + '</div>'
-        + '<div class="prj-cell" data-col="timer">' + timerHtml(t) + '</div>'
-        + '<div class="prj-cell" data-col="priority">' + cell('_renderPrjPriorityCell', t.priority_label || t.priority) + '</div>'
-        + '<div class="prj-cell" data-col="assignee">' + cell('_renderPrjAssigneeCell', assignees(t)) + '</div>'
-        + '<div class="prj-cell" data-col="client">' + clientCell(t.client_id) + '</div>'
-        + '<div class="prj-cell" data-col="department">' + cell('_renderPrjDepartmentCell', t.department) + '</div>'
-        + '<div class="prj-cell" data-col="task_details">' + cell('_renderPrjTaskDetailsCell', t.description) + '</div>'
+        // In the board's column order, the same list the headings and the grid read.
+        + cols.map(k => {
+            if (k === 'name') return '<div class="prj-cell prj-cell-name" data-col="name">'
+              +   '<span class="prj-tick' + (isDone ? ' done' : '') + '" data-p2-toggle="' + esc(t.id)
+              +   '" style="cursor:pointer;"></span>'
+              +   '<span class="prj-name"' + (isDone ? ' style="text-decoration:line-through;"' : '') + '>'
+              +   esc(t.name) + '</span>'
+              + '</div>';
+            if (k === 'status') return '<div class="prj-cell" data-col="status">' + stageCell(t) + '</div>';
+            if (k === 'timer') return '<div class="prj-cell" data-col="timer">' + timerHtml(t) + '</div>';
+            if (k === 'priority') return '<div class="prj-cell" data-col="priority">' + cell('_renderPrjPriorityCell', t.priority_label || t.priority) + '</div>';
+            if (k === 'assignee') return '<div class="prj-cell" data-col="assignee">' + cell('_renderPrjAssigneeCell', assignees(t)) + '</div>';
+            if (k === 'client') return '<div class="prj-cell" data-col="client">' + clientCell(t.client_id) + '</div>';
+            if (k === 'department') return '<div class="prj-cell" data-col="department">' + cell('_renderPrjDepartmentCell', t.department) + '</div>';
+            if (k === 'task_details') return '<div class="prj-cell" data-col="task_details">' + cell('_renderPrjTaskDetailsCell', t.description) + '</div>';
+            const f = fieldById(k.slice(7));
+            if (!f) return '';
+            return '<div class="prj-cell p2-fieldcell" data-col="' + esc(fieldKey(f)) + '"'
+              + ' data-p2-field="' + esc(f.id) + '" data-p2-field-task="' + esc(t.id) + '">'
+              + fieldCellHtml(f, t) + '</div>';
+          }).join('')
         + '<div class="prj-cell prj-cell-pad" data-col="pad">'
         // No control at all for somebody who cannot delete it. A visible button that
         // refuses on click teaches people the app is unreliable; an absent one teaches
@@ -87616,25 +89157,56 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const arrow = on
         ? '<span style="flex-shrink:0;opacity:.95;">' + (p2.sort.dir === 'desc' ? '&#9660;' : '&#9650;') + '</span>'
         : '<span class="p2-sortic" style="flex-shrink:0;opacity:0;">&#9650;</span>';
-      return '<div class="prj-th" data-col="' + col + '">'
+      // A custom heading is draggable; the built-in eight are not. Their order is part of
+      // how the screen reads -- status after the name because that is what you scan for --
+      // and making them movable would mean storing a per-board order for columns that
+      // every other view, the board and the reports all assume.
+      const isCustom = col.indexOf('custom:') === 0;
+      // Any column but the task name can be dragged into place now -- the order is one
+      // list rather than eight fixed slots and a tail. A custom column changes the board
+      // for everyone, so dragging one is for whoever may change the board's shape; the
+      // built-in eight are a person's own arrangement, so anyone can move those.
+      const canDrag = col !== 'name' && (!isCustom || canEditColumns());
+      return '<div class="prj-th" data-col="' + esc(col) + '"'
+        + (canDrag ? ' draggable="true" data-p2-coldrag="' + esc(col) + '"' : '')
+        + '>'
         + '<span class="p2-sort" data-p2-sort="' + col + '" title="Sort by ' + label + '"'
         + ' style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;cursor:pointer;'
         + 'display:flex;align-items:center;gap:5px;">'
         + '<span style="min-width:0;overflow:hidden;text-overflow:ellipsis;">' + label + '</span>'
         + arrow + '</span>'
-        + '<span class="p2-colgrip" data-p2-grip="' + col + '" title="Drag to resize · double-click to reset"></span>'
+        + (col.indexOf('custom:') === 0 && canEditColumns()
+            ? '<span class="p2-colmenu" data-p2-colmenu="' + col.slice(7) + '" title="Edit this column">'
+              + '<svg width="12" height="12" viewBox="0 0 16 16" fill="none">'
+              + '<circle cx="3.5" cy="8" r="1.2" fill="currentColor"/>'
+              + '<circle cx="8" cy="8" r="1.2" fill="currentColor"/>'
+              + '<circle cx="12.5" cy="8" r="1.2" fill="currentColor"/></svg></span>'
+            // The built-in columns have a menu too: sort, move, hide, and the way into
+            // Edit columns. No Delete in it -- a built-in column is part of how a task
+            // works, not something a board added.
+            : (!isCustom
+                ? '<span class="p2-colmenu" data-p2-sysmenu="' + col + '" title="Column options">'
+                  + '<svg width="12" height="12" viewBox="0 0 16 16" fill="none">'
+                  + '<circle cx="3.5" cy="8" r="1.2" fill="currentColor"/>'
+                  + '<circle cx="8" cy="8" r="1.2" fill="currentColor"/>'
+                  + '<circle cx="12.5" cy="8" r="1.2" fill="currentColor"/></svg></span>'
+                : ''))
+        + '<span class="p2-colgrip" data-p2-grip="' + esc(col) + '" title="Drag to resize · double-click to reset"></span>'
         + '</div>';
     };
     const headerHtml = '<div class="prj-section-thead">'
-      + th('name', 'Task name')
-      + th('status', 'Status')
-      + th('timer', 'Time')
-      + th('priority', 'Priority')
-      + th('assignee', 'Assignee')
-      + th('client', 'Client')
-      + th('department', 'Department')
-      + th('task_details', 'Task infos')
-      + '<div class="prj-th" data-col="pad">Delete</div>'
+      + cols.map(k => th(k, esc(colLabel(k)))).join('')
+      + '<div class="prj-th" data-col="pad">'
+      // Adding a column lives on the header row, where the columns are, rather than in a
+      // toolbar menu three clicks away. Hidden entirely below manager: a control that
+      // refuses on click teaches people the app is unreliable.
+      +   (canEditColumns()
+            ? '<span class="p2-addcol" data-p2-addcol="1" title="Add a column">'
+              + '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10"'
+              + ' stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>'
+              + '<span class="p2-addcol-t">Add</span></span>'
+            : 'Delete')
+      + '</div>'
       + '</div>';
 
     // One section, named for where you actually are. It grouped by client before and
@@ -87642,40 +89214,26 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // they happen not to have filled in rather than after the thing you opened -- and it
     // was a third level of grouping under a tree that already has a project and a
     // subproject above it.
-    const ap = activeProject();
-    const vtab = document.querySelector('#p2_prjVtabs .prj-vtab.active:not(.prj-vtab-plus)');
-    const sub = vtab ? vtab.textContent.trim() : '';
-    const dot = '<span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:'
-      + esc((ap && ap.color) || 'var(--red)') + ';"></span>';
-    const crumb = '<span style="font-size:12.5px;font-weight:700;color:var(--text);">'
-      + esc((ap && ap.name) || 'Project') + '</span>'
-      + (sub ? '<span style="color:var(--text-4);font-size:12px;">/</span>'
-             + '<span style="font-size:12.5px;font-weight:600;color:var(--text-2);">' + esc(sub) + '</span>' : '');
     const shut = !!p2.collapsed.__all__;
+    renderCrumb(shown.length);
     body.innerHTML = '<div class="p2-section">'
-      + '<div data-p2-folder-head="__all__"'
-      + ' style="display:flex;align-items:center;gap:9px;padding:10px 14px;cursor:pointer;'
-      + 'background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2;">'
-      +   '<span style="color:var(--text-3);display:inline-flex;flex-shrink:0;transition:transform .15s;'
-      +   (shut ? 'transform:rotate(-90deg);' : '') + '">'
-      +   '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
-      +   '</span>'
-      +   dot + crumb
-      +   '<span style="font-size:11px;font-weight:700;color:var(--text-3);background:var(--surface-2);'
-      +   'border-radius:20px;padding:1px 8px;">' + shown.length + '</span>'
-      + '</div>'
+      // The crumb is NOT in the table. It was a sticky row inside the card, which made the
+      // card look like it had two headers -- one naming the list and one naming the
+      // columns. It goes on the toolbar line instead, in the space that was being held
+      // open by an empty spacer, with its collapse control and its count intact.
       + '<div data-p2-folder-body="__all__"' + (shut ? ' style="display:none;"' : '') + '>'
       + headerHtml
       // Above the list, not under it. At the bottom it sat behind however many tasks the
       // project has -- sixty-nine in the master list -- so adding one meant scrolling to
       // the end to find the box. Same row, same behaviour, moved to where you already are.
-      + '<div style="padding:8px 14px 10px 36px;border-bottom:1px solid var(--line);">'
-      +   '<span style="display:flex;align-items:center;gap:8px;">'
-      +   '<span style="color:var(--text-4);display:inline-flex;flex-shrink:0;">'
-      +   '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3.4v9.2M3.4 8h9.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>'
-      +   '<input type="text" data-p2-add-in="__all__" placeholder="Add a task"'
+      + '<div class="p2-quickadd" style="padding:8px 14px 10px 20px;border-bottom:1px solid var(--line);">'
+      +   '<span style="display:flex;align-items:center;gap:10px;">'
+      +   '<span style="color:var(--red);display:inline-flex;flex-shrink:0;">'
+      +   '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3.4v9.2M3.4 8h9.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>'
+      +   '<input type="text" data-p2-add-in="__all__" placeholder="Type task name and press Enter to add…"'
       +   ' style="flex:1;background:transparent;border:none;outline:none;font:inherit;'
-      +   'font-size:12.5px;color:var(--text);padding:2px 0;"></span>'
+      +   'font-size:12.5px;color:var(--text);padding:2px 0;">'
+      +   '<span class="p2-quickadd-k">Press &#8629; Enter</span></span>'
       + '</div>'
       + shown.map(rowHtml).join('')
       + '</div></div>';
@@ -87781,6 +89339,57 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         });
       });
     });
+    // The add-column control lives in the header row, which is injected per section, so
+    // it is wired here with everything else rather than once at startup.
+    body.querySelectorAll('[data-p2-addcol]').forEach(el => {
+      el.addEventListener('click', (e) => { e.stopPropagation(); openAddColumn(el); });
+    });
+    // Filling a column in is everybody's job, so this is not gated -- RLS on tasks
+    // decides, and a refusal comes back as zero rows, which setFieldValue reports.
+    body.querySelectorAll('.p2-fieldcell').forEach(el => {
+      el.addEventListener('click', (e) => {
+        if (e.target.closest('input')) return;
+        e.stopPropagation();
+        openFieldEditor(el, el.dataset.p2Field, el.dataset.p2FieldTask);
+      });
+    });
+    body.querySelectorAll('[data-p2-colmenu]').forEach(el => {
+      el.addEventListener('click', (e) => { e.stopPropagation(); openColumnMenu(el, el.dataset.p2Colmenu); });
+    });
+    body.querySelectorAll('[data-p2-sysmenu]').forEach(el => {
+      el.addEventListener('click', (e) => { e.stopPropagation(); openSystemColumnMenu(el, el.dataset.p2Sysmenu); });
+    });
+    // Drag a heading onto another to put it there. The headings are injected once
+    // per section card, so every card carries its own copy -- the drop reads ids off the
+    // elements rather than their index, so dragging in one card reorders the board and
+    // not just that card's copy of the strip.
+    body.querySelectorAll('[data-p2-coldrag]').forEach(th => {
+      th.addEventListener('dragstart', (e) => {
+        e.stopPropagation();
+        p2DragCol = th.dataset.p2Coldrag;
+        th.classList.add('p2-th-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', p2DragCol); } catch (_) {}
+      });
+      th.addEventListener('dragend', () => {
+        p2DragCol = null;
+        body.querySelectorAll('.p2-th-dragging,.p2-th-over')
+            .forEach(x => x.classList.remove('p2-th-dragging', 'p2-th-over'));
+      });
+      th.addEventListener('dragover', (e) => {
+        if (!p2DragCol || p2DragCol === th.dataset.p2Coldrag) return;
+        e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+        th.classList.add('p2-th-over');
+      });
+      th.addEventListener('dragleave', () => th.classList.remove('p2-th-over'));
+      th.addEventListener('drop', async (e) => {
+        e.preventDefault(); e.stopPropagation();
+        th.classList.remove('p2-th-over');
+        const src = p2DragCol, dst = th.dataset.p2Coldrag;
+        p2DragCol = null;
+        await moveColumnTo(src, dst);
+      });
+    });
     body.querySelectorAll('[data-p2-task-del]').forEach(el => {
       el.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -87833,7 +89442,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (row) openTask(row.dataset.p2Task);
       });
     });
-    body.querySelectorAll('[data-p2-folder-head]').forEach(h => {
+    // The crumb carries this control and it lives on the toolbar now, outside `body` --
+    // so it is wired from the document, not from the table it used to sit in.
+    [...body.querySelectorAll('[data-p2-folder-head]'),
+     ...document.querySelectorAll('#p2_prjCrumb [data-p2-folder-head]')].forEach(h => {
       h.addEventListener('click', () => {
         const k = h.dataset.p2FolderHead;
         p2.collapsed[k] = !p2.collapsed[k];
@@ -88006,6 +89618,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
     p2.tasks.unshift(data);
     renderTasks();
+    return data;
   }
 
 
