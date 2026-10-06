@@ -28836,7 +28836,10 @@ Rules:
     }
     host.querySelectorAll('[data-c3-onboarding-answers]').forEach(el => el.addEventListener('click', () => { state.mgmtShowAnswers = !state.mgmtShowAnswers; render(); }));
     host.querySelectorAll('[data-c3-onboarding-copy]').forEach(el => el.addEventListener('click', () => {
-      const url = `${location.origin}/onboarding?t=${encodeURIComponent(el.dataset.c3OnboardingCopy)}`;
+      // /onboard/<token>, which is what the bootstrap matches. It was /onboarding?t=<token>,
+      // a path nothing listens for -- the SPA fallback answered it with the app shell, so
+      // the client was sent a link that opened a sign-in screen.
+      const url = window.giantUrl('/onboard/' + encodeURIComponent(el.dataset.c3OnboardingCopy));
       copyLibText(url, 'Onboarding link copied');
     }));
     host.querySelectorAll('[data-c3-member-add-save]').forEach(el => el.addEventListener('click', () => addClientMember()));
@@ -38862,6 +38865,23 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       }
       // Build form. Multi-section, full ReachGiant onboarding spec.
       const a = clientRow.onboarding_answers || {};
+      // Fetched before the page is written, because the questions ARE the page. Read with
+      // the anonymous client -- this form is opened from an emailed link with no session,
+      // which is why onboarding_questions grants select to anon.
+      //
+      // A failure here is not a failure of the form: it falls back to the built-in list,
+      // so a network blip on a public page gives a client the form rather than a blank card.
+      let questionsHtml;
+      try {
+        const { data: qRows, error: qErr } = await supa.from('onboarding_questions')
+          .select('section, label, name, type, options, helper, required, position')
+          .order('position', { ascending: true });
+        if (qErr) throw qErr;
+        questionsHtml = (qRows && qRows.length) ? questionsFromRows(qRows) : builtInFields();
+      } catch (e) {
+        console.warn('[onboarding-form] question list unavailable, using built-in:', e && e.message);
+        questionsHtml = builtInFields();
+      }
       document.body.innerHTML = `
         <div style="max-width:720px;margin:0 auto;padding:48px 24px;">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:36px;">
@@ -38876,7 +38896,30 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
 
             <form id="onbForm" style="display:flex;flex-direction:column;gap:26px;">
 
-              ${section('Company Overview')}
+              ${questionsHtml}
+
+              ${section('Assets (optional)')}
+              <div style="font-size:11px;color:#777;margin:-2px 0 8px;line-height:1.5;">Upload logos, images, or brand assets. For very large files, you can also send them to <a href="mailto:support@reachgiant.com" style="color:#D00400;text-decoration:none;font-weight:600;">support@reachgiant.com</a> via <a href="https://wetransfer.com/" target="_blank" rel="noopener" style="color:#D00400;text-decoration:none;font-weight:600;">WeTransfer</a>.</div>
+              <div id="onbAssetDrop" style="background:#0A0A0A;border:1.5px dashed #2c2c2c;border-radius:10px;padding:24px 16px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;">
+                <input type="file" id="onbAssetInput" multiple style="display:none;">
+                <div style="font-size:12.5px;color:#aaa;font-weight:600;">Click to select files, or drag and drop here</div>
+                <div style="font-size:10.5px;color:#666;margin-top:3px;">Any file type, up to 50MB each</div>
+              </div>
+              <div id="onbAssetList" style="display:flex;flex-direction:column;gap:6px;margin-top:10px;"></div>
+
+              <div id="onbAlert" style="display:none;padding:10px 14px;border-radius:8px;font-size:12.5px;"></div>
+              <button id="onbSubmit" type="button" style="background:#D00400;color:#fff;border:none;border-radius:10px;padding:15px 28px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:-0.005em;margin-top:12px;">Submit my onboarding</button>
+              <div style="text-align:center;font-size:10.5px;color:#555;margin-top:6px;">Powered by Giant · Never send passwords through this form</div>
+            </form>
+          </div>
+        </div>
+      `;
+      // ── The questions ─────────────────────────────────────────────────────────
+      // They live in onboarding_questions so the form can be changed without a release --
+      // which is the whole point of replacing an Asana form. The table was seeded with
+      // exactly the list below, so this renders identically until somebody edits it.
+      function builtInFields() {
+        return `              ${section('Company Overview')}
               ${fld('Business Name', 'business_name', a.business_name, 'text', true)}
               ${fld('Business Website URL', 'website_url', a.website_url, 'text', false, 'Please share \'Admin\' access with Support@ReachGiant.com.')}
               ${fld('Business Address', 'address', a.address, 'text', false)}
@@ -38914,22 +38957,25 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
               ${fld('Anything we should avoid or be aware of?', 'avoid_notes', a.avoid_notes, 'textarea', false)}
               ${fld('Additional Information', 'additional_info', a.additional_info, 'textarea', false, 'Any other details that could improve campaign effectiveness.')}
 
-              ${section('Assets (optional)')}
-              <div style="font-size:11px;color:#777;margin:-2px 0 8px;line-height:1.5;">Upload logos, images, or brand assets. For very large files, you can also send them to <a href="mailto:support@reachgiant.com" style="color:#D00400;text-decoration:none;font-weight:600;">support@reachgiant.com</a> via <a href="https://wetransfer.com/" target="_blank" rel="noopener" style="color:#D00400;text-decoration:none;font-weight:600;">WeTransfer</a>.</div>
-              <div id="onbAssetDrop" style="background:#0A0A0A;border:1.5px dashed #2c2c2c;border-radius:10px;padding:24px 16px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;">
-                <input type="file" id="onbAssetInput" multiple style="display:none;">
-                <div style="font-size:12.5px;color:#aaa;font-weight:600;">Click to select files, or drag and drop here</div>
-                <div style="font-size:10.5px;color:#666;margin-top:3px;">Any file type, up to 50MB each</div>
-              </div>
-              <div id="onbAssetList" style="display:flex;flex-direction:column;gap:6px;margin-top:10px;"></div>
+`;
+      }
+      function questionsFromRows(rows) {
+        let out = '', lastSection = null;
+        rows.forEach(q => {
+          if (q.section !== lastSection) { out += section(q.section); lastSection = q.section; }
+          // contact_email falls back to the address already on the client, the way it
+          // always has -- most people are filling this in about themselves.
+          const val = q.name === 'contact_email'
+            ? (a[q.name] || clientRow.contact_email)
+            : a[q.name];
+          const opts = Array.isArray(q.options) ? q.options : [];
+          if (q.type === 'checkbox')    out += chkGroup(q.label, q.name, val, opts, q.required);
+          else if (q.type === 'select') out += sel(q.label, q.name, val, opts, q.required, q.helper);
+          else                          out += fld(q.label, q.name, val, q.type, q.required, q.helper);
+        });
+        return out;
+      }
 
-              <div id="onbAlert" style="display:none;padding:10px 14px;border-radius:8px;font-size:12.5px;"></div>
-              <button id="onbSubmit" type="button" style="background:#D00400;color:#fff;border:none;border-radius:10px;padding:15px 28px;font-size:13.5px;font-weight:700;cursor:pointer;font-family:inherit;letter-spacing:-0.005em;margin-top:12px;">Submit my onboarding</button>
-              <div style="text-align:center;font-size:10.5px;color:#555;margin-top:6px;">Powered by Giant · Never send passwords through this form</div>
-            </form>
-          </div>
-        </div>
-      `;
       function section(title) {
         return `<div style="font-size:11px;font-weight:800;color:#D00400;text-transform:uppercase;letter-spacing:.12em;padding-top:8px;padding-bottom:4px;border-bottom:1px solid #232323;margin-bottom:8px;">${esc(title)}</div>`;
       }
@@ -76108,7 +76154,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // A const arrow in Chat 3.0, so the extraction -- which worked from a list of
     // declaration names -- walked straight past it, and the Onboarding panel threw a
     // ReferenceError the moment it rendered a link.
-    const onboardingUrl = (token) => `${location.origin}/onboarding?t=${encodeURIComponent(token)}`;
+    // /onboard/<token> -- the path the bootstrap actually matches. See the copy handler in
+    // the client panel for the same fix and why.
+    const onboardingUrl = (token) => window.giantUrl('/onboard/' + encodeURIComponent(token));
     const NCSB = () => window.giantSupabase;
     const ncMyId = () => (window.giantSession && window.giantSession.user && window.giantSession.user.id) || null;
     // The app has its own dialog and the Vault's delete already uses it; the rest of this
