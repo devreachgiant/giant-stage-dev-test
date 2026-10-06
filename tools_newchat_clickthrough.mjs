@@ -5363,7 +5363,11 @@ await step('one surface, and the crumb on the toolbar', async () => {
     // The crumb is on the toolbar, outside the table, and still works.
     const crumb = document.getElementById('p2_prjCrumb');
     out.crumbOnToolbar = !!crumb && !!crumb.querySelector('[data-p2-folder-head]');
-    out.crumbNamesTheList = !!crumb && /\/\s*Daily/.test(crumb.textContent || '');
+    // Names the project, and no longer the sub-project under it: that layer was removed
+    // from the screen and the crumb was the last place it showed.
+    out.crumbNamesTheList = !!crumb && (crumb.textContent || '').indexOf(
+      (window.p2State.projects.find(p => p.id === window.p2State.activeId) || {}).name || '\u0000') >= 0
+      && !/\//.test(crumb.textContent || '');
     out.crumbNotInTable = !document.querySelector('#p2_prjDailyBody [data-p2-folder-head]');
     // Collapsing sets display:none on the folder BODY -- the rows stay in the DOM, so a
     // count finds them all either way and the check passed against a collapse that had
@@ -5507,7 +5511,9 @@ await step('the column editor', async () => {
     out.stripHidden = !strip || getComputedStyle(strip).display === 'none';
     const lbl = document.getElementById('p2_prjVtabsLabel');
     out.labelHidden = !lbl || getComputedStyle(lbl).display === 'none';
-    out.breadcrumbKeepsIt = /\/\s*Daily/.test(
+    // The crumb no longer carries it either. It named a sub-project the table never
+    // filtered by, and the sub-project layer is what was asked to go.
+    out.breadcrumbKeepsIt = !/\/\s*Daily/.test(
       (document.getElementById('p2_prjCrumb') || {}).textContent || '');
     // The toolbar entry point, because the one on the header row is past the right edge
     // of a table that scrolls.
@@ -5588,7 +5594,7 @@ await step('the column editor', async () => {
   return r;
 }).then(r => {
   r = r || {};
-  check('the sub-project strip is gone and its label with it, and the breadcrumb still names it',
+  check('the sub-project strip is gone, its label with it, and the breadcrumb no longer names it',
     r.stripHidden && r.labelHidden && r.breadcrumbKeepsIt, JSON.stringify(r));
   check('Add column is reachable from the toolbar, not only off the end of the table',
     r.toolbarAddShown, JSON.stringify(r));
@@ -5608,6 +5614,234 @@ await step('the column editor', async () => {
       && (r.orderAfterMove || []).indexOf('Phase') === 1, JSON.stringify(r));
   check('deleting demands the word, and the table stays aligned once it is gone',
     r.survivedWrongWord && r.goneOnTheWord && r.alignedAfterDelete, JSON.stringify(r));
+});
+
+// Edit columns: one order for every column, built-in and custom, kept per board.
+// Asserted against the DOM the table actually draws -- headings, cells and grid tracks --
+// because the failure this design invites is three lists disagreeing, which renders a
+// table that looks fine and reads wrong.
+await step('Edit columns reorders and hides any column, and the table follows', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const out = {};
+    try { localStorage.removeItem('giant_p2_colorder'); } catch (_) {}
+    window.p2SetView('table'); await w(700);
+    const heads = () => [...document.querySelectorAll('#p2_prjDailyBody .prj-section-thead .prj-th')]
+      .map(h => h.dataset.col).filter(c => c !== 'pad');
+    const cells = () => [...(document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task]') || { children: [] }).children]
+      .map(c => c.dataset.col).filter(c => c !== 'pad');
+    const tracks = () => (document.getElementById('p2_prjTable').style.getPropertyValue('--prj-cols') || '')
+      .trim().split(/\s+/).length;
+    const btn = document.getElementById('p2_prjEditColsBtn');
+    out.buttonShown = !!btn && getComputedStyle(btn).display !== 'none';
+    btn.click(); await w(400);
+    let pop = document.querySelector('.p2-manage');
+    out.panel = !!pop;
+    if (!pop) return out;
+    const rows = [...pop.querySelectorAll('.p2-mcol')];
+    out.listed = rows.map(x => x.dataset.mkey);
+    out.namePinnedFirst = rows[0].dataset.mkey === 'name' && !rows[0].hasAttribute('draggable');
+    out.builtInTagged = rows.filter(x => x.dataset.mkey.indexOf('custom:') !== 0 && x.dataset.mkey !== 'name')
+      .every(x => /built-in/i.test(x.querySelector('.p2-mcol-tag').textContent));
+    out.customTagged = rows.filter(x => x.dataset.mkey.indexOf('custom:') === 0)
+      .every(x => !/built-in/i.test(x.querySelector('.p2-mcol-tag').textContent));
+    // Drag Status onto Client, hide Department, save.
+    const src = rows.find(x => x.dataset.mkey === 'status'), dst = rows.find(x => x.dataset.mkey === 'client');
+    const dt = new DataTransfer();
+    src.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+    dst.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    dst.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    await w(200);
+    pop = document.querySelector('.p2-manage');
+    out.panelAfterDrag = [...pop.querySelectorAll('.p2-mcol')].map(x => x.dataset.mkey);
+    // Nothing reaches the table until Save.
+    out.untilSaveUnchanged = heads().indexOf('status') === 1;
+    pop.querySelector('[data-mhide="department"]').click(); await w(200);
+    document.querySelector('.p2-manage .p2-colpop-go').click(); await w(1800);
+    out.heads = heads(); out.cells = cells(); out.tracks = tracks();
+    out.stored = (JSON.parse(localStorage.getItem('giant_p2_colorder') || '{}')[window.p2State.activeId]) || null;
+    // A fresh draw reads the order back from storage, which is what a reload does.
+    window.p2SetView('board'); await w(500); window.p2SetView('table'); await w(700);
+    out.headsRedrawn = heads();
+
+    // A built-in heading's menu: move and hide, never delete.
+    const sys = document.querySelector('#p2_prjDailyBody [data-p2-sysmenu="priority"]');
+    sys.click(); await w(350);
+    const menu = document.querySelector('.p2-colmenu-pop');
+    out.sysItems = menu ? [...menu.querySelectorAll('.p2-menuitem')].map(b => b.dataset.act) : null;
+    out.sysNoDelete = !!menu && !/delete/i.test(menu.textContent);
+    const before = heads();
+    menu.querySelector('[data-act="right"]').click(); await w(1500);
+    const after = heads();
+    out.movedRight = after.indexOf('priority') === before.indexOf('priority') + 1;
+    // ...and no built-in column offers Delete anywhere, including in Edit columns.
+    document.getElementById('p2_prjEditColsBtn').click(); await w(400);
+    pop = document.querySelector('.p2-manage');
+    out.noBuiltInDelete = ![...pop.querySelectorAll('.p2-mcol')]
+      .some(x => x.dataset.mkey.indexOf('custom:') !== 0 && x.querySelector('[data-del],[data-medit]'));
+    document.querySelectorAll('.p2-colpop').forEach(x => x.remove());
+
+    // Renaming an option moves every task holding it; removing one clears it (after asking).
+    const db = window.__mock.db;
+    const f1 = db.project_fields.find(x => x.id === 'pf-1');
+    const labels = (f1.options || []).map(o => o.label);
+    const keepL = labels[0], dropL = labels[labels.length - 1];
+    const ts = window.p2State.tasks.slice(0, 2);
+    ts.forEach((t, i) => {
+      const v = i === 0 ? keepL : dropL;
+      t.custom_fields = Object.assign({}, t.custom_fields || {}, { 'pf-1': v });
+      const d = db.tasks.find(x => x.id === t.id); if (d) d.custom_fields = Object.assign({}, t.custom_fields);
+    });
+    window.p2SetView('board'); await w(400); window.p2SetView('table'); await w(600);
+    document.querySelector('[data-p2-colmenu="pf-1"]').click(); await w(400);
+    pop = document.querySelector('.p2-colpop');
+    const nameEl = [...pop.querySelectorAll('.p2-opt-name')].find(e => e.value === keepL);
+    nameEl.value = keepL + ' (renamed)'; nameEl.dispatchEvent(new Event('input', { bubbles: true }));
+    [...pop.querySelectorAll('.p2-opt')].find(x => x.querySelector('.p2-opt-name').value === dropL)
+      .querySelector('[data-odel]').click(); await w(200);
+    document.querySelector('.p2-colpop .p2-colpop-go').click(); await w(3000);
+    const v0 = (db.tasks.find(x => x.id === ts[0].id) || {}).custom_fields || {};
+    const v1 = (db.tasks.find(x => x.id === ts[1].id) || {}).custom_fields || {};
+    out.renamedFollowed = v0['pf-1'] === keepL + ' (renamed)';
+    out.removedCleared = !Object.prototype.hasOwnProperty.call(v1, 'pf-1');
+    out.cellShowsRename = [...document.querySelectorAll('[data-p2-field="pf-1"][data-p2-field-task="' + ts[0].id + '"]')]
+      .some(c => c.textContent.indexOf('(renamed)') >= 0);
+
+    // The status column fits the longest of the nine stages.
+    const t0 = window.p2State.tasks[0];
+    const wasStage = t0.status_stage;
+    t0.status_stage = 'waiting';
+    // Through the board and back: setView to the view already showing does not redraw.
+    window.p2SetView('board'); await w(400); window.p2SetView('table'); await w(600);
+    const lbl = document.querySelector('#p2_prjDailyBody [data-p2-stage="' + t0.id + '"] .lbl');
+    out.waitingLabel = lbl ? lbl.textContent : null;
+    out.waitingFits = !!lbl && lbl.scrollWidth <= lbl.clientWidth + 0.5;
+    t0.status_stage = wasStage;
+
+    // The pinned name stays flush with the table's edge, with nothing showing beside it.
+    const tbl = document.getElementById('p2_prjTable');
+    tbl.scrollLeft = tbl.scrollWidth; await w(300);
+    const nc = document.querySelector('#p2_prjDailyBody .prj-row[data-p2-task] .prj-cell-name');
+    out.scrolled = tbl.scrollLeft;
+    out.nameFlush = Math.round(nc.getBoundingClientRect().left - tbl.getBoundingClientRect().left);
+    tbl.scrollLeft = 0; await w(200);
+
+    try { localStorage.removeItem('giant_p2_colorder'); } catch (_) {}
+    window.p2SetView('board'); await w(400); window.p2SetView('table'); await w(600);
+    out.headsRestored = heads();
+    out.restored = heads().join(',') === 'name,status,timer,priority,assignee,client,department,task_details'
+      + heads().slice(8).map(x => ',' + x).join('');
+    return out;
+  });
+  return r;
+}).then(r => {
+  r = r || {};
+  check('Edit columns lists every column, the task name pinned first, built-in and custom labelled',
+    r.buttonShown && r.panel && r.namePinnedFirst && r.builtInTagged && r.customTagged
+      && (r.listed || []).length >= 9, JSON.stringify(r));
+  check('dragging a built-in column in Edit columns moves it, and nothing changes until Save',
+    JSON.stringify((r.panelAfterDrag || []).slice(0, 6)) === JSON.stringify(['name', 'timer', 'priority', 'assignee', 'client', 'status'])
+      && r.untilSaveUnchanged, JSON.stringify(r));
+  check('after Save, headings, cells and grid tracks all follow the new order, the hidden column in none of them',
+    JSON.stringify(r.heads) === JSON.stringify(r.cells)
+      && (r.heads || []).indexOf('status') === (r.heads || []).indexOf('client') + 1
+      && (r.heads || []).indexOf('department') < 0
+      && r.tracks === (r.heads || []).length + 1, JSON.stringify(r));
+  check('the order and hidden columns are stored per board and come back on a fresh draw',
+    !!r.stored && (r.stored.hidden || []).indexOf('department') >= 0
+      && JSON.stringify(r.headsRedrawn) === JSON.stringify(r.heads), JSON.stringify(r));
+  check('a built-in column has a menu to sort, move and hide it, and no Delete anywhere',
+    r.sysNoDelete && r.noBuiltInDelete && r.movedRight
+      && ['asc', 'desc', 'left', 'right', 'hide', 'manage'].every(a => (r.sysItems || []).indexOf(a) >= 0),
+    JSON.stringify(r));
+  check('renaming an option renames it on every task, and removing one clears it there',
+    r.renamedFollowed && r.removedCleared && r.cellShowsRename, JSON.stringify(r));
+  check('the status column fits "Waiting on another team" without cutting it off',
+    r.waitingLabel === 'Waiting on another team' && r.waitingFits, JSON.stringify(r));
+  check('scrolled right, the pinned task name sits flush with the table edge',
+    r.scrolled > 0 && Math.abs(r.nameFlush) <= 1, JSON.stringify(r));
+  check('clearing the stored order puts the default back', r.restored, JSON.stringify(r));
+});
+
+// Two things only real-size data showed: the "+N" chip pushed off the bar by the project
+// you opened from it, and the crumb left naming the previous project on an empty one.
+await step('the project strip keeps "+N" in reach, and the crumb follows an empty project', async () => {
+  const vp = page.viewportSize();
+  await page.setViewportSize({ width: 820, height: vp.height });
+  await page.waitForTimeout(600);
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const out = {};
+    const startId = window.p2State.activeId;
+    const bar = document.getElementById('p2_prjProjectsBar');
+    const chips = [...bar.querySelectorAll('[data-p2-project]')];
+    const hidden = chips.filter(c => getComputedStyle(c).display === 'none');
+    out.hiddenCount = hidden.length;
+    if (hidden.length) {
+      hidden[hidden.length - 1].click(); await w(1800);
+      const br = bar.getBoundingClientRect();
+      const add = document.getElementById('p2_prjProjAdd');
+      const more = bar.querySelector('[data-p2-more]');
+      out.addInBar = !!add && add.getBoundingClientRect().right <= br.right + 0.5;
+      out.moreInBar = !more || more.getBoundingClientRect().right <= br.right + 0.5;
+    }
+    // A project with no tasks: the crumb names it, with a zero.
+    const empty = window.p2State.projects.find(p => !window.__mock.db.tasks.some(t => t.project_id === p.id));
+    out.emptyFound = !!empty;
+    if (empty) {
+      document.querySelector('[data-p2-project="' + empty.id + '"]').click(); await w(1800);
+      const txt = (document.getElementById('p2_prjCrumb') || {}).textContent || '';
+      out.crumb = txt;
+      out.crumbNamesEmpty = txt.indexOf(empty.name) >= 0 && /0\s*$/.test(txt.trim());
+    }
+    document.querySelector('[data-p2-project="' + startId + '"]').click(); await w(1800);
+    return out;
+  });
+  await page.setViewportSize(vp);
+  await page.waitForTimeout(600);
+  return r;
+}).then(r => {
+  r = r || {};
+  check('opening a project from "+N" leaves "+N" and "+" inside the bar',
+    r.hiddenCount > 0 && r.addInBar && r.moreInBar, JSON.stringify(r));
+  check('opening an empty project, the crumb names that project and a zero',
+    r.emptyFound && r.crumbNamesEmpty, JSON.stringify(r));
+});
+
+// A people column offers the whole team. It offered p2.people -- whoever was assigned to
+// something on this board -- which on a real board was five people out of eighty.
+await step('a people column offers the whole team, not just this board\'s assignees', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const db = window.__mock.db;
+    const pid = window.p2State.activeId;
+    db.project_fields.push({ id: 'pf-people', project_id: pid, name: 'Reviewer', type: 'people',
+      position: 99, options: [], created_at: new Date().toISOString() });
+    // Re-open the project so the columns load from the database, as they would.
+    const other = window.p2State.projects.find(p => p.id !== pid);
+    document.querySelector('[data-p2-project="' + other.id + '"]').click(); await w(1500);
+    document.querySelector('[data-p2-project="' + pid + '"]').click(); await w(1800);
+    window.p2SetView('table'); await w(600);
+    const cell = document.querySelector('#p2_prjDailyBody [data-p2-field="pf-people"]');
+    const out = { cell: !!cell };
+    if (!cell) return out;
+    cell.click(); await w(900);
+    const pick = document.querySelector('.p2-multipick');
+    out.offered = pick ? pick.querySelectorAll('.p2-pickrow').length : 0;
+    out.team = db.profiles.filter(p => p.role !== 'client' && !p.deactivated_at).length;
+    out.assigneesHere = new Set(window.p2State.tasks.flatMap(t => Array.isArray(t.assigned_to) ? t.assigned_to : [t.assigned_to]).filter(Boolean)).size;
+    document.querySelectorAll('.p2-colpop').forEach(x => x.remove());
+    // Leave the board as it was.
+    db.project_fields = db.project_fields.filter(f => f.id !== 'pf-people');
+    document.querySelector('[data-p2-project="' + other.id + '"]').click(); await w(1500);
+    document.querySelector('[data-p2-project="' + pid + '"]').click(); await w(1800);
+    return out;
+  });
+  return r;
+}).then(r => {
+  r = r || {};
+  check('a people column offers the whole team, not just this board\'s assignees',
+    r.cell && r.offered === r.team && r.offered > r.assigneesHere, JSON.stringify(r));
 });
 
 // Column widths were baked into the stylesheet, so a name that needed more room and a
@@ -6307,10 +6541,12 @@ await step('the table is headed by where you are, not by a folder', async () => 
       sections: document.querySelectorAll('[data-p2-folder-head]').length,
       headText: head ? head.innerText.replace(/\n/g, ' ').trim() : null,
       namesProject: !!(head && ap && head.innerText.includes(ap.name)),
-      namesSubproject: !!(head && head.innerText.includes('Daily')),
+      // Inverted on purpose: the sub-project layer was removed at Luke's request, and the
+      // crumb was the last place it still showed.
+      namesSubproject: !(head && head.innerText.includes('Daily')),
     };
   });
-  check('one section, named for the project and subproject, and no folder control left',
+  check('one section, named for the project and not the subproject, and no folder control left',
     r.folderButtonGone && r.noUnfiled && r.sections === 1 && r.namesProject && r.namesSubproject,
     JSON.stringify(r));
 });
