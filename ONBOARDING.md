@@ -140,6 +140,18 @@ it is believed.
 
 ## 5. Branches and deploying
 
+**More than one person works on this now. Pull before you branch, and push what you finish.**
+
+```bash
+git checkout main && git pull origin main
+git checkout -b fix/the-thing
+```
+
+Push your branch as soon as you have something, even if it is not ready to merge — branches do
+not deploy, so pushing one costs nothing, and work that only exists on your laptop can vanish.
+Before editing a file you did not read this session, read it again: `index.html` is one file
+that everybody edits, and it is where two people collide.
+
 - Branch off `main`. Feature branches are safe to push — nothing deploys from them.
 - **`main` deploys to production automatically** on push, via a GitHub Action that calls a
   Netlify build hook. Treat a push to `main` as "this is live for the whole company now."
@@ -215,22 +227,22 @@ select count(*) from public.clients;
 
 ## 8. Where things stand right now
 
-- **`main`** is live and current.
-- **Pod System** is live but restricted to owner/manager/in-house-dev — a preview for Luke.
-  Removing `data-role-min="manager"` from its nav item and screen opens it to everyone.
-- **Projects 2.0 is live**, merged on 2026-09-22 and restricted to owner/manager/in-house-dev
-  (`data-role-min="manager"` on its nav item and screen). It opens on the rebuilt screen; the
-  Clone/Rebuild switch in the bottom-right corner still shows the old screen for comparison,
-  and a choice already made wins over that default. `feature/projects-rework` is merged and
-  kept only for history — earlier copies of this file said it must never be merged.
-- **`feature/pod-system`** is the full pod branch including work not on `main`.
-- Migration status, checked against production on 2026-09-22 with `supabase migration list --linked`:
-  project visibility (`20260908120000`) **is applied**, and so are the task pipeline
-  (`20260922130000`) and task delete (`20260922120000`, applied 2026-09-22 — a task belongs
-  to whoever created it, plus owner/manager/in-house dev).
-  Restricting `clients` so a client account reads only its own row was applied on 2026-09-16.
-  The three `readonly_report.sql` files sharing versions with `20260826*` are queries, not
-  migrations, and are never meant to apply — `migration list` shows them as pending forever.
+> Updated 2026-10-06. This section ages fast — trust `git log` over it.
+
+- **`main`** is live, current, and safe to branch from.
+- Gated to owner / manager / in-house dev: **Projects 2.0**, **Pod System**, and the
+  **Archive** screen (the old Chat, in-house dev only).
+- **Unmerged and worth knowing about**, both local-only until pushed:
+  - `feature/project-columns` — custom columns for Projects 2.0, plus a visual pass. All
+    checks green, but it has only ever run against the test fixture, never a real board.
+  - `feature/meetings-turn-screenshare` — video-call TURN and screenshare. Finished, but
+    needs `TURN_KEY_ID` and `TURN_API_TOKEN` in Netlify before it does anything.
+- Recently shipped: channel rename, the Clients list, attachment downloads (including
+  Download all as a zip), and message forwarding.
+- There are around 60 local branches. Most are dead. A branch name is not evidence that
+  anything is live.
+- **Migrations are applied by hand.** A file in `supabase/migrations/` has not necessarily
+  run. This is the one place a second developer can silently diverge from production.
 
 ## 9. How a release actually goes out
 
@@ -239,7 +251,15 @@ migrations, §6 messaging the team, §7 the traps. Read it before your first pus
 version: branch off `origin/main`, all four checks green, ask before pushing, verify the
 deploy against the live URL, bump `version.json` and add a changelog entry.
 
-## 10. If you get stuck
+## 10. If you use Claude Code
+
+[CLAUDE.md](CLAUDE.md) is loaded automatically at the start of every Claude Code session in
+this repo. It is the operating guide: the editing rules for a 90,000-line single file, the four
+checks that must pass, how migrations are applied by hand against production, and the traps
+that have each cost a day here at least once. Worth reading yourself, not just letting the
+model read it.
+
+## 11. If you get stuck
 
 `NEW_CHAT_HANDOFF.md` is the deepest written record of how the chat rebuild was done and why,
 including a "Known, not fixed" list. It is long and it is honest.
