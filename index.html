@@ -1041,6 +1041,51 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
 #p2_root #p2_prjMineToggle > button,#p2_root #p2_prjStatusToggle > button,
 #p2_root .prj-vt-btn{border-radius:3px!important;}
 #p2_root .p2-addcol,#p2_root .p2-colmenu{border-radius:3px;}
+/* Matched to Luke's reference (stitch code.html), element by element.
+   The project strip is a row of chips on the page, not a boxed bar. */
+#p2_root .prj-projects-bar{background:transparent;border:none;padding:4px 0;}
+#p2_root .prj-proj-add{display:inline-flex;align-items:center;gap:6px;width:auto!important;
+  padding:6px 9px;font-size:12px;font-weight:600;color:var(--text-3);white-space:nowrap;}
+#p2_root .prj-proj-add:hover{color:var(--text);}
+/* The count is the reference's mono tag: "56 tasks". */
+#p2_root .p2-crumbcount{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;
+  font-weight:600;color:var(--text-2);background:var(--surface-2);border:1px solid var(--line-2);
+  border-radius:3px;padding:1px 7px;flex-shrink:0;}
+/* Headings: no divider between them, and the menu quiet until the heading is pointed at.
+   Not hidden outright -- a control nobody can see is a control nobody finds -- but at a
+   third of its strength it stops eleven "..." from reading as part of every label. The
+   resize grip shows its line only when you are near it. */
+#p2_root .prj-section-thead .p2-colmenu{opacity:.3;}
+#p2_root .prj-section-thead .prj-th:hover .p2-colmenu{opacity:.85;}
+#p2_root .prj-section-thead .p2-colmenu:hover{opacity:1;}
+#p2_root .prj-section-thead .p2-colgrip::after{background:transparent;}
+#p2_root .prj-section-thead .prj-th:hover .p2-colgrip::after{background:var(--line-2);}
+#p2_root .prj-section-thead .p2-colgrip:hover::after,
+#p2_root .prj-section-thead .p2-colgrip:active::after{background:var(--text-3);}
+/* "+ Add" with the word, in the reference's red. */
+#p2_root .p2-addcol{width:auto;padding:0 6px;gap:4px;color:var(--red);opacity:.9;}
+#p2_root .p2-addcol-t{font-size:11px;font-weight:700;letter-spacing:0;text-transform:none;color:var(--text-2);}
+#p2_root .p2-addcol:hover .p2-addcol-t{color:var(--text);}
+/* The quick-add row's Enter cue. */
+#p2_root .p2-quickadd-k{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;
+  color:var(--text-4);flex-shrink:0;white-space:nowrap;}
+#p2_root .p2-quickadd input::placeholder{color:var(--text-3);}
+/* Board column head, as the reference draws it: name in sentence case, a count tag, and
+   the column's own controls on the right. */
+#p2_root .p2-lanehead{display:flex;align-items:center;gap:7px;margin-bottom:10px;min-height:22px;}
+#p2_root .p2-lanehead-t{font-size:12.5px;font-weight:700;color:var(--text);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;min-width:0;}
+#p2_root .p2-lanehead-n{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10.5px;
+  color:var(--text-3);background:var(--surface);border:1px solid var(--line);border-radius:3px;
+  padding:0 5px;flex-shrink:0;}
+#p2_root .p2-lanebtn{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;
+  border-radius:3px;color:var(--text-3);cursor:pointer;font-size:12px;flex-shrink:0;
+  transition:background .12s,color .12s;}
+#p2_root .p2-lanebtn:hover{background:var(--surface);color:var(--text);}
+/* Move left/right appear when the column is pointed at, so a long stage name keeps the
+   room it needs the rest of the time -- "Needs more detail" was clipping with them shown. */
+#p2_root .p2-lanebtn[data-p2-lanemove]{display:none;}
+#p2_root [data-p2-col]:hover .p2-lanebtn[data-p2-lanemove]{display:inline-flex;}
 /* The shared renderers' tags (priority, department, people, client) are pills on the
    original screen; here they are the same small-radius tags as everything else. */
 #p2_root .prj-lbl{border-radius:3px;}
@@ -11003,7 +11048,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
           <div class="prj-projects-bar" id="p2_prjProjectsBar">
             <div class="prj-proj prj-proj-icon"><svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="8.5" y="2" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="2" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.4"/><rect x="8.5" y="8.5" width="5.5" height="5.5" rx="1" stroke="currentColor" stroke-width="1.4"/></svg></div>
             <!-- dynamic project tabs injected here -->
-            <div class="prj-proj prj-proj-add" id="p2_prjProjAdd" title="Create project"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+            <div class="prj-proj prj-proj-add" id="p2_prjProjAdd" title="Create project"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg><span class="p2-projadd-t">Add project</span></div>
           </div>
 
           <!-- view tabs (level 2: per-project sub-views) -->
@@ -88398,6 +88443,27 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   // ── BOARD ────────────────────────────────────────────────────────────────────
+  // The order of the board's columns, for this person. The columns are the nine stages,
+  // which are the same for every project, so this is one list rather than one per board.
+  // Moving a column changes how the board reads, not the pipeline: sorting by Status
+  // still follows the stages' own order.
+  const P2_LANE_KEY = 'giant_p2_laneorder';
+  function laneOrder(){
+    const known = P2_COLS.map(c => c.key);
+    let saved = [];
+    try { saved = JSON.parse(localStorage.getItem(P2_LANE_KEY) || '[]') || []; } catch (_) {}
+    saved = saved.filter(k => known.indexOf(k) >= 0);
+    return saved.concat(known.filter(k => saved.indexOf(k) < 0));
+  }
+  function moveLane(key, dir){
+    const order = laneOrder();
+    const i = order.indexOf(key), j = i + dir;
+    if (i < 0 || j < 0 || j >= order.length) return;
+    order.splice(i, 1); order.splice(j, 0, key);
+    try { localStorage.setItem(P2_LANE_KEY, JSON.stringify(order)); } catch (_) {}
+    renderBoard();
+  }
+
   function renderBoard(){
     const host = $('prjBoard');
     if (!host) return;
@@ -88417,7 +88483,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       (byCol[k] || byCol[P2_STAGE_DEFAULT]).push(t);
     });
     const cardHtml = (t) => '<div class="p2-card" draggable="true" data-p2-card="' + esc(t.id) + '"'
-      + ' style="background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 11px;'
+      + ' style="background:var(--surface);border:1px solid var(--line);border-radius:5px;padding:10px 11px;'
       + 'margin-bottom:8px;cursor:grab;display:flex;flex-direction:column;gap:8px;">'
       + '<div style="display:flex;align-items:flex-start;gap:7px;">'
       +   prioDot(t)
@@ -88433,15 +88499,23 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       +   assignees(t).slice(0, 3).map(personChip).join('') + '</span>'
       + '</div>'
       + '</div>';
-    host.innerHTML = P2_COLS.map(c => {
+    // The reference's column head: dot, name, count, then move left, move right and add.
+    const order = laneOrder();
+    const lanes = order.map(k => P2_COLS.find(c => c.key === k)).filter(Boolean);
+    host.innerHTML = lanes.map((c, li) => {
       const rows = byCol[c.key];
-      return '<div data-p2-col="' + c.key + '" style="flex:0 0 232px;min-width:232px;display:flex;flex-direction:column;'
-        + 'background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:10px;">'
-        + '<div style="display:flex;align-items:center;gap:7px;margin-bottom:10px;">'
-        +   '<span style="width:7px;height:7px;border-radius:50%;background:' + c.tint + ';"></span>'
-        +   '<span style="font-size:11.5px;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:var(--text-2);">'
-        +   c.label + '</span>'
-        +   '<span style="font-size:11px;font-weight:700;color:var(--text-3);">' + rows.length + '</span>'
+      // 256, not 232: the head carries move and add controls now, and at 232 "Needs more
+      // detail" and "Ready for review" were cut to "Needs mor..." beside them.
+      return '<div data-p2-col="' + c.key + '" style="flex:0 0 256px;min-width:256px;display:flex;flex-direction:column;'
+        + 'background:var(--surface-2);border:1px solid var(--line);border-radius:6px;padding:10px;">'
+        + '<div class="p2-lanehead">'
+        +   '<span style="width:7px;height:7px;border-radius:50%;flex-shrink:0;background:' + c.tint + ';"></span>'
+        +   '<span class="p2-lanehead-t">' + c.label + '</span>'
+        +   '<span class="p2-lanehead-n">' + rows.length + '</span>'
+        +   '<span style="flex:1;"></span>'
+        +   (li > 0 ? '<span class="p2-lanebtn" data-p2-lanemove="' + c.key + '" data-dir="-1" title="Move column left">&#8592;</span>' : '')
+        +   (li < lanes.length - 1 ? '<span class="p2-lanebtn" data-p2-lanemove="' + c.key + '" data-dir="1" title="Move column right">&#8594;</span>' : '')
+        +   (c.key !== 'done' ? '<span class="p2-lanebtn" data-p2-laneadd="' + c.key + '" title="Add a task to ' + c.label + '">+</span>' : '')
         + '</div>'
         + '<div data-p2-drop="' + c.key + '" style="flex:1;min-height:60px;">'
         + (rows.length ? rows.map(cardHtml).join('')
@@ -88449,6 +88523,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         + '</div></div>';
     }).join('');
 
+    host.querySelectorAll('[data-p2-lanemove]').forEach(b => b.addEventListener('click', (e) => {
+      e.stopPropagation();
+      moveLane(b.dataset.p2Lanemove, +b.dataset.dir);
+    }));
+    // Add straight into a column: the task is created as usual, then moved to that stage
+    // through setTaskStage, so status and status_stage are written together as everywhere
+    // else. giantPrompt, not window.prompt, which does nothing in the desktop build.
+    host.querySelectorAll('[data-p2-laneadd]').forEach(b => b.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const stage = b.dataset.p2Laneadd;
+      const def = P2_COLS.find(c => c.key === stage);
+      const name = String(await window.giantPrompt('New task in ' + (def ? def.label : 'this column') + ':', '') || '').trim();
+      if (!name) return;
+      const row = await addTask(name);
+      if (row && stage !== stageOf(row)) await setTaskStage(row.id, stage);
+    }));
     let dragId = null;
     host.querySelectorAll('[data-p2-card]').forEach(el => {
       // A click that is not a drag opens the task; dragstart clears this so a drop does
@@ -88834,8 +88924,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       + esc((ap && ap.color) || 'var(--red)') + ';"></span>'
       + '<span style="font-size:12.5px;font-weight:700;color:var(--text);">'
       + esc((ap && ap.name) || 'Project') + '</span>'
-      + '<span style="font-size:11px;font-weight:700;color:var(--text-3);background:var(--surface-2);'
-      + 'border-radius:3px;padding:1px 6px;flex-shrink:0;">' + count + '</span>'
+      + '<span class="p2-crumbcount">' + count + ' task' + (count === 1 ? '' : 's') + '</span>'
       + '</span>';
   }
 
@@ -89114,7 +89203,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       +   (canEditColumns()
             ? '<span class="p2-addcol" data-p2-addcol="1" title="Add a column">'
               + '<svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10"'
-              + ' stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg></span>'
+              + ' stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>'
+              + '<span class="p2-addcol-t">Add</span></span>'
             : 'Delete')
       + '</div>'
       + '</div>';
@@ -89136,13 +89226,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // Above the list, not under it. At the bottom it sat behind however many tasks the
       // project has -- sixty-nine in the master list -- so adding one meant scrolling to
       // the end to find the box. Same row, same behaviour, moved to where you already are.
-      + '<div style="padding:8px 14px 10px 36px;border-bottom:1px solid var(--line);">'
-      +   '<span style="display:flex;align-items:center;gap:8px;">'
-      +   '<span style="color:var(--text-4);display:inline-flex;flex-shrink:0;">'
-      +   '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3.4v9.2M3.4 8h9.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></span>'
-      +   '<input type="text" data-p2-add-in="__all__" placeholder="Add a task"'
+      + '<div class="p2-quickadd" style="padding:8px 14px 10px 20px;border-bottom:1px solid var(--line);">'
+      +   '<span style="display:flex;align-items:center;gap:10px;">'
+      +   '<span style="color:var(--red);display:inline-flex;flex-shrink:0;">'
+      +   '<svg width="12" height="12" viewBox="0 0 16 16" fill="none"><path d="M8 3.4v9.2M3.4 8h9.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></span>'
+      +   '<input type="text" data-p2-add-in="__all__" placeholder="Type task name and press Enter to add…"'
       +   ' style="flex:1;background:transparent;border:none;outline:none;font:inherit;'
-      +   'font-size:12.5px;color:var(--text);padding:2px 0;"></span>'
+      +   'font-size:12.5px;color:var(--text);padding:2px 0;">'
+      +   '<span class="p2-quickadd-k">Press &#8629; Enter</span></span>'
       + '</div>'
       + shown.map(rowHtml).join('')
       + '</div></div>';
@@ -89527,6 +89618,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
     p2.tasks.unshift(data);
     renderTasks();
+    return data;
   }
 
 

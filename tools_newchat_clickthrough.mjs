@@ -5792,7 +5792,7 @@ await step('the project strip keeps "+N" in reach, and the crumb follows an empt
       document.querySelector('[data-p2-project="' + empty.id + '"]').click(); await w(1800);
       const txt = (document.getElementById('p2_prjCrumb') || {}).textContent || '';
       out.crumb = txt;
-      out.crumbNamesEmpty = txt.indexOf(empty.name) >= 0 && /0\s*$/.test(txt.trim());
+      out.crumbNamesEmpty = txt.indexOf(empty.name) >= 0 && /0 tasks$/.test(txt.trim());
     }
     document.querySelector('[data-p2-project="' + startId + '"]').click(); await w(1800);
     return out;
@@ -5806,6 +5806,52 @@ await step('the project strip keeps "+N" in reach, and the crumb follows an empt
     r.hiddenCount > 0 && r.addInBar && r.moreInBar, JSON.stringify(r));
   check('opening an empty project, the crumb names that project and a zero',
     r.emptyFound && r.crumbNamesEmpty, JSON.stringify(r));
+});
+
+// The board, as the reference draws it: each column can move left and right (kept for this
+// person), and its "+" adds a task straight into that stage.
+await step('board columns move and remember it, and "+" adds a task into that column', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const out = {};
+    try { localStorage.removeItem('giant_p2_laneorder'); } catch (_) {}
+    window.p2SetView('table'); await w(300); window.p2SetView('board'); await w(800);
+    const lanes = () => [...document.querySelectorAll('#p2_prjBoard [data-p2-col]')].map(x => x.dataset.p2Col);
+    out.before = lanes();
+    const second = out.before[1];
+    const btn = document.querySelector('#p2_prjBoard [data-p2-lanemove="' + second + '"][data-dir="-1"]');
+    out.hasMove = !!btn;
+    if (btn) { btn.click(); await w(500); }
+    out.after = lanes();
+    out.stored = JSON.parse(localStorage.getItem('giant_p2_laneorder') || '[]');
+    window.p2SetView('table'); await w(300); window.p2SetView('board'); await w(700);
+    out.afterRedraw = lanes();
+    // "+" on the In progress column: a new task, landing in that column.
+    const real = window.giantPrompt;
+    window.giantPrompt = async () => 'Added from the board';
+    const add = document.querySelector('#p2_prjBoard [data-p2-laneadd="in_progress"]');
+    out.hasAdd = !!add;
+    if (add) { add.click(); await w(2500); }
+    window.giantPrompt = real;
+    const made = window.p2State.tasks.find(t => t.name === 'Added from the board');
+    out.created = !!made;
+    out.stage = made ? made.status_stage : null;
+    out.status = made ? made.status : null;
+    out.inColumn = !!document.querySelector('#p2_prjBoard [data-p2-col="in_progress"] [data-p2-card="' + (made && made.id) + '"]');
+    try { localStorage.removeItem('giant_p2_laneorder'); } catch (_) {}
+    window.p2SetView('table'); await w(500);
+    return out;
+  });
+  return r;
+}).then(r => {
+  r = r || {};
+  check('a board column moves left, and the order survives a redraw',
+    r.hasMove && (r.after || [])[0] === (r.before || [])[1] && (r.after || [])[1] === (r.before || [])[0]
+      && JSON.stringify(r.afterRedraw) === JSON.stringify(r.after)
+      && (r.stored || [])[0] === (r.before || [])[1], JSON.stringify(r));
+  check('a board column\'s "+" adds a task into that column, status and stage together',
+    r.hasAdd && r.created && r.stage === 'in_progress' && r.status === 'in_progress' && r.inColumn,
+    JSON.stringify(r));
 });
 
 // A people column offers the whole team. It offered p2.people -- whoever was assigned to
@@ -5847,6 +5893,9 @@ await step('a people column offers the whole team, not just this board\'s assign
 // Column widths were baked into the stylesheet, so a name that needed more room and a
 // Time column that needed less were both somebody else's decision.
 await step('table columns can be dragged wider and narrower', async () => {
+  await page.evaluate(() => { const t = document.getElementById('p2_prjTable'); if (t) t.scrollLeft = 0; });
+  await page.hover('#p2_prjDailyBody .prj-section-thead .prj-th[data-col="name"]').catch(() => {});
+  await page.waitForTimeout(300);      // the line fades in (transition: background .12s)
   const start = await page.evaluate(() => ({
     grips: document.querySelectorAll('#p2_prjDailyBody [data-p2-grip]').length,
     // Counted, not hardcoded: a board can have custom columns now, and every one of them
@@ -5862,6 +5911,9 @@ await step('table columns can be dragged wider and narrower', async () => {
     // mouse: the target has to be big enough to hit and drawn so it can be seen at all
     gripWidth: Math.round(document.querySelector('#p2_prjDailyBody [data-p2-grip]')
       .getBoundingClientRect().width),
+    // Drawn when the heading is pointed at -- quiet otherwise, matching Luke's reference,
+    // which has no rules between headings. The pointer is on the name heading (below), so
+    // this measures what someone reaching for the edge actually sees.
     dividerVisible: getComputedStyle(document.querySelector('#p2_prjDailyBody [data-p2-grip]'),
       '::after').backgroundColor !== 'rgba(0, 0, 0, 0)',
   }));
@@ -6251,7 +6303,8 @@ await step('table columns can be dragged wider and narrower', async () => {
       beforeFirstRow: kids.indexOf(addRow) < kids.indexOf(rows[0]),
       aboveOnScreen: addRow.getBoundingClientRect().top < rows[0].getBoundingClientRect().top,
       // still typable, which is the whole point of it
-      enabled: !add.disabled && add.placeholder === 'Add a task',
+      // The reference's wording: says what to type and what to press.
+      enabled: !add.disabled && add.placeholder === 'Type task name and press Enter to add…',
     };
   });
   check('the add-a-task box is above the list, not behind it',
