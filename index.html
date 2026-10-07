@@ -1116,6 +1116,22 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
   border-radius:4px;padding:7px 10px;color:var(--text-2);font-family:inherit;font-size:12px;
   font-weight:600;cursor:pointer;transition:border-color .12s,color .12s;}
 .p2-mcol-add button:hover{border-color:var(--red);color:var(--text);}
+/* Row drag: a grip at the left of the task name, shown on hover, and a red line where
+   the row will land. */
+#p2_root .p2-rowgrip{color:var(--text-4);cursor:grab;font-size:11px;letter-spacing:-2px;
+  user-select:none;flex-shrink:0;opacity:0;margin-left:-14px;width:12px;transition:opacity .12s;}
+#p2_root .prj-row:hover .p2-rowgrip{opacity:1;}
+#p2_root .p2-rowgrip:active{cursor:grabbing;}
+#p2_root .prj-row.p2-row-dragging{opacity:.4;}
+#p2_root .prj-row.p2-row-over-top{box-shadow:inset 0 2px 0 var(--red);}
+#p2_root .prj-row.p2-row-over-bot{box-shadow:inset 0 -2px 0 var(--red);}
+/* Centred panels: Edit column, Edit columns, Priority order. They scroll inside
+   themselves rather than run off the bottom of the window. */
+.p2-colpop-backdrop{position:fixed;inset:0;z-index:8999;background:rgba(0,0,0,.55);}
+.p2-colpop.p2-colpop-center{left:50%!important;top:50%!important;transform:translate(-50%,-50%);
+  max-height:calc(100vh - 48px);overflow-y:auto;}
+.p2-optnote{margin:-3px 8px 9px;padding:6px 9px;border-radius:4px;font-size:11.5px;
+  color:var(--text);background:rgba(232,35,42,.12);border:1px solid rgba(232,35,42,.35);}
 /* A built-in heading's menu. */
 .p2-colmenu-pop{width:200px;}
 .p2-menulist{padding:2px 4px 5px;}
@@ -69844,9 +69860,28 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     { value: 'Low',          cls: 'prj-lbl-prio-low',        dot: '#5990C8' },
     { value: 'Next week',    cls: 'prj-lbl-prio-nextweek',   dot: '#9876C5' },
   ];
-  // Canonical global order for Daily Focus grouping/sorting (matches this list's order).
+  // The order of the priority labels can be set by the person looking at them: Luke,
+  // "how do I change this order ... today should be number one, tomorrow, in progress
+  // number three". Kept in this browser, beside the other per-person view settings --
+  // there is no table for it, and these twelve labels are a fixed list in code rather
+  // than per-project rows. Anything not in the saved order keeps its place after it.
+  const PRJ_PRIO_ORDER_KEY = 'giant_prio_order';
+  function _prjPriorityOptionsOrdered() {
+    let saved = [];
+    try { saved = JSON.parse(localStorage.getItem(PRJ_PRIO_ORDER_KEY) || '[]') || []; } catch (_) {}
+    const low = saved.map(x => String(x).toLowerCase());
+    const pos = (o) => { const i = low.indexOf(o.value.toLowerCase()); return i === -1 ? 1000 + PRJ_PRIORITY_OPTIONS.indexOf(o) : i; };
+    return PRJ_PRIORITY_OPTIONS.slice().sort((a, b) => pos(a) - pos(b));
+  }
+  window._prjPriorityOrder = {
+    get: () => _prjPriorityOptionsOrdered().map(o => ({ value: o.value, cls: o.cls, dot: o.dot })),
+    set: (labels) => { try { localStorage.setItem(PRJ_PRIO_ORDER_KEY, JSON.stringify(labels || [])); } catch (_) {} },
+    reset: () => { try { localStorage.removeItem(PRJ_PRIO_ORDER_KEY); } catch (_) {} },
+  };
+  // Order for Daily Focus grouping/sorting and for sorting a table by Priority: the
+  // picker's order, so the sort arrow puts things in the order the menu lists them.
   window._prjPriorityRank = (label) => {
-    const i = PRJ_PRIORITY_OPTIONS.findIndex(o => o.value.toLowerCase() === String(label||'').toLowerCase());
+    const i = _prjPriorityOptionsOrdered().findIndex(o => o.value.toLowerCase() === String(label||'').toLowerCase());
     return i === -1 ? 999 : i;
   };
   const PRJ_DEPARTMENT_OPTIONS = [
@@ -70020,6 +70055,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         return false;
       }
       console.log('[prj-cell-edit] ✓ saved', field, 'for task', taskId);
+      try { window.dispatchEvent(new CustomEvent('giant:task-cell-saved',
+        { detail: { taskId: taskId, field: field, value: value } })); } catch (_) {}
       return true;
     } catch(err) {
       console.error('[prj-cell-edit] save error:', err);
@@ -70031,7 +70068,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   // ── PICKERS ──
   function openPrjPriorityPickerHC(cell) {
     const taskId = _prjTaskIdFrom(cell);
-    const opts = PRJ_PRIORITY_OPTIONS.map(o =>
+    const opts = _prjPriorityOptionsOrdered().map(o =>
       `<div class="prj-popover-opt" data-pop-val="${_prjEscapeHtml(o.value)}"><span class="prj-lbl ${o.cls}">${_prjEscapeHtml(o.value)}</span></div>`
     ).join('');
     const clear = `<div class="prj-popover-opt prj-popover-opt-clear" data-pop-val="__clear__">Clear priority</div>`;
@@ -86581,9 +86618,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     text:          '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M5 6h14M9 6v13M15 6v13M7 19h4M13 19h4"/></svg>'
   };
   let p2ColPop = null;
+  let p2ColBack = null;
   let p2DragCol = null;
   function closeColPop(){
     if (p2ColPop) { p2ColPop.remove(); p2ColPop = null; }
+    if (p2ColBack) { p2ColBack.remove(); p2ColBack = null; }
     document.removeEventListener('mousedown', colPopAway, true);
     document.removeEventListener('keydown', colPopKey, true);
   }
@@ -86892,6 +86931,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               +   '<input type="text" id="p2_optNew" placeholder="Add an option…" spellcheck="false">'
               +   '<button type="button" id="p2_optAdd">Add</button>'
               + '</div>'
+              + '<div class="p2-optnote" style="display:none;"></div>'
             : '')
         + '<div class="p2-colpop-moves">'
         +   '<button type="button" data-move="-1"' + (idx <= 1 ? ' disabled' : '') + '>&#8592; Move left</button>'
@@ -86937,8 +86977,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const addOpt = () => {
         const v = (addEl.value || '').trim();
         if (!v) return;
-        if (opts.some(o => o.label.toLowerCase() === v.toLowerCase())) {
-          if (typeof toast === 'function') toast({type:'info', message:'"' + v + '" is already an option.', duration:2500});
+        // Said in the panel, under the box, not in a toast: the toast landed in a corner
+        // of the screen, and in the walkthrough typing "test" twice looked like Add was
+        // broken ("it's not taking the second one"). Case does not make a new option --
+        // "TEST" beside "test" is the same tag to anyone reading the board.
+        if (opts.some(o => o.label.trim().toLowerCase() === v.toLowerCase())) {
+          const note = pop.querySelector('.p2-optnote');
+          if (note) { note.textContent = '"' + v + '" is already an option in this column.'; note.style.display = 'block'; }
           return;
         }
         opts.push({ label: v, color: P2_OPT_COLORS[opts.length % P2_OPT_COLORS.length] });
@@ -86948,6 +86993,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (addBtn) addBtn.addEventListener('click', addOpt);
       if (addEl) addEl.addEventListener('keydown', e => {
         if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); addOpt(); }
+      });
+      if (addEl) addEl.addEventListener('input', () => {
+        const note = pop.querySelector('.p2-optnote');
+        if (note) note.style.display = 'none';
       });
       // Drag an option into place. The array IS the order, so a drop rewrites it and the
       // redraw shows exactly what will be saved.
@@ -86980,15 +87029,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       pop.querySelector('.p2-colpop-go').addEventListener('click', () => saveColumn(f, name, type, opts));
     };
 
-    document.body.appendChild(pop);
-    p2ColPop = pop;
+    showCentered(pop);
     draw();
-    const r = anchorEl.getBoundingClientRect();
-    const w = 320;
-    pop.style.left = Math.max(10, Math.min(r.left - 40, window.innerWidth - w - 10)) + 'px';
-    pop.style.top = Math.max(10, Math.min(r.bottom + 6, window.innerHeight - 440)) + 'px';
-    document.addEventListener('mousedown', colPopAway, true);
-    document.addEventListener('keydown', colPopKey, true);
   }
 
   // ── A built-in column's menu ────────────────────────────────────────────────
@@ -87016,6 +87058,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       + (key === 'name' ? '' : item('hide', 'Hide column'))
       + '<div class="p2-menusep"></div>'
       + item('manage', 'Edit columns&#8230;')
+      + (key === 'priority' ? item('prioorder', 'Change priority order&#8230;') : '')
       + '</div>';
     document.body.appendChild(pop);
     p2ColPop = pop;
@@ -87034,7 +87077,91 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         return;
       }
       if (act === 'manage') { closeColPop(); openManageColumns($('prjEditColsBtn') || anchorEl); }
+      if (act === 'prioorder') { closeColPop(); openPriorityOrder(); }
     }));
+    document.addEventListener('mousedown', colPopAway, true);
+    document.addEventListener('keydown', colPopKey, true);
+  }
+
+  // ── Priority order ──────────────────────────────────────────────────────────
+  // Drag the priority labels into the order you want them: the picker lists them that way
+  // and sorting by Priority follows it. The labels themselves are the shared list; only
+  // their order is yours (window._prjPriorityOrder, kept in this browser).
+  function openPriorityOrder(){
+    if (!window._prjPriorityOrder) return;
+    closeColPop();
+    let order = window._prjPriorityOrder.get();
+    const pop = document.createElement('div');
+    pop.className = 'p2-colpop p2-colpop-wide p2-manage p2-prioorder';
+    const draw = () => {
+      pop.innerHTML =
+        '<div class="p2-colpop-head" style="padding-bottom:9px;">'
+        + '<div class="p2-colpop-eyebrow" style="margin-bottom:0;"><span style="display:flex;align-items:center;">'
+        +   '<span class="dot"></span>Priority order</span>'
+        +   '<span class="p2-colpop-x" data-x="1" title="Close">&#10005;</span></div>'
+        + '</div>'
+        + '<div class="p2-colpop-sub"><span>Top comes first</span><span class="esc">drag to reorder</span></div>'
+        + '<div class="p2-mcols">'
+        + order.map((o, i) => '<div class="p2-mcol" draggable="true" data-mi="' + i + '" data-plabel="' + esc(o.value) + '">'
+            + '<span class="p2-opt-grip" title="Drag to reorder">&#8942;&#8942;</span>'
+            + '<span class="p2-mcol-name"><span class="prj-lbl ' + esc(o.cls) + '">' + esc(o.value) + '</span></span>'
+            + '<span class="p2-mcol-tag">' + (i + 1) + '</span></div>').join('')
+        + '</div>'
+        + '<div class="p2-colpop-foot">'
+        +   '<button type="button" class="p2-colpop-cancel" data-reset="1" style="margin-right:auto;">Reset</button>'
+        +   '<button type="button" class="p2-colpop-cancel" data-x="1">Cancel</button>'
+        +   '<button type="button" class="p2-colpop-go">Save order</button>'
+        + '</div>';
+      pop.querySelectorAll('[data-x]').forEach(x => x.addEventListener('click', closeColPop));
+      pop.querySelector('[data-reset]').addEventListener('click', () => {
+        window._prjPriorityOrder.reset(); order = window._prjPriorityOrder.get(); draw();
+      });
+      let from = null;
+      pop.querySelectorAll('.p2-mcol').forEach(row => {
+        row.addEventListener('dragstart', e => {
+          from = +row.dataset.mi; row.classList.add('dragging');
+          try { e.dataTransfer.setData('text/plain', String(from)); } catch (_) {}
+          e.dataTransfer.effectAllowed = 'move';
+        });
+        row.addEventListener('dragend', () => { from = null; row.classList.remove('dragging'); });
+        row.addEventListener('dragover', e => {
+          if (from === null || from === +row.dataset.mi) return;
+          e.preventDefault(); row.classList.add('over');
+        });
+        row.addEventListener('dragleave', () => row.classList.remove('over'));
+        row.addEventListener('drop', e => {
+          e.preventDefault(); row.classList.remove('over');
+          const to = +row.dataset.mi;
+          if (from === null || from === to) return;
+          const [m] = order.splice(from, 1);
+          order.splice(to, 0, m);
+          from = null; draw();
+        });
+      });
+      pop.querySelector('.p2-colpop-go').addEventListener('click', () => {
+        window._prjPriorityOrder.set(order.map(o => o.value));
+        closeColPop();
+        renderTasks();
+        if (typeof toast === 'function') toast({type:'success', duration:1800,
+          message:'Priority order saved. Sorting by Priority now follows it.'});
+      });
+    };
+    showCentered(pop);
+    draw();
+  }
+
+  // Tall panels open in the middle of the screen over a dimmed page, not hanging off the
+  // heading that opened them. Anchored to a heading near the bottom of the window, Edit
+  // column ran off the screen with Save below the fold -- Luke, in the walkthrough: "this
+  // goes too low on the screen ... maybe it should come up screen central".
+  function showCentered(pop){
+    const back = document.createElement('div');
+    back.className = 'p2-colpop-backdrop';
+    document.body.appendChild(back);
+    pop.classList.add('p2-colpop-center');
+    document.body.appendChild(pop);
+    p2ColPop = pop;
+    p2ColBack = back;
     document.addEventListener('mousedown', colPopAway, true);
     document.addEventListener('keydown', colPopKey, true);
   }
@@ -87150,15 +87277,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         if (typeof toast === 'function') toast({type:'success', message:'Columns saved', duration:1500});
       });
     };
-    document.body.appendChild(pop);
-    p2ColPop = pop;
+    showCentered(pop);
     draw();
-    const r = anchorEl.getBoundingClientRect();
-    const w = 320;
-    pop.style.left = Math.max(10, Math.min(r.right - w, window.innerWidth - w - 10)) + 'px';
-    pop.style.top = Math.max(10, Math.min(r.bottom + 6, window.innerHeight - 520)) + 'px';
-    document.addEventListener('mousedown', colPopAway, true);
-    document.addEventListener('keydown', colPopKey, true);
   }
 
   // What a task's value in this column becomes after the edit. Values are option LABELS,
@@ -87476,6 +87596,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   // The board's columns ARE the stages now.
   const P2_COLS = P2_STAGES;
   window.p2State = p2;   // for the checks, and for reading state without guessing
+  // The priority and department cells use the shared pickers, which save the row and
+  // repaint the cell but never told this screen -- so a priority picked in the table was
+  // invisible to Sort until a reload, and sorting looked like it ignored it.
+  if (!window.__p2CellSavedWired) {
+    window.__p2CellSavedWired = true;
+    window.addEventListener('giant:task-cell-saved', (e) => {
+      const d = e.detail || {};
+      const t = (p2.tasks || []).find(x => x.id === d.taskId);
+      if (!t || !d.field) return;
+      t[d.field] = d.value;
+      if (p2.sort && p2.sort.col === d.field.replace(/_label$/, '')) renderTasks();
+    });
+  }
 
   function activeProject(){ return p2.projects.find(p => p.id === p2.activeId) || null; }
 
@@ -88769,7 +88902,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                         // "Done" above "In progress" is alphabetical and meaningless
                         status: t => P2_STAGES.findIndex(x => x.key === stageOf(t)),
                         timer: t => (p2.logged[t.id] || 0),
-                        priority: t => String(t.priority_label || t.priority || '').toLowerCase(),
+                        // In the order the priority picker lists them -- which a person can
+                        // change -- not alphabetically. Alphabetical put "Friday" above
+                        // "In Progress" and "Today 100%", the opposite of what the labels mean.
+                        // Unknown labels sort after the known ones, by name between themselves.
+                        priority: t => {
+                          const v = String(t.priority_label || t.priority || '');
+                          if (!v) return '';
+                          const r = typeof window._prjPriorityRank === 'function' ? window._prjPriorityRank(v) : 999;
+                          return r < 999 ? r : 1000 + v.toLowerCase().charCodeAt(0) / 1000;
+                        },
                         assignee: t => { const a = assignees(t)[0]; return a ? facetLabel('assignee', a).toLowerCase() : ''; },
                         client: t => t.client_id ? facetLabel('client', t.client_id).toLowerCase() : '',
                         department: t => String(t.department || '').toLowerCase(),
@@ -88926,6 +89068,44 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       + esc((ap && ap.name) || 'Project') + '</span>'
       + '<span class="p2-crumbcount">' + count + ' task' + (count === 1 ? '' : 's') + '</span>'
       + '</span>';
+  }
+
+  // Move a task to just before or after another, and save the order. The order is the
+  // tasks' own position column, which the list already loads by -- so it is the same for
+  // everyone on the project, as a list's order should be. Position was 0 on almost every
+  // task, so the first move numbers the whole project 1..N; after that a move rewrites
+  // only the rows whose number changed. Done tasks are numbered too: they share the
+  // project's one sequence, and leaving them at 0 would sort them above everything the
+  // next time somebody opens Done.
+  async function moveTaskRow(srcId, dstId, after){
+    if (!srcId || !dstId || srcId === dstId) return;
+    const list = (p2.tasks || []).slice();
+    const from = list.findIndex(t => t.id === srcId);
+    if (from < 0) return;
+    const [m] = list.splice(from, 1);
+    let at = list.findIndex(t => t.id === dstId);
+    if (at < 0) return;
+    if (after) at += 1;
+    list.splice(at, 0, m);
+    // Shown at once; written behind it.
+    const was = new Map((p2.tasks || []).map(t => [t.id, t.position]));
+    list.forEach((t, i) => { t.position = i + 1; });
+    p2.tasks = list;
+    renderTasks();
+    const changed = list.filter(t => was.get(t.id) !== t.position);
+    let refused = 0, failed = 0;
+    for (let i = 0; i < changed.length; i += 10) {
+      await Promise.all(changed.slice(i, i + 10).map(async (t) => {
+        const { data, error } = await sb().from('tasks').update({ position: t.position })
+          .eq('id', t.id).select('id');
+        if (error) { failed++; return; }
+        if (!data || !data.length) refused++;
+      }));
+    }
+    if ((failed || refused) && typeof toast === 'function') toast({ type: 'error', duration: 5000,
+      message: 'The new order could not be saved for ' + (failed + refused) + ' task'
+        + (failed + refused === 1 ? '' : 's') + (refused ? ' you do not have permission to change' : '')
+        + '. Reload to see the order everyone else sees.' });
   }
 
   function renderTable(){
@@ -89113,6 +89293,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // In the board's column order, the same list the headings and the grid read.
         + cols.map(k => {
             if (k === 'name') return '<div class="prj-cell prj-cell-name" data-col="name">'
+              +   (p2.sort ? '' : '<span class="p2-rowgrip" draggable="true" data-p2-rowgrip="' + esc(t.id) + '"'
+                    + ' title="Drag to move this task">&#8942;&#8942;</span>')
               +   '<span class="prj-tick' + (isDone ? ' done' : '') + '" data-p2-toggle="' + esc(t.id)
               +   '" style="cursor:pointer;"></span>'
               +   '<span class="prj-name"' + (isDone ? ' style="text-decoration:line-through;"' : '') + '>'
@@ -89388,6 +89570,45 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const src = p2DragCol, dst = th.dataset.p2Coldrag;
         p2DragCol = null;
         await moveColumnTo(src, dst);
+      });
+    });
+    // Drag a task up or down by its grip. The drop line shows above or below the row you
+    // are over, depending on which half the pointer is in.
+    let dragTask = null;
+    body.querySelectorAll('[data-p2-rowgrip]').forEach(g => {
+      g.addEventListener('click', (e) => e.stopPropagation());
+      g.addEventListener('dragstart', (e) => {
+        e.stopPropagation();
+        dragTask = g.dataset.p2Rowgrip;
+        const row = g.closest('.prj-row');
+        if (row) row.classList.add('p2-row-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try { e.dataTransfer.setData('text/plain', dragTask); } catch (_) {}
+        if (row && e.dataTransfer.setDragImage) e.dataTransfer.setDragImage(row, 20, 20);
+      });
+      g.addEventListener('dragend', () => {
+        dragTask = null;
+        body.querySelectorAll('.p2-row-dragging,.p2-row-over-top,.p2-row-over-bot')
+          .forEach(x => x.classList.remove('p2-row-dragging', 'p2-row-over-top', 'p2-row-over-bot'));
+      });
+    });
+    body.querySelectorAll('.prj-row[data-p2-task]').forEach(row => {
+      const half = (e) => { const r = row.getBoundingClientRect(); return e.clientY < r.top + r.height / 2 ? 'top' : 'bot'; };
+      row.addEventListener('dragover', (e) => {
+        if (!dragTask || dragTask === row.dataset.p2Task) return;
+        e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+        const h = half(e);
+        row.classList.toggle('p2-row-over-top', h === 'top');
+        row.classList.toggle('p2-row-over-bot', h === 'bot');
+      });
+      row.addEventListener('dragleave', () => row.classList.remove('p2-row-over-top', 'p2-row-over-bot'));
+      row.addEventListener('drop', async (e) => {
+        if (!dragTask) return;
+        e.preventDefault(); e.stopPropagation();
+        const after = half(e) === 'bot';
+        row.classList.remove('p2-row-over-top', 'p2-row-over-bot');
+        const src = dragTask; dragTask = null;
+        await moveTaskRow(src, row.dataset.p2Task, after);
       });
     });
     body.querySelectorAll('[data-p2-task-del]').forEach(el => {
