@@ -5854,6 +5854,142 @@ await step('board columns move and remember it, and "+" adds a task into that co
     JSON.stringify(r));
 });
 
+// Luke's walkthrough (Oct 6): priority sorts in the picker's order and that order can be
+// changed; Edit column opens in the middle of the screen; a duplicate option says so where
+// you are looking; and task rows can be dragged into order.
+await step('priority order, centred editor, duplicate note and row dragging', async () => {
+  const vp = page.viewportSize();
+  await page.setViewportSize({ width: vp.width, height: 720 });
+  await page.waitForTimeout(400);
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const out = {};
+    const redraw = async () => { window.p2SetView('board'); await w(300); window.p2SetView('table'); await w(600); };
+    try { localStorage.removeItem('giant_prio_order'); localStorage.removeItem('giant_p2_colorder'); } catch (_) {}
+    const db = window.__mock.db;
+    // Real labels on the first seven active tasks, deliberately out of alphabetical order.
+    const labels = ['Friday', 'In Progress', 'Today 100%', 'Tomorrow', 'Monday', 'Next week', 'High'];
+    const isDone = t => t.status === 'done';
+    window.p2State.tasks.filter(t => !isDone(t)).slice(0, 7).forEach((t, i) => {
+      t.priority_label = labels[i];
+      const d = db.tasks.find(x => x.id === t.id); if (d) d.priority_label = labels[i];
+    });
+    window.p2State.sort = { col: 'priority', dir: 'asc' };
+    await redraw();
+    const seen = () => [...new Set([...document.querySelectorAll('#p2_prjDailyBody .prj-row[data-p2-task] [data-col="priority"]')]
+      .map(c => c.textContent.trim()).filter(x => labels.indexOf(x) >= 0))];
+    out.sorted = seen();
+    out.noGripWhileSorted = !document.querySelector('#p2_prjDailyBody [data-p2-rowgrip]');
+
+    // Change the order: Today 100% to the top.
+    document.querySelector('#p2_prjDailyBody [data-p2-sysmenu="priority"]').click(); await w(300);
+    const item = document.querySelector('.p2-colmenu-pop [data-act="prioorder"]');
+    out.menuOffersOrder = !!item;
+    if (item) item.click(); await w(400);
+    let pop = document.querySelector('.p2-prioorder');
+    out.orderPanel = !!pop;
+    if (pop) {
+      const rows = [...pop.querySelectorAll('.p2-mcol')];
+      const src = rows.find(x => x.dataset.plabel === 'Today 100%');
+      const dt = new DataTransfer();
+      src.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+      rows[0].dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      rows[0].dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+      await w(200);
+      const pr = document.querySelector('.p2-prioorder').getBoundingClientRect();
+      out.orderCentred = Math.abs((pr.left + pr.right) / 2 - innerWidth / 2) < 3;
+      document.querySelector('.p2-prioorder .p2-colpop-go').click(); await w(600);
+    }
+    out.sortedAfter = seen();
+    // A priority picked through the shared picker reaches this screen's copy of the task.
+    const t0 = window.p2State.tasks.filter(t => !isDone(t))[0];
+    window.dispatchEvent(new CustomEvent('giant:task-cell-saved',
+      { detail: { taskId: t0.id, field: 'priority_label', value: 'High' } }));
+    await w(300);
+    out.pickReachesState = t0.priority_label === 'High';
+
+    // Edit column: centred, and Save on screen in a short window.
+    window.p2State.sort = null;
+    await redraw();
+    const cm = document.querySelector('#p2_prjDailyBody [data-p2-colmenu]');
+    if (cm) { cm.click(); await w(400); }
+    pop = document.querySelector('.p2-colpop');
+    if (pop) {
+      const rr = pop.getBoundingClientRect();
+      out.editCentred = Math.abs((rr.top + rr.bottom) / 2 - innerHeight / 2) < 3;
+      out.editFits = rr.top >= 0 && rr.bottom <= innerHeight;
+      out.backdrop = !!document.querySelector('.p2-colpop-backdrop');
+      // A duplicate, in a different case, says so inside the panel.
+      const first = pop.querySelector('.p2-opt-name');
+      const ni = pop.querySelector('#p2_optNew');
+      if (first && ni) {
+        const optsBefore = pop.querySelectorAll('.p2-opt').length;
+        ni.value = first.value.toUpperCase();
+        pop.querySelector('#p2_optAdd').click(); await w(200);
+        const note = document.querySelector('.p2-colpop .p2-optnote');
+        out.dupNote = !!note && getComputedStyle(note).display !== 'none' && /already an option/.test(note.textContent);
+        out.dupNotAdded = document.querySelectorAll('.p2-colpop .p2-opt').length === optsBefore;
+      }
+      document.querySelector('.p2-colpop [data-x]').click(); await w(200);
+      out.backdropGone = !document.querySelector('.p2-colpop-backdrop');
+    }
+
+    // Drag the third row above the first. The order is put back afterwards, rows and saved
+    // positions both: later checks pick tasks by their place in the list, and a list left
+    // reordered hands them a different task than the one they set up.
+    const snapIds = window.p2State.tasks.map(t => t.id);
+    const snapPos = new Map(db.tasks.map(t => [t.id, t.position]));
+    await redraw();
+    const ids = () => [...document.querySelectorAll('#p2_prjDailyBody .prj-row[data-p2-task]')].map(x => x.dataset.p2Task);
+    const before = ids();
+    const rows = [...document.querySelectorAll('#p2_prjDailyBody .prj-row[data-p2-task]')];
+    const grip = rows[2] && rows[2].querySelector('[data-p2-rowgrip]');
+    out.gripShown = !!grip;
+    if (grip) {
+      const dt = new DataTransfer();
+      const top = rows[0].getBoundingClientRect().top + 2;
+      grip.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+      rows[0].dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt, clientY: top }));
+      rows[0].dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt, clientY: top }));
+      await w(2500);
+      const after = ids();
+      out.rowMoved = after[0] === before[2] && after[1] === before[0];
+      const pos = id => (db.tasks.find(x => x.id === id) || {}).position;
+      out.positionsSaved = pos(after[0]) < pos(after[1]) && pos(after[1]) < pos(after[2]);
+      await redraw();
+      out.survivesRedraw = ids()[0] === before[2];
+    }
+    db.tasks.forEach(t => { t.position = snapPos.get(t.id); });
+    const byId = new Map(window.p2State.tasks.map(t => [t.id, t]));
+    window.p2State.tasks = snapIds.map(id => byId.get(id)).filter(Boolean);
+    window.p2State.tasks.forEach(t => { const d = db.tasks.find(x => x.id === t.id); if (d) t.position = d.position; });
+    await redraw();
+    try { localStorage.removeItem('giant_prio_order'); } catch (_) {}
+    return out;
+  });
+  await page.setViewportSize(vp);
+  await page.waitForTimeout(400);
+  return r;
+}).then(r => {
+  r = r || {};
+  check('sorting by Priority follows the picker\'s order, not the alphabet',
+    JSON.stringify((r.sorted || []).slice(0, 4)) === JSON.stringify(['In Progress', 'Today 100%', 'Tomorrow', 'Monday']),
+    JSON.stringify(r));
+  check('the priority order can be changed, from the Priority heading, and the sort follows it',
+    r.menuOffersOrder && r.orderPanel && r.orderCentred
+      && JSON.stringify((r.sortedAfter || []).slice(0, 2)) === JSON.stringify(['Today 100%', 'In Progress']),
+    JSON.stringify(r));
+  check('a priority picked in the table reaches the copy the sort reads',
+    r.pickReachesState, JSON.stringify(r));
+  check('Edit column opens in the middle of the screen and fits a short window',
+    r.editCentred && r.editFits && r.backdrop && r.backdropGone, JSON.stringify(r));
+  check('a duplicate option, in any case, is refused with a note inside the panel',
+    r.dupNote && r.dupNotAdded, JSON.stringify(r));
+  check('a task row can be dragged into place, the order saved and kept on a redraw',
+    r.gripShown && r.rowMoved && r.positionsSaved && r.survivesRedraw && r.noGripWhileSorted,
+    JSON.stringify(r));
+});
+
 // A people column offers the whole team. It offered p2.people -- whoever was assigned to
 // something on this board -- which on a real board was five people out of eighty.
 await step('a people column offers the whole team, not just this board\'s assignees', async () => {
@@ -6521,7 +6657,9 @@ await step('clicking a task opens it in full, with a per-person time breakdown',
     // the same task the time check seeded, so the totals below are the ones it wrote
     const first = st.tasks.find(t => t.id === window.__p2TimeTask) || st.tasks[0];
     const row = document.querySelector('.prj-row[data-p2-task="' + first.id + '"]');
-    if (!row) return { skipped: 'no row' };
+    if (!row) return { skipped: 'no row', id: first.id, timeTask: window.__p2TimeTask || null,
+      status: first.status, view: st.view, filter: st.status, project: st.activeId,
+      rows: document.querySelectorAll('#p2_prjDailyBody .prj-row[data-p2-task]').length };
     // clicking the client cell must NOT open the panel -- that cell means something else
     const other = row.querySelector('.prj-cell[data-col="client"]');
     if (other) { other.click(); await w(700); }
