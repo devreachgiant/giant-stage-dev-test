@@ -9017,6 +9017,65 @@ await step('forwarding a message', async () => {
     r.rendersAsAQuote, JSON.stringify(r));
 });
 
+// ── A client who has left ────────────────────────────────────────────────────
+// loadNcClients filtered churned clients out. ncClients is not a list of clients to show,
+// it is how a channel learns its client's NAME -- so a churned client became unknown to
+// every renderer, its conversation fell into the "no client behind it" path, and it was
+// placed as one row PER CHANNEL labelled with the raw channels.name. Fortess DG churned
+// on 2026-09-29 and became five rows: fortress-development-group, plus "Fortess DG
+// googleAds", metaAds, seo and web. Ten churned clients, fifteen rows between them.
+await step('a churned client keeps one row, named and dimmed', async () => {
+  const r = await page.evaluate(async () => {
+    const w = ms => new Promise(res => setTimeout(res, ms));
+    const out = {};
+    const db = window.__mock.db;
+    const cl = db.clients.find(c => c.status === 'active');
+    if (!cl) { out.noClient = true; return out; }
+    out.client = cl.name;
+    // The reported shape: one client, five department channels.
+    db.channels = db.channels.filter(c => c.client_id !== cl.id);
+    const ids = [];
+    [['general', 'legacy-slug-name'], ['googleAds', cl.name + ' googleAds'],
+     ['metaAds', cl.name + ' metaAds'], ['seo', cl.name + ' seo'],
+     ['web', cl.name + ' web']].forEach(([dept, nm], i) => {
+      ids.push('ch-churn-' + i);
+      db.channels.push({ id: 'ch-churn-' + i, name: nm, slug: 'ch-churn-' + i,
+        kind: 'client_dept', client_id: cl.id, department: dept, section_id: 'sec-clients' });
+    });
+    const rowsFor = () => [...document.querySelectorAll('#nc_cardClientsBody .nc_ch-item')]
+      .filter(e => ids.indexOf(e.dataset.ncChannelId || '') >= 0);
+
+    await window.nc_loadChannels(); await w(1800);
+    out.activeRows = rowsFor().length;
+
+    cl.status = 'churned';
+    await window.nc_loadChannels(); await w(1800);
+    const after = rowsFor();
+    out.churnedRows = after.length;
+    out.text = after.map(e => e.textContent.trim());
+    // Named for the CLIENT. If the filter comes back the client is unknown here and these
+    // become five rows carrying channels.name -- which is what the raw-name check catches.
+    out.namedForTheClient = after.length === 1 && after[0].textContent.indexOf(cl.name) >= 0;
+    out.noRawChannelNames = !after.some(e =>
+      /googleAds|metaAds|legacy-slug-name/.test(e.textContent || ''));
+    // Dimmed, so it reads as gone without being hidden -- the conversation still has history.
+    out.dimmed = after.length === 1 && after[0].classList.contains('nc_ch-gone');
+    out.opacity = after[0] ? getComputedStyle(after[0]).opacity : null;
+    cl.status = 'active';
+    await window.nc_loadChannels(); await w(1200);
+    out.undimsWhenBackOnTheBooks = !rowsFor().some(e => e.classList.contains('nc_ch-gone'));
+    return out;
+  });
+  return r;
+}).then(r => {
+  r = r || {};
+  check('five department channels are one row whether the client is live or churned',
+    r.activeRows === 1 && r.churnedRows === 1 && r.namedForTheClient && r.noRawChannelNames,
+    JSON.stringify(r));
+  check('and a churned one is dimmed rather than hidden, and undims if they come back',
+    r.dimmed && parseFloat(r.opacity) < 1 && r.undimsWhenBackOnTheBooks, JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

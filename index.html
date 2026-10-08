@@ -936,6 +936,12 @@ html[data-theme="light"] .prj-pill-blue{background:#DCE9F5;border-color:#5BA0E8;
    Status: a pill with a leading dot and a border in its own colour. It already had the
    tint, at 12% alpha and no border, which next to the mock read as plain text with a
    chevron rather than as a status. */
+/* A client who has left. Their conversation keeps its row and its history; this says so
+   without hiding it, and stops a churned account reading as a live one in a list sorted
+   by name. */
+.nc_ch-item.nc_ch-gone{opacity:.52;}
+.nc_ch-item.nc_ch-gone:hover{opacity:.8;}
+
 #p2_root .p2-statusdot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
 #p2_root .p2-statuspill{padding:3px 9px;border-width:1px;border-style:solid;border-radius:4px;}
 #p2_root .p2-statuspill .giant-pill-caret{opacity:.5;}
@@ -74275,12 +74281,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // Every active client, not only the eleven that happen to have a channel. The
     // Clients card is a list of clients, so a client with no conversation yet still
     // belongs on it -- it just has nothing to open until someone starts one.
+    // EVERY client, churned included. This filtered them out, and ncClients is not a list
+    // of clients to show -- it is how a channel learns its client's NAME. A churned client
+    // was therefore unknown to every renderer, so its conversation fell into the "no client
+    // behind it" path and was placed as one row PER CHANNEL, labelled with the raw
+    // channels.name. Fortess DG churned on 2026-09-29 and turned into five rows:
+    // fortress-development-group, plus "Fortess DG googleAds", metaAds, seo and web.
+    //
+    // Ten churned clients were doing this, fifteen rows between them. Whether a churned
+    // client is SHOWN is decided below, where the list is built -- which is the thing that
+    // should have been filtered all along.
     async function loadNcClients(){
       const { data } = await window.giantSupabase.from(clientTableName())
         .select('id, name, avatar_bg, avatar_fg, status')
-        .neq('status', 'churned').order('name');
+        .order('name');
       (data || []).forEach(c => { ncClients[c.id] = c; });
     }
+    // A client who has left. Their conversation is still real and still has history, so it
+    // keeps one row -- dimmed, so the list says so without hiding it.
+    const ncClientGone = (cl) => !!(cl && String(cl.status || '').toLowerCase() === 'churned');
     function clientTableName(){ return 'clients'; }
 
     // Opening a client that has no channel yet creates its General one, the same way
@@ -75610,6 +75629,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           });
           if (mine.length) {
             const primary = mine.find(x => (x.c.department || 'general') === 'general') || mine[0];
+            // A client who has left keeps ONE row, dimmed. The conversation is still real
+            // and still has its history; dimming says they are gone without hiding it, and
+            // without the row pretending to be a live account in an alphabetical list.
+            if (ncClientGone(cl)) {
+              primary.row.classList.add('nc_ch-gone');
+              primary.row.title = cl.name + ' — churned';
+            } else {
+              primary.row.classList.remove('nc_ch-gone');
+            }
             place(primary.row, bodies.clients, primary.c.id, true);
             return;
           }
@@ -79757,6 +79785,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     function renderChannelList() {
       window.nc_renderChannelList = renderChannelList; // expose so loadCustomChatSections can re-render
       window.nc_switchChannel = switchChannel; // expose early so card-channel clicks work before any "create channel" click
+      // Same reason: this was only exported inside the create-channel modal's open
+      // handler, so nothing could ask the sidebar to reload until somebody had opened
+      // that modal at least once.
+      window.nc_loadChannels = loadChannels;
+      window.ncClientsProbe = ncClients;
       if (!chatChannelList) return;
       // Wire the "Jump to…" sidebar search input ONCE (idempotent — runs the first time renderChannelList is called)
       if (!window.nc__chatJumpToWired) {
