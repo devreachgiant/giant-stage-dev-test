@@ -6434,6 +6434,118 @@ window.giantPrompt = function(message, defaultValue){
 // Styled replacement for confirm() when the message needs to actually explain consequences —
 // a plain browser confirm() can't be styled and doesn't give room for a real explanation.
 // Resolves true only if the user clicks the (danger-colored) confirm button.
+// Drag a list into the order you want it in.
+//
+// Used by the two lists a person curates for themselves: Favourites in the sidebar, and
+// Starred in Chat. Both were ordered by something nobody chose -- Favourites by when you
+// added each one, Starred by whatever order the channel list happened to build -- which is
+// fine at three items and a thing you have to read at eight.
+//
+// Shared rather than written twice because the fiddly parts are the same in both, and they
+// are fiddly:
+//
+//   * Both lists re-render from scratch whenever anything changes, so this is called again
+//     after every render. Container listeners are attached once (a flag on the node); the
+//     per-item bits are re-applied every time, because they are new nodes.
+//   * A row that is dragged must not also be CLICKED, or letting go of a favourite would
+//     navigate away from the screen you are arranging. The click that follows a drag is
+//     swallowed once, in the capture phase, before it reaches the row's own handler.
+//   * Order is read back off the DOM at the end rather than tracked during the drag.
+//     Tracking it means keeping two things in step while the list moves under you; reading
+//     it once is one source of truth and cannot drift.
+//   * onReorder is only called when the order actually CHANGED. Picking a row up and
+//     putting it back is not an edit, and should not write to the database or show a toast.
+//
+// HTML5 drag events, like the eleven other drop targets in this file. They do not fire on
+// touch, so this is a mouse and trackpad feature -- which is what the sidebar is.
+// Where "open Projects" goes.
+//
+// Projects used to be one screen. It is now two -- the current one (data-screen="projects2",
+// shown in the nav simply as Projects) and the previous one, parked in Archive as Old
+// Projects and visible to the in-house dev alone. Four entry points in the app -- a shared
+// task link, a task picked out of Cmd-K, the View all on Daily Focus, the button in Chat --
+// opened Projects by clicking the old nav item by selector.
+//
+// Left alone, every one of those would send people to a screen that is now in Archive and
+// that most of the team cannot see at all: a shared task link would open nothing and explain
+// nothing. They come through here instead, so the answer lives in one place and the next
+// rename is one edit rather than four.
+window.giantOpenProjects = function () {
+  const nav = document.querySelector('.nav-item[data-screen="projects2"]')
+           || document.querySelector('.nav-item[data-screen="tasks"]');
+  if (nav) nav.click();
+  return !!nav;
+};
+
+window.giantMakeReorderable = function (container, opts) {
+  if (!container) return;
+  const o = opts || {};
+  const itemSelector = o.itemSelector || '.nav-item';
+  const idOf = o.idOf || ((el) => el.dataset.reorderId);
+  const onReorder = o.onReorder || function () {};
+
+  const items = () => [...container.querySelectorAll(itemSelector)];
+  const idsNow = () => items().map(idOf).filter(Boolean);
+
+  // Re-applied on every render: these are new nodes each time.
+  items().forEach(el => {
+    el.draggable = true;
+    if (!el.style.cursor) el.style.cursor = 'grab';
+  });
+
+  if (container.__giantReorderable) return;
+  container.__giantReorderable = true;
+
+  let dragged = null;
+  let orderAtStart = null;
+  let justDragged = false;
+
+  container.addEventListener('dragstart', (e) => {
+    const el = e.target.closest(itemSelector);
+    if (!el || !container.contains(el)) return;
+    dragged = el;
+    orderAtStart = idsNow().join('|');
+    el.style.opacity = '.45';
+    // Firefox refuses to start a drag at all without data on the transfer.
+    try { e.dataTransfer.setData('text/plain', idOf(el) || ''); } catch (_) {}
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+  });
+
+  container.addEventListener('dragover', (e) => {
+    if (!dragged) return;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    const over = e.target.closest(itemSelector);
+    if (!over || over === dragged || !container.contains(over)) return;
+    // Past the halfway line of the row you are over means "after it". Using the midpoint
+    // rather than the edge is what stops the list flickering between two positions while
+    // the pointer sits near a boundary.
+    const box = over.getBoundingClientRect();
+    const after = (e.clientY - box.top) > box.height / 2;
+    container.insertBefore(dragged, after ? over.nextSibling : over);
+  });
+
+  container.addEventListener('drop', (e) => { if (dragged) e.preventDefault(); });
+
+  container.addEventListener('dragend', () => {
+    if (!dragged) return;
+    dragged.style.opacity = '';
+    dragged = null;
+    justDragged = true;
+    setTimeout(() => { justDragged = false; }, 0);
+    const now = idsNow();
+    if (now.join('|') === orderAtStart) return;   // picked up and put back: not an edit
+    onReorder(now);
+  });
+
+  // The click that a browser fires after a drop would otherwise open whatever was dropped.
+  container.addEventListener('click', (e) => {
+    if (!justDragged) return;
+    e.preventDefault();
+    e.stopPropagation();
+  }, true);
+};
+
 window.giantConfirmWarn = function(title, message, confirmLabel, tone){
   const toneColor = tone === 'positive' ? 'var(--green,#3DCB7F)' : tone === 'warning' ? 'var(--amber,#F2A93B)' : 'var(--red,#D00400)';
   const isPositive = tone === 'positive';
@@ -7403,11 +7515,10 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       <div class="nav-rail" id="railWork" data-navgroup-body="work">
         <div class="nav-pill" id="pillWork" style="opacity:0;"></div>
         <div class="nav-item" data-screen="clients" data-label="Clients" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="2.6" stroke="currentColor" stroke-width="1.4"/><path d="M2.8 13.2c.6-2.5 2.7-4 5.2-4s4.6 1.5 5.2 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>Clients</div>
-        <div class="nav-item" data-screen="tasks" data-label="Projects"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.5a1.5 1.5 0 011.5-1.5h3l1.5 1.8h5a1.5 1.5 0 011.5 1.5v6.2A1.5 1.5 0 0113 14H3a1.5 1.5 0 01-1.5-1.5v-8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>Projects</div>
         <!-- Projects rebuilt. Sits beside the original rather than replacing it, the way
              New Chat did: the old screen stays untouched and reachable while this one is
              built, so nothing anyone relies on stops working mid-rework. -->
-        <div class="nav-item" data-screen="projects2" data-label="Projects 2.0" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.5a1.5 1.5 0 011.5-1.5h3l1.5 1.8h5a1.5 1.5 0 011.5 1.5v6.2A1.5 1.5 0 0113 14H3a1.5 1.5 0 01-1.5-1.5v-8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>Projects 2.0 <span class="badge" style="background:linear-gradient(90deg,#A855F7,#FB923C,#10B981);color:#fff;font-size:8.5px;padding:1px 6px;border-radius:6px;font-weight:800;letter-spacing:.04em;">NEW</span></div>
+        <div class="nav-item" data-screen="projects2" data-label="Projects"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.5a1.5 1.5 0 011.5-1.5h3l1.5 1.8h5a1.5 1.5 0 011.5 1.5v6.2A1.5 1.5 0 0113 14H3a1.5 1.5 0 01-1.5-1.5v-8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>Projects</div>
         <!-- Reports = the same real Templates screen (client-report generator), a second,
              more specific entry point onto it — same pattern as Proposals in Business below.
              Matches WS_GLOBAL_TABS's existing 'reports' tab, which already points at
@@ -7469,6 +7580,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       <div class="nav-group-label nav-group-toggle" data-navgroup="archive" data-role-only="inhouse_dev"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><rect x="1.8" y="2.5" width="12.4" height="3" rx="1" stroke="currentColor" stroke-width="1.35"/><path d="M3 5.5v7a1 1 0 001 1h8a1 1 0 001-1v-7" stroke="currentColor" stroke-width="1.35" stroke-linejoin="round"/><path d="M6.4 8.4h3.2" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/></svg></span><span class="group-label-text">Archive</span><svg class="nav-group-chev" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div class="nav-rail" id="railArchive" data-navgroup-body="archive" data-role-only="inhouse_dev">
         <div class="nav-pill" id="pillArchive" style="opacity:0;"></div>
+        <div class="nav-item" data-screen="tasks" data-label="Old Projects"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.5a1.5 1.5 0 011.5-1.5h3l1.5 1.8h5a1.5 1.5 0 011.5 1.5v6.2A1.5 1.5 0 0113 14H3a1.5 1.5 0 01-1.5-1.5v-8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>Old Projects</div>
         <div class="nav-item" data-screen="chat" data-label="Old Chat"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.5C2 3.4 2.9 2.5 4 2.5h8c1.1 0 2 .9 2 2v5c0 1.1-.9 2-2 2H6.5L3 13.5V11.5H4C2.9 11.5 2 10.6 2 9.5v-5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>Old Chat <span class="badge" id="sidebarBadgeChat" style="display:none;">0</span></div>
         <div class="nav-item" data-screen="chat2" data-label="Chat 2.0" data-role-min="manager"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 01-8.5 8.4 8.7 8.7 0 01-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0112.5 3a8.4 8.4 0 018.5 8.5z"/></svg></span>Chat 2.0 <span class="badge" style="background:linear-gradient(90deg,#A855F7,#FB923C,#10B981);color:#fff;font-size:8.5px;padding:1px 6px;border-radius:6px;font-weight:800;letter-spacing:.04em;">BETA</span></div>
         <div class="nav-item" data-screen="chat3" data-label="Chat 3.0" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 01-8.5 8.4 8.7 8.7 0 01-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0112.5 3a8.4 8.4 0 018.5 8.5z"/></svg></span>Chat 3.0 <span class="badge" style="background:linear-gradient(90deg,#A855F7,#FB923C,#10B981);color:#fff;font-size:8.5px;padding:1px 6px;border-radius:6px;font-weight:800;letter-spacing:.04em;">WIP</span></div>
@@ -11044,7 +11156,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
 
       <!-- ===== NOTES ===== -->
       <!-- ===== PROJECTS 2.0 ===== -->
-      <div class="screen fullbleed" data-screen="projects2" data-role-min="manager" data-client-hidden>
+      <div class="screen fullbleed" data-screen="projects2">
         <!-- A copy of the Projects screen, ids prefixed p2_. Classes are deliberately NOT
              prefixed: the existing stylesheet then styles this without duplicating 67 rules,
              and the redesign will replace them anyway. The hazard that buys is the one Chat
@@ -13505,8 +13617,43 @@ function enterApp(){
       body.appendChild(row);
     });
     paintStars();
+    // Drag to reorder. Re-applied on every render because these rows are new nodes, and the
+    // helper is idempotent at the container level so calling it again costs nothing.
+    window.giantMakeReorderable(body, {
+      itemSelector: '.nav-fav-item',
+      idOf: (el) => el.dataset.favScreen,
+      onReorder: saveOrder,
+    });
     // The collapsed rail is built from this markup, so it has to be rebuilt to notice.
     if (typeof window.giantRebuildRail === 'function') window.giantRebuildRail();
+  }
+
+  // Dropping a favourite somewhere new.
+  //
+  // The whole list is renumbered rather than patching the two rows that moved: positions
+  // already have gaps in them (removing a favourite leaves one behind), so there is no
+  // arithmetic that reliably slots a row between two neighbours. Eight rows is one small
+  // write, and renumbering cannot drift.
+  async function saveOrder(order){
+    const previous = favs.slice();
+    favs = order.slice();
+    const uid = me();
+    if (!sb() || !uid) return;
+    const rows = favs.map((screen, i) => ({ profile_id: uid, screen, position: i }));
+    const { data, error } = await sb().from('nav_favorites')
+      .upsert(rows, { onConflict: 'profile_id,screen' })
+      .select('screen');
+    // Row-level security refuses by returning nothing rather than by raising, so a refusal
+    // and a success look identical without this. Put the old order back and say so, instead
+    // of leaving a list that re-sorts itself on the next reload.
+    if (error || !data || data.length !== rows.length) {
+      favs = previous;
+      render();
+      if (typeof toast === 'function') {
+        toast({ type:'error', message: 'Could not save that order' + (error ? ': ' + error.message : '') });
+      }
+      return;
+    }
   }
 
   async function toggle(screen){
@@ -42346,10 +42493,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
 
     // "View all" / empty link → switch to Projects screen
     document.querySelectorAll('[data-go-projects]').forEach(el => {
-      el.addEventListener('click', () => {
-        const nav = document.querySelector('.nav-item[data-screen="tasks"]');
-        if (nav) nav.click();
-      });
+      el.addEventListener('click', () => { window.giantOpenProjects(); });
     });
     // "View all bookings" link → switch to Bookings screen
     document.querySelectorAll('[data-go-bookings]').forEach(el => {
@@ -60770,8 +60914,16 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
           icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M5 8.2l2 2 4-4.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
           label: t.name || 'Untitled', sub: t.status || '',
           action: () => {
-            document.querySelector('.nav-item[data-screen="tasks"]')?.click();
-            cmdkScrollHighlight(`[data-task-id="${t.id}"]`);
+            window.giantOpenProjects();
+            // Opens the task itself rather than scrolling to its row. The row selector
+            // differs between the two screens (data-task-id vs data-p2-task) and, more to
+            // the point, the task may sit in a project the screen has not loaded -- where a
+            // scroll-to finds nothing and reads as a broken search result.
+            if (typeof window.openTaskDetailPanel === 'function') {
+              setTimeout(() => window.openTaskDetailPanel(t.id), 400);
+            } else {
+              cmdkScrollHighlight(`[data-task-id="${t.id}"]`);
+            }
           }
         })) });
       }
@@ -69555,8 +69707,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   async function openSharedTaskFromUrl() {
     const taskId = new URLSearchParams(window.__giantInitialSearch || window.location.search).get('task');
     if (!taskId) return;
-    const navBtn = document.querySelector('.nav-item[data-screen="tasks"]');
-    if (navBtn) navBtn.click();
+    window.giantOpenProjects();
+    // The detail panel is a fixed overlay owned by the Clients screen, so it opens over
+    // whichever Projects is showing. That is what lets a shared task link survive the move:
+    // the panel never depended on the old screen being the one in front.
     setTimeout(() => openTaskDetailPanel(taskId), 400);
   }
   setTimeout(openSharedTaskFromUrl, 1500);
@@ -74483,13 +74637,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // person rather than the machine. Held in memory for rendering -- renderNavCards
     // runs on every mutation of the source lists and cannot await a query.
     let ncStars = new Set();
+    // channel_id -> position. Separate from the Set because every caller of
+    // getStarredChannels() asks "is this starred", which a Set answers in one word; the
+    // order is only needed in one place and is looked up there.
+    let ncStarOrder = new Map();
     function getStarredChannels(){ return ncStars; }
+    const ncStarPos = (id) => (ncStarOrder.has(id) ? ncStarOrder.get(id) : Number.MAX_SAFE_INTEGER);
     async function loadStars(){
       const me = ncMyId();
       if (!me) return;
-      const { data, error } = await NCSB().from('channel_stars').select('channel_id').eq('profile_id', me);
+      const { data, error } = await NCSB().from('channel_stars')
+        .select('channel_id, position').eq('profile_id', me);
       if (error) return;                      // leave whatever is in memory; stars are not worth a toast
       ncStars = new Set((data || []).map(r => r.channel_id));
+      // A star added before this column existed, or added by another device since, has no
+      // position. Those sort last rather than jumping to the top, which is where a newly
+      // starred conversation belongs.
+      ncStarOrder = new Map((data || [])
+        .filter(r => r.position !== null && r.position !== undefined)
+        .map(r => [r.channel_id, r.position]));
       // One-time lift of anything starred before this table existed, so nobody
       // silently loses the shortcuts they already set on this machine.
       try {
@@ -74504,19 +74670,61 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       } catch(_) {}
       renderNavCards();
     }
+    // A starred row is a clone of whichever list it came from, and those carry the channel
+    // id under different names. Reading only data-nc-channel-id meant every starred DM
+    // sorted as "unplaced" and sank to the bottom whatever you did with it.
+    const ncRowChannelId = (row) => row && (row.dataset.ncChannelId
+      || row.dataset.ncDmChannelId || row.dataset.channelId || '');
+
+    // Dropping a starred conversation somewhere new. The whole card is renumbered rather
+    // than patching the rows that moved: positions can have gaps (unstarring leaves one)
+    // and renumbering eight rows is one small write that cannot drift.
+    async function saveStarOrder(order){
+      const me = ncMyId();
+      if (!me || !order.length) return;
+      const previous = new Map(ncStarOrder);
+      order.forEach((id, i) => ncStarOrder.set(id, i));
+      const rows = order.map((channel_id, i) => ({ profile_id: me, channel_id, position: i }));
+      const { data, error } = await NCSB().from('channel_stars')
+        .upsert(rows, { onConflict: 'profile_id,channel_id' })
+        .select('channel_id');
+      // RLS refuses by returning no rows rather than by raising, so without this branch a
+      // refused reorder looks exactly like a saved one until the next reload undoes it.
+      if (error || !data || data.length !== rows.length) {
+        ncStarOrder = previous;
+        renderNavCards();
+        if (typeof toast === 'function') {
+          toast({ type:'error', message:'Could not save that order' + (error ? ': ' + error.message : '') });
+        }
+      }
+    }
+
+    // One past the last placed star. Starring something should put it at the bottom of the
+    // list you have arranged, not silently at the top of it.
+    function ncNextStarPos(){
+      let max = -1;
+      ncStarOrder.forEach(v => { if (typeof v === 'number' && v > max) max = v; });
+      return max + 1;
+    }
     async function toggleStarChannel(id){
       const me = ncMyId();
       if (!me) return;
       const had = ncStars.has(id);
+      const hadPos = ncStarOrder.get(id);
+      const newPos = had ? null : ncNextStarPos();
       // Optimistic: a star should feel instant, and the revert below covers the
       // case where the write is refused.
-      had ? ncStars.delete(id) : ncStars.add(id);
+      if (had) { ncStars.delete(id); ncStarOrder.delete(id); }
+      else     { ncStars.add(id);    ncStarOrder.set(id, newPos); }
       renderNavCards();
       const { error } = had
         ? await NCSB().from('channel_stars').delete().eq('profile_id', me).eq('channel_id', id)
-        : await NCSB().from('channel_stars').upsert({ profile_id: me, channel_id: id }, { onConflict: 'profile_id,channel_id' });
+        : await NCSB().from('channel_stars').upsert(
+            { profile_id: me, channel_id: id, position: newPos },
+            { onConflict: 'profile_id,channel_id' });
       if (error) {
-        had ? ncStars.add(id) : ncStars.delete(id);
+        if (had) { ncStars.add(id); if (hadPos !== undefined) ncStarOrder.set(id, hadPos); }
+        else     { ncStars.delete(id); ncStarOrder.delete(id); }
         renderNavCards();
         if (typeof toast === 'function') toast({ type:'error', message:'Could not save that star: ' + error.message });
       }
@@ -75770,6 +75978,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // is zero and every answer would otherwise be wrong for the life of the render.
       if (bodies.needs) ncFitNeeds(bodies.needs);
       empty(bodies.needs, 'Nothing needs you.');
+      // Starred is the one card whose order is the person's own. Everything else here is
+      // sorted by the app -- alphabetically, or by what needs you. This card is filled by
+      // walking the channel list and the DM list, so without this it inherits THEIR order
+      // and the arrangement someone dragged is lost on the next render.
+      if (bodies.starred) {
+        [...bodies.starred.querySelectorAll('.nc_ch-item')]
+          .map(row => [row, ncStarPos(ncRowChannelId(row))])
+          .sort((a, b) => a[1] - b[1])
+          .forEach(([row]) => bodies.starred.appendChild(row));
+        window.giantMakeReorderable(bodies.starred, {
+          itemSelector: '.nc_ch-item',
+          idOf: ncRowChannelId,
+          onReorder: saveStarOrder,
+        });
+      }
       empty(bodies.starred, 'Star a channel to pin it here.');
       empty(bodies.clients, 'No client conversations yet — find a client in the jump box to start one.');
       empty(bodies.teams, 'No team channels.');
@@ -77668,10 +77891,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const ch = ncPrimaryChannel(mg.selectedId, el.dataset.c3Dept);
         if (ch) switchChannel(ch.id);
       }));
-      host.querySelectorAll('[data-c3-open-projects]').forEach(el => el.addEventListener('click', () => {
-        const nav = document.querySelector('.nav-item[data-screen="tasks"]');
-        if (nav) nav.click();
-      }));
+      host.querySelectorAll('[data-c3-open-projects]').forEach(el =>
+        el.addEventListener('click', () => { window.giantOpenProjects(); }));
       host.querySelectorAll('[data-c3-mgmt-fold]').forEach(el => el.addEventListener('click', () => {
         const k = el.dataset.c3MgmtFold; mg.ovOpen[k] = !mg.ovOpen[k]; renderMgmt();
       }));
