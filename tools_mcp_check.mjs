@@ -6,7 +6,7 @@
 // breaking a rule but by walking around one. These checks fail if that ever happens.
 //
 // Run: node tools_mcp_check.mjs
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 
 const results = [];
 const check = (name, pass, detail) => { results.push({ name, pass: !!pass, detail }); };
@@ -65,6 +65,31 @@ check('tools/call requires a bearer token',
 // 8. Read-only: no tool may write.
 check('every tool is read-only',
   !/method:\s*'(POST|PATCH|DELETE|PUT)'/.test(tools), 'ok');
+
+// 9. The policy that stops a client-portal account minting a token must be RESTRICTIVE.
+//    It shipped permissive, which meant it took nothing away: permissive policies for the
+//    same command are ORed, and api_tokens_own (FOR ALL) already allowed the insert. In a
+//    rolled-back probe on production a real client-role profile inserted a token. Restrictive
+//    policies are ANDed, so they can actually deny.
+//
+//    Replaying the migrations in order and honouring the drops gives the state the database
+//    is actually in, so a policy that was later dropped does not fail this.
+const live = new Map();
+for (const f of readdirSync('supabase/migrations').filter(f => f.endsWith('.sql')).sort()) {
+  const sql = readFileSync('supabase/migrations/' + f, 'utf8');
+  for (const m of sql.matchAll(/drop\s+policy\s+(?:if\s+exists\s+)?([\w"]+)\s+on\s+public\.api_tokens/gi)) {
+    live.delete(m[1].replace(/"/g, ''));
+  }
+  for (const m of sql.matchAll(/create\s+policy\s+([\w"]+)\s+on\s+public\.api_tokens([\s\S]*?);/gi)) {
+    live.set(m[1].replace(/"/g, ''), m[2]);
+  }
+}
+const denies = [...live].filter(([, body]) => /<>\s*'client'/.test(body));
+const permissive = denies.filter(([, body]) => !/as\s+restrictive/i.test(body)).map(([n]) => n);
+check('the client block on api_tokens denies rather than merely permits',
+  denies.length > 0 && permissive.length === 0,
+  denies.length + ' live: ' + denies.map(([n]) => n).join(', ') +
+  (permissive.length ? ' -- PERMISSIVE: ' + permissive.join(', ') : ''));
 
 const fails = results.filter(r => !r.pass);
 console.log('\n=== MCP SAFETY ===');
