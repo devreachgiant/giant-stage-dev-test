@@ -220,8 +220,107 @@ await step('a favourite opens the screen, and unstarring removes it', async () =
     JSON.stringify(r));
 });
 
-// Chat 2.0 and Chat 3.0 are the two builds New Chat came from. They are out of
-// Communication and into Archive -- moved, not deleted, so both still open.
+// A real mouse drag, not a synthetic DragEvent.
+//
+// Dispatching dragstart/dragover/drop by hand would exercise the handlers and prove nothing
+// about whether a person can actually do this: HTML5 drag only begins after the browser
+// decides a press-and-move is a drag, and a check that skips that step passes on a list that
+// cannot be dragged at all. Chromium starts a genuine drag from these mouse events, so this
+// is the same path a hand takes. The intermediate moves matter -- one jump from A to B does
+// not read as a drag.
+async function dragRow(from, to, placeBelow) {
+  const a = await from.boundingBox();
+  const b = await to.boundingBox();
+  if (!a || !b) return false;
+  const x = a.x + a.width / 2;
+  const y0 = a.y + a.height / 2;
+  const y = placeBelow ? b.y + b.height * 0.75 : b.y + b.height * 0.25;
+  await page.mouse.move(x, y0);
+  await page.mouse.down();
+  // A deliberate shove before aiming at the target. A browser only treats a press-and-move
+  // as a drag once it has moved far enough, and chat sidebar rows are about 28px tall --
+  // so creeping straight to the row above never crossed the threshold, no dragstart fired,
+  // and the check reported "nothing moved" on a list that drags perfectly well by hand.
+  // Favourites rows are taller, which is exactly why that one passed and this one did not.
+  await page.mouse.move(x, y0 - 30, { steps: 6 });
+  await page.waitForTimeout(120);
+  for (let i = 1; i <= 8; i++) {
+    await page.mouse.move(x, (y0 - 30) + ((y - (y0 - 30)) * i) / 8, { steps: 4 });
+    await page.waitForTimeout(50);
+  }
+  await page.mouse.move(x, y, { steps: 4 });
+  await page.waitForTimeout(120);
+  await page.mouse.up();
+  await page.waitForTimeout(800);
+  return true;
+}
+
+// Projects went the same way Chat did: the rebuilt screen takes the plain name and the
+// previous one moves to Archive as "Old Projects".
+//
+// The thing worth measuring is not the labels -- it is who can still get there. Old Projects
+// was the ONLY Projects for everyone below manager, and Archive is visible to the in-house
+// dev alone, so leaving the new screen gated would have taken Projects away from nine
+// members and a client without anyone noticing until they looked for it.
+await step('Projects is the rebuilt screen, and the old one is archived', async () => {
+  const r = await page.evaluate(async () => {
+    const sidebar = document.getElementById('appSidebar');
+    const inGroup = (screen, group) => {
+      const rail = document.querySelector(`[data-navgroup-body="${group}"]`);
+      return !!(rail && rail.querySelector(`.nav-item[data-screen="${screen}"]`));
+    };
+    const navFor = (screen) => sidebar.querySelector(`.nav-item[data-screen="${screen}"]`);
+    const p2 = navFor('projects2');
+    const old = navFor('tasks');
+    const screen2 = document.querySelector('.screen[data-screen="projects2"]');
+    return {
+      // One nav item reads "Projects", and it is the rebuilt screen.
+      newLabel: p2 && p2.dataset.label,
+      newText: p2 && p2.textContent.trim(),
+      oldLabel: old && old.dataset.label,
+      oldInArchive: inGroup('tasks', 'archive'),
+      oldGoneFromWork: !inGroup('tasks', 'work'),
+      newInWork: inGroup('projects2', 'work'),
+      // No role floor on either the item or the screen, or members lose Projects entirely.
+      navGated: !!(p2 && (p2.hasAttribute('data-role-min') || p2.hasAttribute('data-client-hidden'))),
+      screenGated: !!(screen2 && (screen2.hasAttribute('data-role-min') || screen2.hasAttribute('data-client-hidden'))),
+      // Nothing anywhere should still say 2.0.
+      twoPointOh: [...sidebar.querySelectorAll('.nav-item')]
+        .filter(el => /2\.0/.test(el.textContent) && el.dataset.screen === 'projects2').length,
+      // Only one thing in the sidebar may be called Projects, or a person has to guess.
+      calledProjects: [...sidebar.querySelectorAll('.nav-item[data-label="Projects"]')]
+        .map(el => el.dataset.screen),
+    };
+  });
+  check('Projects is the rebuilt screen, and the old one is archived',
+    r.newLabel === 'Projects' && r.oldLabel === 'Old Projects' &&
+    r.oldInArchive && r.oldGoneFromWork && r.newInWork &&
+    !r.navGated && !r.screenGated && r.twoPointOh === 0 &&
+    r.calledProjects.join(',') === 'projects2',
+    JSON.stringify(r));
+});
+
+// Four entry points used to click the old Projects nav item by selector. They are the paths
+// that break silently: a shared task link that opens nothing says nothing about why.
+await step('opening Projects from elsewhere lands on the rebuilt screen', async () => {
+  const r = await page.evaluate(async () => {
+    if (typeof window.giantOpenProjects !== 'function') return { missing: true };
+    const found = window.giantOpenProjects();
+    await new Promise(r => setTimeout(r, 1200));
+    return {
+      found,
+      landedOnNew: !!document.querySelector('.screen[data-screen="projects2"].on'),
+      landedOnOld: !!document.querySelector('.screen[data-screen="tasks"].on'),
+      // The panel a shared task link opens is a fixed overlay owned by the Clients screen,
+      // so it has to exist regardless of which Projects is in front.
+      panelExists: !!document.getElementById('taskDetailPanel'),
+    };
+  });
+  check('opening Projects from elsewhere lands on the rebuilt screen',
+    !r.missing && r.found && r.landedOnNew && !r.landedOnOld && r.panelExists,
+    JSON.stringify(r));
+});
+
 await step('Chat 2.0 and 3.0 are archived, not removed', async () => {
   const r = await page.evaluate(async () => {
     const inGroup = (screen, group) => {
@@ -9076,6 +9175,66 @@ await step('a churned client keeps one row, named and dimmed', async () => {
     r.dimmed && parseFloat(r.opacity) < 1 && r.undimsWhenBackOnTheBooks, JSON.stringify(r));
 });
 
+// Favourites drag-to-reorder. LAST on purpose.
+//
+// This is the only check driven by a real mouse rather than by .click(), and bisecting
+// proved it disturbs state the New Chat section depends on: with this step in place a
+// reply-badge check far below found no messages at all (341/342); with it removed, and
+// nothing else changed, the same suite was 341/341. Which step was at fault was not
+// guessable -- three plausible theories in a row were wrong -- so it was found by running
+// two variants side by side, one with this step and one without.
+//
+// Moved rather than deleted. It measures the real thing (a genuine press-drag-release, and
+// the order actually written to the database), and the honest fix for a check with side
+// effects is to run it where nothing comes after it.
+
+// Favourites had a position column from the day it shipped and nothing ever wrote to it:
+// the order was whenever you happened to star each one. Dragging is the feature; the thing
+// worth checking is that the new order is still there after a reload, not merely that a row
+// moved on screen.
+await step('favourites can be dragged into a new order', async () => {
+  const before = await page.evaluate(() => {
+    const body = document.getElementById('navFavBody');
+    const lbl = document.getElementById('navFavGroupLabel');
+    if (lbl && lbl.classList.contains('nav-group-collapsed')) lbl.click();
+    return [...body.querySelectorAll('[data-fav-screen]')].map(el => el.dataset.favScreen);
+  });
+  await page.waitForTimeout(400);
+  if (before.length < 2) { check('favourites can be dragged into a new order', false,
+    'needs two favourites, had ' + JSON.stringify(before)); return; }
+
+  const rows = page.locator('#navFavBody [data-fav-screen]');
+  await dragRow(rows.nth(1), rows.nth(0), false);   // second one, above the first
+
+  const after = await page.evaluate(() => ({
+    dom: [...document.querySelectorAll('#navFavBody [data-fav-screen]')].map(el => el.dataset.favScreen),
+    // What was actually written. The DOM alone would pass on a drag that never saved.
+    stored: window.__mock.db.nav_favorites
+      .slice().sort((x, y) => (x.position ?? 99) - (y.position ?? 99))
+      .map(f => f.screen + ':' + f.position),
+  }));
+  // Put Communication back. The nav groups are an ACCORDION: expanding Favourites above
+  // folds Communication away, and every later check reaches New Chat through it. Leaving it
+  // closed meant New Chat never opened, and a reply-badge check much further down found no
+  // messages at all -- failing as though Chat were broken. The two checks either side of
+  // this one already carried that warning in a comment; this one did not heed it.
+  await page.evaluate(async () => {
+    const comm = document.querySelector('.nav-group-toggle[data-navgroup="communication"]');
+    if (comm && comm.classList.contains('nav-group-collapsed')) comm.click();
+    await new Promise(r => setTimeout(r, 500));
+  });
+  await page.waitForTimeout(400);
+
+  const flipped = after.dom.join(',') === before.slice().reverse().join(',');
+  const savedInSameOrder = after.stored.map(x => x.split(':')[0]).join(',') === after.dom.join(',');
+  const numbered = after.stored.every((x, i) => x.split(':')[1] === String(i));
+  check('favourites can be dragged into a new order',
+    flipped && savedInSameOrder && numbered,
+    JSON.stringify({ before, ...after }));
+});
+
+// Chat 2.0 and Chat 3.0 are the two builds New Chat came from. They are out of
+// Communication and into Archive -- moved, not deleted, so both still open.
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
