@@ -14,6 +14,7 @@ const check = (name, pass, detail) => { results.push({ name, pass: !!pass, detai
 const tools = readFileSync('netlify/functions/_mcp_tools.js', 'utf8');
 const identity = readFileSync('netlify/functions/_mcp_identity.js', 'utf8');
 const server = readFileSync('netlify/functions/mcp.js', 'utf8');
+const oauth = readFileSync('netlify/functions/_mcp_oauth.js', 'utf8');
 
 // 1. Nothing may read the clients base table except through clientSource().
 const clientReads = [...tools.matchAll(/`?\$?\{?\s*(clients(?:_public|_manager)?)\s*\}?\?select/g)]
@@ -58,11 +59,52 @@ check('a token whose owner is a client is refused',
 check('tokens are matched by hash, never stored raw',
   /token_hash=eq\./.test(identity) && /createHash\('sha256'\)/.test(identity), 'ok');
 
-// 7. Anything that needs data needs a token.
-check('tools/call requires a bearer token',
-  /if \(!token\) \{[\s\S]{0,200}No Giant token/.test(server), 'ok');
+// 7. Anything that needs data needs a credential -- and the refusal has to be a 401 carrying
+//    WWW-Authenticate, because that header is not merely an error: it is the first step of
+//    the OAuth flow, and without it claude.ai and ChatGPT have no way to offer a sign-in.
+//    An earlier version of this check matched the exact shape of one `if` in the file, so it
+//    failed the moment the file was restructured while the behaviour was unchanged. It now
+//    asserts the behaviour: resolve a profile first, then 401 + WWW-Authenticate if there
+//    isn't one.
+const refusal = server.match(/if \(!profile\) \{[\s\S]{0,600}?\n  \}/);
+check('an unauthenticated call is refused with 401 and an OAuth challenge',
+  !!refusal && /statusCode:\s*401/.test(refusal[0]) &&
+  /'WWW-Authenticate'/.test(refusal[0]) && /resource_metadata=/.test(refusal[0]),
+  refusal ? 'ok' : 'no !profile branch found');
 
-// 8. Read-only: no tool may write.
+// 8. Both ways of being somebody end in a real session for that person, never in the tools
+//    file deciding what to show.
+check('a personal token and an OAuth token both resolve to a person',
+  /profileForToken\(token\)/.test(server) && /verifyAccessToken\(token\)/.test(server) &&
+  /sessionFor\(profile\)/.test(server), 'ok');
+
+// 9. The spec is emphatic: a server MUST reject a token not issued for itself.
+check('an access token is checked against this server\u2019s own audience',
+  /row\.audience !== RESOURCE_URI/.test(oauth), 'ok');
+
+// 10. PKCE, and only the form of it that is worth anything.
+check('only S256 PKCE is accepted, never plain',
+  /code_challenge_methods_supported:\s*\['S256'\]/.test(oauth) &&
+  /createHash\('sha256'\)[\s\S]{0,80}base64url/.test(oauth), 'ok');
+
+// 11. An authorization code must be single use. Burning it with a conditional update and
+//     believing only our own burn is what makes two racing redemptions resolve to one.
+check('an authorization code is burned before anything is issued, and only once',
+  /used_at=is\.null/.test(oauth) && /burn\.body\.length\) return \{ error: 'invalid_grant' \}/.test(oauth),
+  'ok');
+
+// 12. Codes and tokens are secrets, so none of them may be stored in the clear.
+check('codes, access tokens and refresh tokens are all stored hashed',
+  /code_hash: sha256\(code\)/.test(oauth) && /token_hash: sha256\(access\)/.test(oauth) &&
+  /refresh_hash: sha256\(refresh\)/.test(oauth), 'ok');
+
+// 13. Redirect URIs are matched exactly. A prefix or hostname match is how tokens get
+//     delivered to somebody else's server.
+check('a redirect address is matched exactly, never by prefix',
+  /registered\.some\(r => r === uri\)/.test(oauth) && !/startsWith\(/.test(
+    (oauth.match(/function redirectAllowed[\s\S]*?\n\}/) || [''])[0]), 'ok');
+
+// 14. Read-only: no tool may write.
 check('every tool is read-only',
   !/method:\s*'(POST|PATCH|DELETE|PUT)'/.test(tools), 'ok');
 

@@ -12453,6 +12453,10 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 6.5a4 4 0 018 0v2.5l1 2H3l1-2V6.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6.5 12.5a1.5 1.5 0 003 0" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
                 Notifications
               </div>
+              <div class="settings-side-item" data-stab="ai" data-client-hidden>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M8 1.8l1.5 4 4 1.5-4 1.5L8 12.8 6.5 8.8l-4-1.5 4-1.5L8 1.8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+                Connected AI
+              </div>
             </aside>
             <div class="settings-main">
 
@@ -12672,6 +12676,56 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                 <div class="settings-tab-foot">
                   <button class="settings-cancel-btn" id="notifResetBtn">Reset to defaults</button>
                   <button class="settings-save-btn" id="notifSaveBtn">Save notification settings</button>
+                </div>
+              </div>
+
+              <!-- CONNECTED AI TAB -->
+              <div class="settings-tab" data-stabcontent="ai">
+                <div class="settings-tab-head">
+                  <div><h2>Connected AI</h2><p>Connect Claude, ChatGPT or any assistant to Giant so it can answer questions about your work — what's overdue, what a client's status is, what was said in a channel.</p></div>
+                </div>
+
+                <div class="settings-row">
+                  <div>
+                    <div class="settings-row-label">Server address</div>
+                    <div class="settings-row-help">Add this to your assistant as a connector. It will send you back here to sign in and approve — there is nothing else to set up.</div>
+                  </div>
+                  <div class="settings-row-field">
+                    <div style="display:flex;gap:8px;align-items:center;">
+                      <input type="text" class="settings-input" id="mcpUrlField" readonly value="" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;">
+                      <button class="settings-save-btn ghost" id="mcpCopyUrlBtn" style="white-space:nowrap;">Copy</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Shown once, immediately after a token is made. There is no second chance:
+                     only a hash of it is stored, so nobody -- including us -- can show it again. -->
+                <div id="mcpNewTokenBox" style="display:none;margin:14px 0 4px;padding:14px 16px;border:1px solid var(--line);border-left:3px solid var(--red);border-radius:10px;background:var(--surface);">
+                  <div style="font-size:12.5px;font-weight:700;color:var(--text);margin-bottom:4px;">Copy this now — it is shown once</div>
+                  <div style="font-size:11.5px;color:var(--text-3);margin-bottom:10px;">Giant stores only a fingerprint of this token, so it cannot be shown again. If you lose it, revoke it and make another.</div>
+                  <div style="display:flex;gap:8px;align-items:center;">
+                    <input type="text" class="settings-input" id="mcpNewTokenField" readonly value="" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;">
+                    <button class="settings-save-btn" id="mcpCopyTokenBtn" style="white-space:nowrap;">Copy</button>
+                  </div>
+                </div>
+
+                <div class="settings-hint" style="margin-top:4px;line-height:1.6;">
+                  However you connect, the assistant reads Giant <b style="color:var(--text-2);">as you</b> — it sees exactly what you see when you open the app, and nothing more. It can only read; it cannot post, edit or delete anything.
+                </div>
+
+                <div class="team-section" style="margin-top:24px;">
+                  <div class="team-section-head">
+                    <span class="team-section-title">Personal tokens</span>
+                    <span class="team-section-count" id="mcpTokenCount">0</span>
+                  </div>
+                  <div class="settings-row-help" style="margin:-4px 2px 11px;">For command-line tools that have nowhere to sign in. Most people will not need one — adding the address above is enough.</div>
+                  <div class="team-list" id="mcpTokenList"></div>
+                  <div style="margin-top:11px;">
+                    <button class="settings-save-btn ghost" id="mcpNewBtn">
+                      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style="margin-right:4px;"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+                      New token
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -13037,6 +13091,229 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       preview.textContent=initial;
     });
   }
+})();
+
+/* ============== CONNECTED AI (MCP tokens) ============== */
+/*
+   One personal token per assistant somebody connects. The token is generated HERE, in the
+   browser, and only its SHA-256 is ever sent to the database -- so the raw token exists in
+   one place for about as long as it takes to copy it, and a database backup hands nobody a
+   working key. That is also why it can only be shown once: we genuinely cannot get it back.
+
+   The insert goes through normal row-level security (api_tokens is own-row), not through a
+   function with the service key. Nothing here needs elevated rights, so nothing here gets
+   them.
+
+   Loaded on first open of the tab rather than at startup: it is a page almost nobody visits,
+   and the Team tab beside it already works this way.
+*/
+(function(){
+  const screen = document.querySelector('.screen[data-screen="settings"]');
+  if (!screen) return;
+  const list = document.getElementById('mcpTokenList');
+  if (!list) return;
+
+  const countEl   = document.getElementById('mcpTokenCount');
+  const newBtn    = document.getElementById('mcpNewBtn');
+  const urlField  = document.getElementById('mcpUrlField');
+  const copyUrl   = document.getElementById('mcpCopyUrlBtn');
+  const tokenBox  = document.getElementById('mcpNewTokenBox');
+  const tokenField= document.getElementById('mcpNewTokenField');
+  const copyToken = document.getElementById('mcpCopyTokenBtn');
+
+  const esc = (v) => String(v == null ? '' : v)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const say = (type, message) => { if (typeof toast === 'function') toast({ type, message }); };
+
+  // Computed when it is needed, never at load. This block runs tens of thousands of lines
+  // before window.GIANT_ORIGIN is set, so reading it here once yielded the bare path "/mcp"
+  // -- a field that looks filled in and is useless to paste anywhere.
+  const serverUrl = () =>
+    (typeof window.giantUrl === 'function') ? window.giantUrl('/mcp')
+                                            : (window.GIANT_ORIGIN || window.location.origin) + '/mcp';
+
+  // "4 days ago" is friendlier than a timestamp for something you check at a glance.
+  function ago(iso){
+    if (!iso) return 'never';
+    const secs = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+    if (secs < 60)     return 'just now';
+    if (secs < 3600)   return Math.floor(secs/60) + 'm ago';
+    if (secs < 86400)  return Math.floor(secs/3600) + 'h ago';
+    if (secs < 2592000)return Math.floor(secs/86400) + 'd ago';
+    return new Date(iso).toLocaleDateString();
+  }
+
+  // crypto.subtle only exists in a secure context. On https and on localhost it is there;
+  // anywhere else, say so plainly rather than generating a token whose hash we cannot compute.
+  const canHash = !!(window.crypto && window.crypto.subtle && window.crypto.subtle.digest);
+
+  async function sha256Hex(text){
+    const bytes = new TextEncoder().encode(text);
+    const buf = await window.crypto.subtle.digest('SHA-256', bytes);
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2,'0')).join('');
+  }
+
+  // Matches the server's TOKEN_PREFIX in netlify/functions/_mcp_identity.js. 24 random bytes
+  // is 192 bits, which is not guessable and still fits on one line when pasted.
+  function mintToken(){
+    const raw = new Uint8Array(24);
+    window.crypto.getRandomValues(raw);
+    const b64 = btoa(String.fromCharCode(...raw))
+      .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+    return 'giant_sk_' + b64;
+  }
+
+  async function copyToClipboard(text, btn){
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (_) {
+      // Clipboard permission is refused often enough that a silent failure would be a bug
+      // report. Fall back to selecting the field so a person can copy it themselves.
+      const field = btn && btn.previousElementSibling;
+      if (field && field.select) { field.focus(); field.select(); }
+      say('info', 'Press ⌘C to copy — the browser blocked the clipboard.');
+      return;
+    }
+    if (!btn) return;
+    const was = btn.textContent;
+    btn.textContent = 'Copied';
+    setTimeout(() => { btn.textContent = was; }, 1400);
+  }
+
+  function render(rows){
+    if (countEl) countEl.textContent = rows.length;
+    if (!rows.length){
+      list.innerHTML = '<div class="team-empty">No personal tokens. ' +
+        'You only need one for a command-line tool — everything else connects with the ' +
+        'address above.</div>';
+      return;
+    }
+    list.innerHTML = rows.map(r => {
+      const dead = !!r.revoked_at;
+      const meta = dead
+        ? 'Revoked ' + esc(ago(r.revoked_at))
+        : esc(r.prefix) + '…  ·  created ' + esc(ago(r.created_at)) +
+          '  ·  last used ' + esc(ago(r.last_used_at));
+      return '' +
+      '<div class="team-row" data-token-id="' + esc(r.id) + '"' + (dead ? ' style="opacity:.5;"' : '') + '>' +
+        '<div class="team-row-ava" style="background:var(--surface-2);color:var(--text-3);">' +
+          '<svg width="15" height="15" viewBox="0 0 16 16" fill="none"><path d="M8 1.8l1.5 4 4 1.5-4 1.5L8 12.8 6.5 8.8l-4-1.5 4-1.5L8 1.8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>' +
+        '</div>' +
+        '<div class="team-row-body">' +
+          '<div class="team-row-name">' + esc(r.name || 'Untitled token') + '</div>' +
+          '<div class="team-row-email">' + meta + '</div>' +
+        '</div>' +
+        (dead ? '' :
+          '<div class="team-row-actions">' +
+            '<button class="team-row-btn danger" data-mcp-revoke="' + esc(r.id) + '">Revoke</button>' +
+          '</div>') +
+      '</div>';
+    }).join('');
+  }
+
+  async function load(){
+    const sb = window.giantSupabase;
+    if (!sb) { list.innerHTML = '<div class="team-empty">Not signed in yet.</div>'; return; }
+    const { data, error } = await sb
+      .from('api_tokens')
+      .select('id,name,prefix,created_at,last_used_at,revoked_at')
+      .order('created_at', { ascending: false });
+    if (error){
+      list.innerHTML = '<div class="team-empty">Could not load your connections: ' +
+        esc(error.message) + '</div>';
+      return;
+    }
+    render(data || []);
+  }
+
+  async function create(){
+    const sb = window.giantSupabase;
+    if (!sb) { say('error', 'Not signed in.'); return; }
+    if (!canHash){
+      say('error', 'This browser will not let Giant create a token here. Open ' +
+                   'giant.reachgiant.com over https and try again.');
+      return;
+    }
+    const profile = window.giantCurrentProfile || {};
+    const me = profile.id;
+    if (!me){ say('error', 'Could not tell who you are — reload and try again.'); return; }
+
+    const name = await (typeof window.giantPrompt === 'function'
+      ? window.giantPrompt('Name this token — something that tells you which tool it is for.', 'My Claude')
+      : Promise.resolve('My Claude'));
+    if (name === null || name === undefined) return;
+    const label = String(name).trim() || 'My Claude';
+
+    const raw = mintToken();
+    const { data, error } = await sb.from('api_tokens').insert({
+      profile_id: me,
+      name: label,
+      token_hash: await sha256Hex(raw),
+      prefix: raw.slice(0, 13),
+    }).select('id');
+
+    if (error){ say('error', 'Could not create that connection: ' + error.message); return; }
+    // Row-level security refuses by returning nothing, not by raising. Without this branch a
+    // refusal would look exactly like success and the token would be useless and unexplained.
+    if (!data || !data.length){
+      say('error', 'Giant would not create that token. Client accounts cannot connect an assistant.');
+      return;
+    }
+
+    if (tokenField) tokenField.value = raw;
+    if (tokenBox) tokenBox.style.display = 'block';
+    say('success', 'Token created — copy it now, it is shown once.');
+    load();
+  }
+
+  async function revoke(id, btn){
+    const sb = window.giantSupabase;
+    if (!sb) return;
+    const ok = (typeof window.giantConfirmWarn === 'function')
+      ? await window.giantConfirmWarn('Revoke this token?',
+          'The tool using it stops being able to read Giant immediately. This cannot be ' +
+          'undone — you would need to make a new token.', 'Revoke', 'danger')
+      : true;
+    if (!ok) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Revoking…'; }
+    const { data, error } = await sb.from('api_tokens')
+      .update({ revoked_at: new Date().toISOString() })
+      .eq('id', id)
+      .select('id');
+    if (error){
+      say('error', 'Could not revoke that: ' + error.message);
+      if (btn) { btn.disabled = false; btn.textContent = 'Revoke'; }
+      return;
+    }
+    if (!data || !data.length){
+      say('error', 'Giant would not revoke that token — it may not be yours.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Revoke'; }
+      return;
+    }
+    say('success', 'Token revoked.');
+    load();
+  }
+
+  if (newBtn)    newBtn.addEventListener('click', create);
+  if (copyUrl)   copyUrl.addEventListener('click', () => copyToClipboard(serverUrl(), copyUrl));
+  if (copyToken) copyToken.addEventListener('click', () => copyToClipboard(tokenField.value, copyToken));
+
+  list.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-mcp-revoke]');
+    if (btn) revoke(btn.getAttribute('data-mcp-revoke'), btn);
+  });
+
+  let loaded = false;
+  screen.querySelectorAll('.settings-side-item[data-stab="ai"]').forEach(item => {
+    item.addEventListener('click', () => {
+      // A fresh token belongs to the moment it was made, not to every later visit.
+      if (tokenBox) tokenBox.style.display = 'none';
+      if (urlField) urlField.value = serverUrl();
+      if (!loaded) { loaded = true; load(); }
+    });
+  });
+
+  window.mcpTokensProbe = { load, render, mintToken, ago, canHash, serverUrl };
 })();
 
 /* ============== ROLE-BASED ACCESS CONTROL ============== */

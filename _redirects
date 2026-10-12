@@ -4,5 +4,15 @@
 /rec/*          /rec.html   200
 /onboard/*      /index.html   200
 /book/*         /index.html   200
+/.well-known/oauth-protected-resource          /.netlify/functions/mcp-oauth-prm   200
+/.well-known/oauth-protected-resource/mcp      /.netlify/functions/mcp-oauth-prm   200
+/.well-known/oauth-authorization-server        /.netlify/functions/mcp-oauth-as   200
+/.well-known/oauth-authorization-server/mcp    /.netlify/functions/mcp-oauth-as   200
+/.well-known/openid-configuration              /.netlify/functions/mcp-oauth-as   200
+/oauth/authorize                               /.netlify/functions/mcp-oauth-authorize   200
+/oauth/token                                   /.netlify/functions/mcp-oauth-token   200
+/oauth/register                                /.netlify/functions/mcp-oauth-register   200
+/oauth/revoke                                  /.netlify/functions/mcp-oauth-revoke   200
 /oauth/*        /index.html   200
+/mcp            /.netlify/functions/mcp   200
 /*              /index.html   200

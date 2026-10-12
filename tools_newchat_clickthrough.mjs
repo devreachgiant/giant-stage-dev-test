@@ -9076,6 +9076,119 @@ await step('a churned client keeps one row, named and dimmed', async () => {
     r.dimmed && parseFloat(r.opacity) < 1 && r.undimsWhenBackOnTheBooks, JSON.stringify(r));
 });
 
+// ── Connected AI: tokens an assistant uses to read Giant as you ──────────────
+// The failure this exists to catch: the browser mints the token and stores only a SHA-256
+// of it, while netlify/functions/_mcp_identity.js looks the token up BY that hash. If the
+// two ever compute it differently, every token is minted happily and then rejected forever,
+// with nothing on either side reporting a fault. So the hash the UI actually sent is
+// recomputed here with node:crypto -- the server's own implementation -- rather than
+// trusting that both call something named sha256.
+const mcp = await step('connected ai: a token can be made, used and revoked', async () => {
+  return await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const vis = (el) => { if (!el) return false; const b = el.getBoundingClientRect();
+      return el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) && b.width > 4 && b.height > 4; };
+    const out = {};
+
+    document.querySelectorAll('.nav-group-toggle').forEach(t => { if (t.classList.contains('nav-group-collapsed')) t.click(); });
+    await wait(400);
+    const nav = document.querySelector('.nav-item[data-screen="settings"]');
+    if (!nav) { out.noSettingsNav = true; return out; }
+    nav.click(); await wait(800);
+
+    const side = document.querySelector('.settings-side-item[data-stab="ai"]');
+    if (!side) { out.noSideItem = true; return out; }
+    side.click(); await wait(600);
+
+    // Measured, not merely present: a tab that is in the DOM at zero height is the exact
+    // shape of bug the colour-dot check missed.
+    const tab = document.querySelector('.settings-tab[data-stabcontent="ai"]');
+    out.tabShown = vis(tab) && tab.getBoundingClientRect().height > 40;
+    out.urlOffered = (document.getElementById('mcpUrlField') || {}).value || '';
+
+    // Nothing connected yet -- the empty state, not a stale list.
+    out.emptyBefore = /No personal tokens/.test(document.getElementById('mcpTokenList').innerHTML);
+
+    // Make one. giantPrompt is an in-page overlay, so drive it the way a person would.
+    document.getElementById('mcpNewBtn').click();
+    await wait(300);
+    const ov = document.getElementById('giantPromptOverlay');
+    out.promptAsked = !!ov;
+    if (ov) {
+      const input = ov.querySelector('input');
+      input.value = "Luke's Claude";
+      const btns = [...ov.querySelectorAll('button')];
+      btns[btns.length - 1].click();
+    }
+    await wait(900);
+
+    out.tokenShown = vis(document.getElementById('mcpNewTokenBox'));
+    out.token = (document.getElementById('mcpNewTokenField') || {}).value || '';
+
+    // Read back what was actually written, which is the only thing the server will see.
+    const stored = await window.giantSupabase.from('api_tokens')
+      .select('id,name,prefix,token_hash,revoked_at');
+    out.stored = (stored.data || []).map(r => ({ id: r.id, name: r.name, prefix: r.prefix,
+      hash: r.token_hash, revoked: !!r.revoked_at }));
+
+    out.listedAfter = document.querySelectorAll('#mcpTokenList .team-row').length;
+    out.countAfter = (document.getElementById('mcpTokenCount') || {}).textContent;
+    out.revokeOffered = !!document.querySelector('#mcpTokenList [data-mcp-revoke]');
+
+    // Revoke it. The harness's confirm watcher presses the overlay's confirm button.
+    const rb = document.querySelector('#mcpTokenList [data-mcp-revoke]');
+    if (rb) rb.click();
+    await wait(1400);
+
+    const after = await window.giantSupabase.from('api_tokens').select('id,revoked_at');
+    out.revokedInDb = (after.data || []).filter(r => r.revoked_at).length;
+    out.revokeGoneFromUi = !document.querySelector('#mcpTokenList [data-mcp-revoke]');
+
+    // Shown once: leaving the tab and coming back must not re-display the secret.
+    document.querySelector('.settings-side-item[data-stab="profile"]').click();
+    await wait(250);
+    document.querySelector('.settings-side-item[data-stab="ai"]').click();
+    await wait(400);
+    out.tokenHiddenOnReturn = !vis(document.getElementById('mcpNewTokenBox'));
+    return out;
+  });
+});
+
+if (mcp) {
+  const { createHash } = await import('node:crypto');
+  const row = (mcp.stored || [])[0] || {};
+  // Whole address, not just the ending. This first read "/mcp" -- the field was filled at
+  // script-parse time, thousands of lines before window.GIANT_ORIGIN exists -- and a check
+  // anchored on the suffix passed happily against a value nobody could paste anywhere.
+  check('connected ai: the tab offers a complete address to paste, not a bare path',
+    mcp.tabShown && /^https?:\/\/[^/]+\/mcp$/.test(mcp.urlOffered),
+    mcp.urlOffered || JSON.stringify(mcp));
+  check('connected ai: a new token is minted as giant_sk_ and shown once',
+    /^giant_sk_[A-Za-z0-9_-]{32}$/.test(mcp.token) && mcp.tokenShown && mcp.promptAsked,
+    (mcp.token || '(none)').slice(0, 13) + '… len=' + (mcp.token || '').length);
+  // THE one. A mismatch here means every token minted in the browser is rejected by the
+  // server forever, and nothing anywhere says why.
+  check('connected ai: the stored hash is what the server will compute from the token',
+    !!mcp.token && !!row.hash && row.hash === createHash('sha256').update(mcp.token).digest('hex'),
+    'stored=' + String(row.hash).slice(0, 16) + '… expected=' +
+    (mcp.token ? createHash('sha256').update(mcp.token).digest('hex').slice(0, 16) : '?') + '…');
+  check('connected ai: the raw token is never written to the database',
+    !!mcp.token && !(mcp.stored || []).some(r => JSON.stringify(r).includes(mcp.token)),
+    JSON.stringify((mcp.stored || []).map(r => r.prefix)));
+  // The prefix is how somebody tells two connections apart without being shown either.
+  check('connected ai: the stored prefix matches the server’s TOKEN_PREFIX + 4',
+    !!mcp.token && row.prefix === mcp.token.slice(0, 13), row.prefix + ' vs ' + String(mcp.token).slice(0, 13));
+  check('connected ai: the token is named and listed',
+    row.name === "Luke's Claude" && mcp.listedAfter === 1 && mcp.countAfter === '1' &&
+    mcp.revokeOffered && mcp.emptyBefore,
+    JSON.stringify({ name: row.name, listed: mcp.listedAfter, count: mcp.countAfter }));
+  check('connected ai: revoking a token writes revoked_at and takes the button away',
+    mcp.revokedInDb === 1 && mcp.revokeGoneFromUi,
+    JSON.stringify({ revokedRows: mcp.revokedInDb, buttonGone: mcp.revokeGoneFromUi }));
+  check('connected ai: the token is not shown again on a second visit',
+    mcp.tokenHiddenOnReturn === true, String(mcp.tokenHiddenOnReturn));
+}
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
