@@ -74637,13 +74637,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // person rather than the machine. Held in memory for rendering -- renderNavCards
     // runs on every mutation of the source lists and cannot await a query.
     let ncStars = new Set();
+    // channel_id -> position. Separate from the Set because every caller of
+    // getStarredChannels() asks "is this starred", which a Set answers in one word; the
+    // order is only needed in one place and is looked up there.
+    let ncStarOrder = new Map();
     function getStarredChannels(){ return ncStars; }
+    const ncStarPos = (id) => (ncStarOrder.has(id) ? ncStarOrder.get(id) : Number.MAX_SAFE_INTEGER);
     async function loadStars(){
       const me = ncMyId();
       if (!me) return;
-      const { data, error } = await NCSB().from('channel_stars').select('channel_id').eq('profile_id', me);
+      const { data, error } = await NCSB().from('channel_stars')
+        .select('channel_id, position').eq('profile_id', me);
       if (error) return;                      // leave whatever is in memory; stars are not worth a toast
       ncStars = new Set((data || []).map(r => r.channel_id));
+      // A star added before this column existed, or added by another device since, has no
+      // position. Those sort last rather than jumping to the top, which is where a newly
+      // starred conversation belongs.
+      ncStarOrder = new Map((data || [])
+        .filter(r => r.position !== null && r.position !== undefined)
+        .map(r => [r.channel_id, r.position]));
       // One-time lift of anything starred before this table existed, so nobody
       // silently loses the shortcuts they already set on this machine.
       try {
@@ -74658,19 +74670,70 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       } catch(_) {}
       renderNavCards();
     }
+    // A starred row is a clone of whichever list it came from, and those carry the channel
+    // id under different names. Reading only data-nc-channel-id meant every starred DM
+    // sorted as "unplaced" and sank to the bottom whatever you did with it.
+    const ncRowChannelId = (row) => row && (row.dataset.ncChannelId
+      || row.dataset.ncDmChannelId || row.dataset.channelId || '');
+
+    // Dropping a starred conversation somewhere new. The whole card is renumbered rather
+    // than patching the rows that moved: positions can have gaps (unstarring leaves one)
+    // and renumbering eight rows is one small write that cannot drift.
+    async function saveStarOrder(order){
+      const me = ncMyId();
+      if (!me || !order.length) return;
+      const previous = new Map(ncStarOrder);
+      // The card only renders the starred conversations the sidebar is currently showing --
+      // a starred client channel sitting under a collapsed client, or one filtered out by
+      // the jump box, is starred but not on screen. Renumbering only what is visible gave
+      // two channels the same position and left their order down to chance. Everything
+      // starred gets a number: what was dragged takes 0..n-1 in the order it now sits, and
+      // anything starred but off screen keeps its relative order after it.
+      const rest = [...ncStars].filter(id => !order.includes(id))
+        .sort((a, b) => ncStarPos(a) - ncStarPos(b));
+      const full = order.concat(rest);
+      full.forEach((id, i) => ncStarOrder.set(id, i));
+      const rows = full.map((channel_id, i) => ({ profile_id: me, channel_id, position: i }));
+      const { data, error } = await NCSB().from('channel_stars')
+        .upsert(rows, { onConflict: 'profile_id,channel_id' })
+        .select('channel_id');
+      // RLS refuses by returning no rows rather than by raising, so without this branch a
+      // refused reorder looks exactly like a saved one until the next reload undoes it.
+      if (error || !data || data.length !== rows.length) {
+        ncStarOrder = previous;
+        renderNavCards();
+        if (typeof toast === 'function') {
+          toast({ type:'error', message:'Could not save that order' + (error ? ': ' + error.message : '') });
+        }
+      }
+    }
+
+    // One past the last placed star. Starring something should put it at the bottom of the
+    // list you have arranged, not silently at the top of it.
+    function ncNextStarPos(){
+      let max = -1;
+      ncStarOrder.forEach(v => { if (typeof v === 'number' && v > max) max = v; });
+      return max + 1;
+    }
     async function toggleStarChannel(id){
       const me = ncMyId();
       if (!me) return;
       const had = ncStars.has(id);
+      const hadPos = ncStarOrder.get(id);
+      const newPos = had ? null : ncNextStarPos();
       // Optimistic: a star should feel instant, and the revert below covers the
       // case where the write is refused.
-      had ? ncStars.delete(id) : ncStars.add(id);
+      if (had) { ncStars.delete(id); ncStarOrder.delete(id); }
+      else     { ncStars.add(id);    ncStarOrder.set(id, newPos); }
       renderNavCards();
       const { error } = had
         ? await NCSB().from('channel_stars').delete().eq('profile_id', me).eq('channel_id', id)
-        : await NCSB().from('channel_stars').upsert({ profile_id: me, channel_id: id }, { onConflict: 'profile_id,channel_id' });
+        : await NCSB().from('channel_stars').upsert(
+            { profile_id: me, channel_id: id, position: newPos },
+            { onConflict: 'profile_id,channel_id' });
       if (error) {
-        had ? ncStars.add(id) : ncStars.delete(id);
+        if (had) { ncStars.add(id); if (hadPos !== undefined) ncStarOrder.set(id, hadPos); }
+        else     { ncStars.delete(id); ncStarOrder.delete(id); }
         renderNavCards();
         if (typeof toast === 'function') toast({ type:'error', message:'Could not save that star: ' + error.message });
       }
@@ -75924,6 +75987,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // is zero and every answer would otherwise be wrong for the life of the render.
       if (bodies.needs) ncFitNeeds(bodies.needs);
       empty(bodies.needs, 'Nothing needs you.');
+      // Starred is the one card whose order is the person's own. Everything else here is
+      // sorted by the app -- alphabetically, or by what needs you. This card is filled by
+      // walking the channel list and the DM list, so without this it inherits THEIR order
+      // and the arrangement someone dragged is lost on the next render.
+      if (bodies.starred) {
+        [...bodies.starred.querySelectorAll('.nc_ch-item')]
+          .map(row => [row, ncStarPos(ncRowChannelId(row))])
+          .sort((a, b) => a[1] - b[1])
+          .forEach(([row]) => bodies.starred.appendChild(row));
+        window.giantMakeReorderable(bodies.starred, {
+          itemSelector: '.nc_ch-item',
+          idOf: ncRowChannelId,
+          onReorder: saveStarOrder,
+        });
+      }
       empty(bodies.starred, 'Star a channel to pin it here.');
       empty(bodies.clients, 'No client conversations yet — find a client in the jump box to start one.');
       empty(bodies.teams, 'No team channels.');
