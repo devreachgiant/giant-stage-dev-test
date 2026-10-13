@@ -255,41 +255,6 @@ async function dragRow(from, to, placeBelow) {
   return true;
 }
 
-// Favourites had a position column from the day it shipped and nothing ever wrote to it:
-// the order was whenever you happened to star each one. Dragging is the feature; the thing
-// worth checking is that the new order is still there after a reload, not merely that a row
-// moved on screen.
-await step('favourites can be dragged into a new order', async () => {
-  const before = await page.evaluate(() => {
-    const body = document.getElementById('navFavBody');
-    const lbl = document.getElementById('navFavGroupLabel');
-    if (lbl && lbl.classList.contains('nav-group-collapsed')) lbl.click();
-    return [...body.querySelectorAll('[data-fav-screen]')].map(el => el.dataset.favScreen);
-  });
-  await page.waitForTimeout(400);
-  if (before.length < 2) { check('favourites can be dragged into a new order', false,
-    'needs two favourites, had ' + JSON.stringify(before)); return; }
-
-  const rows = page.locator('#navFavBody [data-fav-screen]');
-  await dragRow(rows.nth(1), rows.nth(0), false);   // second one, above the first
-
-  const after = await page.evaluate(() => ({
-    dom: [...document.querySelectorAll('#navFavBody [data-fav-screen]')].map(el => el.dataset.favScreen),
-    // What was actually written. The DOM alone would pass on a drag that never saved.
-    stored: window.__mock.db.nav_favorites
-      .slice().sort((x, y) => (x.position ?? 99) - (y.position ?? 99))
-      .map(f => f.screen + ':' + f.position),
-  }));
-  const flipped = after.dom.join(',') === before.slice().reverse().join(',');
-  const savedInSameOrder = after.stored.map(x => x.split(':')[0]).join(',') === after.dom.join(',');
-  const numbered = after.stored.every((x, i) => x.split(':')[1] === String(i));
-  check('favourites can be dragged into a new order',
-    flipped && savedInSameOrder && numbered,
-    JSON.stringify({ before, ...after }));
-});
-
-// Chat 2.0 and Chat 3.0 are the two builds New Chat came from. They are out of
-// Communication and into Archive -- moved, not deleted, so both still open.
 // Projects went the same way Chat did: the rebuilt screen takes the plain name and the
 // previous one moves to Archive as "Old Projects".
 //
@@ -569,160 +534,6 @@ await step('each nav card has its own icon, not a dot', async () => {
 // resolved dropping the whole row, and the "start a DM" fallback rows never reaching the
 // card. The mock has no RLS and a fully-hydrated profile cache, which is exactly why none
 // of them ever showed up here.
-// Starred in Chat had no order of its own: the card was filled by walking the channel list
-// and copying whatever happened to be starred, so it inherited THAT list's order. Dragging
-// it is the feature. The part that would fail quietly is the render -- the card is rebuilt
-// on every change to the sidebar, so an arrangement that is not re-sorted from the stored
-// positions is lost the next time anything happens in chat.
-await step('starred conversations can be dragged into a new order', async () => {
-  // Leaves the world as it found it. The first version of this starred the first two rows
-  // outright -- which UNstarred one that was already starred, left only one row to drag, and
-  // then clicked a channel to force a re-render. That click changed which channel was open
-  // and broke an unrelated reply-badge check three steps later. A setup step that disturbs
-  // the run is worse than no setup step, because the failure lands somewhere else.
-  const setup = await page.evaluate(async () => {
-    // Open the cards this needs: a collapsed card still has its rows in the DOM, but the
-    // drag below is driven by a real mouse and cannot grab a row of zero height.
-    //
-    // Which ones were opened is remembered and undone at the end. Leaving Teams and Clients
-    // expanded was enough to make a reply-badge check three steps later find no messages at
-    // all -- it failed looking like a regression in Chat, and the regression was this step
-    // tidying up after itself badly. Proved by running the same index.html against the
-    // untouched harness: 339/339.
-    const opened = [];
-    for (const name of ['starred', 'teams', 'clients']) {
-      const card = [...document.querySelectorAll('.nc_navcard')].find(c => c.dataset.nccard === name);
-      const body = card && card.querySelector('.nc_navcard-body');
-      if (body && body.getBoundingClientRect().height < 4) {
-        card.querySelector('.nc_navcard-head').click();
-        opened.push(name);
-        await new Promise(r => setTimeout(r, 450));
-      }
-    }
-    const idOf = (el) => el.dataset.ncChannelId || el.dataset.ncDmChannelId || '';
-    const body = () => document.getElementById('nc_cardStarredBody');
-    const current = () => [...body().querySelectorAll('.nc_ch-item')].map(idOf);
-    const added = [];
-    // The star control lives on the nav-card rows, not on the source channel list: placeStar
-    // is called on the clones a card places, and on Needs-you rows it builds itself. Reading
-    // #nc_chatChannelList found rows with no star on them at all, so the setup starred
-    // nothing and the check failed on its own scaffolding rather than on the feature.
-    //
-    // Only ever star something that is not already starred: the control is a TOGGLE, so
-    // starring an already-starred row removes it.
-    const teams = document.getElementById('nc_cardTeamsBody');
-    const clients = document.getElementById('nc_cardClientsBody');
-    const candidates = [...(teams ? teams.querySelectorAll('.nc_ch-item') : []),
-                        ...(clients ? clients.querySelectorAll('.nc_ch-item') : [])]
-      .filter(r => r.querySelector('.nc_star') && !r.querySelector('.nc_star-on'));
-    for (const r of candidates) {
-      if (current().length >= 2) break;
-      const star = r.querySelector('.nc_star');
-      if (!star) continue;
-      added.push(idOf(r));
-      star.click();
-      await new Promise(r => setTimeout(r, 500));
-    }
-    await new Promise(r => setTimeout(r, 700));
-    return { starred: current(), added, opened };
-  });
-
-  if (setup.starred.length < 2) {
-    check('starred conversations can be dragged into a new order', false,
-      'needs two starred rows, had ' + JSON.stringify(setup)); return;
-  }
-
-  // Before touching the mouse: is this list even set up to be dragged, and does a drag
-  // actually begin? Two runs reported "nothing moved" without saying which of those failed.
-  // A click blocker goes on for the duration too -- if no drag starts, press-move-release
-  // IS a click, which opens that conversation and leaves a later check reading the wrong
-  // channel. That is how a broken drag here showed up as a reply-badge failure three steps
-  // away, and a check that damages the run is worse than one that just fails.
-  await page.evaluate(() => {
-    const body = document.getElementById('nc_cardStarredBody');
-    window.__dragProbe = { start: 0, end: 0, over: 0, renders: 0,
-      draggable: [...body.querySelectorAll('.nc_ch-item')].map(el => el.draggable) };
-    // Blocked on DOCUMENT, not on the card. A drag that never starts is press-move-release
-    // = a click, and the release lands wherever the pointer ended up -- which can be
-    // outside this card entirely. Blocking only the card still let that click through and
-    // switch conversations, which is what broke an unrelated check downstream.
-    window.__blockClicks = (e) => { e.preventDefault(); e.stopPropagation(); };
-    document.addEventListener('click', window.__blockClicks, true);
-    body.addEventListener('dragstart', () => window.__dragProbe.start++, true);
-    body.addEventListener('dragover', () => window.__dragProbe.over++, true);
-    body.addEventListener('dragend', () => window.__dragProbe.end++, true);
-    // Does this card get rebuilt under the cursor? renderNavCards empties every body and
-    // re-places clones, so a rebuild mid-gesture destroys the node being dragged. This card
-    // re-renders on every change in chat; the Favourites list does not, which is exactly
-    // the difference between the check that passes and the one that does not.
-    if (typeof window.nc_renderNavCards === 'function' && !window.__renderWrapped) {
-      window.__renderWrapped = true;
-      const real = window.nc_renderNavCards;
-      window.nc_renderNavCards = function (...a) { window.__dragProbe.renders++; return real.apply(this, a); };
-    }
-  });
-
-  const rows = page.locator('#nc_cardStarredBody .nc_ch-item');
-  await dragRow(rows.nth(1), rows.nth(0), false);
-
-  // What is actually under the point the drag starts from? If a row is clipped by the card
-  // or sits under something, boundingBox() still returns a centre and the press lands on
-  // whatever is really there -- which would not be draggable, and would explain silence.
-  const box = await rows.nth(1).boundingBox();
-  const probe = await page.evaluate(({ x, y }) => {
-    document.removeEventListener('click', window.__blockClicks, true);
-    const el = document.elementFromPoint(x, y);
-    return Object.assign(window.__dragProbe, {
-      atPoint: el ? (el.className || el.tagName) + '' : 'nothing',
-      atPointIsRow: !!(el && el.closest && el.closest('#nc_cardStarredBody .nc_ch-item')),
-    });
-  }, { x: box ? box.x + box.width / 2 : 0, y: box ? box.y + box.height / 2 : 0 });
-
-  const after = await page.evaluate(async ({ added, opened }) => {
-    const idOf = (el) => el.dataset.ncChannelId || el.dataset.ncDmChannelId || '';
-    const read = () => [...document.querySelectorAll('#nc_cardStarredBody .nc_ch-item')].map(idOf);
-    const dom = read();
-    // Rebuild the card the way the app does, WITHOUT navigating: this card is re-rendered
-    // on every change in the sidebar, so an order that does not survive a render is not an
-    // order at all. Calling the renderer directly keeps the side effects to zero.
-    if (typeof window.nc_renderNavCards === 'function') window.nc_renderNavCards();
-    await new Promise(r => setTimeout(r, 600));
-    const out = {
-      dom,
-      afterRerender: read(),
-      stored: (window.__mock.db.channel_stars || [])
-        .slice().sort((x, y) => (x.position ?? 99) - (y.position ?? 99))
-        .map(r => r.channel_id + ':' + r.position),
-    };
-    // Put back exactly what this step starred, so the rest of the run sees what it would
-    // have seen.
-    for (const id of added) {
-      const row = [...document.querySelectorAll('#nc_cardStarredBody .nc_ch-item')]
-        .find(el => idOf(el) === id);
-      const star = row && row.querySelector('.nc_star');
-      if (star) { star.click(); await new Promise(r => setTimeout(r, 400)); }
-    }
-    if (typeof window.nc_renderNavCards === 'function') window.nc_renderNavCards();
-    await new Promise(r => setTimeout(r, 400));
-    // Collapse again exactly what this step expanded, so the sidebar the next check meets
-    // is the sidebar it would have met.
-    for (const name of opened) {
-      const card = [...document.querySelectorAll('.nc_navcard')].find(c => c.dataset.nccard === name);
-      const head = card && card.querySelector('.nc_navcard-head');
-      if (head) { head.click(); await new Promise(r => setTimeout(r, 350)); }
-    }
-    return out;
-  }, { added: setup.added, opened: setup.opened });
-
-  const flipped = after.dom.join(',') === setup.starred.slice().reverse().join(',');
-  const survived = after.afterRerender.join(',') === after.dom.join(',');
-  const savedIds = after.stored.map(x => x.split(':')[0]);
-  const savedInSameOrder = after.dom.every((id, i) => savedIds[i] === id);
-  check('starred conversations can be dragged into a new order',
-    flipped && survived && savedInSameOrder,
-    JSON.stringify({ before: setup.starred, probe, ...after }));
-});
-
 await step('a DM still lists when its counterparty has not resolved', async () => {
   const r = await page.evaluate(async () => {
     const db = window.__mock.db, me = window.__mock.me;
@@ -9364,6 +9175,66 @@ await step('a churned client keeps one row, named and dimmed', async () => {
     r.dimmed && parseFloat(r.opacity) < 1 && r.undimsWhenBackOnTheBooks, JSON.stringify(r));
 });
 
+// Favourites drag-to-reorder. LAST on purpose.
+//
+// This is the only check driven by a real mouse rather than by .click(), and bisecting
+// proved it disturbs state the New Chat section depends on: with this step in place a
+// reply-badge check far below found no messages at all (341/342); with it removed, and
+// nothing else changed, the same suite was 341/341. Which step was at fault was not
+// guessable -- three plausible theories in a row were wrong -- so it was found by running
+// two variants side by side, one with this step and one without.
+//
+// Moved rather than deleted. It measures the real thing (a genuine press-drag-release, and
+// the order actually written to the database), and the honest fix for a check with side
+// effects is to run it where nothing comes after it.
+
+// Favourites had a position column from the day it shipped and nothing ever wrote to it:
+// the order was whenever you happened to star each one. Dragging is the feature; the thing
+// worth checking is that the new order is still there after a reload, not merely that a row
+// moved on screen.
+await step('favourites can be dragged into a new order', async () => {
+  const before = await page.evaluate(() => {
+    const body = document.getElementById('navFavBody');
+    const lbl = document.getElementById('navFavGroupLabel');
+    if (lbl && lbl.classList.contains('nav-group-collapsed')) lbl.click();
+    return [...body.querySelectorAll('[data-fav-screen]')].map(el => el.dataset.favScreen);
+  });
+  await page.waitForTimeout(400);
+  if (before.length < 2) { check('favourites can be dragged into a new order', false,
+    'needs two favourites, had ' + JSON.stringify(before)); return; }
+
+  const rows = page.locator('#navFavBody [data-fav-screen]');
+  await dragRow(rows.nth(1), rows.nth(0), false);   // second one, above the first
+
+  const after = await page.evaluate(() => ({
+    dom: [...document.querySelectorAll('#navFavBody [data-fav-screen]')].map(el => el.dataset.favScreen),
+    // What was actually written. The DOM alone would pass on a drag that never saved.
+    stored: window.__mock.db.nav_favorites
+      .slice().sort((x, y) => (x.position ?? 99) - (y.position ?? 99))
+      .map(f => f.screen + ':' + f.position),
+  }));
+  // Put Communication back. The nav groups are an ACCORDION: expanding Favourites above
+  // folds Communication away, and every later check reaches New Chat through it. Leaving it
+  // closed meant New Chat never opened, and a reply-badge check much further down found no
+  // messages at all -- failing as though Chat were broken. The two checks either side of
+  // this one already carried that warning in a comment; this one did not heed it.
+  await page.evaluate(async () => {
+    const comm = document.querySelector('.nav-group-toggle[data-navgroup="communication"]');
+    if (comm && comm.classList.contains('nav-group-collapsed')) comm.click();
+    await new Promise(r => setTimeout(r, 500));
+  });
+  await page.waitForTimeout(400);
+
+  const flipped = after.dom.join(',') === before.slice().reverse().join(',');
+  const savedInSameOrder = after.stored.map(x => x.split(':')[0]).join(',') === after.dom.join(',');
+  const numbered = after.stored.every((x, i) => x.split(':')[1] === String(i));
+  check('favourites can be dragged into a new order',
+    flipped && savedInSameOrder && numbered,
+    JSON.stringify({ before, ...after }));
+});
+
+// Chat 2.0 and Chat 3.0 are the two builds New Chat came from. They are out of
+// Communication and into Archive -- moved, not deleted, so both still open.
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
