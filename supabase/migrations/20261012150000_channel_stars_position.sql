@@ -1,19 +1,9 @@
 -- Starred channels in Chat had no order of their own.
 --
--- APPLIED, BUT NOT YET USED BY ANYTHING. The drag-to-reorder this column was added for is
--- held back on feature/chat-starred-order: the rows are wired correctly (draggable is set)
--- and the browser never starts a drag on them, almost certainly because the Starred card
--- rebuilds itself on every change in chat and the row being grabbed is destroyed mid-gesture.
--- The sidebar Favourites list does not rebuild like that, which shipped and works.
---
--- The column is recorded here rather than left out because it IS applied on production, and
--- a database that has a column the repo does not mention is the drift that costs an
--- afternoon later. It is nullable, backfilled, and read by nothing.
---
--- The Starred card was filled by walking the channel list and copying any row that happened
--- to be starred, so its order was whatever the sidebar built -- channels first, then DMs,
--- alphabetically within each. Nobody chose it and nobody could change it. With six or more
--- starred conversations that is a list you have to read rather than glance at.
+-- Used by the drag-to-reorder shipped in 20261013. The note that previously sat here said
+-- the feature was held back because the browser would not start a drag on those rows -- that
+-- diagnosis was wrong. The rows were in a collapsed card and had no height; nothing was
+-- wrong with the column or the drag.
 --
 -- The 48 existing rows across 8 people are backfilled from created_at, so nobody's Starred
 -- card changes order the day this ships -- it just becomes something they can change.
