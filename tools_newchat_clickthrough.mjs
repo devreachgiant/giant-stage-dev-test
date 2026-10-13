@@ -9235,6 +9235,99 @@ await step('favourites can be dragged into a new order', async () => {
 
 // Chat 2.0 and Chat 3.0 are the two builds New Chat came from. They are out of
 // Communication and into Archive -- moved, not deleted, so both still open.
+// Starred conversations drag into order too. LAST, beside the Favourites drag, and for the
+// same reason: this is driven by a real mouse and must not leave state behind it.
+//
+// Three earlier attempts at this check reported "nothing moved" and I diagnosed the feature
+// three times over -- threshold, re-render races, a card rebuilding under the cursor. All
+// wrong. The rows were in a COLLAPSED card: present in the DOM, draggable set, and exactly
+// zero pixels tall, so boundingBox() returned null and no drag could begin. The nav cards
+// are an accordion -- their heads call setOpenCard(), one open at a time -- so opening
+// starred, then teams, then clients left only clients open.
+//
+// CLAUDE.md already warns about this exact shape: "Collapsing hides the container; the rows
+// stay in the DOM. Count what is visible." The height assertion below is there so this can
+// never again be mistaken for a broken feature.
+await step('starred conversations can be dragged into a new order', async () => {
+  const setup = await page.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    const idOf = el => el.dataset.ncChannelId || el.dataset.ncDmChannelId || '';
+    const body = () => document.getElementById('nc_cardStarredBody');
+    const cur  = () => [...body().querySelectorAll('.nc_ch-item')].map(idOf);
+    const open = async (name) => {
+      const card = [...document.querySelectorAll('.nc_navcard')].find(c => c.dataset.nccard === name);
+      const b = card && card.querySelector('.nc_navcard-body');
+      if (b && b.getBoundingClientRect().height < 4) { card.querySelector('.nc_navcard-head').click(); await wait(500); }
+    };
+    await open('teams');
+    const added = [];
+    const teams = document.getElementById('nc_cardTeamsBody');
+    for (const r of [...(teams ? teams.querySelectorAll('.nc_ch-item') : [])]) {
+      if (cur().length >= 2) break;
+      if (r.querySelector('.nc_star-on') || !r.querySelector('.nc_star')) continue;
+      added.push(idOf(r));
+      r.querySelector('.nc_star').click();
+      await wait(500);
+    }
+    await wait(700);
+    await open('starred');     // opened LAST, so it is the card left open
+    await wait(700);
+    const rows = [...body().querySelectorAll('.nc_ch-item')];
+    return { starred: cur(), added,
+             heights: rows.map(r => Math.round(r.getBoundingClientRect().height)) };
+  });
+
+  // Measured, not assumed. A row of zero height cannot be dragged by anyone, and that is
+  // what made this look broken for three runs.
+  const visible = setup.heights.length >= 2 && setup.heights.every(h => h > 4);
+  if (setup.starred.length < 2 || !visible) {
+    check('starred conversations can be dragged into a new order', false,
+      'needs two VISIBLE starred rows: ' + JSON.stringify(setup)); return;
+  }
+
+  const rows = page.locator('#nc_cardStarredBody .nc_ch-item');
+  await dragRow(rows.nth(1), rows.nth(0), false);
+
+  const after = await page.evaluate(async (added) => {
+    const idOf = el => el.dataset.ncChannelId || el.dataset.ncDmChannelId || '';
+    const read = () => [...document.querySelectorAll('#nc_cardStarredBody .nc_ch-item')].map(idOf);
+    const dom = read();
+    const stored = (window.__mock.db.channel_stars || []).slice()
+      .sort((a, b) => (a.position ?? 99) - (b.position ?? 99))
+      .map(r => r.channel_id + ':' + r.position);
+    // This card is rebuilt on every change in chat, so an order that does not survive a
+    // render is not an order. Calling the renderer directly keeps the side effects at zero.
+    if (typeof window.nc_renderNavCards === 'function') window.nc_renderNavCards();
+    await new Promise(r => setTimeout(r, 700));
+    const afterRerender = read();
+    // Put back exactly what this step starred.
+    for (const id of added) {
+      const row = [...document.querySelectorAll('#nc_cardStarredBody .nc_ch-item')].find(el => idOf(el) === id);
+      const star = row && row.querySelector('.nc_star');
+      if (star) { star.click(); await new Promise(r => setTimeout(r, 400)); }
+    }
+    return { dom, stored, afterRerender };
+  }, setup.added);
+
+  // The second row moves above the first; the rest stay put. Asserting the whole list
+  // reverses only happens to be true when there are exactly two rows, and this card can
+  // hold any number.
+  const expected = setup.starred.slice();
+  [expected[0], expected[1]] = [expected[1], expected[0]];
+  const flipped  = after.dom.join(',') === expected.join(',');
+  const survived = after.afterRerender.join(',') === after.dom.join(',');
+  const savedIds = after.stored.map(x => x.split(':')[0]);
+  const savedInOrder = after.dom.every((id, i) => savedIds[i] === id);
+  const numbered = after.dom.every((id, i) => after.stored[i] === id + ':' + i);
+  // Every starred conversation must end up with its own position, including ones the card
+  // is not currently showing -- two sharing a number means their order is down to chance.
+  const positions = after.stored.map(x => Number(x.split(':')[1]));
+  const allDistinct = new Set(positions).size === positions.length;
+  check('starred conversations can be dragged into a new order',
+    flipped && survived && savedInOrder && numbered && allDistinct,
+    JSON.stringify({ before: setup.starred, expected, allDistinct, ...after }));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,

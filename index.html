@@ -74683,8 +74683,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const me = ncMyId();
       if (!me || !order.length) return;
       const previous = new Map(ncStarOrder);
-      order.forEach((id, i) => ncStarOrder.set(id, i));
-      const rows = order.map((channel_id, i) => ({ profile_id: me, channel_id, position: i }));
+      // The card only renders the starred conversations the sidebar is currently showing --
+      // a starred client channel sitting under a collapsed client, or one filtered out by
+      // the jump box, is starred but not on screen. Renumbering only what is visible gave
+      // two channels the same position and left their order down to chance. Everything
+      // starred gets a number: what was dragged takes 0..n-1 in the order it now sits, and
+      // anything starred but off screen keeps its relative order after it.
+      const rest = [...ncStars].filter(id => !order.includes(id))
+        .sort((a, b) => ncStarPos(a) - ncStarPos(b));
+      const full = order.concat(rest);
+      full.forEach((id, i) => ncStarOrder.set(id, i));
+      const rows = full.map((channel_id, i) => ({ profile_id: me, channel_id, position: i }));
       const { data, error } = await NCSB().from('channel_stars')
         .upsert(rows, { onConflict: 'profile_id,channel_id' })
         .select('channel_id');
