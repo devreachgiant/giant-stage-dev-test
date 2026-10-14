@@ -104,12 +104,19 @@ async function sessionFor(profile) {
   const hashed = link.hashed_token || (link.properties && link.properties.hashed_token);
   if (!hashed) throw new Error('Supabase returned no one-time token');
 
+  // token_hash, NOT token. generate_link returns a HASHED token, and /auth/v1/verify takes
+  // that under token_hash -- the `token` field is for the six-digit code it also returns as
+  // email_otp. Sent under the wrong name it answers 400 and the connection fails at the
+  // first question with nothing to go on.
   const ver = await fetch(`${SUPABASE_URL}/auth/v1/verify`, {
     method: 'POST',
     headers: { apikey: ANON_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type: 'magiclink', token: hashed }),
+    body: JSON.stringify({ type: 'magiclink', token_hash: hashed }),
   });
-  if (!ver.ok) throw new Error(`Could not complete the session (${ver.status})`);
+  if (!ver.ok) {
+    const why = await ver.text().catch(() => '');
+    throw new Error(`Could not complete the session (${ver.status}) ${why.slice(0, 160)}`);
+  }
   const sess = await ver.json();
   if (!sess.access_token) throw new Error('Supabase returned no access token');
 
