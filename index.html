@@ -6071,6 +6071,15 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .nc_fwd-mark{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;
   font-style:italic;color:var(--text-3);margin-bottom:2px;}
 
+/* "Sent using ChatGPT". A badge rather than a line of text, and deliberately smaller than
+   the message it labels -- it is a note about the message, not part of it. Slack does the
+   same thing for the same reason: posted under a person's name, written by a machine. */
+.nc_ai-mark{display:inline-flex;align-items:center;gap:4px;font-size:9.5px;font-weight:600;
+  letter-spacing:.02em;color:var(--text-3);background:var(--surface-2);
+  border:1px solid var(--line);border-radius:99px;padding:1px 7px 1px 5px;
+  margin-left:6px;vertical-align:middle;white-space:nowrap;}
+.nc_ai-mark svg{opacity:.75;flex-shrink:0;}
+
 /* Downloading an attachment.
    The button is always in the DOM and only fades in on hover, rather than being added on
    hover: a control that does not exist until you find it is a control most people never
@@ -81184,7 +81193,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
       const { data, error } = await queryWithRetry(() => window.giantSupabase
         .from('messages')
-        .select('id, body, created_at, edited_at, author_id, channel_id, parent_id, reply_count, voice_note_url, voice_note_duration_ms, flagged, forwarded_from')
+        .select('id, body, created_at, edited_at, author_id, channel_id, parent_id, reply_count, voice_note_url, voice_note_duration_ms, flagged, forwarded_from, sent_via')
         .in('channel_id', ncChannelScope(channelId))
         .is('parent_id', null)
         .order('created_at', { ascending: false })
@@ -81267,7 +81276,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         : 0;
       const { data, error } = await window.giantSupabase
         .from('messages')
-        .select('id, body, created_at, edited_at, author_id, channel_id, parent_id, reply_count, voice_note_url, voice_note_duration_ms, flagged, forwarded_from')
+        .select('id, body, created_at, edited_at, author_id, channel_id, parent_id, reply_count, voice_note_url, voice_note_duration_ms, flagged, forwarded_from, sent_via')
         .in('channel_id', ncChannelScope(channelId))
         .is('parent_id', null)
         .lt('created_at', page.oldestTs)
@@ -81481,7 +81490,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             <div class="nc_msg nc_msg-grouped${m.flagged ? ' nc_flagged' : ''}" data-msg-id="${chatEsc(m.id)}" data-author-id="${chatEsc(m.author_id)}" data-ts="${d.getTime()}">
               <div class="nc_ava-slot" title="${chatEsc(formatChatTime(m.created_at))}"><span class="nc_grouped-time">${chatEsc(formatChatTimeShort(m.created_at))}</span></div>
               <div class="nc_body">
-                ${forwardQuoteHtml(m.forwarded_from)}
+                ${aiSentHtml(m.sent_via)}${forwardQuoteHtml(m.forwarded_from)}
                 <div class="nc_text" data-msg-body data-msg-id="${chatEsc(m.id)}" data-msg-mine="${isMine ? '1' : '0'}">${parseMentions(m.body).replace(/\n/g, "<br>")}${voiceHtml}${m.edited_at ? ' <span style="color:var(--text-3);font-size:9.5px;">(edited)</span>' : ''}</div>
               </div>
               ${deleteBtn}
@@ -81491,7 +81500,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           <div class="nc_msg${m.flagged ? ' nc_flagged' : ''}" data-msg-id="${chatEsc(m.id)}" data-author-id="${chatEsc(m.author_id)}" data-ts="${d.getTime()}">
             <div class="ava ${(window.giantOnlineProfiles && window.giantOnlineProfiles.has(m.author_id)) ? 'online' : ''}" data-presence-for="${chatEsc(m.author_id)}" style="${avaStyle}">${avaInner}</div>
             <div class="nc_body">
-              <div class="nc_head"><span class="nc_name">${chatEsc(p.full_name || p.email)}</span><span class="nc_time">${chatEsc(formatChatTime(m.created_at))}${m.edited_at ? " <span style=\"color:var(--text-3);font-size:9.5px;\">(edited)</span>" : ""}</span></div>
+              <div class="nc_head"><span class="nc_name">${chatEsc(p.full_name || p.email)}</span><span class="nc_time">${chatEsc(formatChatTime(m.created_at))}${m.edited_at ? " <span style=\"color:var(--text-3);font-size:9.5px;\">(edited)</span>" : ""}</span>${aiSentHtml(m.sent_via)}</div>
               ${forwardQuoteHtml(m.forwarded_from)}
               <div class="nc_text" data-msg-body data-msg-id="${chatEsc(m.id)}" data-msg-mine="${m.author_id === window.giantSession.user.id ? "1" : "0"}">${parseMentions(m.body).replace(/\n/g, "<br>")}${voiceHtml}</div>
             </div>
@@ -82072,7 +82081,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         div.innerHTML = `<div class="nc_msg nc_msg-grouped nc_msg-new" data-msg-id="${chatEsc(m.id)}" data-author-id="${chatEsc(m.author_id)}" data-ts="${d.getTime()}">
           <div class="nc_ava-slot" title="${chatEsc(formatChatTime(m.created_at))}"><span class="nc_grouped-time">${chatEsc(formatChatTimeShort(m.created_at))}</span></div>
           <div class="nc_body">
-            ${forwardQuoteHtml(m.forwarded_from)}
+            ${aiSentHtml(m.sent_via)}${forwardQuoteHtml(m.forwarded_from)}
             <div class="nc_text" data-msg-body data-msg-id="${chatEsc(m.id)}" data-msg-mine="${isMine ? '1' : '0'}">${parseMentions(m.body).replace(/\n/g, "<br>")}${voiceHtml}${m.edited_at ? ' <span style="color:var(--text-3);font-size:9.5px;">(edited)</span>' : ''}</div>
           </div>
           ${deleteBtn}
@@ -82081,7 +82090,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         div.innerHTML = `<div class="nc_msg nc_msg-new" data-msg-id="${chatEsc(m.id)}" data-author-id="${chatEsc(m.author_id)}" data-ts="${d.getTime()}">
           <div class="ava ${(window.giantOnlineProfiles && window.giantOnlineProfiles.has(m.author_id)) ? 'online' : ''}" data-presence-for="${chatEsc(m.author_id)}" style="${avaStyle}">${avaInner}</div>
           <div class="nc_body">
-            <div class="nc_head"><span class="nc_name">${chatEsc(p.full_name || p.email)}</span><span class="nc_time">${chatEsc(formatChatTime(m.created_at))}${m.edited_at ? " <span style=\"color:var(--text-3);font-size:9.5px;\">(edited)</span>" : ""}</span></div>
+            <div class="nc_head"><span class="nc_name">${chatEsc(p.full_name || p.email)}</span><span class="nc_time">${chatEsc(formatChatTime(m.created_at))}${m.edited_at ? " <span style=\"color:var(--text-3);font-size:9.5px;\">(edited)</span>" : ""}</span>${aiSentHtml(m.sent_via)}</div>
             ${forwardQuoteHtml(m.forwarded_from)}
             <div class="nc_text" data-msg-body data-msg-id="${chatEsc(m.id)}" data-msg-mine="${m.author_id === window.giantSession.user.id ? "1" : "0"}">${parseMentions(m.body).replace(/\n/g, "<br>")}${voiceHtml}</div>
           </div>
@@ -85812,6 +85821,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
 
     // What a forwarded message shows above whatever the sender added.
+    // Shown only when a message carries sent_via, which is only ever set by the MCP server
+    // when an assistant posts on somebody's behalf. Everything a person typed has it null,
+    // which is 20,773 of the 20,773 rows that existed when this shipped.
+    function aiSentHtml(via) {
+      const name = String(via || '').trim();
+      if (!name) return '';
+      return '<span class="nc_ai-mark" title="Posted through ' + chatEsc(name)
+        + ' on this person\u2019s behalf">'
+        + '<svg width="9" height="9" viewBox="0 0 16 16" fill="none">'
+        + '<path d="M8 1.8l1.5 4 4 1.5-4 1.5L8 12.8 6.5 8.8l-4-1.5 4-1.5L8 1.8Z" '
+        + 'stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>'
+        + 'Sent using ' + chatEsc(name) + '</span>';
+    }
+
     function forwardQuoteHtml(snap) {
       if (!snap || typeof snap !== 'object') return '';
       return '<div class="nc_fwd-mark">'
@@ -85819,6 +85842,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         + ' stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Forwarded</div>';
     }
     window.nc_forwardQuoteHtml = forwardQuoteHtml;
+    window.nc_aiSentHtml = aiSentHtml;
 
     function renderAttachmentsForMsg(msgEl, messageId) {
       const atts = chatAttachmentsCache[messageId] || [];
@@ -86005,7 +86029,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       div.dataset.msgId = m.id;
       div.innerHTML = `<div class="ava ${(window.giantOnlineProfiles && window.giantOnlineProfiles.has(m.author_id)) ? 'online' : ''}" data-presence-for="${chatEsc(m.author_id)}" style="${avaStyle}">${avaInner}</div>
         <div class="nc_body">
-          <div class="nc_head"><span class="nc_name">${chatEsc(p.full_name || p.email)}</span><span class="nc_time">${chatEsc(formatChatTime(m.created_at))}${m.edited_at?' <span style="color:var(--text-3);font-size:9.5px;">(edited)</span>':''}</span></div>
+          <div class="nc_head"><span class="nc_name">${chatEsc(p.full_name || p.email)}</span><span class="nc_time">${chatEsc(formatChatTime(m.created_at))}${m.edited_at?' <span style="color:var(--text-3);font-size:9.5px;">(edited)</span>':''}</span>${aiSentHtml(m.sent_via)}</div>
           ${forwardQuoteHtml(m.forwarded_from)}
           <div class="nc_text" data-msg-body data-msg-id="${chatEsc(m.id)}" data-msg-mine="${isMine ? '1' : '0'}">${parseMentions(m.body).replace(/\n/g,'<br>')}</div>
         </div>`;

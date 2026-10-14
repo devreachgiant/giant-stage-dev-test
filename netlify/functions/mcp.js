@@ -203,7 +203,8 @@ exports.handler = async (event) => {
     // decides what comes back -- not this file.
     const accessToken = await sessionFor(profile);
     const ctx = { accessToken, role: profile.role, name: profile.name,
-                  email: profile.email, profileId: profile.profileId, canWrite };
+                  email: profile.email, profileId: profile.profileId, canWrite,
+                  clientName: profile.clientName || null };
     const out = await tool.run(ctx, (params && params.arguments) || {});
     audit({ profile_id: profile.profileId, via: profile.via || 'oauth',
             client_name: profile.clientName || null, tool: toolName, writes: !!tool.writes,

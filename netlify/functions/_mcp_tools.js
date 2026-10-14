@@ -331,9 +331,14 @@ const TOOLS = [
       if (!args.channel_id || !body) return { error: 'A message needs a channel and something to say.' };
       const rows = await writeAsUser(ctx.accessToken, 'messages', 'POST', {
         channel_id: args.channel_id, author_id: ctx.profileId, body,
+        // Stamped so the message can say where it came from. It posts under the person's
+        // name, which is right -- they asked for it -- but everyone else in the channel
+        // deserves to know a machine typed it.
+        sent_via: ctx.clientName || 'AI',
       });
       return { posted: { id: rows[0].id, channel_id: rows[0].channel_id },
-               note: 'Posted under ' + ctx.name + '.' };
+               note: 'Posted under ' + ctx.name + ', labelled as sent via '
+                     + (ctx.clientName || 'AI') + '.' };
     },
   },
 

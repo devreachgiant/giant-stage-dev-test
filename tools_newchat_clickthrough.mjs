@@ -9441,6 +9441,94 @@ if (mcp) {
     mcp.tokenHiddenOnReturn === true, String(mcp.tokenHiddenOnReturn));
 }
 
+// "Sent using ChatGPT" has to appear on EVERY way a message gets drawn.
+//
+// The forward feature shipped with its label on two of five render paths, so the person who
+// sent it saw "Forwarded" and the person who received it live did not. Chat draws a message
+// in five places -- grouped and ungrouped in the list, grouped and ungrouped when one
+// arrives live, and in the thread panel -- and a label added to some of them is a label
+// that works until somebody looks from the other side.
+//
+// Measured, not merely present: the badge is checked for width, because an element that
+// exists at 0px is the exact shape of the colour-dot bug this repo already has a scar from.
+await step('a message posted by an assistant says so, everywhere it is drawn', async () => {
+  // Back to Chat first. This step runs last, after the Projects checks have navigated away,
+  // and a hidden screen measures zero -- the first run reported the badge rendered, reading
+  // correctly, at the right size, and 0px wide. The width assertion was right and the screen
+  // was simply not on.
+  await page.evaluate(async () => {
+    document.querySelectorAll('.nav-group-toggle').forEach(t => {
+      if (t.classList.contains('nav-group-collapsed')) t.click();
+    });
+    await new Promise(r => setTimeout(r, 400));
+    const nav = document.querySelector('.nav-item[data-screen="newchat"]');
+    if (nav) nav.click();
+    await new Promise(r => setTimeout(r, 2500));
+  });
+  await page.waitForTimeout(1500);
+
+  const r = await page.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    out.chatVisible = !!document.querySelector('.screen[data-screen="newchat"].on');
+
+    // The renderer itself: nothing for a human message, a badge naming the assistant for one
+    // it posted.
+    out.silentForHumans = window.nc_aiSentHtml(null) === '' && window.nc_aiSentHtml('') === '';
+    const mark = window.nc_aiSentHtml('ChatGPT');
+    out.namesTheAssistant = /ChatGPT/.test(mark) && /nc_ai-mark/.test(mark);
+    out.saysSentUsing = mark.replace(/<[^>]*>/g, '').trim() === 'Sent using ChatGPT';
+
+    // Delivered the way a live one arrives, through appendMessage. That is the path the
+    // forward label was missing -- the sender saw it and the recipient did not -- so it is
+    // the one worth driving. Re-rendering the channel was the first attempt and told me
+    // nothing: the badge never appeared and the reason could have been anywhere.
+    const open = document.querySelector('#nc_chatMsgsList [data-msg-id]');
+    const sample = open && (window.__mock.db.messages || [])
+      .find(m => String(m.id) === String(open.dataset.msgId));
+    if (!sample || typeof window.nc_appendMessage !== 'function') {
+      out.cannotDeliver = true; return out;
+    }
+    const liveId = 'zz-ai-' + sample.channel_id;
+    await window.nc_appendMessage(Object.assign({}, sample, {
+      id: liveId, body: 'posted by an assistant', sent_via: 'ChatGPT',
+      parent_id: null, created_at: new Date().toISOString(),
+    }));
+    await wait(1400);
+
+    const el = document.querySelector(`#nc_chatMsgsList [data-msg-id="${liveId}"] .nc_ai-mark`);
+    out.rendered = !!el;
+    out.readsRight = el ? /Sent using ChatGPT/.test(el.textContent || '') : false;
+    // Width, not existence.
+    out.widthPx = el ? Math.round(el.getBoundingClientRect().width) : 0;
+    out.smallerThanTheMessage = (() => {
+      const body = document.querySelector(`#nc_chatMsgsList [data-msg-id="${liveId}"] .nc_text`);
+      if (!el || !body) return false;
+      return parseFloat(getComputedStyle(el).fontSize) < parseFloat(getComputedStyle(body).fontSize);
+    })();
+    const row = document.querySelector(`#nc_chatMsgsList [data-msg-id="${liveId}"]`);
+    if (row) row.remove();
+    return out;
+  });
+
+  check('a message posted by an assistant says so, everywhere it is drawn',
+    r.silentForHumans && r.namesTheAssistant && r.saysSentUsing &&
+    r.chatVisible && r.rendered && r.readsRight && r.widthPx > 40 && r.smallerThanTheMessage,
+    JSON.stringify(r));
+});
+
+// Every path that draws a message must call it, counted in the source. The browser can only
+// show the paths this run happened to exercise; this one notices a path that was missed.
+await step('every message render path carries the assistant badge', async () => {
+  const src = readFileSync(path.join(HERE, 'index.html'), 'utf8');
+  const badge = (src.match(/\$\{aiSentHtml\(m\.sent_via\)\}/g) || []).length;
+  const fwd   = (src.match(/\$\{forwardQuoteHtml\(m\.forwarded_from\)\}/g) || []).length;
+  const fetched = (src.match(/forwarded_from, sent_via/g) || []).length;
+  check('every message render path carries the assistant badge',
+    badge === fwd && badge >= 5 && fetched >= 2,
+    `badge on ${badge} paths, forwarded label on ${fwd}, ${fetched} queries fetch sent_via`);
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
