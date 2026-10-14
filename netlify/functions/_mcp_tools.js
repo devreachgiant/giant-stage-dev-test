@@ -132,13 +132,78 @@ const TOOLS = [
 
   {
     name: 'list_channels',
-    description: 'Chat channels the caller can see, excluding direct messages.',
-    inputSchema: { type: 'object', properties: { limit: { type: 'number' } } },
+    description:
+      'Chat channels the caller can see. Set include_dms to also list direct messages, ' +
+      'each labelled with who it is with — that is how you find where to send someone a DM.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        include_dms: { type: 'boolean', description: 'Also list direct messages' },
+        search:      { type: 'string', description: 'Match part of a channel or person name' },
+        limit:       { type: 'number' },
+      },
+    },
     run: async (ctx, args = {}) => {
-      const rows = await asUser(ctx.accessToken,
-        'channels?select=id,name,display_name,kind,department,client_id&is_dm=is.false'
-        + `&order=name.asc&limit=${clamp(args.limit, 100, 300)}`);
-      return { channels: rows, count: rows.length };
+      const lim = clamp(args.limit, 100, 300);
+      let q = 'channels?select=id,name,display_name,kind,department,client_id,is_dm,is_group'
+            + `&order=name.asc&limit=${lim}`;
+      if (!args.include_dms) q += '&is_dm=is.false';
+      const rows = await asUser(ctx.accessToken, q);
+
+      // A DM's row has no useful name on it -- the app works out who it is with from its
+      // members. Without that, an assistant asked to message a person has a list of
+      // conversations it cannot tell apart, which is exactly where this fell over: it could
+      // post a message and had no way to find where to post it.
+      const dmIds = rows.filter(r => r.is_dm).map(r => r.id);
+      if (dmIds.length) {
+        const members = await asUser(ctx.accessToken,
+          'channel_members?select=channel_id,profile_id,profiles(id,full_name,email)'
+          + `&channel_id=in.(${dmIds.join(',')})&limit=1000`);
+        const byChannel = new Map();
+        members.forEach(m => {
+          if (!byChannel.has(m.channel_id)) byChannel.set(m.channel_id, []);
+          byChannel.get(m.channel_id).push(m);
+        });
+        rows.forEach(r => {
+          if (!r.is_dm) return;
+          const others = (byChannel.get(r.id) || []).filter(m => m.profile_id !== ctx.profileId);
+          r.with = others.map(m => (m.profiles || {}).full_name).filter(Boolean).join(', ');
+          r.with_ids = others.map(m => m.profile_id);
+          // Spelled out, because "with: Rash" and "with: Mave, Noor, Rash, V" look alike at
+          // a glance and one of them is a private message to a person while the other is a
+          // group of five. Searching for a name matches both.
+          r.dm_kind = (r.is_group || others.length > 1) ? 'group' : 'one-to-one';
+        });
+      }
+
+      const needle = String(args.search || '').trim().toLowerCase();
+      const out = needle
+        ? rows.filter(r => [r.display_name, r.name, r.with].some(
+            v => String(v || '').toLowerCase().includes(needle)))
+        : rows;
+      return { channels: out, count: out.length,
+               note: args.include_dms
+                 ? 'Direct messages carry "with" (who it is with) and "dm_kind". A search '
+                   + 'for a person matches their one-to-one AND any group they are in, so '
+                   + 'check dm_kind is "one-to-one" before sending anything private.'
+                 : 'Direct messages are not included. Pass include_dms to see them.' };
+    },
+  },
+
+  {
+    name: 'list_people',
+    description:
+      'Teammates in the workspace, with the ids other tools need. Use this to turn a name ' +
+      'like "Rash" into the person, then find their direct message with list_channels.',
+    inputSchema: {
+      type: 'object',
+      properties: { search: { type: 'string', description: 'Match part of a name or email' } },
+    },
+    run: async (ctx, args = {}) => {
+      let q = 'profiles?select=id,full_name,email,role&order=full_name.asc&limit=200';
+      if (args.search) q += `&or=(full_name.ilike.*${esc(args.search)}*,email.ilike.*${esc(args.search)}*)`;
+      const rows = await asUser(ctx.accessToken, q);
+      return { people: rows, count: rows.length };
     },
   },
 
