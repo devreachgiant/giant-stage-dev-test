@@ -244,12 +244,12 @@ exports.handler = async (event) => {
   return { statusCode: 200, headers: htmlHeaders, body: shell(`
 <div class="card" id="card">
   <div class="mark">G</div>
-  <h1>${esc(appName)} wants to read Giant</h1>
+  <h1 id="headline">${esc(appName)} wants to read Giant</h1>
   <p>It will see Giant <b>as you</b> — the same clients, projects, tasks and channels you see
      when you open the app, and nothing else.</p>
   <ul>
-    <li>It can <b>read</b> your clients, projects, tasks, meetings and chat</li>
-    <li>It <b>cannot</b> post, edit or delete anything</li>
+    <li id="bulletRead">It can <b>read</b> your clients, projects, tasks, meetings and chat</li>
+    <li id="bulletWrite">It <b>cannot</b> post, edit or delete anything</li>
     <li>You can cut it off any time in Settings → Connected AI</li>
   </ul>
   <label class="perm" id="permBox">
@@ -345,6 +345,22 @@ exports.handler = async (event) => {
       err.textContent = 'Could not reach Giant.';
     });
   }
+
+  // The summary has to follow the choice. With the box ticked, "It cannot post, edit or
+  // delete anything" sat directly above a checkbox saying it could -- the screen
+  // contradicted itself at the moment somebody was deciding whether to trust it.
+  var appName = ${JSON.stringify(appName)};
+  function reflectPermission(){
+    var on = document.getElementById('allowWrite').checked;
+    document.getElementById('headline').textContent =
+      appName + (on ? ' wants to read and change Giant' : ' wants to read Giant');
+    document.getElementById('bulletWrite').innerHTML = on
+      ? 'It can <b>create and update</b> tasks, post messages as you, and edit client '
+        + 'details &mdash; and it can <b>never delete</b> anything'
+      : 'It <b>cannot</b> post, edit or delete anything';
+  }
+  document.getElementById('allowWrite').addEventListener('change', reflectPermission);
+  reflectPermission();
 
   document.getElementById('allow').addEventListener('click', function(){ decide('allow'); });
   document.getElementById('deny').addEventListener('click', function(){ decide('deny'); });
