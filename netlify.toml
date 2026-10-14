@@ -112,9 +112,66 @@
   to = "/index.html"
   status = 200
 
+# "Sign in with Giant" for AI assistants (MCP authorization).
+# These MUST stay above the /oauth/* and /* rules below, which send everything else
+# to the app -- an MCP client discovering this server would otherwise be handed
+# index.html where it expected JSON, and simply report that Giant is not an MCP server.
+[[redirects]]
+  from = "/.well-known/oauth-protected-resource"
+  to = "/.netlify/functions/mcp-oauth-prm"
+  status = 200
+
+[[redirects]]
+  from = "/.well-known/oauth-protected-resource/mcp"
+  to = "/.netlify/functions/mcp-oauth-prm"
+  status = 200
+
+[[redirects]]
+  from = "/.well-known/oauth-authorization-server"
+  to = "/.netlify/functions/mcp-oauth-as"
+  status = 200
+
+[[redirects]]
+  from = "/.well-known/oauth-authorization-server/mcp"
+  to = "/.netlify/functions/mcp-oauth-as"
+  status = 200
+
+[[redirects]]
+  from = "/.well-known/openid-configuration"
+  to = "/.netlify/functions/mcp-oauth-as"
+  status = 200
+
+[[redirects]]
+  from = "/oauth/authorize"
+  to = "/.netlify/functions/mcp-oauth-authorize"
+  status = 200
+
+[[redirects]]
+  from = "/oauth/token"
+  to = "/.netlify/functions/mcp-oauth-token"
+  status = 200
+
+[[redirects]]
+  from = "/oauth/register"
+  to = "/.netlify/functions/mcp-oauth-register"
+  status = 200
+
+[[redirects]]
+  from = "/oauth/revoke"
+  to = "/.netlify/functions/mcp-oauth-revoke"
+  status = 200
+
 [[redirects]]
   from = "/oauth/*"
   to = "/index.html"
+  status = 200
+
+# The MCP endpoint, so what somebody pastes into Claude is giant.reachgiant.com/mcp
+# rather than a /.netlify/functions/ path. Must sit ABOVE the SPA catch-all below,
+# which would otherwise swallow it and serve index.html to an MCP client.
+[[redirects]]
+  from = "/mcp"
+  to = "/.netlify/functions/mcp"
   status = 200
 
 [[redirects]]
