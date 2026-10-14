@@ -21,7 +21,7 @@
 // trust where you would be redirecting to.
 
 const {
-  getClient, redirectAllowed, issueCode, ISSUER, RESOURCE_URI, SCOPE,
+  getClient, redirectAllowed, issueCode, ISSUER, RESOURCE_URI, SCOPE, SCOPE_WRITE,
 } = require('./_mcp_oauth');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -79,6 +79,12 @@ function shell(inner) {
   .who b{display:block;font-size:13px;color:var(--text);}
   .who span{font-size:11.5px;color:var(--text3);}
   ul{margin:14px 0;padding-left:18px;}
+  .perm{margin:16px 0 4px;padding:13px 14px;border:1px solid var(--line);border-radius:11px;
+        display:flex;gap:11px;align-items:flex-start;cursor:pointer;transition:.15s;}
+  .perm:hover{border-color:var(--line2);}
+  .perm input{width:16px;height:16px;margin:1px 0 0;accent-color:var(--red);cursor:pointer;flex-shrink:0;}
+  .perm b{display:block;font-size:12.5px;color:var(--text);margin-bottom:3px;}
+  .perm span{font-size:11.5px;color:var(--text-3);line-height:1.5;}
   li{font-size:12.5px;color:var(--text2);line-height:1.8;}
   .row{display:flex;gap:9px;margin-top:20px;}
   button{flex:1;padding:11px 16px;border-radius:9px;font-size:13px;font-weight:700;
@@ -181,6 +187,11 @@ exports.handler = async (event) => {
         message: 'Client accounts cannot connect an assistant to this workspace.' }) };
     }
 
+    // Writing is granted here and nowhere else, and it is recorded on the code -- which
+    // becomes the token's scope. A connection made without ticking the box can never write,
+    // however it is later asked. Widening it means connecting again and choosing again.
+    const grantedScope = body.allow_write === true ? SCOPE_WRITE : SCOPE;
+
     let code;
     try {
       code = await issueCode({
@@ -189,7 +200,7 @@ exports.handler = async (event) => {
         redirectUri: body.redirect_uri,
         codeChallenge: body.code_challenge,
         resource: body.resource || RESOURCE_URI,
-        scope: SCOPE,
+        scope: grantedScope,
       });
     } catch (e) {
       return { statusCode: 500, headers: json, body: JSON.stringify({ error: 'server_error' }) };
@@ -241,6 +252,13 @@ exports.handler = async (event) => {
     <li>It <b>cannot</b> post, edit or delete anything</li>
     <li>You can cut it off any time in Settings → Connected AI</li>
   </ul>
+  <label class="perm" id="permBox">
+    <input type="checkbox" id="allowWrite">
+    <span><b>Also let it make changes</b>
+    It can create and update tasks, post messages as you, and edit client details. It can
+    never delete anything, and every change is recorded. Leave this unticked and it can only
+    read.</span>
+  </label>
   <div id="who" class="who" style="display:none;">
     <div class="ava" id="ava">·</div>
     <div><b id="whoName">—</b><span id="whoEmail">—</span></div>
@@ -304,6 +322,10 @@ exports.handler = async (event) => {
       var s = r.data && r.data.session;
       var payload = Object.assign({}, REQ, {
         decision: decision,
+        // What the person ticked, read at the moment they pressed the button. The server
+        // does not trust it on its own -- it decides the scope -- but this is where the
+        // choice is made, and it is off unless somebody deliberately turns it on.
+        allow_write: !!document.getElementById('allowWrite').checked,
         access_token: s ? s.access_token : null
       });
       return fetch(window.location.pathname, {

@@ -14,7 +14,7 @@
 // connecting through MCP cannot see financials. If a tool is ever added that reads
 // public.clients directly, that check is the thing that should fail.
 
-const { asUser } = require('./_mcp_identity');
+const { asUser, writeAsUser } = require('./_mcp_identity');
 
 const MANAGER_ROLES = ['owner', 'manager', 'inhouse_dev'];
 const isManager = (role) => MANAGER_ROLES.includes(String(role || '').toLowerCase());
@@ -158,6 +158,156 @@ const TOOLS = [
     },
   },
 
+  // ── the ones that change things ────────────────────────────────────────────
+  //
+  // Create and update only. There is deliberately no delete tool, and adding one later
+  // should be an argued decision rather than a convenience: this assistant READS chat, so
+  // anyone who can type in a channel can put words in front of it. The defence that
+  // actually holds is not owning the dangerous verb.
+  //
+  // Each of these runs as the person, so the database refuses anything they could not do by
+  // hand -- and writeAsUser turns a silent zero-row refusal into an error the assistant can
+  // repeat back, instead of reporting success for a change that never happened.
+  {
+    name: 'create_task',
+    writes: true,
+    description:
+      'Create a task. Needs a name and the project it belongs to — find one with ' +
+      'list_projects first. Returns the task it made, so you can tell the person what was ' +
+      'created rather than assuming it worked.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        name:        { type: 'string', description: 'What the task is' },
+        description: { type: 'string' },
+        project_id:  { type: 'string', description: 'Required — the project it belongs to' },
+        client_id:   { type: 'string' },
+        assigned_to: { type: 'string', description: 'Profile id of the person it is for' },
+        due_date:    { type: 'string', description: 'yyyy-mm-dd' },
+        status:      { type: 'string' },
+      },
+      required: ['name', 'project_id'],
+    },
+    run: async (ctx, args = {}) => {
+      const name = String(args.name || '').trim();
+      if (!name) return { error: 'A task needs a name.' };
+      // Not optional, whatever it looks like. Both insert policies on tasks key off the
+      // project -- is_project_member(project_id), or can_edit_project(project_id) -- so a
+      // task without one is refused every time. Asked for plainly here, because
+      // "new row violates row-level security policy" tells the person nothing they can act
+      // on, and an assistant will simply try again the same way.
+      if (!args.project_id) {
+        return { error: 'Which project should this task go in? Use list_projects to find '
+                      + 'one, then pass its id as project_id.' };
+      }
+      const row = { name, created_by: ctx.profileId };
+      ['description', 'project_id', 'client_id', 'assigned_to', 'status'].forEach(k => {
+        if (args[k]) row[k] = args[k];
+      });
+      // Parsed as written, never through new Date(): '2026-10-01' read as a Date is UTC
+      // midnight, which is the day before for anybody west of Greenwich.
+      if (args.due_date && /^\d{4}-\d{2}-\d{2}$/.test(args.due_date)) row.due_date = args.due_date;
+      const rows = await writeAsUser(ctx.accessToken, 'tasks', 'POST', row);
+      return { created: rows[0], note: 'Task created.' };
+    },
+  },
+
+  {
+    name: 'update_task',
+    writes: true,
+    description:
+      'Change a task that already exists — its name, status, due date, who it is for. ' +
+      'Only the fields you pass are changed.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task_id:     { type: 'string' },
+        name:        { type: 'string' },
+        description: { type: 'string' },
+        status:      { type: 'string' },
+        assigned_to: { type: 'string' },
+        due_date:    { type: 'string', description: 'yyyy-mm-dd, or empty to clear it' },
+      },
+      required: ['task_id'],
+    },
+    run: async (ctx, args = {}) => {
+      if (!args.task_id) return { error: 'Which task? Pass task_id.' };
+      const patch = {};
+      ['name', 'description', 'status', 'assigned_to'].forEach(k => {
+        if (args[k] !== undefined) patch[k] = args[k];
+      });
+      if (args.due_date !== undefined) {
+        patch.due_date = (args.due_date && /^\d{4}-\d{2}-\d{2}$/.test(args.due_date))
+          ? args.due_date : null;
+      }
+      if (!Object.keys(patch).length) return { error: 'Nothing to change.' };
+      const rows = await writeAsUser(ctx.accessToken,
+        `tasks?id=eq.${esc(args.task_id)}`, 'PATCH', patch);
+      return { updated: rows[0], changed: Object.keys(patch) };
+    },
+  },
+
+  {
+    name: 'post_message',
+    writes: true,
+    description:
+      'Post a message to a channel or a direct message, as the person. Use list_channels ' +
+      'to find the channel first. It appears under their name, so say so before posting.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        channel_id: { type: 'string' },
+        body:       { type: 'string', description: 'What to say' },
+      },
+      required: ['channel_id', 'body'],
+    },
+    run: async (ctx, args = {}) => {
+      const body = String(args.body || '').trim();
+      if (!args.channel_id || !body) return { error: 'A message needs a channel and something to say.' };
+      const rows = await writeAsUser(ctx.accessToken, 'messages', 'POST', {
+        channel_id: args.channel_id, author_id: ctx.profileId, body,
+      });
+      return { posted: { id: rows[0].id, channel_id: rows[0].channel_id },
+               note: 'Posted under ' + ctx.name + '.' };
+    },
+  },
+
+  {
+    name: 'update_client',
+    writes: true,
+    description:
+      'Change a client record — status, contact details, dates. Only the fields you pass ' +
+      'are changed. Cannot create or remove a client.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        client_id:      { type: 'string' },
+        status:         { type: 'string', description: 'active, onboarding, paused, churned' },
+        contact_name:   { type: 'string' },
+        contact_email:  { type: 'string' },
+        next_charge_on: { type: 'string', description: 'yyyy-mm-dd' },
+        notes:          { type: 'string' },
+      },
+      required: ['client_id'],
+    },
+    run: async (ctx, args = {}) => {
+      if (!args.client_id) return { error: 'Which client? Pass client_id.' };
+      const patch = {};
+      ['status', 'contact_name', 'contact_email', 'notes'].forEach(k => {
+        if (args[k] !== undefined) patch[k] = args[k];
+      });
+      if (args.next_charge_on && /^\d{4}-\d{2}-\d{2}$/.test(args.next_charge_on)) {
+        patch.next_charge_on = args.next_charge_on;
+      }
+      if (!Object.keys(patch).length) return { error: 'Nothing to change.' };
+      // Always the base table for a write: the per-role views are for reading, and an
+      // update aimed at one would either fail or quietly write somewhere unexpected.
+      const rows = await writeAsUser(ctx.accessToken,
+        `clients?id=eq.${esc(args.client_id)}`, 'PATCH', patch);
+      return { updated: { id: rows[0].id, name: rows[0].name }, changed: Object.keys(patch) };
+    },
+  },
+
   {
     name: 'whoami',
     description:
@@ -172,7 +322,11 @@ const TOOLS = [
 ];
 
 const byName = (n) => TOOLS.find(t => t.name === n) || null;
-const listForProtocol = () => TOOLS.map(({ name, description, inputSchema }) =>
-  ({ name, description, inputSchema }));
+// What a connection may see depends on what it was granted. A read-only connection is not
+// shown the writing tools at all -- an assistant that cannot see a tool does not try it, and
+// does not tell the person it could have done something it cannot.
+const listForProtocol = (canWrite) => TOOLS
+  .filter(t => canWrite || !t.writes)
+  .map(({ name, description, inputSchema }) => ({ name, description, inputSchema }));
 
 module.exports = { TOOLS, byName, listForProtocol, clientSource, isManager };

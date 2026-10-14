@@ -65,7 +65,7 @@ async function profileForToken(presented) {
   if (!presented || !String(presented).startsWith(TOKEN_PREFIX)) return null;
   const hash = sha256(presented);
   const r = await rest(
-    `api_tokens?select=id,profile_id,revoked_at,profiles(id,full_name,email,role)` +
+    `api_tokens?select=id,profile_id,revoked_at,scope,name,profiles(id,full_name,email,role)` +
     `&token_hash=eq.${encodeURIComponent(hash)}&limit=1`);
   if (!r.ok || !Array.isArray(r.body) || !r.body.length) return null;
   const row = r.body[0];
@@ -82,7 +82,8 @@ async function profileForToken(presented) {
     body: JSON.stringify({ last_used_at: new Date().toISOString() }),
   }).catch(() => {});
   return { tokenId: row.id, profileId: row.profile_id, role: prof.role,
-           name: prof.full_name, email: prof.email };
+           name: prof.full_name, email: prof.email,
+           scope: row.scope || 'giant:read', via: 'token', clientName: row.name || null };
 }
 
 // A real session for that person, so the database applies their permissions and not ours.
@@ -138,4 +139,30 @@ async function asUser(accessToken, path) {
   try { return JSON.parse(text); } catch (_) { return []; }
 }
 
-module.exports = { TOKEN_PREFIX, sha256, newToken, profileForToken, sessionFor, asUser, rest };
+// Writing, as the person. Same session, same policies -- if the database would refuse them
+// doing this by hand, it refuses here, and the zero-rows case is reported rather than
+// swallowed. PostgREST answers a refused write with no rows and no error, which is how a
+// silent failure becomes a bug report three days later.
+async function writeAsUser(accessToken, path, method, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    method,
+    headers: {
+      apikey: ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Giant refused that (${res.status}): ${text.slice(0, 200)}`);
+  let rows = [];
+  try { rows = JSON.parse(text); } catch (_) { rows = []; }
+  if (!Array.isArray(rows)) rows = [rows];
+  if (!rows.length) {
+    throw new Error('Giant would not allow that change for you. Nothing was altered.');
+  }
+  return rows;
+}
+
+module.exports = { TOKEN_PREFIX, sha256, newToken, profileForToken, sessionFor, asUser, writeAsUser, rest };

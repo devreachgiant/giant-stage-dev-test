@@ -32,6 +32,7 @@ const ORIGIN = process.env.GIANT_ORIGIN || 'https://giant.reachgiant.com';
 const ISSUER        = ORIGIN;
 const RESOURCE_URI  = ORIGIN + '/mcp';          // canonical, no trailing slash (RFC 8707 §2)
 const SCOPE         = 'giant:read';
+const SCOPE_WRITE   = 'giant:read giant:write';
 const CODE_TTL_MS   = 60 * 1000;                // one minute: it is redeemed immediately
 const TOKEN_TTL_SEC = 60 * 60;                  // an hour, then the refresh token is used
 
@@ -54,7 +55,7 @@ function protectedResourceMetadata() {
   return {
     resource: RESOURCE_URI,
     authorization_servers: [ISSUER],
-    scopes_supported: [SCOPE],
+    scopes_supported: ['giant:read', 'giant:write'],
     bearer_methods_supported: ['header'],
     resource_name: 'Giant',
     resource_documentation: ORIGIN + '/mcp',
@@ -68,7 +69,7 @@ function authorizationServerMetadata() {
     token_endpoint:         ORIGIN + '/oauth/token',
     registration_endpoint:  ORIGIN + '/oauth/register',
     revocation_endpoint:    ORIGIN + '/oauth/revoke',
-    scopes_supported: [SCOPE],
+    scopes_supported: ['giant:read', 'giant:write'],
     response_types_supported: ['code'],
     grant_types_supported: ['authorization_code', 'refresh_token'],
     // S256 only. "plain" is still in the OAuth text and is worth nothing against an attacker
@@ -295,7 +296,8 @@ async function verifyAccessToken(presented) {
   if (!presented) return null;
   const r = await rest(
     `mcp_access_tokens?select=id,profile_id,audience,scope,expires_at,revoked_at,` +
-    `profiles(id,full_name,email,role)&token_hash=eq.${encodeURIComponent(sha256(presented))}&limit=1`);
+    `mcp_clients(client_name),profiles(id,full_name,email,role)` +
+    `&token_hash=eq.${encodeURIComponent(sha256(presented))}&limit=1`);
   if (!r.ok || !Array.isArray(r.body) || !r.body.length) return null;
   const row = r.body[0];
   if (row.revoked_at) return null;
@@ -312,11 +314,12 @@ async function verifyAccessToken(presented) {
     body: JSON.stringify({ last_used_at: new Date().toISOString() }),
   }).catch(() => {});
   return { profileId: row.profile_id, role: prof.role, name: prof.full_name,
-           email: prof.email, scope: row.scope };
+           email: prof.email, scope: row.scope || 'giant:read', via: 'oauth',
+           clientName: (row.mcp_clients || {}).client_name || null };
 }
 
 module.exports = {
-  ISSUER, RESOURCE_URI, SCOPE, ORIGIN, TOKEN_TTL_SEC,
+  ISSUER, RESOURCE_URI, SCOPE, SCOPE_WRITE, ORIGIN, TOKEN_TTL_SEC,
   sha256, randTok, sameSecret,
   protectedResourceMetadata, authorizationServerMetadata,
   getClient, registerClient, registerFromMetadataDocument,

@@ -26,7 +26,7 @@
 // deserve their own decision about what should happen with nobody watching, and are not
 // smuggled in on the back of this.
 
-const { profileForToken, sessionFor } = require('./_mcp_identity');
+const { profileForToken, sessionFor, rest } = require('./_mcp_identity');
 const { verifyAccessToken, protectedResourceMetadata, SCOPE, ORIGIN } = require('./_mcp_oauth');
 const { byName, listForProtocol } = require('./_mcp_tools');
 
@@ -35,6 +35,18 @@ const { byName, listForProtocol } = require('./_mcp_tools');
 // across these revisions.
 const DEFAULT_PROTOCOL = '2025-06-18';
 const PRM_URL = ORIGIN + '/.well-known/oauth-protected-resource';
+
+// Every call, not only the ones that change something. A log that records just the writes
+// cannot answer "what was it doing just before that", which is the question you actually
+// have afterwards. Best-effort and never awaited into the critical path: failing to log
+// must not fail the request.
+function audit(entry) {
+  rest('mcp_audit', {
+    method: 'POST',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify(entry),
+  }).catch(() => {});
+}
 
 const rpcError = (id, code, message) => ({ jsonrpc: '2.0', id: id ?? null, error: { code, message } });
 const rpcOk    = (id, result)        => ({ jsonrpc: '2.0', id: id ?? null, result });
@@ -101,8 +113,11 @@ exports.handler = async (event) => {
   if (token) {
     try {
       if (token.startsWith('giant_sk_')) {
+        // Kept whole. Picking fields out by hand here dropped scope, and a token granted
+        // writing silently behaved as read-only -- the tools were simply not offered, with
+        // nothing anywhere saying why.
         const p = await profileForToken(token);
-        if (p) profile = { profileId: p.profileId, role: p.role, name: p.name, email: p.email };
+        if (p) profile = p;
       } else {
         const p = await verifyAccessToken(token);
         if (p) profile = p;
@@ -137,8 +152,13 @@ exports.handler = async (event) => {
     })) };
   }
 
+  // What this connection was granted, decided when the person pressed Allow and recorded on
+  // the token. Not re-derived from their role: somebody who connected read-only stays
+  // read-only even though they could write by hand.
+  const canWrite = / giant:write\b|^giant:write\b/.test(' ' + (profile.scope || 'giant:read'));
+
   if (method === 'tools/list') {
-    return { statusCode: 200, headers, body: JSON.stringify(rpcOk(id, { tools: listForProtocol() })) };
+    return { statusCode: 200, headers, body: JSON.stringify(rpcOk(id, { tools: listForProtocol(canWrite) })) };
   }
 
   // Answered so a client that probes them does not treat the server as broken. Giant exposes
@@ -163,18 +183,48 @@ exports.handler = async (event) => {
     return { statusCode: 200, headers, body: JSON.stringify(rpcError(id, -32602, `No such tool: ${toolName}`)) };
   }
 
+  // A read-only connection is not shown the writing tools, but it may still ask for one --
+  // from a stale tool list, or because it was told to. Refused here, and recorded, because
+  // an assistant being asked to do something it was not granted is worth knowing about.
+  if (tool.writes && !canWrite) {
+    audit({ profile_id: profile.profileId, via: profile.via || 'oauth', tool: toolName,
+            writes: true, arguments: (params && params.arguments) || {}, ok: false,
+            detail: 'refused: this connection was granted read-only' });
+    return { statusCode: 200, headers, body: JSON.stringify(rpcOk(id, {
+      content: [{ type: 'text', text:
+        'This connection can only read Giant. To let it make changes, reconnect it and tick '
+        + '"let it make changes" on the Allow screen.' }],
+      isError: true,
+    })) };
+  }
+
   try {
     // The session is the person. Everything the tool reads is read as them, so the database
     // decides what comes back -- not this file.
     const accessToken = await sessionFor(profile);
-    const ctx = { accessToken, role: profile.role, name: profile.name, email: profile.email };
+    const ctx = { accessToken, role: profile.role, name: profile.name,
+                  email: profile.email, profileId: profile.profileId, canWrite };
     const out = await tool.run(ctx, (params && params.arguments) || {});
+    audit({ profile_id: profile.profileId, via: profile.via || 'oauth',
+            client_name: profile.clientName || null, tool: toolName, writes: !!tool.writes,
+            arguments: (params && params.arguments) || {}, ok: !out || !out.error,
+            detail: out && out.error ? String(out.error).slice(0, 300)
+                                     : (out && out.note) || null,
+            target_table: tool.writes ? (toolName.includes('task') ? 'tasks'
+                                       : toolName.includes('client') ? 'clients'
+                                       : toolName.includes('message') ? 'messages' : null) : null,
+            target_id: tool.writes
+              ? String((out && (out.created || out.updated || out.posted) || {}).id || '') || null
+              : null });
     return { statusCode: 200, headers, body: JSON.stringify(rpcOk(id, {
       content: [{ type: 'text', text: JSON.stringify(out, null, 2) }],
     })) };
   } catch (e) {
     // Reported as a tool error rather than a protocol one: the assistant can then tell the
     // person what went wrong instead of the connection appearing to break.
+    audit({ profile_id: profile.profileId, via: profile.via || 'oauth', tool: toolName,
+            writes: !!tool.writes, arguments: (params && params.arguments) || {},
+            ok: false, detail: String(e.message).slice(0, 300) });
     return { statusCode: 200, headers, body: JSON.stringify(rpcOk(id, {
       content: [{ type: 'text', text: 'Giant could not answer that: ' + e.message }],
       isError: true,
