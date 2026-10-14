@@ -167,6 +167,31 @@ check('REFUSES an unknown client without redirecting anywhere',
   String(unknownClient.status));
 
 // Approving needs a real signed-in person, which this harness is not.
+// THE PAYLOAD THE PAGE ACTUALLY SENDS, not one written here by hand.
+//
+// This check used to build its own POST body, and so it filled in response_type while the
+// real page did not. Every refusal passed, the happy path looked fine, and the first person
+// to press Allow got "unsupported_response_type" from the server rejecting its own page.
+// A check that simulates the client instead of using it proves the server talks to the
+// check, which is not the thing anybody needs to know.
+const pageReq = (() => {
+  const m = pageHtml.match(/var REQ = (\{[^;]*\});/);
+  try { return m ? JSON.parse(m[1]) : null; } catch (_) { return null; }
+})();
+check('the consent page posts back everything the server requires of it',
+  !!pageReq && pageReq.response_type === 'code' && !!pageReq.client_id &&
+  !!pageReq.redirect_uri && !!pageReq.code_challenge && pageReq.code_challenge_method === 'S256',
+  pageReq ? JSON.stringify(Object.keys(pageReq)) : 'could not read REQ out of the page');
+
+// And drive THAT payload, so the check exercises the same request a person's click makes.
+if (pageReq) {
+  const asThePageWouldSend = await jpost('/oauth/authorize',
+    Object.assign({}, pageReq, { decision: 'allow', access_token: null }));
+  check('pressing Allow is refused for a login, not for a malformed request',
+    asThePageWouldSend.status === 401 && (asThePageWouldSend.body || {}).error === 'login_required',
+    asThePageWouldSend.status + ' ' + JSON.stringify(asThePageWouldSend.body));
+}
+
 const noSession = await jpost('/oauth/authorize', {
   client_id: clientId, redirect_uri: REDIRECT, code_challenge: pkceChallenge,
   code_challenge_method: 'S256', response_type: 'code', decision: 'allow', access_token: null,

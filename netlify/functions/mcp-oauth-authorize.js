@@ -217,7 +217,14 @@ exports.handler = async (event) => {
   const appName = v.client.client_name || 'An AI assistant';
   // The request is handed to the page as data and posted back verbatim. It is re-checked on
   // the way in, so this is a convenience, not a trust boundary.
+  // EVERY field validate() looks at has to come back on the POST, response_type included.
+  // It was missing, so the page posted a request its own server then refused with
+  // unsupported_response_type -- the consent screen rendered, the person pressed Allow, and
+  // got an error. The check did not catch it because it built its own POST body by hand
+  // instead of using the one this page sends; it now reads the payload out of the rendered
+  // page, so the two cannot disagree again.
   const req = JSON.stringify({
+    response_type: q.response_type,
     client_id: q.client_id, redirect_uri: q.redirect_uri, state: q.state || '',
     code_challenge: q.code_challenge, code_challenge_method: q.code_challenge_method,
     resource: q.resource || RESOURCE_URI,
