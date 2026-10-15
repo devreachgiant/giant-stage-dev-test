@@ -9529,6 +9529,57 @@ await step('every message render path carries the assistant badge', async () => 
     `badge on ${badge} paths, forwarded label on ${fwd}, ${fetched} queries fetch sent_via`);
 });
 
+// The schedule dialog's date picker opens, and STAYS open.
+//
+// It shipped broken: #scheduleDateBtn is one button and both chat modules wired a click to
+// it, so a single click toggled the calendar's class twice -- open, then shut, inside that
+// click. The end state is identical to never having opened it, so nothing looked wrong and
+// it reached production as "we cannot select a date for a scheduled message".
+//
+// Counting the toggles is the point. Asserting "the calendar is open" would pass the day
+// somebody adds a third listener and makes it three, and asserting "a handler exists" would
+// have passed throughout the bug.
+await step('the schedule dialog lets you pick a date', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = ms => new Promise(r => setTimeout(r, ms));
+    const o = {};
+    const custom = document.getElementById('scheduleCustomTimeBtn');
+    if (!custom) return { noButton: true };
+    custom.click();
+    await wait(900);
+
+    const cal = document.getElementById('scheduleCalendar');
+    const btn = document.getElementById('scheduleDateBtn');
+    if (!cal || !btn) return { noControls: true };
+    o.modalOpen = !!(document.getElementById('scheduleMsgModal') || {}).classList
+      && document.getElementById('scheduleMsgModal').classList.contains('on');
+
+    let toggles = 0;
+    const real = cal.classList.toggle.bind(cal.classList);
+    cal.classList.toggle = (...a) => { if (a[0] === 'on') toggles++; return real(...a); };
+
+    btn.click();
+    await wait(400);
+    o.togglesPerClick = toggles;
+    o.openAfterClick = cal.classList.contains('on');
+    // Measured, not merely open: a calendar at zero height is one nobody can pick from.
+    o.visibleHeight = Math.round(cal.getBoundingClientRect().height);
+    o.dayCount = cal.querySelectorAll('.nc_schedule-cal-day, .schedule-cal-day').length;
+
+    cal.classList.toggle = real;
+    const close = document.querySelector('#scheduleMsgModal .m-close, #scheduleMsgModal [data-close]');
+    if (close) close.click();
+    await wait(300);
+    return o;
+  });
+
+  check('the schedule dialog lets you pick a date',
+    !r.noButton && !r.noControls && r.modalOpen &&
+    r.togglesPerClick === 1 && r.openAfterClick &&
+    r.visibleHeight > 60 && r.dayCount >= 28,
+    JSON.stringify(r));
+});
+
 // ── what the mock actually served, as evidence the paths ran ─────────────────
 const evidence = await page.evaluate(() => ({
   tally: window.__mock.tally(), writes: window.__mock.log.writes,
