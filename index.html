@@ -48604,6 +48604,14 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
 
       const dateBtn = $('scheduleDateBtn');
       if (dateBtn) dateBtn.addEventListener('click', (e) => {
+        // Shared with the other chat: one button, two modules listening. Both ran on a
+        // single click, 'on' was toggled twice, and the calendar opened and shut inside that
+        // click -- so the date could not be picked at all. Measured in a browser before the
+        // fix: togglesPerClick 2, calendar closed afterwards.
+        //
+        // The same guard the Save button already carries, for the same reason: each
+        // module acts only while its own screen is on.
+        if (!document.querySelector('.screen[data-screen="chat"].on')) return;
         e.stopPropagation();
         $('scheduleTimeList').classList.remove('on');
         const cal = $('scheduleCalendar');
@@ -82614,6 +82622,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
       const dateBtn = $('scheduleDateBtn');
       if (dateBtn) dateBtn.addEventListener('click', (e) => {
+        // Shared with the other chat: one button, two modules listening. Both ran on a
+        // single click, 'on' was toggled twice, and the calendar opened and shut inside that
+        // click -- so the date could not be picked at all. Measured in a browser before the
+        // fix: togglesPerClick 2, calendar closed afterwards.
+        //
+        // The same guard the Save button already carries, for the same reason: each
+        // module acts only while its own screen is on.
+        if (!document.querySelector('.screen[data-screen="newchat"].on')) return;
         e.stopPropagation();
         $('scheduleTimeList').classList.remove('on');
         const cal = $('scheduleCalendar');

@@ -58,6 +58,14 @@ AFTER_SCHED_SAVE = (
     "    async function saveCustomSchedule(date){\n"
     "      if (!document.querySelector('.screen[data-screen=\"chat\"].on')) return;\n")
 
+# The same shared modal a third time. #scheduleDateBtn is ONE button and both modules wired a
+# click to it, so a single click toggled the calendar's 'on' class twice -- open, then shut,
+# inside that click. Nothing looked broken afterwards, because the end state is identical to
+# never having opened it, which is how this reached production as "cannot select a date".
+# Measured in a browser before the fix: togglesPerClick 2, calendar closed.
+BEFORE_SCHED_DATEBTN = "      const dateBtn = $('scheduleDateBtn');\n      if (dateBtn) dateBtn.addEventListener('click', (e) => {\n        e.stopPropagation();"
+AFTER_SCHED_DATEBTN = '      const dateBtn = $(\'scheduleDateBtn\');\n      if (dateBtn) dateBtn.addEventListener(\'click\', (e) => {\n        // Shared with the other chat: one button, two modules listening. Both ran on a\n        // single click, \'on\' was toggled twice, and the calendar opened and shut inside that\n        // click -- so the date could not be picked at all. Measured in a browser before the\n        // fix: togglesPerClick 2, calendar closed afterwards.\n        //\n        // The same guard the Save button already carries, for the same reason: each\n        // module acts only while its own screen is on.\n        if (!document.querySelector(\'.screen[data-screen="chat"].on\')) return;\n        e.stopPropagation();'
+
 # "Load earlier messages" scrolled you to the newest message -- the opposite of the button
 # -- because every render ended by scrolling to the bottom, paging included. Fixed in both
 # chats by explicit decision: people are told Old Chat is still there during the beta, so
@@ -167,6 +175,10 @@ ALLOWED = [(1, BEFORE_BAR_SELECTOR, AFTER_BAR_SELECTOR, _BAR_WHY),
             'different channels; each module now acts only while its own screen is on'),
            (1, BEFORE_SCHED_SAVE, AFTER_SCHED_SAVE,
             'the same double-send through the custom Save button'),
+           (1, BEFORE_SCHED_DATEBTN, AFTER_SCHED_DATEBTN,
+            'the same shared modal again: one #scheduleDateBtn with two modules wiring a '
+            'click, so one click toggled the calendar open and shut and no date could be '
+            'picked at all'),
            (1, BEFORE_HEAD_MEMBERS, AFTER_HEAD_MEMBERS,
             'the channel header counted every workspace profile instead of the channel\'s '
             'members; fixed in both chats by explicit decision, not a leak'),
