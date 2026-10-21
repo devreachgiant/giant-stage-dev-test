@@ -450,6 +450,71 @@
   DB.password_entries = [{ id: 'pw-1', client_id: 'c-1', title: 'GA4', username: 'ops@maribou.example' }];
   DB.password_entry_members = [{ entry_id: 'pw-1', profile_id: ME }];
 
+  // ── Growth (migration 20261021120000) ───────────────────────────────────
+  // Enough of a pipeline to exercise every screen: deals in four stages, one of them
+  // with an unanswered reply so "Reply to" and the inbox badge have something to count,
+  // and a meeting today so the Home and Meetings screens are not both empty states.
+  // Two different owners, so the owner column renders rather than being uniformly blank.
+  const GR_DEALS = [
+    ['gc-1', 'Michael Cash',   'Northview Door Systems', 'call',     1000, ME],
+    ['gc-2', 'Cesar Diaz',     'Costa Rica Brokerage',   'proposal', 1500, ME],
+    ['gc-3', 'Amna Abbasi',    'stage.universe.talk',    'call',        0, 'u-7'],
+    ['gc-4', 'Mike Worden',    'PPA Youth Sports',       'follow',   2250, ME],
+    ['gc-5', 'Kelsey Rowe',    'Kreative Expressions',   'booked',      0, 'u-7'],
+    ['gc-6', 'Pete Patrino',   'Finzanza',               'won',      3000, ME]
+  ];
+  DB.growth_clients = GR_DEALS.map(([id, name, company, stage, val, owner], i) => ({
+    id, owner_id: owner, name, company,
+    email: name.toLowerCase().replace(/[^a-z]+/g, '.') + '@example.com',
+    phone: '', website: '', location: '', timezone: '', source: 'Fiverr',
+    stage, value_monthly: val || null, next_step: '', summary: 'Notes from the first call.',
+    follow_up_on: i === 3 ? iso(1, 0).slice(0, 10) : null,
+    first_call_on: iso(9 - i, 0).slice(0, 10), last_call_on: iso(9 - i, 0).slice(0, 10),
+    last_email_on: i < 2 ? iso(6 - i, 0).slice(0, 10) : null,
+    emails_sent: i < 2 ? 1 : 0, calls_held: stage === 'booked' ? 0 : 1,
+    won_on: stage === 'won' ? iso(2, 0).slice(0, 10) : null,
+    lost_on: null, lost_reason: '', handled_msg: '',
+    intake: {}, call_notes: [], team_notes: [], activity_log: [], giant_handoff: null,
+    created_at: iso(20 - i, 0), updated_at: iso(i, 0)
+  }));
+  DB.growth_meetings = [
+    { id: 'gm-1', client_id: 'gc-5', title: 'ReachGiant Growth Strategy Session',
+      starts_at: new Date(Date.now() + 3 * 3600e3).toISOString(), minutes: 45, actual_min: null,
+      zoom_url: 'https://us06web.zoom.us/j/000', source: 'Calendly', brief: '', brief_at: null,
+      external_id: 'ext-1', created_at: iso(3, 0) },
+    { id: 'gm-2', client_id: 'gc-1', title: 'ReachGiant Growth Strategy Session',
+      starts_at: iso(5, 0), minutes: 45, actual_min: 41, zoom_url: '', source: 'Calendly',
+      brief: '', brief_at: null, external_id: 'ext-2', created_at: iso(8, 0) }
+  ];
+  // gc-2's last message is INBOUND and unhandled, so exactly one deal needs a reply.
+  DB.growth_messages = [
+    { id: 'gx-1', client_id: 'gc-1', direction: 'out', subject: 'Good chat today',
+      body: 'Hi Michael, good chat today. Plan to follow.', sent_at: iso(6, 0),
+      thread_id: '', external_id: null, created_at: iso(6, 0) },
+    { id: 'gx-2', client_id: 'gc-2', direction: 'out', subject: "Here's the plan",
+      body: 'Hi Cesar, here is what I would do.', sent_at: iso(5, 0),
+      thread_id: '', external_id: null, created_at: iso(5, 0) },
+    { id: 'gx-3', client_id: 'gc-2', direction: 'in', subject: "Re: Here's the plan",
+      body: 'This looks good. Can you send the agreement?', sent_at: iso(1, 0),
+      thread_id: '', external_id: null, created_at: iso(1, 0) }
+  ];
+  DB.growth_templates = [
+    { id: 'gt-1', name: 'Google Ads Management', subject: 'Getting started with ReachGiant',
+      body: 'Hi {name},\n\nWe are looking forward to working with {company}.\n\nBest,', position: 0,
+      created_at: iso(30, 0) }
+  ];
+  DB.growth_settings = [
+    { key: 'pipeline', value: { staleDays: 5, stages: [
+        { key: 'booked', label: 'Booked', color: '#626262' },
+        { key: 'call', label: 'Call done', color: '#1D5FA8' },
+        { key: 'proposal', label: 'Proposal sent', color: '#7C3AED' },
+        { key: 'follow', label: 'Following up', color: '#B7791F' },
+        { key: 'won', label: 'Won', color: '#1F7A45' },
+        { key: 'lost', label: 'Lost', color: '#B3302A' } ] },
+      updated_at: iso(30, 0), updated_by: ME }
+  ];
+  DB.growth_training = [];
+
   // Anything New Chat asks for that was not foreseen: an empty table, loudly noted,
   // rather than a TypeError that would look like a bug in the page.
   // unread_counts is a VIEW in the real schema -- one row per (channel, member) with a
