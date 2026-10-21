@@ -6348,6 +6348,57 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_ch{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .gr_ch b{font-size:18px;font-weight:800;letter-spacing:-.02em;}
 .gr_tpl{background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:8px 14px;color:var(--text);font:inherit;font-size:13px;align-self:flex-start;cursor:pointer;}
+/* editable rows: Settings, Training plan, watch list */
+.gr_seg.gr_wide{display:flex;margin-bottom:14px;flex-wrap:wrap;}
+.gr_erow{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--line);}
+.gr_erow:first-of-type{border-top:0;}
+.gr_erow.gr_col2{flex-direction:column;align-items:stretch;gap:10px;}
+.gr_erow.gr_add,.gr_tk.gr_add{border-top:1px dashed var(--line-2);padding-top:11px;margin-top:4px;}
+.gr_in{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 11px;color:var(--text);font:inherit;font-size:13.5px;flex:1;min-width:0;}
+.gr_in:focus{outline:none;border-color:var(--line-2);}
+.gr_in.gr_narrow{flex:0 0 130px;}
+.gr_in.gr_flat{background:transparent;border-color:transparent;}
+.gr_in.gr_flat:focus{background:var(--surface);border-color:var(--line);}
+.gr_in.gr_date{flex:0 0 150px;font-size:12.5px;color:var(--text-2);}
+.gr_in.gr_date.gr_late{color:#F0C98A;border-color:#B7791F;}
+.gr_ib{background:var(--surface-2);border:0;border-radius:8px;width:32px;height:32px;color:var(--text-2);cursor:pointer;flex:none;font-size:12px;}
+.gr_ib:hover:not(:disabled){color:var(--text);}
+.gr_ib:disabled{opacity:.35;cursor:default;}
+.gr_ib.gr_rm:hover{background:rgba(208,4,0,.16);color:#F08A8A;}
+.gr_tk{display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--line);}
+.gr_tk:first-of-type{border-top:0;}
+.gr_tk input[type=checkbox]{width:18px;height:18px;accent-color:var(--red);flex:none;}
+.gr_tk.gr_done .gr_in.gr_flat{color:var(--text-3);text-decoration:line-through;}
+.gr_sub{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--text-3);font-weight:700;padding:14px 0 4px;}
+.gr_wc{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:13px 14px;margin-bottom:8px;display:flex;flex-direction:column;gap:8px;}
+.gr_wch{display:flex;align-items:baseline;gap:10px;}
+.gr_wch b{flex:1;min-width:0;font-size:14px;}
+.gr_wch time{font-size:11.5px;color:var(--text-3);}
+.gr_tags{display:flex;gap:6px;flex-wrap:wrap;}
+.gr_tags span{font-size:10.5px;font-weight:700;background:var(--surface-2);border-radius:99px;padding:3px 9px;color:var(--text-2);}
+.gr_ph{display:grid;grid-template-columns:34px 1fr;gap:12px;padding:12px 0;border-top:1px solid var(--line);}
+.gr_ph:first-of-type{border-top:0;}
+.gr_phn{width:30px;height:30px;border-radius:50%;background:var(--surface-2);color:var(--text);display:grid;place-items:center;font-size:13px;font-weight:800;}
+.gr_ph.gr_key .gr_phn{background:var(--red);color:#fff;}
+.gr_ph b{font-size:14.5px;}
+.gr_ph p{margin:4px 0 0;font-size:13.5px;color:var(--text-2);line-height:1.6;}
+.gr_qa{padding:12px 0;border-top:1px solid var(--line);}
+.gr_qa:first-of-type{border-top:0;}
+.gr_qa b{font-size:14px;}
+.gr_qa p{margin:5px 0 0;font-size:13.5px;color:var(--text-2);line-height:1.6;}
+.gr_packs{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;}
+.gr_pk{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:8px;}
+.gr_pk.gr_top{border-color:var(--red);box-shadow:inset 0 0 0 1px var(--red);}
+.gr_tag{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-weight:700;}
+.gr_pk h3{margin:0;font-size:18px;font-weight:800;letter-spacing:-.02em;}
+.gr_price{font-size:26px;font-weight:800;line-height:1;}
+.gr_price small{font-size:12px;color:var(--text-3);font-weight:400;}
+.gr_inc{font-size:13px;font-weight:700;}
+.gr_pk p{margin:0;font-size:12.5px;color:var(--text-3);line-height:1.55;flex:1;}
+.gr_pk a{align-self:flex-start;text-decoration:none;}
+.gr_svc{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line);}
+.gr_svc:first-of-type{border-top:0;}
+.gr_svc a{text-decoration:none;flex:none;}
 .gr_toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 18px;border-radius:99px;font-size:13px;font-weight:600;z-index:90;opacity:0;pointer-events:none;transition:.2s;}
 .gr_toast.on{opacity:1;transform:translateX(-50%);}
 </style>
@@ -93930,6 +93981,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   let grLoaded = false, grLoading = false;
   let grClients = [], grMeetings = [], grMessages = [], grTemplates = [];
   let grSettings = {}, grStages = [], grStaleDays = 5;
+  let grTasks = [], grWatch = [], grDiscounts = [];
+  let grSetTab = 'stages', grTrainTab = 'plan', grEdit = null;
   let grPeople = [];                 // profiles who can own a deal
   let grScreen = 'gr_home';
   let grOpenId = null, grTab = 'overview', grQuery = '', grComposer = null;
@@ -94015,14 +94068,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const s = sb();
     if (!s) { grLoading = false; return; }
     try {
-      const [cl, mt, ms, tp, st, pf] = await Promise.all([
+      const [cl, mt, ms, tp, st, pf, tk, wc, dc] = await Promise.all([
         s.from('growth_clients').select('*').order('updated_at', { ascending: false }),
         s.from('growth_meetings').select('*').order('starts_at', { ascending: true }),
         s.from('growth_messages').select('*').order('sent_at', { ascending: true }),
         s.from('growth_templates').select('*').order('position', { ascending: true }),
         s.from('growth_settings').select('*'),
         s.from('profiles').select('id, full_name, avatar_url, role')
-         .in('role', ['owner', 'manager', 'inhouse_dev', 'member'])
+         .in('role', ['owner', 'manager', 'inhouse_dev', 'member']),
+        s.from('growth_tasks').select('*').order('position', { ascending: true }),
+        s.from('growth_watch_calls').select('*').order('position', { ascending: true }),
+        s.from('growth_discounts').select('*').order('position', { ascending: true })
       ]);
       if (cl.error) throw cl.error;
       grClients   = cl.data || [];
@@ -94030,6 +94086,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grMessages  = ms.data || [];
       grTemplates = tp.data || [];
       grPeople    = pf.data || [];
+      grTasks     = tk.data || [];
+      grWatch     = wc.data || [];
+      grDiscounts = dc.data || [];
       grSettings  = {};
       (st.data || []).forEach(r => { grSettings[r.key] = r.value || {}; });
       const pipe = grSettings.pipeline || {};
@@ -94057,6 +94116,30 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (error) { grToast('Could not save. ' + error.message); return false; }
     if (!data || !data.length) { grToast('That change was refused. This deal may not be yours.'); return false; }
     return true;
+  }
+
+  /* One place where every editable screen writes a row. RLS refuses by returning zero
+     rows rather than raising, so every call asks for the row back and says so when
+     nothing came. Without this a rep editing a stage they are not allowed to edit sees
+     the change appear and then quietly vanish on the next load. */
+  async function grWrite(table, op, payload, match) {
+    const s2 = sb(); if (!s2) return null;
+    let q = s2.from(table);
+    if (op === 'insert') q = q.insert(payload);
+    else if (op === 'update') q = q.update(payload).eq('id', match);
+    else if (op === 'upsert') q = q.upsert(payload, { onConflict: 'key' });
+    else q = q.delete().eq('id', match);
+    const { data, error } = await q.select();
+    if (error) { grToast('Could not save. ' + error.message); return null; }
+    if (!data || !data.length) { grToast('That change was refused. You may not have permission.'); return null; }
+    return data;
+  }
+  async function grSetting(key, value) {
+    grSettings[key] = value;
+    const r = await grWrite('growth_settings', 'upsert',
+      { key: key, value: value, updated_at: new Date().toISOString(), updated_by: me() });
+    if (r) grToast('Saved');
+    return r;
   }
 
   async function grAddClient() {
@@ -94239,19 +94322,105 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       (wait.length ? '<section class="gr_card"><div class="gr_ct"><h2>Waiting on them</h2><span class="gr_n">' + wait.length + '</span></div>' + wait.map(x => row(x, false)).join('') + '</section>' : '');
   }
 
-  /* --- Training --- */
+  /* --- Training: five tabs, all of it from the database ---
+     The plan is per rep, so ticking a box is their own progress and not everybody's.
+     Everything else is shared content a manager edits in Settings; none of it is
+     hard-coded here, which was the point of moving it out of the artifact. */
   function grRenderTraining() {
-    const plan = (grSettings.training && grSettings.training.tasks) || [];
-    const done = plan.filter(t => t.done).length;
+    const tabs = [['plan','Plan'],['calls','Calls to watch'],['phil','Philosophy'],
+                  ['script','Call script'],['pricing','Pricing']];
+    const mine = grTasks.filter(function (t) { return t.owner_id === me(); });
+    let body = '';
+
+    if (grTrainTab === 'plan') {
+      const done = mine.filter(function (t) { return t.done; });
+      const open = mine.filter(function (t) { return !t.done; })
+        .sort(function (a, b) { return String(a.due_on || '9999') < String(b.due_on || '9999') ? -1 : 1; });
+      const row = function (t) {
+        const late = !t.done && t.due_on && t.due_on < grToday();
+        return '<div class="gr_tk' + (t.done ? ' gr_done' : '') + '">' +
+          '<input type="checkbox" data-gr-task="' + t.id + '"' + (t.done ? ' checked' : '') + ' aria-label="Done">' +
+          '<input class="gr_in gr_flat" data-gr-task-text="' + t.id + '" value="' + esc(t.text) + '" aria-label="Task">' +
+          '<input class="gr_in gr_date' + (late ? ' gr_late' : '') + '" type="date" data-gr-task-due="' + t.id + '" value="' + esc(t.due_on || '') + '" aria-label="Due">' +
+          '<button class="gr_ib gr_rm" data-gr-task-del="' + t.id + '" aria-label="Delete task">&#10005;</button></div>';
+      };
+      body = '<section class="gr_card"><div class="gr_ct"><h2>Your plan</h2><span class="gr_n">' + done.length + ' of ' + mine.length + '</span></div>' +
+        '<div class="gr_prog"><i style="width:' + (mine.length ? Math.round(done.length / mine.length * 100) : 0) + '%"></i></div>' +
+        (open.length ? open.map(row).join('') : '<p class="gr_mute">Nothing open. Add the next thing below.</p>') +
+        '<div class="gr_tk gr_add"><input class="gr_in gr_flat" id="grNewTask" placeholder="Add a task..." aria-label="New task">' +
+          '<input class="gr_in gr_date" id="grNewTaskDue" type="date" aria-label="Due">' +
+          '<button class="gr_ghost" data-gr-task-add>Add</button></div>' +
+        (done.length ? '<div class="gr_sub">Done</div>' + done.map(row).join('') : '') +
+        '</section>';
+
+    } else if (grTrainTab === 'calls') {
+      body = '<section class="gr_card"><div class="gr_ct"><h2>Calls to watch</h2><span class="gr_n">' + grWatch.length + '</span></div>' +
+        '<p class="gr_mute">Real calls worth studying. Anyone can add one; you can remove the ones you added.</p>' +
+        (grWatch.length ? grWatch.map(function (w) {
+          const canDel = grIsStaff() || w.added_by === me();
+          return '<div class="gr_wc">' +
+            '<div class="gr_wch"><b>' + esc(w.title) + '</b>' +
+              (w.call_date ? '<time>' + esc(grFmt(w.call_date)) + '</time>' : '') +
+              (canDel ? '<button class="gr_ib gr_rm" data-gr-watch-del="' + w.id + '" aria-label="Remove">&#10005;</button>' : '') + '</div>' +
+            ((w.tags || []).length ? '<div class="gr_tags">' + w.tags.map(function (t) { return '<span>' + esc(t) + '</span>'; }).join('') + '</div>' : '') +
+            (w.outcome ? '<div class="gr_mute">' + esc(w.outcome) + '</div>' : '') +
+            '<textarea class="gr_in" rows="2" data-gr-watch-note="' + w.id + '" placeholder="What did you learn?">' + esc(w.note || '') + '</textarea>' +
+            (w.url ? '<a class="gr_ghost" href="' + esc(w.url) + '" target="_blank" rel="noopener" data-gr-stop>Watch call</a>' : '') +
+          '</div>';
+        }).join('') : '<p class="gr_mute">Nothing on the list yet.</p>') +
+        '<div class="gr_erow gr_add"><input class="gr_in" id="grNewWatchTitle" placeholder="Call name, e.g. Amy Neighbors" aria-label="Call name">' +
+          '<input class="gr_in" id="grNewWatchUrl" placeholder="https://fathom.video/..." aria-label="Link">' +
+          '<button class="gr_ghost" data-gr-watch-add>Add</button></div></section>';
+
+    } else if (grTrainTab === 'phil') {
+      const ph = grSettings.philosophy || {};
+      body = '<section class="gr_card"><div class="gr_ct"><h2>Top tips</h2></div>' +
+        (ph.tips || []).map(function (t, i) {
+          return '<div class="gr_ph' + (i === 4 ? ' gr_key' : '') + '"><span class="gr_phn">' + (i + 1) + '</span>' +
+            '<div><b>' + esc(t.h) + '</b><p>' + esc(t.t) + '</p></div></div>';
+        }).join('') + '</section>' +
+        '<section class="gr_card"><div class="gr_ct"><h2>Before every call</h2></div>' +
+          (ph.checklist || []).map(function (c, i) {
+            return '<label class="gr_ck"><input type="checkbox" data-gr-phcheck="' + i + '"><span>' + esc(c) + '</span></label>';
+          }).join('') +
+          '<button class="gr_ghost" data-gr-phreset>Reset for the next call</button></section>';
+
+    } else if (grTrainTab === 'script') {
+      const sc = grSettings.script || {};
+      body = '<section class="gr_card"><div class="gr_ct"><h2>How a good call runs</h2></div>' +
+        (sc.flow || []).map(function (f, i) {
+          return '<div class="gr_ph' + (i === 4 ? ' gr_key' : '') + '"><span class="gr_phn">' + (i + 1) + '</span>' +
+            '<div><b>' + esc(f.h) + '</b><p>' + esc(f.t) + '</p></div></div>';
+        }).join('') + '</section>' +
+        '<section class="gr_card"><div class="gr_ct"><h2>Common worries, and what to say</h2></div>' +
+          (sc.worries || []).map(function (w) {
+            return '<div class="gr_qa"><b>' + esc(w.q) + '</b><p>' + esc(w.a) + '</p></div>';
+          }).join('') + '</section>';
+
+    } else {
+      const pr = grSettings.pricing || {};
+      body = '<div class="gr_packs">' + (pr.packs || []).map(function (p) {
+          return '<div class="gr_pk' + (p.top ? ' gr_top' : '') + '"><span class="gr_tag">' + esc(p.tag) + '</span>' +
+            '<h3>' + esc(p.name) + '</h3><div class="gr_price">' + esc(p.price) + '<small> / month</small></div>' +
+            '<div class="gr_inc">' + esc(p.inc) + '</div><p>' + esc(p.txt) + '</p>' +
+            (p.link ? '<a class="' + (p.top ? 'btn-red' : 'gr_ghost') + '" href="' + esc(p.link) + '" target="_blank" rel="noopener" data-gr-stop>Payment link</a>' : '') +
+          '</div>';
+        }).join('') + '</div>' +
+        '<section class="gr_card"><div class="gr_ct"><h2>Or start with one service</h2></div>' +
+          (pr.services || []).map(function (sv) {
+            return '<div class="gr_svc"><div class="gr_rm"><b>' + esc(sv.n) + '</b><span>' + esc(sv.w) + '</span></div>' +
+              '<span class="gr_vt">' + esc(sv.p) + '</span>' +
+              (sv.l ? '<a class="gr_ghost" href="' + esc(sv.l) + '" target="_blank" rel="noopener" data-gr-stop>Payment link</a>' : '') + '</div>';
+          }).join('') + '</section>' +
+        (pr.notes || []).map(function (n) { return '<div class="gr_note"><p>' + esc(n) + '</p></div>'; }).join('') +
+        '<p class="gr_mute"><a href="https://www.reachgiant.com/pricing" target="_blank" rel="noopener" data-gr-stop>Open the full pricing page</a></p>';
+    }
+
     $('grTraining').innerHTML =
       grHead('Training', 'Learn the offer, study great calls, practice', '') +
-      '<section class="gr_card"><div class="gr_ct"><h2>Training plan</h2><span class="gr_n">' + done + ' of ' + plan.length + '</span></div>' +
-        '<div class="gr_prog"><i style="width:' + (plan.length ? Math.round(done / plan.length * 100) : 0) + '%"></i></div>' +
-        (plan.length ? plan.map((t, i) => '<label class="gr_ck' + (t.done ? ' gr_done' : '') + '"><input type="checkbox" data-gr-task="' + i + '"' + (t.done ? ' checked' : '') + '><span>' + esc(t.text) + '</span></label>').join('')
-          : '<p class="gr_mute">No plan yet. A manager can add one in Settings.</p>') + '</section>' +
-      '<section class="gr_card"><div class="gr_ct"><h2>Pricing</h2></div>' +
-        '<p class="gr_mute">Packages, services and payment links live on the pricing page. ' +
-        '<a href="https://www.reachgiant.com/pricing" target="_blank" rel="noopener">Open it</a>.</p></section>';
+      '<div class="gr_seg gr_wide">' + tabs.map(function (t) {
+        return '<button data-gr-traintab="' + t[0] + '"' + (grTrainTab === t[0] ? ' aria-pressed="true"' : '') + '>' + t[1] + '</button>';
+      }).join('') + '</div>' + body;
   }
 
   /* --- Analytics --- */
@@ -94377,22 +94546,119 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         : '');
   }
 
-  /* --- Settings (staff only) --- */
+  /* --- Settings (staff only) ---
+     Everything on this screen writes to the database. The stage list, the templates, the
+     discount codes and the "gone quiet" threshold all used to be read-only, which meant a
+     stage could not be renamed without a deploy. */
+  const GR_PALETTE = [['Grey','#626262'],['Blue','#1D5FA8'],['Purple','#7C3AED'],
+                      ['Amber','#B7791F'],['Green','#1F7A45'],['Red','#D91F0F'],['Black','#131313']];
+
   function grRenderSettings() {
+    const tabs = [['stages','Pipeline'],['templates','Email templates'],
+                  ['discounts','Discount codes'],['team','Team']];
+    let body = '';
+
+    if (grSetTab === 'stages') {
+      body =
+        '<section class="gr_card"><div class="gr_ct"><h2>Stages</h2><span class="gr_n">' + grStages.length + '</span></div>' +
+        '<p class="gr_mute">Left to right is the order on the board. Renaming one renames it everywhere; the deals stay where they are.</p>' +
+        grStages.map(function (st, i) {
+          return '<div class="gr_erow">' +
+            '<span class="gr_sw" style="background:' + st.color + '"></span>' +
+            '<input class="gr_in" data-gr-stage-label="' + st.key + '" value="' + esc(st.label) + '" aria-label="Stage name">' +
+            '<select class="gr_in gr_narrow" data-gr-stage-colour="' + st.key + '" aria-label="Colour">' +
+              GR_PALETTE.map(function (p) {
+                return '<option value="' + p[1] + '"' + (p[1].toLowerCase() === String(st.color).toLowerCase() ? ' selected' : '') + '>' + p[0] + '</option>';
+              }).join('') + '</select>' +
+            '<button class="gr_ib" data-gr-stage-move="' + st.key + '" data-d="-1"' + (i === 0 ? ' disabled' : '') + ' aria-label="Move up">&#9650;</button>' +
+            '<button class="gr_ib" data-gr-stage-move="' + st.key + '" data-d="1"' + (i === grStages.length - 1 ? ' disabled' : '') + ' aria-label="Move down">&#9660;</button>' +
+            '<button class="gr_ib gr_rm" data-gr-stage-del="' + st.key + '" aria-label="Delete stage">&#10005;</button>' +
+          '</div>';
+        }).join('') +
+        '<div class="gr_erow gr_add"><input class="gr_in" id="grNewStage" placeholder="Add a stage..." aria-label="New stage">' +
+          '<button class="gr_ghost" data-gr-stage-add>Add</button></div>' +
+        '</section>' +
+        '<section class="gr_card"><div class="gr_ct"><h2>Gone quiet</h2></div>' +
+          '<div class="gr_field"><label for="grStale">Flag a client after this many days with no contact</label>' +
+          '<input id="grStale" class="gr_in" type="number" min="1" max="30" value="' + grStaleDays + '" data-gr-stale></div></section>';
+
+    } else if (grSetTab === 'templates') {
+      body = '<section class="gr_card"><div class="gr_ct"><h2>Email templates</h2><span class="gr_n">' + grTemplates.length + '</span></div>' +
+        '<p class="gr_mute">Use {name} for their first name and {company} for their business. These show up in the composer.</p>' +
+        (grTemplates.length ? grTemplates.map(function (t) {
+          const open = grEdit === t.id;
+          return '<div class="gr_erow gr_col2">' +
+            '<div class="gr_erow">' +
+              '<input class="gr_in" data-gr-tpl-name="' + t.id + '" value="' + esc(t.name) + '" aria-label="Template name">' +
+              '<button class="gr_ib" data-gr-tpl-open="' + t.id + '">' + (open ? 'Close' : 'Edit') + '</button>' +
+              '<button class="gr_ib gr_rm" data-gr-tpl-del="' + t.id + '" aria-label="Delete template">&#10005;</button>' +
+            '</div>' +
+            (open ? '<div class="gr_field"><label>Subject</label><input class="gr_in" data-gr-tpl-sub="' + t.id + '" value="' + esc(t.subject) + '"></div>' +
+                    '<div class="gr_field"><label>Message</label><textarea class="gr_in" rows="10" data-gr-tpl-body="' + t.id + '">' + esc(t.body) + '</textarea></div>' : '') +
+          '</div>';
+        }).join('') : '<p class="gr_mute">No templates yet.</p>') +
+        '<div class="gr_erow gr_add"><input class="gr_in" id="grNewTpl" placeholder="New template name..." aria-label="New template">' +
+          '<button class="gr_ghost" data-gr-tpl-add>Add</button></div></section>';
+
+    } else if (grSetTab === 'discounts') {
+      body = '<section class="gr_card"><div class="gr_ct"><h2>Discount codes</h2><span class="gr_n">' + grDiscounts.length + '</span></div>' +
+        '<p class="gr_mute">Anyone can drop one of these into an email. Only a manager can invent one.</p>' +
+        grDiscounts.map(function (d) {
+          return '<div class="gr_erow">' +
+            '<span class="gr_sw" style="background:' + d.colour + '"></span>' +
+            '<input class="gr_in gr_narrow" data-gr-disc-code="' + d.id + '" value="' + esc(d.code) + '" aria-label="Code">' +
+            '<input class="gr_in" data-gr-disc-label="' + d.id + '" value="' + esc(d.label) + '" aria-label="Offer">' +
+            '<button class="gr_ib gr_rm" data-gr-disc-del="' + d.id + '" aria-label="Delete code">&#10005;</button></div>';
+        }).join('') +
+        '<div class="gr_erow gr_add"><input class="gr_in gr_narrow" id="grNewDiscCode" placeholder="RG250" aria-label="New code">' +
+          '<input class="gr_in" id="grNewDiscLabel" placeholder="Get $250 off each month" aria-label="New offer">' +
+          '<button class="gr_ghost" data-gr-disc-add>Add</button></div></section>';
+
+    } else {
+      const sig = grSettings.signature || {};
+      const f = function (k, label, ph) {
+        return '<div class="gr_field"><label for="grSig' + k + '">' + label + '</label>' +
+          '<input id="grSig' + k + '" class="gr_in" data-gr-sig="' + k + '" value="' + esc(sig[k] || '') + '" placeholder="' + ph + '"></div>';
+      };
+      body = '<section class="gr_card"><div class="gr_ct"><h2>Who owns what</h2><span class="gr_n">' + grPeople.length + '</span></div>' +
+        '<p class="gr_mute">Everyone who can own a deal. A rep sees only the clients they own; a manager sees them all.</p>' +
+        grPeople.map(function (p) {
+          const mine = grClients.filter(function (c) { return c.owner_id === p.id; });
+          const staff = ['owner','manager','inhouse_dev'].indexOf(p.role) >= 0;
+          return '<div class="gr_row" style="cursor:default">' + grAvatar(p.full_name, staff ? '#1D5FA8' : '#7C3AED') +
+            '<div class="gr_rm"><b>' + esc(p.full_name || 'Unnamed') + '</b><span>' +
+              (staff ? 'Sees every deal, and can edit these settings' : 'Sees only their own deals') + '</span></div>' +
+            '<span class="gr_st">' + mine.length + ' deal' + (mine.length === 1 ? '' : 's') + '</span></div>';
+        }).join('') + '</section>' +
+        '<section class="gr_card"><div class="gr_ct"><h2>Email signature</h2></div>' +
+          '<p class="gr_mute">Added to the bottom of every email Growth sends.</p>' +
+          '<div class="gr_two">' + f('name','Name','Luke Griffin') + f('title','Title or company','ReachGiant') + '</div>' +
+          '<div class="gr_two">' + f('phone','Phone','') + f('email','Email','big@reachgiant.com') + '</div>' +
+          f('site','Website','reachgiant.com') + '</section>';
+    }
+
     $('grSettings').innerHTML =
-      grHead('Growth settings', 'Stages, templates and who owns what', '') +
-      '<section class="gr_card"><div class="gr_ct"><h2>Stages</h2><span class="gr_n">' + grStages.length + '</span></div>' +
-        grStages.map(s => '<div class="gr_row"><span class="gr_sw" style="background:' + s.color + '"></span>' +
-          '<div class="gr_rm"><b>' + esc(s.label) + '</b><span>' + grClients.filter(c => c.stage === s.key).length + ' in this stage</span></div></div>').join('') +
-      '</section>' +
-      '<section class="gr_card"><div class="gr_ct"><h2>Email templates</h2><span class="gr_n">' + grTemplates.length + '</span></div>' +
-        (grTemplates.length ? grTemplates.map(t => '<div class="gr_row"><div class="gr_rm"><b>' + esc(t.name) + '</b><span>' + esc(grSnip(t.body, 90)) + '</span></div></div>').join('')
-          : '<p class="gr_mute">No templates yet.</p>') +
-      '</section>' +
-      '<section class="gr_card"><div class="gr_ct"><h2>Who can see Growth</h2></div>' +
-        '<p class="gr_mute">Owners, managers and in-house dev see every deal and these settings. ' +
-        'A team member sees only the clients they own. Clients of the agency see nothing at all. ' +
-        'This is enforced by the database, not just hidden in the menu.</p></section>';
+      grHead('Growth settings', 'Stages, templates, codes and who owns what', '') +
+      '<div class="gr_seg gr_wide">' + tabs.map(function (t) {
+        return '<button data-gr-settab="' + t[0] + '"' + (grSetTab === t[0] ? ' aria-pressed="true"' : '') + '>' + t[1] + '</button>';
+      }).join('') + '</div>' + body;
+  }
+
+  /* ---- the writes behind Settings ---- */
+  async function grSaveStages(list) {
+    grStages = list;
+    await grSetting('pipeline', { stages: list, staleDays: grStaleDays });
+    grRender();
+  }
+  async function grStageDel(key) {
+    const holding = grClients.filter(function (c) { return c.stage === key; });
+    if (grStages.length <= 2) { grToast('Keep at least two stages.'); return; }
+    const ok = await window.giantConfirmWarn(holding.length
+      ? 'Delete this stage? ' + holding.length + ' deal' + (holding.length === 1 ? '' : 's') + ' will move to ' + grStages[0].label + '.'
+      : 'Delete this stage?');
+    if (!ok) return;
+    for (const c of holding) await grSave(c, { stage: grStages[0].key });
+    await grSaveStages(grStages.filter(function (x) { return x.key !== key; }));
   }
 
   /* --- the client sheet --- */
@@ -94582,6 +94848,126 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (add) { grAddClient(); return; }
 
     if (e.target.closest('[data-gr-cal-sync]')) { grCalendlySync(); return; }
+    const tt = e.target.closest('[data-gr-traintab]');
+    if (tt) { grTrainTab = tt.dataset.grTraintab; grRender(); return; }
+
+    if (e.target.closest('[data-gr-task-add]')) {
+      const el = $('grNewTask'), due = $('grNewTaskDue');
+      const v = (el && el.value || '').trim();
+      if (!v) { if (el) el.focus(); return; }
+      (async function () {
+        const r = await grWrite('growth_tasks', 'insert',
+          { owner_id: me(), text: v, due_on: (due && due.value) || null, position: grTasks.length });
+        if (r) { grTasks.push(r[0]); grRender(); const n = $('grNewTask'); if (n) n.focus(); }
+      })();
+      return;
+    }
+    const tdel = e.target.closest('[data-gr-task-del]');
+    if (tdel) {
+      (async function () {
+        const r = await grWrite('growth_tasks', 'delete', null, tdel.dataset.grTaskDel);
+        if (r) { grTasks = grTasks.filter(function (x) { return x.id !== tdel.dataset.grTaskDel; }); grRender(); }
+      })();
+      return;
+    }
+
+    if (e.target.closest('[data-gr-watch-add]')) {
+      const t = $('grNewWatchTitle'), u = $('grNewWatchUrl');
+      const title = (t && t.value || '').trim();
+      if (!title) { if (t) t.focus(); return; }
+      (async function () {
+        const r = await grWrite('growth_watch_calls', 'insert',
+          { title: title, url: (u && u.value || '').trim(), added_by: me(),
+            call_date: grToday(), position: grWatch.length });
+        if (r) { grWatch.push(r[0]); grRender(); }
+      })();
+      return;
+    }
+    const wdel = e.target.closest('[data-gr-watch-del]');
+    if (wdel) {
+      (async function () {
+        const r = await grWrite('growth_watch_calls', 'delete', null, wdel.dataset.grWatchDel);
+        if (r) { grWatch = grWatch.filter(function (x) { return x.id !== wdel.dataset.grWatchDel; }); grRender(); }
+      })();
+      return;
+    }
+
+    // The pre-call checklist is a scratchpad for the next call, not a record. It lives in
+    // the page and resets on purpose -- storing it would make it a history nobody wants.
+    if (e.target.closest('[data-gr-phreset]')) {
+      document.querySelectorAll('[data-gr-phcheck]').forEach(function (b) { b.checked = false; });
+      grToast('Checklist cleared');
+      return;
+    }
+
+    const st = e.target.closest('[data-gr-settab]');
+    if (st) { grSetTab = st.dataset.grSettab; grEdit = null; grRender(); return; }
+
+    const sm = e.target.closest('[data-gr-stage-move]');
+    if (sm) {
+      const list = grStages.slice(), k = sm.dataset.grStageMove, d = +sm.dataset.d;
+      const i = list.findIndex(function (x) { return x.key === k; });
+      if (i >= 0 && i + d >= 0 && i + d < list.length) {
+        const t = list[i]; list[i] = list[i + d]; list[i + d] = t; grSaveStages(list);
+      }
+      return;
+    }
+    const sd = e.target.closest('[data-gr-stage-del]');
+    if (sd) { grStageDel(sd.dataset.grStageDel); return; }
+    if (e.target.closest('[data-gr-stage-add]')) {
+      const el = $('grNewStage'), v = (el && el.value || '').trim();
+      if (!v) { if (el) el.focus(); return; }
+      const key = 's' + Date.now().toString(36);
+      const list = grStages.slice();
+      // A new stage goes before Lost, never after it: Lost is the end of the road.
+      const lost = list.findIndex(function (x) { return x.key === 'lost'; });
+      list.splice(lost >= 0 ? lost : list.length, 0, { key: key, label: v, color: '#1D5FA8' });
+      grSaveStages(list); return;
+    }
+
+    const to = e.target.closest('[data-gr-tpl-open]');
+    if (to) { grEdit = (grEdit === to.dataset.grTplOpen) ? null : to.dataset.grTplOpen; grRender(); return; }
+    const td = e.target.closest('[data-gr-tpl-del]');
+    if (td) {
+      (async function () {
+        const ok = await window.giantConfirmWarn('Delete this template?');
+        if (!ok) return;
+        const r = await grWrite('growth_templates', 'delete', null, td.dataset.grTplDel);
+        if (r) { grTemplates = grTemplates.filter(function (x) { return x.id !== td.dataset.grTplDel; }); grRender(); }
+      })();
+      return;
+    }
+    if (e.target.closest('[data-gr-tpl-add]')) {
+      const el = $('grNewTpl'), v = (el && el.value || '').trim();
+      if (!v) { if (el) el.focus(); return; }
+      (async function () {
+        const r = await grWrite('growth_templates', 'insert',
+          { name: v, subject: '', body: 'Hi {name},\n\n\n\nBest,', position: grTemplates.length });
+        if (r) { grTemplates.push(r[0]); grEdit = r[0].id; grRender(); }
+      })();
+      return;
+    }
+
+    const dd = e.target.closest('[data-gr-disc-del]');
+    if (dd) {
+      (async function () {
+        const r = await grWrite('growth_discounts', 'delete', null, dd.dataset.grDiscDel);
+        if (r) { grDiscounts = grDiscounts.filter(function (x) { return x.id !== dd.dataset.grDiscDel; }); grRender(); }
+      })();
+      return;
+    }
+    if (e.target.closest('[data-gr-disc-add]')) {
+      const c = $('grNewDiscCode'), l = $('grNewDiscLabel');
+      const code = (c && c.value || '').trim();
+      if (!code) { if (c) c.focus(); return; }
+      (async function () {
+        const r = await grWrite('growth_discounts', 'insert',
+          { code: code, label: (l && l.value || '').trim(), colour: '#D00400', position: grDiscounts.length });
+        if (r) { grDiscounts.push(r[0]); grRender(); }
+      })();
+      return;
+    }
+
     const range = e.target.closest('[data-gr-range]');
     if (range) { grRange = range.dataset.grRange; grRender(); return; }
 
@@ -94632,6 +95018,68 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (e.target.id === 'grSearch') { grQuery = e.target.value; grRenderPipeline(); return; }
     const cf = e.target.dataset && e.target.dataset.grC;
     if (cf && grComposer) { grComposer[cf] = e.target.value; return; }
+  });
+
+  // Settings fields save when you leave them, not on every keystroke: one write per edit
+  // rather than one per character, and the row that comes back proves it landed.
+  document.addEventListener('change', function (e) {
+    const d = e.target.dataset || {};
+
+    if (d.grTask || d.grTaskText || d.grTaskDue) {
+      const id = d.grTask || d.grTaskText || d.grTaskDue;
+      const t = grTasks.find(function (x) { return x.id === id; });
+      if (!t) return;
+      const patch = d.grTask ? { done: e.target.checked }
+                  : d.grTaskText ? { text: e.target.value.trim() || t.text }
+                                 : { due_on: e.target.value || null };
+      Object.assign(t, patch);
+      grWrite('growth_tasks', 'update', patch, id).then(function (r) { if (r) grRender(); });
+      return;
+    }
+    if (d.grWatchNote) {
+      grWrite('growth_watch_calls', 'update', { note: e.target.value }, d.grWatchNote);
+      return;
+    }
+    if (d.grStageLabel || d.grStageColour) {
+      const key = d.grStageLabel || d.grStageColour;
+      grSaveStages(grStages.map(function (x) {
+        if (x.key !== key) return x;
+        return d.grStageLabel ? Object.assign({}, x, { label: e.target.value.trim() || x.label })
+                              : Object.assign({}, x, { color: e.target.value });
+      }));
+      return;
+    }
+    if (d.grStale !== undefined) {
+      grStaleDays = Math.max(1, Math.min(30, parseInt(e.target.value, 10) || 5));
+      grSetting('pipeline', { stages: grStages, staleDays: grStaleDays });
+      return;
+    }
+    const tid = d.grTplName || d.grTplSub || d.grTplBody;
+    if (tid) {
+      const t = grTemplates.find(function (x) { return x.id === tid; });
+      if (!t) return;
+      const patch = d.grTplName ? { name: e.target.value.trim() || t.name }
+                  : d.grTplSub  ? { subject: e.target.value }
+                                : { body: e.target.value };
+      Object.assign(t, patch);
+      grWrite('growth_templates', 'update', patch, tid);
+      return;
+    }
+    const did = d.grDiscCode || d.grDiscLabel;
+    if (did) {
+      const x = grDiscounts.find(function (y) { return y.id === did; });
+      if (!x) return;
+      const patch = d.grDiscCode ? { code: e.target.value.trim() || x.code } : { label: e.target.value };
+      Object.assign(x, patch);
+      grWrite('growth_discounts', 'update', patch, did);
+      return;
+    }
+    if (d.grSig) {
+      const sig = Object.assign({}, grSettings.signature || {});
+      sig[d.grSig] = e.target.value;
+      grSetting('signature', sig);
+      return;
+    }
   });
 
   document.addEventListener('change', function (e) {

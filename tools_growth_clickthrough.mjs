@@ -322,6 +322,147 @@ await step('writing an email fills the composer from the template', async () => 
     String(m.gmailHref).slice(0, 140));
 });
 
+// The composer step above leaves the client sheet open, and it is position:fixed;inset:0
+// so it covers the sidebar. Every click below would time out against an overlay rather
+// than a missing control, which reads as "the screen is broken" and is not.
+await page.keyboard.press('Escape');
+await page.keyboard.press('Escape');
+await page.waitForTimeout(400);
+
+// ── everything has to be EDITABLE, not merely on screen ──────────────────────
+// Each of these changes a value and then reads the row back out of the mock database.
+// Asserting the input exists would pass on a screen whose Save does nothing at all,
+// which is precisely what Settings was before this.
+const dbRow = (table, id) => page.evaluate(([t, i]) => {
+  const db = window.__mockDB && window.__mockDB[t];
+  if (!db) return null;
+  return db.find(r => r.id === i) || null;
+}, [table, id]);
+
+await step('Settings: a stage can be renamed and it saves', async () => {
+  await navOf('gr_settings').click();
+  await page.waitForFunction(() => document.getElementById('grSettings').innerHTML.length > 300,
+    null, { timeout: 15000 }).catch(() => {});
+  const box = page.locator('[data-gr-stage-label="booked"]');
+  if (await box.count() === 0) { check('the stage list is editable', false, 'no stage input'); return; }
+  await box.fill('Just booked');
+  await box.blur();
+  await page.waitForTimeout(500);
+  const saved = await page.evaluate(() => {
+    const db = window.__mockDB && window.__mockDB.growth_settings;
+    const row = db && db.find(r => r.key === 'pipeline');
+    const st = row && row.value && row.value.stages;
+    const b = st && st.find(x => x.key === 'booked');
+    return { label: b && b.label, onScreen: document.querySelector('[data-gr-stage-label="booked"]').value };
+  });
+  check('the new stage name is written to the database', saved.label === 'Just booked', JSON.stringify(saved));
+});
+
+await step('Settings: the gone-quiet threshold saves', async () => {
+  const f = page.locator('[data-gr-stale]');
+  if (await f.count() === 0) { check('gone-quiet is editable', false); return; }
+  await f.fill('9'); await f.blur(); await page.waitForTimeout(400);
+  const v = await page.evaluate(() => {
+    const row = (window.__mockDB.growth_settings || []).find(r => r.key === 'pipeline');
+    return row && row.value && row.value.staleDays;
+  });
+  check('gone-quiet after N days saves', v === 9, 'staleDays=' + v);
+});
+
+await step('Settings: a discount code can be added', async () => {
+  await page.locator('[data-gr-settab="discounts"]').click();
+  await page.waitForTimeout(400);
+  const before = await page.evaluate(() => (window.__mockDB.growth_discounts || []).length);
+  await page.locator('#grNewDiscCode').fill('RG999');
+  await page.locator('#grNewDiscLabel').fill('Test offer');
+  await page.locator('[data-gr-disc-add]').click();
+  await page.waitForTimeout(600);
+  const after = await page.evaluate(() => {
+    const d = window.__mockDB.growth_discounts || [];
+    return { n: d.length, last: d[d.length - 1] && d[d.length - 1].code };
+  });
+  check('a discount code is actually inserted', after.n === before + 1 && after.last === 'RG999',
+    before + ' -> ' + after.n + ' last=' + after.last);
+  const shown = await page.evaluate(() =>
+    document.querySelectorAll('[data-gr-disc-code]').length);
+  check('and the screen shows it without a reload', shown === after.n, shown + ' rows on screen');
+});
+
+await step('Settings: a template can be added and its body edited', async () => {
+  await page.locator('[data-gr-settab="templates"]').click();
+  await page.waitForTimeout(400);
+  await page.locator('#grNewTpl').fill('Test template');
+  await page.locator('[data-gr-tpl-add]').click();
+  await page.waitForTimeout(600);
+  const made = await page.evaluate(() => {
+    const t = (window.__mockDB.growth_templates || []).find(x => x.name === 'Test template');
+    return t ? t.id : null;
+  });
+  check('a template is inserted', !!made, 'id=' + made);
+  if (!made) return;
+  const body = page.locator('[data-gr-tpl-body="' + made + '"]');
+  if (await body.count() === 0) { check('its body is editable', false, 'editor did not open'); return; }
+  await body.fill('Hi {name}, this is the edited body.');
+  await body.blur(); await page.waitForTimeout(500);
+  const row = await dbRow('growth_templates', made);
+  check('the edited body is written', !!row && /edited body/.test(row.body), row ? row.body.slice(0, 60) : 'no row');
+});
+
+await step('Training: all five tabs paint, and the plan ticks off', async () => {
+  await navOf('gr_training').click();
+  await page.waitForFunction(() => document.getElementById('grTraining').innerHTML.length > 300,
+    null, { timeout: 15000 }).catch(() => {});
+  for (const [tab, must] of [['plan','Your plan'],['calls','Calls to watch'],
+                             ['phil','Top tips'],['script','How a good call runs'],['pricing','one service']]) {
+    const b = page.locator('[data-gr-traintab="' + tab + '"]');
+    if (await b.count() === 0) { check('Training tab ' + tab + ' exists', false); continue; }
+    await b.click(); await page.waitForTimeout(400);
+    const m = await page.evaluate(() => {
+      const el = document.getElementById('grTraining');
+      const r = el.getBoundingClientRect();
+      return { chars: (el.innerText || '').trim().length, w: Math.round(r.width), text: el.innerText.slice(0, 600) };
+    });
+    check('Training/' + tab + ' has content (' + m.chars + ' chars)', m.chars > 60 && m.w > 400);
+    check('Training/' + tab + ' shows "' + must + '"', m.text.includes(must), m.text.slice(0, 120));
+  }
+  await page.locator('[data-gr-traintab="plan"]').click();
+  await page.waitForTimeout(400);
+  const boxes = page.locator('#grTraining input[data-gr-task]');
+  if (await boxes.count() === 0) { check('the plan has tickable tasks', false); return; }
+  const id = await boxes.first().evaluate(el => el.dataset.grTask);
+  const was = await dbRow('growth_tasks', id);
+  await boxes.first().click();
+  await page.waitForTimeout(500);
+  const now = await dbRow('growth_tasks', id);
+  check('ticking a task writes it', !!now && now.done !== (was && was.done),
+    (was && was.done) + ' -> ' + (now && now.done));
+});
+
+await step('Training: a task can be added', async () => {
+  const before = await page.evaluate(() => (window.__mockDB.growth_tasks || []).length);
+  await page.locator('#grNewTask').fill('Test task from the check');
+  await page.locator('[data-gr-task-add]').click();
+  await page.waitForTimeout(600);
+  const after = await page.evaluate(() => {
+    const t = window.__mockDB.growth_tasks || [];
+    return { n: t.length, last: t[t.length - 1] && t[t.length - 1].text };
+  });
+  check('a training task is inserted', after.n === before + 1 && /Test task/.test(after.last || ''),
+    before + ' -> ' + after.n);
+});
+
+await step('Training: a call can be added to the watch list', async () => {
+  await page.locator('[data-gr-traintab="calls"]').click();
+  await page.waitForTimeout(400);
+  const before = await page.evaluate(() => (window.__mockDB.growth_watch_calls || []).length);
+  await page.locator('#grNewWatchTitle').fill('Test call');
+  await page.locator('#grNewWatchUrl').fill('https://example.com/call');
+  await page.locator('[data-gr-watch-add]').click();
+  await page.waitForTimeout(600);
+  const after = await page.evaluate(() => (window.__mockDB.growth_watch_calls || []).length);
+  check('a watch-list call is inserted', after === before + 1, before + ' -> ' + after);
+});
+
 // ── it must not have leaked into the rest of the app ─────────────────────────
 await step('Growth has not reached into another module', async () => {
   const m = await page.evaluate(() => {

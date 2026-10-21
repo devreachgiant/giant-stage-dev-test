@@ -514,6 +514,51 @@
       updated_at: iso(30, 0), updated_by: ME }
   ];
   DB.growth_training = [];
+  DB.growth_tasks = [
+    { id: 'gk-1', owner_id: ME, text: 'Read the pricing and packages', due_on: iso(-1,0).slice(0,10), done: true,  position: 0, created_at: iso(5,0) },
+    { id: 'gk-2', owner_id: ME, text: 'Listen to 4 recorded calls',    due_on: iso(-2,0).slice(0,10), done: false, position: 1, created_at: iso(5,0) },
+    { id: 'gk-3', owner_id: ME, text: 'Run a mock call with Luke',     due_on: null,                  done: false, position: 2, created_at: iso(5,0) }
+  ];
+  DB.growth_watch_calls = [
+    { id: 'gw-1', title: 'Amy Neighbors', call_date: iso(40,0).slice(0,10), url: 'https://fathom.video/share/example',
+      tags: ['Google Ads','SEO'], outcome: 'Pitched $2.5k ad spend plus branding', note: '', position: 0,
+      added_by: ME, created_at: iso(40,0) }
+  ];
+  DB.growth_discounts = [
+    { id: 'gd-1', code: 'RG250',  label: 'Get $250 off each month',   colour: '#D91F0F', position: 0, created_at: iso(30,0) },
+    { id: 'gd-2', code: 'RG500',  label: 'Get $500 off each month',   colour: '#E8590C', position: 1, created_at: iso(30,0) },
+    { id: 'gd-3', code: 'RG1000', label: 'Get $1,000 off each month', colour: '#7048E8', position: 2, created_at: iso(30,0) }
+  ];
+  DB.growth_settings.push(
+    { key: 'philosophy', value: { tips: [
+        { h: 'They want to trust you', t: 'Be calm, confident and honest. Do not oversell.' },
+        { h: 'They want to feel heard', t: 'Ask thoughtful questions and really listen.' },
+        { h: 'They want someone who can lead', t: 'Guide the conversation with clarity.' },
+        { h: 'They want someone real', t: 'Be human. People buy from people.' },
+        { h: 'They want to say yes', t: 'Remove doubt by being transparent and easy to talk with.' }],
+      checklist: ['Stay calm and do not oversell', 'Listen and ask questions', 'Be real, not scripted'] },
+      updated_at: iso(30,0), updated_by: ME },
+    { key: 'script', value: {
+        flow: [{ h: 'Open', t: 'Warm hello. Ask what made them book.' },
+               { h: 'Listen', t: 'Ask about the business and what has gone wrong.' },
+               { h: 'Find the worry', t: 'Budget, long contracts, past agencies.' },
+               { h: 'Offer', t: 'Say the plan in plain words.' },
+               { h: 'Email in 10 minutes', t: 'Send the recap while the call is fresh.' }],
+        worries: [{ q: 'Is it worth it at my budget?', a: 'Start small and grow when it works.' },
+                  { q: 'I do not want a long contract.', a: 'No annual lock in. 3 month minimum.' }] },
+      updated_at: iso(30,0), updated_by: ME },
+    { key: 'pricing', value: {
+        packs: [{ tag: 'Pack 1', name: 'Paid Ads Volt', price: '$3,000', inc: 'Google Ads + Meta Ads',
+                  txt: 'Full management across Search, Instagram and Facebook.', link: 'https://example.com/pay1', top: false },
+                { tag: 'Pack 2', name: 'Google Powerhouse', price: '$3,000', inc: 'Google Ads + SEO',
+                  txt: 'Paid and organic working together.', link: 'https://example.com/pay2', top: true }],
+        services: [{ n: 'Google Ads', p: '$1,500', w: 'Clicks but not enough real leads.', l: 'https://example.com/s1' },
+                   { n: 'SEO Management', p: '$2,500', w: 'Wants inbound leads without paying per click.', l: '' }],
+        notes: ['Packages cover up to $15,000 a month in ad spend.'] },
+      updated_at: iso(30,0), updated_by: ME },
+    { key: 'signature', value: { name: 'Nishchay Pandya', title: 'ReachGiant', phone: '', email: 'hello@example.com', site: 'reachgiant.com' },
+      updated_at: iso(30,0), updated_by: ME }
+  );
 
   // Anything New Chat asks for that was not foreseen: an empty table, loudly noted,
   // rather than a TypeError that would look like a bug in the page.
@@ -548,6 +593,10 @@
   const MISSING = (n) => ({ data: null, count: null, status: 404, error: {
     code: 'PGRST205', details: null, hint: null,
     message: "Could not find the table 'public." + n + "' in the schema cache" } });
+
+  // So a click-through can read a row back and prove a write landed, rather than
+  // asserting that an input exists on a screen whose Save does nothing.
+  try { window.__mockDB = DB; } catch (e) {}
 
   // ── PostgREST-ish query builder ──────────────────────────────────────────
   const FK = { 'messages.channels': 'channel_id', 'tasks.projects': 'project_id',
