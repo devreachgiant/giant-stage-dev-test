@@ -750,6 +750,169 @@ await step('the To do view lists what needs doing', async () => {
   check('and Board brings the columns back', back > 0, back + ' columns');
 });
 
+await step('Meetings offers all four views and each one paints', async () => {
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  await navOf('gr_meetings').click();
+  await page.waitForFunction(() => document.getElementById('grMeetings').innerHTML.length > 300,
+    null, { timeout: 15000 }).catch(() => {});
+  const views = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-gr-mview]')].map(b => b.dataset.grMview));
+  check('four views are offered', views.length === 4, JSON.stringify(views));
+  for (const v of ['up', 'week', 'month', 'past']) {
+    const b = page.locator('[data-gr-mview="' + v + '"]');
+    if (await b.count() === 0) { check('view ' + v + ' exists', false); continue; }
+    await b.click(); await page.waitForTimeout(400);
+    const m = await page.evaluate(() => {
+      const el = document.getElementById('grMeetings');
+      const r = el.getBoundingClientRect();
+      return { chars: (el.innerText || '').trim().length, w: Math.round(r.width),
+               days: el.querySelectorAll('.gr_dayc').length,
+               grid: el.querySelectorAll('.gr_mgrid button').length };
+    });
+    check('Meetings/' + v + ' paints (' + m.chars + ' chars)', m.chars > 40 && m.w > 400);
+    if (v === 'week') check('the week shows seven days', m.days === 7, m.days + ' day cards');
+    if (v === 'month') check('the month shows a 42-cell grid', m.grid === 42, m.grid + ' cells');
+  }
+});
+
+await step('a meeting row carries the time, the source and a way in', async () => {
+  await page.locator('[data-gr-mview="up"]').click();
+  await page.waitForTimeout(400);
+  const m = await page.evaluate(() => {
+    const row = document.querySelector('#grMeetings .gr_mx');
+    if (!row) return { none: true };
+    const tile = row.querySelector('.gr_mt');
+    const tr = tile.getBoundingClientRect();
+    return {
+      none: false,
+      time: tile.querySelector('b').textContent,
+      mins: tile.querySelector('span').textContent,
+      tileColoured: getComputedStyle(tile).backgroundColor,
+      tileW: Math.round(tr.width), tileH: Math.round(tr.height),
+      source: (row.querySelector('.gr_src') || {}).textContent || '',
+      rel: (row.querySelector('.gr_rel') || {}).textContent || '',
+      join: !!row.querySelector('.gr_joinbig'),
+      icons: row.querySelectorAll('.gr_ico').length
+    };
+  });
+  check('there is a meeting to measure', !m.none);
+  if (m.none) return;
+  check('the time tile shows the time and length', /\d/.test(m.time) && /min/.test(m.mins), m.time + ' / ' + m.mins);
+  // A tile with no colour and no size is the "existed the whole time at 0px" failure.
+  check('the tile is coloured and real (' + m.tileW + 'x' + m.tileH + ')',
+    m.tileW > 50 && m.tileH > 40 && !/rgba\(0, 0, 0, 0\)/.test(m.tileColoured), m.tileColoured);
+  check('it names where the booking came from', m.source.length > 2, m.source);
+  check('it says how long until it starts', m.rel.length > 1, m.rel);
+  check('and offers Join plus the two round buttons', m.join && m.icons === 2,
+    'join=' + m.join + ' icons=' + m.icons);
+});
+
+await step('a pipeline card carries its status, warmth and controls', async () => {
+  await navOf('gr_pipeline').click();
+  await page.waitForFunction(() => document.querySelectorAll('#grPipeline .gr_bc').length > 0,
+    null, { timeout: 15000 }).catch(() => {});
+  const m = await page.evaluate(() => {
+    const c = document.querySelector('#grPipeline .gr_bc');
+    return {
+      status: (c.querySelector('.gr_st') || {}).textContent || '',
+      score: (c.querySelector('.gr_sc') || {}).textContent || '',
+      scoreWhy: (c.querySelector('.gr_sc') || {}).title || '',
+      mail: !!c.querySelector('[data-gr-mail]'),
+      dots: !!c.querySelector('[data-gr-menu]'),
+      meta: (c.querySelector('.gr_bm') || {}).textContent || '',
+      hint: (document.querySelector('#grPipeline .gr_hint') || {}).textContent || ''
+    };
+  });
+  check('the card says what is happening', m.status.length > 3, m.status);
+  check('it shows how warm the deal is', /Hot|Warm|Cold/.test(m.score), m.score);
+  check('and the warmth can be explained', m.scoreWhy.length > 5, m.scoreWhy);
+  check('it has the mail and menu buttons', m.mail && m.dots, 'mail=' + m.mail + ' dots=' + m.dots);
+  check('and a line of context', m.meta.length > 3, m.meta);
+  check('the board explains how to use it', /Drag a card/.test(m.hint), m.hint);
+
+  // Cramped columns are what wrapped every name onto two lines and truncated the company
+  // to "Kr...". Measure the text, not just that the elements are present.
+  const fit = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('#grPipeline .gr_bc')];
+    return cards.map(c => {
+      const b = c.querySelector('.gr_bn b'), sp = c.querySelector('.gr_bn span');
+      const lh = parseFloat(getComputedStyle(b).lineHeight) || 18;
+      return {
+        name: b.textContent,
+        lines: Math.round(b.getBoundingClientRect().height / lh),
+        coClipped: sp ? sp.scrollHeight > sp.clientHeight + 2 : false,
+        co: sp ? sp.textContent : ''
+      };
+    });
+  });
+  const wrapped = fit.filter(f => f.lines > 1);
+  const clipped = fit.filter(f => f.coClipped);
+  check('no client name wraps onto a second line', wrapped.length === 0,
+    JSON.stringify(wrapped.map(w => w.name)));
+  // The company is allowed to wrap -- the design does that -- but it must not be cut off
+  // mid-sentence with nothing to show for it.
+  check('no company is cut off', clipped.length === 0, JSON.stringify(clipped.map(c => c.co)));
+  // The meta line was being squeezed to "1 ema..." once the warmth pill and owner sat
+  // beside it, which is the same cramping in a different place.
+  const meta = await page.evaluate(() =>
+    [...document.querySelectorAll('#grPipeline .gr_bm > span:first-child')].map(sp => ({
+      t: sp.textContent, clipped: sp.scrollWidth > sp.clientWidth + 1 })));
+  check('the email/age line is not truncated', meta.every(x => !x.clipped),
+    JSON.stringify(meta.filter(x => x.clipped).map(x => x.t)));
+});
+
+await step('the three-dot menu opens and can move a deal', async () => {
+  const before = await page.evaluate(() => {
+    const c = document.querySelector('#grPipeline .gr_bc');
+    const id = c.dataset.grCard;
+    return { id, stage: (window.__mockDB.growth_clients || []).find(r => r.id === id).stage };
+  });
+  await page.locator('#grPipeline .gr_bc [data-gr-menu]').first().click();
+  await page.waitForTimeout(350);
+  const menu = await page.evaluate(() => {
+    const el = document.getElementById('grMenu');
+    if (!el) return { open: false };
+    const r = el.getBoundingClientRect();
+    return { open: true, w: Math.round(r.width), h: Math.round(r.height),
+             items: el.querySelectorAll('button').length,
+             moves: [...el.querySelectorAll('[data-gr-m="mv"]')].map(b => b.dataset.to) };
+  });
+  check('the menu opens', menu.open);
+  check('and is a real size (' + menu.w + 'x' + menu.h + ')', menu.w > 150 && menu.h > 100);
+  check('it offers every other stage', menu.moves && menu.moves.length === 5 &&
+    !menu.moves.includes(before.stage), JSON.stringify(menu.moves));
+  const to = menu.moves[0];
+  await page.locator('#grMenu [data-gr-m="mv"][data-to="' + to + '"]').click();
+  await page.waitForTimeout(600);
+  const after = await page.evaluate((id) =>
+    (window.__mockDB.growth_clients || []).find(r => r.id === id).stage, before.id);
+  check('moving from the menu writes the new stage', after === to, before.stage + ' -> ' + after);
+  const shut = await page.evaluate(() => !document.getElementById('grMenu'));
+  check('and the menu closes behind it', shut);
+});
+
+await step('no screen shows a raw HTML entity', async () => {
+  // grHead escapes its subtitle, so an entity written in there reaches the user as the
+  // literal text "&middot;". Easy to write, invisible to every static tool, and it was
+  // sitting on the Meetings header.
+  const bad = [];
+  for (const scr of ['gr_home', 'gr_meetings', 'gr_pipeline', 'gr_inbox',
+                     'gr_training', 'gr_analytics', 'gr_connectors', 'gr_settings']) {
+    const nav = navOf(scr);
+    if (await nav.count() === 0) continue;
+    await nav.click();
+    await page.waitForTimeout(450);
+    const hit = await page.evaluate(() => {
+      const t = document.querySelector('.screen.on') ? document.querySelector('.screen.on').innerText : '';
+      const m = t.match(/&(?:[a-z]+|#\d+);/i);
+      return m ? m[0] : null;
+    });
+    if (hit) bad.push(scr + ': ' + hit);
+  }
+  check('no raw entity reaches the screen', bad.length === 0, bad.join(' | '));
+});
+
 // ── it must not have leaked into the rest of the app ─────────────────────────
 await step('Growth has not reached into another module', async () => {
   const m = await page.evaluate(() => {

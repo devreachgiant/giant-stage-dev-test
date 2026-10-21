@@ -6197,6 +6197,9 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
    Every selector is gr_ prefixed so it cannot reach into another module, and every colour
    is a variable so the screens follow the light/dark theme like the rest of the app. ===== */
 .gr_wrap{max-width:1180px;margin:0 auto;padding:24px 28px 40px;}
+/* The pipeline is the one screen that wants every pixel: six columns at 1180 left each
+   one about 180px, which wrapped every name and truncated every company. */
+#grPipeline{max-width:none;}
 .gr_head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px;}
 .gr_head h1{margin:0;font-size:26px;font-weight:800;letter-spacing:-.03em;}
 .gr_head p{margin:5px 0 0;font-size:13px;color:var(--text-3);}
@@ -6218,7 +6221,7 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_rt time{font-size:11.5px;color:var(--text-3);white-space:nowrap;}
 .gr_rs{font-size:13px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .gr_av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:13px;font-weight:800;flex:none;}
-.gr_av.gr_sm2{width:32px;height:32px;font-size:12px;}
+.gr_av.gr_sm2{width:30px;height:30px;font-size:11.5px;}
 .gr_av.gr_lg{width:56px;height:56px;font-size:20px;}
 .gr_time{width:62px;text-align:center;flex:none;}
 .gr_time b{display:block;font-size:15px;font-weight:800;}
@@ -6258,13 +6261,17 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_need{font-style:normal;font-size:10.5px;font-weight:700;color:var(--red);background:rgba(208,4,0,.14);border-radius:99px;padding:1px 7px;flex:none;}
 .gr_colsum{font-size:11.5px;color:var(--text-3);padding:0 6px 6px;}
 .gr_colempty{border:1.5px dashed var(--line);border-radius:12px;color:var(--text-3);font-size:12.5px;padding:20px 8px;text-align:center;}
-.gr_bc{background:var(--surface-2);border-radius:13px;padding:12px;margin-bottom:7px;cursor:pointer;}
+.gr_bc{position:relative;background:var(--surface-2);border-radius:13px;padding:11px;margin-bottom:7px;cursor:pointer;}
 .gr_bc:hover{box-shadow:inset 0 0 0 1.5px var(--line-2);}
 .gr_bh{display:flex;align-items:flex-start;gap:10px;}
 .gr_bn{min-width:0;flex:1;}
-.gr_bn b{display:block;font-size:14px;font-weight:700;line-height:1.25;}
-.gr_bn span{display:block;font-size:12px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.gr_bf{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:9px;}
+/* The name holds one line; the company is allowed two, which is what the design does --
+   "Costa Rica luxury real estate brokerage" was never going to fit on one. */
+.gr_bn b{display:block;font-size:13.5px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gr_bn span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:11.5px;color:var(--text-3);overflow:hidden;margin-top:2px;line-height:1.35;}
+.gr_bf{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:9px;}
+.gr_bm{display:flex;align-items:center;gap:6px;margin-top:7px;}
+.gr_bm>span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .gr_st{font-size:11px;font-weight:700;border-radius:99px;padding:3px 9px;background:var(--surface);color:var(--text-3);white-space:nowrap;}
 .gr_st.hot{background:rgba(208,4,0,.14);color:#F08A8A;}
 .gr_st.ok{background:rgba(31,122,69,.16);color:#5CCB8A;}
@@ -6303,11 +6310,6 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_cstat.bad{color:#F08A8A;}
 .gr_sw{width:11px;height:11px;border-radius:3px;flex:none;}
 .gr_mute{color:var(--text-3);font-size:13px;line-height:1.6;}
-.gr_mx{display:flex;align-items:center;gap:15px;padding:14px 4px;border-top:1px solid var(--line);cursor:pointer;}
-.gr_mx:first-of-type{border-top:0;}
-.gr_mt{width:70px;text-align:center;flex:none;background:var(--surface-2);border-radius:13px;padding:10px 4px;}
-.gr_mt b{display:block;font-size:18px;font-weight:800;}
-.gr_mt span{font-size:10.5px;color:var(--text-3);}
 .gr_mn{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .gr_src{font-size:10px;text-transform:uppercase;letter-spacing:.05em;background:var(--surface-2);color:var(--text-3);border-radius:5px;padding:2px 6px;}
 .gr_sheetwrap{position:fixed;inset:0;z-index:60;display:none;align-items:flex-start;justify-content:center;padding:48px 16px 16px;background:rgba(8,8,10,.55);overflow-y:auto;}
@@ -6467,6 +6469,66 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_write:disabled{opacity:.55;cursor:default;}
 .gr_join{flex:none;border-radius:99px;padding:6px 15px;font-size:12.5px;font-weight:700;background:var(--surface-2);color:var(--text);text-decoration:none;}
 .gr_join:hover{background:var(--text);color:var(--bg);}
+/* Meetings. The day colour says how far away it is, so today is found without reading. */
+.gr_dayc{position:relative;padding:22px 20px 10px;overflow:hidden;}
+.gr_dayc::before{content:"";position:absolute;left:20px;top:0;width:38px;height:4px;border-radius:0 0 5px 5px;background:var(--dc);}
+.gr_dayc.gr_quiet{padding:16px 20px;opacity:.75;}
+.gr_dayh{display:flex;align-items:baseline;gap:12px;margin-bottom:6px;}
+.gr_dayh h2{margin:0;font-size:24px;font-weight:800;letter-spacing:-.03em;}
+.gr_dsub{font-size:11.5px;letter-spacing:.09em;color:var(--text-3);font-weight:600;}
+.gr_dn{margin-left:auto;font-size:13.5px;font-weight:700;color:var(--dc);}
+.gr_mnone{margin-left:auto;font-size:12.5px;color:var(--text-3);}
+.gr_mx{display:flex;align-items:center;gap:16px;padding:14px 0;border-top:1px solid var(--line);cursor:pointer;flex-wrap:wrap;}
+.gr_mx:first-of-type{border-top:0;}
+.gr_mx.gr_done{opacity:.6;}
+.gr_mt{width:74px;flex:none;background:var(--dc);border-radius:16px;padding:11px 4px;text-align:center;color:#fff;}
+.gr_mt b{display:block;font-size:21px;font-weight:800;letter-spacing:-.02em;}
+.gr_mt span{font-size:10.5px;opacity:.85;}
+.gr_mx.gr_done .gr_mt{background:#C7C7CC;}
+.gr_mx.gr_livem .gr_mt{box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--dc);}
+.gr_mn{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.gr_rel{font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border:1.5px solid var(--line-2);color:var(--text-3);border-radius:99px;padding:4px 10px;white-space:nowrap;flex:none;}
+.gr_rel.gr_on{border-color:var(--dc);color:var(--dc);}
+.gr_mact{display:flex;align-items:center;gap:7px;flex:none;}
+.gr_joinbig{display:inline-flex;align-items:center;gap:7px;background:var(--dc);color:#fff;border-radius:99px;padding:9px 17px;font-size:13px;font-weight:700;text-decoration:none;}
+.gr_joinbig:hover{filter:brightness(1.08);}
+.gr_ico{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);color:var(--text-2);cursor:pointer;font-size:13px;display:grid;place-items:center;}
+.gr_ico:hover{border-color:var(--text);color:var(--text);}
+.gr_brief{flex-basis:100%;background:var(--surface-2);border-radius:12px;padding:10px 14px;font-size:13.5px;}
+.gr_brief summary{cursor:pointer;font-weight:700;}
+.gr_brief p{margin:8px 0 0;white-space:pre-wrap;line-height:1.6;color:var(--text-2);}
+.gr_brief.gr_wait{color:var(--text-3);}
+.gr_mnav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
+.gr_mnav b{font-size:17px;font-weight:800;letter-spacing:-.02em;}
+.gr_mnav span{display:flex;gap:6px;}
+.gr_mgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+.gr_wd{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--text-3);text-align:center;padding:2px 0;}
+.gr_mgrid button{aspect-ratio:1/1;border:1px solid var(--line);background:var(--surface);border-radius:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font:inherit;font-size:13px;font-weight:600;color:var(--text);min-height:40px;}
+.gr_mgrid button.gr_out{opacity:.35;}
+.gr_mgrid button.gr_sel{border-color:var(--text);box-shadow:inset 0 0 0 1px var(--text);}
+.gr_mgrid button.gr_tdy{background:var(--red);border-color:var(--red);color:#fff;}
+.gr_mgrid em{display:flex;gap:2px;height:5px;}
+.gr_mgrid em i{width:5px;height:5px;border-radius:50%;background:var(--red);}
+.gr_mgrid button.gr_tdy em i{background:#fff;}
+/* Out of the flow: at 210px a column has no room for two buttons beside a name, and the
+   design fades them in on hover anyway. focus-within keeps them reachable by keyboard. */
+.gr_ba{position:absolute;top:7px;right:7px;display:flex;gap:1px;background:var(--surface-2);border-radius:9px;opacity:0;transition:opacity .12s;}
+.gr_bc:hover .gr_ba,.gr_bc:focus-within .gr_ba{opacity:1;}
+.gr_ib2{width:24px;height:24px;border:0;border-radius:8px;background:transparent;color:var(--text-2);cursor:pointer;display:grid;place-items:center;}
+.gr_ib2:hover{background:var(--surface);color:var(--text);}
+.gr_sc{font-size:10.5px;font-weight:700;border-radius:99px;padding:2px 8px;}
+.gr_sc.hot{background:rgba(208,4,0,.16);color:#F08A8A;}
+.gr_sc.warm{background:rgba(242,169,59,.16);color:#F0C98A;}
+.gr_sc.cold{background:var(--surface);color:var(--text-3);}
+.gr_st.warn{background:rgba(242,169,59,.14);color:#F0C98A;}
+.gr_st i{width:5px;height:5px;border-radius:50%;background:currentColor;display:inline-block;margin-right:5px;}
+.gr_ow{width:19px;height:19px;border-radius:50%;background:var(--surface);color:var(--text-2);display:inline-grid;place-items:center;font-size:9px;font-weight:700;flex:none;}
+.gr_hint{text-align:center;font-size:12.5px;color:var(--text-3);margin:14px 0 0;}
+.gr_menu{position:fixed;z-index:80;width:230px;background:var(--surface);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 18px 50px -12px rgba(0,0,0,.5);padding:6px;display:flex;flex-direction:column;max-height:70vh;overflow-y:auto;}
+.gr_menu button{border:0;background:transparent;color:var(--text);text-align:left;font:inherit;font-size:13.5px;font-weight:600;padding:9px 11px;border-radius:9px;cursor:pointer;display:flex;align-items:center;gap:9px;}
+.gr_menu button:hover{background:var(--surface-2);}
+.gr_menu i{width:9px;height:9px;border-radius:50%;flex:none;}
+.gr_ml{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);padding:9px 11px 3px;border-top:1px solid var(--line);margin-top:4px;}
 .gr_toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 18px;border-radius:99px;font-size:13px;font-weight:600;z-index:90;opacity:0;pointer-events:none;transition:.2s;}
 .gr_toast.on{opacity:1;transform:translateX(-50%);}
 </style>
@@ -94539,34 +94601,236 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     return 'in ' + hh + 'h';
   }
 
-  /* --- Meetings --- */
+  /* --- Meetings: Upcoming / Week / Month / Past ---
+     A day gets a colour by how far away it is, so the eye finds today without reading
+     dates: today green, tomorrow orange, this week blue, later purple, past grey. */
+  let grMView = 'up', grWeekOff = 0, grMonthOff = 0, grSelDay = null;
+
+  const grDayColour = d => {
+    const a = new Date(d); a.setHours(0, 0, 0, 0);
+    const n = new Date(); n.setHours(0, 0, 0, 0);
+    const diff = Math.round((a - n) / 86400000);
+    return diff < 0 ? '#8E8E93' : diff === 0 ? '#00B86B' : diff === 1 ? '#FF6A00'
+         : diff <= 6 ? '#0A6CFF' : '#7A3CFF';
+  };
+  const grDone = m => new Date(m.starts_at).getTime() + (m.minutes || 45) * 60000 < Date.now();
+  const grLive = m => !grDone(m) && new Date(m.starts_at) <= Date.now();
+
+  function grMeetingRow(m) {
+    const c = grClients.find(x => x.id === m.client_id);
+    const done = grDone(m), live = grLive(m);
+    const t = new Date(m.starts_at);
+    return '<div class="gr_mx' + (done ? ' gr_done' : '') + (live ? ' gr_livem' : '') + '"' +
+        (c ? ' data-gr-open="' + c.id + '"' : '') + '>' +
+      '<div class="gr_mt"><b>' + esc(grHm(m.starts_at).replace(/\s?[AP]M/i, '')) + '</b>' +
+        '<span>' + (m.minutes || 45) + ' min</span></div>' +
+      '<div class="gr_rm"><div class="gr_mn">' + esc(c ? c.name : m.title) +
+        (m.source ? '<span class="gr_src">' + esc(m.source) + '</span>' : '') + '</div>' +
+        '<span>' + esc(c && c.company ? c.company : m.title) +
+          (c && c.email ? ' &middot; ' + esc(c.email) : '') + '</span></div>' +
+      '<span class="gr_rel' + (done ? '' : ' gr_on') + '">' +
+        esc(done ? 'Done' : live ? 'Live now' : grRelIn(m.starts_at)) + '</span>' +
+      '<span class="gr_mact">' +
+        (!done && m.zoom_url
+          ? '<a class="gr_joinbig" href="' + esc(m.zoom_url) + '" target="_blank" rel="noopener" data-gr-stop>' +
+            '<svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M1.8 4.4h7.4v7.2H1.8zM9.2 7l5-2.4v6.8L9.2 9" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>Join</a>'
+          : '') +
+        (!done ? '<button class="gr_ico" data-gr-brief="' + m.id + '" title="Write a brief for this call" aria-label="Write a brief">&#10022;</button>' : '') +
+        (c ? '<button class="gr_ico" data-gr-open2="' + c.id + '" title="Open the client" aria-label="Open the client">' +
+          '<svg viewBox="0 0 16 16" width="13" height="13" fill="none"><circle cx="8" cy="5.6" r="2.6" stroke="currentColor" stroke-width="1.4"/><path d="M3 13c.6-2.6 2.6-4 5-4s4.4 1.4 5 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>' : '') +
+      '</span>' +
+      (m._busy ? '<div class="gr_brief gr_wait">Reading what we know about them...</div>'
+       : m.brief ? '<details class="gr_brief"><summary>Brief</summary><p>' + esc(m.brief) + '</p></details>' : '') +
+      '</div>';
+  }
+
+  function grDayCard(d, list, quiet) {
+    const col = grDayColour(d);
+    return '<section class="gr_card gr_dayc' + (list.length ? '' : ' gr_quiet') + '" style="--dc:' + col + '">' +
+      '<div class="gr_dayh"><h2>' + esc(grDayLabel(d)) + '</h2>' +
+        '<span class="gr_dsub">' + esc(new Date(d).toLocaleDateString(undefined,
+          { weekday: 'short', day: 'numeric', month: 'short' }).toUpperCase()) + '</span>' +
+        (list.length ? '<span class="gr_dn">' + list.length + '</span>'
+                     : '<span class="gr_mnone">' + (quiet || 'No meetings') + '</span>') + '</div>' +
+      list.map(grMeetingRow).join('') + '</section>';
+  }
+
+  /* A short brief before a call, written from what we already know about them. Stored on
+     the meeting so the second person to open it does not pay for it again. */
+  async function grBrief(id) {
+    const m = grMeetings.find(x => x.id === id);
+    if (!m || m._busy) return;
+    const c = grClients.find(x => x.id === m.client_id);
+    m._busy = true; grRender();
+    try {
+      const res = await fetch('/.netlify/functions/claude-api', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          max_tokens: 500,
+          system: 'You brief a salesperson before a call. Use ONLY the facts given. If they ' +
+            'are thin, say so in one line and give the three best questions to ask instead of ' +
+            'guessing. Three headings on their own lines: Who they are / What they need / Do ' +
+            'next. Plain text, no markdown, no dashes.',
+          messages: [{ role: 'user', content: JSON.stringify({
+            name: c ? c.name : m.title, company: c ? c.company : '',
+            stage: c ? grStageLabel(c.stage) : '', notes: c ? c.summary : '',
+            emailsSent: c ? c.emails_sent : 0,
+            lastReply: c && grLastIn(c) ? grSnip(grLastIn(c).body, 300) : '',
+            meeting: { when: m.starts_at, title: m.title } }) }]
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'AI error');
+      const text = String(data.text || '').trim();
+      const r = await grWrite('growth_meetings', 'update',
+        { brief: text, brief_at: new Date().toISOString() }, m.id);
+      if (r) { m.brief = text; m.brief_at = r[0].brief_at; }
+    } catch (e) {
+      grToast('Could not write the brief. ' + String((e && e.message) || e).slice(0, 80));
+    }
+    m._busy = false; grRender();
+  }
+
   function grRenderMeetings() {
     const all = grMeetings.slice().sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
-    const up = all.filter(m => new Date(m.starts_at).getTime() + (m.minutes || 45) * 60000 >= Date.now());
-    const past = all.filter(m => new Date(m.starts_at).getTime() + (m.minutes || 45) * 60000 < Date.now()).reverse();
-    const days = [];
-    up.forEach(m => {
-      const last = days[days.length - 1];
-      if (last && grSameDay(last.d, m.starts_at)) last.ms.push(m); else days.push({ d: m.starts_at, ms: [m] });
-    });
-    const label = (d) => grSameDay(d, Date.now()) ? 'Today'
-      : grSameDay(d, Date.now() + 86400000) ? 'Tomorrow'
-      : new Date(d).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
-    const card = (m) => {
-      const c = grClients.find(x => x.id === m.client_id);
-      const live = Math.abs(new Date(m.starts_at) - Date.now()) < (m.minutes || 45) * 60000 && new Date(m.starts_at) <= Date.now();
-      return '<div class="gr_mx"' + (c ? ' data-gr-open="' + c.id + '"' : '') + '>' +
-        '<div class="gr_mt"><b>' + esc(grHm(m.starts_at)) + '</b><span>' + (m.minutes || 45) + ' min</span></div>' +
-        '<div class="gr_rm"><div class="gr_mn">' + esc(c ? c.name : m.title) +
-          (m.source ? '<span class="gr_src">' + esc(m.source) + '</span>' : '') + '</div>' +
-          '<span>' + esc(c && c.company ? c.company : m.title) + (c && c.email ? ' &middot; ' + esc(c.email) : '') + '</span></div>' +
-        (m.zoom_url ? '<a class="btn-red gr_sm" href="' + esc(m.zoom_url) + '" target="_blank" rel="noopener" data-gr-stop>' + (live ? 'Join now' : 'Join') + '</a>' : '') +
-        '</div>';
+    const up = all.filter(m => !grDone(m));
+    const past = all.filter(grDone).reverse();
+    const wkStart = (off) => {
+      const d = new Date(); d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - ((d.getDay() + 6) % 7) + off * 7);
+      return d;
     };
+    const thisWeek = all.filter(m => {
+      const w = wkStart(0), e = new Date(w.getTime() + 7 * 86400000);
+      const t = new Date(m.starts_at);
+      return t >= w && t < e;
+    }).length;
+
+    const seg = '<div class="gr_seg">' + [['up', 'Upcoming'], ['week', 'Week'], ['month', 'Month'], ['past', 'Past']]
+      .map(v => '<button data-gr-mview="' + v[0] + '"' + (grMView === v[0] ? ' aria-pressed="true"' : '') + '>' + v[1] + '</button>').join('') + '</div>';
+    const nav = (label) => '<div class="gr_mnav"><b>' + esc(label) + '</b><span>' +
+      '<button class="gr_ib" data-gr-mnav="-1" aria-label="Previous">&#8249;</button>' +
+      '<button class="gr_ghost" data-gr-mnav="0">Today</button>' +
+      '<button class="gr_ib" data-gr-mnav="1" aria-label="Next">&#8250;</button></span></div>';
+
+    let body = '';
+    if (grMView === 'past') {
+      const days = [];
+      past.forEach(m => {
+        const last = days[days.length - 1];
+        if (last && grSameDay(last.d, m.starts_at)) last.ms.push(m); else days.push({ d: m.starts_at, ms: [m] });
+      });
+      body = days.length ? days.slice(0, 30).map(x => grDayCard(x.d, x.ms)).join('')
+        : '<section class="gr_card">' + grEmpty('&#9719;', 'No past meetings', 'Finished calls land here.') + '</section>';
+
+    } else if (grMView === 'week') {
+      const w = wkStart(grWeekOff);
+      const days = [...Array(7)].map((_, k) => { const d = new Date(w); d.setDate(w.getDate() + k); return d; });
+      body = nav(days[0].toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' to ' +
+                 days[6].toLocaleDateString(undefined, { day: 'numeric', month: 'short' })) +
+        days.map(d => grDayCard(d, all.filter(m => grSameDay(m.starts_at, d)))).join('');
+
+    } else if (grMView === 'month') {
+      const base = new Date(); base.setDate(1); base.setHours(0, 0, 0, 0);
+      base.setMonth(base.getMonth() + grMonthOff);
+      const first = new Date(base); first.setDate(1 - ((first.getDay() + 6) % 7));
+      const sel = grSelDay || new Date();
+      let grid = '<div class="gr_mgrid">' + ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+        .map(x => '<div class="gr_wd">' + x + '</div>').join('');
+      for (let k = 0; k < 42; k++) {
+        const d = new Date(first); d.setDate(first.getDate() + k);
+        const n = all.filter(m => grSameDay(m.starts_at, d)).length;
+        grid += '<button data-gr-mday="' + d.getTime() + '" class="' +
+          (d.getMonth() !== base.getMonth() ? 'gr_out ' : '') +
+          (grSameDay(d, Date.now()) ? 'gr_tdy ' : '') +
+          (grSameDay(d, sel) ? 'gr_sel' : '') + '">' + d.getDate() +
+          '<em>' + '<i></i>'.repeat(Math.min(n, 3)) + '</em></button>';
+      }
+      grid += '</div>';
+      body = '<section class="gr_card">' +
+        nav(base.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })) + grid + '</section>' +
+        grDayCard(sel, all.filter(m => grSameDay(m.starts_at, sel)));
+
+    } else {
+      const days = [];
+      up.forEach(m => {
+        const last = days[days.length - 1];
+        if (last && grSameDay(last.d, m.starts_at)) last.ms.push(m); else days.push({ d: m.starts_at, ms: [m] });
+      });
+      body = days.length ? days.map(x => grDayCard(x.d, x.ms)).join('')
+        : '<section class="gr_card">' + grEmpty('&#9719;', 'Nothing booked',
+            'Bookings land here once Calendly is connected.') + '</section>';
+    }
+
     $('grMeetings').innerHTML =
-      grHead('Meetings', up.length + ' upcoming &middot; ' + past.length + ' done', '') +
-      (days.length ? days.map(d => '<section class="gr_card"><div class="gr_ct"><h2>' + esc(label(d.d)) + '</h2><span class="gr_n">' + d.ms.length + '</span></div>' + d.ms.map(card).join('') + '</section>').join('')
-        : '<section class="gr_card">' + grEmpty('&#9719;', 'Nothing booked', 'Bookings appear here once a calendar is connected.') + '</section>');
+      grHead('Meetings', up.length + ' upcoming \u00b7 ' + thisWeek + ' this week \u00b7 ' + past.length + ' done', seg) +
+      body;
+  }
+
+  /* How warm a deal is, from what we already know rather than a field somebody has to
+     keep up to date. The reasons are in the tooltip, because a score nobody can explain
+     is a number people learn to ignore. */
+  function grScore(c) {
+    if (!grActive(c)) return null;
+    let n = 0; const why = [];
+    const it = c.intake || {};
+    if (grWaiting(c)) { n += 3; why.push('They replied'); }
+    if (/all in|asap/i.test(String(it.ready || ''))) { n += 3; why.push('Ready now'); }
+    else if (/serious/i.test(String(it.ready || ''))) { n += 2; why.push('Serious'); }
+    if (/1,?500|10,?000|\+/.test(String(it.budget || ''))) { n += 2; why.push('Good budget'); }
+    else if (it.budget) n += 1;
+    if ((c.calls_held || 0) > 0) { n += 1; why.push('Call held'); }
+    if (grNextMeeting(c)) { n += 1; why.push('Call booked'); }
+    const d = grDaysAgo(grLastTouch(c));
+    if (d != null && d > 21) { n -= 3; why.push('Quiet for ' + d + ' days'); }
+    else if (d != null && d > 10) { n -= 2; why.push('Quiet for ' + d + ' days'); }
+    const k = n >= 6 ? 'hot' : n >= 3 ? 'warm' : 'cold';
+    return { k: k, label: k === 'hot' ? 'Hot' : k === 'warm' ? 'Warm' : 'Cold',
+             why: why.join(', ') || 'Not much to go on yet' };
+  }
+
+  // What the card says is happening, in the words a rep would use.
+  function grStatus(c) {
+    const na = grNextAction(c);
+    if (!na) return { t: c.stage === 'won' ? 'Won' : c.stage === 'lost' ? 'Closed' : 'On track', k: 'ok' };
+    if (na.t === 'reply') return { t: 'Replied. Your turn', k: 'hot' };
+    if (c.follow_up_on && c.follow_up_on <= grToday()) return { t: 'Follow up due', k: 'hot' };
+    return { t: ({ initial: 'Needs first email', proposal: 'Send proposal', followup: 'Follow up',
+                   reminder: 'Send reminder', onboarding: 'Start onboarding' })[na.t] || na.label,
+             k: na.t === 'followup' ? 'hot' : 'warn' };
+  }
+
+  /* The three-dot menu. Built where it is clicked and torn down on the next click
+     anywhere, so it cannot be left behind by a re-render. */
+  let grMenuFor = null;
+  function grCloseMenu() {
+    const m = $('grMenu'); if (m) m.remove(); grMenuFor = null;
+  }
+  function grOpenMenu(id, btn) {
+    const c = grClients.find(x => x.id === id); if (!c) return;
+    grCloseMenu();
+    const el = document.createElement('div');
+    el.id = 'grMenu'; el.className = 'gr_menu';
+    const na = grNextAction(c);
+    el.innerHTML =
+      '<button data-gr-m="open" data-id="' + id + '">Open client</button>' +
+      '<button data-gr-m="mail" data-id="' + id + '">Write an email' + (na ? ' (' + esc(na.label.toLowerCase()) + ')' : '') + '</button>' +
+      '<div class="gr_ml">Quick actions</div>' +
+      '<button data-gr-m="done" data-id="' + id + '">Followed up today</button>' +
+      '<button data-gr-m="fu3" data-id="' + id + '">Follow up in 3 days</button>' +
+      '<button data-gr-m="fu7" data-id="' + id + '">Follow up in 7 days</button>' +
+      (grIsStaff() && grPeople.length > 1 ? '<div class="gr_ml">Assign to</div>' +
+        grPeople.filter(p => p.id !== c.owner_id).slice(0, 6).map(p =>
+          '<button data-gr-m="own" data-id="' + id + '" data-r="' + p.id + '">' + esc(p.full_name || 'Unnamed') + '</button>').join('') : '') +
+      '<div class="gr_ml">Move to</div>' +
+      grStages.filter(x => x.key !== c.stage).map(x =>
+        '<button data-gr-m="mv" data-id="' + id + '" data-to="' + x.key + '">' +
+        '<i style="background:' + x.color + '"></i>' + esc(x.label) + '</button>').join('');
+    document.body.appendChild(el);
+    grMenuFor = id;
+    const r = btn.getBoundingClientRect(), w = 230, h = el.offsetHeight || 300;
+    el.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.right - w)) + 'px';
+    el.style.top = Math.max(8, Math.min(window.innerHeight - h - 8, r.bottom + 6)) + 'px';
   }
 
   /* --- Pipeline --- */
@@ -94577,16 +94841,29 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const won = pool.filter(c => c.stage === 'won').reduce((n, c) => n + grVal(c), 0);
     const need = pool.filter(c => grNextAction(c)).length;
 
+    const IC_MAIL = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none"><rect x="2" y="4" width="12" height="8" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M2.4 4.8 8 8.8l5.6-4" stroke="currentColor" stroke-width="1.4"/></svg>';
+    const IC_DOTS = '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><circle cx="8" cy="3.4" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="8" cy="12.6" r="1.3"/></svg>';
     const card = (c) => {
-      const na = grNextAction(c), lt = grDaysAgo(grLastTouch(c));
+      const lt = grDaysAgo(grLastTouch(c)), sc = grScore(c), nm = grNextMeeting(c), st = grStatus(c);
       return '<div class="gr_bc" draggable="true" data-gr-card="' + c.id + '" data-gr-open="' + c.id + '">' +
+        '<span class="gr_ba">' +
+          '<button class="gr_ib2" data-gr-mail="' + c.id + '" title="Write an email" aria-label="Write an email">' + IC_MAIL + '</button>' +
+          '<button class="gr_ib2" data-gr-menu="' + c.id + '" title="More" aria-label="More">' + IC_DOTS + '</button>' +
+        '</span>' +
         '<div class="gr_bh">' + grAvatar(c.name, grStageColor(c.stage), 'gr_sm2') +
-          '<div class="gr_bn"><b>' + esc(c.name) + '</b><span>' + esc(c.company || '') + '</span></div></div>' +
-        '<div class="gr_bf">' + (na ? '<span class="gr_st hot">' + esc(na.label) + '</span>' : '<span class="gr_st ok">On track</span>') +
-          (grVal(c) ? '<span class="gr_vt">' + grMoney(grVal(c)) + '/mo</span>' : '') +
-          '<span class="gr_bm">' + (c.emails_sent || 0) + ' email' + ((c.emails_sent || 0) === 1 ? '' : 's') + ' &middot; ' + esc(lt == null ? 'new' : grAgo(lt)) + '</span>' +
-          (grIsStaff() ? '<span class="gr_own" title="' + esc(grPerson(c.owner_id).full_name) + '">' + esc(grInitials(grPerson(c.owner_id).full_name)) + '</span>' : '') +
-        '</div></div>';
+          '<div class="gr_bn"><b>' + esc(c.name) + '</b><span>' + esc(c.company || '') + '</span></div>' +
+          '</div>' +
+        '<div class="gr_bf"><span class="gr_st ' + st.k + '"><i></i>' + esc(st.t) + '</span>' +
+          (grVal(c) ? '<span class="gr_vt">' + grMoney(grVal(c)) + '/mo</span>' : '') + '</div>' +
+        '<div class="gr_bm"><span>' + esc(nm
+          ? grDayLabel(nm.starts_at) + ' ' + grHm(nm.starts_at)
+          : (c.emails_sent || 0) + ' email' + ((c.emails_sent || 0) === 1 ? '' : 's') +
+            ' · ' + (lt == null ? 'new' : grAgo(lt))) + '</span>' +
+          (sc ? '<span class="gr_sc ' + sc.k + '" title="' + esc(sc.why) + '">' + sc.label + '</span>' : '') +
+          (grIsStaff() ? '<span class="gr_ow" title="' + esc(grPerson(c.owner_id).full_name) + '">' +
+            esc(grInitials(grPerson(c.owner_id).full_name)) + '</span>' : '') +
+          '</div>' +
+        '</div>';
     };
 
     $('grPipeline').innerHTML =
@@ -94608,7 +94885,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             '<span>' + g.length + '</span></div>' +
           (sum ? '<div class="gr_colsum">' + grMoney(sum) + '/mo</div>' : '') +
           (g.length ? g.map(card).join('') : '<div class="gr_colempty">Drop a client here</div>') + '</div>';
-      }).join('') + '</div>');
+      }).join('') + '</div>' +
+      '<p class="gr_hint">Tap a card to open the client. Drag a card to move it, or use the three dots.</p>');
   }
 
   /* The To-do view: the same deals ordered by what is most overdue rather than by stage.
@@ -95334,6 +95612,58 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       if (c) { grSave(c, { follow_up_draft: null }); grToast('Dismissed'); }
       return;
     }
+
+    const mb = e.target.closest('[data-gr-mail]');
+    if (mb) {
+      e.stopPropagation(); grCloseMenu();
+      const c = grClients.find(x => x.id === mb.dataset.grMail);
+      if (c) { const na = grNextAction(c); grStartComposer(c, na ? na.t : 'followup'); }
+      return;
+    }
+    const mm = e.target.closest('[data-gr-menu]');
+    if (mm) {
+      e.stopPropagation();
+      if (grMenuFor === mm.dataset.grMenu) grCloseMenu(); else grOpenMenu(mm.dataset.grMenu, mm);
+      return;
+    }
+    const mi = e.target.closest('[data-gr-m]');
+    if (mi) {
+      e.stopPropagation();
+      const c = grClients.find(x => x.id === mi.dataset.id);
+      const act = mi.dataset.grM;
+      grCloseMenu();
+      if (!c) return;
+      if (act === 'open') { grOpenId = c.id; grTab = 'overview'; grRender(); }
+      else if (act === 'mail') { const na = grNextAction(c); grStartComposer(c, na ? na.t : 'followup'); }
+      else if (act === 'mv') {
+        const patch = { stage: mi.dataset.to };
+        if (mi.dataset.to === 'won') patch.won_on = grToday();
+        if (mi.dataset.to === 'lost') patch.lost_on = grToday();
+        grSave(c, patch); grToast('Moved to ' + grStageLabel(mi.dataset.to));
+      }
+      else if (act === 'own') { grSave(c, { owner_id: mi.dataset.r }); grToast('Assigned to ' + grPerson(mi.dataset.r).full_name); }
+      else if (act === 'done') { grSave(c, { last_email_on: grToday(), follow_up_on: null }); grToast('Marked as followed up'); }
+      else if (act === 'fu3') { grSave(c, { follow_up_on: grInDays(3) }); grToast('Follow up set for ' + grFmt(grInDays(3))); }
+      else if (act === 'fu7') { grSave(c, { follow_up_on: grInDays(7) }); grToast('Follow up set for ' + grFmt(grInDays(7))); }
+      return;
+    }
+    if (grMenuFor && !e.target.closest('#grMenu')) grCloseMenu();
+
+    const mv = e.target.closest('[data-gr-mview]');
+    if (mv) { grMView = mv.dataset.grMview; grSelDay = null; grRender(); return; }
+    const mn = e.target.closest('[data-gr-mnav]');
+    if (mn) {
+      const d = +mn.dataset.grMnav;
+      if (!d) { grWeekOff = 0; grMonthOff = 0; grSelDay = null; }
+      else if (grMView === 'month') grMonthOff += d; else grWeekOff += d;
+      grRender(); return;
+    }
+    const md = e.target.closest('[data-gr-mday]');
+    if (md) { grSelDay = new Date(+md.dataset.grMday); grRender(); return; }
+    const o2 = e.target.closest('[data-gr-open2]');
+    if (o2) { e.stopPropagation(); grOpenId = o2.dataset.grOpen2; grTab = 'overview'; grRender(); return; }
+    const br = e.target.closest('[data-gr-brief]');
+    if (br) { e.stopPropagation(); grBrief(br.dataset.grBrief); return; }
 
     const pv = e.target.closest('[data-gr-pview]');
     if (pv) { grPView = pv.dataset.grPview; grRender(); return; }
