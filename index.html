@@ -6376,10 +6376,6 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_ib:hover:not(:disabled){color:var(--text);}
 .gr_ib:disabled{opacity:.35;cursor:default;}
 .gr_ib.gr_rm:hover{background:rgba(208,4,0,.16);color:#F08A8A;}
-.gr_tk{display:flex;align-items:center;gap:9px;padding:7px 0;border-top:1px solid var(--line);}
-.gr_tk:first-of-type{border-top:0;}
-.gr_tk input[type=checkbox]{width:18px;height:18px;accent-color:var(--red);flex:none;}
-.gr_tk.gr_done .gr_in.gr_flat{color:var(--text-3);text-decoration:line-through;}
 .gr_sub{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--text-3);font-weight:700;padding:14px 0 4px;}
 .gr_wc{background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:13px 14px;margin-bottom:8px;display:flex;flex-direction:column;gap:8px;}
 .gr_wch{display:flex;align-items:baseline;gap:10px;}
@@ -6529,6 +6525,51 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_menu button:hover{background:var(--surface-2);}
 .gr_menu i{width:9px;height:9px;border-radius:50%;flex:none;}
 .gr_ml{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);padding:9px 11px 3px;border-top:1px solid var(--line);margin-top:4px;}
+/* Training. Each item is its own card, the way the design has it -- a long list of rows
+   inside one card reads as a table, and these are things to act on one at a time. */
+.gr_sech{margin:2px 2px 12px;}
+.gr_sech h2{margin:0;font-size:19px;font-weight:800;letter-spacing:-.02em;}
+.gr_sech p{margin:4px 0 0;font-size:13px;color:var(--text-3);}
+.gr_sech.gr_row2{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;}
+.gr_lab{font-size:10.5px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--text-3);margin:20px 2px 10px;}
+.gr_mid{text-align:center;}
+.gr_planh{padding-bottom:18px;}
+.gr_pn{margin-left:auto;font-size:12.5px;color:var(--text-3);font-weight:600;}
+.gr_task{display:flex;align-items:center;gap:11px;background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:11px 13px;margin-bottom:8px;}
+.gr_task.gr_addt{border-style:dashed;border-color:var(--red);}
+.gr_task input[type=checkbox]{width:18px;height:18px;accent-color:var(--red);flex:none;}
+.gr_task.gr_done .gr_in.gr_flat{color:var(--text-3);text-decoration:line-through;}
+.gr_addb{padding:7px 16px;font-size:13px;border-radius:99px;flex:none;}
+.gr_due{position:relative;flex:none;background:var(--surface-2);border-radius:99px;padding:5px 12px;font-size:12px;font-weight:600;color:var(--text-2);cursor:pointer;white-space:nowrap;}
+.gr_due.gr_late{background:rgba(208,4,0,.14);color:#F08A8A;}
+.gr_due input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;}
+.gr_wcard{position:relative;padding:18px 20px;}
+.gr_wcard>b{display:block;font-size:16px;font-weight:700;}
+.gr_wcard>time{display:block;font-size:12px;color:var(--text-3);margin-top:3px;letter-spacing:.04em;}
+.gr_wcard .gr_x{position:absolute;top:14px;right:14px;}
+.gr_tags{display:flex;gap:6px;flex-wrap:wrap;margin:11px 0 0;}
+.gr_tg{font-size:11px;font-weight:600;background:rgba(208,4,0,.12);color:#F08A8A;border-radius:99px;padding:3px 10px;}
+.gr_tg.gr_out2{background:var(--surface-2);color:var(--text-2);}
+.gr_wdesc{margin:10px 0 0;font-size:13.5px;color:var(--text-2);line-height:1.6;}
+.gr_lesson{margin:10px 0 0;font-size:13.5px;background:var(--surface-2);border-radius:11px;padding:11px 13px;color:var(--text-2);line-height:1.6;}
+.gr_wcard textarea{margin-top:11px;width:100%;display:block;}
+.gr_wbtn{display:inline-block;margin-top:12px;padding:8px 16px;border-radius:9px;font-size:13px;text-decoration:none;}
+.gr_addbox{display:flex;flex-direction:column;gap:11px;border-style:dashed;border-color:var(--red);}
+.gr_tip{display:grid;grid-template-columns:34px 1fr;gap:14px;align-items:start;padding:16px 18px;}
+.gr_tip.gr_key{border-color:var(--red);}
+.gr_tn{width:30px;height:30px;border-radius:50%;background:var(--text);color:var(--bg);display:grid;place-items:center;font-size:13px;font-weight:800;}
+.gr_tip.gr_key .gr_tn{background:var(--red);color:#fff;}
+.gr_tip b{font-size:15px;}
+.gr_tip p{margin:5px 0 0;font-size:13.5px;color:var(--text-2);line-height:1.6;}
+.gr_qa2{padding:14px 18px;}
+.gr_qa2 b{font-size:14px;}
+.gr_qa2 p{margin:5px 0 0;font-size:13.5px;color:var(--text-2);line-height:1.6;}
+.gr_pay{display:inline-block;margin-top:auto;padding:9px 14px;border-radius:9px;font-size:13px;text-align:center;text-decoration:none;}
+.gr_svcr{display:flex;align-items:center;gap:14px;flex:none;}
+.gr_svcp{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;}
+.gr_paylink{color:var(--red);font-size:12.5px;font-weight:700;text-decoration:none;}
+.gr_paylink:hover{text-decoration:underline;}
+.gr_pnote{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 15px;font-size:13px;color:var(--text-2);line-height:1.6;margin-bottom:8px;}
 .gr_toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 18px;border-radius:99px;font-size:13px;font-weight:600;z-index:90;opacity:0;pointer-events:none;transition:.2s;}
 .gr_toast.on{opacity:1;transform:translateX(-50%);}
 </style>
@@ -94112,6 +94153,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   let grClients = [], grMeetings = [], grMessages = [], grTemplates = [];
   let grSettings = {}, grStages = [], grStaleDays = 5;
   let grTasks = [], grWatch = [], grDiscounts = [];
+  let grPlanSeeding = false, grWatchAdd = false;
   let grSetTab = 'stages', grTrainTab = 'plan', grEdit = null;
   let grPeople = [];                 // profiles who can own a deal
   let grScreen = 'gr_home';
@@ -94968,105 +95010,147 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   /* --- Training: five tabs, all of it from the database ---
-     The plan is per rep, so ticking a box is their own progress and not everybody's.
-     Everything else is shared content a manager edits in Settings; none of it is
-     hard-coded here, which was the point of moving it out of the artifact. */
+     The plan is per rep, so a rep gets their own copy of the template the first time they
+     open it. Everything else is shared content a manager edits in Settings. */
+  const grSub = (h, p) => '<div class="gr_sech"><h2>' + esc(h) + '</h2>' +
+    (p ? '<p>' + esc(p) + '</p>' : '') + '</div>';
+
+  async function grSeedPlan() {
+    if (grTasks.some(t => t.owner_id === me())) return;
+    const tpl = (grSettings.training_plan && grSettings.training_plan.tasks) || [];
+    if (!tpl.length || grPlanSeeding) return;
+    grPlanSeeding = true;
+    const rows = tpl.map((t, k) => ({
+      owner_id: me(), text: t.t, due_on: grInDays(t.d || 0), done: false, position: k }));
+    const r = await grWrite('growth_tasks', 'insert', rows);
+    if (r) { grTasks = grTasks.concat(r); grRender(); }
+    grPlanSeeding = false;
+  }
+
   function grRenderTraining() {
     const tabs = [['plan','Plan'],['calls','Calls to watch'],['phil','Philosophy'],
                   ['script','Call script'],['pricing','Pricing']];
-    const mine = grTasks.filter(function (t) { return t.owner_id === me(); });
+    const mine = grTasks.filter(t => t.owner_id === me());
     let body = '';
 
     if (grTrainTab === 'plan') {
-      const done = mine.filter(function (t) { return t.done; });
-      const open = mine.filter(function (t) { return !t.done; })
-        .sort(function (a, b) { return String(a.due_on || '9999') < String(b.due_on || '9999') ? -1 : 1; });
-      const row = function (t) {
+      grSeedPlan();
+      const done = mine.filter(t => t.done);
+      const order = (a, b) => (String(a.due_on || '9999') < String(b.due_on || '9999') ? -1
+                            : String(a.due_on || '9999') > String(b.due_on || '9999') ? 1
+                            : (a.position || 0) - (b.position || 0));
+      const open = mine.filter(t => !t.done).sort(order);
+      const row = t => {
         const late = !t.done && t.due_on && t.due_on < grToday();
-        return '<div class="gr_tk' + (t.done ? ' gr_done' : '') + '">' +
+        return '<div class="gr_task' + (t.done ? ' gr_done' : '') + '">' +
           '<input type="checkbox" data-gr-task="' + t.id + '"' + (t.done ? ' checked' : '') + ' aria-label="Done">' +
           '<input class="gr_in gr_flat" data-gr-task-text="' + t.id + '" value="' + esc(t.text) + '" aria-label="Task">' +
-          '<input class="gr_in gr_date' + (late ? ' gr_late' : '') + '" type="date" data-gr-task-due="' + t.id + '" value="' + esc(t.due_on || '') + '" aria-label="Due">' +
+          '<label class="gr_due' + (late ? ' gr_late' : '') + '"><span>' + esc(grDue(t.due_on)) + '</span>' +
+            '<input type="date" data-gr-task-due="' + t.id + '" value="' + esc(t.due_on || '') + '" aria-label="Due date"></label>' +
           '<button class="gr_ib gr_rm" data-gr-task-del="' + t.id + '" aria-label="Delete task">&#10005;</button></div>';
       };
-      body = '<section class="gr_card"><div class="gr_ct"><h2>Your plan</h2><span class="gr_n">' + done.length + ' of ' + mine.length + '</span></div>' +
-        '<div class="gr_prog"><i style="width:' + (mine.length ? Math.round(done.length / mine.length * 100) : 0) + '%"></i></div>' +
-        (open.length ? open.map(row).join('') : '<p class="gr_mute">Nothing open. Add the next thing below.</p>') +
-        '<div class="gr_tk gr_add"><input class="gr_in gr_flat" id="grNewTask" placeholder="Add a task..." aria-label="New task">' +
-          '<input class="gr_in gr_date" id="grNewTaskDue" type="date" aria-label="Due">' +
-          '<button class="gr_ghost" data-gr-task-add>Add</button></div>' +
-        (done.length ? '<div class="gr_sub">Done</div>' + done.map(row).join('') : '') +
-        '</section>';
+      body =
+        '<section class="gr_card gr_planh"><div class="gr_ct"><h2>Training plan</h2>' +
+          '<span class="gr_pn">' + done.length + ' of ' + mine.length + ' done</span></div>' +
+          '<div class="gr_prog"><i style="width:' + (mine.length ? Math.round(done.length / mine.length * 100) : 0) + '%"></i></div>' +
+        '</section>' +
+        '<div class="gr_task gr_addt"><input class="gr_in gr_flat" id="grNewTask" placeholder="Add a task..." aria-label="New task">' +
+          '<label class="gr_due"><span id="grNewTaskLbl">Today</span>' +
+            '<input type="date" id="grNewTaskDue" value="' + grToday() + '" aria-label="Due date"></label>' +
+          '<button class="btn-red gr_addb" data-gr-task-add>Add</button></div>' +
+        (open.length ? open.map(row).join('') : '<p class="gr_mute gr_mid">Nothing open. Add the next thing above.</p>') +
+        (done.length ? '<div class="gr_sub">Done</div>' + done.sort(order).map(row).join('') : '');
 
     } else if (grTrainTab === 'calls') {
-      body = '<section class="gr_card"><div class="gr_ct"><h2>Calls to watch</h2><span class="gr_n">' + grWatch.length + '</span></div>' +
-        '<p class="gr_mute">Real calls worth studying. Anyone can add one; you can remove the ones you added.</p>' +
-        (grWatch.length ? grWatch.map(function (w) {
+      body = '<div class="gr_sech gr_row2">' +
+          '<div><h2>Calls to watch</h2><p>' + grWatch.length + ' call' + (grWatch.length === 1 ? '' : 's') + ' to learn from</p></div>' +
+          '<button class="btn-red" data-gr-watch-open>+ Add a call</button></div>' +
+        (grWatchAdd ? '<div class="gr_card gr_addbox">' +
+          '<div class="gr_field"><label for="grNewWatchTitle">Call name</label>' +
+            '<input class="gr_in" id="grNewWatchTitle" placeholder="e.g. Amy Neighbors"></div>' +
+          '<div class="gr_field"><label for="grNewWatchUrl">Link</label>' +
+            '<input class="gr_in" id="grNewWatchUrl" placeholder="https://fathom.video/..."></div>' +
+          '<div class="gr_acts"><button class="btn-red" data-gr-watch-add>Add call</button>' +
+            '<button class="gr_ghost" data-gr-watch-cancel>Cancel</button></div></div>' : '') +
+        (grWatch.length ? grWatch.map(w => {
           const canDel = grIsStaff() || w.added_by === me();
-          return '<div class="gr_wc">' +
-            '<div class="gr_wch"><b>' + esc(w.title) + '</b>' +
-              (w.call_date ? '<time>' + esc(grFmt(w.call_date)) + '</time>' : '') +
-              (canDel ? '<button class="gr_ib gr_rm" data-gr-watch-del="' + w.id + '" aria-label="Remove">&#10005;</button>' : '') + '</div>' +
-            ((w.tags || []).length ? '<div class="gr_tags">' + w.tags.map(function (t) { return '<span>' + esc(t) + '</span>'; }).join('') + '</div>' : '') +
-            (w.outcome ? '<div class="gr_mute">' + esc(w.outcome) + '</div>' : '') +
-            '<textarea class="gr_in" rows="2" data-gr-watch-note="' + w.id + '" placeholder="What did you learn?">' + esc(w.note || '') + '</textarea>' +
-            (w.url ? '<a class="gr_ghost" href="' + esc(w.url) + '" target="_blank" rel="noopener" data-gr-stop>Watch call</a>' : '') +
-          '</div>';
-        }).join('') : '<p class="gr_mute">Nothing on the list yet.</p>') +
-        '<div class="gr_erow gr_add"><input class="gr_in" id="grNewWatchTitle" placeholder="Call name, e.g. Amy Neighbors" aria-label="Call name">' +
-          '<input class="gr_in" id="grNewWatchUrl" placeholder="https://fathom.video/..." aria-label="Link">' +
-          '<button class="gr_ghost" data-gr-watch-add>Add</button></div></section>';
+          return '<section class="gr_card gr_wcard">' +
+            (canDel ? '<button class="gr_x" data-gr-watch-del="' + w.id + '" aria-label="Remove">&#10005;</button>' : '') +
+            '<b>' + esc(w.title) + '</b>' +
+            (w.call_date ? '<time>' + esc(grLongDate(w.call_date)) + '</time>' : '') +
+            ((w.tags || []).length || w.outcome
+              ? '<div class="gr_tags">' + (w.tags || []).map(t => '<span class="gr_tg">' + esc(t) + '</span>').join('') +
+                (w.outcome ? '<span class="gr_tg gr_out2">' + esc(w.outcome) + '</span>' : '') + '</div>' : '') +
+            (w.note ? '<p class="gr_wdesc">' + esc(w.note) + '</p>' : '') +
+            (canDel
+              ? '<textarea class="gr_in" rows="2" data-gr-watch-mine="' + w.id + '" ' +
+                'placeholder="Why should they watch this? What is the lesson?">' + esc(w.learned || '') + '</textarea>'
+              : w.learned ? '<p class="gr_lesson">' + esc(w.learned) + '</p>' : '') +
+            (w.url ? '<a class="btn-red gr_wbtn" href="' + esc(w.url) + '" target="_blank" rel="noopener" data-gr-stop>Watch call</a>' : '') +
+          '</section>';
+        }).join('') : '<p class="gr_mute gr_mid">Nothing on the list yet.</p>');
 
     } else if (grTrainTab === 'phil') {
       const ph = grSettings.philosophy || {};
-      body = '<section class="gr_card"><div class="gr_ct"><h2>Top tips</h2></div>' +
-        (ph.tips || []).map(function (t, i) {
-          return '<div class="gr_ph' + (i === 4 ? ' gr_key' : '') + '"><span class="gr_phn">' + (i + 1) + '</span>' +
-            '<div><b>' + esc(t.h) + '</b><p>' + esc(t.t) + '</p></div></div>';
-        }).join('') + '</section>' +
-        '<section class="gr_card"><div class="gr_ct"><h2>Before every call</h2></div>' +
-          (ph.checklist || []).map(function (c, i) {
-            return '<label class="gr_ck"><input type="checkbox" data-gr-phcheck="' + i + '"><span>' + esc(c) + '</span></label>';
-          }).join('') +
+      body = grSub("Luke's top tips", "What clients are really looking for, even if they don't realize it") +
+        (ph.tips || []).map((t, k) =>
+          '<section class="gr_card gr_tip' + (k === 4 ? ' gr_key' : '') + '">' +
+            '<span class="gr_tn">' + (k + 1) + '</span>' +
+            '<div><b>' + esc(t.h) + '</b><p>' + esc(t.t) + '</p></div></section>').join('') +
+        '<section class="gr_card"><div class="gr_ct"><h2>Client call checklist</h2></div>' +
+          (ph.checklist || []).map((c, k) =>
+            '<label class="gr_ck"><input type="checkbox" data-gr-phcheck="' + k + '"><span>' + esc(c) + '</span></label>').join('') +
           '<button class="gr_ghost" data-gr-phreset>Reset for the next call</button></section>';
 
     } else if (grTrainTab === 'script') {
       const sc = grSettings.script || {};
-      body = '<section class="gr_card"><div class="gr_ct"><h2>How a good call runs</h2></div>' +
-        (sc.flow || []).map(function (f, i) {
-          return '<div class="gr_ph' + (i === 4 ? ' gr_key' : '') + '"><span class="gr_phn">' + (i + 1) + '</span>' +
-            '<div><b>' + esc(f.h) + '</b><p>' + esc(f.t) + '</p></div></div>';
-        }).join('') + '</section>' +
-        '<section class="gr_card"><div class="gr_ct"><h2>Common worries, and what to say</h2></div>' +
-          (sc.worries || []).map(function (w) {
-            return '<div class="gr_qa"><b>' + esc(w.q) + '</b><p>' + esc(w.a) + '</p></div>';
-          }).join('') + '</section>';
+      body = grSub('Call script', 'The flow of a good ReachGiant call') +
+        (sc.flow || []).map((f, k) =>
+          '<section class="gr_card gr_tip' + (k === 4 ? ' gr_key' : '') + '">' +
+            '<span class="gr_tn">' + (k + 1) + '</span>' +
+            '<div><b>' + esc(f.h) + '</b><p>' + esc(f.t) + '</p></div></section>').join('') +
+        '<div class="gr_lab">Common worries and what to say</div>' +
+        (sc.worries || []).map(w =>
+          '<section class="gr_card gr_qa2"><b>' + esc(w.q) + '</b><p>' + esc(w.a) + '</p></section>').join('') +
+        '<p class="gr_mute gr_mid">Based on real objections from recent calls. Prices live under Pricing.</p>';
 
     } else {
       const pr = grSettings.pricing || {};
-      body = '<div class="gr_packs">' + (pr.packs || []).map(function (p) {
-          return '<div class="gr_pk' + (p.top ? ' gr_top' : '') + '"><span class="gr_tag">' + esc(p.tag) + '</span>' +
-            '<h3>' + esc(p.name) + '</h3><div class="gr_price">' + esc(p.price) + '<small> / month</small></div>' +
+      body = '<div class="gr_packs">' + (pr.packs || []).map(p =>
+          '<div class="gr_pk' + (p.top ? ' gr_top' : '') + '"><span class="gr_tag">' + esc(p.tag) + '</span>' +
+            '<h3>' + esc(p.name) + '</h3>' +
+            '<div class="gr_price">' + esc(p.price) + '<small> / month</small></div>' +
             '<div class="gr_inc">' + esc(p.inc) + '</div><p>' + esc(p.txt) + '</p>' +
-            (p.link ? '<a class="' + (p.top ? 'btn-red' : 'gr_ghost') + '" href="' + esc(p.link) + '" target="_blank" rel="noopener" data-gr-stop>Payment link</a>' : '') +
-          '</div>';
-        }).join('') + '</div>' +
-        '<section class="gr_card"><div class="gr_ct"><h2>Or start with one service</h2></div>' +
-          (pr.services || []).map(function (sv) {
-            return '<div class="gr_svc"><div class="gr_rm"><b>' + esc(sv.n) + '</b><span>' + esc(sv.w) + '</span></div>' +
-              '<span class="gr_vt">' + esc(sv.p) + '</span>' +
-              (sv.l ? '<a class="gr_ghost" href="' + esc(sv.l) + '" target="_blank" rel="noopener" data-gr-stop>Payment link</a>' : '') + '</div>';
-          }).join('') + '</section>' +
-        (pr.notes || []).map(function (n) { return '<div class="gr_note"><p>' + esc(n) + '</p></div>'; }).join('') +
-        '<p class="gr_mute"><a href="https://www.reachgiant.com/pricing" target="_blank" rel="noopener" data-gr-stop>Open the full pricing page</a></p>';
+            (p.link ? '<a class="' + (p.top ? 'btn-red' : 'gr_ghost') + ' gr_pay" href="' + esc(p.link) +
+              '" target="_blank" rel="noopener" data-gr-stop>Payment link</a>' : '') + '</div>').join('') + '</div>' +
+        '<div class="gr_lab">Or start with one service</div>' +
+        '<section class="gr_card">' + (pr.services || []).map(sv =>
+          '<div class="gr_svc"><div class="gr_rm"><b>' + esc(sv.n) + '</b><span>' + esc(sv.w) + '</span></div>' +
+            '<div class="gr_svcr"><span class="gr_svcp">' + esc(sv.p) + '</span>' +
+            (sv.l ? '<a class="gr_paylink" href="' + esc(sv.l) + '" target="_blank" rel="noopener" data-gr-stop>Payment link</a>' : '') +
+            '</div></div>').join('') + '</section>' +
+        (pr.notes || []).map(n => '<div class="gr_pnote">' + esc(n) + '</div>').join('') +
+        '<p class="gr_mid"><a class="gr_paylink" href="https://www.reachgiant.com/pricing" target="_blank" rel="noopener" data-gr-stop>Open the full pricing page</a></p>';
     }
 
     $('grTraining').innerHTML =
-      grHead('Training', 'Learn the offer, study great calls, practice', '') +
-      '<div class="gr_seg gr_wide">' + tabs.map(function (t) {
-        return '<button data-gr-traintab="' + t[0] + '"' + (grTrainTab === t[0] ? ' aria-pressed="true"' : '') + '>' + t[1] + '</button>';
-      }).join('') + '</div>' + body;
+      grHead('Training', 'Learn the offer, study great calls, practice',
+        '<div class="gr_seg">' + tabs.map(t =>
+          '<button data-gr-traintab="' + t[0] + '"' + (grTrainTab === t[0] ? ' aria-pressed="true"' : '') + '>' +
+          t[1] + '</button>').join('') + '</div>') +
+      body;
   }
+
+  // Dates as the plan shows them: Today / Tomorrow / 23 Oct.
+  function grDue(d) {
+    if (!d) return 'No date';
+    if (d === grToday()) return 'Today';
+    if (d === grInDays(1)) return 'Tomorrow';
+    if (d === grInDays(-1)) return 'Yesterday';
+    return grFmt(d);
+  }
+  const grLongDate = d => { const x = grDay(d); return x
+    ? x.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : ''; };
 
   /* --- Analytics --- */
   function grRenderAnalytics() {
@@ -95684,6 +95768,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       return;
     }
 
+    if (e.target.closest('[data-gr-watch-open]')) { grWatchAdd = true; grRender();
+      setTimeout(() => { const t = $('grNewWatchTitle'); if (t) t.focus(); }, 30); return; }
+    if (e.target.closest('[data-gr-watch-cancel]')) { grWatchAdd = false; grRender(); return; }
     const tt = e.target.closest('[data-gr-traintab]');
     if (tt) { grTrainTab = tt.dataset.grTraintab; grRender(); return; }
 
@@ -95715,7 +95802,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const r = await grWrite('growth_watch_calls', 'insert',
           { title: title, url: (u && u.value || '').trim(), added_by: me(),
             call_date: grToday(), position: grWatch.length });
-        if (r) { grWatch.push(r[0]); grRender(); }
+        if (r) { grWatch.push(r[0]); grWatchAdd = false; grRender(); }
       })();
       return;
     }
@@ -95861,6 +95948,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   document.addEventListener('change', function (e) {
     const d = e.target.dataset || {};
 
+    if (e.target.id === 'grNewTaskDue') {
+      const l = $('grNewTaskLbl'); if (l) l.textContent = grDue(e.target.value);
+      return;
+    }
     if (d.grTask || d.grTaskText || d.grTaskDue) {
       const id = d.grTask || d.grTaskText || d.grTaskDue;
       const t = grTasks.find(function (x) { return x.id === id; });
@@ -95872,8 +95963,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grWrite('growth_tasks', 'update', patch, id).then(function (r) { if (r) grRender(); });
       return;
     }
-    if (d.grWatchNote) {
-      grWrite('growth_watch_calls', 'update', { note: e.target.value }, d.grWatchNote);
+    if (d.grWatchMine) {
+      // The lesson on a shared call, written by whoever put it on the list. Kept in its own
+      // column so it cannot overwrite `note`, the one line that describes the call itself.
+      // Only staff or the person who added it see this box, because the rule refuses anyone
+      // else and a box whose typing is silently thrown away is worse than no box.
+      const w = grWatch.find(x => x.id === d.grWatchMine);
+      if (w) { w.learned = e.target.value;
+        grWrite('growth_watch_calls', 'update', { learned: e.target.value }, d.grWatchMine); }
       return;
     }
     if (d.grStageLabel || d.grStageColour) {

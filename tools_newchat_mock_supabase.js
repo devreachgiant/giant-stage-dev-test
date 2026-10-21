@@ -514,11 +514,9 @@
       updated_at: iso(30, 0), updated_by: ME }
   ];
   DB.growth_training = [];
-  DB.growth_tasks = [
-    { id: 'gk-1', owner_id: ME, text: 'Read the pricing and packages', due_on: iso(-1,0).slice(0,10), done: true,  position: 0, created_at: iso(5,0) },
-    { id: 'gk-2', owner_id: ME, text: 'Listen to 4 recorded calls',    due_on: iso(-2,0).slice(0,10), done: false, position: 1, created_at: iso(5,0) },
-    { id: 'gk-3', owner_id: ME, text: 'Run a mock call with Luke',     due_on: null,                  done: false, position: 2, created_at: iso(5,0) }
-  ];
+  // Deliberately empty: a rep's plan is seeded from the template the first time they open
+  // Training, and that is the path worth exercising.
+  DB.growth_tasks = [];
   DB.growth_watch_calls = [
     { id: 'gw-1', title: 'Amy Neighbors', call_date: iso(40,0).slice(0,10), url: 'https://fathom.video/share/example',
       tags: ['Google Ads','SEO'], outcome: 'Pitched $2.5k ad spend plus branding', note: '', position: 0,
@@ -530,6 +528,14 @@
     { id: 'gd-3', code: 'RG1000', label: 'Get $1,000 off each month', colour: '#7048E8', position: 2, created_at: iso(30,0) }
   ];
   DB.growth_settings.push(
+    { key: 'training_plan', value: { tasks: [
+        { t: 'Read the pricing and packages', d: 0 },
+        { t: 'Listen to 4 Fathom calls', d: 0 },
+        { t: 'One hour of Meta basics', d: 0 },
+        { t: 'Sit in on 2 or 3 live calls', d: 1 },
+        { t: 'Run a mock call with Luke', d: 1 },
+        { t: 'Take 1 or 2 real calls', d: 2 }] },
+      updated_at: iso(30,0), updated_by: ME },
     { key: 'philosophy', value: { tips: [
         { h: 'They want to trust you', t: 'Be calm, confident and honest. Do not oversell.' },
         { h: 'They want to feel heard', t: 'Ask thoughtful questions and really listen.' },

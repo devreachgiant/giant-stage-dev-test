@@ -595,8 +595,11 @@ await step('Training: all five tabs paint, and the plan ticks off', async () => 
   await navOf('gr_training').click();
   await page.waitForFunction(() => document.getElementById('grTraining').innerHTML.length > 300,
     null, { timeout: 15000 }).catch(() => {});
-  for (const [tab, must] of [['plan','Your plan'],['calls','Calls to watch'],
-                             ['phil','Top tips'],['script','How a good call runs'],['pricing','one service']]) {
+  // Matched case-insensitively: a couple of these headings are uppercased by CSS, and
+  // innerText reports what is rendered, not what is in the markup.
+  for (const [tab, must] of [['plan','Training plan'],['calls','Calls to watch'],
+                             ['phil',"Luke's top tips"],['script','Call script'],
+                             ['pricing','start with one service']]) {
     const b = page.locator('[data-gr-traintab="' + tab + '"]');
     if (await b.count() === 0) { check('Training tab ' + tab + ' exists', false); continue; }
     await b.click(); await page.waitForTimeout(400);
@@ -606,7 +609,9 @@ await step('Training: all five tabs paint, and the plan ticks off', async () => 
       return { chars: (el.innerText || '').trim().length, w: Math.round(r.width), text: el.innerText.slice(0, 600) };
     });
     check('Training/' + tab + ' has content (' + m.chars + ' chars)', m.chars > 60 && m.w > 400);
-    check('Training/' + tab + ' shows "' + must + '"', m.text.includes(must), m.text.slice(0, 120));
+    check('Training/' + tab + ' shows "' + must + '"',
+      m.text.toLowerCase().includes(must.toLowerCase()),
+      m.text.replace(/\n/g, ' | ').slice(0, 150));
   }
   await page.locator('[data-gr-traintab="plan"]').click();
   await page.waitForTimeout(400);
@@ -619,6 +624,37 @@ await step('Training: all five tabs paint, and the plan ticks off', async () => 
   const now = await dbRow('growth_tasks', id);
   check('ticking a task writes it', !!now && now.done !== (was && was.done),
     (was && was.done) + ' -> ' + (now && now.done));
+});
+
+await step('a rep gets their own copy of the training plan on first open', async () => {
+  await navOf('gr_training').click();
+  await page.locator('[data-gr-traintab="plan"]').click();
+  // Seeding is a write, so wait for the rows rather than a fixed delay.
+  await page.waitForFunction(() => (window.__mockDB.growth_tasks || []).length > 0,
+    null, { timeout: 15000 }).catch(() => {});
+  const m = await page.evaluate(() => {
+    const tpl = (window.__mockDB.growth_settings || []).find(r => r.key === 'training_plan');
+    const mine = window.__mockDB.growth_tasks || [];
+    const onScreen = document.querySelectorAll('#grTraining .gr_task:not(.gr_addt)').length;
+    const head = (document.querySelector('#grTraining .gr_pn') || {}).textContent || '';
+    return { want: tpl ? tpl.value.tasks.length : 0, got: mine.length,
+             allMine: mine.every(t => t.owner_id === 'u-me'),
+             dated: mine.filter(t => t.due_on).length, onScreen, head,
+             doneCount: mine.filter(t => t.done).length };
+  });
+  check('the plan is seeded from the template', m.got === m.want && m.want > 0, m.got + ' of ' + m.want);
+  check('and every task belongs to the person who opened it', m.allMine);
+  check('each task carries a due date', m.dated === m.got, m.dated + ' of ' + m.got);
+  check('they are all drawn on screen', m.onScreen === m.got, m.onScreen + ' rows');
+  // Against the real done count, not zero: an earlier step in this suite ticks one, and a
+  // check that assumes a pristine fixture only passes when it runs first.
+  check('the header counts them', m.head.trim() === m.doneCount + ' of ' + m.got + ' done',
+    m.head + ' (expected ' + m.doneCount + ' of ' + m.got + ')');
+  // Opening it again must not hand out a second copy.
+  await navOf('gr_pipeline').click(); await page.waitForTimeout(400);
+  await navOf('gr_training').click(); await page.waitForTimeout(900);
+  const again = await page.evaluate(() => (window.__mockDB.growth_tasks || []).length);
+  check('opening it again does not seed a second copy', again === m.got, m.got + ' -> ' + again);
 });
 
 await step('Training: a task can be added', async () => {
@@ -634,10 +670,47 @@ await step('Training: a task can be added', async () => {
     before + ' -> ' + after.n);
 });
 
+await step('a watch-list card is laid out like the design', async () => {
+  await navOf('gr_training').click();
+  await page.locator('[data-gr-traintab="calls"]').click();
+  await page.waitForTimeout(500);
+  const m = await page.evaluate(() => {
+    const c = document.querySelector('#grTraining .gr_wcard');
+    if (!c) return { none: true };
+    const cr = c.getBoundingClientRect();
+    const ta = c.querySelector('textarea');
+    const btn = c.querySelector('.gr_wbtn');
+    const tr = ta ? ta.getBoundingClientRect() : null;
+    const br = btn ? btn.getBoundingClientRect() : null;
+    return {
+      none: false,
+      title: (c.querySelector('b') || {}).textContent || '',
+      date: (c.querySelector('time') || {}).textContent || '',
+      tags: c.querySelectorAll('.gr_tg').length,
+      cardW: Math.round(cr.width),
+      taW: tr ? Math.round(tr.width) : 0,
+      // The button belongs under the box, not beside it.
+      btnBelow: !!(tr && br && br.top >= tr.bottom - 2)
+    };
+  });
+  check('there is a call on the list', !m.none);
+  if (m.none) return;
+  check('it names the call and dates it', m.title.length > 2 && /\d{4}/.test(m.date), m.title + ' / ' + m.date);
+  check('it carries its tags', m.tags >= 2, m.tags + ' tags');
+  // A textarea with flex:1 in a block parent falls back to ~20 columns, which is what
+  // squashed this one beside the button.
+  check('the lesson box fills the card (' + m.taW + ' of ' + m.cardW + ')',
+    m.taW > m.cardW - 60, m.taW + '/' + m.cardW);
+  check('and Watch call sits under it', m.btnBelow);
+});
+
 await step('Training: a call can be added to the watch list', async () => {
   await page.locator('[data-gr-traintab="calls"]').click();
   await page.waitForTimeout(400);
   const before = await page.evaluate(() => (window.__mockDB.growth_watch_calls || []).length);
+  // The form is behind "+ Add a call" now, so the list is not a wall of empty inputs.
+  await page.locator('[data-gr-watch-open]').click();
+  await page.waitForTimeout(350);
   await page.locator('#grNewWatchTitle').fill('Test call');
   await page.locator('#grNewWatchUrl').fill('https://example.com/call');
   await page.locator('[data-gr-watch-add]').click();
