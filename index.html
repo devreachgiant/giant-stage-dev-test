@@ -6570,6 +6570,10 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_paylink{color:var(--red);font-size:12.5px;font-weight:700;text-decoration:none;}
 .gr_paylink:hover{text-decoration:underline;}
 .gr_pnote{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 15px;font-size:13px;color:var(--text-2);line-height:1.6;margin-bottom:8px;}
+/* An empty board is not a broken board, but six "Drop a client here" boxes and nothing
+   else read as one. Say what is going on and offer the two ways out. */
+.gr_first{padding:14px;}
+.gr_acts.gr_mid2{justify-content:center;padding-bottom:14px;}
 .gr_toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 18px;border-radius:99px;font-size:13px;font-weight:600;z-index:90;opacity:0;pointer-events:none;transition:.2s;}
 .gr_toast.on{opacity:1;transform:translateX(-50%);}
 </style>
@@ -94917,7 +94921,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<button class="btn-red" id="grAddClient">+ New client</button></div>' +
       '<div class="gr_seg gr_wide"><button data-gr-pview="board"' + (grPView === 'board' ? ' aria-pressed="true"' : '') + '>Board</button>' +
         '<button data-gr-pview="todo"' + (grPView === 'todo' ? ' aria-pressed="true"' : '') + '>To do' + (need ? ' (' + need + ')' : '') + '</button></div>' +
-      (grPView === 'todo' ? grTodoHtml(pool) :
+      (grClients.length === 0
+        ? '<section class="gr_card gr_first">' +
+            grEmpty('&#43;', 'No clients yet',
+              'Add the first one, or connect Calendly so bookings arrive here on their own.') +
+            '<div class="gr_acts gr_mid2"><button class="btn-red" id="grAddClient2">+ New client</button>' +
+            (grIsStaff() ? '<button class="gr_ghost" data-gr-go="gr_connectors">Connectors</button>' : '') +
+            '</div></section>'
+      : pool.length === 0
+        ? '<section class="gr_card">' + grEmpty('&#128269;', 'Nothing matches "' + esc(grQuery.trim()) + '"',
+            'Try part of a name, a company, or an email address.') + '</section>'
+      : grPView === 'todo' ? grTodoHtml(pool) :
       '<div class="gr_board" style="--grcols:' + grStages.length + '">' + grStages.map(st => {
         const g = pool.filter(c => c.stage === st.key);
         const sum = g.reduce((n, x) => n + grVal(x), 0);
@@ -95634,7 +95648,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const go = e.target.closest('[data-gr-go]');
     if (go) { const n = document.querySelector('.nav-item[data-screen="' + go.dataset.grGo + '"]'); if (n) n.click(); return; }
 
-    const add = e.target.closest('#grAddClient');
+    const add = e.target.closest('#grAddClient') || e.target.closest('#grAddClient2');
     if (add) { grAddClient(); return; }
 
     if (e.target.closest('[data-gr-cal-sync]')) { grCalendlySync(); return; }
