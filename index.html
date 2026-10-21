@@ -6458,6 +6458,15 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_note b{display:block;font-size:12px;margin-top:9px;}
 .gr_note ul{margin:5px 0 0;padding-left:18px;font-size:13.5px;line-height:1.6;color:var(--text-2);}
 .gr_note a{margin-top:9px;display:inline-block;text-decoration:none;}
+/* Home's hero: badge, then the greeting, then the box -- all in the narrow column. */
+.gr_ashero{display:flex;flex-direction:column;align-items:center;gap:16px;margin:2vh 0 6px;}
+.gr_ashero h1{margin:0;font-size:36px;font-weight:800;letter-spacing:-.035em;text-align:center;line-height:1.1;}
+@media(max-width:560px){.gr_ashero h1{font-size:26px;}}
+.gr_write{width:100%;border:0;border-radius:14px;background:var(--text);color:var(--bg);padding:14px;font:inherit;font-size:14.5px;font-weight:700;cursor:pointer;margin-top:4px;}
+.gr_write:hover:not(:disabled){opacity:.9;}
+.gr_write:disabled{opacity:.55;cursor:default;}
+.gr_join{flex:none;border-radius:99px;padding:6px 15px;font-size:12.5px;font-weight:700;background:var(--surface-2);color:var(--text);text-decoration:none;}
+.gr_join:hover{background:var(--text);color:var(--bg);}
 .gr_toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 18px;border-radius:99px;font-size:13px;font-weight:600;z-index:90;opacity:0;pointer-events:none;transition:.2s;}
 .gr_toast.on{opacity:1;transform:translateX(-50%);}
 </style>
@@ -94352,9 +94361,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           esc(w ? 'Waiting on you' : grStageLabel(c.stage)) + (c.company ? ' · ' + esc(c.company) : '') + '</span></div>' +
         '<button class="gr_ghost" data-gr-act="' + c.id + '" data-t="' + (w ? 'reply' : 'followup') + '">Draft email</button></div>';
     };
+    const h = new Date().getHours();
+    const hello = (h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening');
+    const who = (window.giantCurrentProfile && window.giantCurrentProfile.full_name) || '';
     return '<div class="gr_as' + (grChat.length ? ' gr_has' : '') + '">' +
       (grChat.length ? '' :
-        '<div class="gr_ashero"><div class="gr_asbadge">&#10022;</div></div>') +
+        '<div class="gr_ashero"><div class="gr_asbadge">&#10022;</div>' +
+        '<h1>' + esc(hello + (who ? ', ' + who.split(' ')[0] : '')) + '</h1></div>') +
       (grChat.length ? '<div class="gr_asmsgs">' + grChat.map(function (m) {
         if (m.r === 'u') return '<div class="gr_asu"><span>' + esc(m.t) + '</span></div>';
         if (m.pending) return '<div class="gr_asa"><span class="gr_assp">&#10022;</span>' +
@@ -94394,17 +94407,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   function grRenderHome() {
-    const h = new Date().getHours();
-    const hello = (h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening');
-    const who = (window.giantCurrentProfile && window.giantCurrentProfile.full_name) || '';
-    const replies = grClients.filter(function (c) { return grActive(c) && grWaiting(c); });
-    const today = grMeetings.filter(function (m) { return grSameDay(m.starts_at, Date.now()); });
-    const todo = grClients.filter(function (c) { return grActive(c) && grNextAction(c) && !grWaiting(c); });
-    const quiet = grClients.filter(function (c) {
-      return grActive(c) && !grWaiting(c) && (grQuietDays(c) == null ? -1 : grQuietDays(c)) >= 3;
-    });
+    const replies = grClients.filter(c => grActive(c) && grWaiting(c));
+    const today = grMeetings.filter(m => grSameDay(m.starts_at, Date.now()));
+    const todo = grClients.filter(c => grActive(c) && grNextAction(c) && !grWaiting(c));
+    const quiet = grClients.filter(c =>
+      grActive(c) && !grWaiting(c) && !(c.follow_up_draft && c.follow_up_draft.body) &&
+      (grQuietDays(c) == null ? -1 : grQuietDays(c)) >= 3);
+    const drafts = grClients.filter(c => grActive(c) && c.follow_up_draft && c.follow_up_draft.body);
 
-    const rRow = function (c) {
+    const rRow = c => {
       const li = grLastIn(c);
       return '<div class="gr_row" data-gr-open="' + c.id + '">' + grAvatar(c.name, grStageColor(c.stage)) +
         '<div class="gr_rm"><div class="gr_rt"><b>' + esc(c.name) + '</b><time>' +
@@ -94414,23 +94425,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<span class="gr_btns"><button class="btn-red gr_sm" data-gr-act="' + c.id + '" data-t="reply">Reply</button>' +
         '<button class="gr_x2" data-gr-done="' + c.id + '" title="Mark as handled">Done</button></span></div>';
     };
-    const mRow = function (m) {
-      const c = grClients.find(function (x) { return x.id === m.client_id; });
+    // The relative time AND the Join link, the way the artifact has it. Hiding Join until
+    // fifteen minutes before meant the row told you about a call you could not join.
+    const mRow = m => {
+      const c = grClients.find(x => x.id === m.client_id);
       const done = new Date(m.starts_at).getTime() + (m.minutes || 45) * 60000 < Date.now();
-      // Join only shows close to the time. A Join button at 9am for a 4pm call is noise.
-      const soon = !done && (new Date(m.starts_at) - Date.now()) < 15 * 60000;
       return '<div class="gr_row' + (done ? ' gr_done' : '') + '"' + (c ? ' data-gr-open="' + c.id + '"' : '') + '>' +
-        '<div class="gr_time"><b>' + esc(grHm(m.starts_at)) + '</b><span>' + (m.minutes || 45) + ' min</span></div>' +
+        '<div class="gr_time"><b>' + esc(grHm(m.starts_at)) + '</b></div>' +
         '<div class="gr_rm"><b>' + esc(c ? c.name : m.title) + '</b><span>' +
-          esc(c && c.company ? c.company : m.title) + '</span></div>' +
+          esc(m.title) + ' &middot; ' + (m.minutes || 45) + ' min</span></div>' +
         (done ? '<span class="gr_st">Done</span>'
-              : m.zoom_url && soon ? '<a class="btn-red gr_sm" href="' + esc(m.zoom_url) + '" target="_blank" rel="noopener" data-gr-stop>Join</a>'
-              : '<span class="gr_st">' + esc(grRelIn(m.starts_at)) + '</span>') + '</div>';
+              : '<span class="gr_st">' + esc(grRelIn(m.starts_at)) + '</span>') +
+        (!done && m.zoom_url ? '<a class="gr_join" href="' + esc(m.zoom_url) + '" target="_blank" rel="noopener" data-gr-stop>Join</a>' : '') +
+        '</div>';
     };
 
     $('grHome').innerHTML =
-      grHead(hello + (who ? ', ' + who.split(' ')[0] : ''),
-        new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }), '') +
       grChatHtml() +
       '<div class="gr_grid2">' +
         '<section class="gr_card"><div class="gr_ct"><h2>Reply to</h2>' +
@@ -94440,16 +94450,75 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           (today.length ? '<span class="gr_n">' + today.length + '</span>' : '') + '</div>' +
           (today.length ? today.map(mRow).join('') : grEmpty('&#9719;', 'No meetings today', 'Your calendar is clear.')) + '</section>' +
       '</div>' +
-      (quiet.length ? '<section class="gr_card"><div class="gr_ct"><h2>Gone quiet</h2><span class="gr_n">' + quiet.length + '</span></div>' +
-        '<p class="gr_mute">' + quiet.length + ' client' + (quiet.length === 1 ? ' has' : 's have') +
-        ' not replied in 3 days or more.</p>' +
-        quiet.slice(0, 5).map(function (c) {
-          return '<div class="gr_row" data-gr-open="' + c.id + '">' + grAvatar(c.name, grStageColor(c.stage)) +
-            '<div class="gr_rm"><b>' + esc(c.name) + '</b><span>quiet for ' + grQuietDays(c) + ' days</span></div>' +
-            '<button class="gr_ghost" data-gr-act="' + c.id + '" data-t="followup">Follow up</button></div>';
-        }).join('') + '</section>' : '') +
       (todo.length ? '<button class="gr_more" data-gr-go="gr_pipeline">' + todo.length +
-        ' more to follow up in Pipeline &rsaquo;</button>' : '');
+        ' more client' + (todo.length === 1 ? '' : 's') + ' to follow up in Pipeline &rsaquo;</button>' : '') +
+      (drafts.length
+        ? '<section class="gr_card"><div class="gr_ct"><h2>Follow ups ready</h2><span class="gr_n">' + drafts.length + '</span></div>' +
+          '<p class="gr_mute">Nothing has been sent. Read one, change anything, then send it yourself.</p>' +
+          drafts.map(c => '<div class="gr_row" data-gr-open="' + c.id + '">' + grAvatar(c.name, grStageColor(c.stage)) +
+            '<div class="gr_rm"><div class="gr_rt"><b>' + esc(c.name) + '</b><time>' +
+              esc(c.follow_up_draft.quiet_days ? 'quiet ' + c.follow_up_draft.quiet_days + 'd' : '') + '</time></div>' +
+            '<div class="gr_rs">' + esc(grSnip(c.follow_up_draft.body, 130)) + '</div></div>' +
+            '<span class="gr_btns"><button class="btn-red gr_sm" data-gr-fudraft="' + c.id + '">Review</button>' +
+            '<button class="gr_x2" data-gr-fudismiss="' + c.id + '">Dismiss</button></span></div>').join('') +
+          '</section>'
+        : quiet.length
+        ? '<section class="gr_card"><div class="gr_ct"><h2>Gone quiet</h2><span class="gr_n">' + quiet.length + '</span></div>' +
+          '<p class="gr_mute">' + quiet.length + ' client' + (quiet.length === 1 ? ' has' : 's have') +
+          ' not replied in 3 days or more. Want drafts?</p>' +
+          '<button class="gr_write" data-gr-fuwrite' + (grFuBusy ? ' disabled' : '') + '>' +
+            (grFuBusy ? 'Writing ' + grFuDone + ' of ' + grFuTotal + '...' : 'Write follow ups') + '</button></section>'
+        : '');
+  }
+
+  /* "Write follow ups" drafts a nudge for everyone who has gone quiet. It writes them and
+     stops: nothing is sent, which is what the line under the ask box promises. Four at a
+     time, because this is a nudge list and not a mail merge. */
+  let grFuBusy = false, grFuDone = 0, grFuTotal = 0;
+  async function grWriteFollowUps() {
+    if (grFuBusy) return;
+    const list = grClients.filter(c =>
+      grActive(c) && !grWaiting(c) && !(c.follow_up_draft && c.follow_up_draft.body) &&
+      (grQuietDays(c) == null ? -1 : grQuietDays(c)) >= 3).slice(0, 4);
+    if (!list.length) return;
+    grFuBusy = true; grFuDone = 0; grFuTotal = list.length; grRenderHome();
+
+    for (const c of list) {
+      const n = grQuietDays(c), th = grThread(c);
+      const last = th.length ? th[th.length - 1] : null;
+      const sub = (last && last.subject) || 'Quick check in';
+      try {
+        const res = await fetch('/.netlify/functions/claude-api', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            max_tokens: 500,
+            system: 'You write short follow up emails for a marketing agency. Plain words, ' +
+              'relaxed, human. No dashes of any kind. No salesy phrases. 3 to 5 short lines. ' +
+              'Start "Hi ' + grFirst(c) + '," and end with "Best," on its own line. ' +
+              'Do not invent prices, dates or facts. Return ONLY the email body.',
+            messages: [{ role: 'user', content:
+              'They have not replied for ' + n + ' days to this:\n' +
+              grSnip(last ? last.body : (c.summary || ''), 600) +
+              '\n\nWrite a friendly nudge with one clear question.' }]
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'AI error');
+        const body = String(data.text || '').trim().replace(/[–—]/g, ',');
+        if (body) {
+          await grSave(c, { follow_up_draft: {
+            subject: /^re:/i.test(sub) ? sub : 'Re: ' + sub,
+            body: body, written_on: grToday(), quiet_days: n } });
+        }
+      } catch (e) {
+        grToast('Could not write them all. ' + String((e && e.message) || e).slice(0, 80));
+        break;
+      }
+      grFuDone++; grRenderHome();
+    }
+    grFuBusy = false;
+    grRenderHome();
+    grToast(grFuDone ? grFuDone + ' follow up' + (grFuDone === 1 ? '' : 's') + ' ready to read' : 'Nothing was written');
   }
 
   // What a reply is asking for, so the row says something more useful than "replied".
@@ -95145,6 +95214,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
     const rec = { subject: k.subject, body: k.body };
     grComposer = null;
+    if (c.follow_up_draft) await grSave(c, { follow_up_draft: null });
     await grLogEmail(c, rec);
     if (lastIn) grSave(c, { handled_msg: lastIn.id });
     grToast('Sent to ' + grFirst(c));
@@ -95240,6 +95310,28 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         grSave(c, { team_notes: [{ d: new Date().toISOString(), by: by, t: t }].concat(c.team_notes || []).slice(0, 100) });
         grToast('Note added');
       } else if (ta) { ta.focus(); }
+      return;
+    }
+
+    if (e.target.closest('[data-gr-fuwrite]')) { grWriteFollowUps(); return; }
+    const fd = e.target.closest('[data-gr-fudraft]');
+    if (fd) {
+      e.stopPropagation();
+      const c = grClients.find(x => x.id === fd.dataset.grFudraft);
+      if (c && c.follow_up_draft) {
+        grStartComposer(c, 'followup');
+        grComposer.subject = c.follow_up_draft.subject;
+        grComposer.body = c.follow_up_draft.body;
+        grComposer.status = 'Written for you. Read it, change anything, then send.';
+        grRender();
+      }
+      return;
+    }
+    const fx = e.target.closest('[data-gr-fudismiss]');
+    if (fx) {
+      e.stopPropagation();
+      const c = grClients.find(x => x.id === fx.dataset.grFudismiss);
+      if (c) { grSave(c, { follow_up_draft: null }); grToast('Dismissed'); }
       return;
     }
 

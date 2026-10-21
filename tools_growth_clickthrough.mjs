@@ -414,6 +414,85 @@ await step('asking a question shows the question and a pending answer', async ()
   check('and says something rather than nothing', end.answer.trim().length > 10, end.answer.slice(0, 120));
 });
 
+await step('Home is laid out like the design: badge, big greeting, narrow column', async () => {
+  await navOf('gr_home').click();
+  await page.waitForFunction(() => document.getElementById('grHome').innerHTML.length > 300,
+    null, { timeout: 15000 }).catch(() => {});
+  // The hero steps aside once a conversation starts, which is what the design does and
+  // what the chat step above left behind. Start a fresh chat so this measures the
+  // landing state rather than the mid-conversation one.
+  const fresh = page.locator('[data-gr-newchat]');
+  if (await fresh.count()) { await fresh.click(); await page.waitForTimeout(400); }
+  const m = await page.evaluate(() => {
+    const badge = document.querySelector('.gr_asbadge');
+    const h1 = document.querySelector('.gr_ashero h1');
+    const box = document.querySelector('.gr_asbox');
+    const wrap = document.getElementById('grHome');
+    const r = x => x ? x.getBoundingClientRect() : null;
+    const br = r(badge), hr = r(h1), bx = r(box), wr = r(wrap);
+    const centred = (el) => {
+      const e = r(el); if (!e || !wr) return false;
+      return Math.abs((e.left + e.right) / 2 - (wr.left + wr.right) / 2) < 14;
+    };
+    return {
+      hasBadge: !!badge, badgeSize: br ? Math.round(br.width) : 0, badgeCentred: centred(badge),
+      greeting: h1 ? h1.textContent : '', greetingSize: hr ? Math.round(parseFloat(getComputedStyle(h1).fontSize)) : 0,
+      greetingCentred: centred(h1),
+      boxWidth: bx ? Math.round(bx.width) : 0, wrapWidth: wr ? Math.round(wr.width) : 0,
+      // The old header is gone: no page title / date line above the hero.
+      startsWithHero: !!(wrap && wrap.firstElementChild && wrap.firstElementChild.classList.contains('gr_as'))
+    };
+  });
+  check('the star badge is there', m.hasBadge && m.badgeSize > 30, m.badgeSize + 'px');
+  check('and it is centred', m.badgeCentred);
+  check('the greeting is big', m.greetingSize >= 28, m.greetingSize + 'px');
+  check('the greeting is centred', m.greetingCentred, m.greeting);
+  check('it greets by name', /Good (morning|afternoon|evening), \w/.test(m.greeting), m.greeting);
+  // The box must be a narrow column, not stretched across the whole screen.
+  check('the ask box is a narrow column (' + m.boxWidth + ' of ' + m.wrapWidth + ')',
+    m.boxWidth > 400 && m.boxWidth <= 790 && m.boxWidth < m.wrapWidth - 100,
+    m.boxWidth + '/' + m.wrapWidth);
+  check('nothing sits above the hero', m.startsWithHero);
+});
+
+await step('a meeting row shows how long until it, and a way in', async () => {
+  const m = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#grHome .gr_card')]
+      .filter(c => /Meetings today/.test(c.innerText))
+      .flatMap(c => [...c.querySelectorAll('.gr_row')]);
+    return rows.map(r => ({
+      text: r.innerText.replace(/\n/g, ' | '),
+      hasJoin: !!r.querySelector('.gr_join'),
+      rel: (r.querySelector('.gr_st') || {}).textContent || ''
+    }));
+  });
+  check('there is a meeting today to measure', m.length > 0, m.length + ' rows');
+  if (!m.length) return;
+  check('it says how long until it starts', /in \d/.test(m[0].rel), m[0].rel);
+  // This was the bug: Join was hidden until fifteen minutes before, so the row told you
+  // about a call you could not get into.
+  check('and offers Join straight away', m[0].hasJoin, m[0].text.slice(0, 90));
+});
+
+await step('Gone quiet offers to write the follow ups', async () => {
+  const m = await page.evaluate(() => {
+    const card = [...document.querySelectorAll('#grHome .gr_card')]
+      .find(c => /Gone quiet|Follow ups ready/.test(c.innerText));
+    if (!card) return { none: true };
+    const btn = card.querySelector('.gr_write');
+    const r = btn && btn.getBoundingClientRect();
+    const cr = card.getBoundingClientRect();
+    return { none: false, heading: card.querySelector('h2').textContent,
+             text: card.innerText.replace(/\n/g, ' | ').slice(0, 160),
+             hasBtn: !!btn, btnW: r ? Math.round(r.width) : 0, cardW: Math.round(cr.width) };
+  });
+  check('there is a Gone quiet card', !m.none, JSON.stringify(m).slice(0, 120));
+  if (m.none) return;
+  check('it says how many and asks', /not replied in 3 days|Want drafts/.test(m.text), m.text.slice(0, 120));
+  check('with a Write follow ups button', m.hasBtn);
+  check('and the button spans the card', m.btnW > m.cardW - 60, m.btnW + ' of ' + m.cardW);
+});
+
 await step('Home shows the digest under the assistant', async () => {
   const m = await page.evaluate(() => {
     const el = document.getElementById('grHome');
