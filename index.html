@@ -6444,6 +6444,20 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_btns{display:flex;flex-direction:column;gap:5px;flex:none;}
 .gr_x2{border:0;background:var(--surface-2);color:var(--text-2);border-radius:99px;padding:4px 11px;font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;}
 .gr_x2:hover{color:var(--text);}
+.gr_bc[draggable]{cursor:grab;}
+.gr_bc.gr_dragging{opacity:.4;}
+.gr_col.gr_over{outline:2px solid var(--sc);outline-offset:-2px;background:var(--surface-2);}
+.gr_row.gr_hot{border-left:3px solid var(--red);padding-left:9px;}
+.gr_sp{flex:1;}
+.gr_won{border:0;background:#00B86B;color:#fff;border-radius:99px;padding:8px 15px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;}
+.gr_won:hover{background:#00a461;}
+.gr_tl{display:flex;flex-direction:column;margin-top:8px;}
+.gr_tl>div{display:grid;grid-template-columns:12px 64px 1fr;gap:10px;align-items:baseline;padding:7px 0;font-size:13.5px;}
+.gr_tl i{width:8px;height:8px;border-radius:50%;background:var(--red);align-self:center;}
+.gr_tl time{font-size:12px;color:var(--text-3);}
+.gr_note b{display:block;font-size:12px;margin-top:9px;}
+.gr_note ul{margin:5px 0 0;padding-left:18px;font-size:13.5px;line-height:1.6;color:var(--text-2);}
+.gr_note a{margin-top:9px;display:inline-block;text-decoration:none;}
 .gr_toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 18px;border-radius:99px;font-size:13px;font-weight:600;z-index:90;opacity:0;pointer-events:none;transition:.2s;}
 .gr_toast.on{opacity:1;transform:translateX(-50%);}
 </style>
@@ -94030,6 +94044,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   let grSetTab = 'stages', grTrainTab = 'plan', grEdit = null;
   let grPeople = [];                 // profiles who can own a deal
   let grScreen = 'gr_home';
+  let grPView = 'board';
   let grOpenId = null, grTab = 'overview', grQuery = '', grComposer = null;
   let grRange = 'week';
 
@@ -94359,6 +94374,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       '</div></div>';
   }
 
+  // Their local time, so nobody rings New York at 6am. An invalid zone must not take the
+  // whole sheet down with it, hence the try.
+  function grLocalTime(c) {
+    if (!c.timezone) return '';
+    try {
+      return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: c.timezone }) +
+        ' their time';
+    } catch (e) { return ''; }
+  }
+  const grDayLabel = iso => grSameDay(iso, Date.now()) ? 'Today'
+    : grSameDay(iso, Date.now() + 86400000) ? 'Tomorrow'
+    : new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+
   function grNextMeeting(c) {
     return grMeetings.filter(function (m) {
       return m.client_id === c.id && new Date(m.starts_at) > new Date(Date.now() - 3600000);
@@ -94482,7 +94510,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
     const card = (c) => {
       const na = grNextAction(c), lt = grDaysAgo(grLastTouch(c));
-      return '<div class="gr_bc" data-gr-open="' + c.id + '">' +
+      return '<div class="gr_bc" draggable="true" data-gr-card="' + c.id + '" data-gr-open="' + c.id + '">' +
         '<div class="gr_bh">' + grAvatar(c.name, grStageColor(c.stage), 'gr_sm2') +
           '<div class="gr_bn"><b>' + esc(c.name) + '</b><span>' + esc(c.company || '') + '</span></div></div>' +
         '<div class="gr_bf">' + (na ? '<span class="gr_st hot">' + esc(na.label) + '</span>' : '<span class="gr_st ok">On track</span>') +
@@ -94499,6 +94527,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<div><b class="gr_g">' + grMoney(won) + '</b><span>won / mo</span></div></div>') +
       '<div class="gr_tools"><input class="gr_search" id="grSearch" placeholder="Search name or company" value="' + esc(grQuery) + '" aria-label="Search the pipeline">' +
         '<button class="btn-red" id="grAddClient">+ New client</button></div>' +
+      '<div class="gr_seg gr_wide"><button data-gr-pview="board"' + (grPView === 'board' ? ' aria-pressed="true"' : '') + '>Board</button>' +
+        '<button data-gr-pview="todo"' + (grPView === 'todo' ? ' aria-pressed="true"' : '') + '>To do' + (need ? ' (' + need + ')' : '') + '</button></div>' +
+      (grPView === 'todo' ? grTodoHtml(pool) :
       '<div class="gr_board" style="--grcols:' + grStages.length + '">' + grStages.map(st => {
         const g = pool.filter(c => c.stage === st.key);
         const sum = g.reduce((n, x) => n + grVal(x), 0);
@@ -94507,9 +94538,67 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             (g.filter(grNextAction).length ? '<em class="gr_need" title="' + g.filter(grNextAction).length + ' need an action">' + g.filter(grNextAction).length + '</em>' : '') +
             '<span>' + g.length + '</span></div>' +
           (sum ? '<div class="gr_colsum">' + grMoney(sum) + '/mo</div>' : '') +
-          (g.length ? g.map(card).join('') : '<div class="gr_colempty">Nothing here</div>') + '</div>';
-      }).join('') + '</div>';
+          (g.length ? g.map(card).join('') : '<div class="gr_colempty">Drop a client here</div>') + '</div>';
+      }).join('') + '</div>');
   }
+
+  /* The To-do view: the same deals ordered by what is most overdue rather than by stage.
+     A board answers "where is everything"; this answers "what do I do next". */
+  function grTodoHtml(pool) {
+    const prio = c => (c.follow_up_on && c.follow_up_on <= grToday()) || grWaiting(c) ? 0
+                    : (c.stage === 'call' && !(c.emails_sent || 0)) ? 1 : 2;
+    const list = pool.filter(c => grNextAction(c)).sort((a, b) =>
+      (prio(a) - prio(b)) || (String(grLastTouch(a) || '') < String(grLastTouch(b) || '') ? -1 : 1));
+    if (!list.length) return '<section class="gr_card">' +
+      grEmpty('&#10003;', 'All caught up', 'Nobody needs anything from you right now.') + '</section>';
+    return '<section class="gr_card">' + list.map(c => {
+      const na = grNextAction(c);
+      const late = c.follow_up_on && c.follow_up_on <= grToday();
+      return '<div class="gr_row' + (late ? ' gr_hot' : '') + '" data-gr-open="' + c.id + '">' +
+        grAvatar(c.name, grStageColor(c.stage)) +
+        '<div class="gr_rm"><b>' + esc(c.name) + '</b><span>' + esc(na.label) +
+          (c.company ? ' · ' + esc(c.company) : '') +
+          (late ? ' · due ' + esc(grFmt(c.follow_up_on)) : '') + '</span></div>' +
+        '<button class="btn-red gr_sm" data-gr-act="' + c.id + '" data-t="' + na.t + '">' + esc(na.label) + '</button></div>';
+    }).join('') + '</section>';
+  }
+
+  /* Dragging a card to another column. The write is the same grSave every other path
+     uses, so a refusal is reported rather than leaving the card where it was dropped. */
+  let grDragId = null;
+  document.addEventListener('dragstart', e => {
+    const card = e.target.closest && e.target.closest('[data-gr-card]');
+    if (!card) return;
+    grDragId = card.dataset.grCard;
+    card.classList.add('gr_dragging');
+    try { e.dataTransfer.setData('text/plain', grDragId); e.dataTransfer.effectAllowed = 'move'; } catch (x) {}
+  });
+  const grDragClear = () => {
+    grDragId = null;
+    document.querySelectorAll('.gr_dragging,.gr_over').forEach(el => el.classList.remove('gr_dragging', 'gr_over'));
+  };
+  document.addEventListener('dragend', grDragClear);
+  document.addEventListener('dragover', e => {
+    const col = e.target.closest && e.target.closest('[data-gr-stage]');
+    if (!col || !grDragId) return;
+    e.preventDefault();
+    document.querySelectorAll('.gr_over').forEach(el => { if (el !== col) el.classList.remove('gr_over'); });
+    col.classList.add('gr_over');
+  });
+  document.addEventListener('drop', e => {
+    const col = e.target.closest && e.target.closest('[data-gr-stage]');
+    if (!col || !grDragId) return;
+    e.preventDefault();
+    const c = grClients.find(x => x.id === grDragId);
+    const to = col.dataset.grStage;
+    grDragClear();
+    if (!c || !to || c.stage === to) return;
+    const patch = { stage: to };
+    if (to === 'won') patch.won_on = grToday();
+    if (to === 'lost') patch.lost_on = grToday();
+    grSave(c, patch);
+    grToast('Moved ' + grFirst(c) + ' to ' + grStageLabel(to));
+  });
 
   /* --- Growth Inbox --- */
   function grRenderInbox() {
@@ -94876,13 +94965,49 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const c = grOpenId && grClients.find(x => x.id === grOpenId);
     if (!c) { if (wrap) { wrap.classList.remove('on'); wrap.innerHTML = ''; } return; }
     const col = grStageColor(c.stage), na = grNextAction(c), th = grThread(c);
-    const tabs = [['overview', 'Overview'], ['emails', 'Emails' + (th.length ? ' (' + th.length + ')' : '')], ['details', 'Info']];
+    const ms = grMeetings.filter(m => m.client_id === c.id)
+      .sort((a, b) => new Date(b.starts_at) - new Date(a.starts_at));
+    const notes = (c.call_notes || []).length + (c.team_notes || []).length;
+    const tabs = [['overview', 'Overview'],
+                  ['notes', 'Call notes' + (notes ? ' (' + notes + ')' : '')],
+                  ['emails', 'Emails' + (th.length ? ' (' + th.length + ')' : '') + (grWaiting(c) ? ' \u25CF' : '')],
+                  ['meetings', 'Meetings' + (ms.length ? ' (' + ms.length + ')' : '')],
+                  ['details', 'Info']];
     let body = '';
     if (grTab === 'emails') {
       body = th.length
         ? th.map(m => '<div class="gr_bub ' + m.direction + '"><div class="gr_bh2"><b>' + (m.direction === 'in' ? esc(grFirst(c)) : 'You') + '</b><time>' + esc(grFmt(m.sent_at)) + '</time></div><p>' + esc(m.body) + '</p></div>').join('')
         : '<p class="gr_mute">No emails yet.</p>';
       body += '<div class="gr_acts"><button class="btn-red" data-gr-act="' + c.id + '" data-t="' + (na ? na.t : 'followup') + '">Write an email</button></div>';
+    } else if (grTab === 'notes') {
+      const cn = c.call_notes || [], tn = c.team_notes || [];
+      body = (cn.length ? cn.map(n =>
+          '<div class="gr_note"><span>' + esc(n.title || 'Call') + (n.d ? ' · ' + esc(grFmt(n.d)) : '') + '</span>' +
+          (n.headline ? '<p>' + esc(n.headline) + '</p>' : '') +
+          ((n.wants || []).length ? '<b>What they want</b><ul>' + n.wants.map(w => '<li>' + esc(w) + '</li>').join('') + '</ul>' : '') +
+          ((n.next || []).length ? '<b>Next steps</b><ul>' + n.next.map(x => '<li>' + esc(x.t || x) + '</li>').join('') + '</ul>' : '') +
+          (n.url ? '<a class="gr_ghost" href="' + esc(n.url) + '" target="_blank" rel="noopener" data-gr-stop>Watch recording</a>' : '') +
+          '</div>').join('')
+        : '<p class="gr_mute">No call notes yet. Paste what came out of the call below, or connect Fathom.</p>') +
+        '<div class="gr_field"><label for="grNote">Add a note for the team</label>' +
+          '<textarea id="grNote" rows="3" placeholder="What came out of the call..."></textarea></div>' +
+        '<div class="gr_acts"><button class="btn-red" data-gr-addnote="' + c.id + '">Add note</button></div>' +
+        (tn.length ? '<div class="gr_sub">Team notes</div>' + tn.map(n =>
+          '<div class="gr_note"><span>' + esc(n.by || 'Team') + ' · ' + esc(grFmt(String(n.d || '').slice(0, 10))) + '</span>' +
+          '<p>' + esc(n.t) + '</p></div>').join('') : '');
+
+    } else if (grTab === 'meetings') {
+      body = ms.length ? ms.map(m => {
+        const done = new Date(m.starts_at).getTime() + (m.minutes || 45) * 60000 < Date.now();
+        return '<div class="gr_row" style="cursor:default">' +
+          '<div class="gr_time"><b>' + esc(grHm(m.starts_at)) + '</b><span>' + (m.minutes || 45) + ' min</span></div>' +
+          '<div class="gr_rm"><b>' + esc(grDayLabel(m.starts_at)) + '</b><span>' + esc(m.title) +
+            (m.source ? ' · ' + esc(m.source) : '') + '</span></div>' +
+          (done ? '<span class="gr_st">Done</span>'
+                : m.zoom_url ? '<a class="btn-red gr_sm" href="' + esc(m.zoom_url) + '" target="_blank" rel="noopener" data-gr-stop>Join</a>'
+                : '<span class="gr_st">' + esc(grRelIn(m.starts_at)) + '</span>') + '</div>';
+      }).join('') : '<p class="gr_mute">No meetings booked with ' + esc(grFirst(c)) + ' yet.</p>';
+
     } else if (grTab === 'details') {
       const f = (id, label, key, val) => '<div class="gr_field"><label for="' + id + '">' + label + '</label>' +
         '<input id="' + id + '" data-gr-f="' + key + '" value="' + esc(val || '') + '"></div>';
@@ -94910,17 +95035,41 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         (grActive(c) ? '<div class="gr_fu"><span>Follow up</span>' +
           (c.follow_up_on ? '<b>' + esc(grFmt(c.follow_up_on)) + '</b><button class="gr_chip" data-gr-fu="clear">Clear</button>'
             : [3, 5, 7].map(n => '<button class="gr_chip" data-gr-fu="' + n + '">In ' + n + ' days</button>').join('')) + '</div>' : '') +
-        (c.summary ? '<div class="gr_note"><span>Summary</span><p>' + esc(c.summary) + '</p></div>' : '');
+        (c.summary ? '<div class="gr_note"><span>Summary</span><p>' + esc(c.summary) + '</p></div>' : '') +
+        (function () {
+          // What has actually happened, newest first. Meetings and emails are real rows;
+          // the log is whatever the app wrote as it went.
+          const acts = [];
+          grMeetings.filter(m => m.client_id === c.id).forEach(m => acts.push({
+            d: String(m.starts_at).slice(0, 10),
+            t: (new Date(m.starts_at) < Date.now() ? 'Meeting held' : 'Meeting booked') + ' · ' + grHm(m.starts_at) }));
+          grThread(c).forEach(m => acts.push({
+            d: String(m.sent_at).slice(0, 10),
+            t: (m.direction === 'in' ? grFirst(c) + ' replied' : 'Email sent') + (m.subject ? ' · ' + m.subject : '') }));
+          (c.activity_log || []).forEach(l => acts.push({ d: l.d, t: l.note }));
+          if (!acts.length) return '';
+          acts.sort((a, b) => a.d < b.d ? 1 : -1);
+          return '<div class="gr_note"><span>What has happened</span><div class="gr_tl">' +
+            acts.slice(0, 8).map(a => '<div><i></i><time>' + esc(grFmt(a.d)) + '</time><span>' +
+              esc(a.t) + '</span></div>').join('') + '</div></div>';
+        })();
     }
     wrap.innerHTML =
       '<div class="gr_sheet" data-gr-id="' + c.id + '">' +
         '<div class="gr_sh"><span class="gr_av gr_lg" style="background:' + col + '">' + esc(grInitials(c.name)) + '</span>' +
           '<div class="gr_si"><h2>' + esc(c.name) + '</h2><div class="gr_ss">' +
-            [c.company, c.email, c.phone].filter(Boolean).map(esc).join(' &middot; ') + '</div></div>' +
+            [c.company, c.email, c.phone, grLocalTime(c)].filter(Boolean).map(esc).join(' &middot; ') + '</div></div>' +
           '<button class="gr_x" data-gr-close aria-label="Close">&#10005;</button></div>' +
         '<div class="gr_sbar"><select class="gr_stage" data-gr-stage-sel style="--sc:' + col + '" aria-label="Stage">' +
           grStages.map(s => '<option value="' + s.key + '"' + (s.key === c.stage ? ' selected' : '') + '>' + esc(s.label) + '</option>').join('') + '</select>' +
-          (grIsStaff() ? '<span class="gr_own">' + esc(grPerson(c.owner_id).full_name) + '</span>' : '') + '</div>' +
+          (grIsStaff() ? '<span class="gr_own">' + esc(grPerson(c.owner_id).full_name) + '</span>' : '') +
+          '<span class="gr_sp"></span>' +
+          (grActive(c)
+            ? '<button class="gr_won" data-gr-won="' + c.id + '">Mark won</button>' +
+              '<button class="gr_ghost" data-gr-lost="' + c.id + '">Lost</button>'
+            : '<span class="gr_st ' + (c.stage === 'won' ? 'ok' : '') + '">' +
+              esc(c.stage === 'won' ? 'Won' + (c.won_on ? ' ' + grFmt(c.won_on) : '') : 'Lost' + (c.lost_reason ? ' · ' + c.lost_reason : '')) +
+              '</span>') + '</div>' +
         '<div class="gr_stabs">' + tabs.map(t => '<button data-gr-tab="' + t[0] + '"' + (grTab === t[0] ? ' aria-pressed="true"' : '') + '>' + t[1] + '</button>').join('') + '</div>' +
         '<div class="gr_sbody">' + body + '</div>' +
       '</div>' + (grComposer ? grComposerHtml(c) : '');
@@ -95057,6 +95206,45 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (add) { grAddClient(); return; }
 
     if (e.target.closest('[data-gr-cal-sync]')) { grCalendlySync(); return; }
+    const won = e.target.closest('[data-gr-won]');
+    if (won) {
+      const c = grClients.find(x => x.id === won.dataset.grWon);
+      if (c) (async () => {
+        const amount = await window.giantPrompt('How much is ' + grFirst(c) + ' worth per month?',
+          String(grVal(c) || ''));
+        if (amount === null) return;   // cancelled, not zero
+        const v = Number(String(amount).replace(/[^0-9.]/g, '')) || 0;
+        await grSave(c, { stage: 'won', won_on: grToday(), value_monthly: v || null });
+        grToast('Won' + (v ? ' at ' + grMoney(v) + ' per month' : ''));
+      })();
+      return;
+    }
+    const lost = e.target.closest('[data-gr-lost]');
+    if (lost) {
+      const c = grClients.find(x => x.id === lost.dataset.grLost);
+      if (c) (async () => {
+        const why = await window.giantPrompt('What got in the way? (you can leave this blank)', '');
+        if (why === null) return;
+        await grSave(c, { stage: 'lost', lost_on: grToday(), lost_reason: String(why || '').slice(0, 120) });
+        grToast('Marked as lost');
+      })();
+      return;
+    }
+    const an = e.target.closest('[data-gr-addnote]');
+    if (an) {
+      const c = grClients.find(x => x.id === an.dataset.grAddnote);
+      const ta = $('grNote');
+      const t = ta && ta.value.trim();
+      if (c && t) {
+        const by = (window.giantCurrentProfile && window.giantCurrentProfile.full_name) || 'Team';
+        grSave(c, { team_notes: [{ d: new Date().toISOString(), by: by, t: t }].concat(c.team_notes || []).slice(0, 100) });
+        grToast('Note added');
+      } else if (ta) { ta.focus(); }
+      return;
+    }
+
+    const pv = e.target.closest('[data-gr-pview]');
+    if (pv) { grPView = pv.dataset.grPview; grRender(); return; }
     const chip = e.target.closest('[data-gr-chip]');
     if (chip) { grAsk(chip.dataset.grChip); return; }
     if (e.target.closest('#grAskGo')) {

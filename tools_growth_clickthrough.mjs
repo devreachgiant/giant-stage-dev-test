@@ -285,7 +285,7 @@ await step('opening a deal shows that deal, and closing puts it away', async () 
   check('the sheet opens', open.open);
   check('and is a real size (' + open.w + 'x' + open.h + ')', open.w > 300 && open.h > 200);
   check('it is the deal that was clicked', open.title === name, open.title + ' vs ' + name);
-  check('it has its tabs', open.tabs === 3, open.tabs + ' of 3');
+  check('it has its tabs', open.tabs === 5, open.tabs + ' of 5');
 
   await page.locator('#grSheet [data-gr-close]').click();
   await page.waitForTimeout(300);
@@ -565,6 +565,110 @@ await step('Training: a call can be added to the watch list', async () => {
   await page.waitForTimeout(600);
   const after = await page.evaluate(() => (window.__mockDB.growth_watch_calls || []).length);
   check('a watch-list call is inserted', after === before + 1, before + ' -> ' + after);
+});
+
+await step('the client sheet has all five tabs, and each one paints', async () => {
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  await navOf('gr_pipeline').click();
+  await page.waitForFunction(() => document.querySelectorAll('#grPipeline .gr_bc').length > 0,
+    null, { timeout: 15000 }).catch(() => {});
+  await page.locator('#grPipeline .gr_bc').first().click();
+  await page.waitForTimeout(400);
+  const tabs = await page.evaluate(() =>
+    [...document.querySelectorAll('#grSheet .gr_stabs button')].map(b => b.dataset.grTab));
+  check('five tabs are offered', tabs.length === 5, JSON.stringify(tabs));
+  for (const t of ['overview', 'notes', 'emails', 'meetings', 'details']) {
+    const b = page.locator('#grSheet [data-gr-tab="' + t + '"]');
+    if (await b.count() === 0) { check('tab ' + t + ' exists', false); continue; }
+    await b.click(); await page.waitForTimeout(300);
+    const m = await page.evaluate(() => {
+      const el = document.querySelector('#grSheet .gr_sbody');
+      const r = el.getBoundingClientRect();
+      return { chars: (el.innerText || '').trim().length, h: Math.round(r.height) };
+    });
+    check('tab ' + t + ' paints (' + m.chars + ' chars, ' + m.h + 'px)', m.chars > 20 && m.h > 60);
+  }
+});
+
+await step('the Overview timeline shows what has actually happened', async () => {
+  await page.locator('#grSheet [data-gr-tab="overview"]').click();
+  await page.waitForTimeout(300);
+  await page.waitForFunction(() => !!document.querySelector('#grSheet .gr_tl span'),
+    null, { timeout: 5000 }).catch(() => {});
+  const m = await page.evaluate(() => {
+    const tl = document.querySelector('#grSheet .gr_tl');
+    if (!tl) return { rows: 0, events: [], widths: [] };
+    const rows = [...tl.children];
+    return {
+      rows: rows.length,
+      // The row's own span, not the container's innerText: innerText was being read
+      // mid-render and came back as just the date, which looked like a missing event.
+      events: rows.map(r => (r.querySelector('span') || {}).textContent || ''),
+      widths: rows.map(r => Math.round((r.querySelector('span') || r).getBoundingClientRect().width))
+    };
+  });
+  check('the timeline has entries', m.rows > 0, m.rows + ' rows');
+  check('and they read as events', m.events.some(t => /Email sent|Meeting|replied/.test(t)),
+    JSON.stringify(m.events).slice(0, 140));
+  check('each entry is actually visible', m.widths.every(w => w > 50), JSON.stringify(m.widths));
+});
+
+await step('a deal can be dragged to another stage and it saves', async () => {
+  await page.locator('#grSheet [data-gr-close]').click();
+  await page.waitForTimeout(300);
+  const before = await page.evaluate(() => {
+    const c = document.querySelector('#grPipeline .gr_bc');
+    const id = c && c.dataset.grCard;
+    const row = (window.__mockDB.growth_clients || []).find(r => r.id === id);
+    return { id, stage: row && row.stage };
+  });
+  check('a card is draggable', !!before.id, JSON.stringify(before));
+  if (!before.id) return;
+  // Pick a stage the card is NOT already in, so the assertion measures a real move.
+  const target = await page.evaluate((cur) => {
+    const cols = [...document.querySelectorAll('#grPipeline .gr_col')];
+    const other = cols.find(c => c.dataset.grStage !== cur);
+    return other ? other.dataset.grStage : null;
+  }, before.stage);
+  // Playwright's dragTo does not fire the HTML5 drag events this uses, so dispatch them.
+  await page.evaluate(([id, to]) => {
+    const card = document.querySelector('[data-gr-card="' + id + '"]');
+    const col = document.querySelector('[data-gr-stage="' + to + '"]');
+    const dt = new DataTransfer();
+    card.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+    col.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    col.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+  }, [before.id, target]);
+  await page.waitForTimeout(700);
+  const after = await page.evaluate((id) =>
+    (window.__mockDB.growth_clients || []).find(r => r.id === id), before.id);
+  check('the dropped deal moved stage in the database', after && after.stage === target,
+    before.stage + ' -> ' + (after && after.stage) + ' (wanted ' + target + ')');
+  const onScreen = await page.evaluate(([id, to]) => {
+    const card = document.querySelector('[data-gr-card="' + id + '"]');
+    const col = card && card.closest('[data-gr-stage]');
+    return col ? col.dataset.grStage : null;
+  }, [before.id, target]);
+  check('and the card is drawn in the new column', onScreen === target, 'card is in ' + onScreen);
+});
+
+await step('the To do view lists what needs doing', async () => {
+  const b = page.locator('[data-gr-pview="todo"]');
+  if (await b.count() === 0) { check('a To do toggle exists', false); return; }
+  await b.click(); await page.waitForTimeout(400);
+  const m = await page.evaluate(() => {
+    const el = document.getElementById('grPipeline');
+    return { rows: el.querySelectorAll('.gr_row').length, board: el.querySelectorAll('.gr_col').length,
+             text: el.innerText.slice(0, 300) };
+  });
+  check('To do shows a list, not the board', m.board === 0, m.board + ' columns still drawn');
+  check('and it has rows to act on', m.rows > 0, m.rows + ' rows');
+  check('each row offers the next action', /Send|Reply|Follow/.test(m.text), m.text.slice(0, 120));
+  await page.locator('[data-gr-pview="board"]').click();
+  await page.waitForTimeout(300);
+  const back = await page.evaluate(() => document.querySelectorAll('#grPipeline .gr_col').length);
+  check('and Board brings the columns back', back > 0, back + ' columns');
 });
 
 // ── it must not have leaked into the rest of the app ─────────────────────────
