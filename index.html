@@ -6236,17 +6236,26 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_stats span{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--text-3);}
 .gr_tools{display:flex;gap:10px;margin-bottom:14px;}
 .gr_search{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:11px 18px;color:var(--text);font:inherit;font-size:13.5px;}
-/* Six stages have to fit the content area without a scrollbar on a laptop; 230px did
-   not and clipped Lost off the right-hand edge. */
-.gr_board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(192px,1fr);gap:11px;overflow-x:auto;align-items:start;padding-bottom:10px;}
+/* The stages have to FIT, not scroll. grid-auto-columns:minmax(192px,1fr) sizes each
+   column against its own content rather than the container, so six of them grew past the
+   right-hand edge and clipped Lost behind a scrollbar. An explicit column count with
+   minmax(0,1fr) shares the width that actually exists. --grcols is set from the stage
+   list, so adding a stage in Settings still fits instead of overflowing again. */
+.gr_board{display:grid;grid-template-columns:repeat(var(--grcols,6),minmax(0,1fr));gap:10px;align-items:start;}
+/* Below this they genuinely do not fit, so then and only then it scrolls. */
+@media(max-width:1180px){
+  .gr_board{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(220px,1fr);overflow-x:auto;padding-bottom:10px;}
+}
 /* Growth Inbox is the longest label in the sidebar and wrapped onto two lines. */
 #appSidebar .nav-item[data-screen^="gr_"]{white-space:nowrap;}
 .gr_col{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 10px 10px;position:relative;min-width:0;}
 .gr_col::before{content:"";position:absolute;top:0;left:14px;width:36px;height:4px;border-radius:0 0 5px 5px;background:var(--sc);}
-.gr_colh{display:flex;align-items:center;gap:8px;padding:2px 6px 8px;}
-.gr_colh b{font-size:14px;font-weight:800;letter-spacing:-.01em;}
+/* One line, always. "Proposal sent" and "Following up" wrapped and pushed the count
+   out of line, which made six tidy columns look like a broken grid. */
+.gr_colh{display:flex;align-items:center;gap:6px;padding:2px 6px 8px;flex-wrap:nowrap;}
+.gr_colh b{font-size:13.5px;font-weight:800;letter-spacing:-.01em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .gr_colh span:last-child{margin-left:auto;font-size:12.5px;font-weight:700;color:var(--sc);}
-.gr_need{font-style:normal;font-size:10.5px;font-weight:700;color:var(--red);background:rgba(208,4,0,.12);border-radius:99px;padding:2px 7px;}
+.gr_need{font-style:normal;font-size:10.5px;font-weight:700;color:var(--red);background:rgba(208,4,0,.14);border-radius:99px;padding:1px 7px;flex:none;}
 .gr_colsum{font-size:11.5px;color:var(--text-3);padding:0 6px 6px;}
 .gr_colempty{border:1.5px dashed var(--line);border-radius:12px;color:var(--text-3);font-size:12.5px;padding:20px 8px;text-align:center;}
 .gr_bc{background:var(--surface-2);border-radius:13px;padding:12px;margin-bottom:7px;cursor:pointer;}
@@ -6399,6 +6408,42 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_svc{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line);}
 .gr_svc:first-of-type{border-top:0;}
 .gr_svc a{text-decoration:none;flex:none;}
+/* the assistant */
+.gr_as{display:flex;flex-direction:column;gap:14px;max-width:760px;margin:0 auto 20px;width:100%;}
+.gr_ashero{display:flex;justify-content:center;}
+.gr_asbadge{width:46px;height:46px;border-radius:15px;background:var(--red);color:#fff;display:grid;place-items:center;font-size:22px;}
+.gr_asmsgs{display:flex;flex-direction:column;gap:20px;}
+.gr_asu{display:flex;justify-content:flex-end;}
+.gr_asu span{background:var(--surface-2);border-radius:20px 20px 6px 20px;padding:11px 16px;font-size:14.5px;line-height:1.5;max-width:80%;}
+.gr_asa{display:flex;gap:13px;align-items:flex-start;}
+.gr_assp{width:30px;height:30px;border-radius:10px;background:var(--red);color:#fff;display:grid;place-items:center;font-size:15px;flex:none;}
+.gr_ast{flex:1;min-width:0;}
+.gr_ast p{margin:0;font-size:15px;line-height:1.6;}
+.gr_acs{display:flex;flex-direction:column;gap:8px;margin-top:13px;}
+.gr_ac{display:flex;align-items:center;gap:11px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:10px 12px;cursor:pointer;}
+.gr_ac:hover{border-color:var(--line-2);}
+.gr_asdock{display:flex;flex-direction:column;gap:12px;align-items:center;}
+.gr_asbox{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:14px 14px 10px 18px;}
+.gr_asbox:focus-within{border-color:var(--line-2);}
+#grAsk{width:100%;border:0;background:transparent;resize:none;outline:0;color:var(--text);font:inherit;font-size:15.5px;line-height:1.5;min-height:46px;max-height:160px;}
+#grAsk::placeholder{color:var(--text-3);}
+.gr_asr{display:flex;justify-content:space-between;align-items:center;margin-top:4px;}
+.gr_asr span{font-size:12px;color:var(--text-3);}
+#grAskGo{width:34px;height:34px;border-radius:50%;border:0;background:var(--text);color:var(--bg);font-size:16px;cursor:pointer;}
+#grAskGo:disabled{opacity:.35;cursor:default;}
+.gr_aschips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
+.gr_aschips button{border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:8px 15px;font:inherit;font-size:13.5px;color:var(--text-2);cursor:pointer;}
+.gr_aschips button:hover{background:var(--text);color:var(--bg);border-color:var(--text);}
+.gr_newchat{align-self:flex-end;border:1px solid var(--line);background:var(--surface);border-radius:99px;padding:6px 13px;font:inherit;font-size:12.5px;color:var(--text-2);cursor:pointer;}
+.gr_dots{display:inline-flex;gap:5px;padding:10px 0;}
+.gr_dots i{width:7px;height:7px;border-radius:50%;background:var(--text-3);animation:grdot 1s infinite ease-in-out;}
+.gr_dots i:nth-child(2){animation-delay:.15s;}
+.gr_dots i:nth-child(3){animation-delay:.3s;}
+@keyframes grdot{0%,80%,100%{opacity:.3;transform:scale(.8);}40%{opacity:1;transform:scale(1);}}
+.gr_intent{align-self:flex-start;font-size:11px;font-weight:700;color:#F08A8A;background:rgba(208,4,0,.12);border-radius:99px;padding:2px 9px;margin-top:3px;}
+.gr_btns{display:flex;flex-direction:column;gap:5px;flex:none;}
+.gr_x2{border:0;background:var(--surface-2);color:var(--text-2);border-radius:99px;padding:4px 11px;font:inherit;font-size:11.5px;font-weight:600;cursor:pointer;}
+.gr_x2:hover{color:var(--text);}
 .gr_toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 18px;border-radius:99px;font-size:13px;font-weight:600;z-index:90;opacity:0;pointer-events:none;transition:.2s;}
 .gr_toast.on{opacity:1;transform:translateX(-50%);}
 </style>
@@ -94197,40 +94242,204 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     return '<div class="gr_empty"><div class="gr_tick">' + icon + '</div><b>' + esc(title) + '</b><span>' + esc(sub) + '</span></div>';
   }
 
-  /* --- Home --- */
+  /* --- Home: the assistant, with the day's digest under it ---
+     Answers come from a compact JSON picture of THIS rep's pipeline, not from the whole
+     table: RLS already limits grClients to what they may see, so the context cannot
+     describe a deal they are not allowed to know about. */
+  let grChat = [], grChatBusy = false;
+  const GR_CHIPS = ['Who do I need to reply to?', 'Who has gone quiet?',
+                    'What is my first move today?', 'Summarize my week'];
+
+  function grQuietDays(c) {
+    const t = grThread(c), l = t.length ? t[t.length - 1] : null;
+    if (l) return l.direction === 'out' ? grDaysAgo(l.sent_at) : null;
+    return c.last_email_on ? grDaysAgo(c.last_email_on) : null;
+  }
+
+  function grChatContext() {
+    const slim = grClients.slice(0, 60).map(function (c) {
+      const li = grLastIn(c), nm = grNextMeeting(c), na = grNextAction(c);
+      return {
+        id: c.id, name: c.name, company: c.company || '',
+        stage: grStageLabel(c.stage), owner: grPerson(c.owner_id).full_name,
+        valuePerMonth: grVal(c), daysSinceContact: grDaysAgo(grLastTouch(c)),
+        waitingOnYou: !!li, theirLastMessage: li ? grSnip(li.body, 200) : '',
+        nextAction: na ? na.label : '', followUpOn: c.follow_up_on || '',
+        nextMeeting: nm ? nm.starts_at : '', notes: grSnip(c.summary || '', 160)
+      };
+    });
+    const mtg = function (m) {
+      const c = grClients.find(function (x) { return x.id === m.client_id; });
+      return { client: c ? c.name : m.title, title: m.title, start: m.starts_at, minutes: m.minutes };
+    };
+    return {
+      today: grToday(), now: new Date().toISOString(),
+      you: (window.giantCurrentProfile && window.giantCurrentProfile.full_name) || '',
+      clients: slim,
+      meetingsToday: grMeetings.filter(function (m) { return grSameDay(m.starts_at, Date.now()); }).map(mtg),
+      upcomingMeetings: grMeetings.filter(function (m) {
+        return new Date(m.starts_at) > Date.now() && !grSameDay(m.starts_at, Date.now());
+      }).slice(0, 8).map(mtg)
+    };
+  }
+
+  async function grAsk(q) {
+    q = String(q || '').trim();
+    if (!q || grChatBusy) return;
+    grChat.push({ r: 'u', t: q });
+    const msg = { r: 'a', pending: true, t: '', ids: [] };
+    grChat.push(msg);
+    grChatBusy = true; grRenderHome();
+
+    const system =
+      'You are the Growth assistant inside a sales CRM at ReachGiant, a marketing agency. ' +
+      'Answer using ONLY the data given. If the data does not say, say you do not know. ' +
+      'Style: short, plain words, friendly. No markdown, no emojis, no dashes of any kind. ' +
+      'Return ONLY JSON: {"answer": string, "clients": [client ids you talk about, most important first]}';
+    const history = grChat.slice(-9, -2)
+      .map(function (m) { return (m.r === 'u' ? 'User: ' : 'Assistant: ') + (m.t || ''); }).join('\n');
+
+    try {
+      const res = await fetch('/.netlify/functions/claude-api', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system: system, max_tokens: 900,
+          messages: [{ role: 'user', content:
+            (history ? 'Earlier in this chat:\n' + history + '\n\n' : '') +
+            'DATA:\n' + JSON.stringify(grChatContext()) + '\n\nQuestion: ' + q }]
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'AI error');
+      let parsed = null;
+      const raw = String(data.text || '').trim().replace(/^```(?:json)?\s*/i, '').replace(/```$/, '').trim();
+      try {
+        const a = raw.indexOf('{'), b = raw.lastIndexOf('}');
+        parsed = JSON.parse(raw.slice(a, b + 1));
+      } catch (e) { parsed = { answer: raw, clients: [] }; }
+      msg.t = String(parsed.answer || '').replace(/[–—]/g, ',');
+      msg.ids = (Array.isArray(parsed.clients) ? parsed.clients : [])
+        .filter(function (id) { return grClients.some(function (c) { return c.id === id; }); }).slice(0, 6);
+    } catch (e) {
+      // Say what went wrong. "Something went wrong" sends somebody hunting.
+      msg.t = 'I could not answer that. ' + String((e && e.message) || e).slice(0, 120);
+    }
+    msg.pending = false; grChatBusy = false; grRenderHome();
+  }
+
+  function grChatHtml() {
+    const card = function (id) {
+      const c = grClients.find(function (x) { return x.id === id; });
+      if (!c) return '';
+      const w = grWaiting(c);
+      return '<div class="gr_ac" data-gr-open="' + c.id + '">' + grAvatar(c.name, grStageColor(c.stage), 'gr_sm2') +
+        '<div class="gr_rm"><b>' + esc(c.name) + '</b><span>' +
+          esc(w ? 'Waiting on you' : grStageLabel(c.stage)) + (c.company ? ' · ' + esc(c.company) : '') + '</span></div>' +
+        '<button class="gr_ghost" data-gr-act="' + c.id + '" data-t="' + (w ? 'reply' : 'followup') + '">Draft email</button></div>';
+    };
+    return '<div class="gr_as' + (grChat.length ? ' gr_has' : '') + '">' +
+      (grChat.length ? '' :
+        '<div class="gr_ashero"><div class="gr_asbadge">&#10022;</div></div>') +
+      (grChat.length ? '<div class="gr_asmsgs">' + grChat.map(function (m) {
+        if (m.r === 'u') return '<div class="gr_asu"><span>' + esc(m.t) + '</span></div>';
+        if (m.pending) return '<div class="gr_asa"><span class="gr_assp">&#10022;</span>' +
+          '<div class="gr_ast"><span class="gr_dots"><i></i><i></i><i></i></span></div></div>';
+        return '<div class="gr_asa"><span class="gr_assp">&#10022;</span><div class="gr_ast"><p>' +
+          esc(m.t).replace(/\n/g, '<br>') + '</p>' +
+          (m.ids.length ? '<div class="gr_acs">' + m.ids.map(card).join('') + '</div>' : '') + '</div></div>';
+      }).join('') + '</div>' : '') +
+      '<div class="gr_asdock">' +
+        (grChat.length ? '<button class="gr_newchat" data-gr-newchat>New chat</button>' : '') +
+        '<div class="gr_asbox"><textarea id="grAsk" rows="1" placeholder="Ask about your clients, replies or meetings..." aria-label="Ask the assistant"></textarea>' +
+          '<div class="gr_asr"><span>Nothing sends without your approval</span>' +
+          '<button id="grAskGo" aria-label="Send"' + (grChatBusy ? ' disabled' : '') + '>&#8593;</button></div></div>' +
+        (grChat.length ? '' : '<div class="gr_aschips">' + GR_CHIPS.map(function (c) {
+          return '<button data-gr-chip="' + esc(c) + '">' + esc(c) + '</button>';
+        }).join('') + '</div>') +
+      '</div></div>';
+  }
+
+  function grNextMeeting(c) {
+    return grMeetings.filter(function (m) {
+      return m.client_id === c.id && new Date(m.starts_at) > new Date(Date.now() - 3600000);
+    }).sort(function (a, b) { return new Date(a.starts_at) - new Date(b.starts_at); })[0];
+  }
+
   function grRenderHome() {
     const h = new Date().getHours();
     const hello = (h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening');
     const who = (window.giantCurrentProfile && window.giantCurrentProfile.full_name) || '';
-    const replies = grClients.filter(c => grActive(c) && grWaiting(c));
-    const today = grMeetings.filter(m => grSameDay(m.starts_at, Date.now()));
-    const todo = grClients.filter(c => grActive(c) && grNextAction(c) && !grWaiting(c));
+    const replies = grClients.filter(function (c) { return grActive(c) && grWaiting(c); });
+    const today = grMeetings.filter(function (m) { return grSameDay(m.starts_at, Date.now()); });
+    const todo = grClients.filter(function (c) { return grActive(c) && grNextAction(c) && !grWaiting(c); });
+    const quiet = grClients.filter(function (c) {
+      return grActive(c) && !grWaiting(c) && (grQuietDays(c) == null ? -1 : grQuietDays(c)) >= 3;
+    });
 
-    const rRow = (c) => {
+    const rRow = function (c) {
       const li = grLastIn(c);
       return '<div class="gr_row" data-gr-open="' + c.id + '">' + grAvatar(c.name, grStageColor(c.stage)) +
-        '<div class="gr_rm"><div class="gr_rt"><b>' + esc(c.name) + '</b><time>' + esc(li ? grAgo(grDaysAgo(li.sent_at)) : '') + '</time></div>' +
-        '<div class="gr_rs">' + esc(grSnip(li ? li.body : '', 140)) + '</div></div>' +
-        '<button class="btn-red gr_sm" data-gr-act="' + c.id + '" data-t="reply">Reply</button></div>';
+        '<div class="gr_rm"><div class="gr_rt"><b>' + esc(c.name) + '</b><time>' +
+          esc(li ? grAgo(grDaysAgo(li.sent_at)) : '') + '</time></div>' +
+        '<div class="gr_rs">' + esc(grSnip(li ? li.body : '', 140)) + '</div>' +
+        (li ? '<span class="gr_intent">' + esc(grIntent(li.body)) + '</span>' : '') + '</div>' +
+        '<span class="gr_btns"><button class="btn-red gr_sm" data-gr-act="' + c.id + '" data-t="reply">Reply</button>' +
+        '<button class="gr_x2" data-gr-done="' + c.id + '" title="Mark as handled">Done</button></span></div>';
     };
-    const mRow = (m) => {
-      const c = grClients.find(x => x.id === m.client_id);
+    const mRow = function (m) {
+      const c = grClients.find(function (x) { return x.id === m.client_id; });
       const done = new Date(m.starts_at).getTime() + (m.minutes || 45) * 60000 < Date.now();
+      // Join only shows close to the time. A Join button at 9am for a 4pm call is noise.
+      const soon = !done && (new Date(m.starts_at) - Date.now()) < 15 * 60000;
       return '<div class="gr_row' + (done ? ' gr_done' : '') + '"' + (c ? ' data-gr-open="' + c.id + '"' : '') + '>' +
         '<div class="gr_time"><b>' + esc(grHm(m.starts_at)) + '</b><span>' + (m.minutes || 45) + ' min</span></div>' +
-        '<div class="gr_rm"><b>' + esc(c ? c.name : m.title) + '</b><span>' + esc(c && c.company ? c.company : m.title) + '</span></div>' +
-        (!done && m.zoom_url ? '<a class="btn-red gr_sm" href="' + esc(m.zoom_url) + '" target="_blank" rel="noopener" data-gr-stop>Join</a>' : '') + '</div>';
+        '<div class="gr_rm"><b>' + esc(c ? c.name : m.title) + '</b><span>' +
+          esc(c && c.company ? c.company : m.title) + '</span></div>' +
+        (done ? '<span class="gr_st">Done</span>'
+              : m.zoom_url && soon ? '<a class="btn-red gr_sm" href="' + esc(m.zoom_url) + '" target="_blank" rel="noopener" data-gr-stop>Join</a>'
+              : '<span class="gr_st">' + esc(grRelIn(m.starts_at)) + '</span>') + '</div>';
     };
 
     $('grHome').innerHTML =
-      grHead(hello + (who ? ', ' + who.split(' ')[0] : ''), new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }), '') +
+      grHead(hello + (who ? ', ' + who.split(' ')[0] : ''),
+        new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }), '') +
+      grChatHtml() +
       '<div class="gr_grid2">' +
-        '<section class="gr_card"><div class="gr_ct"><h2>Reply to</h2>' + (replies.length ? '<span class="gr_n hot">' + replies.length + '</span>' : '') + '</div>' +
+        '<section class="gr_card"><div class="gr_ct"><h2>Reply to</h2>' +
+          (replies.length ? '<span class="gr_n hot">' + replies.length + '</span>' : '') + '</div>' +
           (replies.length ? replies.map(rRow).join('') : grEmpty('&#10003;', 'Inbox zero', 'Nobody is waiting on you.')) + '</section>' +
-        '<section class="gr_card"><div class="gr_ct"><h2>Meetings today</h2>' + (today.length ? '<span class="gr_n">' + today.length + '</span>' : '') + '</div>' +
+        '<section class="gr_card"><div class="gr_ct"><h2>Meetings today</h2>' +
+          (today.length ? '<span class="gr_n">' + today.length + '</span>' : '') + '</div>' +
           (today.length ? today.map(mRow).join('') : grEmpty('&#9719;', 'No meetings today', 'Your calendar is clear.')) + '</section>' +
       '</div>' +
-      (todo.length ? '<button class="gr_more" data-gr-go="gr_pipeline">' + todo.length + ' more to follow up in Pipeline &rsaquo;</button>' : '');
+      (quiet.length ? '<section class="gr_card"><div class="gr_ct"><h2>Gone quiet</h2><span class="gr_n">' + quiet.length + '</span></div>' +
+        '<p class="gr_mute">' + quiet.length + ' client' + (quiet.length === 1 ? ' has' : 's have') +
+        ' not replied in 3 days or more.</p>' +
+        quiet.slice(0, 5).map(function (c) {
+          return '<div class="gr_row" data-gr-open="' + c.id + '">' + grAvatar(c.name, grStageColor(c.stage)) +
+            '<div class="gr_rm"><b>' + esc(c.name) + '</b><span>quiet for ' + grQuietDays(c) + ' days</span></div>' +
+            '<button class="gr_ghost" data-gr-act="' + c.id + '" data-t="followup">Follow up</button></div>';
+        }).join('') + '</section>' : '') +
+      (todo.length ? '<button class="gr_more" data-gr-go="gr_pipeline">' + todo.length +
+        ' more to follow up in Pipeline &rsaquo;</button>' : '');
+  }
+
+  // What a reply is asking for, so the row says something more useful than "replied".
+  function grIntent(t) {
+    t = String(t || '');
+    if (/agreement|contract/i.test(t)) return 'asked for the agreement';
+    if (/price|pricing|cost|how much|budget/i.test(t)) return 'asked about price';
+    if (/call|meet|schedul|zoom|time/i.test(t)) return 'wants to talk';
+    if (/start|move forward|get started|sign|ready/i.test(t)) return 'is ready to start';
+    return 'replied';
+  }
+  function grRelIn(iso) {
+    const m = (new Date(iso) - Date.now()) / 60000;
+    if (m <= 0) return 'Now';
+    if (m < 60) return 'in ' + Math.round(m) + ' min';
+    const hh = Math.floor(m / 60);
+    if (hh >= 24) return 'in ' + Math.round(hh / 24) + (Math.round(hh / 24) === 1 ? ' day' : ' days');
+    return 'in ' + hh + 'h';
   }
 
   /* --- Meetings --- */
@@ -94290,12 +94499,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<div><b class="gr_g">' + grMoney(won) + '</b><span>won / mo</span></div></div>') +
       '<div class="gr_tools"><input class="gr_search" id="grSearch" placeholder="Search name or company" value="' + esc(grQuery) + '" aria-label="Search the pipeline">' +
         '<button class="btn-red" id="grAddClient">+ New client</button></div>' +
-      '<div class="gr_board">' + grStages.map(st => {
+      '<div class="gr_board" style="--grcols:' + grStages.length + '">' + grStages.map(st => {
         const g = pool.filter(c => c.stage === st.key);
         const sum = g.reduce((n, x) => n + grVal(x), 0);
         return '<div class="gr_col" data-gr-stage="' + st.key + '" style="--sc:' + st.color + '">' +
           '<div class="gr_colh"><b>' + esc(st.label) + '</b>' +
-            (g.filter(grNextAction).length ? '<em class="gr_need">' + g.filter(grNextAction).length + ' to do</em>' : '') +
+            (g.filter(grNextAction).length ? '<em class="gr_need" title="' + g.filter(grNextAction).length + ' need an action">' + g.filter(grNextAction).length + '</em>' : '') +
             '<span>' + g.length + '</span></div>' +
           (sum ? '<div class="gr_colsum">' + grMoney(sum) + '/mo</div>' : '') +
           (g.length ? g.map(card).join('') : '<div class="gr_colempty">Nothing here</div>') + '</div>';
@@ -94848,6 +95057,23 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (add) { grAddClient(); return; }
 
     if (e.target.closest('[data-gr-cal-sync]')) { grCalendlySync(); return; }
+    const chip = e.target.closest('[data-gr-chip]');
+    if (chip) { grAsk(chip.dataset.grChip); return; }
+    if (e.target.closest('#grAskGo')) {
+      const t = $('grAsk'); const v = t ? t.value : '';
+      if (t) { t.value = ''; t.style.height = 'auto'; }
+      grAsk(v); return;
+    }
+    if (e.target.closest('[data-gr-newchat]')) { grChat = []; grRenderHome(); return; }
+    const dn = e.target.closest('[data-gr-done]');
+    if (dn) {
+      e.stopPropagation();
+      const c = grClients.find(function (x) { return x.id === dn.dataset.grDone; });
+      const li = c && grLastIn(c);
+      if (c && li) grSave(c, { handled_msg: li.id });
+      return;
+    }
+
     const tt = e.target.closest('[data-gr-traintab]');
     if (tt) { grTrainTab = tt.dataset.grTraintab; grRender(); return; }
 
@@ -95102,6 +95328,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         grComposer.subject = fill(t.subject); grComposer.body = fill(t.body); grRender();
       }
       return;
+    }
+  });
+
+  // Enter sends, Shift+Enter is a new line -- the same as every chat box people already use.
+  document.addEventListener('keydown', function (e) {
+    if (e.target && e.target.id === 'grAsk') {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        const v = e.target.value; e.target.value = ''; e.target.style.height = 'auto';
+        grAsk(v);
+      }
+      return;
+    }
+  });
+  document.addEventListener('input', function (e) {
+    if (e.target && e.target.id === 'grAsk') {
+      e.target.style.height = 'auto';
+      e.target.style.height = Math.min(160, e.target.scrollHeight) + 'px';
     }
   });
 

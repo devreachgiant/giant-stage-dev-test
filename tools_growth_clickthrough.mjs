@@ -322,6 +322,110 @@ await step('writing an email fills the composer from the template', async () => 
     String(m.gmailHref).slice(0, 140));
 });
 
+await step('the pipeline board FITS instead of clipping the last stage', async () => {
+  await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  await navOf('gr_pipeline').click();
+  await page.waitForFunction(() => document.querySelectorAll('#grPipeline .gr_col').length > 0,
+    null, { timeout: 15000 }).catch(() => {});
+  const m = await page.evaluate(() => {
+    const board = document.querySelector('#grPipeline .gr_board');
+    const cols = [...board.querySelectorAll('.gr_col')];
+    const br = board.getBoundingClientRect();
+    const last = cols[cols.length - 1].getBoundingClientRect();
+    return {
+      cols: cols.length,
+      overflow: board.scrollWidth - board.clientWidth,
+      lastRight: Math.round(last.right), boardRight: Math.round(br.right),
+      everyColVisible: cols.every(c => {
+        const r = c.getBoundingClientRect();
+        return r.width > 120 && r.right <= br.right + 2;
+      })
+    };
+  });
+  // The bug: 1fr columns sized against content, so the last stage sat past the right edge
+  // behind a scrollbar. Measure the overflow, not whether a column element exists.
+  check('the board does not scroll sideways', m.overflow <= 2, m.overflow + 'px of overflow');
+  check('the last stage is inside the board', m.lastRight <= m.boardRight + 2,
+    'last ends at ' + m.lastRight + ', board ends at ' + m.boardRight);
+  check('every stage column is visible and wide enough', m.everyColVisible, m.cols + ' columns');
+  // The header wrapping to two lines was what made the grid look broken even once the
+  // columns fitted, so measure its height rather than trusting the eye twice.
+  const head = await page.evaluate(() => {
+    const hs = [...document.querySelectorAll('#grPipeline .gr_colh')];
+    return hs.map(h => ({ t: h.querySelector('b').textContent, h: Math.round(h.getBoundingClientRect().height) }));
+  });
+  const tallest = Math.max(...head.map(h => h.h));
+  check('no stage header wraps to a second line', tallest < 34,
+    JSON.stringify(head.filter(h => h.h >= 34)) || ('tallest ' + tallest + 'px'));
+});
+
+await step('the Home assistant is there and takes a question', async () => {
+  await navOf('gr_home').click();
+  await page.waitForFunction(() => document.getElementById('grHome').innerHTML.length > 300,
+    null, { timeout: 15000 }).catch(() => {});
+  const m = await page.evaluate(() => {
+    const box = document.getElementById('grAsk');
+    const chips = [...document.querySelectorAll('[data-gr-chip]')].map(b => b.textContent);
+    const r = box && box.getBoundingClientRect();
+    return { hasBox: !!box, placeholder: box ? box.placeholder : '',
+             w: r ? Math.round(r.width) : 0, h: r ? Math.round(r.height) : 0,
+             chips: chips, note: (document.querySelector('.gr_asr span') || {}).textContent || '' };
+  });
+  check('the ask box is on Home', m.hasBox);
+  check('and is a usable size (' + m.w + 'x' + m.h + ')', m.w > 300 && m.h > 30);
+  check('it says what it is for', /Ask about your clients/.test(m.placeholder), m.placeholder);
+  check('it promises nothing sends without approval', /without your approval/.test(m.note), m.note);
+  check('all four suggestion chips are offered', m.chips.length === 4, JSON.stringify(m.chips));
+});
+
+await step('asking a question shows the question and a pending answer', async () => {
+  // The mock has no AI endpoint, so the answer will be an error. What is being checked is
+  // the loop: the question is echoed, a pending state appears, and it resolves to
+  // something readable rather than hanging or throwing.
+  // Watch from BEFORE the click. Under the mock there is no AI endpoint, so the request
+  // fails almost instantly and a check that looks 400ms later has already missed the
+  // thinking state -- which says nothing about whether the app ever showed one.
+  await page.evaluate(() => {
+    window.__grSawDots = false;
+    const o = new MutationObserver(() => {
+      if (document.querySelector('.gr_dots')) window.__grSawDots = true;
+    });
+    o.observe(document.body, { childList: true, subtree: true });
+    window.__grObs = o;
+  });
+  await page.locator('[data-gr-chip]').first().click();
+  await page.waitForTimeout(400);
+  const mid = await page.evaluate(() => {
+    if (window.__grObs) window.__grObs.disconnect();
+    return {
+      user: (document.querySelector('.gr_asu span') || {}).textContent || '',
+      sawDots: !!window.__grSawDots
+    };
+  });
+  check('the question is echoed back', /reply to/i.test(mid.user), mid.user);
+  check('it showed it was thinking', mid.sawDots, 'observed=' + mid.sawDots);
+  await page.waitForFunction(() => !document.querySelector('.gr_dots'), null, { timeout: 20000 }).catch(() => {});
+  const end = await page.evaluate(() => ({
+    answer: (document.querySelector('.gr_ast p') || {}).textContent || '',
+    stillPending: !!document.querySelector('.gr_dots')
+  }));
+  check('it finishes rather than hanging', !end.stillPending);
+  check('and says something rather than nothing', end.answer.trim().length > 10, end.answer.slice(0, 120));
+});
+
+await step('Home shows the digest under the assistant', async () => {
+  const m = await page.evaluate(() => {
+    const el = document.getElementById('grHome');
+    return { text: el.innerText, intents: document.querySelectorAll('.gr_intent').length,
+             doneBtns: document.querySelectorAll('[data-gr-done]').length };
+  });
+  check('Reply to card is under the chat', m.text.includes('Reply to'));
+  check('Meetings today card is under the chat', m.text.includes('Meetings today'));
+  check('a waiting reply gets an intent tag', m.intents >= 1, m.intents + ' tags');
+  check('and a Done button to mark it handled', m.doneBtns >= 1, m.doneBtns + ' buttons');
+});
+
 // The composer step above leaves the client sheet open, and it is position:fixed;inset:0
 // so it covers the sidebar. Every click below would time out against an overlay rather
 // than a missing control, which reads as "the screen is broken" and is not.
