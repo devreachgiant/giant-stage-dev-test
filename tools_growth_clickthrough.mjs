@@ -597,8 +597,11 @@ await step('Training: all five tabs paint, and the plan ticks off', async () => 
     null, { timeout: 15000 }).catch(() => {});
   // Matched case-insensitively: a couple of these headings are uppercased by CSS, and
   // innerText reports what is rendered, not what is in the markup.
-  for (const [tab, must] of [['plan','Training plan'],['calls','Calls to watch'],
-                             ['phil',"Luke's top tips"],['script','Call script'],
+  // Training became the sales course (20261022120000). Philosophy and the call script
+  // are no longer in the strip: they are reached FROM the lesson that points at them,
+  // and tools_growth_training_check.mjs drives that path and asserts Course stays lit.
+  for (const [tab, must] of [['course','Sales course'],['clear','Best clear answers'],
+                             ['lib','Best calls'],['qa','Questions people ask'],
                              ['pricing','start with one service']]) {
     const b = page.locator('[data-gr-traintab="' + tab + '"]');
     if (await b.count() === 0) { check('Training tab ' + tab + ' exists', false); continue; }
@@ -613,7 +616,11 @@ await step('Training: all five tabs paint, and the plan ticks off', async () => 
       m.text.toLowerCase().includes(must.toLowerCase()),
       m.text.replace(/\n/g, ' | ').slice(0, 150));
   }
-  await page.locator('[data-gr-traintab="plan"]').click();
+  // The personal task list is a sub view of Course now, so get there the way a person
+  // would: the course screen, then the link at the bottom of it.
+  await page.locator('#grTraining .gr_seg [data-gr-traintab="course"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('#grTraining [data-gr-traintab="plan"]').click();
   await page.waitForTimeout(400);
   const boxes = page.locator('#grTraining input[data-gr-task]');
   if (await boxes.count() === 0) { check('the plan has tickable tasks', false); return; }
@@ -628,7 +635,10 @@ await step('Training: all five tabs paint, and the plan ticks off', async () => 
 
 await step('a rep gets their own copy of the training plan on first open', async () => {
   await navOf('gr_training').click();
-  await page.locator('[data-gr-traintab="plan"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('#grTraining .gr_seg [data-gr-traintab="course"]').click();
+  await page.waitForTimeout(300);
+  await page.locator('#grTraining [data-gr-traintab="plan"]').click();
   // Seeding is a write, so wait for the rows rather than a fixed delay.
   await page.waitForFunction(() => (window.__mockDB.growth_tasks || []).length > 0,
     null, { timeout: 15000 }).catch(() => {});
@@ -672,10 +682,10 @@ await step('Training: a task can be added', async () => {
 
 await step('a watch-list card is laid out like the design', async () => {
   await navOf('gr_training').click();
-  await page.locator('[data-gr-traintab="calls"]').click();
+  await page.locator('[data-gr-traintab="lib"]').click();
   await page.waitForTimeout(500);
   const m = await page.evaluate(() => {
-    const c = document.querySelector('#grTraining .gr_wcard');
+    const c = document.querySelector('#grTraining .gr_bc3');
     if (!c) return { none: true };
     const cr = c.getBoundingClientRect();
     const ta = c.querySelector('textarea');
@@ -685,7 +695,7 @@ await step('a watch-list card is laid out like the design', async () => {
     return {
       none: false,
       title: (c.querySelector('b') || {}).textContent || '',
-      date: (c.querySelector('time') || {}).textContent || '',
+      date: (c.querySelector('.gr_bch span') || {}).textContent || '',
       tags: c.querySelectorAll('.gr_tg').length,
       cardW: Math.round(cr.width),
       taW: tr ? Math.round(tr.width) : 0,
@@ -700,12 +710,12 @@ await step('a watch-list card is laid out like the design', async () => {
   // A textarea with flex:1 in a block parent falls back to ~20 columns, which is what
   // squashed this one beside the button.
   check('the lesson box fills the card (' + m.taW + ' of ' + m.cardW + ')',
-    m.taW > m.cardW - 60, m.taW + '/' + m.cardW);
+    m.taW > m.cardW - 70, m.taW + '/' + m.cardW);
   check('and Watch call sits under it', m.btnBelow);
 });
 
 await step('Training: a call can be added to the watch list', async () => {
-  await page.locator('[data-gr-traintab="calls"]').click();
+  await page.locator('[data-gr-traintab="lib"]').click();
   await page.waitForTimeout(400);
   const before = await page.evaluate(() => (window.__mockDB.growth_watch_calls || []).length);
   // The form is behind "+ Add a call" now, so the list is not a wall of empty inputs.

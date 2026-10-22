@@ -519,7 +519,9 @@
   DB.growth_tasks = [];
   DB.growth_watch_calls = [
     { id: 'gw-1', title: 'Amy Neighbors', call_date: iso(40,0).slice(0,10), url: 'https://fathom.video/share/example',
-      tags: ['Google Ads','SEO'], outcome: 'Pitched $2.5k ad spend plus branding', note: '', position: 0,
+      tags: ['Google Ads','SEO'], outcome: 'Pitched $2.5k ad spend plus branding',
+      note: 'Meta ads wrecked by bots, moved to Google Ads and SEO.',
+      learned: 'Watch how the budget worry gets named out loud before any price is said.', position: 0,
       added_by: ME, created_at: iso(40,0) }
   ];
   DB.growth_discounts = [
@@ -563,8 +565,43 @@
         notes: ['Packages cover up to $15,000 a month in ad spend.'] },
       updated_at: iso(30,0), updated_by: ME },
     { key: 'signature', value: { name: 'Nishchay Pandya', title: 'ReachGiant', phone: '', email: 'hello@example.com', site: 'reachgiant.com' },
+      updated_at: iso(30,0), updated_by: ME },
+    // Training's course. Three lessons rather than seven: enough to measure order,
+    // progress and the block kinds, few enough that a failure names a lesson.
+    { key: 'course', value: { lessons: [
+        { id: 'open', t: 'Open relaxed and curious', g: 'Be like water. Listen first.', min: 6,
+          blocks: [ { k: 'p', t: 'Be yourself. Adapt to the conversation instead of forcing a script.' },
+                    { k: 'h', t: 'Questions to explore' },
+                    { k: 'ul', items: ['Who are your main customers?', 'What made you look for help now?'] } ],
+          do: 'Ask one question at a time.', go: [] },
+        { id: 'why', t: 'Understand why people buy', g: 'This is the key to selling.', min: 5,
+          blocks: [ { k: 'b', h: 'They want to feel heard', t: 'Ask thoughtful questions and really listen.' } ],
+          do: 'Learn what they want before you say a word about what you sell.',
+          go: [['See the principles', 'phil']] },
+        { id: 'offer', t: 'Know the offer', g: 'Prices and the 10 day exit.', min: 5,
+          blocks: [ { k: 'ul', items: ['Three month minimum', '10 day exit'] } ],
+          do: 'Say the price and the exit in one breath.', go: [['Open Pricing', 'pricing']] } ] },
+      updated_at: iso(30,0), updated_by: ME },
+    { key: 'clear', value: { items: [
+        { id: 'what', theme: 'Services and fit', q: 'What does ReachGiant do?',
+          a: 'We help customers find you and choose you. Google Ads, Meta ads, SEO and AI search.' },
+        { id: 'cost', theme: 'Pricing and budget', q: 'How much does it cost?',
+          a: 'Everything is on our pricing page. I can walk you through what fits your goals.' } ] },
+      updated_at: iso(30,0), updated_by: ME },
+    { key: 'qa', value: { items: [
+        { id: 'q-budget', theme: 'Pricing and budget', q: 'Is it worth it at my budget?',
+          feel: 'They are afraid of spending money and getting nothing back.',
+          better: 'Start small, fix the tracking first, and only grow when it works.',
+          why: 'Answer the fear, not the number.', tricks: ['Name the fear out loud'] },
+        { id: 'q-lock', theme: 'Contracts and commitment', q: 'I do not want a long contract.',
+          feel: 'They have been trapped before.',
+          better: 'No annual lock in. Three month minimum and a 10 day exit.',
+          why: 'Say the exit before they ask for it.', tricks: ['Offer the exit first'] } ] },
       updated_at: iso(30,0), updated_by: ME }
   );
+  // Nobody has started the course: "0 of 3" and the Start button are the first thing a
+  // rep sees, so that is the state worth booting into.
+  DB.growth_course_done = [];
 
   // Anything New Chat asks for that was not foreseen: an empty table, loudly noted,
   // rather than a TypeError that would look like a bug in the page.

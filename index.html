@@ -6622,6 +6622,74 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_tip{display:grid;grid-template-columns:34px 1fr;gap:14px;align-items:start;padding:16px 18px;}
 .gr_tip.gr_key{border-color:var(--red);}
 .gr_tn{width:30px;height:30px;border-radius:50%;background:var(--text);color:var(--bg);display:grid;place-items:center;font-size:13px;font-weight:800;}
+/* ===== Training: the sales course ===== */
+.gr_who{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.gr_rcf{border:0;background:var(--surface);color:var(--text-2);border-radius:99px;height:36px;padding:0 15px;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;box-shadow:inset 0 0 0 1px var(--line);display:inline-flex;align-items:center;gap:8px;}
+.gr_rcf b{font-size:12px;font-weight:700;color:var(--text-3);}
+.gr_rcf[aria-pressed="true"]{background:var(--text);color:var(--bg);box-shadow:none;}
+.gr_rcf[aria-pressed="true"] b{color:var(--bg);opacity:.6;}
+.gr_startb{width:100%;margin-top:12px;}
+.gr_cs{background:var(--surface);border:1px solid var(--line);border-radius:18px;margin-bottom:10px;overflow:hidden;}
+.gr_cs.gr_cson{box-shadow:inset 0 0 0 1.5px var(--text-2);}
+.gr_csh0{width:100%;border:0;background:none;color:var(--text);text-align:left;display:flex;align-items:center;gap:14px;padding:14px 16px;cursor:pointer;font:inherit;}
+.gr_csh0>i{width:32px;height:32px;border-radius:50%;background:var(--surface-3);color:var(--text);display:grid;place-items:center;font-size:14px;font-weight:800;font-style:normal;flex:none;}
+.gr_cs.gr_csdone .gr_csh0>i{background:var(--text);color:var(--bg);}
+.gr_cs.gr_cson .gr_csh0>i{background:var(--red);color:#fff;}
+.gr_csh0>span{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.gr_csh0 b{font-size:16px;font-weight:700;letter-spacing:-.01em;}
+.gr_csh0 em{font-style:normal;font-size:13.5px;color:var(--text-3);}
+.gr_csh0>u{text-decoration:none;font-size:12px;font-weight:600;color:var(--text-3);white-space:nowrap;flex:none;}
+.gr_csb{padding:0 16px 16px 62px;display:flex;flex-direction:column;gap:10px;}
+@media(max-width:620px){.gr_csb{padding-left:16px;}}
+.gr_cst{margin:0;font-size:14.5px;line-height:1.55;color:var(--text-2);}
+.gr_csh{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);margin-top:4px;}
+.gr_csl{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px;}
+.gr_csl li{position:relative;padding-left:18px;font-size:14.5px;line-height:1.5;}
+.gr_csl li::before{content:"";position:absolute;left:2px;top:9px;width:7px;height:7px;border-radius:50%;background:var(--red);}
+.gr_csp b{font-size:14.5px;}
+.gr_csp p{margin:2px 0 0;font-size:14px;line-height:1.5;color:var(--text-2);}
+/* The design's black DO THIS block. --text on --bg inverts with the theme, so it stays
+   the loudest thing in the lesson whichever one is on. */
+.gr_csd{background:var(--text);color:var(--bg);border-radius:14px;padding:12px 14px;}
+.gr_csd span{display:block;font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--red);margin-bottom:4px;}
+.gr_csd p{margin:0;font-size:15px;line-height:1.5;font-weight:600;}
+.gr_csx{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px;}
+.gr_hint{font-size:11.5px;color:var(--text-3);line-height:1.5;}
+.gr_ca{position:relative;padding-right:54px;}
+.gr_ca b{font-size:16.5px;font-weight:700;letter-spacing:-.01em;}
+.gr_ca p{margin:6px 0 8px;font-size:14.5px;line-height:1.6;color:var(--text-2);}
+.gr_edb{position:absolute;top:14px;right:14px;}
+.gr_search2{margin-bottom:12px;}
+.gr_qa3{background:var(--surface);border:1px solid var(--line);border-radius:16px;margin-bottom:9px;overflow:hidden;}
+.gr_qa3.gr_qaon{box-shadow:inset 0 0 0 1.5px var(--text-2);}
+.gr_qah{width:100%;border:0;background:none;color:var(--text);font:inherit;text-align:left;display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;}
+.gr_qah>span{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}
+.gr_qah em{font-style:normal;font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);}
+.gr_qah b{font-size:15.5px;font-weight:700;line-height:1.3;}
+.gr_qah>i{font-style:normal;font-size:10px;color:var(--text-3);flex:none;}
+.gr_qab{padding:0 16px 16px;display:flex;flex-direction:column;gap:10px;}
+.gr_qaa{background:var(--text);color:var(--bg);border-radius:14px;padding:12px 14px;}
+.gr_qaa span{display:block;font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--red);margin-bottom:4px;}
+.gr_qaa p{margin:0;font-size:15px;line-height:1.55;}
+.gr_qaw{margin:8px 0 0 !important;font-size:13px !important;opacity:.68;}
+.gr_qaf{background:var(--surface-2);border-radius:12px;padding:10px 13px;}
+.gr_qaf span{display:block;font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);margin-bottom:3px;}
+.gr_qaf p{margin:0;font-size:14px;line-height:1.5;font-style:italic;color:var(--text-2);}
+.gr_pr{display:flex;flex-direction:column;gap:10px;}
+.gr_prn{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);}
+.gr_pr h3{margin:0;font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.25;}
+.gr_bcg{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;}
+.gr_bc3{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0;}
+.gr_bch{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
+.gr_bch b{display:block;font-size:17px;font-weight:800;letter-spacing:-.02em;}
+.gr_bch span{font-size:12.5px;color:var(--text-3);}
+.gr_bcb{display:flex;align-items:center;gap:7px;flex:none;}
+.gr_out3{font-style:normal;font-size:11.5px;font-weight:700;border-radius:99px;padding:3px 10px;background:var(--text);color:var(--bg);white-space:nowrap;}
+.gr_bcs{margin:0;font-size:14px;line-height:1.5;color:var(--text-2);}
+.gr_bcw{background:var(--surface-2);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;}
+.gr_bcw span{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);}
+.gr_bcw p{margin:0;font-size:13.5px;line-height:1.5;}
+.gr_bc3 .gr_wbtn{align-self:flex-start;}
 .gr_tip.gr_key .gr_tn{background:var(--red);color:#fff;}
 .gr_tip b{font-size:15px;}
 .gr_tip p{margin:5px 0 0;font-size:13.5px;color:var(--text-2);line-height:1.6;}
@@ -94222,7 +94290,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   let grSettings = {}, grStages = [], grStaleDays = 5;
   let grTasks = [], grWatch = [], grDiscounts = [];
   let grPlanSeeding = false, grWatchAdd = false;
-  let grSetTab = 'stages', grTrainTab = 'plan', grEdit = null;
+  let grSetTab = 'stages', grTrainTab = 'course', grEdit = null;
+  let grCourseDone = [], grCourseWho = null, grLessonOpen = null, grEditT = null;
+  let grQaView = 'browse', grQaTheme = 'All', grQaQuery = '', grQaOpen = {};
+  let grPrac = { id: null, show: false, n: 0 };
   let grPeople = [];                 // profiles who can own a deal
   let grScreen = 'gr_home';
   let grPView = 'board';
@@ -94309,7 +94380,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const s = sb();
     if (!s) { grLoading = false; return; }
     try {
-      const [cl, mt, ms, tp, st, pf, tk, wc, dc] = await Promise.all([
+      const [cl, mt, ms, tp, st, pf, tk, wc, dc, cd] = await Promise.all([
         s.from('growth_clients').select('*').order('updated_at', { ascending: false }),
         s.from('growth_meetings').select('*').order('starts_at', { ascending: true }),
         s.from('growth_messages').select('*').order('sent_at', { ascending: true }),
@@ -94319,7 +94390,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
          .in('role', ['owner', 'manager', 'inhouse_dev', 'member']),
         s.from('growth_tasks').select('*').order('position', { ascending: true }),
         s.from('growth_watch_calls').select('*').order('position', { ascending: true }),
-        s.from('growth_discounts').select('*').order('position', { ascending: true })
+        s.from('growth_discounts').select('*').order('position', { ascending: true }),
+        s.from('growth_course_done').select('*')
       ]);
       if (cl.error) throw cl.error;
       grClients   = cl.data || [];
@@ -94330,6 +94402,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grTasks     = tk.data || [];
       grWatch     = wc.data || [];
       grDiscounts = dc.data || [];
+      grCourseDone = cd.data || [];
       grSettings  = {};
       (st.data || []).forEach(r => { grSettings[r.key] = r.value || {}; });
       const pipe = grSettings.pipeline || {};
@@ -95106,12 +95179,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   function grRenderTraining() {
-    const tabs = [['plan','Plan'],['calls','Calls to watch'],['phil','Philosophy'],
-                  ['script','Call script'],['pricing','Pricing']];
+    const tabs = [['course','Course'],['clear','Clear answers'],['lib','Best calls'],
+                  ['qa','Q&amp;A'],['pricing','Pricing']];
+    // Philosophy, the call script and the personal task list are reached FROM a lesson
+    // rather than from the strip, the same as the design. The strip still has to say
+    // where you are, so Course stays lit while one of them is open.
+    const SUB = { phil: 'course', script: 'course', plan: 'course' };
+    const lit = SUB[grTrainTab] || grTrainTab;
+    const back = '<p class="gr_mid"><button class="gr_slink" data-gr-traintab="course">' +
+      '&lsaquo; Back to the course</button></p>';
     const mine = grTasks.filter(t => t.owner_id === me());
     let body = '';
 
-    if (grTrainTab === 'plan') {
+    if (grTrainTab === 'course') body = grCourseHtml();
+    else if (grTrainTab === 'clear') body = grClearHtml();
+    else if (grTrainTab === 'qa') body = grQaHtml();
+    else if (grTrainTab === 'plan') {
       grSeedPlan();
       const done = mine.filter(t => t.done);
       const order = (a, b) => (String(a.due_on || '9999') < String(b.due_on || '9999') ? -1
@@ -95137,36 +95220,45 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             '<input type="date" id="grNewTaskDue" value="' + grToday() + '" aria-label="Due date"></label>' +
           '<button class="btn-red gr_addb" data-gr-task-add>Add</button></div>' +
         (open.length ? open.map(row).join('') : '<p class="gr_mute gr_mid">Nothing open. Add the next thing above.</p>') +
-        (done.length ? '<div class="gr_sub">Done</div>' + done.sort(order).map(row).join('') : '');
+        (done.length ? '<div class="gr_sub">Done</div>' + done.sort(order).map(row).join('') : '') + back;
 
-    } else if (grTrainTab === 'calls') {
+    } else if (grTrainTab === 'lib') {
+      // The shelf is curated: 20261022130000 moved writing here to staff, because this is
+      // the Best calls list in Training, not a scratchpad. Reading never changed.
+      const can = grIsStaff();
       body = '<div class="gr_sech gr_row2">' +
-          '<div><h2>Calls to watch</h2><p>' + grWatch.length + ' call' + (grWatch.length === 1 ? '' : 's') + ' to learn from</p></div>' +
-          '<button class="btn-red" data-gr-watch-open>+ Add a call</button></div>' +
-        (grWatchAdd ? '<div class="gr_card gr_addbox">' +
+          '<div><h2>Best calls</h2><p>' + grWatch.length + ' call' + (grWatch.length === 1 ? '' : 's') +
+            ' worth learning from, with the lesson underneath</p></div>' +
+          (can ? '<button class="btn-red" data-gr-watch-open>+ Add a call</button>' : '') + '</div>' +
+        (can && grWatchAdd ? '<div class="gr_card gr_addbox">' +
           '<div class="gr_field"><label for="grNewWatchTitle">Call name</label>' +
             '<input class="gr_in" id="grNewWatchTitle" placeholder="e.g. Amy Neighbors"></div>' +
           '<div class="gr_field"><label for="grNewWatchUrl">Link</label>' +
             '<input class="gr_in" id="grNewWatchUrl" placeholder="https://fathom.video/..."></div>' +
           '<div class="gr_acts"><button class="btn-red" data-gr-watch-add>Add call</button>' +
             '<button class="gr_ghost" data-gr-watch-cancel>Cancel</button></div></div>' : '') +
-        (grWatch.length ? grWatch.map(w => {
-          const canDel = grIsStaff() || w.added_by === me();
-          return '<section class="gr_card gr_wcard">' +
-            (canDel ? '<button class="gr_x" data-gr-watch-del="' + w.id + '" aria-label="Remove">&#10005;</button>' : '') +
-            '<b>' + esc(w.title) + '</b>' +
-            (w.call_date ? '<time>' + esc(grLongDate(w.call_date)) + '</time>' : '') +
-            ((w.tags || []).length || w.outcome
-              ? '<div class="gr_tags">' + (w.tags || []).map(t => '<span class="gr_tg">' + esc(t) + '</span>').join('') +
-                (w.outcome ? '<span class="gr_tg gr_out2">' + esc(w.outcome) + '</span>' : '') + '</div>' : '') +
-            (w.note ? '<p class="gr_wdesc">' + esc(w.note) + '</p>' : '') +
-            (canDel
-              ? '<textarea class="gr_in" rows="2" data-gr-watch-mine="' + w.id + '" ' +
-                'placeholder="Why should they watch this? What is the lesson?">' + esc(w.learned || '') + '</textarea>'
-              : w.learned ? '<p class="gr_lesson">' + esc(w.learned) + '</p>' : '') +
-            (w.url ? '<a class="btn-red gr_wbtn" href="' + esc(w.url) + '" target="_blank" rel="noopener" data-gr-stop>Watch call</a>' : '') +
-          '</section>';
-        }).join('') : '<p class="gr_mute gr_mid">Nothing on the list yet.</p>');
+        (grWatch.length ? '<div class="gr_bcg">' + grWatch.map(w =>
+          '<article class="gr_bc3">' +
+            '<div class="gr_bch"><div><b>' + esc(w.title) + '</b>' +
+              (w.call_date ? '<span>' + esc(grLongDate(w.call_date)) + '</span>' : '') + '</div>' +
+              '<div class="gr_bcb">' +
+                (w.outcome ? '<em class="gr_out3">' + esc(w.outcome) + '</em>' : '') +
+                (can ? '<button class="gr_ib gr_rm" data-gr-watch-del="' + w.id +
+                  '" title="Remove" aria-label="Remove ' + esc(w.title) + '">&#10005;</button>' : '') +
+              '</div></div>' +
+            (w.note ? '<p class="gr_bcs">' + esc(w.note) + '</p>' : '') +
+            (can
+              ? '<div class="gr_bcw"><span>Why it worked</span>' +
+                '<textarea class="gr_in" rows="2" data-gr-watch-mine="' + w.id + '" ' +
+                'placeholder="What is the lesson? Why should they watch this?">' + esc(w.learned || '') + '</textarea></div>'
+              : w.learned ? '<div class="gr_bcw"><span>Why it worked</span><p>' + esc(w.learned) + '</p></div>' : '') +
+            ((w.tags || []).length ? '<div class="gr_tags">' +
+              (w.tags || []).map(t => '<span class="gr_tg">' + esc(t) + '</span>').join('') + '</div>' : '') +
+            (w.url ? '<a class="btn-red gr_wbtn" href="' + esc(w.url) +
+              '" target="_blank" rel="noopener" data-gr-stop>&#9654; Watch the call</a>' : '') +
+          '</article>').join('') + '</div>'
+          : grEmpty('&#9654;', 'No calls on the shelf yet',
+              can ? 'Add the first one above.' : 'Luke puts the calls worth watching here.'));
 
     } else if (grTrainTab === 'phil') {
       const ph = grSettings.philosophy || {};
@@ -95178,7 +95270,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<section class="gr_card"><div class="gr_ct"><h2>Client call checklist</h2></div>' +
           (ph.checklist || []).map((c, k) =>
             '<label class="gr_ck"><input type="checkbox" data-gr-phcheck="' + k + '"><span>' + esc(c) + '</span></label>').join('') +
-          '<button class="gr_ghost" data-gr-phreset>Reset for the next call</button></section>';
+          '<button class="gr_ghost" data-gr-phreset>Reset for the next call</button></section>' + back;
 
     } else if (grTrainTab === 'script') {
       const sc = grSettings.script || {};
@@ -95190,7 +95282,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<div class="gr_lab">Common worries and what to say</div>' +
         (sc.worries || []).map(w =>
           '<section class="gr_card gr_qa2"><b>' + esc(w.q) + '</b><p>' + esc(w.a) + '</p></section>').join('') +
-        '<p class="gr_mute gr_mid">Based on real objections from recent calls. Prices live under Pricing.</p>';
+        '<p class="gr_mute gr_mid">Based on real objections from recent calls. Prices live under Pricing.</p>' + back;
 
     } else {
       const pr = grSettings.pricing || {};
@@ -95214,9 +95306,286 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     $('grTraining').innerHTML =
       grHead('Training', 'Learn the offer, study great calls, practice',
         '<div class="gr_seg">' + tabs.map(t =>
-          '<button data-gr-traintab="' + t[0] + '"' + (grTrainTab === t[0] ? ' aria-pressed="true"' : '') + '>' +
+          '<button data-gr-traintab="' + t[0] + '"' + (lit === t[0] ? ' aria-pressed="true"' : '') + '>' +
           t[1] + '</button>').join('') + '</div>') +
       body;
+  }
+
+  /* ---------- Training ----------
+     WHO MAY CHANGE WHAT is the database's answer, not this screen's. The lessons, the
+     clear answers and the Q and A live in growth_settings, which everyone reads and only
+     staff write (20261021120000). Progress lives in growth_course_done, which each rep
+     writes for themselves and nobody else (20261022130000 did the same for Best calls).
+     Hiding a button here is a courtesy; a rep with the console open gets the same no. */
+  const grLessons = () => ((grSettings.course || {}).lessons) || [];
+  const grClears  = () => ((grSettings.clear  || {}).items)   || [];
+  const grQas     = () => ((grSettings.qa     || {}).items)   || [];
+  const grFirstOf = (p) => String((p && p.full_name) || 'They').split(' ')[0];
+
+  // Whose progress is on screen. A rep only ever sees their own, which is also all the
+  // database will hand them; staff can look at anyone, which is why the chips exist.
+  function grWho() {
+    if (!grIsStaff()) return me();
+    return (grCourseWho && grTeam().some(p => p.id === grCourseWho)) ? grCourseWho : me();
+  }
+  /* Who is on the sales team. grPeople is every profile in the workspace, which on this
+     account is eighty of them, so a chip each turned the top of the course into a wall of
+     names before you reached the first lesson. The team is the people who actually do
+     this work: whoever owns a deal or has started the course, plus you. */
+  function grTeam() {
+    const seen = {};
+    grClients.forEach(c => { if (c.owner_id) seen[c.owner_id] = 1; });
+    grCourseDone.forEach(d => { seen[d.owner_id] = 1; });
+    seen[me()] = 1;
+    return grPeople.filter(p => seen[p.id]);
+  }
+  function grDoneSet(who) {
+    const out = {};
+    grCourseDone.forEach(d => { if (d.owner_id === who) out[d.lesson_id] = true; });
+    return out;
+  }
+
+  /* A lesson body as something a person can actually type. Every block has a plain text
+     shape and round trips, so Luke edits a lesson in a box rather than in JSON:
+       a line ending in a colon      a small heading
+       a line starting with "- "     a bullet
+       "Heading :: the sentence"     a bolded point with a line under it
+       anything else                 a paragraph                                        */
+  function grBlocksText(blocks) {
+    const out = [];
+    (blocks || []).forEach(b => {
+      if (b.k === 'h') out.push(b.t + ':');
+      else if (b.k === 'ul') (b.items || []).forEach(i => out.push('- ' + i));
+      else if (b.k === 'b') out.push(b.h + ' :: ' + b.t);
+      else out.push(b.t || '');
+    });
+    return out.join('\n');
+  }
+  function grTextBlocks(txt) {
+    const out = [];
+    String(txt || '').split('\n').forEach(raw => {
+      const l = raw.trim();
+      if (!l) return;
+      if (l.slice(0, 2) === '- ') {
+        const last = out[out.length - 1];
+        if (last && last.k === 'ul') last.items.push(l.slice(2).trim());
+        else out.push({ k: 'ul', items: [l.slice(2).trim()] });
+        return;
+      }
+      if (l.indexOf(' :: ') > 0) {
+        const p = l.split(' :: ');
+        out.push({ k: 'b', h: p[0].trim(), t: p.slice(1).join(' :: ').trim() });
+        return;
+      }
+      if (/:$/.test(l) && l.length < 70) { out.push({ k: 'h', t: l.slice(0, -1) }); return; }
+      out.push({ k: 'p', t: l });
+    });
+    return out;
+  }
+  function grBlockHtml(b) {
+    if (b.k === 'h')  return '<div class="gr_csh">' + esc(b.t) + '</div>';
+    if (b.k === 'ul') return '<ul class="gr_csl">' + (b.items || []).map(i => '<li>' + esc(i) + '</li>').join('') + '</ul>';
+    if (b.k === 'b')  return '<div class="gr_csp"><b>' + esc(b.h) + '</b><p>' + esc(b.t) + '</p></div>';
+    return '<p class="gr_cst">' + esc(b.t || '') + '</p>';
+  }
+
+  const GR_PEN = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" ' +
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>';
+
+  /* --- the course --- */
+  function grCourseHtml() {
+    const L = grLessons(), who = grWho(), done = grDoneSet(who), own = who === me();
+    const n = L.filter(l => done[l.id]).length;
+    const next = L.find(l => !done[l.id]);
+    const p = grPerson(who);
+    return grSub('Sales course', 'Learn to sell from your own calls. ' + L.length +
+        ' short lesson' + (L.length === 1 ? '' : 's') + '.') +
+      (grIsStaff() && grTeam().length > 1
+        ? '<div class="gr_who">' + grTeam().map(x =>
+            '<button class="gr_rcf" data-gr-who="' + x.id + '"' + (x.id === who ? ' aria-pressed="true"' : '') + '>' +
+            esc(x.full_name || 'Unnamed') + '<b>' + grCourseDone.filter(d => d.owner_id === x.id).length + '</b></button>').join('') +
+          '</div>'
+        : '') +
+      '<section class="gr_card"><div class="gr_ct"><h2>' +
+        esc(own ? 'Your progress' : grFirstOf(p) + '\u2019s progress') + '</h2>' +
+        '<span class="gr_pn">' + n + ' of ' + L.length + ' done</span></div>' +
+        '<div class="gr_prog"><i style="width:' + (L.length ? Math.round(n / L.length * 100) : 0) + '%"></i></div>' +
+        (next
+          ? '<button class="btn-red gr_startb" data-gr-lesson="' + next.id + '">' +
+            (n ? 'Continue' : 'Start') + ': ' + esc(next.t) + '</button>'
+          : '<p class="gr_mute gr_mid">' +
+            esc(own ? 'You have finished the course.' : grFirstOf(p) + ' has finished the course.') + '</p>') +
+      '</section>' +
+      (L.length ? L.map((l, i) => grLessonHtml(l, i, !!done[l.id], own, p)).join('')
+                : grEmpty('&#128218;', 'No lessons yet',
+                    grIsStaff() ? 'Add the first one below.' : 'Luke is still writing the course.')) +
+      (grIsStaff()
+        ? '<div class="gr_task gr_addt"><input class="gr_in gr_flat" id="grNewLesson" ' +
+          'placeholder="Add a lesson..." aria-label="New lesson">' +
+          '<button class="btn-red gr_addb" data-gr-lesson-add>Add</button></div>'
+        : '') +
+      '<p class="gr_mid"><button class="gr_slink" data-gr-traintab="plan">Your own task list &rsaquo;</button></p>';
+  }
+
+  function grLessonHtml(l, i, done, own, p) {
+    const open = grLessonOpen === l.id, edit = grIsStaff() && grEditT === 'L' + l.id;
+    return '<section class="gr_cs' + (done ? ' gr_csdone' : '') + (open ? ' gr_cson' : '') + '">' +
+      '<button class="gr_csh0" data-gr-lesson="' + l.id + '" aria-expanded="' + open + '">' +
+        '<i>' + (done ? '&#10003;' : (i + 1)) + '</i>' +
+        '<span><b>' + esc(l.t) + '</b><em>' + esc(l.g || '') + '</em></span>' +
+        '<u>' + (l.min || 5) + ' min</u></button>' +
+      (open
+        ? '<div class="gr_csb">' + (edit ? grLessonEdit(l) :
+            (l.blocks || []).map(grBlockHtml).join('') +
+            (l.do ? '<div class="gr_csd"><span>Do this</span><p>' + esc(l.do) + '</p></div>' : '') +
+            '<div class="gr_csx">' +
+              (l.go || []).map(g => '<button class="gr_ghost" data-gr-traintab="' + esc(g[1]) + '">' +
+                esc(g[0]) + '</button>').join('') +
+              (own
+                ? '<button class="' + (done ? 'gr_ghost' : 'btn-red') + '" data-gr-lesson-done="' + l.id + '">' +
+                  (done ? 'Mark not done' : 'Mark done') + '</button>'
+                : '<span class="gr_mute">Only ' + esc(grFirstOf(p)) + ' can tick this one off.</span>') +
+              (grIsStaff() ? '<span class="gr_sp"></span><button class="gr_ib" data-gr-lesson-edit="' + l.id +
+                '" title="Edit this lesson" aria-label="Edit this lesson">' + GR_PEN + '</button>' : '') +
+            '</div>') + '</div>'
+        : '') + '</section>';
+  }
+
+  function grLessonEdit(l) {
+    return '<div class="gr_field"><label for="grLsT">Title</label>' +
+        '<input class="gr_in" id="grLsT" data-gr-ls="t" value="' + esc(l.t) + '"></div>' +
+      '<div class="gr_two">' +
+        '<div class="gr_field"><label for="grLsG">The line under it</label>' +
+          '<input class="gr_in" id="grLsG" data-gr-ls="g" value="' + esc(l.g || '') + '"></div>' +
+        '<div class="gr_field"><label for="grLsM">Minutes</label>' +
+          '<input class="gr_in" id="grLsM" type="number" min="1" max="90" data-gr-ls="min" value="' + (l.min || 5) + '"></div>' +
+      '</div>' +
+      '<div class="gr_field"><label for="grLsB">The lesson</label>' +
+        '<textarea class="gr_in" id="grLsB" rows="12" data-gr-ls="blocks">' + esc(grBlocksText(l.blocks)) + '</textarea>' +
+        '<span class="gr_hint">One line each. End a line with a colon for a heading, start it with ' +
+        '&quot;- &quot; for a bullet, or write &quot;Heading :: the sentence&quot; for a bolded point.</span></div>' +
+      '<div class="gr_field"><label for="grLsD">Do this</label>' +
+        '<input class="gr_in" id="grLsD" data-gr-ls="do" value="' + esc(l.do || '') + '"></div>' +
+      '<div class="gr_csx"><button class="btn-red" data-gr-lesson-save="' + l.id + '">Save lesson</button>' +
+        '<button class="gr_ghost" data-gr-lesson-edit="' + l.id + '">Cancel</button>' +
+        '<span class="gr_sp"></span>' +
+        '<button class="gr_ib" data-gr-lesson-move="' + l.id + '" data-d="-1" title="Move up" aria-label="Move up">&#9650;</button>' +
+        '<button class="gr_ib" data-gr-lesson-move="' + l.id + '" data-d="1" title="Move down" aria-label="Move down">&#9660;</button>' +
+        '<button class="gr_danger" data-gr-lesson-del="' + l.id + '">Delete</button></div>';
+  }
+
+  /* --- the clear answers --- */
+  function grClearHtml() {
+    const items = grClears();
+    return grSub('Best clear answers',
+        'Simple, honest answers to the questions everyone asks. Say them in your own words.') +
+      (items.length ? items.map(x => grIsStaff() && grEditT === 'C' + x.id
+        ? '<section class="gr_card">' +
+            '<div class="gr_two">' +
+              '<div class="gr_field"><label>Question</label>' +
+                '<input class="gr_in" data-gr-cl="q" value="' + esc(x.q) + '"></div>' +
+              '<div class="gr_field"><label>Theme</label>' +
+                '<input class="gr_in" data-gr-cl="theme" value="' + esc(x.theme || '') + '"></div></div>' +
+            '<div class="gr_field"><label>Answer</label>' +
+              '<textarea class="gr_in" rows="4" data-gr-cl="a">' + esc(x.a) + '</textarea></div>' +
+            '<div class="gr_csx"><button class="btn-red" data-gr-cl-save="' + x.id + '">Save</button>' +
+              '<button class="gr_ghost" data-gr-cl-edit="' + x.id + '">Cancel</button>' +
+              '<span class="gr_sp"></span>' +
+              '<button class="gr_danger" data-gr-cl-del="' + x.id + '">Delete</button></div></section>'
+        : '<section class="gr_card gr_ca">' +
+            (grIsStaff() ? '<button class="gr_ib gr_edb" data-gr-cl-edit="' + x.id +
+              '" title="Edit" aria-label="Edit">' + GR_PEN + '</button>' : '') +
+            '<b>' + esc(x.q) + '</b><p>' + esc(x.a) + '</p>' +
+            (x.theme ? '<span class="gr_tg">' + esc(x.theme) + '</span>' : '') +
+          '</section>').join('')
+        : grEmpty('&#9997;', 'No answers yet',
+            grIsStaff() ? 'Add the first one below.' : 'Luke is still writing these.')) +
+      (grIsStaff()
+        ? '<div class="gr_task gr_addt"><input class="gr_in gr_flat" id="grNewClear" ' +
+          'placeholder="Add a question people ask..." aria-label="New question">' +
+          '<button class="btn-red gr_addb" data-gr-cl-add>Add</button></div>'
+        : '<p class="gr_mute gr_mid">These are written by Luke. Say them in your own words.</p>');
+  }
+
+  /* --- questions people ask --- */
+  function grQaHtml() {
+    const items = grQas();
+    const themes = ['All'].concat(items.map(x => x.theme).filter((v, i, a) => v && a.indexOf(v) === i));
+    const seg = '<div class="gr_seg gr_wide">' +
+      [['browse', 'Browse'], ['practice', 'Practice']].map(v =>
+        '<button data-gr-qaview="' + v[0] + '"' + (grQaView === v[0] ? ' aria-pressed="true"' : '') + '>' +
+        v[1] + '</button>').join('') + '</div>';
+    const head = grSub('Questions people ask',
+      items.length + ' question' + (items.length === 1 ? '' : 's') + ' from real sales calls, with the answer that worked');
+
+    if (grQaView === 'practice') {
+      // Say it out loud, THEN look. Reading the answer first teaches nothing.
+      const pick = items.find(x => x.id === grPrac.id) || items[0];
+      if (!pick) return head + seg + grEmpty('&#128172;', 'Nothing to practise yet', 'Questions show up here once they are added.');
+      return head + seg +
+        '<section class="gr_card gr_pr"><div class="gr_prn">Question ' + (grPrac.n + 1) + '</div>' +
+          '<h3>' + esc(pick.q) + '</h3>' +
+          '<p class="gr_mute">Say your answer out loud first. Then check.</p>' +
+          (grPrac.show
+            ? '<div class="gr_qaa"><span>A strong answer</span><p>' + esc(pick.better || '') + '</p>' +
+              (pick.why ? '<p class="gr_qaw">' + esc(pick.why) + '</p>' : '') + '</div>' +
+              ((pick.tricks || []).length ? '<div class="gr_tags">' +
+                pick.tricks.map(t => '<span class="gr_tg">' + esc(t) + '</span>').join('') + '</div>' : '')
+            : '') +
+          '<div class="gr_csx"><button class="' + (grPrac.show ? 'gr_ghost' : 'btn-red') + '" data-gr-prac-show>' +
+            (grPrac.show ? 'Hide the answer' : 'Show a strong answer') + '</button>' +
+            '<button class="gr_ghost" data-gr-prac-next>Next question</button></div></section>';
+    }
+
+    const q = grQaQuery.trim().toLowerCase();
+    const list = items.filter(x =>
+      (grQaTheme === 'All' || x.theme === grQaTheme) &&
+      (!q || ((x.q || '') + ' ' + (x.better || '') + ' ' + (x.feel || '')).toLowerCase().indexOf(q) >= 0));
+    return head + seg +
+      '<input class="gr_in gr_search2" id="grQaQ" placeholder="Search questions" value="' + esc(grQaQuery) + '" aria-label="Search questions">' +
+      (themes.length > 2 ? '<div class="gr_who">' + themes.map(t =>
+        '<button class="gr_rcf" data-gr-qatheme="' + esc(t) + '"' + (grQaTheme === t ? ' aria-pressed="true"' : '') + '>' +
+        esc(t) + '</button>').join('') + '</div>' : '') +
+      (list.length ? list.map(x => {
+        const open = !!grQaOpen[x.id];
+        if (grIsStaff() && grEditT === 'Q' + x.id) {
+          return '<section class="gr_card">' +
+            '<div class="gr_two">' +
+              '<div class="gr_field"><label>Question</label><input class="gr_in" data-gr-qa="q" value="' + esc(x.q) + '"></div>' +
+              '<div class="gr_field"><label>Theme</label><input class="gr_in" data-gr-qa="theme" value="' + esc(x.theme || '') + '"></div></div>' +
+            '<div class="gr_field"><label>What they are really asking</label>' +
+              '<input class="gr_in" data-gr-qa="feel" value="' + esc(x.feel || '') + '"></div>' +
+            '<div class="gr_field"><label>The best answer</label>' +
+              '<textarea class="gr_in" rows="3" data-gr-qa="better">' + esc(x.better || '') + '</textarea></div>' +
+            '<div class="gr_field"><label>Why it works</label>' +
+              '<input class="gr_in" data-gr-qa="why" value="' + esc(x.why || '') + '"></div>' +
+            '<div class="gr_field"><label>The tricks, one per line</label>' +
+              '<textarea class="gr_in" rows="2" data-gr-qa="tricks">' + esc((x.tricks || []).join('\n')) + '</textarea></div>' +
+            '<div class="gr_csx"><button class="btn-red" data-gr-qa-save="' + x.id + '">Save</button>' +
+              '<button class="gr_ghost" data-gr-qa-edit="' + x.id + '">Cancel</button><span class="gr_sp"></span>' +
+              '<button class="gr_danger" data-gr-qa-del="' + x.id + '">Delete</button></div></section>';
+        }
+        return '<section class="gr_qa3' + (open ? ' gr_qaon' : '') + '">' +
+          '<button class="gr_qah" data-gr-qa-open="' + x.id + '" aria-expanded="' + open + '">' +
+            '<span><em>' + esc(x.theme || 'General') + '</em><b>' + esc(x.q) + '</b></span>' +
+            '<i>' + (open ? '&#9650;' : '&#9660;') + '</i></button>' +
+          (open ? '<div class="gr_qab">' +
+            (x.feel ? '<div class="gr_qaf"><span>What they are really asking</span><p>' + esc(x.feel) + '</p></div>' : '') +
+            '<div class="gr_qaa"><span>The best answer</span><p>' + esc(x.better || '') + '</p>' +
+              (x.why ? '<p class="gr_qaw">' + esc(x.why) + '</p>' : '') + '</div>' +
+            ((x.tricks || []).length ? '<div class="gr_tags">' +
+              x.tricks.map(t => '<span class="gr_tg">' + esc(t) + '</span>').join('') + '</div>' : '') +
+            (grIsStaff() ? '<div class="gr_csx"><span class="gr_sp"></span>' +
+              '<button class="gr_ib" data-gr-qa-edit="' + x.id + '" title="Edit" aria-label="Edit">' + GR_PEN + '</button></div>' : '') +
+          '</div>' : '') + '</section>';
+      }).join('')
+        : grEmpty('&#128269;', q ? 'Nothing matches that' : 'No questions yet',
+            q ? 'Try part of a question.' : (grIsStaff() ? 'Add the first one below.' : 'Luke is still writing these.'))) +
+      (grIsStaff()
+        ? '<div class="gr_task gr_addt"><input class="gr_in gr_flat" id="grNewQa" ' +
+          'placeholder="Add a question people ask..." aria-label="New question">' +
+          '<button class="btn-red gr_addb" data-gr-qa-add>Add</button></div>'
+        : '');
   }
 
   // Dates as the plan shows them: Today / Tomorrow / 23 Oct.
@@ -95928,6 +96297,44 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     grOpenId = c.id; grRender();
   }
 
+  /* ---------- Training writes ----------
+     Every one of these asks for the row back. RLS refuses a rep by returning zero rows
+     rather than raising, so without the zero-rows branch a rep who is not allowed to edit
+     a lesson would watch it change on screen and then quietly revert on the next load. */
+  const grSaveLessons = (list) => grSetting('course', { lessons: list });
+  const grSaveClears  = (list) => grSetting('clear',  { items: list });
+  const grSaveQas     = (list) => grSetting('qa',     { items: list });
+  const grNewId = (p) => p + Date.now().toString(36);
+
+  async function grMarkLesson(id, on) {
+    // Only ever your own row. The database agrees: growth_course_done pins owner_id in
+    // its with check, so ticking somebody else's lesson is refused, not just hidden.
+    const who = me();
+    if (on) {
+      const r = await grWrite('growth_course_done', 'insert', { owner_id: who, lesson_id: id });
+      if (r) { grCourseDone.push(r[0]); grRender(); }
+    } else {
+      const row = grCourseDone.find(d => d.owner_id === who && d.lesson_id === id);
+      if (!row) return;
+      const r = await grWrite('growth_course_done', 'delete', null, row.id);
+      if (r) { grCourseDone = grCourseDone.filter(d => d.id !== row.id); grRender(); }
+    }
+  }
+
+  function grLessonFields() {
+    const g = (id) => { const el = $(id); return el ? el.value : ''; };
+    return { t: g('grLsT').trim(), g: g('grLsG').trim(),
+             min: Math.max(1, Math.min(90, parseInt(g('grLsM'), 10) || 5)),
+             blocks: grTextBlocks(g('grLsB')), do: g('grLsD').trim() };
+  }
+  function grFieldsOf(sel) {
+    const out = {};
+    document.querySelectorAll('[data-gr-' + sel + ']').forEach(el => {
+      out[el.dataset['gr' + sel.charAt(0).toUpperCase() + sel.slice(1)]] = el.value;
+    });
+    return out;
+  }
+
   /* What a dropdown item does. One place, so the same Template menu works whether it was
      opened from Do next (no composer yet) or from inside the composer (one already open). */
   function grPicked(el) {
@@ -96264,6 +96671,141 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       return;
     }
 
+    // ---- Training: the course ----
+    const who = e.target.closest('[data-gr-who]');
+    if (who) { grCourseWho = who.dataset.grWho; grLessonOpen = null; grEditT = null; grRender(); return; }
+
+    const les = e.target.closest('[data-gr-lesson]');
+    if (les) {
+      grLessonOpen = grLessonOpen === les.dataset.grLesson ? null : les.dataset.grLesson;
+      grEditT = null; grRender(); return;
+    }
+    const ld = e.target.closest('[data-gr-lesson-done]');
+    if (ld) {
+      const id = ld.dataset.grLessonDone;
+      grMarkLesson(id, !grDoneSet(me())[id]);
+      return;
+    }
+    const le = e.target.closest('[data-gr-lesson-edit]');
+    if (le) { grEditT = grEditT === 'L' + le.dataset.grLessonEdit ? null : 'L' + le.dataset.grLessonEdit; grRender(); return; }
+    const lsv = e.target.closest('[data-gr-lesson-save]');
+    if (lsv) {
+      const id = lsv.dataset.grLessonSave, f = grLessonFields();
+      if (!f.t) { const el = $('grLsT'); if (el) el.focus(); return; }
+      const list = grLessons().map(x => x.id === id ? Object.assign({}, x, f) : x);
+      grEditT = null;
+      grSaveLessons(list);
+      return;
+    }
+    const lmv = e.target.closest('[data-gr-lesson-move]');
+    if (lmv) {
+      const list = grLessons().slice(), i = list.findIndex(x => x.id === lmv.dataset.grLessonMove), d = +lmv.dataset.d;
+      if (i >= 0 && i + d >= 0 && i + d < list.length) {
+        const t = list[i]; list[i] = list[i + d]; list[i + d] = t;
+        grSaveLessons(list);
+      }
+      return;
+    }
+    const ldl = e.target.closest('[data-gr-lesson-del]');
+    if (ldl) {
+      (async function () {
+        const ok = await window.giantConfirmWarn('Delete this lesson? Everyone loses it, and so does anybody part way through it.');
+        if (!ok) return;
+        grEditT = null; grLessonOpen = null;
+        await grSaveLessons(grLessons().filter(x => x.id !== ldl.dataset.grLessonDel));
+      })();
+      return;
+    }
+    if (e.target.closest('[data-gr-lesson-add]')) {
+      const el = $('grNewLesson'), v = (el && el.value || '').trim();
+      if (!v) { if (el) el.focus(); return; }
+      const id = grNewId('l');
+      grLessonOpen = id; grEditT = 'L' + id;
+      grSaveLessons(grLessons().concat([{ id: id, t: v, g: '', min: 5, blocks: [], do: '', go: [] }]));
+      return;
+    }
+
+    // ---- Training: the clear answers ----
+    const ce = e.target.closest('[data-gr-cl-edit]');
+    if (ce) { grEditT = grEditT === 'C' + ce.dataset.grClEdit ? null : 'C' + ce.dataset.grClEdit; grRender(); return; }
+    const cs = e.target.closest('[data-gr-cl-save]');
+    if (cs) {
+      const f = grFieldsOf('cl'), id = cs.dataset.grClSave;
+      if (!String(f.q || '').trim()) return;
+      grEditT = null;
+      grSaveClears(grClears().map(x => x.id === id
+        ? { id: id, q: f.q.trim(), theme: (f.theme || '').trim(), a: (f.a || '').trim() } : x));
+      return;
+    }
+    const cd2 = e.target.closest('[data-gr-cl-del]');
+    if (cd2) {
+      (async function () {
+        const ok = await window.giantConfirmWarn('Delete this answer?');
+        if (!ok) return;
+        grEditT = null;
+        await grSaveClears(grClears().filter(x => x.id !== cd2.dataset.grClDel));
+      })();
+      return;
+    }
+    if (e.target.closest('[data-gr-cl-add]')) {
+      const el = $('grNewClear'), v = (el && el.value || '').trim();
+      if (!v) { if (el) el.focus(); return; }
+      const id = grNewId('c');
+      grEditT = 'C' + id;
+      grSaveClears(grClears().concat([{ id: id, q: v, theme: '', a: '' }]));
+      return;
+    }
+
+    // ---- Training: the questions ----
+    const qv = e.target.closest('[data-gr-qaview]');
+    if (qv) { grQaView = qv.dataset.grQaview; grRender(); return; }
+    const qt = e.target.closest('[data-gr-qatheme]');
+    if (qt) { grQaTheme = qt.dataset.grQatheme; grRender(); return; }
+    const qo = e.target.closest('[data-gr-qa-open]');
+    if (qo) { const k = qo.dataset.grQaOpen; grQaOpen[k] = !grQaOpen[k]; grRender(); return; }
+    const qe2 = e.target.closest('[data-gr-qa-edit]');
+    if (qe2) { grEditT = grEditT === 'Q' + qe2.dataset.grQaEdit ? null : 'Q' + qe2.dataset.grQaEdit; grRender(); return; }
+    const qs = e.target.closest('[data-gr-qa-save]');
+    if (qs) {
+      const f = grFieldsOf('qa'), id = qs.dataset.grQaSave;
+      if (!String(f.q || '').trim()) return;
+      grEditT = null;
+      grSaveQas(grQas().map(x => x.id === id ? {
+        id: id, q: f.q.trim(), theme: (f.theme || '').trim(), feel: (f.feel || '').trim(),
+        better: (f.better || '').trim(), why: (f.why || '').trim(),
+        tricks: String(f.tricks || '').split('\n').map(t => t.trim()).filter(Boolean)
+      } : x));
+      return;
+    }
+    const qd = e.target.closest('[data-gr-qa-del]');
+    if (qd) {
+      (async function () {
+        const ok = await window.giantConfirmWarn('Delete this question?');
+        if (!ok) return;
+        grEditT = null;
+        await grSaveQas(grQas().filter(x => x.id !== qd.dataset.grQaDel));
+      })();
+      return;
+    }
+    if (e.target.closest('[data-gr-qa-add]')) {
+      const el = $('grNewQa'), v = (el && el.value || '').trim();
+      if (!v) { if (el) el.focus(); return; }
+      const id = grNewId('q');
+      grEditT = 'Q' + id;
+      grSaveQas(grQas().concat([{ id: id, q: v, theme: '', feel: '', better: '', why: '', tricks: [] }]));
+      return;
+    }
+    if (e.target.closest('[data-gr-prac-show]')) { grPrac.show = !grPrac.show; grRender(); return; }
+    if (e.target.closest('[data-gr-prac-next]')) {
+      const pool = grQas();
+      if (pool.length) {
+        let n = pool[Math.floor(Math.random() * pool.length)];
+        if (pool.length > 1) { let guard = 0; while (n.id === grPrac.id && guard++ < 20) n = pool[Math.floor(Math.random() * pool.length)]; }
+        grPrac = { id: n.id, show: false, n: grPrac.n + 1 };
+      }
+      grRender(); return;
+    }
+
     const st = e.target.closest('[data-gr-settab]');
     if (st) { grSetTab = st.dataset.grSettab; grEdit = null; grRender(); return; }
 
@@ -96380,6 +96922,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   document.addEventListener('input', function (e) {
     if (e.target.id === 'grSearch') { grQuery = e.target.value; grRenderPipeline(); return; }
+    if (e.target.id === 'grQaQ') {
+      // Re-render in place and put the caret back. Rebuilding the box under a typing
+      // hand is what makes a search field feel broken.
+      const p = e.target.selectionStart;
+      grQaQuery = e.target.value; grRenderTraining();
+      const el = $('grQaQ');
+      if (el) { el.focus(); try { el.setSelectionRange(p, p); } catch (x) { /* older input types */ } }
+      return;
+    }
     const cf = e.target.dataset && e.target.dataset.grC;
     if (cf && grComposer) { grComposer[cf] = e.target.value; return; }
   });
