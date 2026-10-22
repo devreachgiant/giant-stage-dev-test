@@ -357,6 +357,55 @@ await step('nothing raw reaches the screen', async () => {
   check('no raw HTML entity is visible', raw.length === 0, JSON.stringify(raw));
 });
 
+/* A connector can be working perfectly and still be something Growth should leave alone
+   for a week. Off is not the same as not connected, and the difference has to be visible
+   -- a row that says "Not connected" when somebody switched it off sends them back
+   through an OAuth flow they did not need. */
+await step('a working connector can be switched off without disconnecting it', async () => {
+  const sw = page.locator('#grConnectors [data-gr-conn-use]').first();
+  const n = await page.locator('#grConnectors [data-gr-conn-use]').count();
+  check('a switch is offered on the connected ones', n > 0, n + ' switches');
+  if (!n) return;
+  const key = await sw.getAttribute('data-gr-conn-use');
+  const before = await page.evaluate((k) => {
+    const row = [...document.querySelectorAll('#grConnectors .gr_cnw')]
+      .find(x => (x.querySelector('[data-gr-conn-use]') || {}).dataset?.grConnUse === k);
+    return { status: (row.querySelector('.gr_st') || {}).textContent.trim(),
+             open: !!row.querySelector('.gr_cnp') };
+  }, key);
+  check('it reads as connected to start with', /Connected|Sending|Answering/i.test(before.status),
+    before.status);
+
+  await sw.uncheck();
+  await page.waitForTimeout(800);
+  const off = await page.evaluate((k) => {
+    const row = [...document.querySelectorAll('#grConnectors .gr_cnw')]
+      .find(x => (x.querySelector('[data-gr-conn-use]') || {}).dataset?.grConnUse === k);
+    return { status: (row.querySelector('.gr_st') || {}).textContent.trim(),
+             says: (row.querySelector('.gr_rm span') || {}).textContent.trim(),
+             saved: (window.__mockDB.growth_settings.find(x => x.key === 'connectors_off') || {}).value,
+             // The panel must not have opened: the switch sits inside the row button.
+             open: !!row.querySelector('.gr_cnp') };
+  }, key);
+  check('the row says Off', off.status === 'Off', off.status);
+  check('and says the connection itself is untouched', /untouched/i.test(off.says), off.says);
+  check('it is written to the database', off.saved && off.saved[key] === true, JSON.stringify(off.saved));
+  check('and flicking the switch did not also open the panel', off.open === before.open,
+    JSON.stringify({ before: before.open, after: off.open }));
+
+  await sw.check();
+  await page.waitForTimeout(800);
+  const back = await page.evaluate((k) => {
+    const row = [...document.querySelectorAll('#grConnectors .gr_cnw')]
+      .find(x => (x.querySelector('[data-gr-conn-use]') || {}).dataset?.grConnUse === k);
+    return { status: (row.querySelector('.gr_st') || {}).textContent.trim(),
+             saved: (window.__mockDB.growth_settings.find(x => x.key === 'connectors_off') || {}).value };
+  }, key);
+  check('switching it back on restores what it said', back.status === before.status,
+    back.status + ' vs ' + before.status);
+  check('and clears the flag', !(back.saved || {})[key], JSON.stringify(back.saved));
+});
+
 // ── report ───────────────────────────────────────────────────────────────────
 clearInterval(confirmWatcher);
 const realErrors = pageErrors.filter(e => !/supabase\.(co|in)/.test(e));

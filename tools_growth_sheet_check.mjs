@@ -862,6 +862,76 @@ await step('Won asks the amount in a sheet, not a browser prompt', async () => {
   check('and clears the won date', (back.won || null) === (was.won || null), String(back.won));
 });
 
+/* Replying used to mean writing from memory: the thread was behind the composer, and
+   going back to read it lost the draft. The pane puts what they wrote beside the box. */
+await step('replying shows the thread and what we know about them', async () => {
+  await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+  await navOf('gr_pipeline').click(); await page.waitForTimeout(700);
+  await page.evaluate(() => {
+    const el = [...document.querySelectorAll('#grPipeline .gr_bc')].find(x => /Michael/.test(x.textContent));
+    if (el) el.click();
+  });
+  await page.waitForTimeout(600);
+  await page.evaluate(() => { const b = document.querySelector('#grSheet [data-gr-act]'); if (b) b.click(); });
+  await page.waitForTimeout(900);
+  const m = await page.evaluate(() => {
+    const pane = document.querySelector('.gr_rsl');
+    const comp = document.querySelector('.gr_comp');
+    if (!pane || !comp) return { pane: !!pane, comp: !!comp };
+    const pr = pane.getBoundingClientRect(), cr = comp.getBoundingClientRect();
+    return {
+      pane: true, comp: true,
+      label: (pane.querySelector('.gr_rsk') || {}).textContent || '',
+      body: (pane.querySelector('.gr_rsmb') || {}).textContent || '',
+      older: pane.querySelectorAll('.gr_rso').length,
+      know: (pane.querySelector('.gr_rsknow') || {}).textContent || '',
+      // Beside, not behind: the pane has to sit to the LEFT of the box, or it is just
+      // a second thing covering the first.
+      sideBySide: Math.round(pr.right) <= Math.round(cr.left) + 2,
+      paneW: Math.round(pr.width), paneH: Math.round(pr.height)
+    };
+  });
+  check('the thread pane is there', m.pane && m.comp, JSON.stringify(m));
+  if (!m.pane) return;
+  check('and it is drawn at a readable size', m.paneW > 200 && m.paneH > 100,
+    m.paneW + 'x' + m.paneH);
+  check('it sits beside the box, not over it', m.sideBySide, JSON.stringify(m));
+  check('the last message is shown in full', m.body.length > 10, m.body.slice(0, 60));
+  // "Good to know" is the call note's headline and wants -- the thing somebody would
+  // otherwise close the composer to go and look up.
+  check('"Good to know" carries the call note', /Good to know/i.test(m.know) && /\$80k/.test(m.know),
+    m.know.slice(0, 120));
+  check('what they want is listed under it', /qualified leads/i.test(m.know), m.know.slice(0, 160));
+  await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+});
+
+await step('a brand new email has no thread pane to show', async () => {
+  // Kelsey has never been emailed, so there is nothing to put beside the box and the
+  // composer should be on its own rather than next to an empty rectangle.
+  const none = await page.evaluate(() => {
+    const c = window.__mockDB.growth_clients.find(x =>
+      !window.__mockDB.growth_messages.some(m => m.client_id === x.id) &&
+      x.stage !== 'won' && x.stage !== 'lost');
+    return c ? c.id : null;
+  });
+  if (!none) { check('a never-emailed client exists to test with', false, 'none'); return; }
+  await page.evaluate((id) => {
+    const el = [...document.querySelectorAll('#grPipeline .gr_bc')]
+      .find(x => x.getAttribute('data-gr-open') === id);
+    if (el) el.click();
+  }, none);
+  await page.waitForTimeout(600);
+  await page.evaluate(() => { const b = document.querySelector('#grSheet [data-gr-act]'); if (b) b.click(); });
+  await page.waitForTimeout(900);
+  const r = await page.evaluate(() => ({
+    comp: !!document.querySelector('.gr_comp'),
+    pane: !!document.querySelector('.gr_rsl')
+  }));
+  check('the composer still opens', r.comp);
+  check('and there is no empty thread pane beside it', !r.pane);
+  await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+});
+
 await step('nothing raw reaches the screen, and Escape puts it all away', async () => {
   const raw = await page.evaluate(() => {
     const out = [];

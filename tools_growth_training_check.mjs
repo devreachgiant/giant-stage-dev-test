@@ -589,6 +589,170 @@ await step('a rep is offered none of the four pencils', async () => {
   await page.evaluate(() => { window.giantCurrentProfile.role = 'inhouse_dev'; });
 });
 
+/* Best calls offered a lesson and 41 minutes of video. Nobody watches 41 minutes; the
+   moments are the point, and a moment is only useful if its link opens the recording AT
+   that second (20261022190000). */
+await step('a best call lists the moments worth watching', async () => {
+  await page.evaluate(() => { window.giantCurrentProfile.role = 'inhouse_dev'; });
+  await page.evaluate(() => { if (window.grInit) window.grInit('gr_training'); });
+  await page.waitForTimeout(500);
+  await tabOf('lib').first().click(); await page.waitForTimeout(500);
+  const m = await page.evaluate(() => {
+    const card = document.querySelector('#grTraining .gr_bc3');
+    if (!card) return null;
+    const rows = [...card.querySelectorAll('.gr_bcm a')].map(a2 => ({
+      href: a2.getAttribute('href'),
+      q: (a2.querySelector('b') || {}).textContent,
+      theme: (a2.querySelector('em') || {}).textContent,
+      at: (a2.querySelector('u') || {}).textContent,
+      w: Math.round(a2.getBoundingClientRect().width)
+    }));
+    return { rows, editor: !!card.querySelector('[data-gr-watch-mom]') };
+  });
+  check('the moments rendered', !!m && m.rows.length === 2, JSON.stringify(m && m.rows.length));
+  if (!m) return;
+  check('each one is drawn at a real width', m.rows.every(r => r.w > 150),
+    JSON.stringify(m.rows.map(r => r.w)));
+  check('each carries the question and its theme',
+    m.rows.every(r => (r.q || '').length > 5 && (r.theme || '').length > 2),
+    JSON.stringify(m.rows.map(r => r.q + '/' + r.theme)));
+  // 162 seconds is 2:42, and the link has to carry the second or it opens at the top of
+  // the call, which is the same as having no moment at all.
+  check('162 seconds reads as 2:42', /2:42/.test(m.rows[0].at || ''), m.rows[0].at);
+  check('and the link jumps to it', /[?&]timestamp=162\b/.test(m.rows[0].href || ''), m.rows[0].href);
+  check('905 seconds reads as 15:05', /15:05/.test(m.rows[1].at || ''), m.rows[1].at);
+  check('staff get a box to edit them in', m.editor);
+});
+
+await step('typing a moment saves it, and a rep cannot', async () => {
+  await page.locator('#grTraining [data-gr-watch-mom]').fill('0:45 :: Opening :: How did you find us?');
+  // Saved on change, the same as the "why it worked" box beside it, so the typing has
+  // to be finished with -- which is what clicking away does.
+  await page.evaluate(() => {
+    const el = document.querySelector('#grTraining [data-gr-watch-mom]');
+    if (el) el.blur();
+  });
+  await page.waitForTimeout(1200);
+  const saved = await page.evaluate(() => {
+    const row = (window.__mockDB.growth_watch_calls || [])[0];
+    return row ? row.moments : null;
+  });
+  check('the moment is written to the database',
+    Array.isArray(saved) && saved.length === 1 && saved[0].s === 45,
+    JSON.stringify(saved));
+  check('with its theme and question split out',
+    saved && saved[0].theme === 'Opening' && /How did you find us/.test(saved[0].q),
+    JSON.stringify(saved && saved[0]));
+
+  await page.evaluate(() => { window.giantCurrentProfile.role = 'member'; });
+  await page.evaluate(() => { if (window.grInit) window.grInit('gr_training'); });
+  await page.waitForTimeout(500);
+  await tabOf('lib').first().click(); await page.waitForTimeout(500);
+  const rep = await page.evaluate(() => ({
+    editor: document.querySelectorAll('#grTraining [data-gr-watch-mom]').length,
+    rows: document.querySelectorAll('#grTraining .gr_bcm a').length
+  }));
+  check('a rep gets no box to type in', rep.editor === 0, rep.editor + '');
+  check('but still sees the moments', rep.rows === 1, rep.rows + '');
+  await page.evaluate(() => { window.giantCurrentProfile.role = 'inhouse_dev'; });
+});
+
+/* The Q and A page listed questions and model answers. What it could not say was which
+   questions actually come up, or what anybody really said when they did. */
+await step('Q and A ranks the questions and shows what was really said', async () => {
+  await page.evaluate(() => { if (window.grInit) window.grInit('gr_training'); });
+  await page.waitForTimeout(500);
+  await tabOf('qa').first().click(); await page.waitForTimeout(500);
+  const rows = await page.evaluate(() => [...document.querySelectorAll('#grTraining .gr_qa3')].map(x => ({
+    rank: (x.querySelector('.gr_qrk') || {}).textContent,
+    q: (x.querySelector('.gr_qah span b') || {}).textContent,
+    times: (x.querySelector('.gr_qah > i') || {}).textContent,
+    bar: Math.round((x.querySelector('.gr_qah span u s') || {}).getBoundingClientRect?.().width || 0)
+  })));
+  check('both questions are listed', rows.length === 2, JSON.stringify(rows.map(r => r.q)));
+  // The one asked 12 times must come first and have the wider bar; two equal bars would
+  // mean the ranking is decoration.
+  check('the one asked most often is first', /budget/i.test(rows[0].q || ''), rows[0].q);
+  check('they are numbered', rows[0].rank === '1' && rows[1].rank === '2',
+    JSON.stringify(rows.map(r => r.rank)));
+  check('each says how often it comes up', rows[0].times === '12x' && rows[1].times === '5x',
+    JSON.stringify(rows.map(r => r.times)));
+  check('and the bar is wider for the busier one', rows[0].bar > rows[1].bar,
+    JSON.stringify(rows.map(r => r.bar)));
+
+  // Open the first one BY ITS STATE: a step earlier in this file leaves a question
+  // expanded, and clicking a header that is already open shuts it instead.
+  const head1 = page.locator('#grTraining .gr_qah').first();
+  if ((await head1.getAttribute('aria-expanded')) !== 'true') {
+    await head1.click(); await page.waitForTimeout(500);
+  }
+  await page.waitForTimeout(300);
+  const open = await page.evaluate(() => {
+    const card = document.querySelector('#grTraining .gr_qa3.gr_qaon');
+    if (!card) return null;
+    return {
+      examples: [...card.querySelectorAll('.gr_qe')].map(e => ({
+        call: (e.querySelector('.gr_qeq em') || {}).textContent,
+        said: (e.querySelector('.gr_qea p') || {}).textContent,
+        better: (e.querySelector('.gr_qeb p') || {}).textContent,
+        link: (e.querySelector('a') || {}).getAttribute ? e.querySelector('a').getAttribute('href') : null })),
+      intro: (card.querySelector('.gr_qax > span') || {}).textContent || '',
+      usually: (card.querySelector('.gr_qaf + .gr_qaa') || {}) && card.innerText,
+      more: !!card.querySelector('[data-gr-qa-all]')
+    };
+  });
+  check('the examples are there', !!open && open.examples.length === 3,
+    JSON.stringify(open && open.examples.length));
+  if (!open) return;
+  // Three of four shown, with a way to see the rest: a list that silently truncates is
+  // how somebody concludes there were only ever three.
+  check('it says how often and across how many calls',
+    /Asked 12 times across 9 calls/.test(open.intro), open.intro);
+  check('each example has what was said and a better way',
+    open.examples.every(e => (e.said || '').length > 5) &&
+    open.examples.filter(e => (e.better || '').length > 5).length >= 2,
+    JSON.stringify(open.examples.map(e => e.said)));
+  check('and a link into the call at the right second',
+    /[?&]timestamp=162\b/.test(open.examples[0].link || ''), open.examples[0].link);
+  check('there is a way to see the rest', open.more);
+  check('how you usually answer is shown back to you',
+    /How you usually answer/i.test(open.usually || ''), '');
+
+  await page.locator('#grTraining [data-gr-qa-all]').click();
+  await page.waitForTimeout(500);
+  const all = await page.evaluate(() =>
+    document.querySelectorAll('#grTraining .gr_qa3.gr_qaon .gr_qe').length);
+  check('and pressing it shows all four', all === 4, all + '');
+});
+
+await step('the tricks and the weak answers sit under the list', async () => {
+  const m = await page.evaluate(() => {
+    const el = document.getElementById('grTraining');
+    return { tricks: [...el.querySelectorAll('.gr_tkc')].map(x => (x.querySelector('b') || {}).textContent),
+             weak: [...el.querySelectorAll('.gr_wk')].map(x => (x.querySelector('h4') || {}).textContent),
+             heads: [...el.querySelectorAll('.gr_sech h3')].map(x => x.textContent.trim()) };
+  });
+  check('the tricks grid is there', m.tricks.length === 3, JSON.stringify(m.tricks));
+  check('and the answers to tighten', m.weak.length === 1, JSON.stringify(m.weak));
+  check('both are headed', m.heads.indexOf('Tricks from your calls') >= 0 &&
+    m.heads.indexOf('Answers to tighten') >= 0, JSON.stringify(m.heads));
+
+  // Searching narrows the list, so a section about the WHOLE list has to go away --
+  // "tricks from your calls" above three matching rows is a lie about what it is.
+  await page.locator('#grQaQ').fill('contract');
+  await page.waitForTimeout(600);
+  const after = await page.evaluate(() => ({
+    rows: document.querySelectorAll('#grTraining .gr_qa3').length,
+    tricks: document.querySelectorAll('#grTraining .gr_tkc').length,
+    weak: document.querySelectorAll('#grTraining .gr_wk').length
+  }));
+  check('searching narrows the questions', after.rows === 1, after.rows + '');
+  check('and hides the whole-list sections', after.tricks === 0 && after.weak === 0,
+    JSON.stringify(after));
+  await page.locator('#grQaQ').fill('');
+  await page.waitForTimeout(500);
+});
+
 await step('nothing raw reaches the screen', async () => {
   const raw = await page.evaluate(() => {
     const out = [];

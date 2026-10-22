@@ -6477,6 +6477,28 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_chi{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
 .gr_chi span{font-size:12px;color:var(--text-3);}
 .gr_ctool{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+/* The thread beside the box. Two columns while there is room; under it on a laptop,
+   because a 300px reading column next to a 300px writing column helps nobody. */
+.gr_rsg{display:grid;grid-template-columns:minmax(0,330px) minmax(0,660px);gap:14px;align-items:start;margin:0 auto;}
+@media(max-width:1080px){.gr_rsg{grid-template-columns:minmax(0,660px);}}
+.gr_rsl{background:var(--bg);border:1px solid var(--line);border-radius:22px;padding:16px 17px;display:flex;flex-direction:column;gap:9px;max-height:80vh;overflow-y:auto;}
+.gr_rsk{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);}
+.gr_rsk em{font-style:normal;background:var(--surface-2);border-radius:99px;padding:2px 8px;font-size:10px;letter-spacing:.04em;color:var(--text);}
+.gr_sm3{margin-top:4px;}
+.gr_rsm{background:var(--surface-2);border:1px solid var(--line);border-radius:13px;padding:11px 12px;}
+.gr_rsm.in{border-left:3px solid var(--red);}
+.gr_rsmh{display:flex;justify-content:space-between;gap:8px;font-size:12px;margin-bottom:5px;}
+.gr_rsmh time{color:var(--text-3);font-size:11px;}
+.gr_rsmb{font-size:13px;line-height:1.55;white-space:pre-wrap;}
+.gr_rso{border-top:1px solid var(--line);padding:7px 0;}
+.gr_rso summary{display:flex;gap:8px;align-items:baseline;cursor:pointer;font-size:12px;list-style:none;}
+.gr_rso summary::-webkit-details-marker{display:none;}
+.gr_rso summary span{flex:1;min-width:0;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gr_rso summary time{color:var(--text-3);font-size:11px;flex:none;}
+.gr_rso .gr_rsmb{padding-top:7px;}
+.gr_rsknow{border-top:1px solid var(--line);padding-top:10px;margin-top:4px;}
+.gr_rsknow p{margin:6px 0 0;font-size:13px;line-height:1.55;}
+.gr_rsknow ul{margin:6px 0 0;padding-left:18px;font-size:13px;line-height:1.6;}
 .gr_bare{background:none;}
 .gr_bare:hover{background:var(--surface-2);}
 /* To and Subject read as one letterhead rather than two boxed fields: the label is the
@@ -6846,10 +6868,45 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_bcw span{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);}
 .gr_bcw p{margin:0;font-size:13.5px;line-height:1.5;}
 .gr_bc3 .gr_wbtn{align-self:flex-start;}
+/* Moments to watch: a row per point in the recording, each one a link into it. */
+.gr_bcm>span{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:6px;}
+.gr_bcm a,.gr_bcm>div{display:flex;align-items:center;gap:9px;padding:7px 9px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;text-decoration:none;color:var(--text);background:var(--surface-2);}
+.gr_bcm a:hover{border-color:var(--line-2);}
+.gr_bcm i{font-style:normal;color:var(--red);font-size:11px;flex:none;}
+.gr_bcm b{flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gr_bcm em{font-style:normal;font-size:10.5px;font-weight:700;color:var(--text-3);background:var(--bg);border-radius:99px;padding:2px 8px;flex:none;}
+.gr_bcm u{text-decoration:none;font-size:11.5px;font-variant-numeric:tabular-nums;color:var(--text-3);flex:none;}
 .gr_tip.gr_key .gr_tn{background:var(--red);color:#fff;}
 .gr_tip b{font-size:15px;}
 .gr_tip p{margin:5px 0 0;font-size:13.5px;color:var(--text-2);line-height:1.6;}
 .gr_qa2{padding:14px 18px;}
+/* Q and A: the rank, how often it comes up, and what was really said. */
+.gr_qrk{flex:none;width:26px;height:26px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-size:12px;font-weight:800;}
+.gr_qai{font-size:9.5px;letter-spacing:.04em;color:var(--text-3);}
+.gr_qah span u{display:block;height:4px;border-radius:2px;background:var(--surface-3);margin-top:6px;text-decoration:none;max-width:220px;}
+.gr_qah span u s{display:block;height:100%;border-radius:2px;background:var(--red);text-decoration:none;}
+.gr_qax{margin-top:12px;}
+.gr_qax>span{display:block;font-size:11.5px;color:var(--text-3);margin-bottom:8px;}
+.gr_qe{border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-bottom:8px;background:var(--surface-2);}
+.gr_qeq em{font-style:normal;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);display:block;}
+.gr_qeq b{display:block;font-size:13.5px;margin:3px 0 8px;}
+.gr_qea,.gr_qeb{margin-top:7px;}
+.gr_qea span,.gr_qeb span{display:block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);}
+.gr_qeb span{color:#1F7A45;}
+.gr_qea p,.gr_qeb p{margin:3px 0 0;font-size:13px;line-height:1.55;}
+.gr_qeb i{display:inline-block;margin-top:6px;font-style:normal;font-size:11px;font-weight:700;background:var(--bg);border:1px solid var(--line);border-radius:99px;padding:3px 9px;}
+.gr_qe>a{display:inline-block;margin-top:9px;color:var(--red);font-size:12px;font-weight:700;text-decoration:none;}
+.gr_sw{flex:none;display:flex;align-items:center;padding-left:4px;}
+/* A connector Growth has been told to leave alone still reads clearly, just quieter. */
+.gr_cnoff .gr_cnrow .gr_rm b{color:var(--text-3);}
+.gr_sigimg{display:block;max-width:160px;max-height:54px;margin-bottom:8px;border-radius:6px;}
+.gr_tkg{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:11px;}
+.gr_tkc{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;}
+.gr_tkc i{display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:var(--red);color:#fff;font-style:normal;font-size:12px;font-weight:800;margin-bottom:8px;}
+.gr_tkc b{display:block;font-size:13.5px;}
+.gr_tkc p{margin:5px 0 0;font-size:12.5px;color:var(--text-2);line-height:1.55;}
+.gr_wk h4{margin:0 0 4px;font-size:14px;}
+.gr_wk p{margin:0 0 4px;font-size:13px;line-height:1.55;}
 .gr_qa2 b{font-size:14px;}
 .gr_qa2 p{margin:5px 0 0;font-size:13.5px;color:var(--text-2);line-height:1.6;}
 .gr_pay{display:inline-block;margin-top:auto;padding:9px 14px;border-radius:9px;font-size:13px;text-align:center;text-decoration:none;}
@@ -94541,7 +94598,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grDcDraft = { code: '', label: '', colour: '' }, grTestBusy = '';
   let grCourseDone = [], grCourseWho = null, grLessonOpen = null, grEditT = null;
   let grRuns = [];
-  let grQaView = 'browse', grQaTheme = 'All', grQaQuery = '', grQaOpen = {};
+  let grQaView = 'browse', grQaTheme = 'All', grQaQuery = '', grQaOpen = {}, grQaAll = {};
   let grPrac = { id: null, show: false, n: 0 };
   let grPeople = [];                 // profiles who can own a deal
   let grScreen = 'gr_home';
@@ -95696,6 +95753,31 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                 '<textarea class="gr_in" rows="2" data-gr-watch-mine="' + w.id + '" ' +
                 'placeholder="What is the lesson? Why should they watch this?">' + esc(w.learned || '') + '</textarea></div>'
               : w.learned ? '<div class="gr_bcw"><span>Why it worked</span><p>' + esc(w.learned) + '</p></div>' : '') +
+            /* Moments to watch. A card that says a call went well and offers 41 minutes
+               of video gets watched by nobody; what people want is the ninety seconds
+               where the price came up, so each moment opens the recording AT its second
+               (20261022190000). Staff edit them as "mm:ss :: theme :: the question",
+               which is faster than three boxes per row for somebody typing six of them. */
+            ((w.moments || []).length
+              ? '<div class="gr_bcm"><span>Moments to watch</span>' +
+                (w.moments || []).map(mo =>
+                  (w.url
+                    ? '<a href="' + esc(w.url) + '?timestamp=' + Math.round(Number(mo.s) || 0) +
+                      '" target="_blank" rel="noopener" data-gr-stop>'
+                    : '<div>') +
+                  '<i>&#9654;</i><b>' + esc(mo.q || '') + '</b>' +
+                  '<em>' + esc(mo.theme || '') + '</em>' +
+                  '<u>' + esc(grTs(mo.s)) + '</u>' +
+                  (w.url ? '</a>' : '</div>')).join('') + '</div>'
+              : '') +
+            (can
+              ? '<div class="gr_bcw gr_field"><span>' +
+                ((w.moments || []).length ? 'Edit the moments' : 'Moments to watch') + '</span>' +
+                '<textarea class="gr_in" rows="2" data-gr-watch-mom="' + w.id + '" ' +
+                'placeholder="2:42 :: Price :: What does it cost?">' +
+                esc((w.moments || []).map(mo => grTs(mo.s) + ' :: ' + (mo.theme || '') + ' :: ' + (mo.q || '')).join('\n')) +
+                '</textarea><span class="gr_hint">One per line: time :: theme :: the question.</span></div>'
+              : '') +
             ((w.tags || []).length ? '<div class="gr_tags">' +
               (w.tags || []).map(t => '<span class="gr_tg">' + esc(t) + '</span>').join('') + '</div>' : '') +
             (w.url ? '<a class="btn-red gr_wbtn" href="' + esc(w.url) +
@@ -96102,7 +96184,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   /* --- questions people ask --- */
   function grQaHtml() {
-    const items = grQas();
+    /* MOST ASKED FIRST. The rank badge was worked out from a sorted copy while the list
+       itself stayed in the order the questions were written in, so the top row could be
+       numbered 2. Sorting the list people actually read is the point: it is what makes
+       reading from the top worth doing. Questions nobody has counted yet keep their own
+       order at the end rather than being scattered through it. */
+    const items = grQas().slice().sort(function (a2, b2) {
+      const na = Number(a2.n) || 0, nb = Number(b2.n) || 0;
+      return nb - na;
+    });
+    const ranked = items.filter(x => Number(x.n) > 0);
+    const mostAsked = Math.max(1, ...ranked.map(x => Number(x.n) || 0));
+    const qaExtra = grSettings.qa_extra || {};
+    const tricks = Array.isArray(qaExtra.tricks) ? qaExtra.tricks : [];
+    const weak = Array.isArray(qaExtra.weak) ? qaExtra.weak : [];
     const themes = ['All'].concat(items.map(x => x.theme).filter((v, i, a) => v && a.indexOf(v) === i));
     const seg = '<div class="gr_seg gr_wide">' +
       [['browse', 'Browse'], ['practice', 'Practice']].map(v =>
@@ -96158,22 +96253,67 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               '<button class="gr_ghost" data-gr-qa-edit="' + x.id + '">Cancel</button><span class="gr_sp"></span>' +
               '<button class="gr_danger" data-gr-qa-del="' + x.id + '">Delete</button></div></section>';
         }
+        const asked = Number(x.n) || 0;
+        const rank = ranked.indexOf(x) + 1;
         return '<section class="gr_qa3' + (open ? ' gr_qaon' : '') + '">' +
           '<button class="gr_qah" data-gr-qa-open="' + x.id + '" aria-expanded="' + open + '">' +
-            '<span><em>' + esc(x.theme || 'General') + '</em><b>' + esc(x.q) + '</b></span>' +
-            '<i>' + (open ? '&#9650;' : '&#9660;') + '</i></button>' +
+            // The rank says which questions come up most, which is the whole reason to
+            // read this list top to bottom rather than hunt through it.
+            (asked ? '<b class="gr_qrk">' + rank + '</b>' : '<b class="gr_qrk gr_qai">New</b>') +
+            '<span><em>' + esc(x.theme || 'General') + '</em><b>' + esc(x.q) + '</b>' +
+              (asked ? '<u><s style="width:' + Math.max(6, Math.round(asked / mostAsked * 100)) + '%"></s></u>' : '') +
+            '</span>' +
+            '<i>' + (asked ? asked + 'x' : (open ? '&#9650;' : '&#9660;')) + '</i></button>' +
           (open ? '<div class="gr_qab">' +
             (x.feel ? '<div class="gr_qaf"><span>What they are really asking</span><p>' + esc(x.feel) + '</p></div>' : '') +
             '<div class="gr_qaa"><span>The best answer</span><p>' + esc(x.better || '') + '</p>' +
               (x.why ? '<p class="gr_qaw">' + esc(x.why) + '</p>' : '') + '</div>' +
             ((x.tricks || []).length ? '<div class="gr_tags">' +
               x.tricks.map(t => '<span class="gr_tg">' + esc(t) + '</span>').join('') + '</div>' : '') +
+            (x.a ? '<div class="gr_qaf"><span>How you usually answer</span><p>' + esc(x.a) + '</p></div>' : '') +
+            /* What was actually said on a call, and a better way to say it. This is the
+               part a rep learns from: a model answer in the abstract is advice, the same
+               answer next to the words somebody really used is a correction. */
+            ((x.ex || []).length
+              ? '<div class="gr_qax"><span>' +
+                  (asked ? 'Asked ' + asked + ' times across ' + esc(String(x.calls || 'several')) + ' calls. ' : '') +
+                  'Here is what was said, and a better way.</span>' +
+                (grQaAll[x.id] ? x.ex : x.ex.slice(0, 3)).map(e =>
+                  '<div class="gr_qe"><div class="gr_qeq"><em>' + esc(e.call || 'A call') + '</em>' +
+                    '<b>' + esc(e.q || '') + '</b></div>' +
+                  '<div class="gr_qea"><span>You said</span><p>' + esc(e.a || '') + '</p></div>' +
+                  (e.better ? '<div class="gr_qeb"><span>Better</span><p>' + esc(e.better) + '</p>' +
+                    (e.trick ? '<i>' + esc(e.trick) + '</i>' : '') + '</div>' : '') +
+                  (e.url ? '<a href="' + esc(e.url) + (e.s != null ? '?timestamp=' + Math.round(e.s) : '') +
+                    '" target="_blank" rel="noopener" data-gr-stop>&#9654; Hear it in the call</a>' : '') +
+                  '</div>').join('') +
+                (x.ex.length > 3
+                  ? '<button class="gr_ghost gr_sm" data-gr-qa-all="' + x.id + '">' +
+                    (grQaAll[x.id] ? 'Show fewer' : 'Show all ' + x.ex.length) + '</button>'
+                  : '') +
+                '</div>'
+              : '') +
             (grIsStaff() ? '<div class="gr_csx"><span class="gr_sp"></span>' +
               '<button class="gr_ib" data-gr-qa-edit="' + x.id + '" title="Edit" aria-label="Edit">' + GR_PEN + '</button></div>' : '') +
           '</div>' : '') + '</section>';
       }).join('')
         : grEmpty('&#128269;', q ? 'Nothing matches that' : 'No questions yet',
             q ? 'Try part of a question.' : (grIsStaff() ? 'Add the first one below.' : 'Luke is still writing these.'))) +
+      /* Both of these are about the list as a whole, so they only make sense when you
+         are looking at the whole list -- searching or filtering hides them rather than
+         showing "tricks from your calls" above three matching rows. */
+      ((tricks.length && !q && grQaTheme === 'All')
+        ? '<div class="gr_sech"><h3>Tricks from your calls</h3></div>' +
+          '<div class="gr_tkg">' + tricks.map((t, i) =>
+            '<div class="gr_tkc"><i>' + (i + 1) + '</i><b>' + esc(t.t || '') + '</b>' +
+            '<p>' + esc(t.b || '') + '</p></div>').join('') + '</div>'
+        : '') +
+      ((weak.length && !q && grQaTheme === 'All')
+        ? '<div class="gr_sech"><h3>Answers to tighten</h3></div>' +
+          weak.map(w => '<section class="gr_card gr_wk"><h4>' + esc(w.q || '') + '</h4>' +
+            (w.why ? '<p class="gr_mute">' + esc(w.why) + '</p>' : '') +
+            (w.fix ? '<p><b>Fix:</b> ' + esc(w.fix) + '</p>' : '') + '</section>').join('')
+        : '') +
       (grIsStaff()
         ? '<div class="gr_task gr_addt"><input class="gr_in gr_flat" id="grNewQa" ' +
           'placeholder="Add a question people ask..." aria-label="New question">' +
@@ -96662,17 +96802,29 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       ['fathom', false, 'Not built yet. Call notes can be pasted onto a client in the meantime.']
     ];
     const live = rows.filter(r => r[1] === true).length;
+    // Off is not the same as not connected. A connector can be working perfectly and
+    // still be something you want Growth to leave alone for a week -- Calendly during a
+    // migration, Claude while somebody is watching the bill. Off here means Growth stops
+    // using it; the connection itself is untouched, so turning it back on is one click
+    // and not another round of OAuth.
+    const offMap = grSettings.connectors_off || {};
 
     $('grConnectors').innerHTML =
       grHead('Connectors', live + ' of ' + rows.length + ' connected', '') +
       '<section class="gr_card gr_connl">' + rows.map(r => {
         const k = r[0], open = grConnOpen === k, meta = GR_CONN[k];
-        return '<div class="gr_cnw' + (open ? ' gr_cnon' : '') + '">' +
+        const off = !!offMap[k];
+        return '<div class="gr_cnw' + (open ? ' gr_cnon' : '') + (off ? ' gr_cnoff' : '') + '">' +
           '<button class="gr_row gr_cnrow" data-gr-conn="' + k + '" aria-expanded="' + open + '">' +
-            '<span class="gr_lt ' + (r[1] === true ? 'gr_on' : r[1] === null ? 'gr_wait' : 'gr_off') + '"></span>' +
-            '<span class="gr_rm"><b>' + esc(meta.name) + '</b><span>' + esc(r[2]) + '</span></span>' +
-            '<span class="gr_st ' + (r[1] === true ? 'ok' : '') + '">' +
-              esc(r[3] || (r[1] === true ? 'Connected' : r[1] === null ? 'Checking' : 'Not connected')) + '</span>' +
+            '<span class="gr_lt ' + (off ? 'gr_off' : r[1] === true ? 'gr_on' : r[1] === null ? 'gr_wait' : 'gr_off') + '"></span>' +
+            '<span class="gr_rm"><b>' + esc(meta.name) + '</b><span>' +
+              esc(off ? 'Switched off here. The connection is untouched.' : r[2]) + '</span></span>' +
+            '<span class="gr_st ' + (!off && r[1] === true ? 'ok' : '') + '">' +
+              esc(off ? 'Off' : (r[3] || (r[1] === true ? 'Connected' : r[1] === null ? 'Checking' : 'Not connected'))) + '</span>' +
+            (grIsStaff() && r[1] === true
+              ? '<span class="gr_sw"><input type="checkbox" class="gr_tck" data-gr-conn-use="' + k + '"' +
+                (off ? '' : ' checked') + ' aria-label="Use ' + esc(meta.name) + ' in Growth"></span>'
+              : '') +
             '<span class="gr_cnc" aria-hidden="true">' + (open ? '&#9650;' : '&#9660;') + '</span>' +
           '</button>' +
           (open ? '<div class="gr_cnp">' + grConnPanel(k, r[1]) + '</div>' : '') +
@@ -96779,6 +96931,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
          { k: 'gmail', label: 'Gmail replies', said: 'Nothing reported yet', ok: null },
          { k: 'fathom', label: 'Fathom call notes', said: 'Nothing reported yet', ok: null }];
     const nextIn = mins == null ? '' : mins >= 30 ? 'any moment' : 'in ' + Math.max(1, Math.round(30 - mins)) + ' min';
+    /* A step whose connector has been switched off on Connectors says so, rather than
+       reporting "nothing found" every half hour and reading as a fault. Hidden rows are
+       a separate thing: somebody who is never going to use Fathom should be able to stop
+       reading about it, and that must not look like a connector being off. */
+    const offMap = grSettings.connectors_off || {};
+    const hidden = grSettings.automations_hidden || {};
+    const shown = steps.filter(function (st) { return !hidden[st.k]; });
+    const hiddenCount = steps.length - shown.length;
 
     $('grAutomations').innerHTML =
       grHead('Automations', 'Everything that runs for Growth, and what it does', '') +
@@ -96793,12 +96953,23 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           (last && last.ms ? '<span>Took ' + (last.ms < 1000 ? last.ms + ' ms' : (last.ms / 1000).toFixed(1) + ' s') + '</span>' : '') +
         '</div>' +
         '<div class="gr_aut">What it does every run</div>' +
-        '<ol class="gr_aus">' + steps.map(st2 =>
-          '<li' + (st2.ok === null || st2.ok === undefined ? ' class="gr_auoff"' : '') + '>' +
-            '<i class="' + (st2.ok === true ? 'gr_on' : st2.ok === false ? 'gr_bad' : 'gr_dim') + '"></i>' +
+        '<ol class="gr_aus">' + shown.map(function (st2) {
+          const isOff = !!offMap[st2.k];
+          return '<li' + (isOff || st2.ok === null || st2.ok === undefined ? ' class="gr_auoff"' : '') + '>' +
+            '<i class="' + (isOff ? 'gr_dim' : st2.ok === true ? 'gr_on' : st2.ok === false ? 'gr_bad' : 'gr_dim') + '"></i>' +
             '<div><b>' + esc(st2.label || st2.k) + '</b>' +
               '<span>' + esc(GR_STEPS[st2.k] || '') + '</span></div>' +
-            '<em>' + esc(st2.said || '') + '</em></li>').join('') + '</ol>' +
+            '<em>' + esc(isOff ? 'Switched off on Connectors' : (st2.said || '')) + '</em>' +
+            (grIsStaff()
+              ? '<button class="gr_ib gr_rm" data-gr-auhide="' + esc(st2.k) +
+                '" title="Hide this row" aria-label="Hide ' + esc(st2.label || st2.k) + '">&#10005;</button>'
+              : '') +
+            '</li>';
+        }).join('') + '</ol>' +
+        (hiddenCount && grIsStaff()
+          ? '<button class="gr_ghost gr_sm" data-gr-aushow>Show ' + hiddenCount +
+            ' hidden row' + (hiddenCount === 1 ? '' : 's') + '</button>'
+          : '') +
         (last && last.note
           ? '<div class="gr_aur"><span>Last result</span>' + esc(last.note) + '</div>' : '') +
       '</section>' +
@@ -97045,7 +97216,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           '<p class="gr_mute">Added to the bottom of every email Growth sends.</p>' +
           '<div class="gr_two">' + f('name','Name','Luke Griffin') + f('title','Title or company','ReachGiant') + '</div>' +
           '<div class="gr_two">' + f('phone','Phone','') + f('email','Email','big@reachgiant.com') + '</div>' +
-          f('site','Website','reachgiant.com') + '</section>';
+          f('site','Website','reachgiant.com') +
+          f('image','Logo or photo (link)','https://reachgiant.com/logo.png') +
+          '<p class="gr_mute">Emails from Growth send as plain text, so the picture shows ' +
+          'in the preview here and not in the sent email. The name, title and links do go.</p>' +
+          grSigPreview() + '</section>';
     }
 
     $('grSettings').innerHTML =
@@ -97103,7 +97278,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     return {
       name:  g.name || (window.giantCurrentProfile && window.giantCurrentProfile.full_name) || '',
       title: g.title || '', phone: g.phone || '',
-      email: g.email || grGmail.email || '', site: g.site || ''
+      email: g.email || grGmail.email || '', site: g.site || '',
+      image: g.image || ''
     };
   }
   function grSigText() {
@@ -97113,7 +97289,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   function grSigPreview() {
     const g = grSigLines();
     if (!g.name && !g.title) return '<p class="gr_mute">No signature set yet. Add one in Growth settings and it goes on every email from here.</p>';
-    return '<div class="gr_sig"><b>' + esc(g.name) + '</b>' +
+    return '<div class="gr_sig">' +
+      /* A logo, if one is set. It is shown here and nowhere else on purpose: Gmail's
+         send path in this app builds a text/plain message, so a picture cannot travel
+         with it. The line under the box on Settings says so rather than letting somebody
+         believe their logo is going out on every email. */
+      (g.image ? '<img class="gr_sigimg" src="' + esc(g.image) + '" alt="">' : '') +
+      '<b>' + esc(g.name) + '</b>' +
       (g.title ? esc(g.title) + '<br>' : '') +
       [g.email, g.site, g.phone].filter(Boolean).map(function (x) { return '<i>' + esc(x) + '</i>'; }).join(' &nbsp;|&nbsp; ') +
       '</div>';
@@ -97442,7 +97624,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const gmail = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(c.email || '') +
       '&su=' + encodeURIComponent(k.subject) + '&body=' + encodeURIComponent(k.body + (sig ? '\n\n' + sig : ''));
     const drop = '<span aria-hidden="true">&#9662;</span>';
-    return '<div class="gr_compw" data-gr-cwrap><div class="gr_comp">' +
+    // A reply with the thread beside it, so you are not writing from memory. On a new
+    // email there is nothing to show and the box stays on its own.
+    const thread = grThread(c);
+    return '<div class="gr_compw" data-gr-cwrap>' +
+      (thread.length ? '<div class="gr_rsg">' + grConvoPane(c) : '') +
+      '<div class="gr_comp">' +
       '<div class="gr_ch">' + grAvatar(c.name, grStageColor(c.stage), 'gr_sm2') +
         '<div class="gr_chi"><b>New email to ' + esc(grFirst(c)) + '</b>' +
           '<span>From ' + esc(grGmail.email || 'your Gmail, once it is connected') + '</span></div>' +
@@ -97480,7 +97667,45 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       '</div>' +
       (grGmail.ready ? '<div class="gr_mute">Sends from ' + esc(grGmail.email || 'your Gmail') + '.</div>'
                      : '<div class="gr_mute">Gmail is not connected for you yet. Open Email in the sidebar and connect it once, then Send works here too.</div>') +
-      '</div></div>';
+      '</div>' + (thread.length ? '</div>' : '') + '</div>';
+  }
+
+  /* What they actually wrote, beside the box you are writing in. Replying from memory
+     is how a question in the second paragraph goes unanswered, and the alternative --
+     closing the composer to re-read the thread -- loses the draft. The newest message is
+     open; older ones are there but folded, because the one that matters is the last one.
+
+     "Good to know" is the call note's headline and what they want, or the summary if
+     there is no note. It is the thing somebody would otherwise go and look up. */
+  function grConvoPane(c) {
+    const th = grThread(c).slice().reverse();
+    const li = grLastIn(c), f = grFirst(c);
+    const now = th[0];
+    const msg = (m, cls) => '<div class="gr_rsm ' + cls + '">' +
+      '<div class="gr_rsmh"><b>' + esc(m.direction === 'in' ? f : 'You') + '</b>' +
+      '<time>' + esc(grFmt(m.sent_at)) + '</time></div>' +
+      '<div class="gr_rsmb">' + esc(m.body || '') + '</div></div>';
+    const older = th.slice(1, 6).map(m =>
+      '<details class="gr_rso"><summary><b>' + esc(m.direction === 'in' ? f : 'You') + '</b>' +
+      '<span>' + esc(grSnip(m.body, 60)) + '</span>' +
+      '<time>' + esc(grFmt(m.sent_at)) + '</time></summary>' +
+      '<div class="gr_rsmb">' + esc(m.body || '') + '</div></details>').join('');
+    const note = (c.call_notes || [])[0];
+    const know = [];
+    if (note && note.headline) know.push('<p>' + esc(note.headline) + '</p>');
+    if (note && (note.wants || []).length) {
+      know.push('<ul>' + note.wants.slice(0, 3).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>');
+    } else if (String(c.summary || '').trim()) {
+      know.push('<p>' + esc(grSnip(c.summary, 220)) + '</p>');
+    }
+    return '<aside class="gr_rsl">' +
+      '<div class="gr_rsk">' + esc(now && now.direction === 'in' ? f + ' wrote' : 'Last message') +
+        (li ? '<em>' + esc(grIntent(li.body)) + '</em>' : '') + '</div>' +
+      (now ? msg(now, now.direction) : '<p class="gr_mute">No messages yet.</p>') +
+      (older ? '<div class="gr_rsk gr_sm3">Earlier</div>' + older : '') +
+      (know.length ? '<div class="gr_rsknow"><div class="gr_rsk gr_sm3">Good to know</div>' +
+        know.join('') + '</div>' : '') +
+      '</aside>';
   }
 
   /* The four dropdowns on the composer and the one on Do next. Built where they are
@@ -97898,6 +98123,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (add) { grAddClient(); return; }
 
     if (e.target.closest('[data-gr-cal-sync]')) { grCalendlySync(); return; }
+    // The switch sits inside the row button, so without this a tap on it would also
+    // open and shut the panel underneath it.
+    if (e.target.closest('[data-gr-conn-use]')) return;
     const cnr = e.target.closest('[data-gr-conn]');
     if (cnr) { grConnOpen = grConnOpen === cnr.dataset.grConn ? null : cnr.dataset.grConn; grRender(); return; }
     if (e.target.closest('[data-gr-conn-gmail]'))   { grGmailConnect(); return; }
@@ -97905,6 +98133,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (e.target.closest('[data-gr-cal-forget]'))   { grCalForget(); return; }
     if (e.target.closest('[data-gr-conn-recheck]')) { grReprobe(); return; }
     if (e.target.closest('[data-gr-conn-test]'))    { grTestClaude(); return; }
+    const ah = e.target.closest('[data-gr-auhide]');
+    if (ah) {
+      const map = Object.assign({}, grSettings.automations_hidden || {});
+      map[ah.dataset.grAuhide] = true;
+      grSettings.automations_hidden = map;
+      grSetting('automations_hidden', map).then(function (r) { if (!r) window.grReload(); });
+      grRender();
+      return;
+    }
+    if (e.target.closest('[data-gr-aushow]')) {
+      grSettings.automations_hidden = {};
+      grSetting('automations_hidden', {}).then(function (r) { if (!r) window.grReload(); });
+      grRender();
+      return;
+    }
+
     const won = e.target.closest('[data-gr-won]');
     if (won) { grWon = { id: won.dataset.grWon, v: null }; grRender(); return; }
 
@@ -98304,6 +98548,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (qv) { grQaView = qv.dataset.grQaview; grRender(); return; }
     const qt = e.target.closest('[data-gr-qatheme]');
     if (qt) { grQaTheme = qt.dataset.grQatheme; grRender(); return; }
+    const qall = e.target.closest('[data-gr-qa-all]');
+    if (qall) {
+      const k = qall.dataset.grQaAll;
+      grQaAll[k] = !grQaAll[k];
+      grRender();
+      return;
+    }
     const qo = e.target.closest('[data-gr-qa-open]');
     if (qo) { const k = qo.dataset.grQaOpen; grQaOpen[k] = !grQaOpen[k]; grRender(); return; }
     const qe2 = e.target.closest('[data-gr-qa-edit]');
@@ -98625,6 +98876,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         grWrite('growth_watch_calls', 'update', { learned: e.target.value }, d.grWatchMine); }
       return;
     }
+    if (d.grWatchMom) {
+      /* "2:42 :: Price :: What does it cost?" per line. A line with no time is kept at
+         0 rather than thrown away -- somebody jotting the question first and the
+         timestamp after should not lose the question. */
+      const w2 = grWatch.find(x => x.id === d.grWatchMom);
+      if (w2) {
+        const list = String(e.target.value || '').split('\n').map(function (line) {
+          const p = line.split(' :: ');
+          const t = String(p[0] || '').trim();
+          const mm = t.match(/^(\d+):(\d{1,2})$/);
+          const secs = mm ? (Number(mm[1]) * 60 + Number(mm[2])) : (Number(t.replace(/[^0-9]/g, '')) || 0);
+          return { s: secs, theme: String(p[1] || '').trim(), q: String(p[2] || '').trim() };
+        }).filter(function (x) { return x.q || x.theme; });
+        w2.moments = list;
+        grWrite('growth_watch_calls', 'update', { moments: list }, d.grWatchMom);
+      }
+      return;
+    }
     if (d.grStageLabel || d.grStageColour) {
       const key = d.grStageLabel || d.grStageColour;
       grSaveStages(grStages.map(function (x) {
@@ -98662,7 +98931,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (d.grSig) {
       const sig = Object.assign({}, grSettings.signature || {});
       sig[d.grSig] = e.target.value;
-      grSetting('signature', sig);
+      grSetting('signature', sig).then(function (r) { if (!r) window.grReload(); });
+      // grSetting updates the settings and saves, but does not repaint, so the preview
+      // underneath sat showing the signature as it was before the change.
+      grRender();
       return;
     }
   });
@@ -98671,6 +98943,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const c = grClients.find(x => x.id === grOpenId);
     const sel = e.target.closest('[data-gr-stage-sel]');
     if (sel && c) { grSave(c, { stage: sel.value, won_on: sel.value === 'won' ? grToday() : c.won_on }); return; }
+    const cu = e.target.closest('[data-gr-conn-use]');
+    if (cu) {
+      const k2 = cu.dataset.grConnUse;
+      const map = Object.assign({}, grSettings.connectors_off || {});
+      if (cu.checked) delete map[k2]; else map[k2] = true;
+      grSettings.connectors_off = map;
+      grSetting('connectors_off', map).then(function (r) { if (!r) window.grReload(); });
+      grRender();
+      return;
+    }
     const tm = e.target.closest('[data-gr-team]');
     if (tm) {
       // Saved as the whole list rather than a diff, because two people ticking at the

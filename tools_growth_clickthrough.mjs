@@ -744,6 +744,76 @@ await step('Settings: a discount code can be added', async () => {
 /* Who works in Growth. The owner dropdown on a deal used to list every profile in the
    company -- 79 of them -- and the course listed the same crowd. It now reads a list
    kept here. Driven, because a tick that paints and never saves is the failure. */
+/* A step on Automations whose connector has been switched off reports "nothing found"
+   every half hour and reads as a fault. And somebody who is never going to use Fathom
+   should be able to stop reading about it. */
+await step('Automations rows can be hidden and brought back', async () => {
+  await navOf('gr_automations').click();
+  await page.waitForTimeout(800);
+  const before = await page.evaluate(() => ({
+    rows: [...document.querySelectorAll('#grAutomations .gr_aus li')].map(li =>
+      (li.querySelector('b') || {}).textContent),
+    hide: document.querySelectorAll('#grAutomations [data-gr-auhide]').length
+  }));
+  check('every step is listed', before.rows.length >= 3, JSON.stringify(before.rows));
+  check('and staff are offered a way to hide one', before.hide === before.rows.length,
+    before.hide + ' of ' + before.rows.length);
+
+  await page.locator('#grAutomations [data-gr-auhide]').last().click();
+  await page.waitForTimeout(800);
+  const after = await page.evaluate(() => ({
+    rows: document.querySelectorAll('#grAutomations .gr_aus li').length,
+    show: (document.querySelector('#grAutomations [data-gr-aushow]') || {}).textContent || '',
+    saved: (window.__mockDB.growth_settings.find(x => x.key === 'automations_hidden') || {}).value
+  }));
+  check('the row goes', after.rows === before.rows.length - 1,
+    before.rows.length + ' -> ' + after.rows);
+  // Hidden, not forgotten: a row that vanishes with no way back is a row somebody has
+  // to ask a developer about.
+  check('and the screen says how many are hidden', /Show 1 hidden row/.test(after.show), after.show);
+  check('it is remembered in the database', after.saved && Object.keys(after.saved).length === 1,
+    JSON.stringify(after.saved));
+
+  await page.locator('#grAutomations [data-gr-aushow]').click();
+  await page.waitForTimeout(800);
+  const back = await page.evaluate(() => ({
+    rows: document.querySelectorAll('#grAutomations .gr_aus li').length,
+    show: document.querySelectorAll('#grAutomations [data-gr-aushow]').length
+  }));
+  check('showing them again brings the row back', back.rows === before.rows.length,
+    back.rows + ' vs ' + before.rows.length);
+  check('and the button goes away', back.show === 0, back.show + '');
+});
+
+await step('Settings: the signature can carry a logo, and says where it shows', async () => {
+  await navOf('gr_settings').click();
+  await page.waitForTimeout(700);
+  await page.locator('[data-gr-settab="team"]').click();
+  await page.waitForTimeout(500);
+  const has = await page.evaluate(() => ({
+    box: !!document.querySelector('[data-gr-sig="image"]'),
+    // Growth sends plain text, so a logo cannot travel with the email. Saying so is the
+    // whole point: a picture that silently never arrives is worse than no picture.
+    says: (document.getElementById('grSettings') || {}).innerText || ''
+  }));
+  check('there is a field for it', has.box);
+  check('and it says plainly that the picture does not go in the email',
+    /plain text/i.test(has.says) && /not in the sent email/i.test(has.says),
+    (has.says.match(/Emails from Growth[^.]*\./) || [''])[0]);
+
+  await page.locator('[data-gr-sig="image"]').fill('https://example.com/logo.png');
+  await page.evaluate(() => { const el = document.querySelector('[data-gr-sig="image"]'); if (el) el.blur(); });
+  await page.waitForTimeout(900);
+  const saved = await page.evaluate(() => {
+    const row = window.__mockDB.growth_settings.find(x => x.key === 'signature');
+    return { url: row && row.value && row.value.image,
+             img: (document.querySelector('#grSettings .gr_sigimg') || {}).getAttribute
+                  ? document.querySelector('#grSettings .gr_sigimg').getAttribute('src') : null };
+  });
+  check('the link is saved', saved.url === 'https://example.com/logo.png', String(saved.url));
+  check('and the preview shows it', saved.img === 'https://example.com/logo.png', String(saved.img));
+});
+
 await step('Settings: ticking somebody puts them in Growth', async () => {
   await page.locator('[data-gr-settab="team"]').click();
   await page.waitForTimeout(450);

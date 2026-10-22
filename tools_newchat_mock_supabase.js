@@ -550,6 +550,10 @@
       tags: ['Google Ads','SEO'], outcome: 'Pitched $2.5k ad spend plus branding',
       note: 'Meta ads wrecked by bots, moved to Google Ads and SEO.',
       learned: 'Watch how the budget worry gets named out loud before any price is said.', position: 0,
+      // 20261022190000. Two of them, so "more than one row" and the per-row link are
+      // both real measurements rather than one row repeated.
+      moments: [{ s: 162, theme: 'Price', q: 'What does it actually cost?' },
+                { s: 905, theme: 'Contract', q: 'Am I locked in for a year?' }],
       added_by: ME, created_at: giso(40,0) }
   ];
   DB.growth_discounts = [
@@ -616,17 +620,61 @@
         { id: 'cost', theme: 'Pricing and budget', q: 'How much does it cost?',
           a: 'Everything is on our pricing page. I can walk you through what fits your goals.' } ] },
       updated_at: iso(30,0), updated_by: ME },
+    // DECLARED in the opposite order to how they should RANK: q-lock is first here and is
+    // asked 5 times, q-budget is second and asked 12. A list that forgets to sort by how
+    // often a question comes up then looks wrong on screen, which is the point -- with
+    // the fixture already in rank order, dropping the sort changed nothing and the check
+    // was reading the fixture rather than the code.
     { key: 'qa', value: { items: [
-        { id: 'q-budget', theme: 'Pricing and budget', q: 'Is it worth it at my budget?',
-          feel: 'They are afraid of spending money and getting nothing back.',
-          better: 'Start small, fix the tracking first, and only grow when it works.',
-          why: 'Answer the fear, not the number.', tricks: ['Name the fear out loud'] },
         { id: 'q-lock', theme: 'Contracts and commitment', q: 'I do not want a long contract.',
           feel: 'They have been trapped before.',
           better: 'No annual lock in. Three month minimum and a 10 day exit.',
-          why: 'Say the exit before they ask for it.', tricks: ['Offer the exit first'] } ] },
+          why: 'Say the exit before they ask for it.', tricks: ['Offer the exit first'] },
+        { id: 'q-budget', theme: 'Pricing and budget', q: 'Is it worth it at my budget?',
+          feel: 'They are afraid of spending money and getting nothing back.',
+          better: 'Start small, fix the tracking first, and only grow when it works.',
+          why: 'Answer the fear, not the number.', tricks: ['Name the fear out loud'] } ] },
       updated_at: iso(30,0), updated_by: ME }
   );
+  // How often each question comes up, and four examples on the first one so "show all"
+  // has something to reveal. q-budget is asked more than q-lock, so the ranking and the
+  // bar widths are a real measurement rather than two identical rows.
+  (function () {
+    const qa = DB.growth_settings.find(function (x) { return x.key === 'qa'; });
+    const byId = {};
+    qa.value.items.forEach(function (it) { byId[it.id] = it; });
+    byId['q-budget'].n = 12; byId['q-budget'].calls = 9;
+    byId['q-budget'].a = 'I usually say it depends on the spend.';
+    byId['q-budget'].ex = [
+      { call: 'Amy Neighbors', q: 'Is $1,500 enough to see anything?',
+        a: 'It depends on your spend really.',
+        better: 'At $1,500 we fix tracking first, then scale what converts.',
+        trick: 'Give the first month a job', url: 'https://fathom.video/share/example', s: 162 },
+      { call: 'Harbour Dental', q: 'What if it does not work?',
+        a: 'We would look at the numbers.',
+        better: 'Three months is the test. If the numbers are not there we say so.',
+        trick: 'Name the test', url: 'https://fathom.video/share/example', s: 410 },
+      { call: 'Bluewater Roofing', q: 'Why is it that much a month?',
+        a: 'That is our standard rate.',
+        better: 'It is the management, not the ads. The spend is yours and stays yours.' },
+      { call: 'Mesa Pet Clinic', q: 'Can we start smaller?',
+        a: 'Sure, we can work something out.',
+        better: 'Yes. One service, one month, and we grow it when it pays.' }
+    ];
+    byId['q-lock'].n = 5; byId['q-lock'].calls = 4;
+    byId['q-lock'].ex = [{ call: 'Amy Neighbors', q: 'Am I locked in for a year?',
+      a: 'No, it is three months.',
+      better: 'No annual lock in. Three month minimum, then ten days notice any time.',
+      url: 'https://fathom.video/share/example', s: 905 }];
+    DB.growth_settings.push({ key: 'qa_extra', value: {
+      tricks: [{ t: 'Name the fear out loud', b: 'Say the worry before they do and it stops being a weapon.' },
+               { t: 'Give the first month a job', b: 'A month with a purpose is easier to buy than a month of hope.' },
+               { t: 'Offer the exit first', b: 'People commit faster when leaving is easy.' }],
+      weak: [{ q: 'Why is it that much a month?',
+               why: 'The answer was "that is our standard rate", which defends the price instead of explaining it.',
+               fix: 'Separate the fee from the spend, then say what the fee buys.' }]
+    }, updated_at: iso(30,0), updated_by: ME });
+  })();
   // Nobody has started the course: "0 of 3" and the Start button are the first thing a
   // rep sees, so that is the state worth booting into.
   DB.growth_course_done = [];
