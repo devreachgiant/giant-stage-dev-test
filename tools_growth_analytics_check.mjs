@@ -383,6 +383,110 @@ await step('wins, and the range changes what is counted', async () => {
   await page.waitForTimeout(400);
 });
 
+/* The second view. Fathom is not connected, so the list is a sample -- which makes it
+   all the more important that the screen SAYS so, and that the parts that will carry
+   real data (the search, the weekly bars, the per-person tally) actually work now
+   rather than being drawn once and discovered broken on the day the data arrives. */
+await step('Analytics has a second view for the calls', async () => {
+  await page.locator('#grAnalytics [data-gr-anview="fathom"]').click();
+  await page.waitForTimeout(500);
+  const m = await page.evaluate(() => {
+    const el = document.getElementById('grAnalytics');
+    return {
+      sub: (el.querySelector('.gr_sub, .gr_hd p, header p') || {}).textContent || el.innerText.slice(0, 120),
+      sample: !!el.querySelector('.gr_samp'),
+      heroes: [...el.querySelectorAll('.gr_hero .gr_hl')].map(x => x.textContent.trim()),
+      cards: [...el.querySelectorAll('.gr_ct h2')].map(x => x.textContent.trim()),
+      rows: el.querySelectorAll('.gr_fc').length,
+      count: (el.querySelector('[data-gr-anview="fathom"] b') || {}).textContent,
+      search: !!document.getElementById('grFcQ')
+    };
+  });
+  check('it says plainly that these are sample calls', m.sample);
+  check('the three cards are there',
+    JSON.stringify(m.cards) === JSON.stringify(['Calls per week', 'By salesperson', 'All sales calls']),
+    JSON.stringify(m.cards));
+  check('with four heroes above them', m.heroes.length === 4, JSON.stringify(m.heroes));
+  check('the tab carries the number of calls', Number(m.count) > 0, m.count);
+  check('and the list is rendered', m.rows > 0, m.rows + ' rows');
+  check('there is a search box', m.search);
+  await shot('23-fathom');
+});
+
+await step('the per-week bars and the per-person tally add up', async () => {
+  const m = await page.evaluate(() => {
+    const el = document.getElementById('grAnalytics');
+    const weeks = [...el.querySelectorAll('.gr_wk')].map(k => ({
+      n: Number(k.querySelector('b').textContent),
+      h: Math.round(k.querySelector('.gr_bars i').getBoundingClientRect().height)
+    }));
+    const reps = [...el.querySelectorAll('.gr_sr')].map(r => ({
+      who: r.querySelector('span').textContent.trim(), n: Number(r.querySelector('b').textContent) }));
+    return { weeks, reps, total: Number((el.querySelector('[data-gr-anview="fathom"] b') || {}).textContent) };
+  });
+  check('eight weeks of bars', m.weeks.length === 8, m.weeks.length + '');
+  // Pixels, not presence: a bar at 0px high has passed a check in this repo before.
+  check('a week with calls draws a taller bar than a week without',
+    Math.max(...m.weeks.map(w => w.h)) > Math.min(...m.weeks.map(w => w.h)) ||
+    m.weeks.every(w => w.n === m.weeks[0].n), JSON.stringify(m.weeks));
+  check('the busiest week has the tallest bar',
+    m.weeks.reduce((a, b) => a.n >= b.n ? a : b).h === Math.max(...m.weeks.map(w => w.h)),
+    JSON.stringify(m.weeks));
+  check('every salesperson in the list is named', m.reps.length > 0 && m.reps.every(r => r.who.length > 1),
+    JSON.stringify(m.reps));
+  // The per-person counts must account for every call, or one of them is being dropped.
+  check('their calls add up to the total',
+    m.reps.reduce((n, r) => n + r.n, 0) === m.total,
+    m.reps.reduce((n, r) => n + r.n, 0) + ' vs ' + m.total);
+});
+
+await step('the search actually filters, and the caret stays put', async () => {
+  const before = await page.locator('#grAnalytics .gr_fc').count();
+  const who = await page.evaluate(() => {
+    const r = document.querySelector('#grAnalytics .gr_fc .gr_cll');
+    return r ? r.textContent.trim() : '';
+  });
+  await page.locator('#grFcQ').click();
+  await page.keyboard.type(who.slice(0, 5));
+  await page.waitForTimeout(600);
+  const after = await page.evaluate(() => ({
+    rows: document.querySelectorAll('#grAnalytics .gr_fc').length,
+    value: (document.getElementById('grFcQ') || {}).value,
+    caret: (document.getElementById('grFcQ') || {}).selectionStart,
+    focused: document.activeElement && document.activeElement.id,
+    // Every row left should be that person's.
+    allTheirs: [...document.querySelectorAll('#grAnalytics .gr_fc')]
+      .every(r => (r.textContent || '').toLowerCase().includes(document.getElementById('grFcQ').value.toLowerCase()))
+  }));
+  // Typing five letters into a box that re-renders every keystroke: without putting the
+  // caret back, the letters land in reverse and the value comes out scrambled.
+  check('the five letters typed arrive in the order they were typed',
+    after.value === who.slice(0, 5), after.value + ' vs ' + who.slice(0, 5));
+  check('the caret is still at the end', after.caret === 5, after.caret + '');
+  check('and the box still has focus', after.focused === 'grFcQ', after.focused);
+  check('the list is shorter than it was', after.rows < before, after.rows + ' of ' + before);
+  check('and every row left matches what was typed', after.allTheirs);
+  await page.locator('#grFcQ').fill('');
+  await page.waitForTimeout(400);
+});
+
+await step('Show 40 more adds to the list, and switching back resets it', async () => {
+  const first = await page.locator('#grAnalytics .gr_fc').count();
+  check('the list is capped to start with', first === 40, first + '');
+  await page.locator('#grAnalytics [data-gr-fcmore]').click();
+  await page.waitForTimeout(450);
+  const second = await page.locator('#grAnalytics .gr_fc').count();
+  check('and the button shows the rest', second > first, second + ' after ' + first);
+  await page.locator('#grAnalytics [data-gr-anview="sales"]').click();
+  await page.waitForTimeout(450);
+  const sales = await page.evaluate(() =>
+    [...document.querySelectorAll('#grAnalytics .gr_ct h2')].map(x => x.textContent.trim()));
+  check('switching back shows the sales screen again',
+    sales[0] === 'Sales funnel', JSON.stringify(sales));
+  check('and the range chips came with it',
+    await page.locator('#grAnalytics [data-gr-range]').count() === 3);
+});
+
 await step('nothing raw reaches the screen', async () => {
   const raw = await page.evaluate(() => {
     const t = document.getElementById('grAnalytics').innerText || '';

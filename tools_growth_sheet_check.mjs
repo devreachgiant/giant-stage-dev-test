@@ -510,6 +510,105 @@ await step('marking lost records the reason that was chosen', async () => {
   check('and the sheet now says so', /lost/i.test(bar), bar.replace(/\s+/g, ' ').trim());
 });
 
+/* The Info tab had name, company, email, phone, website and value. The design also
+   asks where they are, what time it is there, how they found us, and what they wrote on
+   the booking form -- which was being stored and SCORED all along and shown nowhere, so
+   the only way to read a prospect's budget was the console. */
+await step('Info has the contact, location and form blocks', async () => {
+  // Michael (gc-1) specifically: he is the one who came in through the booking form and
+  // has a time zone. Whichever card happens to be first is not the same thing.
+  await page.keyboard.press('Escape'); await page.waitForTimeout(350);
+  const found = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('#grPipeline .gr_bc')].find(x => /Michael/.test(x.textContent));
+    if (el) el.click();
+    return !!el;
+  });
+  check('Michael is on the board to open', found);
+  await page.waitForTimeout(450);
+  await page.locator('#grSheet [data-gr-tab="details"]').first().click();
+  await page.waitForTimeout(450);
+  const m = await page.evaluate(() => {
+    const sh = document.getElementById('grSheet');
+    return {
+      cards: [...sh.querySelectorAll('.gr_pft')].map(x => x.textContent.trim()),
+      src: !!sh.querySelector('[data-gr-f="source"]'),
+      loc: !!sh.querySelector('[data-gr-f="location"]'),
+      tz: !!sh.querySelector('select[data-gr-f="timezone"]'),
+      tzOpts: sh.querySelectorAll('select[data-gr-f="timezone"] option').length,
+      intake: [...sh.querySelectorAll('.gr_intk span')].map(x => x.textContent.trim()),
+      localTime: (sh.querySelector('.gr_tzb b') || {}).textContent
+    };
+  });
+  check('the tab is grouped into cards', m.cards.length >= 4, JSON.stringify(m.cards));
+  check('"Found us through" is there to fill in', m.src);
+  check('so is the city', m.loc);
+  check('and a time zone to choose from', m.tz && m.tzOpts > 10, m.tzOpts + ' options');
+  // The time zone is America/Chicago, so this must be a clock reading, not the zone name.
+  check('their local time is shown as a time', /\d{1,2}:\d{2}/.test(m.localTime || ''), m.localTime);
+  check('what they wrote on the form is listed', m.intake.length >= 5, JSON.stringify(m.intake));
+  check('including the budget, which was stored and never shown',
+    m.intake.some(x => /Budget/.test(x) && /\$/.test(x)), JSON.stringify(m.intake));
+});
+
+await step('the local time is right, not just present', async () => {
+  // Worked out here with Intl against the same zone. A clock that renders OUR time and
+  // calls it theirs looks completely normal on screen and is the whole point of the row.
+  const r = await page.evaluate(() => {
+    const sh = document.getElementById('grSheet');
+    const shown = (sh.querySelector('.gr_tzb b') || {}).textContent || '';
+    const want = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit',
+      hour12: true, timeZone: 'America/Chicago', timeZoneName: 'short' });
+    const here = new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    return { shown: shown.trim(), want, here };
+  });
+  check('the clock matches that time zone', r.shown === r.want, r.shown + ' vs ' + r.want);
+  check('and it is their time, not the browser\'s',
+    r.shown.indexOf(r.here) !== 0 || r.want.indexOf(r.here) === 0, JSON.stringify(r));
+});
+
+await step('choosing a time zone saves it and moves the clock', async () => {
+  await page.selectOption('#grSheet select[data-gr-f="timezone"]', 'Asia/Tokyo');
+  await page.waitForTimeout(800);
+  const after = await page.evaluate(() => {
+    const row = window.__mockDB.growth_clients.find(c => c.id === 'gc-1');
+    const sh = document.getElementById('grSheet');
+    return { saved: row && row.timezone,
+             shown: ((sh.querySelector('.gr_tzb b') || {}).textContent || '').trim(),
+             want: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit',
+               hour12: true, timeZone: 'Asia/Tokyo', timeZoneName: 'short' }) };
+  });
+  check('the new zone is written to the database', after.saved === 'Asia/Tokyo', after.saved);
+  check('and the clock on screen moved with it', after.shown === after.want,
+    after.shown + ' vs ' + after.want);
+  await page.selectOption('#grSheet select[data-gr-f="timezone"]', 'America/Chicago');
+  await page.waitForTimeout(500);
+});
+
+await step('a client with no form and no zone says so instead of showing an empty card', async () => {
+  await page.keyboard.press('Escape'); await page.waitForTimeout(350);
+  // gc-3 has no intake and no timezone, which is the ordinary case.
+  await page.evaluate(() => { window.grOpen && window.grOpen('gc-3'); });
+  const opened = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('#grPipeline .gr_bc')];
+    const el = cards.find(x => /Amna/.test(x.textContent));
+    if (el) el.click();
+    return !!el;
+  });
+  if (!opened) { check('a client with no form shows the empty shape', false, 'no card for Amna'); return; }
+  await page.waitForTimeout(450);
+  await page.locator('#grSheet [data-gr-tab="details"]').first().click();
+  await page.waitForTimeout(450);
+  const m = await page.evaluate(() => {
+    const sh = document.getElementById('grSheet');
+    return { intake: sh.querySelectorAll('.gr_intk').length,
+             clock: sh.querySelectorAll('.gr_tzb').length,
+             hint: (sh.querySelector('.gr_pfc .gr_mute') || {}).textContent || '' };
+  });
+  check('no "from their form" card when they never filled one in', m.intake === 0, m.intake + '');
+  check('no clock when there is no zone', m.clock === 0, m.clock + '');
+  check('and a line saying what setting one would do', /time zone/i.test(m.hint), m.hint);
+});
+
 await step('nothing raw reaches the screen, and Escape puts it all away', async () => {
   const raw = await page.evaluate(() => {
     const out = [];

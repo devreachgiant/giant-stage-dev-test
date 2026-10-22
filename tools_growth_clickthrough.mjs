@@ -153,6 +153,160 @@ await step('the Growth group is in the sidebar', async () => {
   await page.waitForTimeout(350);
 });
 
+/* The strip of clocks. The team sells across four countries, so a meeting row saying
+   "3pm" is a question until the screen says whose 3pm. Choosing a city re-prints every
+   time on the screen; the measurement is that a MEETING TIME moves, not just the tile,
+   because a strip that switches its own label and leaves the rows alone looks right in
+   a screenshot and tells you the wrong hour. */
+await step('Home and Meetings carry a clock for each place the team works', async () => {
+  // The group is already open: the nav is an accordion, so clicking the label again
+  // SHUTS it, and every item below goes to 0x0 and cannot be clicked.
+  await navOf('gr_meetings').click();
+  await page.waitForTimeout(700);
+  const m = await page.evaluate(() => {
+    const el = document.getElementById('grMeetings');
+    const tiles = [...el.querySelectorAll('.gr_wz')].map(t => ({
+      city: (t.querySelector('.gr_wzc') || {}).textContent,
+      time: (t.querySelector('b') || {}).textContent,
+      sub: (t.querySelector('.gr_wzs') || {}).textContent,
+      on: t.getAttribute('aria-pressed') === 'true',
+      zone: t.dataset.grTz,
+      h: Math.round(t.getBoundingClientRect().height)
+    }));
+    return { tiles, here: Intl.DateTimeFormat().resolvedOptions().timeZone };
+  });
+  check('there is a tile for each place', m.tiles.length === 5, m.tiles.length + '');
+  check('every tile is drawn, not collapsed', m.tiles.every(t => t.h > 40),
+    JSON.stringify(m.tiles.map(t => t.h)));
+  check('every tile shows a clock reading', m.tiles.every(t => /\d{1,2}:\d{2}/.test(t.time || '')),
+    JSON.stringify(m.tiles.map(t => t.time)));
+  // Your own zone first, and selected. The design hard-codes Lisbon, which would shift
+  // every time on screen for anybody not sitting in Portugal.
+  check('your own zone is first and already chosen',
+    m.tiles[0].zone === m.here && m.tiles[0].on, JSON.stringify(m.tiles[0]) + ' here=' + m.here);
+  check('and it says the times are shown on it', /Times shown here/.test(m.tiles[0].sub || ''), m.tiles[0].sub);
+  check('the others say how far off they are',
+    m.tiles.slice(1).every(t => /ahead|behind|Same time/.test(t.sub || '')),
+    JSON.stringify(m.tiles.slice(1).map(t => t.sub)));
+  check('no two tiles are the same place',
+    new Set(m.tiles.map(t => t.zone)).size === m.tiles.length, JSON.stringify(m.tiles.map(t => t.zone)));
+});
+
+await step('choosing a city re-prints the meeting times on it', async () => {
+  const read = () => page.evaluate(() => {
+    const el = document.getElementById('grMeetings');
+    // The time on a meeting row: grMeetingRow puts it in .gr_mt > b.
+    const row = el.querySelector('.gr_mt b');
+    const sel = el.querySelector('.gr_wz[aria-pressed="true"]');
+    return { time: row ? row.textContent.trim() : '',
+             chosen: sel ? sel.dataset.grTz : null,
+             all: el.innerText.slice(0, 400) };
+  });
+  const before = await read();
+  // Pick the tile furthest from here, so the hour cannot coincidentally match.
+  const target = await page.evaluate(() => {
+    const t = [...document.querySelectorAll('#grMeetings .gr_wz')]
+      .find(x => x.getAttribute('aria-pressed') !== 'true');
+    return t ? t.dataset.grTz : null;
+  });
+  await page.locator('#grMeetings .gr_wz[data-gr-tz="' + target + '"]').click();
+  await page.waitForTimeout(650);
+  const after = await read();
+  check('the chosen tile changed', after.chosen === target, after.chosen + ' vs ' + target);
+  check('and a meeting time is printed differently', before.time && after.time && before.time !== after.time,
+    JSON.stringify({ before: before.time, after: after.time }));
+  // It is the same instant in a different zone, so the minutes normally match and only
+  // the hour moves. Half-hour zones exist, so this only asks that something moved.
+  check('the whole screen did not simply go blank', after.all.length > 50, after.all.length + ' chars');
+
+  // It is remembered, which is the point of choosing it.
+  const saved = await page.evaluate(() => { try { return localStorage.getItem('giant.growthTz'); } catch (e) { return 'blocked'; } });
+  check('the choice is remembered', saved === target, saved + ' vs ' + target);
+
+  await page.locator('#grMeetings .gr_wz').first().click();
+  await page.waitForTimeout(500);
+  const back = await read();
+  check('and going back to your own zone restores the original time',
+    back.time === before.time, back.time + ' vs ' + before.time);
+});
+
+/* Cmd+B hides and shows the menu. The interesting half is the half that must NOT
+   happen: Chat has owned this key for bold since long before Growth existed, and a new
+   document-level binding that forgets to stand down inside a text field silently breaks
+   bold for everybody. Both halves are driven here. */
+await step('Cmd+B hides the menu and brings it back', async () => {
+  const widthOf = () => page.evaluate(() => {
+    const sb = document.getElementById('appSidebar');
+    return { w: Math.round(sb.getBoundingClientRect().width), focus: document.body.dataset.focus || '0' };
+  });
+  // Start from nothing focused. Clicking at some fixed point to "click away" lands on
+  // whatever happens to be there -- a search box, in this app -- and then the key
+  // correctly stands down and the test measures the guard instead of the feature.
+  await page.evaluate(() => {
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    document.body.dataset.focus = '0';
+  });
+  await page.waitForTimeout(300);
+  const before = await widthOf();
+  check('the menu starts open', before.w > 140, JSON.stringify(before));
+  await page.keyboard.press('Meta+b');
+  await page.waitForTimeout(500);
+  const hidden = await widthOf();
+  // Width, not a class name: a class that is set while the rule it depends on was
+  // renamed measures nothing. This asks how wide the menu actually is.
+  check('one press makes it narrower', hidden.w < before.w, JSON.stringify(hidden));
+  check('and the app knows it is hidden', hidden.focus !== '0', hidden.focus);
+  await page.keyboard.press('Meta+b');
+  await page.waitForTimeout(500);
+  const back = await widthOf();
+  check('a second press puts it back exactly as it was',
+    back.w === before.w && back.focus === before.focus, JSON.stringify(back) + ' vs ' + JSON.stringify(before));
+});
+
+await step('Cmd+B inside a message box still means bold', async () => {
+  // Chat's composer: type something, select it, press the key, and the text must come
+  // back wrapped in ** -- and the menu must not have moved.
+  // Opening Communication shuts Growth; both are put back at the end of the step.
+  await page.locator('.nav-group-label[data-navgroup="communication"]').click().catch(() => {});
+  await page.waitForTimeout(600);
+  // The composer has to be the REAL one on an open Chat screen: Chat wires its
+  // formatting keys on the input itself, and focusing a hidden copy proves nothing.
+  const chatNav = page.locator('#appSidebar .nav-item[data-screen="chat"], #appSidebar .nav-item[data-screen="newchat"]').first();
+  if (await chatNav.count()) { await chatNav.click().catch(() => {}); await page.waitForTimeout(1200); }
+  const ok = await page.evaluate(() => {
+    // New Chat's composer is nc_chatInput; #chatInput belongs to the Archive screen,
+    // which is hidden for everybody but the in-house dev.
+    const el = [...document.querySelectorAll('#nc_chatInput, #nc_threadInput, #chatInput')]
+      .find(x => x.offsetParent !== null);
+    if (!el) return null;
+    el.focus(); el.value = 'bold me'; el.setSelectionRange(0, 7);
+    return document.activeElement === el ? el.id : 'not-focused';
+  });
+  if (!ok || ok === 'not-focused') {
+    check('Cmd+B inside a message box still means bold', false,
+          'no visible chat composer to type in (' + ok + ')');
+    await page.locator('.nav-group-label[data-navgroup="growth"]').click().catch(() => {});
+    await page.waitForTimeout(500);
+    return;
+  }
+  const wide = await page.evaluate(() => Math.round(document.getElementById('appSidebar').getBoundingClientRect().width));
+  await page.keyboard.press('Meta+b');
+  await page.waitForTimeout(400);
+  const after = await page.evaluate((id) => {
+    const el = document.getElementById(id);
+    return { value: el ? el.value : '',
+             w: Math.round(document.getElementById('appSidebar').getBoundingClientRect().width) };
+  }, ok);
+  check('the text was emboldened, not the menu toggled', after.value === '**bold me**', after.value);
+  check('and the menu did not move', after.w === wide, after.w + ' vs ' + wide);
+  await page.evaluate((id) => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ''; el.blur(); }
+  }, ok);
+  await page.locator('.nav-group-label[data-navgroup="growth"]').click();
+  await page.waitForTimeout(400);
+});
+
 await step('all nine Growth items are there and visible', async () => {
   const want = ['gr_home', 'gr_meetings', 'gr_pipeline', 'gr_inbox',
                 'gr_training', 'gr_analytics', 'gr_connectors', 'gr_settings', 'gr_automations'];
@@ -587,6 +741,87 @@ await step('Settings: a discount code can be added', async () => {
   check('and the screen shows it without a reload', shown === after.n, shown + ' cards on screen');
 });
 
+/* Who works in Growth. The owner dropdown on a deal used to list every profile in the
+   company -- 79 of them -- and the course listed the same crowd. It now reads a list
+   kept here. Driven, because a tick that paints and never saves is the failure. */
+await step('Settings: ticking somebody puts them in Growth', async () => {
+  await page.locator('[data-gr-settab="team"]').click();
+  await page.waitForTimeout(450);
+  const start = await page.evaluate(() => ({
+    boxes: document.querySelectorAll('#grSettings [data-gr-team]').length,
+    on: [...document.querySelectorAll('#grSettings [data-gr-team]')].filter(x => x.checked).length,
+    count: Number((document.querySelector('#grSettings .gr_n') || {}).textContent),
+    saved: (window.__mockDB.growth_settings.find(x => x.key === 'team') || {}).value
+  }));
+  check('every profile is offered', start.boxes > 1, start.boxes + ' people');
+  check('some are already in Growth', start.on > 0, start.on + ' ticked');
+  check('and the count agrees with the ticks', start.count === start.on, start.count + ' vs ' + start.on);
+  // Nothing is saved until somebody changes it: the list starts derived from who owns a
+  // deal, which is what keeps a new workspace from opening on an empty screen.
+  check('nothing is written until it is changed', !start.saved, JSON.stringify(start.saved));
+
+  const off = page.locator('#grSettings [data-gr-team]:not(:checked)').first();
+  const who = await off.getAttribute('data-gr-team');
+  // The list is long enough to run off the screen; a checkbox below the fold cannot be
+  // clicked where it is.
+  await off.scrollIntoViewIfNeeded();
+  const scrollBefore = await page.evaluate(() => {
+    let n = document.getElementById('grSettings');
+    while (n && n.scrollHeight <= n.clientHeight + 4) n = n.parentElement;
+    return n ? Math.round(n.scrollTop) : 0;
+  });
+  await off.check();
+  await page.waitForTimeout(700);
+  const after = await page.evaluate((id) => {
+    const row = window.__mockDB.growth_settings.find(x => x.key === 'team');
+    return { list: row ? row.value : null,
+             has: !!(row && row.value.indexOf(id) >= 0),
+             count: Number((document.querySelector('#grSettings .gr_n') || {}).textContent) };
+  }, who);
+  check('the new person is written to the database', after.has, JSON.stringify(after.list));
+  check('the whole list is saved, not just the one changed',
+    Array.isArray(after.list) && after.list.length === start.on + 1,
+    JSON.stringify(after.list));
+  check('and the count on screen moved', after.count === start.on + 1, after.count + '');
+  // Ticking must not throw the list back to the top: re-rendering the whole screen
+  // bounced you away from the row you were looking at, and with eighty people in the
+  // list that is the difference between usable and not.
+  const scrollAfter = await page.evaluate(() => {
+    let n = document.getElementById('grSettings');
+    while (n && n.scrollHeight <= n.clientHeight + 4) n = n.parentElement;
+    return n ? Math.round(n.scrollTop) : 0;
+  });
+  check('the list stayed where it was', Math.abs(scrollAfter - scrollBefore) < 30,
+    scrollBefore + ' -> ' + scrollAfter);
+
+  // The point of the whole thing: that list is what a deal's owner dropdown offers.
+  await navOf('gr_pipeline').click();
+  await page.waitForTimeout(600);
+  await page.locator('#grPipeline .gr_bc').first().click();
+  await page.waitForTimeout(500);
+  await page.locator('#grSheet [data-gr-tab="details"]').first().click();
+  await page.waitForTimeout(450);
+  const opts = await page.evaluate(() => {
+    const sel = document.querySelector('#grSheet select[data-gr-f="owner_id"]');
+    return sel ? { n: sel.options.length, all: document.querySelectorAll('#grSettings [data-gr-team]').length } : null;
+  });
+  if (opts) {
+    check('the owner dropdown offers the team, not the whole company',
+      opts.n === after.list.length, opts.n + ' options for ' + after.list.length + ' in the team');
+  }
+  await page.keyboard.press('Escape'); await page.waitForTimeout(350);
+
+  // Put it back, so the steps after this see the workspace they expect.
+  await navOf('gr_settings').click();
+  await page.waitForTimeout(500);
+  await page.locator('[data-gr-settab="team"]').click();
+  await page.waitForTimeout(400);
+  const back2 = page.locator('#grSettings [data-gr-team="' + who + '"]');
+  await back2.scrollIntoViewIfNeeded();
+  await back2.uncheck();
+  await page.waitForTimeout(600);
+});
+
 await step('Settings: a template can be added and its body edited', async () => {
   await page.locator('[data-gr-settab="templates"]').click();
   await page.waitForTimeout(400);
@@ -947,8 +1182,11 @@ await step('the To do view lists what needs doing', async () => {
   await b.click(); await page.waitForTimeout(400);
   const m = await page.evaluate(() => {
     const el = document.getElementById('grPipeline');
+    // The ROWS, not the first 300 characters of the screen: the header now carries a
+    // "showing whose deals" picker, and a select contributes its options to innerText,
+    // which pushed the rows out of the window this used to read.
     return { rows: el.querySelectorAll('.gr_row').length, board: el.querySelectorAll('.gr_col').length,
-             text: el.innerText.slice(0, 300) };
+             text: [...el.querySelectorAll('.gr_row')].map(r => r.innerText).join(' | ').slice(0, 400) };
   });
   check('To do shows a list, not the board', m.board === 0, m.board + ' columns still drawn');
   check('and it has rows to act on', m.rows > 0, m.rows + ' rows');

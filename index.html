@@ -6331,6 +6331,20 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_stc{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;flex:none;}
 .gr_stc i{width:6px;height:6px;border-radius:50%;background:currentColor;}
 .gr_leg{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 4px 0 9px;vertical-align:middle;}
+/* Analytics' second view: the Fathom call list. */
+.gr_anv{margin:0 0 14px;}
+.gr_anv button b{display:inline-block;margin-left:6px;background:var(--surface-3);border-radius:99px;padding:1px 7px;font-size:11px;}
+.gr_samp{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:13px;font-size:12.5px;color:var(--text-3);}
+.gr_samp b{color:var(--text);}
+.gr_fc{display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--line);font-size:13px;}
+.gr_fc>b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gr_fck{font-size:11px;font-weight:700;color:var(--text-3);background:var(--surface-2);border-radius:99px;padding:3px 9px;flex:none;}
+.gr_fc .gr_cll{flex:none;min-width:92px;}
+.gr_fcm{font-size:12px;color:var(--text-3);flex:none;min-width:52px;text-align:right;}
+.gr_fcw{flex:none;padding:5px 12px;font-size:12px;text-decoration:none;}
+.gr_fcq{width:100%;margin-bottom:4px;}
+.gr_fcmore{margin-top:10px;}
+@media(max-width:700px){.gr_fck,.gr_fc .gr_cll{display:none;}}
 .gr_wks{display:flex;align-items:flex-end;gap:14px;padding-top:8px;}
 .gr_wk{flex:1;text-align:center;}
 /* The bars sit on one baseline, so the pair is bottom-aligned, not centred. */
@@ -6421,6 +6435,35 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_field input,.gr_field select,.gr_field textarea{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--text);font:inherit;font-size:13.5px;width:100%;}
 .gr_field textarea{min-height:90px;resize:vertical;}
 .gr_acts{display:flex;gap:9px;flex-wrap:wrap;align-items:center;}
+.gr_tck{width:17px;height:17px;flex:none;accent-color:var(--red);cursor:pointer;}
+.gr_vas{background:var(--surface-2);border:1px solid var(--line);border-radius:99px;padding:8px 13px;color:var(--text);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;}
+.gr_vasrow{display:flex;align-items:center;gap:9px;justify-content:flex-end;margin:0 0 10px;}
+.gr_vasrow span{font-size:11.5px;color:var(--text-3);}
+/* The strip of clocks on Home and Meetings. */
+.gr_wclk{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:2px 0 18px;}
+@media(max-width:900px){.gr_wclk{grid-template-columns:repeat(2,minmax(0,1fr));}}
+.gr_wz{border:1px solid var(--line);border-top:4px solid var(--zc);background:var(--surface);border-radius:15px;
+  padding:11px 13px 10px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px;color:var(--text);
+  min-width:0;transition:transform .14s,background .14s;font:inherit;}
+.gr_wz:hover:not(.gr_wzon){transform:translateY(-2px);}
+.gr_wzon{background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line-2);}
+.gr_wzt{display:flex;align-items:center;gap:6px;min-width:0;}
+.gr_wzc{font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gr_wzn{margin-left:auto;font-size:12px;opacity:.75;}
+.gr_wz b{font-size:19px;font-weight:800;letter-spacing:-.02em;}
+.gr_wzs{font-size:10.5px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+/* Somebody not in Growth is still listed, so you can tick them -- just quieter. */
+.gr_toff{opacity:.55;}
+/* The Info tab, grouped into cards the way the design has it: a wall of twelve inputs
+   reads as a form to fill in, four small cards read as things you can glance at. */
+.gr_pfc{background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin-bottom:11px;}
+.gr_pft{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);margin-bottom:9px;}
+.gr_tzb{display:flex;align-items:baseline;gap:9px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);}
+.gr_tzb b{font-size:21px;font-weight:800;letter-spacing:-.02em;}
+.gr_tzb span{font-size:12px;color:var(--text-3);}
+.gr_intk{display:flex;flex-wrap:wrap;gap:7px;}
+.gr_intk span{background:var(--bg);border:1px solid var(--line);border-radius:99px;padding:5px 11px;font-size:12px;}
+.gr_intk b{font-weight:700;color:var(--text-3);}
 .gr_ghost{background:var(--surface-2);border:0;border-radius:99px;padding:9px 16px;font:inherit;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px;}
 .gr_danger{background:none;border:0;color:#F08A8A;font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:6px 0;}
 .gr_bub{border-radius:13px;padding:11px 14px;background:var(--surface);border-left:3px solid var(--line);}
@@ -14854,6 +14897,21 @@ function enterApp(){
     const t = e.target;
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
     setStage(0);
+  });
+
+  /* Cmd+B (Ctrl+B) hides and shows the menu.
+     CHAT ALREADY OWNS THIS KEY for bold, and that is the right owner while you are
+     writing a message, so this stands down inside any text field and the composer keeps
+     it. Everywhere else there is nothing to embolden and the key is free. It toggles
+     rather than cycling: from full it hides the menu, and from anywhere else it brings
+     it back, so the same press always undoes the last one. */
+  document.addEventListener('keydown', (e) => {
+    if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+    if (e.key !== 'b' && e.key !== 'B') return;
+    const t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    e.preventDefault();
+    setStage(stage() === 0 ? 1 : 0);
   });
   // Rebuild when the active screen changes, so cluster 2 follows you.
   document.addEventListener('click', (e) => {
@@ -94451,6 +94509,29 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   let grPView = 'board';
   let grOpenId = null, grTab = 'overview', grQuery = '', grComposer = null, grLost = null;
   let grRange = 'week';
+  // Analytics has two views. Fathom is not connected yet (the Connectors panel says so
+  // in as many words), so the calls below are a sample that shows the shape of the
+  // screen. The moment a real list lands in growth_settings under 'fathom_calls', it
+  // is used instead and the sample banner goes away -- so this is a placeholder with a
+  // seam, not a screen that will have to be rewritten.
+  let grAnView = 'sales', grFcQ = '', grFcMore = 40;
+  const GR_FC_KIND = { G: 'Strategy session', D: 'Discovery call', O: 'Sales call' };
+  const GR_FC_SAMPLE = (function () {
+    const reps = ['Luke Griffin', 'Annie', 'Kristina'];
+    const names = ['Northview Door Systems', 'Costa Rica Brokerage', 'PPA Youth Sports',
+      'Kreative Expressions', 'Finzanza', 'Harbour Dental', 'Bluewater Roofing',
+      'Mesa Pet Clinic', 'Lantern Legal', 'Verity Fitness', 'Oakline Interiors',
+      'Summit Auto Glass', 'Rivet Plumbing', 'Cedar Row Cafe', 'Patton Electrical'];
+    const out = [];
+    for (let i = 0; i < 48; i++) {
+      const d = new Date(Date.now() - (i * 29 + (i % 5) * 11) * 36e5);
+      out.push({ id: 'fc-' + i, d: d.toISOString().slice(0, 10),
+                 n: names[i % names.length] + (i >= names.length ? ' (follow up)' : ''),
+                 k: ['G', 'D', 'O'][i % 3], rep: reps[i % reps.length],
+                 min: 24 + (i * 7) % 38, u: 'https://fathom.video/share/sample' });
+    }
+    return out;
+  })();
 
   const DEFAULT_STAGES = [
     { key: 'booked',   label: 'Booked',        color: '#626262' },
@@ -94487,13 +94568,57 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
   const grAgo = (n) => n == null ? 'never' : n === 0 ? 'today' : n === 1 ? 'yesterday' : n + 'd ago';
   const grFmt = (iso) => { const d = grDay(iso); return d ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : ''; };
-  const grHm = (ts) => new Date(ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  const grSameDay = (a, b) => new Date(a).toDateString() === new Date(b).toDateString();
+  /* WHICH CLOCK GROWTH SHOWS TIMES ON.
+     The team is spread across four countries, so "3pm" on a meeting row is a question
+     unless the screen says whose 3pm. Every time Growth prints is formatted in grZone,
+     which starts as YOUR OWN zone -- the design hard-codes Lisbon, which would quietly
+     shift every time for anybody not sitting in Portugal -- and the strip on Home and
+     Meetings switches it. Only the display moves; nothing stored changes, so switching
+     cannot damage a date. */
+  const GR_ZONES = [
+    ['Europe/Lisbon', 'Lisbon', '&#127477;&#127481;', '#0E8F5A'],
+    ['America/New_York', 'New York', '&#127482;&#127480;', '#2563EB'],
+    ['Africa/Johannesburg', 'Johannesburg', '&#127487;&#127462;', '#E08A00'],
+    ['America/Los_Angeles', 'Los Angeles', '&#127482;&#127480;', '#E4572E']];
+  const grHere = (function () {
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; }
+  })();
+  let grZone = (function () {
+    try {
+      const z = localStorage.getItem('giant.growthTz');
+      // A zone saved on another machine can be one this one does not know.
+      if (z) { new Date().toLocaleTimeString([], { timeZone: z }); return z; }
+    } catch (e) { /* unknown or blocked -- fall through to this machine's own zone */ }
+    return grHere;
+  })();
+  const grZoneCity = (z) => String(z || '').split('/').pop().replace(/_/g, ' ');
+  // en-US with hour12, not the machine's locale: the rest of Giant prints 12 hour times
+  // (fmtClock, fmtTimeShort), and leaving the locale to decide meant Growth alone read
+  // 15:11 on a machine set to 24 hour time while every other screen said 3:11 PM.
+  const grHm = (ts) => new Date(ts).toLocaleTimeString('en-US',
+    { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: grZone });
+  // en-CA gives yyyy-mm-dd, which compares as a string. Comparing toDateString() in two
+  // zones is the bug this replaces: it read both dates on the BROWSER's clock, so
+  // "Today" stayed the viewer's today however the strip was set.
+  const grDKey = (t, z) => new Date(t).toLocaleDateString('en-CA', { timeZone: z || grZone });
+  const grSameDay = (a, b) => grDKey(a) === grDKey(b);
   const grMoney = (n) => '$' + Math.round(n || 0).toLocaleString('en-US');
   const grInitials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => (w[0] || '').toUpperCase()).join('');
   const grFirst = (c) => String(c.name || 'there').split(' ')[0];
   const grSnip = (t, n) => String(t || '').replace(/\s+/g, ' ').trim().slice(0, n || 110);
 
+  /* Enough zones to cover where ReachGiant's prospects actually are, named the way a
+     person would say them rather than as raw IANA strings. Intl does the arithmetic, so
+     this stays right across daylight saving without a table of offsets. */
+  const GR_TZS = [['America/New_York', 'Eastern (New York)'], ['America/Chicago', 'Central (Chicago)'],
+    ['America/Denver', 'Mountain (Denver)'], ['America/Phoenix', 'Arizona (Phoenix)'],
+    ['America/Los_Angeles', 'Pacific (Los Angeles)'], ['America/Anchorage', 'Alaska'],
+    ['Pacific/Honolulu', 'Hawaii'], ['America/Toronto', 'Toronto'], ['America/Mexico_City', 'Mexico City'],
+    ['America/Sao_Paulo', 'Sao Paulo'], ['Europe/London', 'London'], ['Europe/Paris', 'Paris and Berlin'],
+    ['Africa/Johannesburg', 'Johannesburg'], ['Asia/Dubai', 'Dubai'], ['Asia/Karachi', 'Pakistan'],
+    ['Asia/Kolkata', 'India'], ['Asia/Singapore', 'Singapore'], ['Asia/Tokyo', 'Tokyo'],
+    ['Australia/Sydney', 'Sydney'], ['Pacific/Auckland', 'Auckland']];
+  const grTzLabel = (tz) => (GR_TZS.find(z => z[0] === tz) || [])[1] || String(tz || '').split('/').pop().replace(/_/g, ' ');
   const grStageLabel = (k) => (grStages.find(s => s.key === k) || {}).label || k;
   const grStageColor = (k) => (grStages.find(s => s.key === k) || {}).color || '#626262';
   const grActive = (c) => c.stage !== 'won' && c.stage !== 'lost';
@@ -94786,15 +94911,57 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       '</div></div>';
   }
 
-  // Their local time, so nobody rings New York at 6am. An invalid zone must not take the
-  // whole sheet down with it, hence the try.
+  // Their local time, so nobody rings New York at 6am. The zone's short name comes with
+  // it -- "2:10 AM" alone leaves you working out whose 2am it is. An invalid zone must
+  // not take the whole sheet down, hence the try.
   function grLocalTime(c) {
-    if (!c.timezone) return '';
+    if (!c || !c.timezone) return '';
     try {
-      return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: c.timezone }) +
-        ' their time';
+      return new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit',
+        hour12: true, timeZone: c.timezone, timeZoneName: 'short' });
     } catch (e) { return ''; }
   }
+  /* The strip of cities. Yours is always the first tile, named after your own zone, so
+     the default is never somebody else's working day. The others say how far ahead or
+     behind they are OF THE ONE YOU PICKED, which is the number you actually want when
+     you are deciding whether to call. */
+  function grClockHtml() {
+    const now = Date.now();
+    const off = (z) => {
+      try {
+        return (new Date(new Date(now).toLocaleString('en-US', { timeZone: z })) -
+                new Date(new Date(now).toLocaleString('en-US', { timeZone: 'UTC' }))) / 60000;
+      } catch (e) { return 0; }
+    };
+    const base = off(grZone);
+    const list = [[grHere, grZoneCity(grHere), '&#127968;', '#D00400']]
+      .concat(GR_ZONES.filter(z => z[0] !== grHere));
+    return '<div class="gr_wclk" role="group" aria-label="Show times in">' +
+      list.map(function (z) {
+        const on = z[0] === grZone;
+        let hour = 12, time = '';
+        try {
+          hour = Number(new Date(now).toLocaleTimeString('en-GB',
+            { hour: '2-digit', hour12: false, timeZone: z[0] }).slice(0, 2));
+          time = new Date(now).toLocaleTimeString('en-US',
+            { hour: 'numeric', minute: '2-digit', hour12: true, timeZone: z[0] });
+        } catch (e) { return ''; }
+        const df = Math.round((off(z[0]) - base) / 60);
+        const day = grDKey(now, z[0]) === grDKey(now, grZone) ? ''
+          : (grDKey(now, z[0]) > grDKey(now, grZone) ? 'Tomorrow' : 'Yesterday');
+        const sub = on ? 'Times shown here'
+          : (df === 0 ? 'Same time'
+             : Math.abs(df) + (Math.abs(df) === 1 ? ' hr ' : ' hrs ') + (df > 0 ? 'ahead' : 'behind'));
+        return '<button type="button" class="gr_wz' + (on ? ' gr_wzon' : '') + '" style="--zc:' + z[3] +
+          '" data-gr-tz="' + esc(z[0]) + '" aria-pressed="' + on + '">' +
+          '<span class="gr_wzt"><span class="gr_wzf">' + z[2] + '</span>' +
+          '<span class="gr_wzc">' + esc(z[1]) + '</span>' +
+          '<span class="gr_wzn">' + (hour >= 6 && hour < 19 ? '&#9728;' : '&#9790;') + '</span></span>' +
+          '<b>' + esc(time) + '</b>' +
+          '<span class="gr_wzs">' + esc(sub) + (day ? ' \u00B7 ' + day : '') + '</span></button>';
+      }).join('') + '</div>';
+  }
+
   const grDayLabel = iso => grSameDay(iso, Date.now()) ? 'Today'
     : grSameDay(iso, Date.now() + 86400000) ? 'Tomorrow'
     : new Date(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
@@ -94806,13 +94973,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   function grRenderHome() {
-    const replies = grClients.filter(c => grActive(c) && grWaiting(c));
+    // Whoever the manager is looking at. "Everyone" for a rep, because RLS has
+    // already given them only their own rows.
+    const grVis = grVisible();
+    const replies = grVis.filter(c => grActive(c) && grWaiting(c));
     const today = grMeetings.filter(m => grSameDay(m.starts_at, Date.now()));
-    const todo = grClients.filter(c => grActive(c) && grNextAction(c) && !grWaiting(c));
-    const quiet = grClients.filter(c =>
+    const todo = grVis.filter(c => grActive(c) && grNextAction(c) && !grWaiting(c));
+    const quiet = grVis.filter(c =>
       grActive(c) && !grWaiting(c) && !(c.follow_up_draft && c.follow_up_draft.body) &&
       (grQuietDays(c) == null ? -1 : grQuietDays(c)) >= 3);
-    const drafts = grClients.filter(c => grActive(c) && c.follow_up_draft && c.follow_up_draft.body);
+    const drafts = grVis.filter(c => grActive(c) && c.follow_up_draft && c.follow_up_draft.body);
 
     const rRow = c => {
       const li = grLastIn(c);
@@ -94827,7 +94997,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // The relative time AND the Join link, the way the artifact has it. Hiding Join until
     // fifteen minutes before meant the row told you about a call you could not join.
     const mRow = m => {
-      const c = grClients.find(x => x.id === m.client_id);
+      const c = grVis.find(x => x.id === m.client_id);
       const done = new Date(m.starts_at).getTime() + (m.minutes || 45) * 60000 < Date.now();
       return '<div class="gr_row' + (done ? ' gr_done' : '') + '"' + (c ? ' data-gr-open="' + c.id + '"' : '') + '>' +
         '<div class="gr_time"><b>' + esc(grHm(m.starts_at)) + '</b></div>' +
@@ -94839,8 +95009,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '</div>';
     };
 
+    const vas = grViewAsHtml();
     $('grHome').innerHTML =
       grChatHtml() +
+      (vas ? '<div class="gr_vasrow"><span>Showing</span>' + vas + '</div>' : '') +
+      grClockHtml() +
       '<div class="gr_grid2">' +
         '<section class="gr_card"><div class="gr_ct"><h2>Reply to</h2>' +
           (replies.length ? '<span class="gr_n hot">' + replies.length + '</span>' : '') + '</div>' +
@@ -94959,8 +95132,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const t = new Date(m.starts_at);
     return '<div class="gr_mx' + (done ? ' gr_done' : '') + (live ? ' gr_livem' : '') + '"' +
         (c ? ' data-gr-open="' + c.id + '"' : '') + '>' +
+      /* The big chip drops the AM/PM to stay narrow, so the line under it carries it
+         instead. On a 24 hour clock "18:23" needed nothing; at 12 hours "6:23" on its
+         own is either breakfast or dinner. */
       '<div class="gr_mt"><b>' + esc(grHm(m.starts_at).replace(/\s?[AP]M/i, '')) + '</b>' +
-        '<span>' + (m.minutes || 45) + ' min</span></div>' +
+        '<span>' + esc((String(grHm(m.starts_at)).match(/[AP]M/i) || [''])[0]) +
+        ' \u00B7 ' + (m.minutes || 45) + ' min</span></div>' +
       '<div class="gr_rm"><div class="gr_mn">' + esc(c ? c.name : m.title) +
         (m.source ? '<span class="gr_src">' + esc(m.source) + '</span>' : '') + '</div>' +
         '<span>' + esc(c && c.company ? c.company : m.title) +
@@ -94971,6 +95148,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         (!done && m.zoom_url
           ? '<a class="gr_joinbig" href="' + esc(m.zoom_url) + '" target="_blank" rel="noopener" data-gr-stop>' +
             '<svg viewBox="0 0 16 16" width="14" height="14" fill="none"><path d="M1.8 4.4h7.4v7.2H1.8zM9.2 7l5-2.4v6.8L9.2 9" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>Join</a>'
+          : '') +
+        /* A booking with no link is the ordinary case for anything not made in Calendly,
+           and until now the row simply had no way in: somebody had the Zoom link in an
+           email and nowhere to put it. */
+        (!done && !m.zoom_url
+          ? '<button class="gr_ghost gr_sm" data-gr-link="' + m.id + '">Add link</button>'
+          : '') +
+        /* A call that happened and was never followed up is the single most expensive
+           thing on this screen, so the row offers the email rather than making you go
+           and find the client first. */
+        (done && c && !grSameDay(grLastTouch(c) || 0, m.starts_at) && grActive(c)
+          ? '<button class="gr_ghost gr_sm" data-gr-act="' + c.id + '" data-t="' +
+            (grNextAction(c) ? grNextAction(c).t : 'followup') + '">Send email</button>'
           : '') +
         (!done ? '<button class="gr_ico" data-gr-brief="' + m.id + '" title="Write a brief for this call" aria-label="Write a brief">&#10022;</button>' : '') +
         (c ? '<button class="gr_ico" data-gr-open2="' + c.id + '" title="Open the client" aria-label="Open the client">' +
@@ -94990,6 +95180,28 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         (list.length ? '<span class="gr_dn">' + list.length + '</span>'
                      : '<span class="gr_mnone">' + (quiet || 'No meetings') + '</span>') + '</div>' +
       list.map(grMeetingRow).join('') + '</section>';
+  }
+
+  /* Paste the link for a call that did not come from Calendly. window.prompt is a no-op
+     in the desktop build, so this uses the app's own prompt; a plain confirm() guard here
+     would mean the button silently did nothing for anybody on Electron. */
+  async function grMeetLink(id) {
+    const m = grMeetings.find(x => x.id === id);
+    if (!m) return;
+    const v = await window.giantPrompt('Paste the meeting link', m.zoom_url || '');
+    if (v == null) return;
+    const url = String(v).trim();
+    // Anything that is not a link would render a dead Join button, which is worse than
+    // no button at all.
+    if (url && !/^https?:\/\//i.test(url)) { grToast('That does not look like a link.'); return; }
+    const s2 = sb(); if (!s2) return;
+    const { data, error } = await s2.from('growth_meetings').update({ zoom_url: url })
+      .eq('id', id).select('id');
+    if (error) { grToast('Could not save. ' + error.message); return; }
+    if (!data || !data.length) { grToast('Saving the link was refused.'); return; }
+    m.zoom_url = url;
+    grToast(url ? 'Link saved' : 'Link removed');
+    grRender();
   }
 
   /* A short brief before a call, written from what we already know about them. Stored on
@@ -95101,6 +95313,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
     $('grMeetings').innerHTML =
       grHead('Meetings', up.length + ' upcoming \u00b7 ' + thisWeek + ' this week \u00b7 ' + past.length + ' done', seg) +
+      grClockHtml() +
       body;
   }
 
@@ -95172,8 +95385,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   /* --- Pipeline --- */
   function grRenderPipeline() {
+    // Whoever the manager is looking at. "Everyone" for a rep, because RLS has
+    // already given them only their own rows.
+    const grVis = grVisible();
     const q = grQuery.trim().toLowerCase();
-    const pool = grClients.filter(c => !q || (c.name + ' ' + (c.company || '') + ' ' + (c.email || '')).toLowerCase().includes(q));
+    const pool = grVis.filter(c => !q || (c.name + ' ' + (c.company || '') + ' ' + (c.email || '')).toLowerCase().includes(q));
     const inPlay = pool.filter(grActive).reduce((n, c) => n + grVal(c), 0);
     const won = pool.filter(c => c.stage === 'won').reduce((n, c) => n + grVal(c), 0);
     const need = pool.filter(c => grNextAction(c)).length;
@@ -95207,12 +95423,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grHead('Pipeline', pool.length + ' client' + (pool.length === 1 ? '' : 's'),
         '<div class="gr_stats"><div><b>' + need + '</b><span>need you</span></div>' +
         '<div><b>' + grMoney(inPlay) + '</b><span>in play / mo</span></div>' +
-        '<div><b class="gr_g">' + grMoney(won) + '</b><span>won / mo</span></div></div>') +
+        '<div><b class="gr_g">' + grMoney(won) + '</b><span>won / mo</span></div></div>' + grViewAsHtml()) +
       '<div class="gr_tools"><input class="gr_search" id="grSearch" placeholder="Search name or company" value="' + esc(grQuery) + '" aria-label="Search the pipeline">' +
         '<button class="btn-red" id="grAddClient">+ New client</button></div>' +
       '<div class="gr_seg gr_wide"><button data-gr-pview="board"' + (grPView === 'board' ? ' aria-pressed="true"' : '') + '>Board</button>' +
         '<button data-gr-pview="todo"' + (grPView === 'todo' ? ' aria-pressed="true"' : '') + '>To do' + (need ? ' (' + need + ')' : '') + '</button></div>' +
-      (grClients.length === 0
+      (grVis.length === 0
         ? '<section class="gr_card gr_first">' +
             grEmpty('&#43;', 'No clients yet',
               'Add the first one, or connect Calendly so bookings arrive here on their own.') +
@@ -95566,12 +95782,63 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      account is eighty of them, so a chip each turned the top of the course into a wall of
      names before you reached the first lesson. The team is the people who actually do
      this work: whoever owns a deal or has started the course, plus you. */
-  function grTeam() {
+  /* WHO IS IN GROWTH. grPeople is every profile in the company, which on the course
+     screen meant 79 chips to scroll past to find yourself. The list is kept in
+     growth_settings under 'team' and edited on Settings, so adding somebody is a tick
+     rather than a deploy.
+
+     When it has never been set, it is worked out instead: whoever owns a deal, whoever
+     has started the course, and you. That keeps a new workspace from opening on an empty
+     screen, and the derived list is what Settings offers to save the first time. */
+  function grTeamIds() {
+    const set = grSettings.team;
+    if (Array.isArray(set) && set.length) return set.slice();
     const seen = {};
     grClients.forEach(c => { if (c.owner_id) seen[c.owner_id] = 1; });
     grCourseDone.forEach(d => { seen[d.owner_id] = 1; });
     seen[me()] = 1;
-    return grPeople.filter(p => seen[p.id]);
+    return Object.keys(seen);
+  }
+  function grTeam() {
+    const ids = grTeamIds();
+    // Ordered by the saved list, so Settings decides the order the chips appear in.
+    const out = ids.map(id => grPeople.find(p => p.id === id)).filter(Boolean);
+    // You are always on your own screen, even if nobody has added you yet.
+    if (!out.some(p => p.id === me())) {
+      const mine = grPeople.find(p => p.id === me());
+      if (mine) out.unshift(mine);
+    }
+    return out;
+  }
+  /* VIEW AS. A manager sees everybody's deals, which is right for a pipeline and wrong
+     for "what should I do today" -- the Home screen read as somebody else's to-do list.
+     This narrows Home, Pipeline and Analytics to one person without pretending to be
+     them: nothing is written as that person, and the database is not asked again, so it
+     cannot show a manager anything they could not already see. A rep has no switcher,
+     because RLS already gave them only their own rows and there is nothing to choose. */
+  let grViewAs = 'all';
+  function grVisible() {
+    if (!grIsStaff() || grViewAs === 'all') return grClients;
+    return grClients.filter(c => c.owner_id === grViewAs);
+  }
+  function grViewAsHtml() {
+    if (!grIsStaff()) return '';
+    const team = grTeam();
+    if (team.length < 2) return '';
+    return '<select class="gr_vas" data-gr-viewas aria-label="Whose deals to show">' +
+      '<option value="all"' + (grViewAs === 'all' ? ' selected' : '') + '>Everyone</option>' +
+      team.map(p => '<option value="' + p.id + '"' + (grViewAs === p.id ? ' selected' : '') + '>' +
+        esc(p.full_name || 'Unnamed') + (p.id === me() ? ' (you)' : '') + '</option>').join('') +
+      '</select>';
+  }
+
+  function grOwnerChoices(c) {
+    const out = grTeam().slice();
+    if (c && c.owner_id && !out.some(p => p.id === c.owner_id)) {
+      const owner = grPeople.find(p => p.id === c.owner_id);
+      if (owner) out.push(owner);
+    }
+    return out;
   }
   function grDoneSet(who) {
     const out = {};
@@ -95878,7 +96145,101 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   const grCallMin = (m) => Number(m.actual_min) || Number(m.minutes) || 45;
   const grPct = (a, b) => (b ? Math.round(a / b * 100) : 0) + '%';
 
+  const grFcAll = () => {
+    const live = grSettings.fathom_calls;
+    return Array.isArray(live) && live.length ? live : GR_FC_SAMPLE;
+  };
+  const grFcIsSample = () => !(Array.isArray(grSettings.fathom_calls) && grSettings.fathom_calls.length);
+
+  /* The head is shared, so switching views cannot leave the range chips behind on one
+     of them -- which is how a screen ends up with two different ideas of "last 7 days". */
+  function grAnHead() {
+    const n = grFcAll().length;
+    return grHead('Analytics',
+      grAnView === 'fathom' ? 'Every sales call from Fathom' : 'How the sales team is doing',
+      '<div class="gr_seg">' + [['week', '7 days'], ['month', '30 days'], ['all', 'All time']]
+        .map(r => '<button data-gr-range="' + r[0] + '"' + (grRange === r[0] ? ' aria-pressed="true"' : '') +
+          '>' + r[1] + '</button>').join('') + '</div>' + grViewAsHtml()) +
+      '<div class="gr_seg gr_anv">' +
+        '<button data-gr-anview="sales" aria-pressed="' + (grAnView === 'sales') + '">Sales</button>' +
+        '<button data-gr-anview="fathom" aria-pressed="' + (grAnView === 'fathom') + '">Fathom calls<b>' +
+          n + '</b></button></div>';
+  }
+
+  function grRenderFathom() {
+    const within = (iso) => {
+      if (grRange === 'all') return true; if (!iso) return false;
+      return new Date(iso + 'T12:00:00Z').getTime() >= Date.now() - (grRange === 'week' ? 7 : 30) * 86400000;
+    };
+    const all = grFcAll().slice().sort((a, b) => String(b.d).localeCompare(String(a.d)));
+    const per = all.filter(c => within(c.d));
+    const q = grFcQ.trim().toLowerCase();
+    const list = q ? all.filter(c => (c.n + ' ' + (c.rep || '')).toLowerCase().includes(q)) : all;
+    const since = (n) => all.filter(c => new Date(c.d + 'T12:00:00Z').getTime() > Date.now() - n * 86400000).length;
+
+    const reps = {};
+    all.forEach(c => { const r = c.rep || 'Unknown'; reps[r] = (reps[r] || 0) + 1; });
+    const repL = Object.keys(reps).map(k => [k, reps[k]]).sort((a, b) => b[1] - a[1]);
+
+    const DAY = 86400000, tonight = new Date(); tonight.setHours(24, 0, 0, 0);
+    const wk = [];
+    for (let i = 7; i >= 0; i--) {
+      const end = tonight.getTime() - i * 7 * DAY, st = end - 7 * DAY;
+      wk.push({ d: new Date(st).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+                n: all.filter(c => { const t = new Date(c.d + 'T12:00:00Z').getTime(); return t > st && t <= end; }).length });
+    }
+    const wm = Math.max(1, ...wk.map(w => w.n));
+    const hero = (cls, v, l, s2) => '<div class="gr_hero ' + cls + '"><div class="gr_hv">' + v +
+      '</div><div class="gr_hl">' + esc(l) + '</div><div class="gr_hs">' + esc(s2) + '</div></div>';
+    const period = grRange === 'all' ? 'All time' : grRange === 'week' ? 'Last 7 days' : 'Last 30 days';
+
+    const row = (c) => '<div class="gr_fc">' +
+      '<span class="gr_cld">' + esc(grFmt(c.d)) + '</span><b>' + esc(c.n) + '</b>' +
+      '<span class="gr_fck">' + esc(GR_FC_KIND[c.k] || 'Sales call') + '</span>' +
+      '<span class="gr_cll">' + esc(c.rep || '') + '</span>' +
+      '<span class="gr_fcm">' + (c.min ? c.min + ' min' : '') + '</span>' +
+      (c.u ? '<a class="gr_ghost gr_fcw" href="' + esc(c.u) + '" target="_blank" rel="noopener" data-gr-stop>Watch</a>' : '') +
+      '</div>';
+
+    $('grAnalytics').innerHTML = grAnHead() +
+      (grFcIsSample()
+        ? '<div class="gr_samp"><b>Sample calls.</b> Fathom is not connected yet, so this is ' +
+          'what the screen will look like. Connect it on Connectors and the real list takes ' +
+          'its place.</div>'
+        : '') +
+      '<div class="gr_heroes">' +
+        hero('gr_hb', per.length, 'Calls recorded', period) +
+        hero('gr_hp', since(7), 'This week', 'Last 7 days') +
+        hero('gr_ho', since(30), 'Last 30 days', 'Sales calls') +
+        hero('gr_hg', all.length, 'All time', 'Every recorded call') +
+      '</div>' +
+      '<div class="gr_two">' +
+        '<section class="gr_card"><div class="gr_ct"><h2>Calls per week</h2><span>Last 8 weeks</span></div>' +
+          '<div class="gr_wks">' + wk.map(w => '<div class="gr_wk"><div class="gr_bars">' +
+            '<i style="height:' + (Math.round(w.n / wm * 80) + 3) + 'px;background:#7048E8"></i></div>' +
+            '<b>' + w.n + '</b><span>' + esc(w.d) + '</span></div>').join('') + '</div></section>' +
+        '<section class="gr_card"><div class="gr_ct"><h2>By salesperson</h2><span>Who recorded the call</span></div>' +
+          repL.map(r => '<div class="gr_sr"><i style="background:#7048E8"></i><span>' + esc(r[0]) +
+            '</span><b>' + r[1] + '</b><em></em></div>').join('') +
+          '<p class="gr_mute">To include somebody, add them to the Fathom team. Their calls then ' +
+          'arrive here on their own.</p></section>' +
+      '</div>' +
+      '<section class="gr_card"><div class="gr_ct"><h2>All sales calls</h2><span>Newest first</span></div>' +
+        '<input class="gr_in gr_fcq" id="grFcQ" placeholder="Search by name or person" ' +
+          'value="' + esc(grFcQ) + '" aria-label="Search calls">' +
+        (list.slice(0, grFcMore).map(row).join('') || '<p class="gr_mute">No calls match.</p>') +
+        (list.length > grFcMore
+          ? '<button class="gr_ghost gr_fcmore" data-gr-fcmore>Show 40 more (' +
+            (list.length - grFcMore) + ' left)</button>'
+          : '') +
+      '</section>';
+  }
+
   function grRenderAnalytics() {
+    // Whoever the manager is looking at. "Everyone" for a rep, because RLS has
+    // already given them only their own rows.
+    const grVis = grVisible();
+    if (grAnView === 'fathom') return grRenderFathom();
     const within = (iso) => {
       if (grRange === 'all') return true; if (!iso) return false;
       const t = new Date(iso).getTime();
@@ -95886,12 +96247,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     };
     const period = grRange === 'all' ? 'All time' : grRange === 'week' ? 'Last 7 days' : 'Last 30 days';
     const sent = grMessages.filter(m => m.direction === 'out' && within(m.sent_at)).length;
-    const replied = grClients.filter(c => grThread(c).some(m => m.direction === 'in' && within(m.sent_at)));
-    const emailed = grClients.filter(c => grThread(c).some(m => m.direction === 'out')).length;
-    const repliedAll = grClients.filter(c => grThread(c).some(m => m.direction === 'in')).length;
-    const waiting = grClients.filter(grWaiting);
-    const wonList = grClients.filter(c => c.stage === 'won' && within(c.won_on));
-    const wonAll = grClients.filter(c => c.stage === 'won');
+    const replied = grVis.filter(c => grThread(c).some(m => m.direction === 'in' && within(m.sent_at)));
+    const emailed = grVis.filter(c => grThread(c).some(m => m.direction === 'out')).length;
+    const repliedAll = grVis.filter(c => grThread(c).some(m => m.direction === 'in')).length;
+    const waiting = grVis.filter(grWaiting);
+    const wonList = grVis.filter(c => c.stage === 'won' && within(c.won_on));
+    const wonAll = grVis.filter(c => c.stage === 'won');
     const wonMrr = wonList.reduce((n, c) => n + grVal(c), 0);
 
     const inRange = grMeetings.filter(m => within(m.starts_at));
@@ -95902,21 +96263,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const avgMin = heldList.length ? Math.round(mins / heldList.length) : 0;
     const maxMin = heldList.reduce((n, m) => Math.max(n, grCallMin(m)), 0);
 
-    const called = grClients.filter(c => (c.calls_held || 0) > 0 || c.stage !== 'booked');
+    const called = grVis.filter(c => (c.calls_held || 0) > 0 || c.stage !== 'booked');
     const steps = [
-      ['Booked', grClients.length, '#1D5FA8'],
+      ['Booked', grVis.length, '#1D5FA8'],
       ['Call done', called.length, '#7048E8'],
-      ['Proposal sent', grClients.filter(c => ['proposal', 'follow', 'won'].includes(c.stage)).length, '#E8590C'],
-      ['Replied', grClients.filter(c => grThread(c).some(m => m.direction === 'in')).length, '#C2255C'],
+      ['Proposal sent', grVis.filter(c => ['proposal', 'follow', 'won'].includes(c.stage)).length, '#E8590C'],
+      ['Replied', grVis.filter(c => grThread(c).some(m => m.direction === 'in')).length, '#C2255C'],
       ['Won', wonAll.length, '#1F7A45']
     ];
     const top = Math.max(1, steps[0][1]);
 
-    const inPlay = grClients.filter(grActive).reduce((n, c) => n + grVal(c), 0);
+    const inPlay = grVis.filter(grActive).reduce((n, c) => n + grVal(c), 0);
     const avgDeal = wonList.length ? Math.round(wonMrr / wonList.length)
       : (wonAll.length ? Math.round(wonAll.reduce((n, c) => n + grVal(c), 0) / wonAll.length) : 0);
     const stRows = grStages.filter(x => x.key !== 'lost').map(st => {
-      const g = grClients.filter(c => c.stage === st.key), m = g.reduce((n, c) => n + grVal(c), 0);
+      const g = grVis.filter(c => c.stage === st.key), m = g.reduce((n, c) => n + grVal(c), 0);
       return '<div class="gr_sr"><i style="background:' + grStageColor(st.key) + '"></i>' +
         '<span>' + esc(grStageLabel(st.key)) + '</span><b>' + g.length + '</b>' +
         '<em>' + (m ? grMoney(m) : '&ndash;') + '</em></div>';
@@ -95926,7 +96287,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // is a calendar, and there is already a Meetings screen for that.
     const log = grMeetings.filter(grMeetDone)
       .sort((a, b) => new Date(b.starts_at) - new Date(a.starts_at)).slice(0, 10).map(m => {
-        const c = grClients.find(x => x.id === m.client_id);
+        const c = grVis.find(x => x.id === m.client_id);
         return '<div class="gr_cl"' + (c ? ' data-gr-open="' + c.id + '"' : '') + '>' +
           '<span class="gr_cld">' + esc(grFmt(m.starts_at)) + '</span>' +
           '<b>' + esc(c ? c.name : (m.title || 'Call')) + '</b>' +
@@ -95960,10 +96321,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const hero = (cls, v, l, s2) => '<div class="gr_hero ' + cls + '"><div class="gr_hv">' + v +
       '</div><div class="gr_hl">' + esc(l) + '</div><div class="gr_hs">' + esc(s2) + '</div></div>';
 
-    $('grAnalytics').innerHTML =
-      grHead('Analytics', 'How the sales team is doing',
-        '<div class="gr_seg">' + [['week', '7 days'], ['month', '30 days'], ['all', 'All time']]
-          .map(r => '<button data-gr-range="' + r[0] + '"' + (grRange === r[0] ? ' aria-pressed="true"' : '') + '>' + r[1] + '</button>').join('') + '</div>') +
+    $('grAnalytics').innerHTML = grAnHead() +
       '<div class="gr_heroes">' +
         hero('gr_hb', inRange.length, 'Meetings booked', upNext.length + ' still coming up') +
         hero('gr_hp', heldList.length, 'Calls done', hrs + ' hours talking') +
@@ -95977,7 +96335,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           (i ? grPct(x[1], steps[i - 1][1]) + ' of ' + steps[i - 1][0].toLowerCase() : 'All clients') +
           '</span></div><div class="gr_fb"><i style="width:' + Math.max(4, x[1] / top * 100) + '%;background:' + x[2] + '"></i></div><div class="gr_fnn">' + x[1] + '</div></div>').join('') +
         '<div class="gr_afoot"><b>' + grPct(wonAll.length, Math.max(1, called.length)) +
-          '</b> of calls turn into a win &middot; <b>' + grPct(called.length, Math.max(1, grClients.length)) +
+          '</b> of calls turn into a win &middot; <b>' + grPct(called.length, Math.max(1, grVis.length)) +
           '</b> of bookings show up</div>' +
       '</section>' +
       '<div class="gr_two">' +
@@ -96595,12 +96953,32 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         return '<div class="gr_field"><label for="grSig' + k + '">' + label + '</label>' +
           '<input id="grSig' + k + '" class="gr_in" data-gr-sig="' + k + '" value="' + esc(sig[k] || '') + '" placeholder="' + ph + '"></div>';
       };
-      body = '<section class="gr_card"><div class="gr_ct"><h2>Who owns what</h2><span class="gr_n">' + grPeople.length + '</span></div>' +
-        '<p class="gr_mute">Everyone who can own a deal. A rep sees only the clients they own; a manager sees them all.</p>' +
-        grPeople.map(function (p) {
+      /* Who works in Growth, as a list you can tick rather than every profile in the
+         company. The owner dropdown on a deal and the person chips on the course both
+         read this, which is what turned 79 names into the handful who actually sell. */
+      const team = grTeamIds();
+      const inTeam = {}; team.forEach(function (id) { inTeam[id] = 1; });
+      const order = grPeople.slice().sort(function (a2, b2) {
+        const ta = inTeam[a2.id] ? 0 : 1, tb = inTeam[b2.id] ? 0 : 1;
+        if (ta !== tb) return ta - tb;
+        return String(a2.full_name || '').localeCompare(String(b2.full_name || ''));
+      });
+      const shown = grIsStaff() ? order : order.filter(function (p) { return inTeam[p.id]; });
+      body = '<section class="gr_card"><div class="gr_ct"><h2>Who works in Growth</h2>' +
+        '<span class="gr_n">' + team.length + '</span></div>' +
+        '<p class="gr_mute">' + (grIsStaff()
+          ? 'Tick the people who sell. They are the ones offered as the owner of a deal and listed on the course. Everyone else keeps working as they do now &mdash; this changes who Growth lists, not who can sign in.'
+          : 'The people working in Growth. A manager keeps this list.') + '</p>' +
+        shown.map(function (p) {
           const mine = grClients.filter(function (c) { return c.owner_id === p.id; });
           const staff = ['owner','manager','inhouse_dev'].indexOf(p.role) >= 0;
-          return '<div class="gr_row" style="cursor:default">' + grAvatar(p.full_name, staff ? '#1D5FA8' : '#7C3AED') +
+          const on = !!inTeam[p.id];
+          return '<div class="gr_row gr_trow' + (on ? '' : ' gr_toff') + '" style="cursor:default">' +
+            (grIsStaff()
+              ? '<input type="checkbox" class="gr_tck" data-gr-team="' + p.id + '"' + (on ? ' checked' : '') +
+                ' aria-label="' + esc(p.full_name || 'Unnamed') + ' works in Growth">'
+              : '') +
+            grAvatar(p.full_name, staff ? '#1D5FA8' : '#7C3AED') +
             '<div class="gr_rm"><b>' + esc(p.full_name || 'Unnamed') + '</b><span>' +
               (staff ? 'Sees every deal, and can edit these settings' : 'Sees only their own deals') + '</span></div>' +
             '<span class="gr_st">' + mine.length + ' deal' + (mine.length === 1 ? '' : 's') + '</span></div>';
@@ -96733,14 +97111,44 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       }).join('') : '<p class="gr_mute">No meetings booked with ' + esc(grFirst(c)) + ' yet.</p>';
 
     } else if (grTab === 'details') {
-      const f = (id, label, key, val) => '<div class="gr_field"><label for="' + id + '">' + label + '</label>' +
-        '<input id="' + id + '" data-gr-f="' + key + '" value="' + esc(val || '') + '"></div>';
-      body = '<div class="gr_two">' + f('grfName', 'Name', 'name', c.name) + f('grfCo', 'Company', 'company', c.company) + '</div>' +
+      const f = (id, label, key, val, ph) => '<div class="gr_field"><label for="' + id + '">' + label + '</label>' +
+        '<input id="' + id + '" data-gr-f="' + key + '" placeholder="' + esc(ph || '') + '" value="' + esc(val || '') + '"></div>';
+      /* What they filled in on the booking form. It has been stored and scored since the
+         first import and never shown, so the one place that knows a prospect's budget
+         was the console. Only the parts they actually answered are listed. */
+      const it = [['Source', (c.intake || {}).source], ['Wants', (c.intake || {}).interests],
+                  ['Budget', (c.intake || {}).budget], ['Ready', (c.intake || {}).ready],
+                  ['Revenue', (c.intake || {}).revenue], ['Site', (c.intake || {}).url]]
+                 .filter(x => x[1]);
+      const lt = grLocalTime(c);
+      body = '<div class="gr_pfc"><div class="gr_pft">Contact</div>' +
+        '<div class="gr_two">' + f('grfName', 'Name', 'name', c.name) + f('grfCo', 'Company', 'company', c.company) + '</div>' +
         '<div class="gr_two">' + f('grfMail', 'Email', 'email', c.email) + f('grfPhone', 'Phone', 'phone', c.phone) + '</div>' +
-        '<div class="gr_two">' + f('grfSite', 'Website', 'website', c.website) + f('grfVal', 'Monthly value', 'value_monthly', c.value_monthly) + '</div>' +
-        (grIsStaff() ? '<div class="gr_field"><label for="grfOwner">Owner</label><select id="grfOwner" data-gr-f="owner_id">' +
-          grPeople.map(p => '<option value="' + p.id + '"' + (p.id === c.owner_id ? ' selected' : '') + '>' + esc(p.full_name || 'Unnamed') + '</option>').join('') + '</select></div>' : '') +
-        '<div class="gr_field"><label for="grfSum">Notes</label><textarea id="grfSum" data-gr-f="summary">' + esc(c.summary) + '</textarea></div>' +
+        '<div class="gr_two">' + f('grfSite', 'Website', 'website', c.website, 'company.com') +
+          f('grfSrc', 'Found us through', 'source', c.source || (c.intake || {}).source, 'Fiverr, Google, referral') + '</div>' +
+        '<div class="gr_two">' + f('grfVal', 'Monthly value', 'value_monthly', c.value_monthly) + '</div></div>' +
+        '<div class="gr_pfc"><div class="gr_pft">Location and time</div>' +
+        '<div class="gr_two">' + f('grfLoc', 'City or region', 'location', c.location, 'e.g. Minneapolis, MN') +
+          '<div class="gr_field"><label for="grfTz">Time zone</label>' +
+          '<select id="grfTz" data-gr-f="timezone"><option value="">Not set</option>' +
+          GR_TZS.map(z => '<option value="' + z[0] + '"' + (c.timezone === z[0] ? ' selected' : '') + '>' +
+            esc(z[1]) + '</option>').join('') + '</select></div></div>' +
+        (lt
+          ? '<div class="gr_tzb"><b>' + esc(lt) + '</b><span>right now for ' + esc(grFirst(c)) + '</span></div>'
+          : '<p class="gr_mute">Set a time zone to see their local time, and stop guessing whether 8am is rude.</p>') +
+        '</div>' +
+        (it.length ? '<div class="gr_pfc"><div class="gr_pft">From their form</div><div class="gr_intk">' +
+          it.map(x => '<span><b>' + esc(x[0]) + ':</b> ' + esc(x[1]) + '</span>').join('') + '</div></div>' : '') +
+        (grIsStaff() ? '<div class="gr_pfc"><div class="gr_pft">Owner</div>' +
+          '<div class="gr_field"><label for="grfOwner">Owner</label><select id="grfOwner" data-gr-f="owner_id">' +
+          // The Growth team, not all 79 profiles. A deal already owned by somebody who
+          // has since left the team still shows their name rather than silently
+          // reassigning itself to whoever happens to be first in the list.
+          grOwnerChoices(c).map(p => '<option value="' + p.id + '"' + (p.id === c.owner_id ? ' selected' : '') + '>' +
+            esc(p.full_name || 'Unnamed') + '</option>').join('') + '</select></div></div>' : '') +
+        '<div class="gr_pfc"><div class="gr_pft">Notes</div>' +
+        '<div class="gr_field"><label for="grfSum">Your own notes</label>' +
+        '<textarea id="grfSum" data-gr-f="summary">' + esc(c.summary) + '</textarea></div></div>' +
         '<div class="gr_acts"><button class="gr_danger" data-gr-remove="' + c.id + '">Remove client</button></div>';
     } else {
       const li = grLastIn(c);
@@ -96802,7 +97210,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       '<div class="gr_sheet" data-gr-id="' + c.id + '">' +
         '<div class="gr_sh">' + grAvatar(c.name, col, 'gr_lg') +
           '<div class="gr_si"><h2>' + esc(c.name) + '</h2><div class="gr_ss">' +
-            [c.company, c.email, c.phone, grLocalTime(c)].filter(Boolean).map(esc).join(' \u00B7 ') + '</div></div>' +
+            [c.company, c.email, c.phone, grLocalTime(c) ? grLocalTime(c) + ' their time' : '']
+              .filter(Boolean).map(esc).join(' \u00B7 ') + '</div></div>' +
           '<button class="gr_x" data-gr-close aria-label="Close">&#10005;</button></div>' +
 
         '<div class="gr_sbar">' +
@@ -96951,7 +97360,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         .map(a => '<button data-gr-pk="adj" data-id="' + id + '" data-v="' + a[0] + '">' + a[1] + '</button>').join('');
     } else {
       h = '<button data-gr-pk="copy" data-id="' + id + '">Copy the text</button>' +
-          '<button data-gr-pk="sent" data-id="' + id + '">I sent it another way</button>';
+          '<button data-gr-pk="sent" data-id="' + id + '">I sent it another way</button>' +
+          // A good email gets rewritten from memory the next time somebody needs it.
+          // Keeping it is one click from where it was written, not a trip to Settings.
+          (grIsStaff() ? '<button data-gr-pk="astpl" data-id="' + id + '">Save as a template</button>' : '');
     }
     el.innerHTML = h;
     document.body.appendChild(el);
@@ -97207,6 +97619,39 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grLogEmail(c, rec);
       return;
     }
+    if (kind === 'astpl' && grComposer) { grSaveAsTemplate(c); return; }
+  }
+
+  /* Keep what was just written as a template. The client's own name and company go back
+     to being {name} and {company}, otherwise the next person to use it sends Michael's
+     name to somebody else -- which is the mistake templates exist to prevent. */
+  async function grSaveAsTemplate(c) {
+    const k = grComposer; if (!k) return;
+    const name = await window.giantPrompt('Name this template', k.subject || '');
+    if (name == null) return;
+    const nm = String(name).trim();
+    if (!nm) return;
+    const swap = (t) => {
+      let out = String(t || '');
+      if (c.name) {
+        out = out.split(c.name).join('{name}');
+        const first = grFirst(c);
+        // The first name alone is what a greeting uses, and it is replaced after the
+        // full name so "Michael Cash" does not become "{name} Cash".
+        if (first && first.length > 2) out = out.split(first).join('{name}');
+      }
+      if (c.company) out = out.split(c.company).join('{company}');
+      return out;
+    };
+    const s2 = sb(); if (!s2) return;
+    const row = { name: nm, subject: swap(k.subject), body: swap(k.body),
+                  position: grTemplates.length };
+    const { data, error } = await s2.from('growth_templates').insert(row).select('*');
+    if (error) { grToast('Could not save. ' + error.message); return; }
+    if (!data || !data.length) { grToast('Saving the template was refused.'); return; }
+    grTemplates.push(data[0]);
+    grToast('Saved as a template');
+    grRender();
   }
 
   /* Save draft parks it on the client, which is the same place the overnight follow up
@@ -97414,6 +97859,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (o2) { e.stopPropagation(); grOpenId = o2.dataset.grOpen2; grTab = 'overview'; grRender(); return; }
     const br = e.target.closest('[data-gr-brief]');
     if (br) { e.stopPropagation(); grBrief(br.dataset.grBrief); return; }
+
+    const lk = e.target.closest('[data-gr-link]');
+    if (lk) { e.stopPropagation(); grMeetLink(lk.dataset.grLink); return; }
 
     const pv = e.target.closest('[data-gr-pview]');
     if (pv) { grPView = pv.dataset.grPview; grRender(); return; }
@@ -97817,6 +98265,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const range = e.target.closest('[data-gr-range]');
     if (range) { grRange = range.dataset.grRange; grRender(); return; }
 
+    const tz = e.target.closest('[data-gr-tz]');
+    if (tz) {
+      grZone = tz.dataset.grTz;
+      try { localStorage.setItem('giant.growthTz', grZone); } catch (err) { /* private window */ }
+      grRender();
+      return;
+    }
+
+    const anv = e.target.closest('[data-gr-anview]');
+    // Switching view resets the search and the page size: carrying a half-typed search
+    // across to a screen that does not have a search box leaves it filtering invisibly.
+    if (anv) { grAnView = anv.dataset.grAnview; grFcQ = ''; grFcMore = 40; grRender(); return; }
+    if (e.target.closest('[data-gr-fcmore]')) { grFcMore += 40; grRender(); return; }
+
     const act = e.target.closest('[data-gr-act]');
     if (act) {
       e.stopPropagation();
@@ -97995,6 +98457,30 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const c = grClients.find(x => x.id === grOpenId);
     const sel = e.target.closest('[data-gr-stage-sel]');
     if (sel && c) { grSave(c, { stage: sel.value, won_on: sel.value === 'won' ? grToday() : c.won_on }); return; }
+    const tm = e.target.closest('[data-gr-team]');
+    if (tm) {
+      // Saved as the whole list rather than a diff, because two people ticking at the
+      // same time should end with a list, not with one of them winning a field.
+      const id = tm.dataset.grTeam, now = grTeamIds();
+      const next = tm.checked ? (now.indexOf(id) < 0 ? now.concat([id]) : now)
+                              : now.filter(function (x) { return x !== id; });
+      grSettings.team = next;
+      grSetting('team', next).then(function (r) { if (!r) window.grReload(); });
+      /* Repainted in place rather than through grRender. Re-rendering replaces the whole
+         list, which throws the scroll position back to the top -- so ticking the fortieth
+         person bounced you away from the thirty-ninth. Two things change: the row goes
+         quiet or bright, and the count in the heading. */
+      const row = tm.closest('.gr_trow');
+      if (row) row.classList.toggle('gr_toff', !tm.checked);
+      const n = document.querySelector('#grSettings .gr_n');
+      if (n) n.textContent = next.length;
+      return;
+    }
+    if (e.target.closest && e.target.closest('[data-gr-viewas]')) {
+      grViewAs = e.target.value;
+      grRender();
+      return;
+    }
     const f = e.target.dataset && e.target.dataset.grF;
     if (f && c) {
       let v = e.target.value;
@@ -98019,6 +98505,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
   });
   document.addEventListener('input', function (e) {
+    if (e.target && e.target.id === 'grFcQ') {
+      // The whole screen re-renders, so the box is a NEW element every keystroke. Without
+      // putting the caret back, every letter after the first lands at position 0 and the
+      // search reads backwards.
+      const at = e.target.selectionStart;
+      grFcQ = e.target.value; grFcMore = 40;
+      grRender();
+      const n = $('grFcQ');
+      if (n) { n.focus(); try { n.setSelectionRange(at, at); } catch (err) { /* older engines */ } }
+      return;
+    }
     if (e.target && e.target.id === 'grAsk') {
       e.target.style.height = 'auto';
       e.target.style.height = Math.min(160, e.target.scrollHeight) + 'px';

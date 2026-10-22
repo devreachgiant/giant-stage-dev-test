@@ -471,7 +471,9 @@
   DB.growth_clients = GR_DEALS.map(([id, name, company, stage, val, owner], i) => ({
     id, owner_id: owner, name, company,
     email: name.toLowerCase().replace(/[^a-z]+/g, '.') + '@example.com',
-    phone: '', website: '', location: '', timezone: '', source: 'Fiverr',
+    phone: i === 0 ? '+1 612 555 0142' : '', website: '',
+    location: i === 0 ? 'Minneapolis, MN' : '',
+    timezone: i === 0 ? 'America/Chicago' : '', source: 'Fiverr',
     stage, value_monthly: val || null, next_step: '', summary: 'Notes from the first call.',
     follow_up_on: i === 3 ? giso(1, 0).slice(0, 10) : null,
     first_call_on: giso(9 - i, 0).slice(0, 10), last_call_on: giso(9 - i, 0).slice(0, 10),
@@ -479,7 +481,12 @@
     emails_sent: i < 2 ? 1 : 0, calls_held: stage === 'booked' ? 0 : 1,
     won_on: stage === 'won' ? giso(2, 0).slice(0, 10) : null,
     lost_on: null, lost_reason: '', handled_msg: '',
-    intake: {}, call_notes: [], team_notes: [], activity_log: [], giant_handoff: null,
+    // gc-1 came in through the booking form and has a time zone, so the Info tab's
+    // "From their form" block and the local-time line have something to render. The
+    // others deliberately do not, because the empty shape has to be right too.
+    intake: i === 0 ? { source: 'Fiverr', interests: 'Google Ads', budget: '$3,000/mo',
+                        ready: 'Right away', revenue: '$80k/mo', url: 'northviewdoors.com' } : {},
+    call_notes: [], team_notes: [], activity_log: [], giant_handoff: null,
     created_at: giso(20 - i, 0), updated_at: giso(i, 0)
   }));
   DB.growth_meetings = [
