@@ -153,6 +153,155 @@ await step('the Growth group is in the sidebar', async () => {
   await page.waitForTimeout(350);
 });
 
+/* TODAY, in a drawer. Home already answers "what should I do today", but only from
+   Home -- on Pipeline or Training, checking whether anybody replied meant leaving what
+   you were doing. Driven from another screen on purpose, because that is the whole
+   reason it exists. */
+await step('Today opens from any Growth screen', async () => {
+  await navOf('gr_pipeline').click();
+  await page.waitForTimeout(800);
+  const btn = await page.evaluate(() => {
+    const b = document.getElementById('grTodayBtn');
+    if (!b) return null;
+    const r = b.getBoundingClientRect();
+    return { on: b.classList.contains('on'), text: b.textContent,
+             w: Math.round(r.width), h: Math.round(r.height),
+             // On screen, not merely in the DOM: a button at 0px is the bug this repo
+             // has shipped before.
+             inView: r.bottom <= window.innerHeight + 1 && r.right <= window.innerWidth + 1 };
+  });
+  check('the Today button is on a Growth screen', btn && btn.on, JSON.stringify(btn));
+  if (!btn) return;
+  check('it is drawn and on screen', btn.w > 60 && btn.h > 24 && btn.inView, JSON.stringify(btn));
+  check('and it carries a count', /\d/.test(btn.text || ''), btn.text);
+
+  await page.locator('#grTodayBtn').click();
+  await page.waitForTimeout(600);
+  const d = await page.evaluate(() => {
+    const dr = document.querySelector('.gr_tdd');
+    if (!dr) return null;
+    const r = dr.getBoundingClientRect();
+    const secs = [...dr.querySelectorAll('.gr_tdt h3')].map(h => h.textContent.trim());
+    const rows = [...dr.querySelectorAll('.gr_tk')].map(x => ({
+      name: (x.querySelector('.gr_tkm b') || {}).textContent,
+      sub: (x.querySelector('.gr_tkm span') || {}).textContent,
+      // The button has to be INSIDE the row, not stacked under it.
+      btnInside: !!x.querySelector('.gr_tkb'),
+      h: Math.round(x.getBoundingClientRect().height)
+    }));
+    return { secs, rows, w: Math.round(r.width),
+             onRight: Math.round(r.right) >= Math.round(window.innerWidth) - 2,
+             pipelineStillThere: !!document.querySelector('#grPipeline .gr_bc'),
+             btnHidden: !document.getElementById('grTodayBtn').classList.contains('on') };
+  });
+  check('the drawer opened', !!d, '');
+  if (!d) return;
+  check('it has the three lists',
+    JSON.stringify(d.secs) === JSON.stringify(['Reply to', 'Meetings today', 'To do']),
+    JSON.stringify(d.secs));
+  check('it comes in from the right at a readable width', d.onRight && d.w > 300,
+    JSON.stringify({ w: d.w, right: d.onRight }));
+  // Over the screen, not instead of it: the point is not to lose your place.
+  check('the screen underneath is still there', d.pipelineStillThere);
+  check('and the button gets out of the way', d.btnHidden);
+  check('every row carries its action button', d.rows.length > 0 && d.rows.every(r => r.btnInside),
+    JSON.stringify(d.rows.map(r => r.btnInside)));
+  // One line per person. When the button falls outside the row it stacks underneath and
+  // every row doubles in height, which is how this looked the first time.
+  check('and sits on one line with it', d.rows.every(r => r.h < 70),
+    JSON.stringify(d.rows.map(r => r.h)));
+});
+
+await step('opening somebody from Today puts the drawer away', async () => {
+  const first = await page.evaluate(() => {
+    const r = document.querySelector('.gr_tdd .gr_tk[data-gr-open]');
+    return r ? r.getAttribute('data-gr-open') : null;
+  });
+  if (!first) { check('there is somebody to open', false, 'no row'); return; }
+  await page.locator('.gr_tdd .gr_tk[data-gr-open]').first().click();
+  await page.waitForTimeout(700);
+  const after = await page.evaluate(() => ({
+    drawer: !!document.querySelector('.gr_tdd'),
+    sheet: document.getElementById('grSheet').classList.contains('on')
+  }));
+  check('the client sheet opened', after.sheet, JSON.stringify(after));
+  // Leaving the drawer up would put the sheet behind it.
+  check('and the drawer closed behind it', !after.drawer, JSON.stringify(after));
+  await page.keyboard.press('Escape'); await page.waitForTimeout(400);
+});
+
+await step('Escape closes the drawer, and it closes last', async () => {
+  await page.locator('#grTodayBtn').click();
+  await page.waitForTimeout(500);
+  check('the drawer is open again', await page.locator('.gr_tdd').count() === 1);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  check('Escape puts it away', await page.locator('.gr_tdd').count() === 0);
+  check('and the button comes back',
+    await page.evaluate(() => document.getElementById('grTodayBtn').classList.contains('on')));
+});
+
+/* RECORDINGS: the shelf. Analytics counts the calls, this is for finding one. */
+await step('Recordings lists the calls, grouped by day', async () => {
+  await navOf('gr_recordings').click();
+  await page.waitForTimeout(900);
+  const m = await page.evaluate(() => {
+    const el = document.getElementById('grRecordings');
+    const cards = [...el.querySelectorAll('.gr_rc')];
+    return {
+      sample: !!el.querySelector('.gr_samp'),
+      days: [...el.querySelectorAll('.gr_rcday')].map(d => d.textContent.trim()),
+      cards: cards.length,
+      chips: [...el.querySelectorAll('[data-gr-recf]')].map(c => ({
+        k: c.dataset.grRecf, n: Number((c.querySelector('b') || {}).textContent) })),
+      first: cards[0] ? {
+        title: (cards[0].querySelector('.gr_rch b') || {}).textContent,
+        tag: (cards[0].querySelector('.gr_rctag') || {}).textContent,
+        headline: (cards[0].querySelector('.gr_rcs') || {}).textContent,
+        points: cards[0].querySelectorAll('.gr_rcl li').length,
+        watch: !!cards[0].querySelector('a[href*="fathom"]'),
+        opens: !!cards[0].querySelector('[data-gr-open]'),
+        copy: !!cards[0].querySelector('[data-gr-reccopy]')
+      } : null
+    };
+  });
+  check('it says these are samples', m.sample);
+  check('calls are grouped under a day heading', m.days.length > 3, JSON.stringify(m.days.slice(0, 3)));
+  check('and there are cards under them', m.cards > 5, m.cards + '');
+  check('a card carries the headline and the points',
+    m.first && (m.first.headline || '').length > 10 && m.first.points >= 2,
+    JSON.stringify(m.first));
+  check('it is matched to the client it belongs to',
+    m.first && /Michael|Cesar|Mike|Kelsey|Pete|Amna/.test(m.first.tag || ''), m.first && m.first.tag);
+  check('with a way to watch, open them, and copy the link',
+    m.first && m.first.watch && m.first.opens && m.first.copy, JSON.stringify(m.first));
+  // The counts on the chips have to add up, or one filter is dropping calls.
+  const all = m.chips.find(c => c.k === 'all'), wc = m.chips.find(c => c.k === 'client'),
+        other = m.chips.find(c => c.k === 'other');
+  check('the filter counts add up', all && wc && other && wc.n + other.n === all.n,
+    JSON.stringify(m.chips));
+});
+
+await step('filtering Recordings actually filters', async () => {
+  const before = await page.locator('#grRecordings .gr_rc').count();
+  await page.locator('[data-gr-recf="client"]').click();
+  await page.waitForTimeout(600);
+  const m = await page.evaluate(() => ({
+    cards: document.querySelectorAll('#grRecordings .gr_rc').length,
+    // Every card left must be one with a client on it.
+    allTagged: [...document.querySelectorAll('#grRecordings .gr_rc')]
+      .every(c => !c.querySelector('.gr_rcsoft')),
+    pressed: (document.querySelector('[data-gr-recf="client"]') || {}).getAttribute('aria-pressed')
+  }));
+  check('the list is shorter', m.cards < before, m.cards + ' of ' + before);
+  check('and every call left is on a client', m.allTagged);
+  check('the chip shows as chosen', m.pressed === 'true', m.pressed);
+  await page.locator('[data-gr-recf="all"]').click();
+  await page.waitForTimeout(500);
+  const back = await page.locator('#grRecordings .gr_rc').count();
+  check('and All brings them back', back === before, back + ' vs ' + before);
+});
+
 /* The strip of clocks. The team sells across four countries, so a meeting row saying
    "3pm" is a question until the screen says whose 3pm. Choosing a city re-prints every
    time on the screen; the measurement is that a MEETING TIME moves, not just the tile,
@@ -307,8 +456,8 @@ await step('Cmd+B inside a message box still means bold', async () => {
   await page.waitForTimeout(400);
 });
 
-await step('all nine Growth items are there and visible', async () => {
-  const want = ['gr_home', 'gr_meetings', 'gr_pipeline', 'gr_inbox',
+await step('all ten Growth items are there and visible', async () => {
+  const want = ['gr_home', 'gr_meetings', 'gr_recordings', 'gr_pipeline', 'gr_inbox',
                 'gr_training', 'gr_analytics', 'gr_connectors', 'gr_settings', 'gr_automations'];
   const seen = await page.evaluate((w) => w.map(s => {
     const el = document.querySelector('#appSidebar .nav-item[data-screen="' + s + '"]');
@@ -317,7 +466,7 @@ await step('all nine Growth items are there and visible', async () => {
     return { s, found: true, w: Math.round(r.width), h: Math.round(r.height),
              text: (el.textContent || '').trim() };
   }), want);
-  check('all nine Growth items exist', seen.every(x => x.found), JSON.stringify(seen.filter(x => !x.found)));
+  check('all ten Growth items exist', seen.every(x => x.found), JSON.stringify(seen.filter(x => !x.found)));
   // ORDER, not just presence. The design's sidebar runs the four daily screens, then the
   // reference ones, then the two admin ones with Settings before Automations -- and
   // querying each item by name, as the line above does, passes whatever order they are in.
@@ -328,7 +477,7 @@ await step('all nine Growth items are there and visible', async () => {
   // width AND height, not presence: a nav item collapsed to zero is the exact bug that
   // got through before, when display:'' deleted an inline rule and children went to 0.
   const sized = seen.filter(x => x.found && x.w > 60 && x.h > 14);
-  check('and every one has real size on screen', sized.length === 9,
+  check('and every one has real size on screen', sized.length === 10,
         JSON.stringify(seen.map(x => x.s + ':' + x.w + 'x' + x.h)));
   check('they read as the nine names asked for', seen.every(x => x.text && x.text.length > 2),
         JSON.stringify(seen.map(x => x.text)));
@@ -337,6 +486,7 @@ await step('all nine Growth items are there and visible', async () => {
 const screens = [
   ['gr_home',       'grHome',       ['Reply to', 'Meetings today']],
   ['gr_meetings',   'grMeetings',   ['Meetings']],
+  ['gr_recordings', 'grRecordings', ['Recordings', 'Watch recording']],
   ['gr_pipeline',   'grPipeline',   ['Pipeline', 'New client']],
   ['gr_inbox',      'grInbox',      ['Growth Inbox']],
   ['gr_training',   'grTraining',   ['Training']],
@@ -814,6 +964,60 @@ await step('Settings: the signature can carry a logo, and says where it shows', 
   check('and the preview shows it', saved.img === 'https://example.com/logo.png', String(saved.img));
 });
 
+/* Growth drew two letters for everybody, including the people who work here and have
+   had a photo on their profile all along. Clients keep initials: a prospect has no
+   profile and no picture, so a fallback that looks like a missing photo would be wrong. */
+await step('people show their own photo, and the rest keep initials', async () => {
+  await navOf('gr_settings').click();
+  await page.waitForTimeout(700);
+  await page.locator('[data-gr-settab="team"]').click();
+  await page.waitForTimeout(600);
+  const m = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('#grSettings .gr_trow')].map(r => {
+      const av = r.querySelector('.gr_av');
+      const cs = av ? getComputedStyle(av) : null;
+      return {
+        name: (r.querySelector('.gr_rm b') || {}).textContent,
+        img: cs ? cs.backgroundImage : '',
+        text: av ? av.textContent.trim() : '',
+        w: av ? Math.round(av.getBoundingClientRect().width) : 0,
+        h: av ? Math.round(av.getBoundingClientRect().height) : 0
+      };
+    });
+    // What the database says, so this compares the screen against the rows rather than
+    // against itself.
+    const withPhoto = window.__mockDB.profiles.filter(p => p.avatar_url).length;
+    return { rows, withPhoto };
+  });
+  check('the team list has rows', m.rows.length > 2, m.rows.length + '');
+  const shown = m.rows.filter(r => r.img && r.img !== 'none');
+  const initials = m.rows.filter(r => !r.img || r.img === 'none');
+  check('some people are drawn with a photo', shown.length > 0,
+    shown.length + ' of ' + m.rows.length);
+  check('and the rest still show their initials',
+    initials.every(r => /^[A-Z?]{1,2}$/.test(r.text)), JSON.stringify(initials.slice(0, 3)));
+  // A photo in an element with no size is the bug that hides behind "it is there".
+  check('every avatar is actually drawn', m.rows.every(r => r.w >= 20 && r.h >= 20),
+    JSON.stringify(m.rows.map(r => r.w + 'x' + r.h).slice(0, 5)));
+  // A photo must not leave the initials underneath showing through it.
+  check('a photo replaces the letters rather than sitting over them',
+    shown.every(r => r.text === ''), JSON.stringify(shown.map(r => r.text)));
+
+  await navOf('gr_pipeline').click();
+  await page.waitForTimeout(700);
+  const cl = await page.evaluate(() => {
+    const av = document.querySelector('#grPipeline .gr_bc .gr_av');
+    return av ? { text: av.textContent.trim(), img: getComputedStyle(av).backgroundImage } : null;
+  });
+  check('a client is still drawn with initials', cl && /^[A-Z]{1,2}$/.test(cl.text),
+    JSON.stringify(cl));
+
+  // Put Settings back on screen: the steps below this one open a tab without navigating
+  // first, so leaving the app on Pipeline makes them look broken when they are not.
+  await navOf('gr_settings').click();
+  await page.waitForTimeout(700);
+});
+
 await step('Settings: ticking somebody puts them in Growth', async () => {
   await page.locator('[data-gr-settab="team"]').click();
   await page.waitForTimeout(450);
@@ -1158,6 +1362,59 @@ await step('Training: a call can be added to the watch list', async () => {
   await page.waitForTimeout(600);
   const after = await page.evaluate(() => (window.__mockDB.growth_watch_calls || []).length);
   check('a watch-list call is inserted', after === before + 1, before + ' -> ' + after);
+});
+
+/* Taking a call off the shelf used to DELETE the row -- the lesson somebody wrote under
+   it and the moments they timed, gone from a single X with no confirm, on a list the
+   whole team shares. It is hidden now, so it can come back and nothing is lost. */
+await step('a call can be taken off the shelf and put back', async () => {
+  const start = await page.evaluate(() => ({
+    rows: (window.__mockDB.growth_watch_calls || []).length,
+    cards: document.querySelectorAll('#grTraining .gr_bc3').length
+  }));
+  check('there are calls on the shelf', start.cards > 0, JSON.stringify(start));
+  const title = await page.evaluate(() =>
+    (document.querySelector('#grTraining .gr_bc3 .gr_bch b') || {}).textContent);
+
+  await page.locator('#grTraining [data-gr-watch-del]').first().click();
+  await page.waitForTimeout(800);
+  const off = await page.evaluate(() => ({
+    rows: (window.__mockDB.growth_watch_calls || []).length,
+    cards: document.querySelectorAll('#grTraining .gr_bc3:not(.gr_bcgone)').length,
+    link: (document.querySelector('[data-gr-watch-gone]') || {}).textContent || '',
+    saved: (window.__mockDB.growth_settings.find(x => x.key === 'watch_hidden') || {}).value
+  }));
+  check('it leaves the shelf', off.cards === start.cards - 1, start.cards + ' -> ' + off.cards);
+  // The row itself must still be there. This is the whole difference between taking a
+  // call off the list and destroying what somebody wrote about it.
+  check('but the row is NOT deleted', off.rows === start.rows, start.rows + ' vs ' + off.rows);
+  check('and the screen offers it back', /Show removed \(1\)/.test(off.link), off.link);
+  check('which is remembered', off.saved && Object.keys(off.saved).length === 1, JSON.stringify(off.saved));
+
+  await page.locator('[data-gr-watch-gone]').click();
+  await page.waitForTimeout(600);
+  const shown = await page.evaluate(() => {
+    const g = document.querySelector('#grTraining .gr_bcgone');
+    return { visible: !!g, title: g ? (g.querySelector('b') || {}).textContent : '',
+             back: !!(g && g.querySelector('[data-gr-watch-back]')),
+             faded: g ? Number(getComputedStyle(g).opacity) : 1 };
+  });
+  check('the removed call is listed', shown.visible && shown.title === title,
+    shown.title + ' vs ' + title);
+  check('shown as off the list rather than on it', shown.faded < 0.9, shown.faded + '');
+  check('with a way to add it back', shown.back);
+
+  await page.locator('[data-gr-watch-back]').first().click();
+  await page.waitForTimeout(800);
+  const back = await page.evaluate(() => ({
+    cards: document.querySelectorAll('#grTraining .gr_bc3:not(.gr_bcgone)').length,
+    link: document.querySelectorAll('[data-gr-watch-gone]').length,
+    saved: (window.__mockDB.growth_settings.find(x => x.key === 'watch_hidden') || {}).value
+  }));
+  check('it is back on the shelf', back.cards === start.cards, back.cards + ' vs ' + start.cards);
+  check('and the removed list goes away with it', back.link === 0, back.link + '');
+  check('nothing is left hidden', !back.saved || Object.keys(back.saved).length === 0,
+    JSON.stringify(back.saved));
 });
 
 await step('the client sheet has all five tabs, and each one paints', async () => {

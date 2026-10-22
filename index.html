@@ -6899,6 +6899,9 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_sw{flex:none;display:flex;align-items:center;padding-left:4px;}
 /* A connector Growth has been told to leave alone still reads clearly, just quieter. */
 .gr_cnoff .gr_cnrow .gr_rm b{color:var(--text-3);}
+.gr_rcf2{display:inline-flex;align-items:center;gap:7px;}
+/* A call taken off the shelf: still readable, plainly not on the list any more. */
+.gr_bcgone{opacity:.6;border-style:dashed;}
 .gr_sigimg{display:block;max-width:160px;max-height:54px;margin-bottom:8px;border-radius:6px;}
 .gr_tkg{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:11px;}
 .gr_tkc{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;}
@@ -6931,6 +6934,54 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_jr .gr_jon{color:var(--text);}
 .gr_jr .gr_jon i{background:#1F7A45;border-color:#1F7A45;}
 .gr_jr u{flex:1;height:1px;background:var(--line);text-decoration:none;min-width:12px;}
+/* Today, in a drawer over whatever Growth screen you are on. */
+.gr_tdbtn{position:fixed;right:18px;bottom:18px;z-index:60;display:none;align-items:center;gap:8px;
+  background:var(--text);color:var(--bg);border:0;border-radius:99px;padding:11px 18px;font:inherit;
+  font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 10px 28px -10px rgba(0,0,0,.55);}
+.gr_tdbtn.on{display:flex;}
+.gr_tdbtn b{background:var(--red);color:#fff;border-radius:99px;padding:1px 8px;font-size:11px;}
+.gr_tdw{display:none;}
+.gr_tdw.on{display:block;}
+.gr_tdscrim{position:fixed;inset:0;background:rgba(8,8,10,.45);z-index:74;}
+.gr_tdd{position:fixed;top:0;right:0;bottom:0;width:min(400px,100%);z-index:75;background:var(--bg);
+  border-left:1px solid var(--line);padding:18px 18px 24px;overflow-y:auto;display:flex;flex-direction:column;gap:16px;
+  box-shadow:-30px 0 60px -30px rgba(0,0,0,.6);}
+.gr_tdh{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+.gr_tdh b{display:block;font-size:19px;font-weight:800;letter-spacing:-.02em;}
+.gr_tdh span{font-size:12px;color:var(--text-3);}
+.gr_tdt{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.gr_tdt h3{margin:0;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);}
+.gr_tk{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line);cursor:pointer;}
+.gr_tk:hover{background:var(--surface-2);border-radius:10px;padding-left:7px;padding-right:7px;}
+.gr_tkm{flex:1;min-width:0;}
+.gr_tkm b{display:block;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gr_tkm span{font-size:11.5px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;}
+.gr_tkb{flex:none;text-decoration:none;}
+.gr_tkdone{opacity:.55;}
+.gr_tds p.gr_mute{margin:6px 0 0;font-size:12.5px;}
+/* Recordings: the shelf, grouped by the day people remember the call by. */
+.gr_rcday{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin:16px 0 8px;}
+.gr_rc{display:flex;gap:13px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px;}
+.gr_rcp{flex:none;width:58px;height:58px;border-radius:12px;background:var(--surface-2);border:1px solid var(--line);display:grid;place-items:center;color:var(--red);font-size:18px;text-decoration:none;}
+.gr_rcp:hover{border-color:var(--line-2);}
+.gr_rcb{flex:1;min-width:0;}
+.gr_rch{display:flex;align-items:center;gap:8px;}
+.gr_rch b{font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gr_rcnew{font-style:normal;font-size:10px;font-weight:800;background:var(--red);color:#fff;border-radius:99px;padding:2px 8px;}
+.gr_rcm{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:5px;font-size:11.5px;color:var(--text-3);}
+.gr_rctag{display:inline-flex;align-items:center;gap:6px;border-radius:99px;padding:3px 10px;font-size:11.5px;font-weight:700;}
+.gr_rctag i{width:6px;height:6px;border-radius:50%;}
+.gr_rcsoft{background:var(--surface-2);color:var(--text-3);}
+.gr_rcs{margin:9px 0 0;font-size:13.5px;line-height:1.55;}
+.gr_rcl{margin:8px 0 0;padding-left:18px;font-size:12.5px;line-height:1.6;color:var(--text-2);}
+.gr_rca{margin-top:9px;}
+.gr_rca>span{display:block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:5px;}
+.gr_rca div{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:3px 0;}
+.gr_rca i{width:14px;height:14px;border-radius:50%;border:1px solid var(--line-2);flex:none;}
+.gr_rca em{font-style:normal;margin-left:auto;font-size:11px;color:var(--text-3);}
+.gr_rcx{display:flex;flex-wrap:wrap;gap:8px;margin-top:11px;}
+.gr_rcx a{text-decoration:none;}
+@media(max-width:620px){.gr_rcp{display:none;}}
 /* A call note in full: the facts, the lines they said, the worries, the next steps. */
 .gr_cn{background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:11px;}
 .gr_cnh{display:flex;align-items:flex-start;gap:10px;justify-content:space-between;}
@@ -8323,6 +8374,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         <div class="nav-pill" id="pillGrowth" style="opacity:0;"></div>
         <div class="nav-item" data-screen="gr_home" data-label="Home" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 7.2 8 2.5l5.5 4.7M4 6.6v7h8v-7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Home <span class="badge" id="grHomeBadge" style="display:none;">0</span></div>
         <div class="nav-item" data-screen="gr_meetings" data-label="Meetings" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 3.8h11v10h-11zM2.5 6.6h11M5.5 2v2.6M10.5 2v2.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Meetings</div>
+        <div class="nav-item" data-screen="gr_recordings" data-label="Recordings" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3.5" width="12" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M6.6 6.6l3.2 1.9-3.2 1.9z" fill="currentColor"/></svg></span>Recordings</div>
         <div class="nav-item" data-screen="gr_pipeline" data-label="Pipeline" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M6 5.2a2.2 2.2 0 100 4.4 2.2 2.2 0 000-4.4ZM1.8 13.4c.5-2.2 2.1-3.4 4.2-3.4s3.7 1.2 4.2 3.4M11 5.5a2.2 2.2 0 010 4M12.6 10.2c1.2.5 2 1.5 2.2 3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Pipeline</div>
         <div class="nav-item" data-screen="gr_inbox" data-label="Growth Inbox" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.2h12v7.6H2zM2.3 4.6 8 8.6l5.7-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Growth Inbox <span class="badge" id="grInboxBadge" style="display:none;">0</span></div>
         <div class="nav-item" data-screen="gr_training" data-label="Training" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M3 3.6A1.6 1.6 0 014.6 2H13v11H4.6A1.6 1.6 0 003 14.6zM3 3.6v11M6 5.4h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Training</div>
@@ -12509,6 +12561,9 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       </div>
       <div class="screen" data-screen="gr_meetings">
         <div class="gr_wrap" id="grMeetings"></div>
+      </div>
+            <div class="screen" data-screen="gr_recordings">
+        <div class="gr_wrap" id="grRecordings"></div>
       </div>
       <div class="screen" data-screen="gr_pipeline">
         <div class="gr_wrap" id="grPipeline"></div>
@@ -94598,7 +94653,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grDcDraft = { code: '', label: '', colour: '' }, grTestBusy = '';
   let grCourseDone = [], grCourseWho = null, grLessonOpen = null, grEditT = null;
   let grRuns = [];
-  let grQaView = 'browse', grQaTheme = 'All', grQaQuery = '', grQaOpen = {}, grQaAll = {};
+  let grQaView = 'browse', grQaTheme = 'All', grQaQuery = '', grQaOpen = {}, grQaAll = {}, grWatchGone = false;
   let grPrac = { id: null, show: false, n: 0 };
   let grPeople = [];                 // profiles who can own a deal
   let grScreen = 'gr_home';
@@ -94621,10 +94676,28 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const out = [];
     for (let i = 0; i < 48; i++) {
       const d = new Date(Date.now() - (i * 29 + (i % 5) * 11) * 36e5);
+      const nm = names[i % names.length];
       out.push({ id: 'fc-' + i, d: d.toISOString().slice(0, 10),
-                 n: names[i % names.length] + (i >= names.length ? ' (follow up)' : ''),
+                 n: nm + (i >= names.length ? ' (follow up)' : ''),
                  k: ['G', 'D', 'O'][i % 3], rep: reps[i % reps.length],
-                 min: 24 + (i * 7) % 38, u: 'https://fathom.video/share/sample' });
+                 min: 24 + (i * 7) % 38, u: 'https://fathom.video/share/sample',
+                 // Enough of a write-up for the Recordings screen to show what a real
+                 // one will look like. Matched to a client by name at render time rather
+                 // than by id, because the ids here are invented and real ones are not.
+                 who: nm,
+                 headline: [
+                   'Wants more leads without paying more per click.',
+                   'Happy with the volume, unhappy with the quality.',
+                   'Comparing us against two other agencies this week.'
+                 ][i % 3],
+                 highlights: [
+                   'Budget is set for the quarter',
+                   'Tracking has never been checked',
+                   'Decision sits with one person'
+                 ].slice(0, 2 + (i % 2)),
+                 actions: i % 4 === 0
+                   ? [{ t: 'Send the proposal', who: reps[i % reps.length] }]
+                   : [] });
     }
     return out;
   })();
@@ -94900,6 +94973,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
   function grAvatar(name, colour, cls) {
     return '<span class="gr_av ' + (cls || '') + '" style="background:' + colour + '">' + esc(grInitials(name)) + '</span>';
+  }
+  /* A PERSON, with their actual photo. grAvatar draws initials on a colour, which is
+     right for a client -- a prospect has no profile and no picture -- and wrong for the
+     people who work here, who have had one all along and were being shown as two
+     letters. Falls back to initials when somebody has not set one, which is most of the
+     reason this is a separate function rather than a flag. */
+  function grFace(p, colour, cls) {
+    if (!p) return grAvatar('?', colour || '#626262', cls);
+    const url = p.avatar_url;
+    if (!url) return grAvatar(p.full_name, colour || p.avatar_bg || '#626262', cls);
+    /* QUOTED url(). An unquoted one cannot contain a comma, a space or a bracket, so a
+       data URI -- or a perfectly ordinary filename with a space in it -- produces a
+       style the browser throws away, and the avatar comes out blank with no error
+       anywhere. The single quotes are stripped from the value for the same reason. */
+    const safe = String(url).replace(/['"\\]/g, '');
+    return '<span class="gr_av ' + (cls || '') + '" style="background-image:url(&#39;' + esc(safe) +
+      '&#39;);background-size:cover;background-position:center" aria-label="' +
+      esc(p.full_name || '') + '"></span>';
   }
   function grEmpty(icon, title, sub) {
     return '<div class="gr_empty"><div class="gr_tick">' + icon + '</div><b>' + esc(title) + '</b><span>' + esc(sub) + '</span></div>';
@@ -95727,8 +95818,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // The shelf is curated: 20261022130000 moved writing here to staff, because this is
       // the Best calls list in Training, not a scratchpad. Reading never changed.
       const can = grIsStaff();
+      // Taken off the shelf, not deleted: the row stays and the lesson under it with it.
+      const hid = grSettings.watch_hidden || {};
+      const shelf = grWatch.filter(function (w) { return !hid[w.id]; });
+      const gone = grWatch.filter(function (w) { return !!hid[w.id]; });
       body = '<div class="gr_sech gr_row2">' +
-          '<div><h2>Best calls</h2><p>' + grWatch.length + ' call' + (grWatch.length === 1 ? '' : 's') +
+          '<div><h2>Best calls</h2><p>' + shelf.length + ' call' + (shelf.length === 1 ? '' : 's') +
             ' worth learning from, with the lesson underneath</p></div>' +
           (can ? '<button class="btn-red" data-gr-watch-open>+ Add a call</button>' : '') + '</div>' +
         (can && grWatchAdd ? '<div class="gr_card gr_addbox">' +
@@ -95738,7 +95833,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             '<input class="gr_in" id="grNewWatchUrl" placeholder="https://fathom.video/..."></div>' +
           '<div class="gr_acts"><button class="btn-red" data-gr-watch-add>Add call</button>' +
             '<button class="gr_ghost" data-gr-watch-cancel>Cancel</button></div></div>' : '') +
-        (grWatch.length ? '<div class="gr_bcg">' + grWatch.map(w =>
+        (shelf.length ? '<div class="gr_bcg">' + shelf.map(w =>
           '<article class="gr_bc3">' +
             '<div class="gr_bch"><div><b>' + esc(w.title) + '</b>' +
               (w.call_date ? '<span>' + esc(grLongDate(w.call_date)) + '</span>' : '') + '</div>' +
@@ -95784,7 +95879,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               '" target="_blank" rel="noopener" data-gr-stop>&#9654; Watch the call</a>' : '') +
           '</article>').join('') + '</div>'
           : grEmpty('&#9654;', 'No calls on the shelf yet',
-              can ? 'Add the first one above.' : 'Luke puts the calls worth watching here.'));
+              can ? 'Add the first one above.' : 'Luke puts the calls worth watching here.')) +
+        /* What was taken off, and a way back. A list you can only remove from is one
+           where a mis-click costs somebody their write-up, and where nobody can answer
+           "what happened to that call?". */
+        (gone.length
+          ? '<p class="gr_mid"><button class="gr_slink" data-gr-watch-gone>' +
+            (grWatchGone ? 'Hide' : 'Show') + ' removed (' + gone.length + ')</button></p>' +
+            (grWatchGone
+              ? '<div class="gr_bcg">' + gone.map(function (w) {
+                  return '<article class="gr_bc3 gr_bcgone">' +
+                    '<div class="gr_bch"><div><b>' + esc(w.title) + '</b>' +
+                      (w.call_date ? '<span>' + esc(grLongDate(w.call_date)) + '</span>' : '') + '</div>' +
+                      (can ? '<button class="gr_ghost gr_sm" data-gr-watch-back="' + w.id +
+                        '">Add back</button>' : '') + '</div>' +
+                    (w.note ? '<p class="gr_bcs">' + esc(w.note) + '</p>' : '') +
+                    '</article>';
+                }).join('') + '</div>'
+              : '')
+          : '');
 
     } else if (grTrainTab === 'phil') {
       const ph = grSettings.philosophy || {};
@@ -96077,8 +96190,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         ' short lesson' + (L.length === 1 ? '' : 's') + '.') +
       (grIsStaff() && grTeam().length > 1
         ? '<div class="gr_who">' + grTeam().map(x =>
-            '<button class="gr_rcf" data-gr-who="' + x.id + '"' + (x.id === who ? ' aria-pressed="true"' : '') + '>' +
-            esc(x.full_name || 'Unnamed') + '<b>' + grCourseDone.filter(d => d.owner_id === x.id).length + '</b></button>').join('') +
+            '<button class="gr_rcf gr_rcf2" data-gr-who="' + x.id + '"' + (x.id === who ? ' aria-pressed="true"' : '') + '>' +
+            grFace(x, '#7C3AED', 'gr_xs') + esc(x.full_name || 'Unnamed') + '<b>' + grCourseDone.filter(d => d.owner_id === x.id).length + '</b></button>').join('') +
           '</div>'
         : '') +
       '<section class="gr_card"><div class="gr_ct"><h2>' +
@@ -96431,6 +96544,87 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             (list.length - grFcMore) + ' left)</button>'
           : '') +
       '</section>';
+  }
+
+  /* RECORDINGS: the library, newest first. Analytics' Fathom tab counts the calls; this
+     is for finding one. Same list behind both -- two lists of the same thing drift, and
+     the one nobody is looking at is the one that goes wrong.
+
+     Grouped by day, because "which call was that" is nearly always remembered as a day. */
+  let grRecF = 'all';
+  function grRecClient(r) {
+    const who = String(r.who || r.n || '').toLowerCase();
+    if (!who) return null;
+    return grClients.find(c =>
+      String(c.company || '').toLowerCase() === who ||
+      String(c.name || '').toLowerCase() === who) || null;
+  }
+  function grRenderRecordings() {
+    const all = grFcAll().slice().sort((a2, b2) => String(b2.d).localeCompare(String(a2.d)));
+    const withC = all.filter(r => !!grRecClient(r));
+    const list = grRecF === 'client' ? withC
+      : grRecF === 'other' ? all.filter(r => !grRecClient(r))
+      : all;
+    const chip = (k, l, n) => '<button class="gr_rcf" data-gr-recf="' + k + '"' +
+      (grRecF === k ? ' aria-pressed="true"' : '') + '>' + l + '<b>' + n + '</b></button>';
+
+    const card = (r) => {
+      const c = grRecClient(r);
+      const fresh = (Date.now() - new Date(r.d + 'T12:00:00Z').getTime()) < 2 * 86400000;
+      const hl = Array.isArray(r.highlights) ? r.highlights : [];
+      const ac = Array.isArray(r.actions) ? r.actions : [];
+      return '<article class="gr_rc">' +
+        '<a class="gr_rcp" href="' + esc(r.u || '#') + '" target="_blank" rel="noopener" ' +
+          'data-gr-stop aria-label="Watch ' + esc(r.n) + '">&#9654;</a>' +
+        '<div class="gr_rcb">' +
+          '<div class="gr_rch"><b>' + esc(r.n) + '</b>' +
+            (fresh ? '<em class="gr_rcnew">New</em>' : '') + '</div>' +
+          '<div class="gr_rcm">' +
+            (c
+              ? '<span class="gr_rctag" style="background:' + grStageColor(c.stage) + '1f;color:' +
+                grStageColor(c.stage) + '"><i style="background:' + grStageColor(c.stage) + '"></i>' +
+                esc(c.name) + '</span>'
+              : '<span class="gr_rctag gr_rcsoft">Not matched to a client</span>') +
+            '<span>' + esc(grLongDate(r.d)) + '</span>' +
+            '<span>' + esc(GR_FC_KIND[r.k] || 'Sales call') + '</span>' +
+            (r.rep ? '<span>' + esc(r.rep) + '</span>' : '') +
+            (r.min ? '<span>' + r.min + ' min</span>' : '') +
+          '</div>' +
+          (r.headline ? '<p class="gr_rcs">' + esc(r.headline) + '</p>' : '') +
+          (hl.length ? '<ul class="gr_rcl">' + hl.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') +
+          (ac.length ? '<div class="gr_rca"><span>Next steps</span>' +
+            ac.map(x => '<div><i></i>' + esc(x.t) + '<em>' + esc(x.who || '') + '</em></div>').join('') +
+            '</div>' : '') +
+          '<div class="gr_rcx">' +
+            '<a class="btn-red gr_sm" href="' + esc(r.u || '#') + '" target="_blank" rel="noopener" ' +
+              'data-gr-stop>&#9654; Watch recording</a>' +
+            (c ? '<button class="gr_ghost gr_sm" data-gr-open="' + c.id + '">Open ' + esc(grFirst(c)) + '</button>' : '') +
+            (r.u ? '<button class="gr_ghost gr_sm" data-gr-reccopy="' + esc(r.u) + '">Copy link</button>' : '') +
+          '</div>' +
+        '</div></article>';
+    };
+
+    let body = '', lastDay = '';
+    list.forEach(r => {
+      const d = grLongDate(r.d);
+      if (d !== lastDay) { body += '<div class="gr_rcday">' + esc(d) + '</div>'; lastDay = d; }
+      body += card(r);
+    });
+
+    $('grRecordings').innerHTML =
+      grHead('Recordings', 'Every recorded call, newest first', '') +
+      (grFcIsSample()
+        ? '<div class="gr_samp"><b>Sample recordings.</b> Fathom is not connected yet, so ' +
+          'this is what the shelf will look like. Connect it on Connectors and the real ' +
+          'calls take their place.</div>'
+        : '') +
+      '<div class="gr_who">' +
+        chip('all', 'All', all.length) +
+        chip('client', 'With a client', withC.length) +
+        chip('other', 'Not matched', all.length - withC.length) +
+      '</div>' +
+      (body || grEmpty('&#9654;', 'Nothing recorded yet',
+        'Calls land here once Fathom is connected.'));
   }
 
   function grRenderAnalytics() {
@@ -97207,7 +97401,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               ? '<input type="checkbox" class="gr_tck" data-gr-team="' + p.id + '"' + (on ? ' checked' : '') +
                 ' aria-label="' + esc(p.full_name || 'Unnamed') + ' works in Growth">'
               : '') +
-            grAvatar(p.full_name, staff ? '#1D5FA8' : '#7C3AED') +
+            grFace(p, staff ? '#1D5FA8' : '#7C3AED') +
             '<div class="gr_rm"><b>' + esc(p.full_name || 'Unnamed') + '</b><span>' +
               (staff ? 'Sees every deal, and can edit these settings' : 'Sees only their own deals') + '</span></div>' +
             '<span class="gr_st">' + mine.length + ' deal' + (mine.length === 1 ? '' : 's') + '</span></div>';
@@ -97302,6 +97496,94 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   /* --- the client sheet --- */
+  /* TODAY, in a drawer rather than a screen.
+     Home already answers "what should I do today", but you can only read it from Home --
+     and the moment you are on Pipeline or Training, checking whether anybody has replied
+     means leaving what you were doing. This is the same three lists, reachable from every
+     Growth screen, over the top of whatever is open.
+
+     It is deliberately read-only apart from the buttons that take you somewhere: a drawer
+     that quietly edits things behind the screen you were on is how people lose work. */
+  let grTodayOpen = false;
+  function grTodayCount() {
+    const vis = grVisible();
+    const replies = vis.filter(c => grActive(c) && grWaiting(c)).length;
+    const meets = grMeetings.filter(m => grSameDay(m.starts_at, Date.now()) && !grMeetDone(m)).length;
+    return replies + meets;
+  }
+  function grPaintTodayBtn() {
+    const b2 = $('grTodayBtn');
+    if (!b2) return;
+    // Only on Growth screens: a Today button floating over Chat would be somebody
+    // else's today.
+    const on = String(grScreen || '').indexOf('gr_') === 0;
+    b2.classList.toggle('on', on && !grTodayOpen);
+    const n = grTodayCount();
+    b2.innerHTML = '<span>Today</span>' + (n ? '<b>' + n + '</b>' : '');
+  }
+
+  function grRenderToday() {
+    const host = $('grToday');
+    if (!host) return;
+    if (!grTodayOpen) { host.innerHTML = ''; host.classList.remove('on'); return; }
+    const vis = grVisible();
+    const replies = vis.filter(c => grActive(c) && grWaiting(c));
+    const meets = grMeetings.filter(m => grSameDay(m.starts_at, Date.now()))
+      .sort((a2, b2) => new Date(a2.starts_at) - new Date(b2.starts_at));
+    const todo = vis.filter(c => grActive(c) && grNextAction(c) && !grWaiting(c)).slice(0, 8);
+    const h = new Date().getHours();
+    const hello = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+
+    const person = (c, right) => '<div class="gr_tk" data-gr-open="' + c.id + '">' +
+      grAvatar(c.name, grStageColor(c.stage), 'gr_sm2') +
+      '<div class="gr_tkm"><b>' + esc(c.name) + '</b><span>' + esc(right) + '</span></div>';
+
+    const rRow = (c) => {
+      const li = grLastIn(c);
+      return person(c, li ? grFirst(c) + ' ' + grIntent(li.body) + ' \u00B7 ' + grAgo(grDaysAgo(li.sent_at))
+                          : 'Waiting on you') +
+        '<button class="btn-red gr_sm gr_tkb" data-gr-act="' + c.id + '" data-t="reply">Reply</button></div>';
+    };
+    const mRow = (m) => {
+      const c = grClients.find(x => x.id === m.client_id);
+      const done = grMeetDone(m), live = grLive(m);
+      return '<div class="gr_tk' + (done ? ' gr_tkdone' : '') + '"' +
+        (c ? ' data-gr-open="' + c.id + '"' : '') + '>' +
+        grAvatar(c ? c.name : m.title, c ? grStageColor(c.stage) : '#626262', 'gr_sm2') +
+        '<div class="gr_tkm"><b>' + esc(c ? c.name : m.title) + '</b>' +
+        '<span>' + esc(done ? 'Done' : live ? 'Happening now' : grHm(m.starts_at)) +
+          ' \u00B7 ' + (m.minutes || 45) + ' min</span></div>' +
+        (!done && m.zoom_url
+          ? '<a class="btn-red gr_sm gr_tkb" href="' + esc(m.zoom_url) + '" target="_blank" ' +
+            'rel="noopener" data-gr-stop>Join</a>'
+          : '') + '</div>';
+    };
+    const tRow = (c) => {
+      const na = grNextAction(c);
+      return person(c, na.label) +
+        '<button class="gr_ghost gr_sm gr_tkb" data-gr-act="' + c.id + '" data-t="' + na.t + '">' +
+        esc(na.label) + '</button></div>';
+    };
+    const sec = (title, n, rows, empty) =>
+      '<div class="gr_tds"><div class="gr_tdt"><h3>' + title + '</h3>' +
+        (n ? '<span class="gr_n' + (title === 'Reply to' ? ' hot' : '') + '">' + n + '</span>' : '') +
+      '</div>' + (rows || '<p class="gr_mute">' + empty + '</p>') + '</div>';
+
+    host.innerHTML =
+      '<div class="gr_tdscrim" data-gr-today-close></div>' +
+      '<aside class="gr_tdd" role="dialog" aria-label="Today">' +
+        '<div class="gr_tdh"><div><b>' + hello + '</b>' +
+          '<span>' + esc(new Date().toLocaleDateString(undefined,
+            { weekday: 'long', month: 'long', day: 'numeric', timeZone: grZone })) + '</span></div>' +
+          '<button class="gr_x" data-gr-today-close aria-label="Close">&#10005;</button></div>' +
+        sec('Reply to', replies.length, replies.map(rRow).join(''), 'Nobody is waiting on you.') +
+        sec('Meetings today', meets.filter(m => !grMeetDone(m)).length, meets.map(mRow).join(''),
+            'Your calendar is clear.') +
+        sec('To do', todo.length, todo.map(tRow).join(''), 'Nothing else needs you right now.') +
+      '</aside>';
+    host.classList.add('on');
+  }
+
   function grRenderSheet() {
     const wrap = $('grSheet');
     const c = grOpenId && grClients.find(x => x.id === grOpenId);
@@ -97467,7 +97749,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           '</select>' +
           '<span class="gr_heat gr_' + heat.k + '">' + esc(heat.label) +
             (heat.why ? '<em>' + esc(heat.why) + '</em>' : '') + '</span>' +
-          (grIsStaff() ? '<span class="gr_ownc">' + grAvatar(own.full_name, col, 'gr_xs') +
+          (grIsStaff() ? '<span class="gr_ownc">' + grFace(own, col, 'gr_xs') +
             esc(own.full_name) + '</span>' : '') +
           '<span class="gr_sp"></span>' +
           (grIsStaff()
@@ -98051,6 +98333,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     try {
       if (grScreen === 'gr_home') grRenderHome();
       else if (grScreen === 'gr_meetings') grRenderMeetings();
+      else if (grScreen === 'gr_recordings') grRenderRecordings();
       else if (grScreen === 'gr_pipeline') grRenderPipeline();
       else if (grScreen === 'gr_inbox') grRenderInbox();
       else if (grScreen === 'gr_training') grRenderTraining();
@@ -98059,6 +98342,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       else if (grScreen === 'gr_automations' && grIsStaff()) grRenderAutomations();
       else if (grScreen === 'gr_settings' && grIsStaff()) grRenderSettings();
       grRenderSheet();
+      grRenderToday();
+      grPaintTodayBtn();
       grBadges();
     } catch (e) { /* one broken screen must not take the app with it */ }
   }
@@ -98133,6 +98418,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (e.target.closest('[data-gr-cal-forget]'))   { grCalForget(); return; }
     if (e.target.closest('[data-gr-conn-recheck]')) { grReprobe(); return; }
     if (e.target.closest('[data-gr-conn-test]'))    { grTestClaude(); return; }
+    const rf = e.target.closest('[data-gr-recf]');
+    if (rf) { grRecF = rf.dataset.grRecf; grRender(); return; }
+    const rcp = e.target.closest('[data-gr-reccopy]');
+    if (rcp) {
+      const url = rcp.dataset.grReccopy;
+      (navigator.clipboard ? navigator.clipboard.writeText(url) : Promise.reject())
+        .then(function () { grToast('Link copied'); })
+        .catch(function () { grToast('Could not copy. The link is on the Watch button.'); });
+      return;
+    }
+
+    if (e.target.closest('[data-gr-today-open]')) { grTodayOpen = true; grRender(); return; }
+    if (e.target.closest('[data-gr-today-close]')) { grTodayOpen = false; grRender(); return; }
+
     const ah = e.target.closest('[data-gr-auhide]');
     if (ah) {
       const map = Object.assign({}, grSettings.automations_hidden || {});
@@ -98380,12 +98679,27 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
     const wdel = e.target.closest('[data-gr-watch-del]');
     if (wdel) {
-      (async function () {
-        const r = await grWrite('growth_watch_calls', 'delete', null, wdel.dataset.grWatchDel);
-        if (r) { grWatch = grWatch.filter(function (x) { return x.id !== wdel.dataset.grWatchDel; }); grRender(); }
-      })();
+      /* TAKEN OFF THE SHELF, NOT DELETED. This used to delete the row, which threw away
+         the lesson somebody had written underneath it and the moments they had timed --
+         on a list everybody shares, from a single X with no confirm. Hidden ids live in
+         growth_settings, so the call can be put back and nothing is lost either way. */
+      const map = Object.assign({}, grSettings.watch_hidden || {});
+      map[wdel.dataset.grWatchDel] = true;
+      grSettings.watch_hidden = map;
+      grSetting('watch_hidden', map).then(function (r) { if (!r) window.grReload(); });
+      grRender();
       return;
     }
+    const wback = e.target.closest('[data-gr-watch-back]');
+    if (wback) {
+      const map = Object.assign({}, grSettings.watch_hidden || {});
+      delete map[wback.dataset.grWatchBack];
+      grSettings.watch_hidden = map;
+      grSetting('watch_hidden', map).then(function (r) { if (!r) window.grReload(); });
+      grRender();
+      return;
+    }
+    if (e.target.closest('[data-gr-watch-gone]')) { grWatchGone = !grWatchGone; grRender(); return; }
 
     // The pre-call checklist is a scratchpad for the next call, not a record. It lives in
     // the page and resets on purpose -- storing it would make it a history nobody wants.
@@ -98748,6 +99062,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (act) {
       e.stopPropagation();
       const c = grClients.find(x => x.id === act.dataset.grAct);
+      // The composer opens over everything, so the drawer behind it is only in the way.
+      grTodayOpen = false;
       if (c) grStartComposer(c, act.dataset.t);
       return;
     }
@@ -98784,7 +99100,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (e.target.closest('[data-gr-close]')) { grOpenId = null; grComposer = null; grLost = null; grRender(); return; }
 
     const open = e.target.closest('[data-gr-open]');
-    if (open) { grOpenId = open.dataset.grOpen; grTab = 'overview'; grComposer = null; grRender(); return; }
+    if (open) {
+      grOpenId = open.dataset.grOpen; grTab = 'overview'; grComposer = null;
+      // Opening somebody from the drawer means you are done with the list, and leaving
+      // it up would put the sheet behind it.
+      grTodayOpen = false;
+      grRender();
+      return;
+    }
   });
 
   document.addEventListener('input', function (e) {
@@ -99020,11 +99343,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    // Innermost first: a menu, then the lost dialog, then the composer, then the sheet.
+    // Innermost first: a menu, then a dialog, then the composer, then the sheet, and
+    // the Today drawer last because everything above it opens ON TOP of it.
     if (grPickFor) { grClosePick(); return; }
     if (grLost) { grLost = null; grRender(); return; }
+    if (grWon) { grWon = null; grRender(); return; }
     if (grComposer) { grComposer = null; grRender(); return; }
-    if (grOpenId) { grOpenId = null; grRender(); }
+    if (grOpenId) { grOpenId = null; grRender(); return; }
+    if (grTodayOpen) { grTodayOpen = false; grRender(); }
   });
 
   /* Throw everything in memory away and read it again. Used after a sync, so Meetings
@@ -99039,6 +99365,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const d = document.createElement('div');
       d.id = 'grSheet'; d.className = 'gr_sheetwrap';
       document.body.appendChild(d);
+    }
+    // One host for the Today drawer, made once and reused, the same as the sheet. It
+    // lives on <body> rather than inside a screen so leaving the screen cannot take the
+    // drawer down mid-read.
+    if (!$('grToday')) {
+      const t = document.createElement('div');
+      t.id = 'grToday'; t.className = 'gr_tdw';
+      document.body.appendChild(t);
+    }
+    if (!$('grTodayBtn')) {
+      const b2 = document.createElement('button');
+      b2.id = 'grTodayBtn'; b2.className = 'gr_tdbtn';
+      b2.setAttribute('data-gr-today-open', '');
+      b2.setAttribute('aria-label', "Today's work");
+      document.body.appendChild(b2);
     }
     grCheckGmail();
     if (!grLoaded && !grLoading) grLoad(); else grRender();
