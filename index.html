@@ -6223,6 +6223,7 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:13px;font-weight:800;flex:none;}
 .gr_av.gr_sm2{width:30px;height:30px;font-size:11.5px;}
 .gr_av.gr_lg{width:56px;height:56px;font-size:20px;}
+.gr_av.gr_xs{width:22px;height:22px;font-size:9.5px;border-radius:50%;}
 .gr_time{width:62px;text-align:center;flex:none;}
 .gr_time b{display:block;font-size:15px;font-weight:800;}
 .gr_time span{font-size:11px;color:var(--text-3);}
@@ -6314,23 +6315,51 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_src{font-size:10px;text-transform:uppercase;letter-spacing:.05em;background:var(--surface-2);color:var(--text-3);border-radius:5px;padding:2px 6px;}
 .gr_sheetwrap{position:fixed;inset:0;z-index:60;display:none;align-items:flex-start;justify-content:center;padding:48px 16px 16px;background:rgba(8,8,10,.55);overflow-y:auto;}
 .gr_sheetwrap.on{display:flex;flex-direction:column;align-items:center;}
+.gr_sheetwrap.on>*{flex:none;}
 .gr_sheet{background:var(--bg);border:1px solid var(--line);border-radius:22px;width:min(780px,100%);overflow:hidden;}
 .gr_sh{display:flex;align-items:center;gap:14px;padding:22px 24px 12px;}
 .gr_si{flex:1;min-width:0;}
 .gr_si h2{margin:0;font-size:25px;font-weight:800;letter-spacing:-.03em;}
 .gr_ss{font-size:13px;color:var(--text-3);margin-top:4px;}
 .gr_x{width:34px;height:34px;border-radius:50%;border:0;background:var(--surface-2);color:var(--text-2);font-size:13px;cursor:pointer;flex:none;}
-.gr_sbar{display:flex;align-items:center;gap:10px;padding:0 24px 14px;}
+.gr_sbar{display:flex;align-items:center;gap:9px;padding:0 24px 10px;flex-wrap:wrap;}
+.gr_sbar.gr_sbar2{padding-bottom:14px;}
 .gr_stage{border:0;border-radius:99px;padding:8px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;background:var(--surface-2);color:var(--text);}
-.gr_stabs{display:flex;gap:2px;padding:0 24px;border-bottom:1px solid var(--line);}
-.gr_stabs button{border:0;background:none;color:var(--text-3);font:inherit;font-size:13.5px;font-weight:600;padding:10px 13px;border-bottom:3px solid transparent;margin-bottom:-1px;cursor:pointer;}
-.gr_stabs button[aria-pressed="true"]{color:var(--text);border-bottom-color:var(--red);}
+.gr_heat{display:inline-flex;align-items:center;gap:7px;border-radius:99px;padding:6px 12px;font-size:12px;font-weight:700;background:var(--surface-2);color:var(--text);white-space:nowrap;}
+.gr_heat em{font-style:normal;font-weight:600;color:var(--text-3);}
+.gr_heat.gr_hot{background:var(--red-bg);color:#F08A8A;}
+.gr_heat.gr_warm{background:var(--amber-bg);color:var(--amber);}
+.gr_ownc{display:inline-flex;align-items:center;gap:7px;border-radius:99px;padding:4px 13px 4px 4px;font-size:12.5px;font-weight:600;background:var(--surface-2);color:var(--text);white-space:nowrap;}
+/* The one button on this sheet that is neither red nor a ghost: it hands the deal to the
+   rest of the app, which is a different kind of act from anything else here. */
+/* Maximum contrast against the page, whichever theme is on: black on light, white on
+   dark. --paper-ink would have been the literal design colour, but it is #0A0A0A in both
+   themes, so in dark mode it was a black button on a near-black page -- the loudest
+   control in the design rendering as the quietest thing on screen. */
+.gr_dark{border:0;border-radius:99px;padding:10px 17px;font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;background:var(--text);color:var(--bg);display:inline-flex;align-items:center;gap:7px;}
+.gr_dark:hover:not(:disabled){opacity:.88;}
+.gr_dark:disabled{opacity:.45;cursor:default;}
+.gr_stabs{display:flex;gap:3px;margin:2px 24px 0;padding:4px;background:var(--surface);border-radius:99px;}
+.gr_stabs button{flex:1;border:0;background:none;color:var(--text-3);font:inherit;font-size:13px;font-weight:600;padding:9px 10px;border-radius:99px;cursor:pointer;white-space:nowrap;}
+.gr_stabs button[aria-pressed="true"]{background:var(--surface-3);color:var(--text);}
 .gr_sbody{padding:18px 24px 26px;display:flex;flex-direction:column;gap:13px;}
-.gr_next{background:var(--surface-2);border-radius:16px;padding:18px;}
-.gr_next.hot{background:var(--red);color:#fff;}
-.gr_next.ok{background:var(--surface);}
-.gr_nk{font-size:11px;text-transform:uppercase;letter-spacing:.12em;opacity:.8;font-weight:700;}
-.gr_nq{font-size:18px;font-weight:700;letter-spacing:-.02em;margin-top:8px;}
+/* Do next is the loudest thing on the sheet on purpose -- it is the only part that tells
+   you what to do rather than what happened. --paper-ink/--paper are the one pair that is
+   the same hex in both themes, so this card stays a black card with white type either way;
+   the inset hairline is what keeps its edge visible against dark mode's near-black page. */
+.gr_next{background:var(--paper-ink);color:var(--paper);border-radius:18px;padding:18px 20px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);}
+.gr_next.hot{background:var(--red);box-shadow:none;}
+.gr_next.ok{background:var(--surface);color:var(--text);box-shadow:none;}
+.gr_nk{font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;opacity:.65;font-weight:700;}
+.gr_nq{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:8px 0 14px;}
+.gr_next.ok .gr_nq{margin-bottom:0;}
+.gr_doa{display:flex;gap:9px;flex-wrap:wrap;}
+.gr_dob{flex:1 1 200px;border:0;border-radius:99px;padding:12px 18px;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer;background:var(--paper);color:var(--paper-ink);display:inline-flex;align-items:center;justify-content:center;gap:8px;}
+.gr_dot{border:0;border-radius:99px;padding:12px 16px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;background:rgba(255,255,255,.13);color:var(--paper);display:inline-flex;align-items:center;gap:10px;}
+.gr_dot:hover{background:rgba(255,255,255,.2);}
+.gr_fuc{background:var(--surface);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;}
+.gr_fuc>span{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--text-3);font-weight:700;}
+.gr_slink{background:none;border:0;color:var(--red);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;padding:9px 0 0;}
 .gr_facts{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;}
 @media(max-width:620px){.gr_facts{grid-template-columns:1fr 1fr;}}
 .gr_facts div{background:var(--surface);border-radius:13px;padding:12px;}
@@ -6338,9 +6367,10 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_facts b{font-size:14px;margin-top:4px;display:block;}
 .gr_fu{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;}
 .gr_fu>span{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-weight:700;}
-.gr_chip{background:var(--surface-2);border:0;border-radius:99px;padding:7px 14px;font:inherit;font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;}
+.gr_chip{background:var(--surface-3);border:0;border-radius:99px;padding:8px 15px;font:inherit;font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;}
+.gr_chip:hover{background:var(--line-2);}
 .gr_note{background:var(--surface);border-radius:14px;padding:14px 16px;}
-.gr_note span{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--text-3);font-weight:700;}
+.gr_note>span{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--text-3);font-weight:700;}
 .gr_note p{margin:6px 0 0;font-size:14px;line-height:1.6;}
 .gr_two{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
 @media(max-width:560px){.gr_two{grid-template-columns:1fr;}}
@@ -6349,16 +6379,50 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_field input,.gr_field select,.gr_field textarea{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--text);font:inherit;font-size:13.5px;width:100%;}
 .gr_field textarea{min-height:90px;resize:vertical;}
 .gr_acts{display:flex;gap:9px;flex-wrap:wrap;align-items:center;}
-.gr_ghost{background:var(--surface-2);border:0;border-radius:99px;padding:9px 16px;font:inherit;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;}
+.gr_ghost{background:var(--surface-2);border:0;border-radius:99px;padding:9px 16px;font:inherit;font-size:13px;font-weight:600;color:var(--text);cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:7px;}
 .gr_danger{background:none;border:0;color:#F08A8A;font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:6px 0;}
 .gr_bub{border-radius:13px;padding:11px 14px;background:var(--surface);border-left:3px solid var(--line);}
 .gr_bub.in{border-left-color:var(--red);}
 .gr_bh2{display:flex;justify-content:space-between;gap:8px;align-items:baseline;font-size:13px;}
 .gr_bub p{margin:7px 0 0;font-size:13.5px;line-height:1.55;white-space:pre-wrap;}
-.gr_comp{background:var(--bg);border:1px solid var(--line);border-radius:22px;width:min(640px,100%);margin-top:14px;padding:20px 22px 22px;display:flex;flex-direction:column;gap:12px;}
+.gr_compw{position:fixed;inset:0;z-index:70;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px 16px;background:rgba(8,8,10,.45);overflow-y:auto;}
+.gr_comp{background:var(--bg);border:1px solid var(--line);border-radius:22px;width:min(660px,100%);padding:20px 22px 22px;display:flex;flex-direction:column;gap:12px;box-shadow:0 30px 80px -20px rgba(0,0,0,.6);}
 .gr_ch{display:flex;align-items:center;justify-content:space-between;gap:10px;}
 .gr_ch b{font-size:18px;font-weight:800;letter-spacing:-.02em;}
-.gr_tpl{background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:8px 14px;color:var(--text);font:inherit;font-size:13px;align-self:flex-start;cursor:pointer;}
+.gr_chi{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+.gr_chi span{font-size:12px;color:var(--text-3);}
+.gr_ctool{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.gr_bare{background:none;}
+.gr_bare:hover{background:var(--surface-2);}
+/* To and Subject read as one letterhead rather than two boxed fields: the label is the
+   frame, so the value can be plain type at the size it will actually be read at. */
+.gr_crow{display:grid;grid-template-columns:76px 1fr;gap:12px;align-items:center;border-bottom:1px solid var(--line);padding:10px 0;}
+.gr_crow>label{font-size:10px;text-transform:uppercase;letter-spacing:.11em;color:var(--text-3);font-weight:700;}
+.gr_crow input{background:none;border:0;color:var(--text);font:inherit;font-size:14px;font-weight:700;width:100%;padding:0;min-width:0;}
+.gr_crow input:focus{outline:none;}
+.gr_crow input::placeholder{font-weight:500;color:var(--text-3);}
+.gr_cbody{background:none;border:0;color:var(--text);font:inherit;font-size:14px;line-height:1.65;width:100%;display:block;min-height:210px;resize:vertical;padding:14px 0 0;}
+.gr_cbody:focus{outline:none;}
+.gr_sigb{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px;}
+.gr_sigb>span{font-size:10px;text-transform:uppercase;letter-spacing:.11em;color:var(--text-3);font-weight:700;}
+.gr_sig{border-left:3px solid var(--red);padding:2px 0 2px 12px;font-size:12.5px;line-height:1.55;color:var(--text-2);}
+.gr_sig b{display:block;font-size:13.5px;color:var(--text);}
+.gr_sig i{font-style:normal;color:var(--red);}
+.gr_cacts{border-top:1px solid var(--line);padding-top:14px;}
+.gr_menu em{font-style:normal;font-weight:500;color:var(--text-3);font-size:12px;}
+.gr_mlink{color:var(--red) !important;border-top:1px solid var(--line);margin-top:4px;}
+/* Lost asks why. A free text box got blank answers, so the five reasons that actually
+   come up are buttons and the box is gone. */
+.gr_dlgw{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:20px;background:rgba(8,8,10,.6);}
+.gr_dlg{background:var(--bg);border:1px solid var(--line);border-radius:22px;width:min(380px,100%);padding:26px 24px 16px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;}
+.gr_dlgi{width:44px;height:44px;border-radius:50%;background:var(--surface-3);color:var(--text-2);display:grid;place-items:center;font-size:16px;margin-bottom:8px;}
+.gr_dlg h3{margin:0;font-size:19px;font-weight:800;letter-spacing:-.02em;}
+.gr_dlg p{margin:0;font-size:13px;color:var(--text-3);}
+.gr_dlgc{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:16px 0 6px;}
+.gr_dlgc button{background:var(--surface-2);border:0;border-radius:99px;padding:8px 15px;font:inherit;font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;}
+.gr_dlgc button[aria-pressed="true"]{background:var(--red);color:#fff;}
+.gr_dlg .gr_dark{width:100%;justify-content:center;padding:13px;font-size:14px;margin-top:6px;}
+.gr_dlgx{background:none;border:0;color:var(--text-3);font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:12px;}
 /* editable rows: Settings, Training plan, watch list */
 .gr_seg.gr_wide{display:flex;margin-bottom:14px;flex-wrap:wrap;}
 .gr_erow{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--line);}
@@ -6451,7 +6515,7 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_won:hover{background:#00a461;}
 .gr_tl{display:flex;flex-direction:column;margin-top:8px;}
 .gr_tl>div{display:grid;grid-template-columns:12px 64px 1fr;gap:10px;align-items:baseline;padding:7px 0;font-size:13.5px;}
-.gr_tl i{width:8px;height:8px;border-radius:50%;background:var(--red);align-self:center;}
+.gr_tl i{width:9px;height:9px;border-radius:50%;background:transparent;box-shadow:inset 0 0 0 2px var(--red);align-self:center;}
 .gr_tl time{font-size:12px;color:var(--text-3);}
 .gr_note b{display:block;font-size:12px;margin-top:9px;}
 .gr_note ul{margin:5px 0 0;padding-left:18px;font-size:13.5px;line-height:1.6;color:var(--text-2);}
@@ -94162,7 +94226,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   let grPeople = [];                 // profiles who can own a deal
   let grScreen = 'gr_home';
   let grPView = 'board';
-  let grOpenId = null, grTab = 'overview', grQuery = '', grComposer = null;
+  let grOpenId = null, grTab = 'overview', grQuery = '', grComposer = null, grLost = null;
   let grRange = 'week';
 
   const DEFAULT_STAGES = [
@@ -95404,6 +95468,53 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     await grSaveStages(grStages.filter(function (x) { return x.key !== key; }));
   }
 
+  /* How warm is this one? The chip beside the stage. It reads the three facts that
+     actually move a deal -- an unanswered reply, a booked meeting, how long it has been
+     quiet -- and says which one it found, so the word is never just a mood. */
+  function grHeat(c) {
+    if (!grActive(c)) return { k: 'done', label: c.stage === 'won' ? 'Won' : 'Lost',
+                               why: c.stage === 'lost' ? (c.lost_reason || '') : (c.won_on ? grFmt(c.won_on) : '') };
+    if (grWaiting(c))     return { k: 'hot',  label: 'Hot',  why: 'Replied, not answered' };
+    if (grNextMeeting(c)) return { k: 'hot',  label: 'Hot',  why: 'Meeting booked' };
+    const q = grQuietDays(c);
+    if (q != null && q <= 3) return { k: 'warm', label: 'Warm', why: 'Emailed ' + grAgo(q) };
+    return { k: 'cold', label: 'Cold', why: c.calls_held ? 'Call held' : 'No call yet' };
+  }
+
+  // Do next, said as a sentence rather than a verb. The button underneath is the verb.
+  const GR_DO = {
+    initial:    'Call is done. Send the first email.',
+    proposal:   'They have heard the pitch. Send the proposal.',
+    followup:   'It has gone quiet. Send a nudge.',
+    reminder:   'The call is booked. Send the Zoom link.',
+    reply:      'They replied. Answer them.',
+    onboarding: 'They said yes. Start onboarding.'
+  };
+
+  /* The signature lives in Growth settings, one row, shared. It is shown under the
+     composer and appended at send -- never typed into the body, or editing the body
+     would leave two of them. */
+  function grSigLines() {
+    const g = grSettings.signature || {};
+    return {
+      name:  g.name || (window.giantCurrentProfile && window.giantCurrentProfile.full_name) || '',
+      title: g.title || '', phone: g.phone || '',
+      email: g.email || grGmail.email || '', site: g.site || ''
+    };
+  }
+  function grSigText() {
+    const g = grSigLines();
+    return [g.name, g.title, g.phone, g.email, g.site].filter(Boolean).join('\n');
+  }
+  function grSigPreview() {
+    const g = grSigLines();
+    if (!g.name && !g.title) return '<p class="gr_mute">No signature set yet. Add one in Growth settings and it goes on every email from here.</p>';
+    return '<div class="gr_sig"><b>' + esc(g.name) + '</b>' +
+      (g.title ? esc(g.title) + '<br>' : '') +
+      [g.email, g.site, g.phone].filter(Boolean).map(function (x) { return '<i>' + esc(x) + '</i>'; }).join(' &nbsp;|&nbsp; ') +
+      '</div>';
+  }
+
   /* --- the client sheet --- */
   function grRenderSheet() {
     const wrap = $('grSheet');
@@ -95465,32 +95576,49 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<div class="gr_acts"><button class="gr_danger" data-gr-remove="' + c.id + '">Remove client</button></div>';
     } else {
       const li = grLastIn(c);
-      body = (li ? '<div class="gr_next hot"><div class="gr_nk">' + esc(grFirst(c)) + ' replied &middot; ' + esc(grAgo(grDaysAgo(li.sent_at))) + '</div>' +
-          '<div class="gr_nq">&ldquo;' + esc(grSnip(li.body, 170)) + '&rdquo;</div>' +
-          '<div class="gr_acts"><button class="btn-red" data-gr-act="' + c.id + '" data-t="reply">Reply to ' + esc(grFirst(c)) + '</button></div></div>'
-        : na ? '<div class="gr_next"><div class="gr_nk">Do next</div><div class="gr_nq">' + esc(na.label) + '</div>' +
-          '<div class="gr_acts"><button class="btn-red" data-gr-act="' + c.id + '" data-t="' + na.t + '">' + esc(na.label) + '</button></div></div>'
-        : '<div class="gr_next ok"><div class="gr_nk">All good</div><div class="gr_nq">Nothing to do right now.</div></div>') +
+      const nm = grNextMeeting(c);
+      const notes = (c.call_notes || []).length;
+      const pick = '<button class="gr_dot" data-gr-pick="template" data-id="' + c.id + '">Use a template <span aria-hidden="true">&#9662;</span></button>';
+      body =
+        (li
+          ? '<div class="gr_next hot"><div class="gr_nk">They replied</div>' +
+            '<div class="gr_nq">' + esc(grFirst(c) + ' wrote back ' + grAgo(grDaysAgo(li.sent_at)) + '.') + '</div>' +
+            '<div class="gr_doa"><button class="gr_dob" data-gr-act="' + c.id + '" data-t="reply">' +
+              '&#9993; Reply to ' + esc(grFirst(c)) + '</button>' + pick + '</div></div>'
+          : na
+          ? '<div class="gr_next"><div class="gr_nk">Do next</div>' +
+            '<div class="gr_nq">' + esc(GR_DO[na.t] || na.label) + '</div>' +
+            '<div class="gr_doa"><button class="gr_dob" data-gr-act="' + c.id + '" data-t="' + na.t + '">' +
+              '&#9993; ' + esc(na.label) + '</button>' + pick + '</div></div>'
+          : '<div class="gr_next ok"><div class="gr_nk">All good</div>' +
+            '<div class="gr_nq">Nothing to do right now.</div></div>') +
+
         '<div class="gr_facts">' +
           '<div><span>Stage</span><b>' + esc(grStageLabel(c.stage)) + '</b></div>' +
           '<div><span>Last contact</span><b>' + esc(grAgo(grDaysAgo(grLastTouch(c)))) + '</b></div>' +
-          '<div><span>Emails</span><b>' + (c.emails_sent || 0) + '</b></div>' +
+          '<div><span>Meeting</span><b>' + esc(nm ? grDayLabel(nm.starts_at) : c.calls_held ? 'Call done' : 'None booked') + '</b></div>' +
           '<div><span>Follow up</span><b>' + esc(c.follow_up_on ? grFmt(c.follow_up_on) : 'Not set') + '</b></div>' +
         '</div>' +
-        (grActive(c) ? '<div class="gr_fu"><span>Follow up</span>' +
-          (c.follow_up_on ? '<b>' + esc(grFmt(c.follow_up_on)) + '</b><button class="gr_chip" data-gr-fu="clear">Clear</button>'
-            : [3, 5, 7].map(n => '<button class="gr_chip" data-gr-fu="' + n + '">In ' + n + ' days</button>').join('')) + '</div>' : '') +
-        (c.summary ? '<div class="gr_note"><span>Summary</span><p>' + esc(c.summary) + '</p></div>' : '') +
+
+        (c.summary ? '<div class="gr_note"><span>Summary</span><p>' + esc(c.summary) + '</p>' +
+          (notes ? '<button class="gr_slink" data-gr-tab="notes">Read call notes &rsaquo;</button>' : '') + '</div>' : '') +
+
+        (grActive(c) ? '<div class="gr_fuc"><span>Follow up</span><div class="gr_acts">' +
+          (c.follow_up_on
+            ? '<b>' + esc(grFmt(c.follow_up_on)) + '</b><button class="gr_chip" data-gr-fu="clear">Clear</button>'
+            : [3, 5, 7].map(n => '<button class="gr_chip" data-gr-fu="' + n + '">In ' + n + ' days</button>').join('')) +
+          '</div></div>' : '') +
+
         (function () {
           // What has actually happened, newest first. Meetings and emails are real rows;
           // the log is whatever the app wrote as it went.
           const acts = [];
           grMeetings.filter(m => m.client_id === c.id).forEach(m => acts.push({
             d: String(m.starts_at).slice(0, 10),
-            t: (new Date(m.starts_at) < Date.now() ? 'Meeting held' : 'Meeting booked') + ' · ' + grHm(m.starts_at) }));
+            t: (new Date(m.starts_at) < Date.now() ? 'Meeting held' : 'Meeting booked') + ' \u00B7 ' + grHm(m.starts_at) }));
           grThread(c).forEach(m => acts.push({
             d: String(m.sent_at).slice(0, 10),
-            t: (m.direction === 'in' ? grFirst(c) + ' replied' : 'Email sent') + (m.subject ? ' · ' + m.subject : '') }));
+            t: (m.direction === 'in' ? grFirst(c) + ' replied' : 'Email sent') + (m.subject ? ' \u00B7 ' + m.subject : '') }));
           (c.activity_log || []).forEach(l => acts.push({ d: l.d, t: l.note }));
           if (!acts.length) return '';
           acts.sort((a, b) => a.d < b.d ? 1 : -1);
@@ -95499,57 +95627,243 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               esc(a.t) + '</span></div>').join('') + '</div></div>';
         })();
     }
+
+    const heat = grHeat(c), own = grPerson(c.owner_id);
+    const handed = c.giant_handoff && c.giant_handoff.client_id;
     wrap.innerHTML =
       '<div class="gr_sheet" data-gr-id="' + c.id + '">' +
-        '<div class="gr_sh"><span class="gr_av gr_lg" style="background:' + col + '">' + esc(grInitials(c.name)) + '</span>' +
+        '<div class="gr_sh">' + grAvatar(c.name, col, 'gr_lg') +
           '<div class="gr_si"><h2>' + esc(c.name) + '</h2><div class="gr_ss">' +
-            [c.company, c.email, c.phone, grLocalTime(c)].filter(Boolean).map(esc).join(' &middot; ') + '</div></div>' +
+            [c.company, c.email, c.phone, grLocalTime(c)].filter(Boolean).map(esc).join(' \u00B7 ') + '</div></div>' +
           '<button class="gr_x" data-gr-close aria-label="Close">&#10005;</button></div>' +
-        '<div class="gr_sbar"><select class="gr_stage" data-gr-stage-sel style="--sc:' + col + '" aria-label="Stage">' +
-          grStages.map(s => '<option value="' + s.key + '"' + (s.key === c.stage ? ' selected' : '') + '>' + esc(s.label) + '</option>').join('') + '</select>' +
-          (grIsStaff() ? '<span class="gr_own">' + esc(grPerson(c.owner_id).full_name) + '</span>' : '') +
+
+        '<div class="gr_sbar">' +
+          '<select class="gr_stage" data-gr-stage-sel aria-label="Stage" style="background:' + grTint(col, .2) +
+            ';box-shadow:inset 0 0 0 1px ' + grTint(col, .5) + '">' +
+            grStages.map(s => '<option value="' + s.key + '"' + (s.key === c.stage ? ' selected' : '') + '>' + esc(s.label) + '</option>').join('') +
+          '</select>' +
+          '<span class="gr_heat gr_' + heat.k + '">' + esc(heat.label) +
+            (heat.why ? '<em>' + esc(heat.why) + '</em>' : '') + '</span>' +
+          (grIsStaff() ? '<span class="gr_ownc">' + grAvatar(own.full_name, col, 'gr_xs') +
+            esc(own.full_name) + '</span>' : '') +
           '<span class="gr_sp"></span>' +
+          (grIsStaff()
+            ? (handed ? '<span class="gr_st ok">In ReachGiant clients</span>'
+                      : '<button class="gr_dark" data-gr-handoff="' + c.id + '">Add to ReachGiant clients</button>')
+            : '') +
+        '</div>' +
+
+        '<div class="gr_sbar gr_sbar2">' +
           (grActive(c)
             ? '<button class="gr_won" data-gr-won="' + c.id + '">Mark won</button>' +
               '<button class="gr_ghost" data-gr-lost="' + c.id + '">Lost</button>'
             : '<span class="gr_st ' + (c.stage === 'won' ? 'ok' : '') + '">' +
-              esc(c.stage === 'won' ? 'Won' + (c.won_on ? ' ' + grFmt(c.won_on) : '') : 'Lost' + (c.lost_reason ? ' · ' + c.lost_reason : '')) +
+              esc(c.stage === 'won' ? 'Won' + (c.won_on ? ' ' + grFmt(c.won_on) : '')
+                                    : 'Lost' + (c.lost_reason ? ' \u00B7 ' + c.lost_reason : '')) +
               '</span>') + '</div>' +
+
         '<div class="gr_stabs">' + tabs.map(t => '<button data-gr-tab="' + t[0] + '"' + (grTab === t[0] ? ' aria-pressed="true"' : '') + '>' + t[1] + '</button>').join('') + '</div>' +
         '<div class="gr_sbody">' + body + '</div>' +
-      '</div>' + (grComposer ? grComposerHtml(c) : '');
+      '</div>' + (grComposer ? grComposerHtml(c) : '') + (grLost ? grLostHtml(c) : '');
     wrap.classList.add('on');
   }
 
+  /* A stage colour at low alpha, so the stage pill is tinted with its own colour the way
+     the board column headers are. Done here rather than with color-mix(): this has to
+     render in the Electron build too, and a colour the browser cannot parse leaves the
+     pill with no background at all rather than an obviously wrong one. */
+  function grTint(hex, a) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+    if (!m) return 'var(--surface-2)';
+    const n = parseInt(m[1], 16);
+    return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  /* Lost used to be a text box, and a text box asking "why" gets left blank. These are
+     the five answers that actually came back, so they are buttons; the sixth answer is
+     still "skip it", which is why Mark lost works with nothing chosen. */
+  const GR_LOST = ['Price', 'Went quiet', 'Not a fit', 'Chose someone else', 'Bad timing'];
+  function grLostHtml(c) {
+    return '<div class="gr_dlgw" data-gr-lostwrap><div class="gr_dlg">' +
+      '<div class="gr_dlgi">&#10005;</div>' +
+      '<h3>Mark ' + esc(grFirst(c)) + ' as lost</h3>' +
+      '<p>What got in the way? You can skip this.</p>' +
+      '<div class="gr_dlgc">' + GR_LOST.map(r =>
+        '<button data-gr-lostr="' + esc(r) + '"' + (grLost.reason === r ? ' aria-pressed="true"' : '') + '>' +
+        esc(r) + '</button>').join('') + '</div>' +
+      '<button class="gr_dark" data-gr-lostgo="' + c.id + '">Mark lost</button>' +
+      '<button class="gr_dlgx" data-gr-lostx>Cancel</button>' +
+      '</div></div>';
+  }
+
+
   /* --- the composer ---
-     Giant has no Gmail connection, so nothing is sent from here. The email is written,
-     then opened in Gmail with the text already in it, and you say when it went. Saying
-     "Sent" when we cannot send would be the worst of both. */
+     Gmail IS connected here: the Email screen holds the tokens and exposes
+     window.giantGmailSend, so Send really sends. It still asks once before it does,
+     because this is a real email to a real prospect and there is no undo.
+
+     The body stays plain text. Gmail's send path in this app builds a text/plain
+     message, so a bold button here would put bold in the box and send it flat -- a
+     formatting toolbar that quietly does nothing is worse than no toolbar. */
   function grComposerHtml(c) {
     const k = grComposer;
+    const sig = grSigText();
     const gmail = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(c.email || '') +
-      '&su=' + encodeURIComponent(k.subject) + '&body=' + encodeURIComponent(k.body);
-    return '<div class="gr_comp"><div class="gr_ch"><b>Email to ' + esc(grFirst(c)) + '</b>' +
-      '<button class="gr_x" data-gr-ccancel aria-label="Close">&#10005;</button></div>' +
-      (grTemplates.length ? '<select class="gr_tpl" data-gr-tpl aria-label="Use a template"><option value="">Use a template</option>' +
-        grTemplates.map(t => '<option value="' + t.id + '">' + esc(t.name) + '</option>').join('') + '</select>' : '') +
-      '<div class="gr_field"><label for="grCSub">Subject</label><input id="grCSub" data-gr-c="subject" value="' + esc(k.subject) + '"></div>' +
-      '<div class="gr_field"><label for="grCBody">Message</label><textarea id="grCBody" data-gr-c="body" rows="12">' + esc(k.body) + '</textarea></div>' +
+      '&su=' + encodeURIComponent(k.subject) + '&body=' + encodeURIComponent(k.body + (sig ? '\n\n' + sig : ''));
+    const drop = '<span aria-hidden="true">&#9662;</span>';
+    return '<div class="gr_compw" data-gr-cwrap><div class="gr_comp">' +
+      '<div class="gr_ch">' + grAvatar(c.name, grStageColor(c.stage), 'gr_sm2') +
+        '<div class="gr_chi"><b>New email to ' + esc(grFirst(c)) + '</b>' +
+          '<span>From ' + esc(grGmail.email || 'your Gmail, once it is connected') + '</span></div>' +
+        '<button class="gr_x" data-gr-ccancel aria-label="Close">&#10005;</button></div>' +
+
+      '<div class="gr_ctool">' +
+        '<button class="gr_dark" data-gr-ai="write"' + (k.ai ? ' disabled' : '') + '>' +
+          '&#10022; ' + (k.ai === 'write' ? 'Writing...' : 'Write email with AI') + '</button>' +
+        '<button class="gr_ghost" data-gr-pick="template" data-id="' + c.id + '">Template ' + drop + '</button>' +
+        '<button class="gr_ghost" data-gr-pick="discount" data-id="' + c.id + '">Discount ' + drop + '</button>' +
+        '<button class="gr_ghost gr_bare" data-gr-pick="adjust" data-id="' + c.id + '">' +
+          (k.ai && k.ai !== 'write' ? 'Rewriting...' : 'Adjust') + ' ' + drop + '</button>' +
+      '</div>' +
+
+      '<div class="gr_crow"><label for="grCTo">To</label>' +
+        '<input id="grCTo" data-gr-f="email" value="' + esc(c.email || '') + '" placeholder="Their email address"></div>' +
+      '<div class="gr_crow"><label for="grCSub">Subject</label>' +
+        '<input id="grCSub" data-gr-c="subject" value="' + esc(k.subject) + '"></div>' +
+      '<textarea class="gr_cbody" id="grCBody" data-gr-c="body" aria-label="Message">' + esc(k.body) + '</textarea>' +
+
+      '<div class="gr_sigb"><span>Signature, added automatically</span>' + grSigPreview() + '</div>' +
       (k.status ? '<div class="gr_cstat ' + (k.kind || '') + '">' + esc(k.status) + '</div>' : '') +
-      '<div class="gr_acts">' +
-        (!c.email ? '<span class="gr_mute">Add an email address first.</span>'
+
+      '<div class="gr_acts gr_cacts">' +
+        (!c.email ? '<span class="gr_mute">Put their email address in the To line first.</span>'
           : k.confirm
             ? '<button class="btn-red" data-gr-csend="' + c.id + '"' + (k.busy ? ' disabled' : '') + '>' +
                 (k.busy ? 'Sending...' : 'Yes, send to ' + esc(grFirst(c))) + '</button>' +
               '<button class="gr_ghost" data-gr-cnosend>Not yet</button>'
             : '<button class="btn-red" data-gr-cconfirm' + (grGmail.ready ? '' : ' disabled title="Connect Gmail on the Email screen first"') + '>Send</button>' +
+              '<button class="gr_ghost" data-gr-cdraft>Save draft</button>' +
               '<a class="gr_ghost" href="' + esc(gmail) + '" target="_blank" rel="noopener" data-gr-stop>Open in Gmail</a>' +
-              '<button class="gr_ghost" data-gr-csent="' + c.id + '">I sent it</button>' +
-              '<button class="gr_ghost" data-gr-ccopy>Copy</button>') +
+              '<span class="gr_sp"></span>' +
+              '<button class="gr_ib" data-gr-pick="more" data-id="' + c.id + '" aria-label="More">&#8943;</button>') +
       '</div>' +
       (grGmail.ready ? '<div class="gr_mute">Sends from ' + esc(grGmail.email || 'your Gmail') + '.</div>'
                      : '<div class="gr_mute">Gmail is not connected for you yet. Open Email in the sidebar and connect it once, then Send works here too.</div>') +
-      '</div>';
+      '</div></div>';
+  }
+
+  /* The four dropdowns on the composer and the one on Do next. Built where they are
+     clicked and torn down on the next click anywhere, the same as the card menu, so a
+     re-render cannot leave one floating over the page. */
+  let grPickFor = null;
+  function grClosePick() { const m = $('grPick'); if (m) m.remove(); grPickFor = null; }
+  const GR_STD = [['initial', 'Initial email'], ['proposal', 'Proposal'], ['followup', 'Follow up'],
+                  ['reminder', 'Zoom reminder'], ['onboarding', 'Onboarding'], ['reply', 'Reply']];
+  function grOpenPick(kind, id, btn) {
+    grClosePick();
+    const el = document.createElement('div');
+    el.id = 'grPick'; el.className = 'gr_menu';
+    let h = '';
+    if (kind === 'template') {
+      h = '<div class="gr_ml">Standard</div>' +
+        GR_STD.map(t => '<button data-gr-pk="std" data-id="' + id + '" data-v="' + t[0] + '">' + t[1] + '</button>').join('') +
+        (grTemplates.length ? '<div class="gr_ml">Your templates</div>' +
+          grTemplates.map(t => '<button data-gr-pk="tpl" data-id="' + id + '" data-v="' + t.id + '">' + esc(t.name) + '</button>').join('') : '') +
+        (grIsStaff() ? '<button class="gr_mlink" data-gr-pk="edit" data-v="templates">+ Add or edit templates</button>' : '');
+    } else if (kind === 'discount') {
+      h = (grDiscounts.length
+        ? grDiscounts.map(d => '<button data-gr-pk="disc" data-id="' + id + '" data-v="' + d.id + '">' +
+            '<i style="background:' + esc(d.colour || '#D00400') + '"></i>' + esc(d.code) +
+            (d.label ? ' <em>' + esc(d.label) + '</em>' : '') + '</button>').join('')
+        : '<div class="gr_ml">No codes yet</div>') +
+        (grIsStaff() ? '<button class="gr_mlink" data-gr-pk="edit" data-v="discounts">+ Add or edit codes</button>' : '');
+    } else if (kind === 'adjust') {
+      h = [['shorter', 'Make it shorter'], ['warmer', 'Make it warmer'],
+           ['direct', 'Make it more direct'], ['longer', 'Add more detail']]
+        .map(a => '<button data-gr-pk="adj" data-id="' + id + '" data-v="' + a[0] + '">' + a[1] + '</button>').join('');
+    } else {
+      h = '<button data-gr-pk="copy" data-id="' + id + '">Copy the text</button>' +
+          '<button data-gr-pk="sent" data-id="' + id + '">I sent it another way</button>';
+    }
+    el.innerHTML = h;
+    document.body.appendChild(el);
+    grPickFor = kind;
+    const r = btn.getBoundingClientRect(), w = 230, hh = el.offsetHeight || 280;
+    el.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left)) + 'px';
+    el.style.top  = Math.max(8, Math.min(window.innerHeight - hh - 8, r.bottom + 6)) + 'px';
+  }
+
+  /* Write it, or rewrite what is there. Same endpoint Home already uses for the batch of
+     follow ups. It never sends -- it fills the box and says to read it first. */
+  async function grAiWrite(mode) {
+    const k = grComposer;
+    if (!k || k.ai) return;
+    const c = grClients.find(x => x.id === k.id);
+    if (!c) return;
+    const rewrite = mode !== 'write';
+    if (rewrite && !String(k.body || '').trim()) { grToast('Write something first, then adjust it.'); return; }
+    k.ai = mode; k.status = rewrite ? 'Rewriting...' : 'Writing...'; k.kind = ''; grRender();
+
+    const ADJ = { shorter: 'Make it shorter. Cut every line that is not pulling its weight.',
+                  warmer:  'Make it warmer and more human, still professional.',
+                  direct:  'Make it more direct. One clear ask at the end.',
+                  longer:  'Add a little more detail about what we would actually do.' };
+    const th = grThread(c), last = th.length ? th[th.length - 1] : null;
+    const note = (c.call_notes || [])[0];
+    try {
+      const res = await fetch('/.netlify/functions/claude-api', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          max_tokens: 700,
+          system: 'You write short sales emails for a marketing agency. Plain words, relaxed, ' +
+            'human. No dashes of any kind. No salesy phrases. 4 to 7 short lines. Start ' +
+            '"Hi ' + grFirst(c) + '," and end with "Best," on its own line. Do not add a ' +
+            'signature, one is added for you. Never invent a price, a date or a result that ' +
+            'is not given to you. Return ONLY the email body.',
+          messages: [{ role: 'user', content: rewrite
+            ? ADJ[mode] + '\n\nHere is the email:\n' + k.body
+            : 'Write a ' + (k.t || 'follow up') + ' email.\n' +
+              'Who: ' + c.name + (c.company ? ' at ' + c.company : '') + '\n' +
+              'Where it stands: ' + grStageLabel(c.stage) + '\n' +
+              (c.summary ? 'What we know: ' + grSnip(c.summary, 400) + '\n' : '') +
+              (note && note.headline ? 'From the call: ' + grSnip(note.headline, 300) + '\n' : '') +
+              (last ? 'Their last message:\n' + grSnip(last.body, 400) : '') }]
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'AI error');
+      const out = String(data.text || '').trim().replace(/[\u2013\u2014]/g, ',');
+      if (!out) throw new Error('nothing came back');
+      k.body = out;
+      k.status = rewrite ? 'Rewritten. Read it before you send.' : 'Written for you. Read it, change anything, then send.';
+      k.kind = '';
+    } catch (e) {
+      // Nothing was changed, and the box still holds what they wrote.
+      k.status = 'Could not write it. ' + String((e && e.message) || e).slice(0, 110);
+      k.kind = 'bad';
+    }
+    k.ai = null;
+    grRender();
+  }
+
+  /* Hand the deal to the rest of Giant. This really creates the client row -- a button
+     that only ticked a box here would leave somebody retyping the same details into
+     Clients, which is the whole reason Growth moved in. */
+  async function grHandoff(c) {
+    const s2 = sb(); if (!s2) return;
+    const nm = c.company || c.name;
+    const slug = String(nm).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') +
+      '-' + Math.random().toString(36).slice(2, 6);
+    const { data, error } = await s2.from('clients').insert({
+      name: nm, slug: slug, initial: String(nm || 'C').trim().charAt(0).toUpperCase(),
+      source: 'growth', contact_name: c.name, contact_email: c.email || null,
+      contact_phone: c.phone || null, company_website: c.website || null,
+      owner_id: me()
+    }).select('id');
+    if (error) { grToast('Could not add them. ' + error.message); return; }
+    if (!data || !data.length) { grToast('That was refused. Ask an owner to add them to Clients.'); return; }
+    await grSave(c, { giant_handoff: { client_id: data[0].id, on: grToday(), by: me() } });
+    grToast(nm + ' is now a ReachGiant client');
   }
 
   /* Giant already has Gmail: the Email screen holds the tokens in gmail_tokens, refreshes
@@ -95577,9 +95891,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     k.busy = true; k.status = 'Sending...'; k.kind = ''; grRender();
     const th = grThread(c);
     const lastIn = th.filter(m => m.direction === 'in').pop();
+    const sig = grSigText();
     try {
       await window.giantGmailSend({
-        to: c.email, subject: k.subject, body: k.body,
+        to: c.email, subject: k.subject, body: k.body + (sig ? '\n\n' + sig : ''),
         threadId: (lastIn && lastIn.thread_id) || undefined
       });
     } catch (e) {
@@ -95611,6 +95926,82 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const r = S[t] || S.followup;
     grComposer = { id: c.id, t: t, subject: r[0], body: r[1] };
     grOpenId = c.id; grRender();
+  }
+
+  /* What a dropdown item does. One place, so the same Template menu works whether it was
+     opened from Do next (no composer yet) or from inside the composer (one already open). */
+  function grPicked(el) {
+    const kind = el.dataset.grPk, v = el.dataset.v || '';
+    const c = grClients.find(x => x.id === el.dataset.id) || grClients.find(x => x.id === grOpenId);
+    grClosePick();
+
+    if (kind === 'edit') {
+      grSetTab = v; grOpenId = null; grComposer = null;
+      const n = document.querySelector('.nav-item[data-screen="gr_settings"]');
+      if (n) n.click(); else grRender();
+      return;
+    }
+    if (!c) return;
+
+    if (kind === 'std') { grStartComposer(c, v); return; }
+
+    if (kind === 'tpl') {
+      const t = grTemplates.find(x => x.id === v);
+      if (!t) return;
+      if (!grComposer || grComposer.id !== c.id) grStartComposer(c, 'followup');
+      const fill = (x) => String(x || '').replace(/\{name\}/gi, grFirst(c))
+                                        .replace(/\{company\}/gi, c.company || 'your business');
+      if (t.subject) grComposer.subject = fill(t.subject);
+      grComposer.body = fill(t.body);
+      grComposer.status = 'Loaded "' + t.name + '". Change anything you like.';
+      grComposer.kind = '';
+      grRender();
+      return;
+    }
+
+    if (kind === 'disc') {
+      const d = grDiscounts.find(x => x.id === v);
+      if (!d || !grComposer) return;
+      const line = 'Use code ' + d.code + (d.label ? ' and ' + d.label.replace(/^Get /, 'get ') : '') + '.';
+      // Goes above the sign off, not after it, and never twice.
+      if (grComposer.body.indexOf(line) < 0) {
+        const b = grComposer.body;
+        grComposer.body = /\n\s*Best,\s*$/.test(b)
+          ? b.replace(/\n\s*Best,\s*$/, '\n\n' + line + '\n\nBest,')
+          : b + '\n\n' + line;
+      }
+      grComposer.status = d.code + ' added.'; grComposer.kind = '';
+      grRender();
+      return;
+    }
+
+    if (kind === 'adj') { grAiWrite(v); return; }
+
+    if (kind === 'copy' && grComposer) {
+      const sig = grSigText();
+      const txt = 'Subject: ' + grComposer.subject + '\n\n' + grComposer.body + (sig ? '\n\n' + sig : '');
+      (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject())
+        .then(() => grToast('Copied')).catch(() => grToast('Select the text and copy it by hand'));
+      return;
+    }
+    if (kind === 'sent' && grComposer) {
+      const rec = { subject: grComposer.subject, body: grComposer.body };
+      grComposer = null;
+      grLogEmail(c, rec);
+      return;
+    }
+  }
+
+  /* Save draft parks it on the client, which is the same place the overnight follow up
+     writer puts its drafts -- so a saved draft turns up on Home beside those, rather than
+     in a second list nobody looks at. */
+  function grSaveDraft() {
+    const k = grComposer; if (!k) return;
+    const c = grClients.find(x => x.id === k.id); if (!c) return;
+    if (!String(k.body || '').trim()) { grToast('Nothing to save yet.'); return; }
+    grComposer = null;
+    grSave(c, { follow_up_draft: { subject: k.subject, body: k.body, written_on: grToday() } });
+    grToast('Draft saved. It is waiting on your Home screen.');
   }
 
   /* ---------- the one entry point ---------- */
@@ -95645,6 +96036,44 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   document.addEventListener('click', function (e) {
     if (e.target.closest('[data-gr-stop]')) return;      // let real links through
 
+    // The lost dialog sits over everything else, so it gets asked first.
+    const lr = e.target.closest('[data-gr-lostr]');
+    if (lr && grLost) {
+      grLost.reason = grLost.reason === lr.dataset.grLostr ? '' : lr.dataset.grLostr;
+      grRender(); return;
+    }
+    const lg = e.target.closest('[data-gr-lostgo]');
+    if (lg) {
+      const c = grClients.find(x => x.id === lg.dataset.grLostgo);
+      const why = (grLost && grLost.reason) || '';
+      grLost = null;
+      if (c) { grSave(c, { stage: 'lost', lost_on: grToday(), lost_reason: why });
+               grToast(why ? 'Marked as lost: ' + why.toLowerCase() : 'Marked as lost'); }
+      else grRender();
+      return;
+    }
+    if (grLost && (e.target.closest('[data-gr-lostx]') || e.target.matches('[data-gr-lostwrap]'))) {
+      grLost = null; grRender(); return;
+    }
+
+    const pkd = e.target.closest('[data-gr-pk]');
+    if (pkd) { e.stopPropagation(); grPicked(pkd); return; }
+    const pick = e.target.closest('[data-gr-pick]');
+    if (pick) {
+      e.stopPropagation();
+      if (grPickFor === pick.dataset.grPick) grClosePick();
+      else grOpenPick(pick.dataset.grPick, pick.dataset.id, pick);
+      return;
+    }
+    if (grPickFor && !e.target.closest('#grPick')) grClosePick();
+
+    const aiw = e.target.closest('[data-gr-ai]');
+    if (aiw) { grAiWrite(aiw.dataset.grAi); return; }
+    const ho = e.target.closest('[data-gr-handoff]');
+    if (ho) { const c = grClients.find(x => x.id === ho.dataset.grHandoff); if (c) grHandoff(c); return; }
+    if (e.target.closest('[data-gr-cdraft]')) { grSaveDraft(); return; }
+    if (grComposer && e.target.matches('[data-gr-cwrap]')) { grComposer = null; grRender(); return; }
+
     const go = e.target.closest('[data-gr-go]');
     if (go) { const n = document.querySelector('.nav-item[data-screen="' + go.dataset.grGo + '"]'); if (n) n.click(); return; }
 
@@ -95667,13 +96096,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
     const lost = e.target.closest('[data-gr-lost]');
     if (lost) {
-      const c = grClients.find(x => x.id === lost.dataset.grLost);
-      if (c) (async () => {
-        const why = await window.giantPrompt('What got in the way? (you can leave this blank)', '');
-        if (why === null) return;
-        await grSave(c, { stage: 'lost', lost_on: grToday(), lost_reason: String(why || '').slice(0, 120) });
-        grToast('Marked as lost');
-      })();
+      // Was a free text prompt, which came back blank almost every time. Five buttons and
+      // a skip get an answer, and the answers are what Analytics counts.
+      grOpenId = lost.dataset.grLost;
+      grLost = { id: lost.dataset.grLost, reason: '' };
+      grRender();
       return;
     }
     const an = e.target.closest('[data-gr-addnote]');
@@ -95945,7 +96372,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
     const tab = e.target.closest('[data-gr-tab]');
     if (tab) { grTab = tab.dataset.grTab; grRender(); return; }
-    if (e.target.closest('[data-gr-close]')) { grOpenId = null; grComposer = null; grRender(); return; }
+    if (e.target.closest('[data-gr-close]')) { grOpenId = null; grComposer = null; grLost = null; grRender(); return; }
 
     const open = e.target.closest('[data-gr-open]');
     if (open) { grOpenId = open.dataset.grOpen; grTab = 'overview'; grComposer = null; grRender(); return; }
@@ -96040,16 +96467,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grSave(c, { [f]: v });
       return;
     }
-    const tpl = e.target.closest('[data-gr-tpl]');
-    if (tpl && grComposer && tpl.value) {
-      const t = grTemplates.find(x => x.id === tpl.value);
-      const cc = grClients.find(x => x.id === grComposer.id);
-      if (t && cc) {
-        const fill = (s) => String(s || '').replace(/\{name\}/gi, grFirst(cc)).replace(/\{company\}/gi, cc.company || 'your business');
-        grComposer.subject = fill(t.subject); grComposer.body = fill(t.body); grRender();
-      }
-      return;
-    }
   });
 
   // Enter sends, Shift+Enter is a new line -- the same as every chat box people already use.
@@ -96071,7 +96488,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   });
 
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') { if (grComposer) { grComposer = null; grRender(); } else if (grOpenId) { grOpenId = null; grRender(); } }
+    if (e.key !== 'Escape') return;
+    // Innermost first: a menu, then the lost dialog, then the composer, then the sheet.
+    if (grPickFor) { grClosePick(); return; }
+    if (grLost) { grLost = null; grRender(); return; }
+    if (grComposer) { grComposer = null; grRender(); return; }
+    if (grOpenId) { grOpenId = null; grRender(); }
   });
 
   /* ---------- lazy init, one shared sheet host ---------- */
