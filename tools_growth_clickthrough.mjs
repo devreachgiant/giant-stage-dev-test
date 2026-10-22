@@ -456,6 +456,49 @@ await step('Cmd+B inside a message box still means bold', async () => {
   await page.waitForTimeout(400);
 });
 
+/* WHO CAN SEE GROWTH AT ALL. It is gated to owner, manager and the in-house dev while
+   Luke previews it, the same way Pod System and Projects 2.0 are. Measured as VISIBILITY
+   per role rather than by reading the attributes back: an attribute says what was meant,
+   a width says what happened. */
+await step('Growth is visible to staff and to nobody else', async () => {
+  const look = (role) => page.evaluate((r) => {
+    const body = document.body;
+    const was = body.className;
+    body.className = was.replace(/role-[a-z_]+/g, '').trim() + ' role-' + r;
+    const vis = (el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0; };
+    const label = document.querySelector('.nav-group-label[data-navgroup="growth"]');
+    const items = [...document.querySelectorAll('#appSidebar .nav-item[data-screen^="gr_"]')];
+    const screens = [...document.querySelectorAll('.screen[data-screen^="gr_"]')];
+    const btn = document.getElementById('grTodayBtn');
+    const out = { group: label ? vis(label) : false,
+                  items: items.filter(vis).length,
+                  screens: screens.filter(s => getComputedStyle(s).display !== 'none').length,
+                  // The drawer and its button hang off <body>, outside everything the
+                  // group hides, so they are the easy thing to leave behind.
+                  today: btn ? vis(btn) : false };
+    body.className = was;
+    return out;
+  }, role);
+
+  const staff = [];
+  for (const r of ['owner', 'manager', 'inhouse_dev']) staff.push([r, await look(r)]);
+  check('staff see the Growth group', staff.every(x => x[1].group),
+    JSON.stringify(staff.map(x => x[0] + ':' + x[1].group)));
+  check('and all ten screens in it', staff.every(x => x[1].items === 10),
+    JSON.stringify(staff.map(x => x[0] + ':' + x[1].items)));
+
+  const out = [];
+  for (const r of ['member', 'client']) out.push([r, await look(r)]);
+  check('a member and a client see no Growth group', out.every(x => !x[1].group),
+    JSON.stringify(out.map(x => x[0] + ':' + x[1].group)));
+  check('no Growth items', out.every(x => x[1].items === 0),
+    JSON.stringify(out.map(x => x[0] + ':' + x[1].items)));
+  check('no Growth screen painted', out.every(x => x[1].screens === 0),
+    JSON.stringify(out.map(x => x[0] + ':' + x[1].screens)));
+  check('and no Today button left floating over the app', out.every(x => !x[1].today),
+    JSON.stringify(out.map(x => x[0] + ':' + x[1].today)));
+});
+
 await step('all ten Growth items are there and visible', async () => {
   const want = ['gr_home', 'gr_meetings', 'gr_recordings', 'gr_pipeline', 'gr_inbox',
                 'gr_training', 'gr_analytics', 'gr_connectors', 'gr_settings', 'gr_automations'];

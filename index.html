@@ -8369,16 +8369,16 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       <!-- Growth: the sales side. Lived in a separate Claude artifact until now. Reps see
            only their own clients, so every item is data-client-hidden and the two admin
            ones are manager+. The database enforces the same split -- 20261021120000. -->
-      <div class="nav-group-label nav-group-toggle" data-navgroup="growth"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.8l5 1.9v3.6c0 3.2-2.1 5.6-5 6.9-2.9-1.3-5-3.7-5-6.9V3.7l5-1.9Z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="group-label-text">Growth</span><span style="margin-left:6px;background:#D00400;color:#fff;border-radius:4px;padding:1px 5px;font-size:8.5px;font-weight:700;letter-spacing:.06em;">NEW</span><svg class="nav-group-chev" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="nav-group-label nav-group-toggle" data-navgroup="growth" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.8l5 1.9v3.6c0 3.2-2.1 5.6-5 6.9-2.9-1.3-5-3.7-5-6.9V3.7l5-1.9Z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="group-label-text">Growth</span><span style="margin-left:6px;background:#D00400;color:#fff;border-radius:4px;padding:1px 5px;font-size:8.5px;font-weight:700;letter-spacing:.06em;">NEW</span><svg class="nav-group-chev" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div class="nav-rail" id="railGrowth" data-navgroup-body="growth">
         <div class="nav-pill" id="pillGrowth" style="opacity:0;"></div>
-        <div class="nav-item" data-screen="gr_home" data-label="Home" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 7.2 8 2.5l5.5 4.7M4 6.6v7h8v-7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Home <span class="badge" id="grHomeBadge" style="display:none;">0</span></div>
-        <div class="nav-item" data-screen="gr_meetings" data-label="Meetings" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 3.8h11v10h-11zM2.5 6.6h11M5.5 2v2.6M10.5 2v2.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Meetings</div>
-        <div class="nav-item" data-screen="gr_recordings" data-label="Recordings" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3.5" width="12" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M6.6 6.6l3.2 1.9-3.2 1.9z" fill="currentColor"/></svg></span>Recordings</div>
-        <div class="nav-item" data-screen="gr_pipeline" data-label="Pipeline" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M6 5.2a2.2 2.2 0 100 4.4 2.2 2.2 0 000-4.4ZM1.8 13.4c.5-2.2 2.1-3.4 4.2-3.4s3.7 1.2 4.2 3.4M11 5.5a2.2 2.2 0 010 4M12.6 10.2c1.2.5 2 1.5 2.2 3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Pipeline</div>
-        <div class="nav-item" data-screen="gr_inbox" data-label="Growth Inbox" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.2h12v7.6H2zM2.3 4.6 8 8.6l5.7-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Growth Inbox <span class="badge" id="grInboxBadge" style="display:none;">0</span></div>
-        <div class="nav-item" data-screen="gr_training" data-label="Training" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M3 3.6A1.6 1.6 0 014.6 2H13v11H4.6A1.6 1.6 0 003 14.6zM3 3.6v11M6 5.4h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Training</div>
-        <div class="nav-item" data-screen="gr_analytics" data-label="Analytics" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M3 13V6.5M8 13V3M13 13V8.6M1.5 14.5h13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Analytics</div>
+        <div class="nav-item" data-screen="gr_home" data-label="Home" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 7.2 8 2.5l5.5 4.7M4 6.6v7h8v-7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Home <span class="badge" id="grHomeBadge" style="display:none;">0</span></div>
+        <div class="nav-item" data-screen="gr_meetings" data-label="Meetings" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 3.8h11v10h-11zM2.5 6.6h11M5.5 2v2.6M10.5 2v2.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Meetings</div>
+        <div class="nav-item" data-screen="gr_recordings" data-label="Recordings" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3.5" width="12" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M6.6 6.6l3.2 1.9-3.2 1.9z" fill="currentColor"/></svg></span>Recordings</div>
+        <div class="nav-item" data-screen="gr_pipeline" data-label="Pipeline" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M6 5.2a2.2 2.2 0 100 4.4 2.2 2.2 0 000-4.4ZM1.8 13.4c.5-2.2 2.1-3.4 4.2-3.4s3.7 1.2 4.2 3.4M11 5.5a2.2 2.2 0 010 4M12.6 10.2c1.2.5 2 1.5 2.2 3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Pipeline</div>
+        <div class="nav-item" data-screen="gr_inbox" data-label="Growth Inbox" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.2h12v7.6H2zM2.3 4.6 8 8.6l5.7-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Growth Inbox <span class="badge" id="grInboxBadge" style="display:none;">0</span></div>
+        <div class="nav-item" data-screen="gr_training" data-label="Training" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M3 3.6A1.6 1.6 0 014.6 2H13v11H4.6A1.6 1.6 0 003 14.6zM3 3.6v11M6 5.4h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Training</div>
+        <div class="nav-item" data-screen="gr_analytics" data-label="Analytics" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M3 13V6.5M8 13V3M13 13V8.6M1.5 14.5h13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Analytics</div>
         <div class="nav-item" data-screen="gr_connectors" data-label="Connectors" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M6 2.6v2.6M10 2.6v2.6M4.6 5.2h6.8v2.6a3.4 3.4 0 01-6.8 0zM8 11.2v2.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Connectors</div>
         <div class="nav-item" data-screen="gr_settings" data-label="Settings" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 5.8a2.2 2.2 0 100 4.4 2.2 2.2 0 000-4.4ZM8 1.6v1.8M8 12.6v1.8M1.6 8h1.8M12.6 8h1.8M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M3.5 12.5l1.3-1.3M11.2 4.8l1.3-1.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Settings</div>
         <div class="nav-item" data-screen="gr_automations" data-label="Automations" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8.6 1.6L3.4 8.9h4l-.6 5.5 5.2-7.4h-4z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>Automations</div>
@@ -12556,34 +12556,34 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
            Eight screens, each an empty shell the gr_ module fills on first open. Same
            shape as Passwords and White Label: nothing here renders until you navigate,
            so a rep who never opens Growth pays nothing for it. -->
-      <div class="screen" data-screen="gr_home">
+      <div class="screen" data-screen="gr_home" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grHome"></div>
       </div>
-      <div class="screen" data-screen="gr_meetings">
+      <div class="screen" data-screen="gr_meetings" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grMeetings"></div>
       </div>
-            <div class="screen" data-screen="gr_recordings">
+            <div class="screen" data-screen="gr_recordings" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grRecordings"></div>
       </div>
-      <div class="screen" data-screen="gr_pipeline">
+      <div class="screen" data-screen="gr_pipeline" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grPipeline"></div>
       </div>
-      <div class="screen" data-screen="gr_inbox">
+      <div class="screen" data-screen="gr_inbox" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grInbox"></div>
       </div>
-      <div class="screen" data-screen="gr_training">
+      <div class="screen" data-screen="gr_training" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grTraining"></div>
       </div>
-      <div class="screen" data-screen="gr_analytics">
+      <div class="screen" data-screen="gr_analytics" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grAnalytics"></div>
       </div>
-      <div class="screen" data-screen="gr_connectors">
+      <div class="screen" data-screen="gr_connectors" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grConnectors"></div>
       </div>
-      <div class="screen" data-screen="gr_automations">
+      <div class="screen" data-screen="gr_automations" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grAutomations"></div>
       </div>
-      <div class="screen" data-screen="gr_settings">
+      <div class="screen" data-screen="gr_settings" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grSettings"></div>
       </div>
 
@@ -99369,15 +99369,23 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // One host for the Today drawer, made once and reused, the same as the sheet. It
     // lives on <body> rather than inside a screen so leaving the screen cannot take the
     // drawer down mid-read.
+    /* Both of these hang off <body> so leaving a screen cannot take them down mid-read,
+       which also puts them OUTSIDE the gated containers -- they carry the floor
+       themselves or a member would be left with a Growth button floating over an app
+       that has no Growth in it. */
     if (!$('grToday')) {
       const t = document.createElement('div');
       t.id = 'grToday'; t.className = 'gr_tdw';
+      t.setAttribute('data-role-min', 'manager');
+      t.setAttribute('data-client-hidden', '');
       document.body.appendChild(t);
     }
     if (!$('grTodayBtn')) {
       const b2 = document.createElement('button');
       b2.id = 'grTodayBtn'; b2.className = 'gr_tdbtn';
       b2.setAttribute('data-gr-today-open', '');
+      b2.setAttribute('data-role-min', 'manager');
+      b2.setAttribute('data-client-hidden', '');
       b2.setAttribute('aria-label', "Today's work");
       document.body.appendChild(b2);
     }
