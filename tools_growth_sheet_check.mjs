@@ -609,6 +609,259 @@ await step('a client with no form and no zone says so instead of showing an empt
   check('and a line saying what setting one would do', /time zone/i.test(m.hint), m.hint);
 });
 
+/* A call note carried the headline, what they want and the next steps. The three it
+   dropped are the ones somebody reaches for afterwards: the facts, the lines they
+   actually said with the point in the recording, and the worries next to the answer
+   given. Driven against the note in the fixture, because a renderer that silently drops
+   a section looks like a client who simply did not say much. */
+await step('a call note shows the facts, the quotes and the worries', async () => {
+  await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+  await navOf('gr_pipeline').click(); await page.waitForTimeout(700);
+  const opened = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('#grPipeline .gr_bc')].find(x => /Michael/.test(x.textContent));
+    if (el) el.click();
+    return !!el;
+  });
+  check('the client with a full note is on the board', opened);
+  await page.waitForTimeout(600);
+  await page.locator('#grSheet [data-gr-tab="notes"]').first().click();
+  await page.waitForTimeout(500);
+  const n = await page.evaluate(() => {
+    const el = document.querySelector('#grSheet .gr_cn');
+    if (!el) return null;
+    return {
+      headline: (el.querySelector('.gr_cnhl') || {}).textContent || '',
+      facts: [...el.querySelectorAll('.gr_cnf > div')].map(d => ({
+        k: d.querySelector('span').textContent, v: d.querySelector('b').textContent })),
+      wants: [...el.querySelectorAll('.gr_cnw li')].map(x => x.textContent),
+      said: [...el.querySelectorAll('.gr_cnqr')].map(d => ({
+        t: (d.querySelector('span') || {}).textContent,
+        link: (d.querySelector('a') || {}).getAttribute ? d.querySelector('a').getAttribute('href') : null,
+        stamp: (d.querySelector('a') || {}).textContent || '' })),
+      worries: [...el.querySelectorAll('.gr_cnor')].map(d => ({
+        q: d.querySelector('b').textContent, a: d.querySelector('span').textContent })),
+      next: [...el.querySelectorAll('.gr_cnnr')].map(d => ({
+        t: d.querySelector('span').textContent, who: d.querySelector('em').textContent,
+        done: d.classList.contains('gr_cndone'),
+        line: getComputedStyle(d.querySelector('span')).textDecorationLine })),
+      watch: !!el.querySelector('.gr_cnh a')
+    };
+  });
+  check('the note rendered', !!n, '');
+  if (!n) return;
+  check('the headline is there', /\$80k/.test(n.headline), n.headline);
+  check('the facts are a labelled grid', n.facts.length === 3 &&
+    n.facts.some(f => /Budget/i.test(f.k) && /\$3,000/.test(f.v)), JSON.stringify(n.facts));
+  check('what they want is listed', n.wants.length === 2, JSON.stringify(n.wants));
+  check('what they said is quoted', n.said.length === 2, JSON.stringify(n.said.map(x => x.t)));
+  // The stamp is the point in the recording, and the link has to carry it or pressing it
+  // just opens the call at the beginning -- which is the same as having no stamp.
+  check('each quote carries a timestamp', n.said.every(x => /^▶?\s*\d+:\d{2}$/.test((x.stamp || '').trim())),
+    JSON.stringify(n.said.map(x => x.stamp)));
+  check('182 seconds reads as 3:02', /3:02/.test(n.said[0].stamp), n.said[0].stamp);
+  check('and the link jumps to that second',
+    /[?&]timestamp=182\b/.test(n.said[0].link || ''), n.said[0].link);
+  check('the worries sit next to their answers', n.worries.length === 2 &&
+    /ten day exit/i.test(n.worries[0].a), JSON.stringify(n.worries));
+  check('the next steps name who owns them',
+    n.next.length === 2 && n.next[0].who === 'Luke' && n.next[1].who === 'Annie',
+    JSON.stringify(n.next));
+  // The tick is measured by the strike-through, not by the class alone: a "done" flag
+  // that changes nothing a person can see is the check that passes against the bug.
+  check('a finished step is struck through and an unfinished one is not',
+    n.next[0].done && /line-through/.test(n.next[0].line) && !/line-through/.test(n.next[1].line),
+    JSON.stringify(n.next.map(x => x.line)));
+  check('and there is a way into the recording', n.watch);
+});
+
+/* Marking a deal won was a browser prompt asking for a number; logging work done
+   elsewhere was not possible at all, so a client rung from somebody's phone looked
+   abandoned here. Both write to the database, so both are driven and read back, and
+   both are undoable -- the whole point of an Undo is that it puts the row back. */
+await step('the journey says what has actually happened', async () => {
+  // Back to the board from wherever the steps above left things, then open Kelsey and
+  // CHECK IT IS KELSEY: a card click that does not land leaves the previous client on
+  // screen, and every assertion below would be about the wrong person.
+  await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+  await navOf('gr_pipeline').click(); await page.waitForTimeout(700);
+  const boardBtn = page.locator('#grPipeline [data-gr-pview="board"]');
+  if (await boardBtn.count()) { await boardBtn.click(); await page.waitForTimeout(500); }
+  // Whoever is still OPEN. Steps above this one mark people won and lost, so naming a
+  // client here would eventually test a closed deal and quietly measure nothing.
+  const target = await page.evaluate(() => {
+    const c = window.__mockDB.growth_clients.find(x => x.stage !== 'won' && x.stage !== 'lost');
+    return c ? { id: c.id, name: c.name, stage: c.stage, calls: c.calls_held || 0,
+                 sent: c.emails_sent || 0, summary: c.summary || '' } : null;
+  });
+  check('there is still an open deal to work with', !!target, JSON.stringify(target));
+  if (!target) return;
+  const opened = await page.evaluate((id) => {
+    const el = [...document.querySelectorAll('#grPipeline .gr_bc')].find(x => x.dataset.grOpen === id ||
+      (x.getAttribute('data-gr-open') === id));
+    if (el) el.click();
+    return !!el;
+  }, target.id);
+  check('their card is on the board', opened, target.name);
+  await page.waitForTimeout(700);
+  const who = await page.evaluate(() =>
+    (document.querySelector('#grSheet h2, #grSheet .gr_sh b') || {}).textContent || '');
+  check('and the sheet is showing them', who.indexOf(target.name.split(' ')[0]) >= 0,
+    who + ' vs ' + target.name);
+  // Kelsey is at "booked": no call held, nothing written, no email. The stepper must
+  // show that, because the stage alone cannot -- a deal parked in "proposal" with no
+  // email ever sent looks identical to one that is going fine.
+  const j = await page.evaluate(() => {
+    const steps = [...document.querySelectorAll('#grSheet .gr_jr span')];
+    return steps.map(x => ({ t: x.textContent.trim(), on: x.classList.contains('gr_jon'),
+                             dot: Math.round((x.querySelector('i') || {}).getBoundingClientRect?.().width || 0) }));
+  });
+  check('there are four steps', j.length === 4, JSON.stringify(j.map(x => x.t)));
+  check('named Booked, Met, Notes, Emailed',
+    JSON.stringify(j.map(x => x.t)) === JSON.stringify(['Booked', 'Met', 'Notes', 'Emailed']),
+    JSON.stringify(j.map(x => x.t)));
+  // Measured, not asserted present: a dot at 0px wide has passed a check in this repo.
+  check('every dot is drawn', j.every(x => x.dot >= 8), JSON.stringify(j.map(x => x.dot)));
+  // Worked out here from the row rather than read off the screen, so this measures the
+  // stepper's rule and not just that four dots exist.
+  const want = {
+    met: target.calls > 0 || target.stage !== 'booked',
+    notes: (target.calls > 0 || target.stage !== 'booked') && !!target.summary.trim(),
+    mailed: target.sent > 0
+  };
+  check('Booked is always lit', j[0].on === true, JSON.stringify(j.map(x => x.on)));
+  check('Met matches whether a call has happened', j[1].on === want.met,
+    j[1].on + ' vs ' + want.met);
+  check('Notes matches whether anything was written', j[2].on === want.notes,
+    j[2].on + ' vs ' + want.notes);
+  check('Emailed matches whether an email has gone', j[3].on === want.mailed,
+    j[3].on + ' vs ' + want.mailed);
+});
+
+await step('"+ Call held" records the call, and Undo takes it back', async () => {
+  const before = await page.evaluate(() => {
+    const c = window.__mockDB.growth_clients.find(x => x.stage !== 'won' && x.stage !== 'lost');
+    return { id: c.id, calls: c.calls_held || 0, stage: c.stage, last: c.last_call_on,
+             steps: [...document.querySelectorAll('#grSheet .gr_jr span')].map(x => x.classList.contains('gr_jon')) };
+  });
+  await page.locator('#grSheet [data-gr-logcall]').click();
+  await page.waitForTimeout(800);
+  const after = await page.evaluate((id) => {
+    const c = window.__mockDB.growth_clients.find(x => x.id === id);
+    const steps = [...document.querySelectorAll('#grSheet .gr_jr span')].map(x => x.classList.contains('gr_jon'));
+    return { calls: c.calls_held, stage: c.stage, last: c.last_call_on, steps,
+             toast: (document.getElementById('grToast') || {}).textContent || '',
+             undo: !!document.querySelector('#grToast [data-gr-undo]') };
+  }, before.id);
+  check('the call count went up in the database', after.calls === before.calls + 1,
+    before.calls + ' -> ' + after.calls);
+  check('and the stage moved off booked', after.stage === 'call', after.stage);
+  check('the date is today', after.last === new Date().toISOString().slice(0, 10), after.last);
+  check('the journey lights Met', after.steps[1] === true, JSON.stringify(after.steps));
+  check('the toast offers an Undo', after.undo, after.toast);
+
+  await page.locator('#grToast [data-gr-undo]').click();
+  await page.waitForTimeout(900);
+  const undone = await page.evaluate((id) => {
+    const c = window.__mockDB.growth_clients.find(x => x.id === id);
+    return { calls: c.calls_held, stage: c.stage, last: c.last_call_on,
+             steps: [...document.querySelectorAll('#grSheet .gr_jr span')].map(x => x.classList.contains('gr_jon')) };
+  }, before.id);
+  // All three fields, not just the count: an undo that restores the number and leaves
+  // the stage moved is the kind of half-undo nobody notices until the board is wrong.
+  check('Undo puts the count back', undone.calls === before.calls, undone.calls + '');
+  check('Undo puts the stage back', undone.stage === before.stage, undone.stage);
+  check('Undo puts the date back', (undone.last || null) === (before.last || null), String(undone.last));
+  // Back to exactly the stepper it had before, whatever that was: this client may well
+  // have had a call on record already, and "goes dark" would then be the wrong rule.
+  check('and the journey reads as it did before',
+    JSON.stringify(undone.steps) === JSON.stringify(before.steps),
+    JSON.stringify(undone.steps) + ' vs ' + JSON.stringify(before.steps));
+});
+
+await step('"+ Email sent" logs a message, and Undo removes it again', async () => {
+  const before = await page.evaluate(() => {
+    const c = window.__mockDB.growth_clients.find(x => x.stage !== 'won' && x.stage !== 'lost');
+    return { id: c.id, sent: c.emails_sent || 0,
+             msgs: window.__mockDB.growth_messages.filter(m => m.client_id === c.id).length };
+  });
+  await page.locator('#grSheet [data-gr-logmail]').click();
+  await page.waitForTimeout(1000);
+  const after = await page.evaluate((b) => {
+    const c = window.__mockDB.growth_clients.find(x => x.id === b.id);
+    return { sent: c.emails_sent,
+             msgs: window.__mockDB.growth_messages.filter(m => m.client_id === b.id).length,
+             undo: !!document.querySelector('#grToast [data-gr-undo]') };
+  }, before);
+  check('a message row is written', after.msgs === before.msgs + 1, before.msgs + ' -> ' + after.msgs);
+  check('and the count on the client goes up', after.sent === before.sent + 1, after.sent + '');
+  check('with an Undo offered', after.undo);
+
+  await page.locator('#grToast [data-gr-undo]').click();
+  await page.waitForTimeout(1000);
+  const undone = await page.evaluate((b) => {
+    const c = window.__mockDB.growth_clients.find(x => x.id === b.id);
+    return { sent: c.emails_sent,
+             msgs: window.__mockDB.growth_messages.filter(m => m.client_id === b.id).length };
+  }, before);
+  check('Undo puts the count back', undone.sent === before.sent, undone.sent + '');
+  // The row has to go as well, or the timeline keeps a ghost of an email nobody sent.
+  check('and the message row is gone with it', undone.msgs === before.msgs,
+    before.msgs + ' vs ' + undone.msgs);
+});
+
+await step('Won asks the amount in a sheet, not a browser prompt', async () => {
+  await page.locator('#grSheet [data-gr-won]').click();
+  await page.waitForTimeout(600);
+  const d = await page.evaluate(() => {
+    const w = document.querySelector('[data-gr-wonwrap]');
+    if (!w) return null;
+    return { packs: [...w.querySelectorAll('[data-gr-wonv]')].map(b => b.textContent.trim()),
+             box: !!document.getElementById('grWonAmt'),
+             go: !!w.querySelector('[data-gr-wongo]') };
+  });
+  check('the Won sheet opened', !!d, '');
+  if (!d) return;
+  // The packs come from Settings, so the prices offered are the ones we actually sell.
+  check('it offers the packs we sell', d.packs.length >= 2, JSON.stringify(d.packs));
+  check('the prices are on them', d.packs.every(t => /\$/.test(t)), JSON.stringify(d.packs));
+  check('and there is a box for anything else', d.box && d.go);
+
+  await page.locator('[data-gr-wonv]').first().click();
+  await page.waitForTimeout(400);
+  const filled = await page.evaluate(() => (document.getElementById('grWonAmt') || {}).value);
+  check('choosing a pack fills the amount', Number(filled) > 0, filled);
+
+  const was = await page.evaluate(() => {
+    const c = window.__mockDB.growth_clients.find(x => x.stage !== 'won' && x.stage !== 'lost');
+    return { id: c.id, stage: c.stage, value: c.value_monthly, won: c.won_on };
+  });
+  await page.locator('[data-gr-wongo]').click();
+  await page.waitForTimeout(900);
+  const now = await page.evaluate((id) => {
+    const c = window.__mockDB.growth_clients.find(x => x.id === id);
+    return { stage: c.stage, value: c.value_monthly, won: c.won_on,
+             undo: !!document.querySelector('#grToast [data-gr-undo]'),
+             dialog: !!document.querySelector('[data-gr-wonwrap]') };
+  }, was.id);
+  check('the deal is won in the database', now.stage === 'won', now.stage);
+  check('at the amount that was chosen', Number(now.value) === Number(filled),
+    now.value + ' vs ' + filled);
+  check('dated today', now.won === new Date().toISOString().slice(0, 10), String(now.won));
+  check('the sheet closed behind it', !now.dialog);
+  check('and it can be undone', now.undo);
+
+  await page.locator('#grToast [data-gr-undo]').click();
+  await page.waitForTimeout(900);
+  const back = await page.evaluate((id) => {
+    const c = window.__mockDB.growth_clients.find(x => x.id === id);
+    return { stage: c.stage, value: c.value_monthly, won: c.won_on };
+  }, was.id);
+  check('Undo puts the stage back', back.stage === was.stage, back.stage + ' vs ' + was.stage);
+  check('and the amount back to what it was',
+    (back.value || null) === (was.value || null), String(back.value) + ' vs ' + String(was.value));
+  check('and clears the won date', (back.won || null) === (was.won || null), String(back.won));
+});
+
 await step('nothing raw reaches the screen, and Escape puts it all away', async () => {
   const raw = await page.evaluate(() => {
     const out = [];

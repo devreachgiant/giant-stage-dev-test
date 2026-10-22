@@ -486,7 +486,23 @@
     // others deliberately do not, because the empty shape has to be right too.
     intake: i === 0 ? { source: 'Fiverr', interests: 'Google Ads', budget: '$3,000/mo',
                         ready: 'Right away', revenue: '$80k/mo', url: 'northviewdoors.com' } : {},
-    call_notes: [], team_notes: [], activity_log: [], giant_handoff: null,
+    // One full Fathom-shaped note on gc-1, so every part of the note renderer has
+    // something to draw and the empty shape is still exercised by everybody else.
+    call_notes: i === 0 ? [{
+      title: 'ReachGiant Growth Strategy Session', d: giso(5, 0).slice(0, 10), min: 41,
+      url: 'https://fathom.video/share/sample',
+      headline: 'Doing $80k a month, wants more installs without paying per click.',
+      facts: [{ k: 'Budget', v: '$3,000/mo' }, { k: 'Decides', v: 'Michael alone' },
+              { k: 'Timing', v: 'Right away' }],
+      wants: ['More qualified leads from Google', 'Someone to own the tracking'],
+      said: [{ t: 'We have tried two agencies and both just sent us clicks.', s: 182 },
+             { t: 'If it works I will spend more, that is not the issue.', s: 905 }],
+      worries: [{ q: 'I do not want a long contract.', a: 'Three month minimum, ten day exit.' },
+                { q: 'Will I see where the money goes?', a: 'Weekly report, same numbers we work from.' }],
+      next: [{ t: 'Send the proposal', who: 'Luke', done: true },
+             { t: 'Share the tracking audit', who: 'Annie', done: false }]
+    }] : [],
+    team_notes: [], activity_log: [], giant_handoff: null,
     created_at: giso(20 - i, 0), updated_at: giso(i, 0)
   }));
   DB.growth_meetings = [

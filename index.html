@@ -6862,7 +6862,46 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
    else read as one. Say what is going on and offer the two ways out. */
 .gr_first{padding:14px;}
 .gr_acts.gr_mid2{justify-content:center;padding-bottom:14px;}
-.gr_toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 18px;border-radius:99px;font-size:13px;font-weight:600;z-index:90;opacity:0;pointer-events:none;transition:.2s;}
+.gr_toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--text);color:var(--bg);padding:10px 18px;border-radius:99px;font-size:13px;font-weight:600;z-index:90;opacity:0;pointer-events:none;transition:.2s;display:flex;align-items:center;gap:12px;}
+/* A toast carrying an Undo has to be clickable; the plain one stays out of the way. */
+.gr_toast.on{pointer-events:auto;}
+.gr_toast button{background:none;border:0;color:var(--bg);font:inherit;font-weight:800;text-decoration:underline;cursor:pointer;padding:0;opacity:.85;}
+.gr_toast button:hover{opacity:1;}
+/* The four steps a deal actually goes through, under the sheet's header. */
+.gr_jr{display:flex;align-items:center;gap:7px;padding:2px 0 12px;}
+.gr_jr span{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:var(--text-3);white-space:nowrap;}
+.gr_jr i{width:9px;height:9px;border-radius:50%;background:var(--surface-3);border:1px solid var(--line-2);}
+.gr_jr .gr_jon{color:var(--text);}
+.gr_jr .gr_jon i{background:#1F7A45;border-color:#1F7A45;}
+.gr_jr u{flex:1;height:1px;background:var(--line);text-decoration:none;min-width:12px;}
+/* A call note in full: the facts, the lines they said, the worries, the next steps. */
+.gr_cn{background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:11px;}
+.gr_cnh{display:flex;align-items:flex-start;gap:10px;justify-content:space-between;}
+.gr_cnh b{font-size:14.5px;display:block;}
+.gr_cnh span{font-size:11.5px;color:var(--text-3);}
+.gr_cnhl{margin:9px 0 0;font-size:13.5px;line-height:1.5;}
+.gr_cnf{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:11px;}
+.gr_cnf>div{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;}
+.gr_cnf span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);}
+.gr_cnf b{font-size:13px;}
+.gr_cns{margin-top:13px;}
+.gr_cns h4{margin:0 0 7px;font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);font-weight:800;}
+.gr_cns ul{margin:0;padding-left:18px;font-size:13px;line-height:1.6;}
+/* A quote reads as a quote, with the point in the recording on the right. */
+.gr_cnqr{display:flex;gap:10px;align-items:baseline;border-left:2px solid var(--line-2);padding:4px 0 4px 10px;margin-bottom:5px;font-size:13px;line-height:1.5;}
+.gr_cnqr span{flex:1;}
+.gr_cnqr a{color:var(--red);font-size:11.5px;font-weight:700;text-decoration:none;white-space:nowrap;flex:none;}
+.gr_cnor{padding:7px 0;border-top:1px solid var(--line);}
+.gr_cnor b{display:block;font-size:13px;}
+.gr_cnor span{font-size:12.5px;color:var(--text-3);}
+.gr_cnnr{display:flex;align-items:center;gap:9px;padding:5px 0;font-size:13px;}
+.gr_cnnr i{width:16px;height:16px;border-radius:50%;border:1px solid var(--line-2);display:grid;place-items:center;font-size:10px;font-style:normal;flex:none;}
+.gr_cnnr span{flex:1;}
+.gr_cnnr em{font-style:normal;font-size:11px;color:var(--text-3);}
+.gr_cndone i{background:#1F7A45;border-color:#1F7A45;color:#fff;}
+.gr_cndone span{color:var(--text-3);text-decoration:line-through;}
+.gr_dlgw2{background:rgba(31,122,69,.14);color:#1F7A45;}
+.gr_dlgc button em{display:block;font-style:normal;font-size:11px;color:var(--text-3);margin-top:2px;}
 .gr_toast.on{opacity:1;transform:translateX(-50%);}
 </style>
 <script src="/config.js?_t=20260611u17"></script>
@@ -94507,7 +94546,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   let grPeople = [];                 // profiles who can own a deal
   let grScreen = 'gr_home';
   let grPView = 'board';
-  let grOpenId = null, grTab = 'overview', grQuery = '', grComposer = null, grLost = null;
+  let grOpenId = null, grTab = 'overview', grQuery = '', grComposer = null, grLost = null, grWon = null;
   let grRange = 'week';
   // Analytics has two views. Fathom is not connected yet (the Connectors panel says so
   // in as many words), so the calls below are a sample that shows the shape of the
@@ -94769,14 +94808,33 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       stage: c.stage === 'call' ? 'proposal' : c.stage
     });
     grToast('Saved to ' + grFirst(c) + "'s history");
+    // Handed back so a caller that offers an Undo can take the row out again.
+    return data[0];
   }
 
-  function grToast(t) {
-    if (window.giantToast) { window.giantToast(t); return; }
+  /* A toast that can carry an Undo. Everything destructive in Growth happens on one
+     click -- marking lost, marking won, logging a call that did not happen -- and the
+     alternative to an undo is a confirm box in front of every one of them, which people
+     learn to dismiss without reading. The app's own toast has no button, so the Undo
+     case uses this one; without an undo it still hands off to giantToast so Growth looks
+     like the rest of the app. */
+  let grUndo = null;
+  function grToast(t, undo) {
+    if (!undo && window.giantToast) { window.giantToast(t); return; }
     let b = $('grToast');
     if (!b) { b = document.createElement('div'); b.id = 'grToast'; b.className = 'gr_toast'; document.body.appendChild(b); }
-    b.textContent = t; b.classList.add('on');
-    clearTimeout(b._t); b._t = setTimeout(() => b.classList.remove('on'), 2600);
+    grUndo = undo || null;
+    b.innerHTML = '<span></span>' + (undo ? '<button data-gr-undo>Undo</button>' : '');
+    b.firstChild.textContent = t;
+    b.classList.add('on');
+    clearTimeout(b._t);
+    // Long enough to read a sentence and reach for the button, which four seconds is not.
+    b._t = setTimeout(() => { b.classList.remove('on'); grUndo = null; }, undo ? 8000 : 2600);
+  }
+  function grHideToast() {
+    const b = $('grToast');
+    if (b) { b.classList.remove('on'); clearTimeout(b._t); }
+    grUndo = null;
   }
 
   /* ---------- rendering ---------- */
@@ -97083,13 +97141,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       body += '<div class="gr_acts"><button class="btn-red" data-gr-act="' + c.id + '" data-t="' + (na ? na.t : 'followup') + '">Write an email</button></div>';
     } else if (grTab === 'notes') {
       const cn = c.call_notes || [], tn = c.team_notes || [];
-      body = (cn.length ? cn.map(n =>
-          '<div class="gr_note"><span>' + esc(n.title || 'Call') + (n.d ? ' · ' + esc(grFmt(n.d)) : '') + '</span>' +
-          (n.headline ? '<p>' + esc(n.headline) + '</p>' : '') +
-          ((n.wants || []).length ? '<b>What they want</b><ul>' + n.wants.map(w => '<li>' + esc(w) + '</li>').join('') + '</ul>' : '') +
-          ((n.next || []).length ? '<b>Next steps</b><ul>' + n.next.map(x => '<li>' + esc(x.t || x) + '</li>').join('') + '</ul>' : '') +
-          (n.url ? '<a class="gr_ghost" href="' + esc(n.url) + '" target="_blank" rel="noopener" data-gr-stop>Watch recording</a>' : '') +
-          '</div>').join('')
+      body = (cn.length ? cn.map(grCallNote).join('')
         : '<p class="gr_mute">No call notes yet. Paste what came out of the call below, or connect Fathom.</p>') +
         '<div class="gr_field"><label for="grNote">Add a note for the team</label>' +
           '<textarea id="grNote" rows="3" placeholder="What came out of the call..."></textarea></div>' +
@@ -97185,6 +97237,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             : [3, 5, 7].map(n => '<button class="gr_chip" data-gr-fu="' + n + '">In ' + n + ' days</button>').join('')) +
           '</div></div>' : '') +
 
+        /* Work that happened somewhere else. People ring clients from their phone and
+           reply from Gmail on a laptop, and until now neither left a mark here -- so the
+           deal looked abandoned, the stale badge came up and the follow-up writer offered
+           to chase somebody who was spoken to an hour ago. Both are undoable, because
+           they are one click and the usual mistake is the wrong client. */
+        (grActive(c)
+          ? '<div class="gr_fuc"><span>Already done it?</span><div class="gr_acts">' +
+            '<button class="gr_chip" data-gr-logmail="' + c.id + '">+ Email sent</button>' +
+            '<button class="gr_chip" data-gr-logcall="' + c.id + '">+ Call held</button>' +
+            '</div></div>'
+          : '') +
+
         (function () {
           // What has actually happened, newest first. Meetings and emails are real rows;
           // the log is whatever the app wrote as it went.
@@ -97239,9 +97303,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                                     : 'Lost' + (c.lost_reason ? ' \u00B7 ' + c.lost_reason : '')) +
               '</span>') + '</div>' +
 
+        grJourney(c) +
+
         '<div class="gr_stabs">' + tabs.map(t => '<button data-gr-tab="' + t[0] + '"' + (grTab === t[0] ? ' aria-pressed="true"' : '') + '>' + t[1] + '</button>').join('') + '</div>' +
         '<div class="gr_sbody">' + body + '</div>' +
-      '</div>' + (grComposer ? grComposerHtml(c) : '') + (grLost ? grLostHtml(c) : '');
+      '</div>' + (grComposer ? grComposerHtml(c) : '') + (grLost ? grLostHtml(c) : '') +
+      (grWon ? grWonHtml(c) : '');
     wrap.classList.add('on');
   }
 
@@ -97260,6 +97327,93 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      the five answers that actually came back, so they are buttons; the sixth answer is
      still "skip it", which is why Mark lost works with nothing chosen. */
   const GR_LOST = ['Price', 'Went quiet', 'Not a fit', 'Chose someone else', 'Bad timing'];
+  /* Marking a deal won used to be a giantPrompt asking for a number. A prompt is a
+     dead end on a phone and it cannot offer the prices we actually sell, so this is the
+     same dialog shape as Lost: the three packs as buttons, and a box for anything else.
+     The amount matters -- it is what Analytics adds up as money won. */
+  /* Where this deal has got to, in four steps. The pipeline stage says where somebody
+     PUT it; this says what has actually happened to it, which is not always the same
+     thing -- a deal sitting in "proposal" with no email ever sent is the exact gap this
+     makes visible at a glance. */
+  /* A call note in full. It carried the headline, what they want and the next steps; the
+     three it dropped are the ones somebody actually reaches for afterwards -- the facts
+     (budget, who decides, when), the lines they said WITH the point in the recording so
+     you can hear the tone rather than read a paraphrase, and the worries they raised
+     next to the answer that was given. Anything absent is left out rather than drawn as
+     an empty heading. */
+  const grTs = (sec) => {
+    const n = Math.max(0, Math.round(Number(sec) || 0));
+    return Math.floor(n / 60) + ':' + String(n % 60).padStart(2, '0');
+  };
+  function grCallNote(n) {
+    const L = (a) => Array.isArray(a) ? a : [];
+    const sec = (title, cls, inner) => inner
+      ? '<div class="gr_cns ' + cls + '"><h4>' + title + '</h4>' + inner + '</div>' : '';
+    return '<div class="gr_cn">' +
+      '<div class="gr_cnh"><div><b>' + esc(n.title || 'Call') + '</b><span>' +
+        esc(n.d ? grFmt(n.d) : '') + (n.min ? ' \u00B7 ' + esc(String(n.min)) + ' min' : '') +
+        '</span></div>' +
+        (n.url ? '<a class="gr_ghost gr_sm" href="' + esc(n.url) + '" target="_blank" rel="noopener" ' +
+          'data-gr-stop>&#9654; Watch</a>' : '') + '</div>' +
+      (n.headline ? '<p class="gr_cnhl">' + esc(n.headline) + '</p>' : '') +
+      (L(n.facts).length
+        ? '<div class="gr_cnf">' + L(n.facts).map(f =>
+            '<div><span>' + esc(f.k) + '</span><b>' + esc(f.v) + '</b></div>').join('') + '</div>'
+        : '') +
+      sec('What they want', 'gr_cnw', L(n.wants).length
+        ? '<ul>' + L(n.wants).map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') +
+      sec('What they said', 'gr_cnq', L(n.said).length
+        ? L(n.said).map(x => '<div class="gr_cnqr"><span>' + esc(x.t || x) + '</span>' +
+            // Only a link when there is a recording AND a point in it to jump to.
+            (n.url && x.s != null
+              ? '<a href="' + esc(n.url) + '?timestamp=' + Math.round(x.s) + '" target="_blank" ' +
+                'rel="noopener" data-gr-stop>&#9654; ' + grTs(x.s) + '</a>'
+              : '') + '</div>').join('')
+        : '') +
+      sec('Worries and our answers', 'gr_cno', L(n.worries).length
+        ? L(n.worries).map(x => '<div class="gr_cnor"><b>' + esc(x.q) + '</b><span>' +
+            esc(x.a) + '</span></div>').join('')
+        : '') +
+      sec('Next steps', 'gr_cnn', L(n.next).length
+        ? L(n.next).map(x => '<div class="gr_cnnr' + (x.done ? ' gr_cndone' : '') + '">' +
+            '<i>' + (x.done ? '&#10003;' : '') + '</i><span>' + esc(x.t || x) + '</span>' +
+            '<em>' + esc(x.who || '') + '</em></div>').join('')
+        : '') +
+      '</div>';
+  }
+
+  function grJourney(c) {
+    const met = (c.calls_held || 0) > 0 || c.stage !== 'booked';
+    const notes = !!((c.call_notes || []).length || String(c.summary || '').trim());
+    const mailed = (c.emails_sent || 0) > 0 || grThread(c).some(m => m.direction === 'out');
+    const steps = [['Booked', true], ['Met', met], ['Notes', met && notes], ['Emailed', mailed]];
+    return '<div class="gr_jr">' + steps.map((x, i) =>
+      (i ? '<u></u>' : '') + '<span class="' + (x[1] ? 'gr_jon' : '') + '"><i></i>' + x[0] + '</span>'
+    ).join('') + '</div>';
+  }
+
+  function grWonHtml(c) {
+    const packs = ((grSettings.pricing || {}).packs || [])
+      .map(p => [p.name, Number(String(p.price || '').replace(/[^0-9.]/g, '')) || 0])
+      .filter(p => p[1]);
+    const picked = grWon && grWon.v;
+    return '<div class="gr_dlgw" data-gr-wonwrap><div class="gr_dlg">' +
+      '<div class="gr_dlgi gr_dlgw2">&#10003;</div>' +
+      '<h3>' + esc(grFirst(c)) + ' said yes</h3>' +
+      '<p>How much a month? This is what Analytics counts as won.</p>' +
+      (packs.length
+        ? '<div class="gr_dlgc">' + packs.map(p =>
+            '<button data-gr-wonv="' + p[1] + '"' + (picked === p[1] ? ' aria-pressed="true"' : '') + '>' +
+            esc(p[0]) + '<em>' + grMoney(p[1]) + '</em></button>').join('') + '</div>'
+        : '') +
+      '<div class="gr_field"><label for="grWonAmt">Amount per month</label>' +
+        '<input class="gr_in" id="grWonAmt" inputmode="decimal" placeholder="3000" value="' +
+        esc(picked != null ? String(picked) : (grVal(c) || '')) + '"></div>' +
+      '<button class="gr_dark" data-gr-wongo="' + c.id + '">Mark won</button>' +
+      '<button class="gr_dlgx" data-gr-wonx>Cancel</button>' +
+      '</div></div>';
+  }
+
   function grLostHtml(c) {
     return '<div class="gr_dlgw" data-gr-lostwrap><div class="gr_dlg">' +
       '<div class="gr_dlgi">&#10005;</div>' +
@@ -97752,16 +97906,76 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (e.target.closest('[data-gr-conn-recheck]')) { grReprobe(); return; }
     if (e.target.closest('[data-gr-conn-test]'))    { grTestClaude(); return; }
     const won = e.target.closest('[data-gr-won]');
-    if (won) {
-      const c = grClients.find(x => x.id === won.dataset.grWon);
-      if (c) (async () => {
-        const amount = await window.giantPrompt('How much is ' + grFirst(c) + ' worth per month?',
-          String(grVal(c) || ''));
-        if (amount === null) return;   // cancelled, not zero
-        const v = Number(String(amount).replace(/[^0-9.]/g, '')) || 0;
-        await grSave(c, { stage: 'won', won_on: grToday(), value_monthly: v || null });
-        grToast('Won' + (v ? ' at ' + grMoney(v) + ' per month' : ''));
+    if (won) { grWon = { id: won.dataset.grWon, v: null }; grRender(); return; }
+
+    const wv = e.target.closest('[data-gr-wonv]');
+    if (wv && grWon) {
+      grWon.v = Number(wv.dataset.grWonv) || 0;
+      grRender();
+      return;
+    }
+    const wg = e.target.closest('[data-gr-wongo]');
+    if (wg) {
+      const c2 = grClients.find(x => x.id === wg.dataset.grWongo);
+      const box = $('grWonAmt');
+      const v = Number(String(box ? box.value : '').replace(/[^0-9.]/g, '')) || 0;
+      grWon = null;
+      if (c2) (async () => {
+        // Kept so Undo can put the deal back exactly as it was, rather than guessing
+        // that it came from "proposal".
+        const was = { stage: c2.stage, won_on: c2.won_on, value_monthly: c2.value_monthly };
+        await grSave(c2, { stage: 'won', won_on: grToday(), value_monthly: v || null });
+        grToast('Won' + (v ? ' at ' + grMoney(v) + ' per month' : ''),
+                () => grSave(c2, was));
       })();
+      grRender();
+      return;
+    }
+    if (grWon && (e.target.closest('[data-gr-wonx]') || e.target.matches('[data-gr-wonwrap]'))) {
+      grWon = null; grRender(); return;
+    }
+
+    const lm = e.target.closest('[data-gr-logmail]');
+    if (lm) {
+      const c2 = grClients.find(x => x.id === lm.dataset.grLogmail);
+      if (c2) (async () => {
+        const was = { emails_sent: c2.emails_sent, last_email_on: c2.last_email_on,
+                      follow_up_on: c2.follow_up_on, stage: c2.stage };
+        const row = await grLogEmail(c2, { subject: 'Sent outside Giant', body: '' });
+        grToast('Marked as emailed', async () => {
+          // The message row goes too, or the undo leaves a ghost in the timeline.
+          if (row) {
+            const s3 = sb();
+            if (s3) await s3.from('growth_messages').delete().eq('id', row.id);
+            grMessages = grMessages.filter(m => m.id !== row.id);
+          }
+          await grSave(c2, was);
+        });
+      })();
+      return;
+    }
+    const lc = e.target.closest('[data-gr-logcall]');
+    if (lc) {
+      const c2 = grClients.find(x => x.id === lc.dataset.grLogcall);
+      if (c2) (async () => {
+        const was = { calls_held: c2.calls_held, last_call_on: c2.last_call_on,
+                      first_call_on: c2.first_call_on, stage: c2.stage };
+        await grSave(c2, {
+          calls_held: (c2.calls_held || 0) + 1,
+          last_call_on: grToday(),
+          first_call_on: c2.first_call_on || grToday(),
+          stage: c2.stage === 'booked' ? 'call' : c2.stage
+        });
+        grToast('Marked as called', () => grSave(c2, was));
+      })();
+      return;
+    }
+
+    const ub = e.target.closest('[data-gr-undo]');
+    if (ub) {
+      const fn = grUndo;
+      grHideToast();
+      if (fn) Promise.resolve(fn()).then(() => { grToast('Put back'); grRender(); });
       return;
     }
     const lost = e.target.closest('[data-gr-lost]');
