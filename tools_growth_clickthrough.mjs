@@ -153,9 +153,9 @@ await step('the Growth group is in the sidebar', async () => {
   await page.waitForTimeout(350);
 });
 
-await step('all eight Growth items are there and visible', async () => {
+await step('all nine Growth items are there and visible', async () => {
   const want = ['gr_home', 'gr_meetings', 'gr_pipeline', 'gr_inbox',
-                'gr_training', 'gr_analytics', 'gr_connectors', 'gr_settings'];
+                'gr_training', 'gr_analytics', 'gr_connectors', 'gr_automations', 'gr_settings'];
   const seen = await page.evaluate((w) => w.map(s => {
     const el = document.querySelector('#appSidebar .nav-item[data-screen="' + s + '"]');
     if (!el) return { s, found: false };
@@ -163,13 +163,13 @@ await step('all eight Growth items are there and visible', async () => {
     return { s, found: true, w: Math.round(r.width), h: Math.round(r.height),
              text: (el.textContent || '').trim() };
   }), want);
-  check('all eight Growth items exist', seen.every(x => x.found), JSON.stringify(seen.filter(x => !x.found)));
+  check('all nine Growth items exist', seen.every(x => x.found), JSON.stringify(seen.filter(x => !x.found)));
   // width AND height, not presence: a nav item collapsed to zero is the exact bug that
   // got through before, when display:'' deleted an inline rule and children went to 0.
   const sized = seen.filter(x => x.found && x.w > 60 && x.h > 14);
-  check('and every one has real size on screen', sized.length === 8,
+  check('and every one has real size on screen', sized.length === 9,
         JSON.stringify(seen.map(x => x.s + ':' + x.w + 'x' + x.h)));
-  check('they read as the eight names asked for', seen.every(x => x.text && x.text.length > 2),
+  check('they read as the nine names asked for', seen.every(x => x.text && x.text.length > 2),
         JSON.stringify(seen.map(x => x.text)));
 });
 
@@ -181,6 +181,7 @@ const screens = [
   ['gr_training',   'grTraining',   ['Training']],
   ['gr_analytics',  'grAnalytics',  ['Analytics', 'Sales funnel']],
   ['gr_connectors', 'grConnectors', ['Connectors']],
+  ['gr_automations','grAutomations',['Automations', 'Growth sync']],
   ['gr_settings',   'grSettings',   ['Growth settings']]
 ];
 
@@ -526,6 +527,9 @@ await step('Settings: a stage can be renamed and it saves', async () => {
   await navOf('gr_settings').click();
   await page.waitForFunction(() => document.getElementById('grSettings').innerHTML.length > 300,
     null, { timeout: 15000 }).catch(() => {});
+  // Settings opens on Email templates now, which is the tab people are in most.
+  await page.locator('[data-gr-settab="stages"]').click();
+  await page.waitForTimeout(400);
   const box = page.locator('[data-gr-stage-label="booked"]');
   if (await box.count() === 0) { check('the stage list is editable', false, 'no stage input'); return; }
   await box.fill('Just booked');
@@ -542,6 +546,8 @@ await step('Settings: a stage can be renamed and it saves', async () => {
 });
 
 await step('Settings: the gone-quiet threshold saves', async () => {
+  await page.locator('[data-gr-settab="stages"]').click();
+  await page.waitForTimeout(300);
   const f = page.locator('[data-gr-stale]');
   if (await f.count() === 0) { check('gone-quiet is editable', false); return; }
   await f.fill('9'); await f.blur(); await page.waitForTimeout(400);
@@ -553,13 +559,16 @@ await step('Settings: the gone-quiet threshold saves', async () => {
 });
 
 await step('Settings: a discount code can be added', async () => {
-  await page.locator('[data-gr-settab="discounts"]').click();
+  // Codes live under Email templates now, as cards you open rather than a row of inputs.
+  await page.locator('[data-gr-settab="templates"]').click();
   await page.waitForTimeout(400);
   const before = await page.evaluate(() => (window.__mockDB.growth_discounts || []).length);
-  await page.locator('#grNewDiscCode').fill('RG999');
-  await page.locator('#grNewDiscLabel').fill('Test offer');
-  await page.locator('[data-gr-disc-add]').click();
-  await page.waitForTimeout(600);
+  await page.locator('[data-gr-disc-new]').click();
+  await page.waitForTimeout(350);
+  await page.locator('#grDcCode').fill('RG999');
+  await page.locator('#grDcLabel').fill('Test offer');
+  await page.locator('[data-gr-disc-save="new"]').click();
+  await page.waitForTimeout(700);
   const after = await page.evaluate(() => {
     const d = window.__mockDB.growth_discounts || [];
     return { n: d.length, last: d[d.length - 1] && d[d.length - 1].code };
@@ -567,28 +576,138 @@ await step('Settings: a discount code can be added', async () => {
   check('a discount code is actually inserted', after.n === before + 1 && after.last === 'RG999',
     before + ' -> ' + after.n + ' last=' + after.last);
   const shown = await page.evaluate(() =>
-    document.querySelectorAll('[data-gr-disc-code]').length);
-  check('and the screen shows it without a reload', shown === after.n, shown + ' rows on screen');
+    document.querySelectorAll('#grSettings .gr_dcard:not(.gr_dcadd):not(.gr_dcedit)').length);
+  check('and the screen shows it without a reload', shown === after.n, shown + ' cards on screen');
 });
 
 await step('Settings: a template can be added and its body edited', async () => {
   await page.locator('[data-gr-settab="templates"]').click();
   await page.waitForTimeout(400);
-  await page.locator('#grNewTpl').fill('Test template');
+  await page.locator('#grTplN').fill('Test template');
+  await page.locator('#grTplS').fill('A test subject');
+  await page.locator('#grTplB').fill('Hi {name}, from the add card.');
   await page.locator('[data-gr-tpl-add]').click();
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(700);
   const made = await page.evaluate(() => {
     const t = (window.__mockDB.growth_templates || []).find(x => x.name === 'Test template');
     return t ? t.id : null;
   });
   check('a template is inserted', !!made, 'id=' + made);
   if (!made) return;
+  const kept = await dbRow('growth_templates', made);
+  check('with the subject and body that were typed',
+    !!kept && kept.subject === 'A test subject' && /from the add card/.test(kept.body),
+    kept ? kept.subject + ' / ' + kept.body.slice(0, 40) : 'no row');
+  // The add card empties itself, or the next template starts as a copy of the last.
+  const cleared = await page.evaluate(() => ({
+    n: (document.getElementById('grTplN') || {}).value,
+    b: (document.getElementById('grTplB') || {}).value }));
+  check('and the add card is emptied', !cleared.n && !cleared.b, JSON.stringify(cleared));
   const body = page.locator('[data-gr-tpl-body="' + made + '"]');
   if (await body.count() === 0) { check('its body is editable', false, 'editor did not open'); return; }
   await body.fill('Hi {name}, this is the edited body.');
   await body.blur(); await page.waitForTimeout(500);
   const row = await dbRow('growth_templates', made);
   check('the edited body is written', !!row && /edited body/.test(row.body), row ? row.body.slice(0, 60) : 'no row');
+});
+
+await step('Settings reads as one job: templates, codes and the signature together', async () => {
+  await navOf('gr_settings').click();
+  await page.waitForTimeout(500);
+  const m = await page.evaluate(() => {
+    const seg = document.querySelector('#grSettings .gr_seg');
+    return {
+      tabs: seg ? [...seg.querySelectorAll('button')].map(b => b.innerText.trim()) : [],
+      // all three on ONE tab now: you write a template, drop a code in, sign it off.
+      addCard: !!document.getElementById('grTplN'),
+      insert: !!document.querySelector('#grSettings [data-gr-ins]'),
+      upload: !!document.getElementById('grTplFile'),
+      codes: document.querySelectorAll('#grSettings .gr_dcard:not(.gr_dcadd):not(.gr_dcedit)').length,
+      newCode: !!document.querySelector('#grSettings [data-gr-disc-new]'),
+      sig: !!document.querySelector('#grSettings [data-gr-sig="name"]'),
+      testTo: !!document.querySelector('#grSettings [data-gr-sig="testTo"]')
+    };
+  });
+  // The old strip was Pipeline / Email templates / Discount codes / Team.
+  check('three tabs, not four', m.tabs.length === 3, JSON.stringify(m.tabs));
+  check('they read Email templates / Pipeline / Team',
+    JSON.stringify(m.tabs) === JSON.stringify(['Email templates', 'Pipeline', 'Team']), JSON.stringify(m.tabs));
+  check('there is an Add a template card', m.addCard);
+  check('with an Insert control and a file upload', m.insert && m.upload, JSON.stringify(m));
+  check('the codes are on the same tab', m.codes >= 3 && m.newCode, m.codes + ' cards');
+  check('and so is the signature, with somewhere to send tests', m.sig && m.testTo, JSON.stringify(m));
+});
+
+await step('Insert drops a placeholder at the caret, not at the end', async () => {
+  const box = page.locator('#grTplB');
+  await box.fill('Hi there, welcome.');
+  // Put the caret after "Hi " so an append would be obvious.
+  await page.evaluate(() => {
+    const el = document.getElementById('grTplB');
+    el.focus(); el.setSelectionRange(3, 3);
+  });
+  await page.locator('#grSettings [data-gr-ins="grTplB"]').selectOption('{name}');
+  await page.waitForTimeout(350);
+  const v = await page.evaluate(() => ({
+    text: document.getElementById('grTplB').value,
+    sel: document.getElementById('grTplB').selectionStart,
+    reset: document.querySelector('#grSettings [data-gr-ins="grTplB"]').value
+  }));
+  check('the placeholder lands where the caret was', v.text === 'Hi {name}there, welcome.', v.text);
+  check('and the caret follows it', v.sel === 3 + '{name}'.length, v.sel + '');
+  check('the Insert control resets itself', v.reset === '', JSON.stringify(v.reset));
+  await box.fill('');
+});
+
+await step('Automations reports a real run, and judges it by its age', async () => {
+  await navOf('gr_automations').click();
+  await page.waitForFunction(() => document.getElementById('grAutomations').innerHTML.length > 300,
+    null, { timeout: 15000 }).catch(() => {});
+  const m = await page.evaluate(() => {
+    const c = document.querySelector('#grAutomations .gr_auc');
+    if (!c) return null;
+    return {
+      title: (c.querySelector('.gr_aun b') || {}).textContent || '',
+      state: (c.querySelector('.gr_st') || {}).textContent || '',
+      chips: [...c.querySelectorAll('.gr_aum span')].map(x => x.textContent),
+      steps: [...c.querySelectorAll('.gr_aus li')].map(li => ({
+        name: (li.querySelector('b') || {}).textContent,
+        why: (li.querySelector('span') || {}).textContent,
+        said: (li.querySelector('em') || {}).textContent,
+        dim: li.classList.contains('gr_auoff')
+      })),
+      last: (c.querySelector('.gr_aur') || {}).textContent || ''
+    };
+  });
+  if (!m) { check('the Automations card renders', false); return; }
+  check('it names the job', /Growth sync/.test(m.title), m.title);
+  check('it says the schedule', m.chips.some(x => /Every 30 minutes/.test(x)), JSON.stringify(m.chips));
+  check('and when it last ran', m.chips.some(x => /Last run .*(ago|now)/.test(x)), JSON.stringify(m.chips));
+  check('three steps are listed', m.steps.length === 3, JSON.stringify(m.steps.map(x => x.name)));
+  check('each says what it does and what it found',
+    m.steps.every(x => (x.why || '').length > 20 && (x.said || '').length > 3),
+    JSON.stringify(m.steps.map(x => x.said)));
+  // A page that lists only what works tells you nothing about what you came to ask about.
+  check('the two that cannot run are still listed, and greyed',
+    m.steps.filter(x => x.dim).length === 2, JSON.stringify(m.steps.map(x => x.dim)));
+  check('and the last result is quoted', /No new bookings/.test(m.last), m.last.replace(/\s+/g, ' '));
+
+  // The verdict has to come from the run's AGE. The mock boots with a run three hours
+  // old, which is past the half-hour schedule, so it must read Not running.
+  check('three hours is Not running', /Not running/.test(m.state), m.state);
+  // Move the same run to ten minutes ago and it must change its mind by itself.
+  await page.evaluate(() => {
+    window.__mockDB.growth_runs[0].ran_at = new Date(Date.now() - 10 * 60000).toISOString();
+  });
+  await navOf('gr_pipeline').click(); await page.waitForTimeout(300);
+  await page.evaluate(() => { if (window.grReload) window.grReload(); });
+  await navOf('gr_automations').click(); await page.waitForTimeout(900);
+  const after = await page.evaluate(() => ({
+    state: (document.querySelector('#grAutomations .gr_st') || {}).textContent || '',
+    chips: [...document.querySelectorAll('#grAutomations .gr_aum span')].map(x => x.textContent) }));
+  check('ten minutes is Running', /^Running/.test(after.state.trim()), after.state);
+  check('and it works out when the next one is due', after.chips.some(x => /Next run in \d+ min/.test(x)),
+    JSON.stringify(after.chips));
 });
 
 await step('Training: all five tabs paint, and the plan ticks off', async () => {

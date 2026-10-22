@@ -98,6 +98,79 @@ async function storedToken() {
   } catch (e) { return null; }      // table missing on an old deploy is not an outage
 }
 
+/* The sync itself, with no HTTP around it. Two things call this: the Sync now button,
+   and growth-sync.mjs on its half-hourly timer. One implementation, because two would
+   drift and the one that drifted would be the one running at 3am unattended. */
+async function runSync(token) {
+  const me = await cal('/users/me', token);
+  const userUri = me.resource.uri;
+  const orgUri = me.resource.current_organization;
+
+  // Everything from a week ago forward: far enough back that this morning's call is
+  // still picked up, not so far that a first sync pulls years of history.
+  const since = new Date(Date.now() - 7 * 86400000).toISOString();
+  let url = '/scheduled_events?count=100&sort=start_time:asc'
+    + '&organization=' + encodeURIComponent(orgUri)
+    + '&user=' + encodeURIComponent(userUri)
+    + '&min_start_time=' + encodeURIComponent(since);
+
+  const events = [];
+  for (let page = 0; page < 10 && url; page++) {
+    const data = await cal(url, token);
+    events.push(...(data.collection || []));
+    url = (data.pagination && data.pagination.next_page) || null;
+  }
+
+  // Match a booking to a deal by the invitee's email. Anything that does not match is
+  // still worth keeping -- an unmatched meeting with no client is visible to staff and
+  // can be attached later, which beats dropping it silently.
+  const deals = await sb('growth_clients?select=id,email,owner_id');
+  const byEmail = new Map();
+  (deals || []).forEach(d => { if (d.email) byEmail.set(String(d.email).toLowerCase(), d); });
+
+  const rows = [];
+  for (const ev of events) {
+    if (ev.status === 'canceled') continue;
+    let inviteeEmail = '', inviteeName = '';
+    try {
+      const inv = await cal(ev.uri + '/invitees?count=1', token);
+      const first = (inv.collection || [])[0];
+      if (first) { inviteeEmail = String(first.email || '').toLowerCase(); inviteeName = first.name || ''; }
+    } catch (e) { /* a booking with no readable invitee is still a booking */ }
+
+    const deal = inviteeEmail ? byEmail.get(inviteeEmail) : null;
+    const loc = ev.location || {};
+    const joinUrl = loc.join_url || loc.location || '';
+    const mins = Math.max(5, Math.round(
+      (new Date(ev.end_time) - new Date(ev.start_time)) / 60000) || 30);
+
+    rows.push({
+      external_id: ev.uri,
+      client_id: deal ? deal.id : null,
+      title: ev.name || 'Calendly booking',
+      starts_at: ev.start_time,
+      minutes: mins,
+      zoom_url: /^https?:\/\//.test(joinUrl) ? joinUrl : '',
+      source: 'Calendly'
+    });
+    if (!deal && inviteeName) rows[rows.length - 1].title = ev.name + ' — ' + inviteeName;
+  }
+
+  if (!rows.length) return { added: 0, updated: 0, total: 0, note: 'No bookings in range.' };
+
+  const before = await sb('growth_meetings?select=external_id&source=eq.Calendly');
+  const seen = new Set((before || []).map(r => r.external_id));
+  const written = await sb('growth_meetings?on_conflict=external_id', 'POST', rows);
+
+  const added = rows.filter(r => !seen.has(r.external_id)).length;
+  return {
+    added, updated: rows.length - added, total: (written || rows).length,
+    matched: rows.filter(r => r.client_id).length,
+    withZoom: rows.filter(r => r.zoom_url).length
+  };
+}
+exports.runSync = runSync;
+
 const STAFF = ['owner', 'manager', 'inhouse_dev'];
 const isStaff = (p) => !!p && STAFF.includes(String(p.role));
 
@@ -177,72 +250,8 @@ exports.handler = async (event) => {
   }
 
   try {
-    const me = await cal('/users/me', token);
-    const userUri = me.resource.uri;
-    const orgUri = me.resource.current_organization;
-
-    // Everything from a week ago forward: far enough back that this morning's call is
-    // still picked up, not so far that a first sync pulls years of history.
-    const since = new Date(Date.now() - 7 * 86400000).toISOString();
-    let url = '/scheduled_events?count=100&sort=start_time:asc'
-      + '&organization=' + encodeURIComponent(orgUri)
-      + '&user=' + encodeURIComponent(userUri)
-      + '&min_start_time=' + encodeURIComponent(since);
-
-    const events = [];
-    for (let page = 0; page < 10 && url; page++) {
-      const data = await cal(url, token);
-      events.push(...(data.collection || []));
-      url = (data.pagination && data.pagination.next_page) || null;
-    }
-
-    // Match a booking to a deal by the invitee's email. Anything that does not match is
-    // still worth keeping -- an unmatched meeting with no client is visible to staff and
-    // can be attached later, which beats dropping it silently.
-    const deals = await sb('growth_clients?select=id,email,owner_id');
-    const byEmail = new Map();
-    (deals || []).forEach(d => { if (d.email) byEmail.set(String(d.email).toLowerCase(), d); });
-
-    const rows = [];
-    for (const ev of events) {
-      if (ev.status === 'canceled') continue;
-      let inviteeEmail = '', inviteeName = '';
-      try {
-        const inv = await cal(ev.uri + '/invitees?count=1', token);
-        const first = (inv.collection || [])[0];
-        if (first) { inviteeEmail = String(first.email || '').toLowerCase(); inviteeName = first.name || ''; }
-      } catch (e) { /* a booking with no readable invitee is still a booking */ }
-
-      const deal = inviteeEmail ? byEmail.get(inviteeEmail) : null;
-      const loc = ev.location || {};
-      const joinUrl = loc.join_url || loc.location || '';
-      const mins = Math.max(5, Math.round(
-        (new Date(ev.end_time) - new Date(ev.start_time)) / 60000) || 30);
-
-      rows.push({
-        external_id: ev.uri,
-        client_id: deal ? deal.id : null,
-        title: ev.name || 'Calendly booking',
-        starts_at: ev.start_time,
-        minutes: mins,
-        zoom_url: /^https?:\/\//.test(joinUrl) ? joinUrl : '',
-        source: 'Calendly'
-      });
-      if (!deal && inviteeName) rows[rows.length - 1].title = ev.name + ' — ' + inviteeName;
-    }
-
-    if (!rows.length) return json(200, { added: 0, updated: 0, total: 0, note: 'No bookings in range.' });
-
-    const before = await sb('growth_meetings?select=external_id&source=eq.Calendly');
-    const seen = new Set((before || []).map(r => r.external_id));
-    const written = await sb('growth_meetings?on_conflict=external_id', 'POST', rows);
-
-    const added = rows.filter(r => !seen.has(r.external_id)).length;
-    return json(200, {
-      added, updated: rows.length - added, total: (written || rows).length,
-      matched: rows.filter(r => r.client_id).length,
-      withZoom: rows.filter(r => r.zoom_url).length
-    });
+    const out = await runSync(token);
+    return json(200, out);
   } catch (e) {
     return json(502, { error: String(e.message || e).slice(0, 300) });
   }

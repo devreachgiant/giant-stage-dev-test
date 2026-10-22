@@ -602,6 +602,28 @@
   // Nobody has started the course: "0 of 3" and the Start button are the first thing a
   // rep sees, so that is the state worth booting into.
   DB.growth_course_done = [];
+  DB.growth_secrets = [];
+  DB.growth_settings.push(
+    { key: 'philosophy', value: { tips: [{ h: 'They want to feel heard', t: 'Ask thoughtful questions and really listen.' }],
+        checklist: ['Stay calm and do not oversell'] }, updated_at: iso(30,0), updated_by: ME },
+    { key: 'script', value: { flow: [{ h: 'Open', t: 'Warm hello. Ask what made them book.' }],
+        worries: [{ q: 'I do not want a long contract.', a: 'Three month minimum and a 10 day exit.' }] },
+      updated_at: iso(30,0), updated_by: ME }
+  );
+  // One run, three hours ago: long enough past the half-hour schedule that the screen has
+  // to say Not running, which is the state worth booting into. A fixture that starts
+  // green would let a broken "is it running" check pass.
+  DB.growth_runs = [
+    // iso() is anchored to a fixed date, which would make this run read as two months
+    // old. 'Not running' has to come from the AGE of the run, so the age has to be real.
+    { id: 'gr-run-1', job: 'growth_sync', ran_at: new Date(Date.now() - 3 * 3600e3).toISOString(), ok: true, ms: 820,
+      steps: [
+        { k: 'calendly', label: 'Calendly bookings', said: 'No new bookings', ok: true },
+        { k: 'gmail', label: 'Gmail replies', said: 'Not set up. The stored Google token lasts an hour and cannot be renewed from a server.', ok: null },
+        { k: 'fathom', label: 'Fathom call notes', said: 'Not built yet', ok: null }
+      ],
+      note: 'No new bookings' }
+  ];
 
   // Anything New Chat asks for that was not foreseen: an empty table, loudly noted,
   // rather than a TypeError that would look like a bug in the page.

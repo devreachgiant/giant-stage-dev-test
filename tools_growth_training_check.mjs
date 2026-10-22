@@ -482,6 +482,113 @@ await step('a rep is offered none of it, and can still tick their own lesson', a
   await page.evaluate(() => { window.giantCurrentProfile.role = 'inhouse_dev'; });
 });
 
+/* Pricing, the top tips, the call script and the starter plan used to render from the
+   database with no way to change them: a price change meant a developer. Each now has a
+   pencil. Driven here rather than asserted, and read back from the DATABASE, because an
+   editor that looks right and writes nothing is the exact failure worth catching. */
+await step('the four pages that had no editor now have one', async () => {
+  await page.evaluate(() => { window.giantCurrentProfile.role = 'inhouse_dev'; });
+  await page.evaluate(() => { if (window.grInit) window.grInit('gr_training'); });
+  await page.waitForTimeout(400);
+  await tabOf('pricing').click(); await page.waitForTimeout(400);
+  check('Pricing offers an edit', await page.locator('#grTraining [data-gr-edit-page="P"]').count() === 1);
+  await page.locator('#grTraining [data-gr-edit-page="P"]').first().click();
+  await page.waitForTimeout(400);
+  const fields = await page.evaluate(() => ({
+    price: !!document.getElementById('grPk0price'),
+    services: !!document.getElementById('grSvc'),
+    notes: !!document.getElementById('grPrN'),
+    save: !!document.querySelector('#grTraining [data-gr-save-page="P"]')
+  }));
+  await shot('14-edit-pricing');
+  check('the pricing editor has the pack, the services and the notes',
+    fields.price && fields.services && fields.notes && fields.save, JSON.stringify(fields));
+  if (!fields.price) return;
+
+  await page.locator('#grPk0price').fill('$4,250');
+  await page.locator('#grSvc').fill('Google Ads :: $1,500 :: Wants buyers, not clicks :: https://example.com/pay');
+  await page.locator('#grPrN').fill('Ask before quoting below list.');
+  await page.locator('#grTraining [data-gr-save-page="P"]').click();
+  await page.waitForTimeout(800);
+  const row = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'pricing');
+    return r ? r.value : null;
+  });
+  check('the new price is in the database', row && row.packs[0].price === '$4,250', JSON.stringify(row && row.packs[0]));
+  // Four parts split by :: , and the last one may be missing without losing the row.
+  check('the service line is parsed into its four parts',
+    row && row.services[0].n === 'Google Ads' && row.services[0].p === '$1,500' &&
+    /not clicks/.test(row.services[0].w) && /example\.com/.test(row.services[0].l),
+    JSON.stringify(row && row.services[0]));
+  check('and the note is kept', row && row.notes[0] === 'Ask before quoting below list.', JSON.stringify(row && row.notes));
+  const shown = await page.evaluate(() => (document.getElementById('grTraining').innerText || ''));
+  check('the page shows the new price straight away', /\$4,250/.test(shown), shown.slice(0, 60));
+});
+
+await step('the tips, the script and the starter plan all save', async () => {
+  // Luke's top tips: reached from lesson two, same as a person would.
+  await tabOf('course').first().click(); await page.waitForTimeout(300);
+  // Open lesson two by its own state: another lesson being open is not the same thing,
+  // and an earlier step in this file may have left one that way.
+  const les2 = page.locator('#grTraining .gr_cs').nth(1).locator('.gr_csh0');
+  if ((await les2.getAttribute('aria-expanded')) !== 'true') {
+    await les2.click(); await page.waitForTimeout(350);
+  }
+  await page.locator('#grTraining [data-gr-traintab="phil"]').first().click();
+  await page.waitForTimeout(400);
+  check('the tips offer an edit', await page.locator('#grTraining [data-gr-edit-page="H"]').count() === 1);
+  await page.locator('#grTraining [data-gr-edit-page="H"]').first().click();
+  await page.waitForTimeout(350);
+  await shot('15-edit-tips');
+  await page.locator('#grPhT').fill('They want to be led :: Have a plan and say it out loud.');
+  await page.locator('#grPhC').fill('Listen more than you talk');
+  await page.locator('#grTraining [data-gr-save-page="H"]').click();
+  await page.waitForTimeout(800);
+  const ph = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'philosophy');
+    return r ? r.value : null;
+  });
+  check('a tip splits into its heading and its sentence',
+    ph && ph.tips[0].h === 'They want to be led' && /say it out loud/.test(ph.tips[0].t),
+    JSON.stringify(ph && ph.tips[0]));
+  check('and the checklist is a plain list', ph && ph.checklist[0] === 'Listen more than you talk',
+    JSON.stringify(ph && ph.checklist));
+
+  await tabOf('course').first().click(); await page.waitForTimeout(300);
+  await page.locator('#grTraining [data-gr-traintab="plan"]').first().click();
+  await page.waitForTimeout(400);
+  check('the starter plan offers an edit', await page.locator('#grTraining [data-gr-edit-page="N"]').count() === 1);
+  await page.locator('#grTraining [data-gr-edit-page="N"]').first().click();
+  await page.waitForTimeout(350);
+  await shot('16-edit-plan');
+  await page.locator('#grPlT').fill('Read the pricing :: 0\nSit in on two calls :: 1');
+  await page.locator('#grTraining [data-gr-save-page="N"]').click();
+  await page.waitForTimeout(800);
+  const pl = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'training_plan');
+    return r ? r.value : null;
+  });
+  check('the starter plan keeps the task and the day', pl && pl.tasks.length === 2 &&
+    pl.tasks[1].t === 'Sit in on two calls' && pl.tasks[1].d === 1, JSON.stringify(pl && pl.tasks));
+});
+
+await step('a rep is offered none of the four pencils', async () => {
+  await page.evaluate(() => { window.giantCurrentProfile.role = 'member'; });
+  await page.evaluate(() => { if (window.grInit) window.grInit('gr_training'); });
+  await page.waitForTimeout(400);
+  await tabOf('pricing').click(); await page.waitForTimeout(350);
+  const p = await page.evaluate(() => document.querySelectorAll('#grTraining [data-gr-edit-page]').length);
+  check('no pencil on Pricing for a rep', p === 0, p + '');
+  const prices = await page.evaluate(() => (document.getElementById('grTraining').innerText || ''));
+  check('but the prices are still readable', /\$4,250/.test(prices), prices.slice(0, 60));
+  await tabOf('course').first().click(); await page.waitForTimeout(300);
+  await page.locator('#grTraining [data-gr-traintab="plan"]').first().click();
+  await page.waitForTimeout(350);
+  const n = await page.evaluate(() => document.querySelectorAll('#grTraining [data-gr-edit-page]').length);
+  check('and none on the starter plan', n === 0, n + '');
+  await page.evaluate(() => { window.giantCurrentProfile.role = 'inhouse_dev'; });
+});
+
 await step('nothing raw reaches the screen', async () => {
   const raw = await page.evaluate(() => {
     const out = [];
