@@ -8,12 +8,28 @@
 // the whole account. In the page it would be readable by anyone with devtools, and
 // config.js is public by design. It lives in Netlify and never leaves this process.
 //
-// SET UP: Calendly -> Integrations -> API & webhooks -> Personal Access Token. Put it in
-// Netlify as CALENDLY_TOKEN. Nothing else is needed; a personal token covers one account,
+// WHERE THE TOKEN LIVES. Two places, in this order:
+//
+//   1. growth_secrets.calendly_token, written by Connectors through ?action=save
+//   2. CALENDLY_TOKEN in Netlify, which is how this worked before and still works
+//
+// The table wins, so connecting in the app overrides a stale environment variable rather
+// than silently losing to it. Nothing reads that row but this function: growth_secrets
+// has RLS on, no policies and no grants, so the publishable key gets nothing
+// (20261022150000). The token never goes near the browser after it is handed over.
+//
+// SET UP: Calendly -> Integrations -> API & webhooks -> Personal Access Token, then
+// paste it into Growth -> Connectors -> Calendly. A personal token covers one account,
 // which is what ReachGiant has.
 //
-//   GET ?action=status   -> { configured, who }        does the server have a token
-//   GET ?action=sync     -> { added, updated, total }  pull scheduled events into Growth
+//   GET  ?action=status     -> { configured, who, source }   is there a token, whose
+//   GET  ?action=sync       -> { added, updated, total }     pull bookings into Growth
+//   POST ?action=save       -> { configured, who }           store a token, staff only
+//   POST ?action=disconnect -> { configured:false }          forget it, staff only
+//
+// save PROVES the token before storing it. A connector that accepts a typo and then
+// reports Connected is worse than one that refuses, because the next thing that fails
+// is a sync at 3am that nobody is watching.
 //
 // Sync is idempotent. Calendly's event uri is stored as growth_meetings.external_id, which
 // is unique, so running it twice updates rather than duplicating -- a re-sync after
@@ -40,8 +56,9 @@ async function cal(path, token) {
   return r.json();
 }
 
-// Supabase with the service key, so this can write meetings for whoever owns the deal.
-// RLS is bypassed here on purpose: the caller has already been checked below.
+// Supabase with the service key, so this can write meetings for whoever owns the deal
+// and read the connector credential. RLS is bypassed here on purpose: the caller has
+// already been checked below, and growth_secrets is unreadable any other way.
 async function sb(path, method, body) {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -73,31 +90,89 @@ async function callerProfile(authHeader) {
   return (rows && rows[0]) || null;
 }
 
+// The stored credential, if there is one. Nothing else in the app can ask for this.
+async function storedToken() {
+  try {
+    const rows = await sb('growth_secrets?key=eq.calendly_token&select=value,label');
+    return (rows && rows[0]) || null;
+  } catch (e) { return null; }      // table missing on an old deploy is not an outage
+}
+
+const STAFF = ['owner', 'manager', 'inhouse_dev'];
+const isStaff = (p) => !!p && STAFF.includes(String(p.role));
+
 exports.handler = async (event) => {
   const action = (event.queryStringParameters || {}).action || 'status';
-  const token = process.env.CALENDLY_TOKEN;
+  const auth = event.headers.authorization || event.headers.Authorization;
 
+  const row = await storedToken();
+  const token = (row && row.value) || process.env.CALENDLY_TOKEN || '';
+  const source = row && row.value ? 'app' : (process.env.CALENDLY_TOKEN ? 'netlify' : '');
+
+  // ------------------------------------------------------------------ connect
+  if (action === 'save' || action === 'disconnect') {
+    const profile = await callerProfile(auth);
+    if (!profile) return json(401, { error: 'Sign in first.' });
+    if (!isStaff(profile)) return json(403, { error: 'Only an owner or manager can change a connector.' });
+
+    if (action === 'disconnect') {
+      try { await sb('growth_secrets?key=eq.calendly_token', 'DELETE'); } catch (e) { /* already gone */ }
+      return json(200, {
+        configured: !!process.env.CALENDLY_TOKEN, source: process.env.CALENDLY_TOKEN ? 'netlify' : '',
+        note: process.env.CALENDLY_TOKEN
+          ? 'Forgotten. CALENDLY_TOKEN in Netlify is still set, so bookings keep syncing through that.'
+          : 'Calendly is disconnected.'
+      });
+    }
+
+    let body = {};
+    try { body = JSON.parse(event.body || '{}'); } catch (e) { /* handled by the check below */ }
+    const given = String(body.token || '').trim();
+    if (!given) return json(400, { error: 'Paste the token first.' });
+
+    // Prove it before storing it.
+    let who = '';
+    try {
+      const me = await cal('/users/me', given);
+      who = (me.resource && (me.resource.email || me.resource.name)) || '';
+    } catch (e) {
+      return json(400, {
+        error: e.status === 401
+          ? 'Calendly would not accept that token. Check you copied the whole thing.'
+          : String(e.message || e).slice(0, 200)
+      });
+    }
+
+    await sb('growth_secrets?on_conflict=key', 'POST', [{
+      key: 'calendly_token', value: given, label: who,
+      updated_at: new Date().toISOString(), updated_by: profile.id
+    }]);
+    return json(200, { configured: true, who: who, source: 'app' });
+  }
+
+  // ------------------------------------------------------------------ status
   if (action === 'status') {
-    if (!token) return json(200, { configured: false, who: '' });
+    if (!token) return json(200, { configured: false, who: '', source: '' });
     try {
       const me = await cal('/users/me', token);
       return json(200, {
-        configured: true,
+        configured: true, source: source,
         who: (me.resource && (me.resource.email || me.resource.name)) || ''
       });
     } catch (e) {
       // A token that is set but rejected is NOT "connected". Saying so here is the whole
       // point of the screen -- a stale token looks identical to no token from the outside.
-      return json(200, { configured: false, who: '', error: String(e.message).slice(0, 160) });
+      return json(200, { configured: false, who: '', source: source,
+                         error: String(e.message).slice(0, 160) });
     }
   }
 
   if (action !== 'sync') return json(400, { error: 'unknown action' });
-  if (!token) return json(503, { error: 'CALENDLY_TOKEN is not set in Netlify.' });
+  if (!token) return json(503, { error: 'Calendly is not connected yet.' });
 
-  const profile = await callerProfile(event.headers.authorization || event.headers.Authorization);
+  const profile = await callerProfile(auth);
   if (!profile) return json(401, { error: 'Sign in first.' });
-  if (!['owner', 'manager', 'inhouse_dev'].includes(String(profile.role))) {
+  if (!isStaff(profile)) {
     return json(403, { error: 'Only an owner or manager can sync Calendly.' });
   }
 

@@ -6211,6 +6211,19 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_grid2{display:grid;grid-template-columns:1.1fr 1fr;gap:14px;align-items:start;}
 @media(max-width:900px){.gr_grid2{grid-template-columns:1fr;}}
 .gr_row{display:flex;align-items:center;gap:13px;padding:12px 4px;border-top:1px solid var(--line);cursor:pointer;}
+/* Connectors: every row opens */
+.gr_connl{padding:6px 10px;}
+.gr_cnw{border-radius:14px;}
+.gr_cnw.gr_cnon{background:var(--surface-2);}
+.gr_cnrow{width:100%;border:0;background:none;color:var(--text);font:inherit;text-align:left;border-top:1px solid var(--line);}
+.gr_cnw:first-child .gr_cnrow{border-top:0;}
+.gr_cnw.gr_cnon .gr_cnrow{border-top-color:transparent;padding-left:10px;padding-right:10px;}
+.gr_cnc{font-size:9px;color:var(--text-3);flex:none;}
+.gr_cnp{padding:0 14px 16px 30px;display:flex;flex-direction:column;gap:10px;}
+@media(max-width:620px){.gr_cnp{padding-left:14px;}}
+.gr_cnwhat{margin:0;font-size:14px;line-height:1.55;}
+.gr_cnhow{margin:0;font-size:13px;line-height:1.55;color:var(--text-3);}
+.gr_mid2{justify-content:center;margin-top:12px;}
 .gr_row:first-of-type{border-top:0;}
 .gr_row:hover{background:var(--surface-2);border-radius:10px;}
 .gr_row.gr_done{opacity:.55;}
@@ -53450,6 +53463,38 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     window.giantGmailReady = async () => { try { await ensureGmailTokenForAthena(); return true; } catch(_) { return false; } };
     window.giantGmailSend = async (args) => { await ensureGmailTokenForAthena(); return sendGmailMessage(args); };
 
+    /* Growth's Connectors screen offers Gmail as well, and there must be exactly ONE
+       place that knows how to connect it. A second copy of this OAuth dance would drift
+       from this one the first time Google changed something, and the copy that broke
+       would be the one nobody was looking at. So Growth calls this.
+
+       Resolves true once a token is in hand. Throws with code 'desktop' when Google
+       sign-in cannot complete in this build at all, so the caller can say so plainly
+       instead of spinning on a popup that will never come back. */
+    window.giantGmailConnect = async () => {
+      if (giantIsDesktop()) {
+        const url = (location.origin && /^https?:/.test(location.origin)) ? location.origin : 'https://giant.reachgiant.com';
+        try { window.open(url, '_blank', 'noopener'); } catch (_) {}
+        const e = new Error('Google sign-in only works in a browser, not the desktop app.');
+        e.code = 'desktop'; throw e;
+      }
+      await initGisTokenClient();
+      const before = gmailAccessToken;
+      return await new Promise((resolve) => {
+        const orig = gmailTokenClient.callback;
+        let timer = null;
+        const finish = (ok) => { gmailTokenClient.callback = orig; clearTimeout(timer); resolve(ok); };
+        // If Google's popup dead-ends the callback never fires, so the promise has to
+        // end itself rather than leaving a button saying Connecting for ever.
+        timer = setTimeout(() => finish(!!(gmailAccessToken && gmailAccessToken !== before)), 90000);
+        gmailTokenClient.callback = async (resp) => {
+          try { await orig(resp); } catch (_) { /* the original path already reports */ }
+          finish(!!(resp && !resp.error));
+        };
+        gmailTokenClient.requestAccessToken({ prompt: 'consent' });
+      });
+    };
+
     if (replySendBtn) {
       replySendBtn.addEventListener('click', async () => {
         if (!activeMail || !gmailAccessToken) return;
@@ -95642,7 +95687,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      Reports what is actually true, asked of the thing itself. A hard-coded "Not connected"
      list looks the same whether it is right or stale, and this screen is the one place
      somebody comes to find out why an email did not go. */
-  const grConn = { probed: false, zoom: null, calendly: null };
+  const grConn = { probed: false, zoom: null, calendly: null, claude: null };
+  let grConnOpen = null, grConnBusy = '', grConnSay = {};
   async function grProbeConnectors() {
     if (grConn.probed) return;
     grConn.probed = true;
@@ -95656,8 +95702,124 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const j = await r.json().catch(() => ({}));
       grConn.calendly = !!(j && j.configured);
       grConn.calendlyWho = (j && j.who) || '';
+      grConn.calendlyHow = (j && j.source) || '';
+      grConn.calendlyErr = (j && j.error) || '';
     } catch (e) { grConn.calendly = false; }
     grRender();
+  }
+
+  /* Re-ask, rather than trusting what we were told when the screen first opened. This is
+     what the Check again button is for: somebody has just gone and changed something on
+     the other side, and the one thing the screen must not do is keep saying the old answer. */
+  async function grReprobe() {
+    grConn.probed = false;
+    grConn.zoom = null; grConn.calendly = null;
+    grRender();
+    await grProbeConnectors();
+  }
+
+  /* Does the AI actually answer? claude-api being deployed is not the same thing as it
+     working, and "Connected" that means "the file exists" is the kind of green light
+     that costs somebody an afternoon. */
+  async function grTestClaude() {
+    grConnBusy = 'claude'; grConnSay.claude = ''; grRender();
+    try {
+      const r = await fetch('/.netlify/functions/claude-api', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ max_tokens: 16, system: 'Reply with the single word: ready.',
+                               messages: [{ role: 'user', content: 'Are you there?' }] })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+      grConn.claude = !!String(j.text || '').trim();
+      grConnSay.claude = grConn.claude
+        ? 'It answered: ' + String(j.text).trim().slice(0, 60)
+        : 'It replied, but with nothing in it.';
+    } catch (e) {
+      grConn.claude = false;
+      grConnSay.claude = 'No answer. ' + String((e && e.message) || e).slice(0, 140);
+    }
+    grConnBusy = ''; grRender();
+  }
+
+  /* Calendly, connected from here rather than from Netlify. The token is posted to the
+     function and stored by it; growth_secrets has no policies and no grants, so this page
+     can never read it back (20261022150000). The function proves the token against
+     Calendly before storing it, so a typo is refused here rather than at 3am in a sync. */
+  async function grCalConnect() {
+    const el = $('grCalToken'), tok = (el && el.value || '').trim();
+    if (!tok) { if (el) el.focus(); return; }
+    grConnBusy = 'calendly'; grConnSay.calendly = ''; grRender();
+    try {
+      const s2 = sb();
+      const { data: sess } = s2 ? await s2.auth.getSession() : { data: null };
+      const at = sess && sess.session && sess.session.access_token;
+      const r = await fetch('/.netlify/functions/growth-calendly?action=save', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' },
+                               at ? { Authorization: 'Bearer ' + at } : {}),
+        body: JSON.stringify({ token: tok })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { grConnSay.calendly = j.error || 'That did not work.'; grConnBusy = ''; grRender(); return; }
+      grConn.calendly = true;
+      grConn.calendlyWho = j.who || '';
+      grConn.calendlyHow = 'app';
+      grConn.calendlyErr = '';
+      grConnBusy = '';
+      grToast('Calendly connected' + (j.who ? ' as ' + j.who : ''));
+      grRender();
+      grCalendlySync();
+    } catch (e) {
+      grConnSay.calendly = 'Could not reach the server. ' + String((e && e.message) || e).slice(0, 120);
+      grConnBusy = ''; grRender();
+    }
+  }
+
+  async function grCalForget() {
+    const ok = await window.giantConfirmWarn('Forget the Calendly token? Bookings stop arriving until you connect it again.');
+    if (!ok) return;
+    grConnBusy = 'calendly'; grRender();
+    try {
+      const s2 = sb();
+      const { data: sess } = s2 ? await s2.auth.getSession() : { data: null };
+      const at = sess && sess.session && sess.session.access_token;
+      const r = await fetch('/.netlify/functions/growth-calendly?action=disconnect', {
+        method: 'POST', headers: at ? { Authorization: 'Bearer ' + at } : {} });
+      const j = await r.json().catch(() => ({}));
+      grConnSay.calendly = j.note || '';
+      grConn.calendly = !!j.configured;
+      grConn.calendlyHow = j.source || '';
+      grToast('Calendly disconnected');
+    } catch (e) { grConnSay.calendly = 'Could not reach the server.'; }
+    grConnBusy = ''; grRender();
+  }
+
+  async function grGmailConnect() {
+    if (!window.giantGmailConnect) {
+      grConnSay.gmail = 'Open Email in the sidebar once, then come back. That screen owns the connection.';
+      grRender(); return;
+    }
+    grConnBusy = 'gmail'; grConnSay.gmail = ''; grRender();
+    try {
+      const ok = await window.giantGmailConnect();
+      if (ok) {
+        // Google saying yes is not the same as Giant being able to use the token. Ask
+        // the Email screen whether it can, and if it cannot, say that rather than
+        // turning the row green on the strength of a popup closing.
+        grGmail.checked = false;
+        await grCheckGmail();
+        if (grGmail.ready) { grConnSay.gmail = ''; grToast('Gmail connected'); }
+        else grConnSay.gmail = 'Google signed you in, but Giant cannot use the token yet. Open Email and press Connect Gmail there.';
+      } else {
+        grConnSay.gmail = 'The Google window closed before it finished. Nothing changed.';
+      }
+    } catch (e) {
+      grConnSay.gmail = e && e.code === 'desktop'
+        ? 'Google sign-in cannot finish in the desktop app, so Giant just opened in your browser. Connect there, then press Check again here.'
+        : 'Could not start the Google sign-in. ' + String((e && e.message) || e).slice(0, 120);
+    }
+    grConnBusy = ''; grRender();
   }
 
   async function grCalendlySync() {
@@ -95683,43 +95845,144 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     grConn.syncing = false; grRender();
   }
 
+  /* --- Connectors ---
+     Every row opens. "Not connected" with nothing behind it is a dead end: it tells you
+     the bad news and leaves you to guess the fix. Each one now says what Growth does
+     with it, and offers the shortest real way to connect it from here.
+
+     Three of them genuinely connect in the app: Gmail through Google sign in, Calendly
+     by handing its token to the function that stores it, and Claude by being asked a
+     question and answering. Zoom does not, and the panel says so rather than pretending:
+     its credentials are read by bookings-api.js, which Bookings shares, so they stay in
+     Netlify where both modules can see them. */
+  const GR_CONN = {
+    gmail: {
+      name: 'Gmail',
+      what: 'Sends every email you write in Growth, and pulls their replies into the Growth Inbox.',
+      how: 'Giant signs in to Google once and keeps the token. It is the same connection the Email screen uses, so connecting here connects there too.',
+      on: 'Giant is holding a Google token for you. Reconnect if sending ever starts failing.'
+    },
+    calendly: {
+      name: 'Calendly',
+      what: 'Bookings land in Meetings with their Zoom link, and attach themselves to the matching deal by email address.',
+      how: 'Calendly, then Integrations, then API and webhooks, then Personal Access Token. Paste it below. Giant checks it with Calendly before keeping it, and stores it where this page cannot read it back.',
+      on: 'Giant is holding the token, and nobody signed in can read it back, including you. Sync pulls everything from the last week forward.'
+    },
+    zoom: {
+      name: 'Zoom',
+      what: 'Puts a join link on every booking, and lets Giant mint its own for a call you add by hand.',
+      how: 'Zoom is shared with Bookings, so its credentials live in Netlify rather than here: ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID and ZOOM_CLIENT_SECRET on the site, from a Server to Server OAuth app. Add them, redeploy, then press Check again.',
+      on: 'The server credentials are set in Netlify and Zoom accepted them.'
+    },
+    claude: {
+      name: 'Claude AI',
+      what: 'Writes the first draft of an email from the call notes, rewrites one you do not like, and answers questions about your pipeline on Home.',
+      how: 'It runs on Giant\u2019s own key and is already deployed. Press Test to make it answer something, which is the only way to know.',
+      on: 'It answered when asked. Writing and the Home assistant both work.'
+    },
+    fathom: {
+      name: 'Fathom',
+      what: 'Would put the call recap straight onto the client: what they want, what they said, and the next steps.',
+      how: 'Not built yet. Until it is, paste the recap into Call notes on the client, and put the calls worth learning from on the Best calls shelf in Training.'
+    }
+  };
+
   function grRenderConnectors() {
     grProbeConnectors();
     const synced = grMeetings.filter(m => m.source === 'Calendly').length;
     const rows = [
-      ['Gmail', grGmail.ready,
-        grGmail.ready ? 'Sending as ' + (grGmail.email || 'your Gmail account') + '. Growth uses the same connection as the Email screen.'
-                      : 'Open Email in the sidebar and connect Gmail once. Growth then sends through it too.',
-        grGmail.ready ? null : 'inbox'],
-      ['Calendly', grConn.calendly,
-        grConn.calendly ? 'Bookings sync into Meetings with their Zoom links' + (grConn.calendlyWho ? ' for ' + grConn.calendlyWho : '') + '. ' + synced + ' synced so far.'
+      ['gmail', grGmail.ready,
+        grGmail.ready ? 'Sending as ' + (grGmail.email || 'your Gmail account') + '.'
+                      : 'Not connected, so nothing can be sent from Growth yet.'],
+      ['calendly', grConn.calendly,
+        grConn.calendly
+          ? 'Bookings sync into Meetings' + (grConn.calendlyWho ? ' for ' + grConn.calendlyWho : '') +
+            '. ' + synced + ' synced so far.'
           : grConn.calendly === null ? 'Checking...'
-          : 'Needs a Calendly token in Netlify (CALENDLY_TOKEN). Until then, meetings can be added by hand.',
-        null],
-      ['Zoom', grConn.zoom,
-        grConn.zoom ? 'Join links come with each Calendly booking, and Giant can mint its own.'
+          : grConn.calendlyErr ? 'A token is set but Calendly rejected it.'
+          : 'Not connected, so bookings have to be typed in by hand.'],
+      ['zoom', grConn.zoom,
+        grConn.zoom ? 'Join links come with each booking, and Giant can mint its own.'
           : grConn.zoom === null ? 'Checking...'
-          : 'Server credentials are not set in Netlify (ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET).',
-        null],
-      ['Fathom', false, 'Not connected. Call notes can be pasted onto a client in the meantime.', null]
+          : 'Not connected, so bookings arrive without a join link.'],
+      ['claude', grConn.claude,
+        grConn.claude === true ? 'Answering. Writing and the Home assistant both work.'
+          : grConn.claude === null ? 'Deployed. Press Test to find out whether it answers.'
+          : 'It did not answer when asked.',
+        grConn.claude === null ? 'Not tested' : null],
+      ['fathom', false, 'Not built yet. Call notes can be pasted onto a client in the meantime.']
     ];
     const live = rows.filter(r => r[1] === true).length;
+
     $('grConnectors').innerHTML =
       grHead('Connectors', live + ' of ' + rows.length + ' connected', '') +
-      '<section class="gr_card">' + rows.map(r =>
-        '<div class="gr_row"' + (r[3] ? ' data-gr-go="' + r[3] + '"' : '') + '>' +
-        '<span class="gr_lt ' + (r[1] === true ? 'gr_on' : r[1] === null ? 'gr_wait' : 'gr_off') + '"></span>' +
-        '<div class="gr_rm"><b>' + esc(r[0]) + '</b><span>' + esc(r[2]) + '</span></div>' +
-        (r[0] === 'Calendly' && r[1] === true
-          ? '<button class="gr_ghost" data-gr-cal-sync' + (grConn.syncing ? ' disabled' : '') + '>' +
-            (grConn.syncing ? 'Syncing...' : 'Sync now') + '</button>' : '') +
-        '<span class="gr_st ' + (r[1] === true ? 'ok' : '') + '">' +
-          (r[1] === true ? 'Connected' : r[1] === null ? 'Checking' : 'Not connected') + '</span></div>').join('') +
-      '</section>' +
-      (grConn.calendly === false
-        ? '<p class="gr_mute">Calendly is the only one that still needs a secret. Everything else here was ' +
-          'already set up in Giant for Email and Meetings, and Growth reuses it rather than asking for a second connection.</p>'
-        : '');
+      '<section class="gr_card gr_connl">' + rows.map(r => {
+        const k = r[0], open = grConnOpen === k, meta = GR_CONN[k];
+        return '<div class="gr_cnw' + (open ? ' gr_cnon' : '') + '">' +
+          '<button class="gr_row gr_cnrow" data-gr-conn="' + k + '" aria-expanded="' + open + '">' +
+            '<span class="gr_lt ' + (r[1] === true ? 'gr_on' : r[1] === null ? 'gr_wait' : 'gr_off') + '"></span>' +
+            '<span class="gr_rm"><b>' + esc(meta.name) + '</b><span>' + esc(r[2]) + '</span></span>' +
+            '<span class="gr_st ' + (r[1] === true ? 'ok' : '') + '">' +
+              esc(r[3] || (r[1] === true ? 'Connected' : r[1] === null ? 'Checking' : 'Not connected')) + '</span>' +
+            '<span class="gr_cnc" aria-hidden="true">' + (open ? '&#9650;' : '&#9660;') + '</span>' +
+          '</button>' +
+          (open ? '<div class="gr_cnp">' + grConnPanel(k, r[1]) + '</div>' : '') +
+        '</div>';
+      }).join('') + '</section>' +
+      '<div class="gr_acts gr_mid2"><button class="gr_ghost" data-gr-conn-recheck' +
+        (grConn.probed && grConn.calendly !== null ? '' : ' disabled') + '>Check all again</button></div>';
+  }
+
+  function grConnPanel(k, state) {
+    const meta = GR_CONN[k], busy = grConnBusy === k;
+    const say = grConnSay[k];
+    // Once it is connected, "how to connect it" is the wrong thing to be reading, and
+    // there is no box to paste into any more either.
+    const head = '<p class="gr_cnwhat">' + esc(meta.what) + '</p>' +
+      '<p class="gr_cnhow">' + esc(state === true && meta.on ? meta.on : meta.how) + '</p>';
+    const note = say ? '<div class="gr_cstat' + (/not|could not|no answer|did not|closed/i.test(say) ? ' bad' : '') + '">' +
+      esc(say) + '</div>' : '';
+    let act = '';
+
+    if (k === 'gmail') {
+      act = state === true
+        ? '<div class="gr_acts"><button class="gr_ghost" data-gr-conn-gmail' + (busy ? ' disabled' : '') + '>' +
+            (busy ? 'Opening Google...' : 'Reconnect') + '</button>' +
+            '<button class="gr_ghost" data-gr-go="inbox">Open Email</button></div>'
+        : '<div class="gr_acts"><button class="btn-red" data-gr-conn-gmail' + (busy ? ' disabled' : '') + '>' +
+            (busy ? 'Opening Google...' : 'Connect Gmail') + '</button>' +
+            '<button class="gr_ghost" data-gr-go="inbox">Open Email instead</button></div>';
+    } else if (k === 'calendly') {
+      if (state === true) {
+        act = '<div class="gr_acts">' +
+            '<button class="btn-red" data-gr-cal-sync' + (grConn.syncing ? ' disabled' : '') + '>' +
+              (grConn.syncing ? 'Syncing...' : 'Sync now') + '</button>' +
+            (grConn.calendlyHow === 'app'
+              ? '<button class="gr_ghost" data-gr-cal-forget' + (busy ? ' disabled' : '') + '>Disconnect</button>'
+              : '<span class="gr_mute">Set as CALENDLY_TOKEN in Netlify.</span>') +
+          '</div>';
+      } else {
+        act = (grConn.calendlyErr ? '<div class="gr_cstat bad">' + esc(grConn.calendlyErr) + '</div>' : '') +
+          '<div class="gr_field"><label for="grCalToken">Personal Access Token</label>' +
+            '<input class="gr_in" id="grCalToken" type="password" autocomplete="off" spellcheck="false" ' +
+              'placeholder="eyJraWQiOi..." aria-label="Calendly personal access token"></div>' +
+          '<div class="gr_acts"><button class="btn-red" data-gr-cal-save' + (busy ? ' disabled' : '') + '>' +
+            (busy ? 'Checking with Calendly...' : 'Connect Calendly') + '</button>' +
+            '<a class="gr_ghost" href="https://calendly.com/integrations/api_webhooks" target="_blank" ' +
+              'rel="noopener" data-gr-stop>Get a token</a></div>' +
+          '<p class="gr_hint">Giant asks Calendly whether the token works before keeping it, and stores it ' +
+            'where this page cannot read it back. Nobody signed in to Giant can see it again, including you.</p>';
+      }
+    } else if (k === 'zoom') {
+      act = '<div class="gr_acts"><button class="gr_ghost" data-gr-conn-recheck' + (busy ? ' disabled' : '') + '>Check again</button>' +
+        '<a class="gr_ghost" href="https://marketplace.zoom.us/develop/create" target="_blank" rel="noopener" data-gr-stop>Zoom app settings</a></div>';
+    } else if (k === 'claude') {
+      act = '<div class="gr_acts"><button class="' + (state === true ? 'gr_ghost' : 'btn-red') + '" data-gr-conn-test' +
+        (busy ? ' disabled' : '') + '>' + (busy ? 'Asking...' : 'Test it') + '</button></div>';
+    } else {
+      act = '<div class="gr_acts"><button class="gr_ghost" data-gr-go="gr_training">Open Best calls</button></div>';
+    }
+    return head + note + act;
   }
 
   /* --- Settings (staff only) ---
@@ -96488,6 +96751,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (add) { grAddClient(); return; }
 
     if (e.target.closest('[data-gr-cal-sync]')) { grCalendlySync(); return; }
+    const cnr = e.target.closest('[data-gr-conn]');
+    if (cnr) { grConnOpen = grConnOpen === cnr.dataset.grConn ? null : cnr.dataset.grConn; grRender(); return; }
+    if (e.target.closest('[data-gr-conn-gmail]'))   { grGmailConnect(); return; }
+    if (e.target.closest('[data-gr-cal-save]'))     { grCalConnect(); return; }
+    if (e.target.closest('[data-gr-cal-forget]'))   { grCalForget(); return; }
+    if (e.target.closest('[data-gr-conn-recheck]')) { grReprobe(); return; }
+    if (e.target.closest('[data-gr-conn-test]'))    { grTestClaude(); return; }
     const won = e.target.closest('[data-gr-won]');
     if (won) {
       const c = grClients.find(x => x.id === won.dataset.grWon);
@@ -97022,6 +97292,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   // Enter sends, Shift+Enter is a new line -- the same as every chat box people already use.
   document.addEventListener('keydown', function (e) {
+    if (e.target && e.target.id === 'grCalToken' && e.key === 'Enter') {
+      e.preventDefault(); grCalConnect(); return;
+    }
     if (e.target && e.target.id === 'grAsk') {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
