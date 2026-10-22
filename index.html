@@ -6309,6 +6309,35 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_fb{background:var(--surface-2);border-radius:99px;height:15px;overflow:hidden;}
 .gr_fb i{display:block;height:100%;border-radius:99px;}
 .gr_fnn{font-size:18px;font-weight:800;text-align:right;}
+/* Analytics: the money, the call log, the weekly bars and the wins. */
+.gr_afoot{margin-top:12px;padding-top:11px;border-top:1px solid var(--line);font-size:12.5px;color:var(--text-3);}
+.gr_afoot b{color:var(--text);font-weight:800;}
+.gr_mny{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px;}
+.gr_mny b{display:block;font-size:21px;font-weight:800;letter-spacing:-.02em;}
+.gr_mny b.gr_g{color:#1F7A45;}
+.gr_mny span{font-size:11.5px;color:var(--text-3);}
+.gr_sr{display:grid;grid-template-columns:11px 1fr auto auto;gap:9px;align-items:center;padding:6px 0;font-size:13px;}
+.gr_sr i{width:11px;height:11px;border-radius:50%;}
+.gr_sr b{font-weight:700;}
+.gr_sr em{font-style:normal;color:var(--text-3);font-size:12px;min-width:62px;text-align:right;}
+.gr_rw{font-size:12.5px;color:var(--text-3);padding:8px 0;border-top:1px solid var(--line);}
+.gr_rw .gr_r{color:var(--red);font-weight:700;}
+/* One row shape for the call log, the replies and the wins: date, who, a line about it. */
+.gr_cl{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line);font-size:13px;cursor:pointer;}
+.gr_cl:hover{background:var(--surface-2);border-radius:9px;padding-left:7px;padding-right:7px;}
+.gr_cld{color:var(--text-3);font-size:11.5px;min-width:52px;flex:none;}
+.gr_cll{color:var(--text-3);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;}
+.gr_wv{font-weight:700;font-size:12.5px;flex:none;}
+.gr_stc{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;flex:none;}
+.gr_stc i{width:6px;height:6px;border-radius:50%;background:currentColor;}
+.gr_leg{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 4px 0 9px;vertical-align:middle;}
+.gr_wks{display:flex;align-items:flex-end;gap:14px;padding-top:8px;}
+.gr_wk{flex:1;text-align:center;}
+/* The bars sit on one baseline, so the pair is bottom-aligned, not centred. */
+.gr_bars{display:flex;align-items:flex-end;justify-content:center;gap:4px;height:86px;}
+.gr_bars i{display:block;width:13px;border-radius:3px 3px 0 0;}
+.gr_wk b{display:block;font-size:13px;font-weight:800;margin-top:7px;}
+.gr_wk span{font-size:10.5px;color:var(--text-3);}
 .gr_seg{display:inline-flex;background:var(--surface-2);border-radius:99px;padding:3px;}
 .gr_seg button{border:0;background:none;color:var(--text-3);font:inherit;font-size:12.5px;font-weight:700;padding:7px 15px;border-radius:99px;cursor:pointer;}
 .gr_seg button[aria-pressed="true"]{background:var(--bg);color:var(--text);}
@@ -8160,8 +8189,8 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         <div class="nav-item" data-screen="gr_training" data-label="Training" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M3 3.6A1.6 1.6 0 014.6 2H13v11H4.6A1.6 1.6 0 003 14.6zM3 3.6v11M6 5.4h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Training</div>
         <div class="nav-item" data-screen="gr_analytics" data-label="Analytics" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M3 13V6.5M8 13V3M13 13V8.6M1.5 14.5h13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Analytics</div>
         <div class="nav-item" data-screen="gr_connectors" data-label="Connectors" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M6 2.6v2.6M10 2.6v2.6M4.6 5.2h6.8v2.6a3.4 3.4 0 01-6.8 0zM8 11.2v2.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Connectors</div>
-        <div class="nav-item" data-screen="gr_automations" data-label="Automations" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8.6 1.6L3.4 8.9h4l-.6 5.5 5.2-7.4h-4z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>Automations</div>
         <div class="nav-item" data-screen="gr_settings" data-label="Settings" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 5.8a2.2 2.2 0 100 4.4 2.2 2.2 0 000-4.4ZM8 1.6v1.8M8 12.6v1.8M1.6 8h1.8M12.6 8h1.8M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M3.5 12.5l1.3-1.3M11.2 4.8l1.3-1.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Settings</div>
+        <div class="nav-item" data-screen="gr_automations" data-label="Automations" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8.6 1.6L3.4 8.9h4l-.6 5.5 5.2-7.4h-4z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>Automations</div>
       </div>
       <div class="nav-group-label nav-group-toggle" data-navgroup="intelligence"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.6 4.3 4.4 1.7-4.4 1.7L8 13.5 6.4 9.2 2 7.5l4.4-1.7L8 1.5Z" fill="currentColor"/></svg></span><span class="group-label-text">Intelligence</span><svg class="nav-group-chev" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div class="nav-rail" id="railTools" data-navgroup-body="intelligence">
@@ -95839,42 +95868,150 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     ? x.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : ''; };
 
   /* --- Analytics --- */
+  /* --- Analytics ---
+     Four cards were missing against the design, and they are the four that answer the
+     questions people actually ask: how much is on the table, is anybody waiting on a
+     reply, what calls happened, and who did we win. The funnel is all time on purpose --
+     a funnel inside a 7 day window mostly measures how quiet the week was. */
+  const grMeetDone = (m) => new Date(m.starts_at).getTime() + (m.minutes || 45) * 60000 < Date.now();
+  // The booked length until the call actually happened and Fathom said how long it ran.
+  const grCallMin = (m) => Number(m.actual_min) || Number(m.minutes) || 45;
+  const grPct = (a, b) => (b ? Math.round(a / b * 100) : 0) + '%';
+
   function grRenderAnalytics() {
     const within = (iso) => {
       if (grRange === 'all') return true; if (!iso) return false;
       const t = new Date(iso).getTime();
       return t >= Date.now() - (grRange === 'week' ? 7 : 30) * 86400000;
     };
+    const period = grRange === 'all' ? 'All time' : grRange === 'week' ? 'Last 7 days' : 'Last 30 days';
     const sent = grMessages.filter(m => m.direction === 'out' && within(m.sent_at)).length;
     const replied = grClients.filter(c => grThread(c).some(m => m.direction === 'in' && within(m.sent_at)));
+    const emailed = grClients.filter(c => grThread(c).some(m => m.direction === 'out')).length;
+    const repliedAll = grClients.filter(c => grThread(c).some(m => m.direction === 'in')).length;
+    const waiting = grClients.filter(grWaiting);
     const wonList = grClients.filter(c => c.stage === 'won' && within(c.won_on));
+    const wonAll = grClients.filter(c => c.stage === 'won');
     const wonMrr = wonList.reduce((n, c) => n + grVal(c), 0);
-    const held = grMeetings.filter(m => within(m.starts_at) && new Date(m.starts_at) < Date.now()).length;
+
+    const inRange = grMeetings.filter(m => within(m.starts_at));
+    const heldList = inRange.filter(grMeetDone);
+    const upNext = inRange.filter(m => !grMeetDone(m));
+    const mins = heldList.reduce((n, m) => n + grCallMin(m), 0);
+    const hrs = Math.round(mins / 60 * 10) / 10;
+    const avgMin = heldList.length ? Math.round(mins / heldList.length) : 0;
+    const maxMin = heldList.reduce((n, m) => Math.max(n, grCallMin(m)), 0);
+
     const called = grClients.filter(c => (c.calls_held || 0) > 0 || c.stage !== 'booked');
     const steps = [
       ['Booked', grClients.length, '#1D5FA8'],
       ['Call done', called.length, '#7048E8'],
       ['Proposal sent', grClients.filter(c => ['proposal', 'follow', 'won'].includes(c.stage)).length, '#E8590C'],
       ['Replied', grClients.filter(c => grThread(c).some(m => m.direction === 'in')).length, '#C2255C'],
-      ['Won', grClients.filter(c => c.stage === 'won').length, '#1F7A45']
+      ['Won', wonAll.length, '#1F7A45']
     ];
     const top = Math.max(1, steps[0][1]);
-    const hero = (cls, v, l, s) => '<div class="gr_hero ' + cls + '"><div class="gr_hv">' + v + '</div><div class="gr_hl">' + esc(l) + '</div><div class="gr_hs">' + esc(s) + '</div></div>';
+
+    const inPlay = grClients.filter(grActive).reduce((n, c) => n + grVal(c), 0);
+    const avgDeal = wonList.length ? Math.round(wonMrr / wonList.length)
+      : (wonAll.length ? Math.round(wonAll.reduce((n, c) => n + grVal(c), 0) / wonAll.length) : 0);
+    const stRows = grStages.filter(x => x.key !== 'lost').map(st => {
+      const g = grClients.filter(c => c.stage === st.key), m = g.reduce((n, c) => n + grVal(c), 0);
+      return '<div class="gr_sr"><i style="background:' + grStageColor(st.key) + '"></i>' +
+        '<span>' + esc(grStageLabel(st.key)) + '</span><b>' + g.length + '</b>' +
+        '<em>' + (m ? grMoney(m) : '&ndash;') + '</em></div>';
+    }).join('');
+
+    // Only calls that have actually happened, newest first. A log that lists next week
+    // is a calendar, and there is already a Meetings screen for that.
+    const log = grMeetings.filter(grMeetDone)
+      .sort((a, b) => new Date(b.starts_at) - new Date(a.starts_at)).slice(0, 10).map(m => {
+        const c = grClients.find(x => x.id === m.client_id);
+        return '<div class="gr_cl"' + (c ? ' data-gr-open="' + c.id + '"' : '') + '>' +
+          '<span class="gr_cld">' + esc(grFmt(m.starts_at)) + '</span>' +
+          '<b>' + esc(c ? c.name : (m.title || 'Call')) + '</b>' +
+          '<span class="gr_cll">' + grCallMin(m) + ' min' + (m.actual_min ? '' : ' booked') + '</span>' +
+          (c ? '<span class="gr_stc" style="background:' + grStageColor(c.stage) + '22;color:' +
+            grStageColor(c.stage) + '"><i></i>' + esc(grStageLabel(c.stage)) + '</span>' : '') + '</div>';
+      }).join('');
+
+    /* Six weeks of bars, each ending at MIDNIGHT TONIGHT rather than at this moment.
+       Ending them at Date.now() looks equivalent and is not: it puts every meeting
+       later today outside the chart, so "booked" and "done" come out identical in
+       every bucket and the second bar measures nothing. Ending at tonight puts
+       today's upcoming call in this week, booked but not yet held, which is the
+       difference the two colours exist to show. */
+    const DAY = 86400000, tonight = new Date(); tonight.setHours(24, 0, 0, 0);
+    const weeks = [];
+    for (let i = 5; i >= 0; i--) {
+      const end = tonight.getTime() - i * 7 * DAY, st = end - 7 * DAY;
+      const inW = (m) => { const t = new Date(m.starts_at).getTime(); return t > st && t <= end; };
+      weeks.push({ d: new Date(st).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+                   b: grMeetings.filter(inW).length,
+                   k: grMeetings.filter(m => inW(m) && grMeetDone(m)).length });
+    }
+    const wm = Math.max(1, ...weeks.map(w => w.b));
+
+    const winRows = wonList.map(c => '<div class="gr_cl" data-gr-open="' + c.id + '">' +
+      '<span class="gr_cld">' + esc(c.won_on ? grFmt(c.won_on) : '') + '</span>' +
+      '<b>' + esc(c.name) + '</b><span class="gr_cll">' + esc(c.company || '') + '</span>' +
+      '<span class="gr_wv">' + (grVal(c) ? grMoney(grVal(c)) + '/mo' : '') + '</span></div>').join('');
+
+    const hero = (cls, v, l, s2) => '<div class="gr_hero ' + cls + '"><div class="gr_hv">' + v +
+      '</div><div class="gr_hl">' + esc(l) + '</div><div class="gr_hs">' + esc(s2) + '</div></div>';
+
     $('grAnalytics').innerHTML =
       grHead('Analytics', 'How the sales team is doing',
         '<div class="gr_seg">' + [['week', '7 days'], ['month', '30 days'], ['all', 'All time']]
           .map(r => '<button data-gr-range="' + r[0] + '"' + (grRange === r[0] ? ' aria-pressed="true"' : '') + '>' + r[1] + '</button>').join('') + '</div>') +
       '<div class="gr_heroes">' +
-        hero('gr_hb', grMeetings.length, 'Meetings booked', held + ' already held') +
-        hero('gr_hp', sent, 'Emails sent', replied.length + ' replied') +
-        hero('gr_ho', grClients.filter(c => grNextAction(c)).length, 'Need you', 'across the pipeline') +
+        hero('gr_hb', inRange.length, 'Meetings booked', upNext.length + ' still coming up') +
+        hero('gr_hp', heldList.length, 'Calls done', hrs + ' hours talking') +
+        hero('gr_ho', avgMin ? avgMin + '<small> min</small>' : '0', 'Average call',
+             maxMin ? 'Longest ' + maxMin + ' min' : 'No calls yet') +
         hero('gr_hg', wonList.length, 'Clients won', grMoney(wonMrr) + ' per month') +
       '</div>' +
-      '<section class="gr_card"><div class="gr_ct"><h2>Sales funnel</h2></div>' +
+      '<section class="gr_card"><div class="gr_ct"><h2>Sales funnel</h2>' +
+        '<span>All time. Who made it to each step.</span></div>' +
         steps.map((x, i) => '<div class="gr_fn"><div class="gr_fl"><b>' + esc(x[0]) + '</b><span>' +
-          (i ? (steps[i - 1][1] ? Math.round(x[1] / steps[i - 1][1] * 100) : 0) + '% of ' + steps[i - 1][0].toLowerCase() : 'All clients') +
+          (i ? grPct(x[1], steps[i - 1][1]) + ' of ' + steps[i - 1][0].toLowerCase() : 'All clients') +
           '</span></div><div class="gr_fb"><i style="width:' + Math.max(4, x[1] / top * 100) + '%;background:' + x[2] + '"></i></div><div class="gr_fnn">' + x[1] + '</div></div>').join('') +
-      '</section>';
+        '<div class="gr_afoot"><b>' + grPct(wonAll.length, Math.max(1, called.length)) +
+          '</b> of calls turn into a win &middot; <b>' + grPct(called.length, Math.max(1, grClients.length)) +
+          '</b> of bookings show up</div>' +
+      '</section>' +
+      '<div class="gr_two">' +
+        '<section class="gr_card"><div class="gr_ct"><h2>Money</h2><span>Monthly value</span></div>' +
+          '<div class="gr_mny"><div><b>' + grMoney(inPlay) + '</b><span>in play</span></div>' +
+            '<div><b class="gr_g">' + grMoney(wonMrr) + '</b><span>won (period)</span></div>' +
+            '<div><b>' + grMoney(avgDeal) + '</b><span>avg deal</span></div></div>' + stRows + '</section>' +
+        '<section class="gr_card"><div class="gr_ct"><h2>Emails and replies</h2><span>' + esc(period) + '</span></div>' +
+          '<div class="gr_mny"><div><b>' + sent + '</b><span>emails sent</span></div>' +
+            '<div><b>' + replied.length + '</b><span>replied</span></div>' +
+            '<div><b>' + grPct(repliedAll, emailed) + '</b><span>reply rate</span></div></div>' +
+          '<div class="gr_rw">' + (waiting.length
+            ? '<b class="gr_r">' + waiting.length + ' waiting on you</b>'
+            : 'Everyone has an answer') + '</div>' +
+          replied.slice(0, 4).map(c => {
+            const th = grThread(c).filter(m => m.direction === 'in'), l = th[th.length - 1];
+            return '<div class="gr_cl" data-gr-open="' + c.id + '"><b>' + esc(c.name) + '</b>' +
+              '<span class="gr_cll">' + esc(grSnip(l && l.body, 60)) + '</span>' +
+              '<span class="gr_cld">' + esc(grFmt(l && l.sent_at)) + '</span></div>';
+          }).join('') + '</section>' +
+      '</div>' +
+      '<section class="gr_card"><div class="gr_ct"><h2>Call log</h2>' +
+        '<span>Latest calls and how long they ran</span></div>' +
+        (log || '<p class="gr_mute">No calls yet.</p>') + '</section>' +
+      '<section class="gr_card"><div class="gr_ct"><h2>Meetings per week</h2>' +
+        '<span><i class="gr_leg" style="background:#cfd8ee"></i>booked ' +
+        '<i class="gr_leg" style="background:#7048E8"></i>done</span></div>' +
+        '<div class="gr_wks">' + weeks.map(w => '<div class="gr_wk"><div class="gr_bars">' +
+          '<i style="height:' + (Math.round(w.b / wm * 80) + 3) + 'px;background:#cfd8ee"></i>' +
+          '<i style="height:' + (Math.round(w.k / wm * 80) + 3) + 'px;background:#7048E8"></i></div>' +
+          '<b>' + w.b + '</b><span>' + esc(w.d) + '</span></div>').join('') + '</div></section>' +
+      '<section class="gr_card"><div class="gr_ct"><h2>Wins</h2><span>' +
+        (grRange === 'all' ? 'All time' : 'This period') + '</span></div>' +
+        (winRows || '<p class="gr_mute">No wins in this period yet.</p>') + '</section>';
   }
 
   /* --- Connectors (staff only) ---

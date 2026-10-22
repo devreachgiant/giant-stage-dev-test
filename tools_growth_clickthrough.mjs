@@ -155,7 +155,7 @@ await step('the Growth group is in the sidebar', async () => {
 
 await step('all nine Growth items are there and visible', async () => {
   const want = ['gr_home', 'gr_meetings', 'gr_pipeline', 'gr_inbox',
-                'gr_training', 'gr_analytics', 'gr_connectors', 'gr_automations', 'gr_settings'];
+                'gr_training', 'gr_analytics', 'gr_connectors', 'gr_settings', 'gr_automations'];
   const seen = await page.evaluate((w) => w.map(s => {
     const el = document.querySelector('#appSidebar .nav-item[data-screen="' + s + '"]');
     if (!el) return { s, found: false };
@@ -164,6 +164,13 @@ await step('all nine Growth items are there and visible', async () => {
              text: (el.textContent || '').trim() };
   }), want);
   check('all nine Growth items exist', seen.every(x => x.found), JSON.stringify(seen.filter(x => !x.found)));
+  // ORDER, not just presence. The design's sidebar runs the four daily screens, then the
+  // reference ones, then the two admin ones with Settings before Automations -- and
+  // querying each item by name, as the line above does, passes whatever order they are in.
+  const order = await page.evaluate(() => [...document.querySelectorAll('#railGrowth .nav-item')]
+    .map(el => el.dataset.screen));
+  check('and they are in the order the design puts them in',
+    JSON.stringify(order) === JSON.stringify(want), JSON.stringify(order));
   // width AND height, not presence: a nav item collapsed to zero is the exact bug that
   // got through before, when display:'' deleted an inline rule and children went to 0.
   const sized = seen.filter(x => x.found && x.w > 60 && x.h > 14);

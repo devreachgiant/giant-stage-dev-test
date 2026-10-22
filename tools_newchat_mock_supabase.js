@@ -451,6 +451,11 @@
   DB.password_entry_members = [{ entry_id: 'pw-1', profile_id: ME }];
 
   // ── Growth (migration 20261021120000) ───────────────────────────────────
+  // Growth's dates are anchored to NOW, not to iso()'s fixed day. Everything on
+  // Analytics is relative -- the 7 and 30 day ranges, the six weekly buckets, the stale
+  // badge -- so rows frozen two months in the past make every one of those read as
+  // empty, and a check written over them measures nothing at all.
+  const giso = (daysAgo, i) => new Date(Date.now() - daysAgo * 864e5 - (i || 0) * 6e5).toISOString();
   // Enough of a pipeline to exercise every screen: deals in four stages, one of them
   // with an unanswered reply so "Reply to" and the inbox badge have something to count,
   // and a meeting today so the Home and Meetings screens are not both empty states.
@@ -468,40 +473,40 @@
     email: name.toLowerCase().replace(/[^a-z]+/g, '.') + '@example.com',
     phone: '', website: '', location: '', timezone: '', source: 'Fiverr',
     stage, value_monthly: val || null, next_step: '', summary: 'Notes from the first call.',
-    follow_up_on: i === 3 ? iso(1, 0).slice(0, 10) : null,
-    first_call_on: iso(9 - i, 0).slice(0, 10), last_call_on: iso(9 - i, 0).slice(0, 10),
-    last_email_on: i < 2 ? iso(6 - i, 0).slice(0, 10) : null,
+    follow_up_on: i === 3 ? giso(1, 0).slice(0, 10) : null,
+    first_call_on: giso(9 - i, 0).slice(0, 10), last_call_on: giso(9 - i, 0).slice(0, 10),
+    last_email_on: i < 2 ? giso(6 - i, 0).slice(0, 10) : null,
     emails_sent: i < 2 ? 1 : 0, calls_held: stage === 'booked' ? 0 : 1,
-    won_on: stage === 'won' ? iso(2, 0).slice(0, 10) : null,
+    won_on: stage === 'won' ? giso(2, 0).slice(0, 10) : null,
     lost_on: null, lost_reason: '', handled_msg: '',
     intake: {}, call_notes: [], team_notes: [], activity_log: [], giant_handoff: null,
-    created_at: iso(20 - i, 0), updated_at: iso(i, 0)
+    created_at: giso(20 - i, 0), updated_at: giso(i, 0)
   }));
   DB.growth_meetings = [
     { id: 'gm-1', client_id: 'gc-5', title: 'ReachGiant Growth Strategy Session',
       starts_at: new Date(Date.now() + 3 * 3600e3).toISOString(), minutes: 45, actual_min: null,
       zoom_url: 'https://us06web.zoom.us/j/000', source: 'Calendly', brief: '', brief_at: null,
-      external_id: 'ext-1', created_at: iso(3, 0) },
+      external_id: 'ext-1', created_at: giso(3, 0) },
     { id: 'gm-2', client_id: 'gc-1', title: 'ReachGiant Growth Strategy Session',
-      starts_at: iso(5, 0), minutes: 45, actual_min: 41, zoom_url: '', source: 'Calendly',
-      brief: '', brief_at: null, external_id: 'ext-2', created_at: iso(8, 0) }
+      starts_at: giso(5, 0), minutes: 45, actual_min: 41, zoom_url: '', source: 'Calendly',
+      brief: '', brief_at: null, external_id: 'ext-2', created_at: giso(8, 0) }
   ];
   // gc-2's last message is INBOUND and unhandled, so exactly one deal needs a reply.
   DB.growth_messages = [
     { id: 'gx-1', client_id: 'gc-1', direction: 'out', subject: 'Good chat today',
-      body: 'Hi Michael, good chat today. Plan to follow.', sent_at: iso(6, 0),
-      thread_id: '', external_id: null, created_at: iso(6, 0) },
+      body: 'Hi Michael, good chat today. Plan to follow.', sent_at: giso(6, 0),
+      thread_id: '', external_id: null, created_at: giso(6, 0) },
     { id: 'gx-2', client_id: 'gc-2', direction: 'out', subject: "Here's the plan",
-      body: 'Hi Cesar, here is what I would do.', sent_at: iso(5, 0),
-      thread_id: '', external_id: null, created_at: iso(5, 0) },
+      body: 'Hi Cesar, here is what I would do.', sent_at: giso(5, 0),
+      thread_id: '', external_id: null, created_at: giso(5, 0) },
     { id: 'gx-3', client_id: 'gc-2', direction: 'in', subject: "Re: Here's the plan",
-      body: 'This looks good. Can you send the agreement?', sent_at: iso(1, 0),
-      thread_id: '', external_id: null, created_at: iso(1, 0) }
+      body: 'This looks good. Can you send the agreement?', sent_at: giso(1, 0),
+      thread_id: '', external_id: null, created_at: giso(1, 0) }
   ];
   DB.growth_templates = [
     { id: 'gt-1', name: 'Google Ads Management', subject: 'Getting started with ReachGiant',
       body: 'Hi {name},\n\nWe are looking forward to working with {company}.\n\nBest,', position: 0,
-      created_at: iso(30, 0) }
+      created_at: giso(30, 0) }
   ];
   DB.growth_settings = [
     { key: 'pipeline', value: { staleDays: 5, stages: [
@@ -511,18 +516,18 @@
         { key: 'follow', label: 'Following up', color: '#B7791F' },
         { key: 'won', label: 'Won', color: '#1F7A45' },
         { key: 'lost', label: 'Lost', color: '#B3302A' } ] },
-      updated_at: iso(30, 0), updated_by: ME }
+      updated_at: giso(30, 0), updated_by: ME }
   ];
   DB.growth_training = [];
   // Deliberately empty: a rep's plan is seeded from the template the first time they open
   // Training, and that is the path worth exercising.
   DB.growth_tasks = [];
   DB.growth_watch_calls = [
-    { id: 'gw-1', title: 'Amy Neighbors', call_date: iso(40,0).slice(0,10), url: 'https://fathom.video/share/example',
+    { id: 'gw-1', title: 'Amy Neighbors', call_date: giso(40,0).slice(0,10), url: 'https://fathom.video/share/example',
       tags: ['Google Ads','SEO'], outcome: 'Pitched $2.5k ad spend plus branding',
       note: 'Meta ads wrecked by bots, moved to Google Ads and SEO.',
       learned: 'Watch how the budget worry gets named out loud before any price is said.', position: 0,
-      added_by: ME, created_at: iso(40,0) }
+      added_by: ME, created_at: giso(40,0) }
   ];
   DB.growth_discounts = [
     { id: 'gd-1', code: 'RG250',  label: 'Get $250 off each month',   colour: '#D91F0F', position: 0, created_at: iso(30,0) },
