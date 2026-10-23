@@ -2016,6 +2016,18 @@ body.chat-fullscreen .sidebar{display:none;}
 .invite-suggest-item:hover{background:var(--surface-3);}
 
 /* inbox folders */
+/* GMAIL KEEPS THE FOLDERS VISIBLE WHILE YOU READ. These used to live inside the list,
+   which was fine when the list was always on screen -- now that opening a message takes
+   the list away, they went with it and there was no way to change folder without going
+   back first. They sit in their own rail beside the list instead, and stay put.
+
+   Narrow, one line each, count on the right: at full width the old full-bleed bars were
+   seven rows of mostly empty space before a single message. */
+.ml-rail{width:184px;flex:none;border-right:1px solid var(--line);padding:10px 8px;overflow-y:auto;background:var(--pane);}
+@media(max-width:860px){.ml-rail{width:54px;}.ml-rail .ml-folder span:not(.ml-count){display:none;}.ml-folders-head{display:none;}}
+.ml-rail .ml-folder{padding:7px 10px;font-size:12px;border:0;background:none;margin-bottom:1px;}
+.ml-rail .ml-folder.active{background:var(--surface-2);font-weight:700;color:var(--text);}
+.ml-rail .ml-folder:hover{background:var(--surface-2);}
 .ml-folders{padding:14px 16px 4px;border-top:1px solid var(--line);margin-top:12px;}
 .ml-folders-head{display:flex;align-items:center;gap:6px;font-size:9.5px;font-weight:700;letter-spacing:.13em;color:var(--text-3);text-transform:uppercase;padding:5px 4px 8px;cursor:pointer;user-select:none;transition:color .12s;}
 .ml-folders-head:hover{color:var(--text-2);}
@@ -2062,7 +2074,11 @@ body.chat-fullscreen .sidebar{display:none;}
 .fic.sel{border-color:var(--red);background:var(--surface);}
 
 /* --- inbox: mail list --- */
-.maillist{background:var(--pane);border-right:1px solid var(--line);display:flex;flex-direction:column;width:290px;flex-shrink:0;transition:background .3s var(--ease),border-color .3s var(--ease);}
+/* GMAIL SHAPE: the list IS the screen, and a message opens over it at full width.
+   The 290px column plus a permanent reading pane meant every row had to fit a third of
+   the width, which is what forced the three-line card and three messages on screen.
+   One line each, full width, and the reader takes over when something is opened. */
+.maillist{background:var(--pane);border-right:1px solid var(--line);display:flex;flex-direction:column;flex:1;min-width:0;transition:background .3s var(--ease),border-color .3s var(--ease);}
 .ml-head{padding:16px 16px 0;}
 .ml-head h2{font-size:16px;font-weight:700;letter-spacing:-0.02em;margin-bottom:12px;}
 .acct-tabs{display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap;}
@@ -2098,6 +2114,30 @@ html[data-theme="light"] .chan-msgr{background:#DCE9F5;color:#0084FF;}
 
 /* Spark-style section headers + notif aggregate */
 .mail-section-header{padding:14px 11px 6px;border-bottom:1px solid transparent;}
+/* ── Gmail-shaped inbox ─────────────────────────────────────────────────────
+   Opening a message hides the list and gives the reader the whole width, the way
+   Gmail does, instead of squeezing both into one screen. */
+.screen[data-screen="inbox"].mail-open .maillist{display:none;}
+.screen[data-screen="inbox"].mail-open .col-resize{display:none;}
+.screen[data-screen="inbox"]:not(.mail-open) .reader{display:none;}
+.mr-back{display:none;align-items:center;gap:7px;background:none;border:0;color:var(--text-2);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;padding:10px 14px;}
+.screen[data-screen="inbox"].mail-open .mr-back{display:inline-flex;}
+.mr-back:hover{color:var(--text);}
+/* One line per message: who, what, when. The snippet follows the subject on the same
+   line and is the first thing clipped when the window narrows, because it is the part
+   you can most afford to lose. */
+.mailitem.mi-row{display:flex;align-items:center;gap:10px;padding:0 12px;height:38px;border-radius:0;margin-bottom:0;border-bottom:1px solid var(--line);}
+.mailitem.mi-row:hover{background:var(--surface-2);box-shadow:inset 1px 0 0 var(--line-2);}
+.mi-star{flex:none;width:18px;height:18px;display:grid;place-items:center;background:none;border:0;color:var(--text-3);cursor:pointer;font-size:13px;line-height:1;padding:0;}
+.mi-star.on{color:#E8B45B;}
+.mi-who{flex:none;width:168px;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.mi-row.unread .mi-who,.mi-row.unread .mi-line b{font-weight:800;}
+.mi-line{flex:1;min-width:0;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-3);}
+.mi-line b{font-weight:500;color:var(--text);}
+.mi-when{flex:none;font-size:11.5px;color:var(--text-3);min-width:62px;text-align:right;}
+.mi-row.unread .mi-when{color:var(--text-2);font-weight:700;}
+.mi-att{flex:none;font-size:11px;color:var(--text-3);}
+@media(max-width:760px){.mi-who{width:110px;}}
 .mail-section-header:not(:first-child){margin-top:4px;padding-top:18px;}
 .mail-section-label{font-size:14px;font-weight:800;color:var(--text);letter-spacing:-0.02em;line-height:1.2;}
 .mail-section-sub{font-size:11px;color:var(--text-3);font-weight:500;margin-top:2px;}
@@ -10967,6 +11007,25 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       <!-- ===== INBOX ===== -->
       <div class="screen fullbleed" data-screen="inbox">
         <div class="fb-grid">
+          <!-- Folders: their own rail, so they stay put while a message is open. -->
+          <nav class="ml-rail">
+              <div class="ml-folders open" id="mlFolders">
+                <div class="ml-folders-head">
+                  <span class="ml-folders-chev"><svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M5 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+                  <span class="ml-folders-label">Categories</span>
+                </div>
+                <div class="ml-folders-body">
+                  <div class="ml-folder active" data-mail-filter="INBOX"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3" width="12.4" height="10" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 4.5L8 8.5L13.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Inbox <span class="ml-folder-c" id="folderCountInbox">0</span></div>
+                  <div class="ml-folder" data-mail-filter="NOTIFICATIONS"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 11V7a5 5 0 1110 0v4l1.5 1.5h-13L3 11Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6 13a2 2 0 004 0" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Notifications <span class="ml-folder-c" id="folderCountNotifications">0</span></div>
+                  <div class="ml-folder" data-mail-filter="NEWSLETTERS"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 6.5h6M5 9h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Newsletters <span class="ml-folder-c" id="folderCountNewsletters">0</span></div>
+                  <div class="ml-folder" data-mail-filter="STARRED"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.6 4.3 4.4 1.7-4.4 1.7L8 13.5 6.4 9.2 2 7.5l4.4-1.7L8 1.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Starred <span class="ml-folder-c" id="folderCountStarred">0</span></div>
+                  <div class="ml-folder" data-mail-filter="SENT"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M2 8l12-5-5 12-2-5-5-2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Sent <span class="ml-folder-c" id="folderCountSent">0</span></div>
+                  <div class="ml-folder" data-mail-filter="DRAFT"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M2 12.5V11l8-8 1.5 1.5L3.5 12.5H2Zm9.5-10L13 4M12 1.5L14.5 4 13 5.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Drafts <span class="ml-folder-c" id="folderCountDraft">0</span></div>
+                  <div class="ml-folder" data-mail-filter="UNREAD"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" fill="currentColor"/></svg>Unread <span class="ml-folder-c" id="folderCountUnread">0</span></div>
+                </div>
+              </div>
+          </nav>
+
           <!-- mail list -->
           <aside class="maillist">
             <div class="ml-head">
@@ -10991,21 +11050,6 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                 <input type="text" class="bare-input" id="inboxSearchInput" placeholder="Search mail">
               </div>
               <!-- Folders section -->
-              <div class="ml-folders open" id="mlFolders">
-                <div class="ml-folders-head">
-                  <span class="ml-folders-chev"><svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M5 3l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-                  <span class="ml-folders-label">Categories</span>
-                </div>
-                <div class="ml-folders-body">
-                  <div class="ml-folder active" data-mail-filter="INBOX"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3" width="12.4" height="10" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 4.5L8 8.5L13.5 4.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Inbox <span class="ml-folder-c" id="folderCountInbox">0</span></div>
-                  <div class="ml-folder" data-mail-filter="NOTIFICATIONS"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M3 11V7a5 5 0 1110 0v4l1.5 1.5h-13L3 11Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6 13a2 2 0 004 0" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Notifications <span class="ml-folder-c" id="folderCountNotifications">0</span></div>
-                  <div class="ml-folder" data-mail-filter="NEWSLETTERS"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 6.5h6M5 9h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>Newsletters <span class="ml-folder-c" id="folderCountNewsletters">0</span></div>
-                  <div class="ml-folder" data-mail-filter="STARRED"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.6 4.3 4.4 1.7-4.4 1.7L8 13.5 6.4 9.2 2 7.5l4.4-1.7L8 1.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Starred <span class="ml-folder-c" id="folderCountStarred">0</span></div>
-                  <div class="ml-folder" data-mail-filter="SENT"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M2 8l12-5-5 12-2-5-5-2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>Sent <span class="ml-folder-c" id="folderCountSent">0</span></div>
-                  <div class="ml-folder" data-mail-filter="DRAFT"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M2 12.5V11l8-8 1.5 1.5L3.5 12.5H2Zm9.5-10L13 4M12 1.5L14.5 4 13 5.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>Drafts <span class="ml-folder-c" id="folderCountDraft">0</span></div>
-                  <div class="ml-folder" data-mail-filter="UNREAD"><svg width="11" height="11" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" fill="currentColor"/></svg>Unread <span class="ml-folder-c" id="folderCountUnread">0</span></div>
-                </div>
-              </div>
             </div>
             <div class="ml-scroll" id="mailList">
               <div id="inboxConnectBanner" style="padding:24px 20px;text-align:center;display:none;">
@@ -11030,8 +11074,9 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
 
           <div class="col-resize" data-resize="maillist"></div>
 
-          <!-- reading pane -->
+          <!-- reading pane: full width once a message is open, Gmail-style -->
           <main class="reader">
+            <button type="button" class="mr-back" id="mailBackBtn" aria-label="Back to the list">&#8592; Back to inbox</button>
             <!-- Empty state when no email is selected -->
             <div id="mailReaderEmpty" style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;text-align:center;">
               <div style="font-size:42px;margin-bottom:12px;opacity:.4;">✉️</div>
@@ -52537,6 +52582,17 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     let activeMailId = null;
 
     function inboxEsc(s) { return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+    /* Gmail's snippet field arrives HTML-escaped. Escaping it a second time for the page
+       is what printed "You&#39;re using your credits" instead of "You're". Decoded with
+       a textarea rather than a regex so every entity Gmail might send is covered, not
+       the five somebody thought of. */
+    function inboxDecodeEntities(s) {
+      const raw = String(s == null ? '' : s);
+      if (raw.indexOf('&') < 0) return raw;
+      const t = document.createElement('textarea');
+      t.innerHTML = raw;
+      return t.value;
+    }
 
     function formatMailTime(iso) {
       const d = new Date(iso);
@@ -53169,7 +53225,12 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       // === SPARK-STYLE RENDERING ===
       // For the primary INBOX filter only, group by date sections and aggregate notifications.
       // Other filters (Notifications, Sent, etc.) keep flat list rendering.
-      const useSparkStyle = activeMailFilter === 'INBOX' || activeMailFilter === 'UNREAD';
+      /* ONE CONTINUOUS LIST, like Gmail. The date headers and the notification bundles
+         belonged to the three-line card layout, where a screenful was three messages and
+         grouping was the only way to make sense of it. At one line a row, twenty fit, the
+         dates on the right already say when, and a heading every few rows just pushes
+         mail off the screen again. */
+      const useSparkStyle = false;
 
       if (!useSparkStyle) {
         // Legacy flat render
@@ -53284,6 +53345,36 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       // Wire main email clicks
       inboxRows.querySelectorAll('.mailitem:not(.mail-notif-aggr)').forEach(el => {
         // Mark-as-read checkbox handler (must be wired here too — this is a separate render path)
+        /* The star. Written straight to the row and to the database, and the count on
+           the Starred folder re-read from the list -- a star that paints and does not
+           save is the kind of thing somebody only discovers when they come back for the
+           message and it is not there. */
+        const star = el.querySelector('[data-star]');
+        if (star && !star.dataset.wired) {
+          star.dataset.wired = '1';
+          star.addEventListener('click', async (ev) => {
+            ev.stopPropagation();
+            const id = star.dataset.star;
+            const row = (emails || []).find(x => x.id === id);
+            const next = !(row && row.is_starred);
+            if (row) row.is_starred = next;
+            star.classList.toggle('on', next);
+            star.textContent = next ? '\u2605' : '\u2606';
+            star.setAttribute('aria-label', next ? 'Unstar' : 'Star');
+            try {
+              await supabase.from('emails').update({ is_starred: next })
+                .eq('id', id).eq('profile_id', session.user.id);
+            } catch (err) {
+              // Put the star back rather than leaving the screen claiming something the
+              // database never took.
+              if (row) row.is_starred = !next;
+              star.classList.toggle('on', !next);
+              star.textContent = !next ? '\u2605' : '\u2606';
+            }
+            const cnt = document.getElementById('folderCountStarred');
+            if (cnt) cnt.textContent = String((emails || []).filter(x => x.is_starred).length);
+          });
+        }
         const check = el.querySelector('[data-mark-read]');
         if (check && !check.dataset.wired) {
           check.dataset.wired = '1';
@@ -53415,46 +53506,48 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         });
       });
 
+      /* ONE LINE: who, what, when -- the shape Gmail uses, and the reason twenty
+         messages fit where three did. No avatar: a 32px logo per row costs a third of
+         the height and says nothing the sender's name does not.
+
+         The snippet follows the subject on the same line, greyed, and is clipped first
+         when the window narrows. */
       function renderMailItem(e, i) {
-        const isSent = (e.labels||[]).includes('SENT');
-        const displayName = isSent ? (e.to_emails ? `To: ${e.to_emails}` : 'Sent') : (e.from_name || e.from_email || 'Unknown');
-        const initial = (isSent ? (e.to_emails||'?') : (e.from_name || e.from_email || '?')).charAt(0).toUpperCase();
-        const colors = ['#22344F','#4A2424','#2F4A3A','#3F2F4A','#4A3F22'];
-        const colorBg = colors[Math.abs(hashStr(isSent ? (e.to_emails||'?') : (e.from_email||'?'))) % colors.length];
-        // Brand favicon: extract domain from sender, use Google's favicon service (free, CORS-friendly)
-        const senderEmail = isSent ? (e.to_emails||'') : (e.from_email||'');
-        const senderDomain = (senderEmail.split('@')[1] || '').toLowerCase().trim();
-        const faviconUrl = senderDomain
-          ? `https://www.google.com/s2/favicons?domain=${encodeURIComponent(senderDomain)}&sz=64`
-          : null;
-        // Avatar: brand icon overlay on colored bg; falls back to initial if icon fails to load (onerror)
-        const avatarHtml = faviconUrl
-          ? `<div class="mi-ava" style="background:${colorBg};color:rgba(255,255,255,.85);position:relative;overflow:hidden;">
-              <span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1;">${inboxEsc(initial)}</span>
-              <img src="${inboxEsc(faviconUrl)}" alt="" loading="lazy" decoding="async" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;padding:4px;background:#fff;z-index:2;" onerror="this.style.display='none';">
-            </div>`
-          : `<div class="mi-ava" style="background:${colorBg};color:rgba(255,255,255,.85);">${inboxEsc(initial)}</div>`;
-        const labelBadge = (e.labels||[]).includes('SENT') ? '<span class="mi-chan" style="background:rgba(91,160,232,.15);color:var(--blue);">Sent</span>'
-                         : (e.labels||[]).includes('DRAFT') ? '<span class="mi-chan" style="background:rgba(232,180,91,.15);color:var(--amber);">Draft</span>'
-                         : '';
+        const isSent = (e.labels || []).includes('SENT');
+        const displayName = isSent ? (e.to_emails ? 'To: ' + e.to_emails : 'Sent')
+                                   : (e.from_name || e.from_email || 'Unknown');
         const subject = e.subject || '(no subject)';
-        const snippet = (e.snippet || '').slice(0, 110);
-        return `<div class="mailitem ${e.is_unread?'unread':''} ${e.id===activeMailId?'active':''}" data-mail-id="${inboxEsc(e.id)}" style="animation-delay:${(i*0.02).toFixed(2)}s">
-          <button type="button" class="mi-check" title="Mark as read (hides from view)" data-mark-read="${inboxEsc(e.id)}" style="position:relative;z-index:2;display:flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:5px;border:1.5px solid var(--line-2);cursor:pointer;flex-shrink:0;margin-right:6px;transition:.14s;background:var(--surface);padding:0;font-family:inherit;">
-            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" class="mi-check-tick" style="opacity:0;color:#fff;transition:.12s;pointer-events:none;"><path d="M3 8l3 3 7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
-          ${avatarHtml}
-          <div class="mi-body">
-            <div class="mi-top">
-              <span class="mi-from">${inboxEsc(displayName)}</span>
-              ${e.is_unread ? '<span class="mi-dot"></span>' : ''}
-              <span class="mi-time">${inboxEsc(formatMailTime(e.received_at))}</span>
-            </div>
-            <div class="mi-subj">${inboxEsc(subject)}</div>
-            <div class="mi-prev">${inboxEsc(snippet)}…</div>
-            ${labelBadge}
-          </div>
-        </div>`;
+        /* Gmail hands back a snippet that is ALREADY html-escaped, so escaping it again
+           turned &#39; into &amp;#39; and printed it: "You&#39;re using your credits".
+           Decoded once before being escaped for the page. */
+        const snippet = inboxDecodeEntities(e.snippet || '');
+        const labelBadge = isSent
+          ? '<span class="mi-chan" style="background:rgba(91,160,232,.15);color:var(--blue);">Sent</span>'
+          : (e.labels || []).includes('DRAFT')
+          ? '<span class="mi-chan" style="background:rgba(232,180,91,.15);color:var(--amber);">Draft</span>'
+          : '';
+        return '<div class="mailitem mi-row ' + (e.is_unread ? 'unread' : '') +
+            (e.id === activeMailId ? ' active' : '') + '" data-mail-id="' + inboxEsc(e.id) + '">' +
+          '<button type="button" class="mi-check" title="Mark as read (hides from view)" ' +
+            'data-mark-read="' + inboxEsc(e.id) + '" style="position:relative;z-index:2;">' +
+            '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" class="mi-check-tick" ' +
+            'style="opacity:0;color:#fff;transition:.12s;pointer-events:none;">' +
+            '<path d="M3 8.5l3.2 3.2L13 5" stroke="currentColor" stroke-width="2.2" ' +
+            'stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+          '</button>' +
+          // Starring is Gmail's one-click "come back to this". It was the only row
+          // control with no equivalent here at all.
+          '<button type="button" class="mi-star' + (e.is_starred ? ' on' : '') + '" ' +
+            'data-star="' + inboxEsc(e.id) + '" aria-label="' +
+            (e.is_starred ? 'Unstar' : 'Star') + '" title="' +
+            (e.is_starred ? 'Unstar' : 'Star') + '">' + (e.is_starred ? '\u2605' : '\u2606') + '</button>' +
+          '<span class="mi-who">' + inboxEsc(displayName) + '</span>' +
+          '<span class="mi-line"><b>' + inboxEsc(subject) + '</b>' +
+            (snippet ? ' \u2014 ' + inboxEsc(snippet) : '') + '</span>' +
+          labelBadge +
+          (e.has_attachments ? '<span class="mi-att" title="Has an attachment">\u{1F4CE}</span>' : '') +
+          '<span class="mi-when">' + inboxEsc(formatMailTime(e.received_at)) + '</span>' +
+        '</div>';
       }
 
       function wireMailItems(emails) {
@@ -53545,9 +53638,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
            something by itself. Nothing opens by itself now, so the reader has to go back
            to its empty state -- otherwise switching category leaves the message from the
            PREVIOUS one sitting open beside a list it does not belong to. */
-        activeMailId = null;
-        if (mailReaderContent) mailReaderContent.style.display = 'none';
-        if (mailReaderEmpty) mailReaderEmpty.style.display = 'flex';
+        closeMail();
         document.querySelectorAll('[data-mail-filter]').forEach(f => f.classList.remove('active'));
         folder.classList.add('active');
         renderInbox();
@@ -53567,9 +53658,27 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       else { badge.style.display = 'none'; }
     }
 
+    /* Opening and closing a message are a pair, so the class that swaps list for reader
+       is set in one place each way -- otherwise one path leaves the screen showing both
+       or neither. */
+    function inboxScreenEl() { return document.querySelector('.screen[data-screen="inbox"]'); }
+    function setMailOpen(on) {
+      const sc = inboxScreenEl();
+      if (sc) sc.classList.toggle('mail-open', !!on);
+    }
+    function closeMail() {
+      activeMailId = null;
+      activeMail = null;
+      setMailOpen(false);
+      if (mailReaderContent) mailReaderContent.style.display = 'none';
+      if (mailReaderEmpty) mailReaderEmpty.style.display = 'flex';
+      document.querySelectorAll('#inboxRows .mailitem').forEach(el => el.classList.remove('active'));
+    }
+
     async function openMail(mail) {
       activeMailId = mail.id;
       activeMail = mail;
+      setMailOpen(true);
       // Update active state in the list
       document.querySelectorAll('#inboxRows .mailitem').forEach(el => el.classList.toggle('active', el.dataset.mailId === mail.id));
       // Render in reader
@@ -54434,6 +54543,20 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       });
     }
     setTimeout(wireInboxRefreshButton, 500);
+
+    document.addEventListener('click', function (e) {
+      if (e.target && e.target.closest && e.target.closest('#mailBackBtn')) closeMail();
+    });
+    // Escape goes back to the list, the same as the arrow -- only while a message is
+    // open and nothing is being typed, so it cannot fight the composer or a search box.
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape' || !activeMailId) return;
+      const sc = inboxScreenEl();
+      if (!sc || !sc.classList.contains('on')) return;
+      const t = e.target;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      closeMail();
+    });
 
     // Update Admin Integration card based on connection status
     async function updateAdminGmailCard() {

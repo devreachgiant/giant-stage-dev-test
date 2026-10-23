@@ -154,6 +154,83 @@ await step('picking a message opens it, and switching category closes it', async
   }
 });
 
+await step('a message takes the whole width, and the folders stay', async () => {
+  const back = page.locator('[data-mail-filter="INBOX"]').first();
+  if (await back.count()) { await back.click(); await page.waitForTimeout(900); }
+  const before = await page.evaluate(() => {
+    const w = (s) => { const el = document.querySelector(s); return el ? Math.round(el.getBoundingClientRect().width) : 0; };
+    return { list: w('.maillist'), rail: w('.ml-rail'), reader: w('.reader') };
+  });
+  // The list is the screen: no permanent half-width reading pane beside it.
+  check('the list fills the width', before.list > 500, JSON.stringify(before));
+  check('and the reader is not taking half of it', before.reader === 0, JSON.stringify(before));
+
+  await page.locator('#inboxRows [data-mail-id]').first().click();
+  await page.waitForTimeout(900);
+  const open = await page.evaluate(() => {
+    const el = (s) => document.querySelector(s);
+    const w = (s) => { const e = el(s); return e ? Math.round(e.getBoundingClientRect().width) : 0; };
+    return { list: w('.maillist'), rail: w('.ml-rail'), reader: w('.reader'),
+             back: !!el('#mailBackBtn') && getComputedStyle(el('#mailBackBtn')).display !== 'none' };
+  });
+  check('opening a message hides the list', open.list === 0, JSON.stringify(open));
+  check('and gives the reader the width', open.reader > 500, JSON.stringify(open));
+  // Gmail keeps its folder nav while you read. Ours used to live INSIDE the list, so it
+  // disappeared with it and there was no way to change folder without going back.
+  check('the folder rail stays put', open.rail > 80 && open.rail === before.rail,
+    before.rail + ' -> ' + open.rail);
+  check('and there is a way back', open.back);
+
+  await page.locator('#mailBackBtn').click();
+  await page.waitForTimeout(800);
+  const after = await page.evaluate(() => {
+    const w = (s) => { const el = document.querySelector(s); return el ? Math.round(el.getBoundingClientRect().width) : 0; };
+    return { list: w('.maillist'), reader: w('.reader') };
+  });
+  check('back returns the list', after.list > 500 && after.reader === 0, JSON.stringify(after));
+});
+
+await step('a row is one line: who, what, when', async () => {
+  const m = await page.evaluate(() => {
+    const row = document.querySelector('#inboxRows .mailitem');
+    if (!row) return null;
+    const r = row.getBoundingClientRect();
+    return { h: Math.round(r.height),
+             who: (row.querySelector('.mi-who') || {}).textContent,
+             line: (row.querySelector('.mi-line') || {}).textContent,
+             when: (row.querySelector('.mi-when') || {}).textContent,
+             star: !!row.querySelector('[data-star]'),
+             avatar: !!row.querySelector('.mi-ava') };
+  });
+  check('there is a row to measure', !!m, '');
+  if (!m) return;
+  // The whole point of the change: three lines and a logo became one line, so twenty
+  // messages fit where three did.
+  check('it is one line tall', m.h <= 44, m.h + 'px');
+  check('the sender is there', (m.who || '').length > 1, m.who);
+  check('subject and snippet share the line', /—/.test(m.line || ''), (m.line || '').slice(0, 70));
+  check('the time is on the right', (m.when || '').trim().length > 0, m.when);
+  check('and there is a star, as Gmail has', m.star);
+  check('the per-row logo is gone', !m.avatar, String(m.avatar));
+});
+
+await step('the snippet is not double-escaped', async () => {
+  /* Gmail hands back snippets already HTML-escaped, and escaping them again for the
+     page printed the entity: "You&#39;re using your credits". */
+  // Read from the row as it first rendered: the fixture's snippet already carries the
+  // entities, so no re-render hook is needed and the check measures the real path.
+  const r = await page.evaluate(() => {
+    const el = [...document.querySelectorAll('#inboxRows .mailitem')]
+      .find(x => x.getAttribute('data-mail-id') === 'em-2');
+    return el ? (el.querySelector('.mi-line') || {}).textContent : null;
+  });
+  check('the row rendered', !!r, String(r));
+  if (!r) return;
+  check("an apostrophe reads as an apostrophe", /You're/.test(r), r.slice(0, 80));
+  check('and an ampersand as an ampersand', /& running/.test(r), r.slice(0, 80));
+  check('no raw entity is left on screen', !/&#\d+;|&amp;/.test(r), r.slice(0, 80));
+});
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');

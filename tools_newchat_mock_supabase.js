@@ -697,7 +697,10 @@
       labels: ['INBOX', 'CATEGORY_UPDATES'], received_at: new Date(Date.now() - 2 * 3600e3).toISOString() },
     { id: 'em-2', profile_id: ME, gmail_id: 'g2', thread_id: 't2',
       from_email: 'noreply@netlify.com', from_name: 'Netlify',
-      subject: 'Deploy succeeded', snippet: 'Your site is live',
+      /* Gmail hands snippets back ALREADY html-escaped. Written that way here on
+         purpose: escaping it a second time for the page printed "You&#39;re" on screen,
+         and a fixture with clean text could never have caught it. */
+      subject: 'Deploy succeeded', snippet: 'You&#39;re live &amp; running',
       body_text: 'Your site is live', is_unread: true, is_starred: false,
       labels: ['INBOX', 'CATEGORY_UPDATES'], received_at: new Date(Date.now() - 4 * 3600e3).toISOString() },
     { id: 'em-3', profile_id: ME, gmail_id: 'g3', thread_id: 't3',
