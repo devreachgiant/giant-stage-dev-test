@@ -1,8 +1,14 @@
 // Netlify Function: gcal-oauth-callback
-// Exchanges the OAuth code from Google for an access_token + refresh_token.
+//
+// KEPT AS A PATH, NOT AS AN IMPLEMENTATION. The Calendar screen calls this URL, and
+// changing that at the same time as moving Gmail onto the same flow would be two risks
+// in one deploy. The exchange itself now lives in google-oauth.js, which Gmail uses
+// too -- two copies of an OAuth exchange drift, and the copy nobody is looking at is
+// the one left holding a stale scope list or a missing fix.
 
 const { allowOrigin } = require('./_cors');
 const { requireUser } = require('./_auth');
+const { exchangeCode } = require('./google-oauth');
 
 exports.handler = async (event) => {
   const headers = {
@@ -12,57 +18,21 @@ exports.handler = async (event) => {
     'Content-Type': 'application/json'
   };
   if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
-  // Security batch 2: caller must be a logged-in Giant user. The frontend fetch
-  // wrapper sends the Supabase session token; _auth.js verifies it with the Auth API.
   const auth = await requireUser(event);
   if (!auth.ok) return { statusCode: auth.response.statusCode, headers, body: auth.response.body };
   if (event.httpMethod !== 'POST') return { statusCode: 405, headers, body: JSON.stringify({ error: 'Method not allowed' }) };
 
-  const CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '821166997756-483v3q5verbk94el54lq05c5m7ppqe99.apps.googleusercontent.com';
-  const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-  if (!CLIENT_SECRET) {
-    return { statusCode: 500, headers, body: JSON.stringify({ error: 'GOOGLE_CLIENT_SECRET not configured in Netlify env vars' }) };
-  }
-
   let body;
-  try { body = JSON.parse(event.body); } catch(e) { return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) }; }
-  const { code, redirect_uri } = body;
-  if (!code) return { statusCode: 400, headers, body: JSON.stringify({ error: 'code required' }) };
+  try { body = JSON.parse(event.body); }
+  catch (e) { return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON' }) }; }
+  if (!body.code) return { statusCode: 400, headers, body: JSON.stringify({ error: 'code required' }) };
 
   try {
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code, client_id: CLIENT_ID, client_secret: CLIENT_SECRET,
-        redirect_uri: redirect_uri || `${event.headers.origin}/oauth/google/callback`,
-        grant_type: 'authorization_code'
-      }).toString()
-    });
-    const tokenData = await tokenRes.json();
-    if (!tokenRes.ok) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: tokenData.error_description || tokenData.error || 'Token exchange failed' }) };
-    }
-
-    // Get user email
-    let email = null;
-    try {
-      const userRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
-        headers: { 'Authorization': `Bearer ${tokenData.access_token}` }
-      });
-      if (userRes.ok) {
-        const userData = await userRes.json();
-        email = userData.email;
-      }
-    } catch(e) { /* non-fatal */ }
-
-    return { statusCode: 200, headers, body: JSON.stringify({
-      access_token: tokenData.access_token,
-      refresh_token: tokenData.refresh_token,
-      expires_in: tokenData.expires_in,
-      scope: tokenData.scope,
-      email
-    }) };
+    const redirectUri = body.redirect_uri || `${(event.headers && event.headers.origin) || ''}/oauth/google/callback`;
+    const r = await exchangeCode(body.code, redirectUri);
+    return r.ok
+      ? { statusCode: 200, headers, body: JSON.stringify(r.body) }
+      : { statusCode: r.status, headers, body: JSON.stringify({ error: r.error }) };
   } catch (e) {
     console.error('[gcal-oauth-callback]', e);
     return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };

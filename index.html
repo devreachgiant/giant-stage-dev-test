@@ -40119,14 +40119,20 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     try { localStorage.removeItem('giant_prj_column_order'); } catch(_) {}
     const path = window.location.pathname;
 
-    // CAPTURE Google Calendar OAuth callback
+    /* CAPTURE a Google OAuth callback. Calendar and Gmail come back through the SAME
+       redirect -- it is the one registered with Google -- so the only thing that says
+       which of them asked is the state we sent. Without reading it, connecting Gmail
+       would hand its code to the Calendar screen, which would store a mailbox token as
+       a calendar and leave both broken. */
     if (path.startsWith('/oauth/google/callback')) {
-      console.log('[bootstrap] Google Calendar OAuth callback detected');
       const url = new URL(window.location.href);
       const code = url.searchParams.get('code');
       const error = url.searchParams.get('error');
-      if (code) { try { sessionStorage.setItem('gcal_oauth_code', code); } catch(e) {} }
-      else if (error) { try { sessionStorage.setItem('gcal_oauth_error', error); } catch(e) {} }
+      const state = url.searchParams.get('state') || '';
+      const who = state.indexOf('gmail') === 0 ? 'gmail' : 'gcal';
+      console.log('[bootstrap] Google OAuth callback for', who);
+      if (code) { try { sessionStorage.setItem(who + '_oauth_code', code); } catch(e) {} }
+      else if (error) { try { sessionStorage.setItem(who + '_oauth_error', error); } catch(e) {} }
       window.history.replaceState({}, '', '/app');
     }
 
@@ -52683,7 +52689,10 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     // ── Check existing connection on Inbox open ──────────────────
     async function loadGmailConnection(opts = {}) {
       const allowPopup = opts.allowPopup === true;
-      const { data: tokenRow } = await supabase.from('gmail_tokens').select('*').eq('profile_id', session.user.id).maybeSingle();
+      // maybeSingle() ERRORS on more than one row, so every read of this table has to
+      // name a slot now that a person can have two mailboxes (20261022210000).
+      const { data: tokenRow } = await supabase.from('gmail_tokens').select('*')
+        .eq('profile_id', session.user.id).eq('slot', gmailCurrentSlot()).maybeSingle();
       if (!tokenRow) {
         // Show connect banner
         if (inboxConnectBanner) inboxConnectBanner.style.display = 'block';
@@ -52885,7 +52894,8 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
             }
           }
         }
-        await supabase.from('gmail_tokens').update({ last_sync_at: new Date().toISOString() }).eq('profile_id', session.user.id);
+        await supabase.from('gmail_tokens').update({ last_sync_at: new Date().toISOString() })
+          .eq('profile_id', session.user.id).eq('slot', gmailCurrentSlot());
       } catch (e) {
         console.error('[gmail] sync error:', e);
         if (typeof toast==='function') toast({type:'error', message:'Sync failed: ' + e.message});
@@ -53709,7 +53719,8 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
 
     async function sendGmailMessage({ to, subject, body, threadId, inReplyTo }) {
       // Get user email from gmail_tokens
-      const { data: tokenRow } = await supabase.from('gmail_tokens').select('email').eq('profile_id', session.user.id).maybeSingle();
+      const { data: tokenRow } = await supabase.from('gmail_tokens').select('email')
+        .eq('profile_id', session.user.id).eq('slot', gmailCurrentSlot()).maybeSingle();
       const fromEmail = tokenRow?.email || session.user.email;
       const raw = buildEmailRaw({ to, subject, body, inReplyTo, references: inReplyTo, fromEmail });
       const payload = { raw };
@@ -53729,10 +53740,182 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       return res.json();
     }
 
+    /* ───────── MORE THAN ONE MAILBOX ─────────
+       gmail_tokens is keyed (profile_id, slot) since 20261022210000, so a person can
+       connect a work address and a personal one without the second overwriting the
+       first. Slot 1 is the one they send from unless they say otherwise.
+
+       WHY THE FLOW CHANGED. Gmail used GIS initTokenClient -- the implicit flow -- which
+       hands back an access token good for an hour and NO refresh token. That is why the
+       one token in the database expired in June, why every send had to re-ask Google,
+       and why a scheduled inbox sync was impossible: a server cannot refresh what it was
+       never given. This is the authorization code flow with access_type=offline, which
+       Calendar in this same app has used all along, so it is a path this codebase
+       already trusts rather than a new idea.
+
+       The old path is still here and still used for any token that predates this, so
+       nobody is logged out by the change; they get the better one when they reconnect. */
+    const GMAIL_SLOT_KEY = 'giant.gmailSlot';
+    function gmailCurrentSlot() {
+      try {
+        const v = parseInt(localStorage.getItem(GMAIL_SLOT_KEY), 10);
+        if (v >= 1 && v <= 9) return v;
+      } catch (e) { /* private window */ }
+      return 1;
+    }
+    function gmailSetSlot(n) {
+      try { localStorage.setItem(GMAIL_SLOT_KEY, String(n)); } catch (e) { /* private window */ }
+    }
+    async function gmailAccounts() {
+      const { data } = await supabase.from('gmail_tokens')
+        .select('slot, email, label, expires_at, connected_at, last_sync_at, refresh_token')
+        .eq('profile_id', session.user.id).order('slot');
+      // The refresh token itself never leaves this function; only whether there is one,
+      // because that is the difference between a mailbox that keeps working and one
+      // that will ask for a password again within the hour.
+      return (data || []).map(r => ({
+        slot: r.slot, email: r.email, label: r.label,
+        expires_at: r.expires_at, connected_at: r.connected_at, last_sync_at: r.last_sync_at,
+        lasting: !!r.refresh_token
+      }));
+    }
+    async function gmailFreeSlot() {
+      const rows = await gmailAccounts();
+      for (let i = 1; i <= 9; i++) if (!rows.some(r => r.slot === i)) return i;
+      return null;
+    }
+
+    /* Send the person to Google for a code. access_type=offline with prompt=consent is
+       what asks for a refresh token; without BOTH, Google quietly returns an access
+       token on its own and the mailbox goes back to expiring in an hour. */
+    function startGmailOAuth(slot) {
+      const redirectUri = window.location.origin + '/oauth/google/callback';
+      const state = 'gmail_' + slot + '_' + Math.random().toString(36).slice(2, 10);
+      try {
+        sessionStorage.setItem('gmail_oauth_state', state);
+        sessionStorage.setItem('gmail_oauth_slot', String(slot));
+      } catch (e) { /* private window: the slot falls back to 1 below */ }
+      const url = 'https://accounts.google.com/o/oauth2/v2/auth'
+        + '?response_type=code'
+        + '&client_id=' + encodeURIComponent(GMAIL_CLIENT_ID)
+        + '&redirect_uri=' + encodeURIComponent(redirectUri)
+        + '&scope=' + encodeURIComponent(GMAIL_SCOPE + ' email')
+        + '&access_type=offline&include_granted_scopes=true&prompt=consent'
+        + '&state=' + encodeURIComponent(state);
+      window.location.href = url;
+    }
+
+    async function handleGmailOAuthCallback() {
+      let code = null, slot = 1;
+      try {
+        code = sessionStorage.getItem('gmail_oauth_code');
+        sessionStorage.removeItem('gmail_oauth_code');
+        const st = sessionStorage.getItem('gmail_oauth_slot');
+        if (st) { slot = parseInt(st, 10) || 1; sessionStorage.removeItem('gmail_oauth_slot'); }
+      } catch (e) { /* private window */ }
+      if (!code) return false;
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        const at = sess && sess.session && sess.session.access_token;
+        const res = await fetch('/.netlify/functions/google-oauth', {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' },
+                                 at ? { Authorization: 'Bearer ' + at } : {}),
+          body: JSON.stringify({ code: code, redirect_uri: window.location.origin + '/oauth/google/callback' })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Google would not complete the sign in');
+
+        /* THE SAME MAILBOX TWICE IS NOT A SECOND MAILBOX. Google decides which account
+           was picked, not us, so somebody meaning to add a second address can easily
+           hand back the first. Writing that to a new slot would leave two rows for one
+           inbox and a "second account" that is a copy. It goes back into the slot that
+           address already occupies. */
+        const existing = await gmailAccounts();
+        const same = data.email && existing.find(r => r.email === data.email);
+        const target = same ? same.slot : slot;
+
+        const expiresAt = new Date(Date.now() + ((data.expires_in || 3600) * 1000)).toISOString();
+        const row = {
+          profile_id: session.user.id, slot: target,
+          access_token: data.access_token,
+          expires_at: expiresAt,
+          scope: data.scope || GMAIL_SCOPE,
+          email: data.email || session.user.email,
+          connected_at: new Date().toISOString()
+        };
+        // Google only sends a refresh token the first time it is granted. Writing null
+        // over a good one would silently put this mailbox back to expiring hourly.
+        if (data.refresh_token) row.refresh_token = data.refresh_token;
+        const { error } = await supabase.from('gmail_tokens').upsert(row, { onConflict: 'profile_id,slot' });
+        if (error) throw new Error(error.message);
+
+        gmailSetSlot(target);
+        gmailAccessToken = data.access_token;
+        gmailTokenExpiresAt = Date.now() + ((data.expires_in || 3600) * 1000);
+        if (typeof toast === 'function') {
+          toast({ type: 'success', message: same && same.slot === target && existing.length
+            ? 'Reconnected ' + (data.email || 'Gmail')
+            : 'Connected ' + (data.email || 'Gmail') });
+        }
+        try { await syncGmailInbox(); await renderInbox(); } catch (e) { /* the token is saved either way */ }
+      } catch (e) {
+        console.error('[gmail-oauth]', e);
+        if (typeof toast === 'function') toast({ type: 'error', message: 'Gmail connect failed: ' + e.message });
+      }
+      return true;
+    }
+
+    /* A fresh access token for a mailbox that has a refresh token, without sending the
+       person back to Google. The swap needs the client secret, so it happens in a
+       function; the browser only ever holds the short-lived token that comes back. */
+    async function gmailRefreshSlot(tokenRow) {
+      if (!tokenRow || !tokenRow.refresh_token) return null;
+      const { data: sess } = await supabase.auth.getSession();
+      const at = sess && sess.session && sess.session.access_token;
+      const res = await fetch('/.netlify/functions/google-oauth', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' },
+                               at ? { Authorization: 'Bearer ' + at } : {}),
+        body: JSON.stringify({ action: 'refresh', refresh_token: tokenRow.refresh_token })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // 410 means the grant is gone for good -- revoked, or password changed. Keeping
+        // the dead refresh token would make every send retry something that can never
+        // work, so it is cleared and the screen asks for a reconnect.
+        if (res.status === 410 || data.dead) {
+          try {
+            await supabase.from('gmail_tokens').update({ refresh_token: null })
+              .eq('profile_id', session.user.id).eq('slot', tokenRow.slot);
+          } catch (e) { /* the error below is the one worth reporting */ }
+        }
+        return null;
+      }
+      const expiresAt = new Date(Date.now() + ((data.expires_in || 3600) * 1000));
+      try {
+        await supabase.from('gmail_tokens')
+          .update({ access_token: data.access_token, expires_at: expiresAt.toISOString() })
+          .eq('profile_id', session.user.id).eq('slot', tokenRow.slot);
+      } catch (e) { /* the token in hand still works for this call */ }
+      return { access_token: data.access_token, expires_at: expiresAt.getTime() };
+    }
+
     // ── Athena bridge: ensure a valid Gmail token + expose send (additive, no UI) ──
     async function ensureGmailTokenForAthena() {
       if (gmailAccessToken && gmailTokenExpiresAt && Date.now() < gmailTokenExpiresAt - 60000) return gmailAccessToken;
-      const { data: tokenRow } = await supabase.from('gmail_tokens').select('*').eq('profile_id', session.user.id).maybeSingle();
+      /* The mailbox they are sending from, not "the" mailbox. maybeSingle() threw the
+         moment a second one existed, because more than one row came back. */
+      const slot = gmailCurrentSlot();
+      let { data: tokenRow } = await supabase.from('gmail_tokens').select('*')
+        .eq('profile_id', session.user.id).eq('slot', slot).maybeSingle();
+      // The chosen one may have been disconnected: fall back to whichever is left
+      // rather than telling somebody with a working mailbox that Gmail is not connected.
+      if (!tokenRow) {
+        const { data: any1 } = await supabase.from('gmail_tokens').select('*')
+          .eq('profile_id', session.user.id).order('slot').limit(1);
+        if (any1 && any1.length) { tokenRow = any1[0]; gmailSetSlot(tokenRow.slot); }
+      }
       if (!tokenRow) throw new Error(giantIsDesktop()
         ? 'Gmail not connected. On the desktop app, connect Gmail from your browser: open the Inbox tab → Connect Gmail → follow the steps in your browser.'
         : 'Gmail not connected — open the Inbox tab and connect Gmail first.');
@@ -53740,6 +53923,15 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       if (Date.now() < expiresAt - 60000) {
         gmailAccessToken = tokenRow.access_token;
         gmailTokenExpiresAt = expiresAt;
+        return gmailAccessToken;
+      }
+      /* A refresh token means this can be fixed without the person doing anything --
+         including on the desktop build, where Google's browser sign-in cannot run at
+         all. This is the whole reason for moving off the implicit flow. */
+      const fresh = await gmailRefreshSlot(tokenRow);
+      if (fresh) {
+        gmailAccessToken = fresh.access_token;
+        gmailTokenExpiresAt = fresh.expires_at;
         return gmailAccessToken;
       }
       // Desktop can't silently refresh via GIS (embedded user-agent) — ask the user to reconnect from a browser.
@@ -53784,28 +53976,46 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
        Resolves true once a token is in hand. Throws with code 'desktop' when Google
        sign-in cannot complete in this build at all, so the caller can say so plainly
        instead of spinning on a popup that will never come back. */
-    window.giantGmailConnect = async () => {
+    window.giantGmailConnect = async (wantSlot) => {
       if (giantIsDesktop()) {
         const url = (location.origin && /^https?:/.test(location.origin)) ? location.origin : 'https://giant.reachgiant.com';
         try { window.open(url, '_blank', 'noopener'); } catch (_) {}
         const e = new Error('Google sign-in only works in a browser, not the desktop app.');
         e.code = 'desktop'; throw e;
       }
-      await initGisTokenClient();
-      const before = gmailAccessToken;
-      return await new Promise((resolve) => {
-        const orig = gmailTokenClient.callback;
-        let timer = null;
-        const finish = (ok) => { gmailTokenClient.callback = orig; clearTimeout(timer); resolve(ok); };
-        // If Google's popup dead-ends the callback never fires, so the promise has to
-        // end itself rather than leaving a button saying Connecting for ever.
-        timer = setTimeout(() => finish(!!(gmailAccessToken && gmailAccessToken !== before)), 90000);
-        gmailTokenClient.callback = async (resp) => {
-          try { await orig(resp); } catch (_) { /* the original path already reports */ }
-          finish(!!(resp && !resp.error));
-        };
-        gmailTokenClient.requestAccessToken({ prompt: 'consent' });
-      });
+      /* The code flow leaves the page, so this never resolves -- the answer comes back
+         as a fresh page load and handleGmailOAuthCallback picks it up there. Callers
+         that awaited a true/false now simply see the browser go to Google, which is
+         what connecting an account has always looked like everywhere else.
+
+         An explicit slot adds a mailbox; without one it reconnects the current one. */
+      // A parameter, not `arguments`: an arrow function has no arguments object of its
+      // own, so reading it here would have reached into whatever encloses this one.
+      const slot = wantSlot || gmailCurrentSlot();
+      startGmailOAuth(slot);
+      return false;
+    };
+
+    /* Add another mailbox. The free slot is worked out from what is already connected
+       rather than counted, so disconnecting the second of three and adding one again
+       reuses the gap instead of climbing for ever. */
+    window.giantGmailAddAccount = async () => {
+      const slot = await gmailFreeSlot();
+      if (!slot) {
+        if (typeof toast === 'function') toast({ type: 'error', message: 'That is as many mailboxes as Giant holds. Disconnect one first.' });
+        return false;
+      }
+      startGmailOAuth(slot);
+      return false;
+    };
+    window.giantGmailAccounts = async () => { try { return await gmailAccounts(); } catch (e) { return []; } };
+    window.giantGmailUse = async (slot) => {
+      const rows = await gmailAccounts();
+      if (!rows.some(r => r.slot === slot)) return false;
+      gmailSetSlot(slot);
+      // The token in hand belongs to the mailbox we just left.
+      gmailAccessToken = null; gmailTokenExpiresAt = 0;
+      return true;
     };
 
     if (replySendBtn) {
@@ -54204,18 +54414,42 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const status = document.getElementById('adminGmailStatus');
       const action = document.getElementById('adminGmailAction');
       if (!card || !status) return;
-      const { data: tokenRow } = await supabase.from('gmail_tokens').select('email, last_sync_at, connected_at').eq('profile_id', session.user.id).maybeSingle();
+      const { data: tokenRow } = await supabase.from('gmail_tokens')
+        .select('slot, email, last_sync_at, connected_at')
+        .eq('profile_id', session.user.id).eq('slot', gmailCurrentSlot()).maybeSingle();
       if (tokenRow) {
         card.style.opacity = '1';
         const syncTxt = tokenRow.last_sync_at ? 'synced ' + timeAgoAdmin(tokenRow.last_sync_at) : 'just connected';
-        status.innerHTML = `<span style="color:var(--green);">●</span> Connected · ${inboxEsc(tokenRow.email)} · ${inboxEsc(syncTxt)}`;
+        /* WHICH mailbox, when there is more than one. A card that says "Connected"
+           beside one address while Giant sends from another is worse than saying
+           nothing: the person has no way to tell, and finds out from a reply landing in
+           the wrong place. */
+        const all = await gmailAccounts();
+        const here = all.find(r => r.slot === tokenRow.slot) || {};
+        const others = all.filter(r => r.slot !== gmailCurrentSlot());
+        status.innerHTML = `<span style="color:var(--green);">●</span> Sending as ${inboxEsc(tokenRow.email)} · ${inboxEsc(syncTxt)}`
+          + (all.length > 1 ? ` <span style="opacity:.7">· ${all.length} mailboxes connected</span>` : '')
+          // A mailbox with no refresh token is one of the old ones: it will stop
+          // working within the hour and say so, rather than failing at the moment
+          // somebody presses Send.
+          + (here.lasting === false ? ` <span style="color:var(--amber,#B7791F)">· reconnect to keep it signed in</span>` : '');
         status.style.color = 'var(--text-2)';
+        gmailRenderAccountList(all, others);
         if (action) {
           action.style.display = '';
           action.textContent = 'Disconnect';
           action.onclick = async () => {
-            if (!confirm('Disconnect Gmail from Giant? Your synced emails will be removed.')) return;
-            await supabase.from('gmail_tokens').delete().eq('profile_id', session.user.id);
+            /* THIS mailbox, not every mailbox. Deleting by profile_id alone took all of
+               them, which on a person with a work address and a personal one is one
+               click away from disconnecting the account they were not even looking at.
+               window.confirm is also a no-op in the desktop build, so the guard made
+               the button do nothing at all there. */
+            const slot = gmailCurrentSlot();
+            const ok = await window.giantConfirmWarn(
+              'Disconnect ' + (tokenRow.email || 'this mailbox') + ' from Giant? Its synced emails will be removed.');
+            if (!ok) return;
+            await supabase.from('gmail_tokens').delete()
+              .eq('profile_id', session.user.id).eq('slot', slot);
             await supabase.from('emails').delete().eq('profile_id', session.user.id);
             gmailAccessToken = null;
             inboxLoaded = false;
@@ -54233,6 +54467,48 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         status.style.color = 'var(--text-3)';
         if (action) action.style.display = 'none';
       }
+    }
+
+    /* The list of mailboxes under the card: one row each, the one being used marked,
+       and a way to add another. Built here rather than in the markup because the number
+       of them is whatever the person has connected. */
+    function gmailRenderAccountList(all, others) {
+      const card = document.getElementById('adminGmailCard');
+      if (!card) return;
+      let host = document.getElementById('adminGmailAccounts');
+      if (!host) {
+        host = document.createElement('div');
+        host.id = 'adminGmailAccounts';
+        host.style.cssText = 'margin-top:10px;display:flex;flex-direction:column;gap:6px;';
+        card.appendChild(host);
+      }
+      const cur = gmailCurrentSlot();
+      host.innerHTML = (all || []).map(r => {
+        const on = r.slot === cur;
+        return '<div style="display:flex;align-items:center;gap:8px;font-size:12.5px;">'
+          + '<span style="width:7px;height:7px;border-radius:50%;background:' + (on ? 'var(--green,#1F7A45)' : 'var(--line-2,#444)') + '"></span>'
+          + '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
+            + inboxEsc(r.email || 'Mailbox ' + r.slot) + '</span>'
+          + (on
+              ? '<span style="opacity:.7">sending from</span>'
+              : '<button type="button" data-gmail-use="' + r.slot + '" style="background:none;border:0;color:var(--red,#D00400);font:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:0">Send from this</button>')
+          + '</div>';
+      }).join('')
+      + '<button type="button" id="adminGmailAdd" style="align-self:flex-start;margin-top:4px;background:none;border:0;color:var(--red,#D00400);font:inherit;font-size:12px;font-weight:700;cursor:pointer;padding:0">+ Add another mailbox</button>';
+
+      host.querySelectorAll('[data-gmail-use]').forEach(function (b3) {
+        b3.onclick = async () => {
+          const n = parseInt(b3.dataset.gmailUse, 10);
+          if (await window.giantGmailUse(n)) {
+            if (typeof toast === 'function') toast({ type: 'success', message: 'Sending from that mailbox now' });
+            inboxLoaded = false;
+            updateAdminGmailCard();
+            try { await syncGmailInbox(); await renderInbox(); } catch (e) { /* the choice is saved either way */ }
+          }
+        };
+      });
+      const add = document.getElementById('adminGmailAdd');
+      if (add) add.onclick = () => window.giantGmailAddAccount();
     }
 
     // Initial + when tokens change
@@ -60935,6 +61211,13 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
     (async () => {
       await handleGcalOAuthCallback();
       setTimeout(() => { loadGcalToken(); loadBookingSlug(); }, 2000);
+    })();
+
+    /* The same for Gmail. Coming back from Google is a fresh page load, so if nothing
+       picks the code up here it is simply lost and the connect appears to do nothing. */
+    (async () => {
+      try { await handleGmailOAuthCallback(); }
+      catch (e) { console.error('[gmail-oauth] callback', e); }
     })();
 
     // ══════════════════════════════════════════════════════════════
@@ -70601,8 +70884,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // Fetch connection states in parallel
       const safe = async (p) => { try { const r = await p; return r.data || null; } catch(e){ return null; } };
       const [gmail, gcal, stripe] = await Promise.all([
-        safe(supabase.from('gmail_tokens').select('email, connected_at').eq('profile_id', session.user.id).maybeSingle()),
-        safe(supabase.from('gcal_tokens').select('email, connected_at, last_sync_at').eq('profile_id', session.user.id).maybeSingle()),
+        safe(supabase.from('gmail_tokens').select('email, connected_at')
+          .eq('profile_id', session.user.id).order('slot').limit(1).maybeSingle()),
+        // A person can have two calendars as well as two mailboxes now the key allows
+        // it (20261022210000), and maybeSingle ERRORS on the second row. The card shows
+        // one line, so it names the first and leaves the detail to the Calendar screen.
+        safe(supabase.from('gcal_tokens').select('email, connected_at, last_sync_at')
+          .eq('profile_id', session.user.id).order('slot').limit(1).maybeSingle()),
         safe(supabase.from('stripe_tokens').select('stripe_user_id, connected_at').eq('profile_id', session.user.id).maybeSingle())
       ]);
       // Zoom check: ping the bookings-api with a probe action to see if env vars are configured server-side.
@@ -70663,7 +70951,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             if (typeof toast==='function') toast({type:'info', message:'Zoom is a workspace-level integration. To disable, remove ZOOM_* env vars in Netlify.', duration:6000});
             return;
           }
-          if (!confirm(`Disconnect ${labels[svc]}?`)) return;
+          // How many, said out loud: "Disconnect Gmail?" reads like one thing when it
+          // is about to take two. giantConfirmWarn, because window.confirm is a no-op
+          // in the desktop build and this button then does nothing at all.
+          let how = '';
+          if (svc === 'gmail') {
+            const { count } = await supabase.from('gmail_tokens')
+              .select('slot', { count: 'exact', head: true }).eq('profile_id', session.user.id);
+            if (count > 1) how = ' All ' + count + ' connected mailboxes will be removed.';
+          }
+          const ok = await window.giantConfirmWarn('Disconnect ' + labels[svc] + '?' + how);
+          if (!ok) return;
           if (svc === 'gmail') {
             await supabase.from('gmail_tokens').delete().eq('profile_id', session.user.id);
           } else if (svc === 'gcal') {
@@ -96885,17 +97183,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
     grConnBusy = 'gmail'; grConnSay.gmail = ''; grRender();
     try {
+      /* Connecting now LEAVES THE PAGE for Google and comes back as a fresh load, so
+         there is no answer to wait for here any more. Saying "the window closed before
+         it finished" while the browser is on its way to Google would be nonsense, so
+         this says where you are going instead. The Email screen picks the code up on
+         the way back and this row reads the result the next time it is opened. */
       const ok = await window.giantGmailConnect();
       if (ok) {
-        // Google saying yes is not the same as Giant being able to use the token. Ask
-        // the Email screen whether it can, and if it cannot, say that rather than
-        // turning the row green on the strength of a popup closing.
         grGmail.checked = false;
         await grCheckGmail();
         if (grGmail.ready) { grConnSay.gmail = ''; grToast('Gmail connected'); }
         else grConnSay.gmail = 'Google signed you in, but Giant cannot use the token yet. Open Email and press Connect Gmail there.';
       } else {
-        grConnSay.gmail = 'The Google window closed before it finished. Nothing changed.';
+        grConnSay.gmail = 'Taking you to Google to sign in. You will land back here.';
       }
     } catch (e) {
       grConnSay.gmail = e && e.code === 'desktop'
@@ -98116,9 +98416,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     grGmail.checked = true;
     try {
       grGmail.ready = !!(window.giantGmailReady && await window.giantGmailReady());
-      if (grGmail.ready && sb()) {
-        const { data } = await sb().from('gmail_tokens').select('email').eq('profile_id', me()).maybeSingle();
-        grGmail.email = (data && data.email) || '';
+      if (grGmail.ready) {
+        /* WHICH mailbox Growth would send from, asked of the screen that owns the
+           tokens rather than read out of the table here. Reading it directly used
+           maybeSingle on profile_id alone, which ERRORS the moment somebody connects a
+           second mailbox (20261022210000) -- and the catch below would have turned that
+           into "Gmail not connected" on a perfectly good connection. */
+        let addr = '';
+        try {
+          const rows = window.giantGmailAccounts ? await window.giantGmailAccounts() : [];
+          let slot = 1;
+          try { slot = parseInt(localStorage.getItem('giant.gmailSlot'), 10) || 1; } catch (e2) { /* private window */ }
+          const pick = rows.find(r => r.slot === slot) || rows[0];
+          addr = (pick && pick.email) || '';
+        } catch (e3) { /* the address is a nicety; being connected is the answer */ }
+        grGmail.email = addr;
       }
     } catch (e) { grGmail.ready = false; }
     grRender();

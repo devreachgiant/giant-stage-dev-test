@@ -679,6 +679,21 @@
   // rep sees, so that is the state worth booting into.
   DB.growth_course_done = [];
   DB.growth_secrets = [];
+  /* TWO MAILBOXES, keyed (profile_id, slot) since 20261022210000. One of each kind on
+     purpose: slot 1 has a refresh token and keeps itself signed in, slot 2 is an old
+     implicit-flow row with none, which is the one that stops working within the hour.
+     A fixture with two identical rows could not tell those apart, and telling them
+     apart is the whole point of the change. */
+  DB.gmail_tokens = [
+    { profile_id: ME, slot: 1, email: 'big@reachgiant.com', label: null,
+      access_token: 'mock-access-1', refresh_token: 'mock-refresh-1',
+      expires_at: new Date(Date.now() + 50 * 60000).toISOString(),
+      scope: 'https://www.googleapis.com/auth/gmail.send', connected_at: giso(30, 0), last_sync_at: giso(0, 1) },
+    { profile_id: ME, slot: 2, email: 'hello@reachgiant.com', label: null,
+      access_token: 'mock-access-2', refresh_token: null,
+      expires_at: new Date(Date.now() - 60 * 60000).toISOString(),
+      scope: 'https://www.googleapis.com/auth/gmail.send', connected_at: giso(10, 0), last_sync_at: null }
+  ];
   DB.growth_settings.push(
     { key: 'philosophy', value: { tips: [{ h: 'They want to feel heard', t: 'Ask thoughtful questions and really listen.' }],
         checklist: ['Stay calm and do not oversell'] }, updated_at: iso(30,0), updated_by: ME },
@@ -904,7 +919,16 @@
             error: { message: 'JSON object requested, multiple (or no) rows returned', code: 'PGRST116' } };
           return { data: data[0], error: null, count: total };
         }
-        if (this._single === 'maybe') return { data: data[0] || null, error: null, count: total };
+        /* maybeSingle allows NO row, not several. PostgREST answers PGRST116 the moment
+           a second row comes back, and this returned the first one with no error --
+           which quietly hid a real bug: every read of gmail_tokens filtered on
+           profile_id alone, so the first person to connect a second mailbox would have
+           broken sending, and a check driven against this mock could not have seen it. */
+        if (this._single === 'maybe') {
+          if (data.length > 1) return { data: null, count: total,
+            error: { message: 'JSON object requested, multiple (or no) rows returned', code: 'PGRST116' } };
+          return { data: data[0] || null, error: null, count: total };
+        }
         return { data, error: null, count: total, status: 200 };
       }
 
