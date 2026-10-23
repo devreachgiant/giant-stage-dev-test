@@ -201,7 +201,17 @@ ALLOWED = [(1, BEFORE_BAR_SELECTOR, AFTER_BAR_SELECTOR, _BAR_WHY),
            (1,
             "\n            const label = (c.name && c.name.trim()) ? c.name : (names.join(', ') || 'Group');",
             "\n            const label = names.join(', ') || (c.name && c.name.trim()) || 'Group';",
-            'the same wrong name in the other copy (the picker)')]
+            'the same wrong name in the other copy (the picker)'),
+           # This region's tail runs PAST the chat engine and into the Inbox module --
+           # its last lines are the Gmail token variables -- so the Gmail client id sits
+           # inside a range meant to protect old chat. The id moved to config.js so that
+           # pointing Giant at a different Google project is one line instead of six
+           # pasted copies; the old value is still the fallback, so nothing changes for
+           # anyone until that line does.
+           (1,
+            "    const GMAIL_CLIENT_ID = '821166997756-483v3q5verbk94el54lq05c5m7ppqe99.apps.googleusercontent.com';",
+            "    const GMAIL_CLIENT_ID = (window.GIANT_GOOGLE_CLIENT_ID || '821166997756-483v3q5verbk94el54lq05c5m7ppqe99.apps.googleusercontent.com');",
+            'the Google client id reads from config.js so a project swap is one edit')]
 
 # The baseline is the last commit BEFORE New Chat was merged into main, not main itself.
 # Once the branch landed, "main:index.html" became the file this tool is checking, so it

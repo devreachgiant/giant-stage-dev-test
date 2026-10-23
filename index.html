@@ -52521,7 +52521,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     // INBOX MODULE — Gmail integration
     // ══════════════════════════════════════════════════════════════
 
-    const GMAIL_CLIENT_ID = '821166997756-483v3q5verbk94el54lq05c5m7ppqe99.apps.googleusercontent.com';
+    const GMAIL_CLIENT_ID = (window.GIANT_GOOGLE_CLIENT_ID || '821166997756-483v3q5verbk94el54lq05c5m7ppqe99.apps.googleusercontent.com');
     const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify';
     // Running inside the Electron desktop app? Google Identity Services (browser OAuth) cannot
     // complete inside Electron (Google blocks embedded user-agents), so Gmail must be connected
@@ -53806,13 +53806,36 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     }
 
     async function handleGmailOAuthCallback() {
-      let code = null, slot = 1;
+      let code = null, slot = 1, failed = null;
       try {
         code = sessionStorage.getItem('gmail_oauth_code');
         sessionStorage.removeItem('gmail_oauth_code');
+        failed = sessionStorage.getItem('gmail_oauth_error');
+        sessionStorage.removeItem('gmail_oauth_error');
         const st = sessionStorage.getItem('gmail_oauth_slot');
         if (st) { slot = parseInt(st, 10) || 1; sessionStorage.removeItem('gmail_oauth_slot'); }
       } catch (e) { /* private window */ }
+
+      /* GOOGLE SAID NO, AND THE APP USED TO SAY NOTHING. The error came back on the URL,
+         was written to sessionStorage by the bootstrap, and then nobody ever read it --
+         so "Access blocked" ended with the person back on a screen that still said Not
+         connected, with no idea why.
+
+         access_denied covers two different things and the message has to cover both: the
+         person pressed Cancel, OR the Google project's consent screen is still in
+         Testing and their address is not on the tester list. The second one is not
+         something they can fix by trying again, so saying "try again" would be the
+         wrong advice. */
+      if (failed) {
+        const msg = failed === 'access_denied'
+          ? 'Google would not connect that account. Either the sign-in was cancelled, or '
+            + 'this address is not on the Google project\u2019s approved list yet \u2014 ask an '
+            + 'owner to add it, or to set the Google app to Internal.'
+          : 'Google would not connect that account (' + failed + ').';
+        if (typeof toast === 'function') toast({ type: 'error', message: msg, duration: 9000 });
+        console.warn('[gmail-oauth] Google returned', failed);
+        return true;
+      }
       if (!code) return false;
       try {
         const { data: sess } = await supabase.auth.getSession();
@@ -53865,6 +53888,10 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       }
       return true;
     }
+
+    // Reachable from a check: the callback normally only runs at boot, which a test
+    // cannot re-enter without reloading the whole app.
+    window.__gmailCallbackForTest = () => handleGmailOAuthCallback();
 
     /* A fresh access token for a mailbox that has a refresh token, without sending the
        person back to Google. The swap needs the client secret, so it happens in a
@@ -58611,7 +58638,7 @@ ${COMMON_SCHEMA}`;
     // ══════════════════════════════════════════════════════════════
     // GOOGLE CALENDAR MODULE
     // ══════════════════════════════════════════════════════════════
-    const GOOGLE_CALENDAR_CLIENT_ID = '821166997756-483v3q5verbk94el54lq05c5m7ppqe99.apps.googleusercontent.com';
+    const GOOGLE_CALENDAR_CLIENT_ID = (window.GIANT_GOOGLE_CLIENT_ID || '821166997756-483v3q5verbk94el54lq05c5m7ppqe99.apps.googleusercontent.com');
     const GOOGLE_CALENDAR_SCOPES = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email';
     let gcalToken = null;       // slot 1 (primary) — { access_token, refresh_token, expires_at, email, profile_id, slot }
     let gcalToken2 = null;      // slot 2 (secondary) — same shape
@@ -87754,7 +87781,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // INBOX MODULE — Gmail integration
     // ══════════════════════════════════════════════════════════════
 
-    const GMAIL_CLIENT_ID = '821166997756-483v3q5verbk94el54lq05c5m7ppqe99.apps.googleusercontent.com';
+    const GMAIL_CLIENT_ID = (window.GIANT_GOOGLE_CLIENT_ID || '821166997756-483v3q5verbk94el54lq05c5m7ppqe99.apps.googleusercontent.com');
     const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify';
     // Running inside the Electron desktop app? Google Identity Services (browser OAuth) cannot
     // complete inside Electron (Google blocks embedded user-agents), so Gmail must be connected

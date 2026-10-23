@@ -179,6 +179,32 @@ await step('Growth reads the mailbox without tripping over the second one', asyn
     /@/.test(r.says || ''), JSON.stringify(r));
 });
 
+await step('when Google refuses, the app says so', async () => {
+  /* "Access blocked" sends the person back to the app with error=access_denied on the
+     URL. That was written to sessionStorage and never read, so the screen still said
+     Not connected and gave no reason at all. */
+  const said = await page.evaluate(async () => {
+    const seen = [];
+    const realToast = window.toast;
+    window.toast = (o) => { seen.push(o); };
+    try {
+      sessionStorage.setItem('gmail_oauth_error', 'access_denied');
+      await window.__gmailCallbackForTest();
+    } finally { window.toast = realToast; }
+    return { seen, left: sessionStorage.getItem('gmail_oauth_error') };
+  });
+  check('something is said at all', said.seen.length === 1, JSON.stringify(said.seen));
+  if (!said.seen.length) return;
+  const m = said.seen[0];
+  check('and it is reported as a failure', m.type === 'error', m.type);
+  // access_denied means EITHER cancelled OR not on the tester list. Telling somebody to
+  // "try again" when their address is not approved is the wrong advice, so both have to
+  // be in the words.
+  check('it covers being cancelled', /cancel/i.test(m.message || ''), m.message);
+  check('and not being approved yet', /approved list|Internal/i.test(m.message || ''), m.message);
+  check('the error is cleared so it cannot repeat on the next load', !said.left, String(said.left));
+});
+
 /* LAST ON PURPOSE. This one really does send the browser to Google -- that is what
    connecting an account now does -- and the page is gone from that point on, so any
    step after it would fail with "execution context was destroyed" and look like a bug
