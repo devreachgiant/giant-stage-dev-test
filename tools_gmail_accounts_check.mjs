@@ -135,6 +135,10 @@ await step('a mailbox with a refresh token renews itself', async () => {
     // Expire slot 1 in the database, exactly as time would.
     const row = window.__mockDB.gmail_tokens.find(x => x.slot === 1);
     row.expires_at = new Date(Date.now() - 60000).toISOString();
+    // ...and drop the copy the page is holding. ensureGmailToken returns that one
+    // without asking the database, which is correct -- but it means expiring the row
+    // alone would not reach the refresh this step exists to measure.
+    await window.giantGmailUse(1);
     try {
       const ready = await window.giantGmailReady();
       const now = window.__mockDB.gmail_tokens.find(x => x.slot === 1);
@@ -203,6 +207,60 @@ await step('when Google refuses, the app says so', async () => {
   check('it covers being cancelled', /cancel/i.test(m.message || ''), m.message);
   check('and not being approved yet', /approved list|Internal/i.test(m.message || ''), m.message);
   check('the error is cleared so it cannot repeat on the next load', !said.left, String(said.left));
+});
+
+await step('Growth notices a mailbox arriving, without a reload', async () => {
+  /* Connecting happens on the Email screen. Growth asked once when it loaded and cached
+     the answer, and at boot that is a RACE with the Google callback writing the token --
+     so a mailbox connected a second ago was reported "Not connected" for the rest of the
+     session, and "Check all again" reset Zoom and Calendly but not Gmail, so the one
+     button meant to fix it could not. */
+  const r = await page.evaluate(async () => {
+    if (!window.grInit) return { noGrowth: true };
+    // Start from the state somebody lands in after the OAuth round trip: Growth has
+    // already decided Gmail is missing.
+    window.giantCurrentProfile.role = 'owner';
+    // Put the fixture back at the end: a later step counts free slots, and leaving it
+    // with a different number of mailboxes would make that step fail for a reason that
+    // has nothing to do with what it is checking.
+    const saved = window.__mockDB.gmail_tokens.slice();
+    window.__restoreMailboxes = () => {
+      window.__mockDB.gmail_tokens.length = 0;
+      saved.forEach(r => window.__mockDB.gmail_tokens.push(r));
+    };
+    // Drop the token the page is holding first. Without this the page still has a live
+    // token in memory and reports Connected against an empty table, which is a different
+    // (and fair) answer -- but not the one this step is about.
+    await window.giantGmailUse(2);
+    window.__mockDB.gmail_tokens.length = 0;
+    window.grInit('gr_connectors');
+    // Growth caches its answer, so emptying the table is not enough on its own -- it has
+    // to be told to look again, which is the same path the real fix uses.
+    window.dispatchEvent(new CustomEvent('giant:gmail-changed'));
+    await new Promise(res => setTimeout(res, 1400));
+    const before = (document.querySelector('[data-gr-conn="gmail"] .gr_st') || {}).textContent.trim();
+
+    // Now a mailbox appears, exactly as the callback would leave it.
+    window.__mockDB.gmail_tokens.push({
+      profile_id: window.giantCurrentProfile.id, slot: 1, email: 'dev@reachgiant.com',
+      access_token: 'fresh', refresh_token: 'r', scope: 's',
+      expires_at: new Date(Date.now() + 3600000).toISOString(),
+      connected_at: new Date().toISOString(), last_sync_at: null
+    });
+    window.dispatchEvent(new CustomEvent('giant:gmail-changed'));
+    await new Promise(res => setTimeout(res, 1200));
+    const after = (document.querySelector('[data-gr-conn="gmail"] .gr_st') || {}).textContent.trim();
+    window.__restoreMailboxes();
+    window.dispatchEvent(new CustomEvent('giant:gmail-changed'));
+    await new Promise(res => setTimeout(res, 400));
+    return { before, after, restored: window.__mockDB.gmail_tokens.length };
+  });
+  if (r.noGrowth) { check('Growth is on the page', false, 'grInit missing'); return; }
+  check('it starts out saying not connected', /Not connected/i.test(r.before), r.before);
+  // The measurement: the row changed on its own, with no reload and no second click.
+  check('and updates itself once the mailbox is there',
+    /Connected|Sending/i.test(r.after), r.before + ' -> ' + r.after);
+  check('and the fixture is left as it was found', r.restored === 2, String(r.restored));
 });
 
 /* LAST ON PURPOSE. This one really does send the browser to Google -- that is what

@@ -53876,6 +53876,9 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         gmailSetSlot(target);
         gmailAccessToken = data.access_token;
         gmailTokenExpiresAt = Date.now() + ((data.expires_in || 3600) * 1000);
+        // Anything else showing Gmail's state -- Growth's Connectors, for one -- asked
+        // once and cached the answer, so it has to be told rather than polled.
+        try { window.dispatchEvent(new CustomEvent('giant:gmail-changed')); } catch (e) { /* older engines */ }
         if (typeof toast === 'function') {
           toast({ type: 'success', message: same && same.slot === target && existing.length
             ? 'Reconnected ' + (data.email || 'Gmail')
@@ -54042,6 +54045,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       gmailSetSlot(slot);
       // The token in hand belongs to the mailbox we just left.
       gmailAccessToken = null; gmailTokenExpiresAt = 0;
+      try { window.dispatchEvent(new CustomEvent('giant:gmail-changed')); } catch (e) { /* older engines */ }
       return true;
     };
 
@@ -97120,6 +97124,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   async function grReprobe() {
     grConn.probed = false;
     grConn.zoom = null; grConn.calendly = null;
+    /* Gmail's answer is cached too, and leaving it out meant "Check all again" could
+       re-ask everything EXCEPT the one connector somebody had just changed -- so a
+       mailbox connected a moment ago stayed "Not connected" with no way to correct it
+       short of a reload. */
+    /* Gmail's answer is cached too, and leaving it out meant "Check all again" could
+       re-ask everything EXCEPT the one connector somebody had just changed -- so a
+       mailbox connected a moment ago stayed "Not connected" with no way to correct it
+       short of a reload. */
+    grGmail.checked = false;
     grRender();
     await grProbeConnectors();
     // The run log is server side too, so "check again" should re-read that as well.
@@ -98438,6 +98451,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      them, and exposes window.giantGmailSend. Growth calls that rather than asking for a
      second connection to the same mailbox -- one set of tokens, one place to revoke. */
   const grGmail = { ready: false, email: '', checked: false };
+  /* Connecting a mailbox happens on the Email screen, and Growth had no way to hear
+     about it: it asked once when it loaded and cached the answer. At boot that is a
+     race -- the Google callback writes the token at the same time -- so a connection
+     made a second ago could be reported as "Not connected" for the rest of the session. */
+  window.addEventListener('giant:gmail-changed', function () {
+    grGmail.checked = false;
+    grCheckGmail();
+  });
+
   async function grCheckGmail() {
     if (grGmail.checked) return grGmail.ready;
     grGmail.checked = true;
