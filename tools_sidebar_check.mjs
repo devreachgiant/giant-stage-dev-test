@@ -98,6 +98,59 @@ for (const [screen, group, want, gone] of ITEMS) {
   check(screen + ': clicking it still opens that screen', on === screen, String(on));
 }
 
+/* WHO CAN SEE WHICH GROUP.
+   Business had NO gate at all -- the label was visible to members and clients, which is
+   the hole this exists to keep shut. Growth is manager and above. Archive is the
+   in-house dev alone, and its items disagreed with their own group: Old Projects and
+   Old Chat had no gate, the other two said manager.
+
+   Measured as VISIBILITY per role, label AND items. An attribute says what was meant;
+   a width says what happened -- and the items are the half that was wrong here, so
+   checking only the label would have passed against the bug. */
+const GROUPS = [
+  ['business', ['owner', 'manager', 'inhouse_dev'], 'Business'],
+  ['growth',   ['owner', 'manager', 'inhouse_dev'], 'Growth'],
+  ['archive',  ['inhouse_dev'],                     'Archive']
+];
+const ALL_ROLES = ['owner', 'manager', 'inhouse_dev', 'member', 'client'];
+
+for (const [group, allowed, nice] of GROUPS) {
+  // Open the group as a role that CAN see it: a label hidden for the current role
+  // cannot be clicked, so the group never opens and every item reads as hidden for
+  // everybody -- which looks like a pass and measures nothing.
+  await page.evaluate(() => {
+    document.body.className = document.body.className.replace(/role-[a-z_]+/g, '').trim() + ' role-inhouse_dev';
+  });
+  await page.waitForTimeout(200);
+  await page.locator('.nav-group-label[data-navgroup="' + group + '"]').click().catch(() => {});
+  await page.waitForTimeout(400);
+
+  const seen = {};
+  for (const role of ALL_ROLES) {
+    seen[role] = await page.evaluate(([r, g]) => {
+      const body = document.body, was = body.className;
+      body.className = was.replace(/role-[a-z_]+/g, '').trim() + ' role-' + r;
+      const vis = (el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0; };
+      const label = document.querySelector('.nav-group-label[data-navgroup="' + g + '"]');
+      const items = [...document.querySelectorAll('[data-navgroup-body="' + g + '"] .nav-item[data-screen]')];
+      const out = { label: label ? vis(label) : false, items: items.filter(vis).length };
+      body.className = was;
+      return out;
+    }, [role, group]);
+  }
+
+  for (const role of allowed) {
+    check(nice + ': ' + role + ' sees the group', seen[role].label, JSON.stringify(seen[role]));
+    check(nice + ': ' + role + ' sees items in it', seen[role].items > 0, JSON.stringify(seen[role]));
+  }
+  const denied = ALL_ROLES.filter(r => allowed.indexOf(r) < 0);
+  for (const role of denied) {
+    check(nice + ': ' + role + ' does NOT see the group', !seen[role].label, JSON.stringify(seen[role]));
+    // The half that was actually broken: a hidden label with reachable items.
+    check(nice + ': and not a single item', seen[role].items === 0, JSON.stringify(seen[role]));
+  }
+}
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');
