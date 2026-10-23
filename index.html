@@ -8352,7 +8352,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
              Matches WS_GLOBAL_TABS's existing 'reports' tab, which already points at
              screen:'templates'. -->
         <div class="nav-item" data-screen="templates" data-label="Reports" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M2 6h12M6 6v8" stroke="currentColor" stroke-width="1.4"/></svg></span>Reports</div>
-        <div class="nav-item" data-screen="sops" data-label="SOPs & Workflows" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M5 8l1.5 1.5L11 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>SOPs &amp; Workflows</div>
+        <div class="nav-item" data-screen="sops" data-label="SOP" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M5 8l1.5 1.5L11 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>SOP</div>
         <div class="nav-item" data-screen="notes" data-label="Notes" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M3.5 2.5h5.5L13 6.5v6a1 1 0 01-1 1H3.5a1 1 0 01-1-1v-9a1 1 0 011-1Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M9 2.5V6.5h4M5.5 9h5M5.5 11.3h3" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>Notes</div>
         <div class="nav-item" data-screen="files" data-label="Files"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4a1 1 0 011-1h3.5l1.5 1.5H13a1 1 0 011 1V12a1 1 0 01-1 1H3a1 1 0 01-1-1V4Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>Files</div>
         <!-- Team Pulse was hidden here on the reasoning that Workspace's own Pulse tab
@@ -8409,12 +8409,14 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       <div class="nav-group-label nav-group-toggle" data-client-system-label data-navgroup="settings"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M12.73 6.38 L14.46 6.66 L14.46 9.34 L12.73 9.62 L12.62 9.91 L12.49 10.20 L13.52 11.62 L11.62 13.52 L10.20 12.49 L9.91 12.62 L9.62 12.73 L9.34 14.46 L6.66 14.46 L6.38 12.73 L6.09 12.62 L5.80 12.49 L4.38 13.52 L2.48 11.62 L3.51 10.20 L3.38 9.91 L3.27 9.62 L1.54 9.34 L1.54 6.66 L3.27 6.38 L3.38 6.09 L3.51 5.80 L2.48 4.38 L4.38 2.48 L5.80 3.51 L6.09 3.38 L6.38 3.27 L6.66 1.54 L9.34 1.54 L9.62 3.27 L9.91 3.38 L10.20 3.51 L11.62 2.48 L13.52 4.38 L12.49 5.80 L12.62 6.09 Z" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.25"/></svg></span><span class="group-label-text">Settings</span><svg class="nav-group-chev" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div class="nav-rail" id="rail2" data-navgroup-body="settings">
         <div class="nav-pill" id="pill2" style="opacity:0;"></div>
-        <div class="nav-item" data-screen="settings" data-label="Settings"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M12.73 6.38 L14.46 6.66 L14.46 9.34 L12.73 9.62 L12.62 9.91 L12.49 10.20 L13.52 11.62 L11.62 13.52 L10.20 12.49 L9.91 12.62 L9.62 12.73 L9.34 14.46 L6.66 14.46 L6.38 12.73 L6.09 12.62 L5.80 12.49 L4.38 13.52 L2.48 11.62 L3.51 10.20 L3.38 9.91 L3.27 9.62 L1.54 9.34 L1.54 6.66 L3.27 6.38 L3.38 6.09 L3.51 5.80 L2.48 4.38 L4.38 2.48 L5.80 3.51 L6.09 3.38 L6.38 3.27 L6.66 1.54 L9.34 1.54 L9.62 3.27 L9.91 3.38 L10.20 3.51 L11.62 2.48 L13.52 4.38 L12.49 5.80 L12.62 6.09 Z" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.25"/></svg></span>Settings</div>
+        <div class="nav-item" data-screen="settings" data-label="Preferences"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M12.73 6.38 L14.46 6.66 L14.46 9.34 L12.73 9.62 L12.62 9.91 L12.49 10.20 L13.52 11.62 L11.62 13.52 L10.20 12.49 L9.91 12.62 L9.62 12.73 L9.34 14.46 L6.66 14.46 L6.38 12.73 L6.09 12.62 L5.80 12.49 L4.38 13.52 L2.48 11.62 L3.51 10.20 L3.38 9.91 L3.27 9.62 L1.54 9.34 L1.54 6.66 L3.27 6.38 L3.38 6.09 L3.51 5.80 L2.48 4.38 L4.38 2.48 L5.80 3.51 L6.09 3.38 L6.38 3.27 L6.66 1.54 L9.34 1.54 L9.62 3.27 L9.91 3.38 L10.20 3.51 L11.62 2.48 L13.52 4.38 L12.49 5.80 L12.62 6.09 Z" stroke="currentColor" stroke-width="1.25" stroke-linejoin="round"/><circle cx="8" cy="8" r="2.2" stroke="currentColor" stroke-width="1.25"/></svg></span>Preferences</div>
         <div class="nav-item" data-screen="admin" data-label="Admin" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5l5.5 2.5v4c0 3.4-2.3 5.6-5.5 6.5-3.2-.9-5.5-3.1-5.5-6.5v-4L8 1.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>Admin</div>
         <div class="nav-item" data-screen="passwords" data-label="Passwords" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><rect x="3" y="7" width="10" height="7" rx="1.6" stroke="currentColor" stroke-width="1.4"/><path d="M5.2 7V4.8a2.8 2.8 0 015.6 0V7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="8" cy="10.3" r="1" fill="currentColor"/></svg></span>Passwords</div>
-        <!-- Renamed from "Help Us Improve" per redesign — same real Help Us Improve screen. -->
-        <div class="nav-item" data-screen="report" data-label="Help & Feedback" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3.2M8 11h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>Help &amp; Feedback <span class="badge" id="sidebarBadgeReports" style="display:none;">0</span></div>
-        <div class="nav-item" data-screen="changelog" data-label="Version &amp; Changelog" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M4 2h6l3 3v9H4V2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6 6.5h4M6 9h4M6 11.5h2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>Version &amp; Changelog</div>
+        <!-- The screen is still the Help Us Improve one; the label has been Help & Feedback
+             and is now Feedbacks. Renames here are label-only on purpose: data-screen is what
+             everything else keys off, so changing it would break every link to this screen. -->
+        <div class="nav-item" data-screen="report" data-label="Feedbacks" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.3" stroke="currentColor" stroke-width="1.4"/><path d="M8 5v3.2M8 11h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>Feedbacks <span class="badge" id="sidebarBadgeReports" style="display:none;">0</span></div>
+        <div class="nav-item" data-screen="changelog" data-label="Changelog" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M4 2h6l3 3v9H4V2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6 6.5h4M6 9h4M6 11.5h2.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg></span>Changelog</div>
         <div class="nav-item" data-external-link="https://drive.google.com/drive/folders/1_VbrE6kjVCYpglLC5ubkabMRuo78fNHg?usp=sharing" data-label="Download App"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5v8.2M4.7 6.7L8 9.9l3.3-3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 11.5v1.3a1.7 1.7 0 001.7 1.7h8.6a1.7 1.7 0 001.7-1.7v-1.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>Download App</div>
       </div>
 
@@ -12402,7 +12404,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
           <div style="max-width:1100px;margin:0 auto;">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
               <div>
-                <div style="font-size:20px;font-weight:800;letter-spacing:-0.01em;">SOPs &amp; Workflows</div>
+                <div style="font-size:20px;font-weight:800;letter-spacing:-0.01em;">SOP</div>
                 <div id="sopsPageSubtitle" style="font-size:12.5px;color:var(--text-3);margin-top:2px;">Everything the team needs to know what happens, who owns it, and how to do it.</div>
               </div>
               <div style="display:flex;gap:8px;">
@@ -12592,7 +12594,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         <div style="max-width:760px;margin:0 auto;padding:28px 24px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
             <div>
-              <div style="font-size:20px;font-weight:800;letter-spacing:-0.01em;">Version &amp; Changelog</div>
+              <div style="font-size:20px;font-weight:800;letter-spacing:-0.01em;">Changelog</div>
               <div style="font-size:12.5px;color:var(--text-3);margin-top:2px;">What changed in each release</div>
             </div>
             <button class="btn-red" id="changelogOpenModalBtn">+ New entry</button>
@@ -15254,12 +15256,13 @@ const TOOLS_GLOBAL_TABS = [
   { key:'record', label:'Record', screen:'record' },
 ];
 const TOOLS_GLOBAL_VISIBLE_SCREENS = ['passwords','reachai','crew','files','notes','record'];
-// System tab bar — Settings / Admin / Help Us Improve / Version & Changelog, same pattern.
+// System tab bar — Preferences / Admin / Feedbacks / Changelog, same pattern. The keys and
+// screens keep their original names; only the labels people read have changed.
 const SYSTEM_GLOBAL_TABS = [
-  { key:'settings', label:'Settings', screen:'settings' },
+  { key:'settings', label:'Preferences', screen:'settings' },
   { key:'admin', label:'Admin', screen:'admin' },
-  { key:'report', label:'Help Us Improve', screen:'report' },
-  { key:'changelog', label:'Version & Changelog', screen:'changelog' },
+  { key:'report', label:'Feedbacks', screen:'report' },
+  { key:'changelog', label:'Changelog', screen:'changelog' },
   // Not a screen — opens the real external link directly (same URL as the old sidebar item),
   // handled as a special case in the tab click handler below rather than a screen switch.
   { key:'downloadapp', label:'Download App', externalLink:'https://drive.google.com/drive/folders/1_VbrE6kjVCYpglLC5ubkabMRuo78fNHg?usp=sharing' },
