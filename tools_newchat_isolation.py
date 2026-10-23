@@ -212,7 +212,22 @@ ALLOWED = [(1, BEFORE_BAR_SELECTOR, AFTER_BAR_SELECTOR, _BAR_WHY),
             "    const GMAIL_CLIENT_ID = '821166997756-483v3q5verbk94el54lq05c5m7ppqe99.apps.googleusercontent.com';",
             "    const GMAIL_CLIENT_ID = (window.GIANT_GOOGLE_CLIENT_ID || '345496937897-g58n7lgeo90qd8h1rqasn8b8aepbvu75.apps.googleusercontent.com');",
             'the Google client id reads from config.js, and names the Google project '
-            'ReachGiant owns rather than a former developer\'s personal one')]
+            'ReachGiant owns rather than a former developer\'s personal one'),
+           # Same overlap as above: this variable belongs to the Inbox, not to old chat,
+           # and only sits in this range because the range ends a few lines inside the
+           # Inbox module. Gmail no longer uses Google Identity Services at all -- the
+           # implicit flow it drove returns no refresh token, which is why a connected
+           # mailbox died every hour, and it validates the page's address against the
+           # OAuth client's Authorized JavaScript origins, which is why connecting from
+           # anywhere but the live domain answered "Error 400: origin_mismatch". The
+           # authorization code flow replaced it everywhere, so the token client it held
+           # is gone with it.
+           (1,
+            "    let gmailTokenClient = null;\n",
+            "",
+            'the Gmail implicit flow (Google Identity Services) was removed in favour of '
+            'the authorization code flow, so its token client variable went with it; it '
+            'is Inbox code that happens to fall inside this range')]
 
 # The baseline is the last commit BEFORE New Chat was merged into main, not main itself.
 # Once the branch landed, "main:index.html" became the file this tool is checking, so it

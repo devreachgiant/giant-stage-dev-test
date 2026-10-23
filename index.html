@@ -2024,7 +2024,6 @@ body.chat-fullscreen .sidebar{display:none;}
    Narrow, one line each, count on the right: at full width the old full-bleed bars were
    seven rows of mostly empty space before a single message. */
 .ml-rail{width:184px;flex:none;border-right:1px solid var(--line);padding:10px 8px;overflow-y:auto;background:var(--pane);}
-@media(max-width:860px){.ml-rail{width:54px;}.ml-rail .ml-folder span:not(.ml-count){display:none;}.ml-folders-head{display:none;}}
 .ml-rail .ml-folder{padding:7px 10px;font-size:12px;border:0;background:none;margin-bottom:1px;}
 .ml-rail .ml-folder.active{background:var(--surface-2);font-weight:700;color:var(--text);}
 .ml-rail .ml-folder:hover{background:var(--surface-2);}
@@ -2067,6 +2066,38 @@ body.chat-fullscreen .sidebar{display:none;}
 .ml-folder svg{color:var(--text-3);flex-shrink:0;}
 .ml-folder-c{margin-left:auto;font-size:10px;color:var(--text-3);font-weight:600;}
 
+/* THE RAIL IS A NAV, NOT SEVEN CARDS. The folder rows carry a tinted gradient and a
+   coloured border each, which reads as a stack of little cards -- fine when they ran
+   full-width inside the list, cramped and noisy in a 184px column beside the app's own
+   sidebar, where everything else is a plain row.
+
+   These rules come after the per-category block on purpose: those are
+   [data-mail-filter] selectors, so matching that specificity and winning on order is
+   what takes the card chrome off. The icon tints stay -- the colour belongs on the
+   icon, which is how the sidebar next to it does it -- and the measurements are the
+   sidebar's own: 36px tall, 13.5px text, 11px gap, 9px radius. */
+.ml-rail{width:212px;padding:14px 10px;}
+.ml-rail .ml-folders{padding:0;border-top:0;margin-top:0;}
+.ml-rail .ml-folders-head{font-size:9.5px;letter-spacing:.15em;padding:0 9px 9px;}
+.ml-rail .ml-folder,
+.ml-rail .ml-folder[data-mail-filter]{display:flex;align-items:center;gap:11px;height:36px;
+  padding:0 9px;margin-bottom:2px;border:0;border-radius:9px;background:none;box-shadow:none;
+  font-size:13.5px;font-weight:500;color:var(--text-2);transition:background .14s var(--ease),color .14s var(--ease);}
+.ml-rail .ml-folder:hover,
+.ml-rail .ml-folder[data-mail-filter]:hover{background:var(--surface-2);color:var(--text);
+  transform:none;box-shadow:none;}
+.ml-rail .ml-folder.active,
+.ml-rail .ml-folder[data-mail-filter].active{background:var(--surface-2);color:var(--text);font-weight:700;}
+.ml-rail .ml-folder svg{width:16px;height:16px;}
+.ml-rail .ml-folder-c{margin-left:auto;font-size:11px;font-weight:600;color:var(--text-3);}
+.ml-rail .ml-folder.active .ml-folder-c{color:var(--text-2);}
+@media(max-width:1180px){.ml-rail{width:184px;}}
+/* Narrow: icons only, still centred rather than left-aligned against nothing. */
+@media(max-width:860px){.ml-rail{width:58px;padding:14px 8px;}
+  .ml-rail .ml-folder,.ml-rail .ml-folder[data-mail-filter]{justify-content:center;padding:0;gap:0;}
+  .ml-rail .ml-folder span{display:none;}
+  .ml-rail .ml-folders-head{display:none;}}
+
 /* folder icon picker */
 .folder-icons{display:flex;gap:6px;flex-wrap:wrap;}
 .fic{width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border:1.5px solid transparent;border-radius:9px;font-size:18px;cursor:pointer;transition:.14s;}
@@ -2089,6 +2120,13 @@ body.chat-fullscreen .sidebar{display:none;}
 .ml-scroll{flex:1;overflow-y:auto;padding:6px 8px;}
 .mailitem{display:flex;gap:10px;padding:11px 11px;border-radius:10px;cursor:pointer;position:relative;margin-bottom:1px;transition:background .13s var(--ease);animation:rise .4s var(--ease) backwards;align-items:center;}
 .mailitem:hover{background:var(--surface-2);}
+/* The box had no rule of its own -- only a :hover -- so it rendered as whatever the
+   browser draws for a bare <button>: a grey slab with a default border. */
+.ml-more{display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 12px 20px;}
+.ml-more .btn-ghost{padding:7px 16px;font-size:12px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--text-2);cursor:pointer;font-family:inherit;}
+.ml-more .btn-ghost:hover{background:var(--surface-2);color:var(--text);}
+.ml-more-n{font-size:11px;color:var(--text-3);}
+.mailitem .mi-check{display:flex;align-items:center;justify-content:center;width:17px;height:17px;flex-shrink:0;padding:0;border-radius:4px;border:1.5px solid var(--line-2);background:var(--surface);cursor:pointer;transition:background .12s var(--ease),border-color .12s var(--ease);}
 .mailitem .mi-check:hover{border-color:var(--text-2);background:var(--surface-2);}
 .mailitem .mi-check:hover .mi-check-tick{opacity:.5;}
 .mailitem.active{background:var(--surface-2);}
@@ -2137,6 +2175,16 @@ html[data-theme="light"] .chan-msgr{background:#DCE9F5;color:#0084FF;}
 .mi-when{flex:none;font-size:11.5px;color:var(--text-3);min-width:62px;text-align:right;}
 .mi-row.unread .mi-when{color:var(--text-2);font-weight:700;}
 .mi-att{flex:none;font-size:11px;color:var(--text-3);}
+.ml-bulk{display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--line);font-size:12px;}
+.ml-bulk-all{display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--text-3);}
+.ml-bulk-all input{width:14px;height:14px;accent-color:var(--red);cursor:pointer;}
+.ml-bulk-n{color:var(--text-3);min-width:78px;}
+/* The buttons appear only once something is selected: a row of actions that do nothing
+   is noise on an inbox you are only reading. */
+.ml-bulk-acts{display:none;gap:6px;}
+.ml-bulk.has-sel .ml-bulk-acts{display:inline-flex;}
+.ml-bulk.has-sel .ml-bulk-n{color:var(--text);font-weight:700;}
+.mailitem.mi-row.sel{background:rgba(208,4,0,.10);box-shadow:inset 2px 0 0 var(--red);}
 @media(max-width:760px){.mi-who{width:110px;}}
 .mail-section-header:not(:first-child){margin-top:4px;padding-top:18px;}
 .mail-section-label{font-size:14px;font-weight:800;color:var(--text);letter-spacing:-0.02em;line-height:1.2;}
@@ -11042,12 +11090,21 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                   Compose
                 </button>
               </div>
-              <div class="acct-tabs">
-                <div class="acct active">Gmail</div>
-              </div>
               <div class="ml-search">
                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.5" stroke="currentColor" stroke-width="1.5"/><path d="M10.5 10.5L14 14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
                 <input type="text" class="bare-input" id="inboxSearchInput" placeholder="Search mail">
+              </div>
+              <!-- Select and act on several at once, the way Gmail does. Hidden until
+                   something is selected, so an empty inbox is not a row of dead buttons. -->
+              <div class="ml-bulk" id="inboxBulkBar">
+                <label class="ml-bulk-all"><input type="checkbox" id="inboxSelectAll" aria-label="Select everything shown"><span>All</span></label>
+                <span class="ml-bulk-n" id="inboxSelCount">0 selected</span>
+                <span class="ml-bulk-acts">
+                  <button type="button" class="btn-ghost" data-bulk="read">Mark read</button>
+                  <button type="button" class="btn-ghost" data-bulk="star">Star</button>
+                  <button type="button" class="btn-ghost" data-bulk="unstar">Unstar</button>
+                  <button type="button" class="btn-ghost" data-bulk="clear">Cancel</button>
+                </span>
               </div>
               <!-- Folders section -->
             </div>
@@ -11134,6 +11191,13 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                 </div>
               </div>
             </div>
+          </main>
+
+          <!-- MOVED OUT OF THE READING PANE. These four dialogs sat inside <main class="reader">,
+             and the reader is display:none until a message is open -- so Compose, the template
+             picker and Email settings were all unreachable from the list, which is the only
+             place they are ever opened from. A dialog is fixed-positioned, but a hidden
+             ancestor removes it from the page regardless. -->
             <!-- Compose new email modal -->
             <div class="modal-overlay" id="composeMailModal">
               <div class="modal" style="max-width:880px;width:92vw;">
@@ -11329,7 +11393,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
                 </div>
               </div>
             </div>
-          </main>
+
 
           <!-- Pinned panel (Messenger-style) -->
           <aside class="inbox-pinned" id="inboxPinnedPanel">
@@ -52575,11 +52639,26 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     // complete inside Electron (Google blocks embedded user-agents), so Gmail must be connected
     // from a real browser. We detect desktop to reroute the Connect flow accordingly.
     const giantIsDesktop = () => /electron/i.test(navigator.userAgent || '') || !!(window.process && window.process.versions && window.process.versions.electron);
-    let gmailTokenClient = null;
     let gmailAccessToken = null;
     let gmailTokenExpiresAt = null;
     let inboxLoaded = false;
     let activeMailId = null;
+    /* SELECTION LIVES IN THE MODULE, not on the rows. Every render rebuilds the list
+       -- a star write, a folder recount, the poll -- and a selection kept on the DOM
+       would empty itself each time without anybody touching a checkbox. */
+    const inboxSel = new Set();
+    /* How far down the list we have asked to see. Gmail prints "1-50 of 1,050" and
+       gives you a next page; this stopped dead at 50 and said nothing at all, so a
+       mailbox with 886 in it looked like a mailbox with 50 in it. */
+    let inboxPageSize = 50;
+    let inboxPageKey = '';
+    /* WHY THE LAST ATTEMPT GAVE UP. "Gmail not connected (or token expired)" was the
+       one answer to five different situations -- never connected, pointing at a mailbox
+       that no longer exists, a refresh token Google revoked, a refresh call that failed,
+       a missing permission -- and only one of them is fixed by reconnecting. Each branch
+       now records what actually happened, and the screen prints that instead. */
+    let gmailAuthProblem = null;
+    let inboxAll = [];
 
     function inboxEsc(s) { return String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
     /* Gmail's snippet field arrives HTML-escaped. Escaping it a second time for the page
@@ -52599,7 +52678,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const now = new Date();
       const diffH = (now - d) / 3600000;
       if (diffH < 24 && d.getDate() === now.getDate()) {
-        return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: false });
+        return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
       }
       if (diffH < 168) return d.toLocaleDateString('en-US', { weekday: 'short' });
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -52611,69 +52690,14 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     }
 
     // ── Load Google Identity Services SDK ────────────────────────
-    function loadGisScript() {
-      return new Promise((resolve, reject) => {
-        if (window.google && window.google.accounts) return resolve();
-        const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-        if (existing) {
-          existing.addEventListener('load', () => resolve());
-          existing.addEventListener('error', reject);
-          return;
-        }
-        const s = document.createElement('script');
-        s.src = 'https://accounts.google.com/gsi/client';
-        s.async = true;
-        s.defer = true;
-        s.onload = () => resolve();
-        s.onerror = reject;
-        document.head.appendChild(s);
-      });
-    }
-
-    async function initGisTokenClient() {
-      await loadGisScript();
-      if (gmailTokenClient) return;
-      gmailTokenClient = window.google.accounts.oauth2.initTokenClient({
-        client_id: GMAIL_CLIENT_ID,
-        scope: GMAIL_SCOPE,
-        callback: async (resp) => {
-          if (resp.error) {
-            console.error('[gmail] OAuth error:', resp);
-            if (typeof toast==='function') toast({type:'error', message:'Gmail connection failed: ' + (resp.error_description || resp.error)});
-            return;
-          }
-          gmailAccessToken = resp.access_token;
-          gmailTokenExpiresAt = Date.now() + (resp.expires_in * 1000);
-          // Fetch user email
-          let userEmail = session.user.email;
-          try {
-            const profileRes = await fetch('https://www.googleapis.com/gmail/v1/users/me/profile', {
-              headers: { Authorization: 'Bearer ' + gmailAccessToken }
-            });
-            const profileData = await profileRes.json();
-            if (profileData.emailAddress) userEmail = profileData.emailAddress;
-          } catch(e) { console.warn('[gmail] Could not fetch profile:', e); }
-          // Persist token (use the actual granted scope from Google, not what we asked)
-          await supabase.from('gmail_tokens').upsert({
-            profile_id: session.user.id,
-            email: userEmail,
-            access_token: gmailAccessToken,
-            expires_at: new Date(gmailTokenExpiresAt).toISOString(),
-            scope: resp.scope || GMAIL_SCOPE,
-            connected_at: new Date().toISOString()
-          });
-          if (typeof toast==='function') toast({type:'success', message:'Gmail connected ✓ Syncing inbox…'});
-          // Trigger sync
-          await syncGmailInbox();
-          await renderInbox();
-        },
-        error_callback: (err) => {
-          console.error('[gmail] GIS error_callback:', err);
-          const t = (err && err.type) ? err.type : 'unknown';
-          if (typeof toast === 'function') toast({ type: 'error', message: 'Gmail sign-in didn\u2019t complete (' + t + '). If a blank Google screen appeared, this domain isn\u2019t an authorized origin for the OAuth client yet.', duration: 9000 });
-        }
-      });
-    }
+    /* The Google Identity Services token client used to live here: the implicit flow,
+       which hands back an access token good for an hour and no refresh token. It is
+       gone. It is why a connected mailbox stopped working every hour, why a scheduled
+       sync was impossible, and -- because it validates the page's address against the
+       OAuth client's Authorized JavaScript origins -- why connecting from anywhere but
+       the live domain answered "Error 400: origin_mismatch". Every Gmail connection now
+       goes through startGmailOAuth: one flow, a refresh token, no origin list to keep
+       in step. */
 
     // ── Connect Gmail click ──────────────────────────────────────
     const inboxConnectBtn = document.getElementById('inboxConnectBtn');
@@ -52705,7 +52729,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
             const rBtn = document.getElementById('inboxDesktopRefreshBtn');
             if (rBtn) rBtn.addEventListener('click', async () => {
               rBtn.disabled = true; rBtn.textContent = 'Checking…';
-              const ok = await loadGmailConnection({ allowPopup: false });
+              const ok = await loadGmailConnection();
               if (ok) {
                 await syncGmailInbox();
                 await renderInbox();
@@ -52723,16 +52747,16 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         try {
           inboxConnectBtn.disabled = true;
           inboxConnectBtn.textContent = 'Connecting…';
-          await initGisTokenClient();
-          const tokenBefore = gmailAccessToken;
-          gmailTokenClient.requestAccessToken({ prompt: 'consent' });
-          // Watchdog: if Google's popup dead-ends (e.g. this domain isn't an Authorized
-          // JavaScript origin for the OAuth client), the callback never fires and the user
-          // is stranded on a blank accounts.google.com/gsi/transform screen. Surface a clear cause.
-          setTimeout(() => {
-            if (gmailAccessToken && gmailAccessToken !== tokenBefore) return; // connected fine
-            if (typeof toast === 'function') toast({ type: 'error', message: 'Gmail didn\u2019t finish connecting. If you saw a blank Google screen, this app\u2019s domain likely isn\u2019t authorized for Google sign-in yet (admin: add it to the OAuth client\u2019s Authorized JavaScript origins).', duration: 10000 });
-          }, 30000);
+          /* THE CODE FLOW, not the popup. This button used to run Google Identity
+             Services, which checks the page's address against the OAuth client's
+             Authorized JavaScript origins -- so on any address not on that list
+             (a dev machine on :8888, a branch deploy) Google answered
+             "Error 400: origin_mismatch" and there was nothing to do about it from
+             here. The code flow validates the redirect URI instead, which is
+             registered, and it is the only one that comes back with a refresh token.
+             Growth's Connectors has gone through it for a while; the Inbox's own
+             Connect button was the last place still on the old dance. */
+          startGmailOAuth(gmailCurrentSlot());
         } catch (e) {
           console.error('[gmail] connect error:', e);
           if (typeof toast==='function') toast({type:'error', message:'Failed to start Gmail connection'});
@@ -52746,13 +52770,26 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     }
 
     // ── Check existing connection on Inbox open ──────────────────
-    async function loadGmailConnection(opts = {}) {
-      const allowPopup = opts.allowPopup === true;
+    async function loadGmailConnection() {
       // maybeSingle() ERRORS on more than one row, so every read of this table has to
       // name a slot now that a person can have two mailboxes (20261022210000).
-      const { data: tokenRow } = await supabase.from('gmail_tokens').select('*')
+      gmailAuthProblem = null;
+      let { data: tokenRow, error: rowErr } = await supabase.from('gmail_tokens').select('*')
         .eq('profile_id', session.user.id).eq('slot', gmailCurrentSlot()).maybeSingle();
+      /* THE REMEMBERED SLOT CAN POINT AT NOTHING. It lives in localStorage, so removing
+         a mailbox -- or connecting one on a different machine -- leaves this browser
+         asking for a slot that has no row, and the answer was indistinguishable from
+         never having connected at all. Fall back to the mailbox that does exist, and
+         remember it, rather than declaring a working account disconnected. */
       if (!tokenRow) {
+        const { data: others } = await supabase.from('gmail_tokens').select('*')
+          .eq('profile_id', session.user.id).order('slot');
+        if (others && others.length) { tokenRow = others[0]; gmailSetSlot(tokenRow.slot); }
+      }
+      if (!tokenRow) {
+        gmailAuthProblem = rowErr
+          ? 'Could not read your Gmail connection: ' + (rowErr.message || rowErr.code)
+          : 'No Gmail account is connected yet.';
         // Show connect banner
         if (inboxConnectBanner) inboxConnectBanner.style.display = 'block';
         if (inboxLoading) inboxLoading.style.display = 'none';
@@ -52764,55 +52801,25 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const expiresAt = new Date(tokenRow.expires_at).getTime();
       const now = Date.now();
       if (now > expiresAt - 60000) {
-        if (!allowPopup) {
-          // Background / init / tab-switch: do NOT pop the Google OAuth window on every load.
-          // Cached emails (already synced into Supabase) still render; the token refreshes only
-          // on an explicit user action (Refresh button / Connect).
-          gmailAccessToken = null;
-          gmailTokenExpiresAt = null;
+        /* THE REFRESH TOKEN FIRST. The swap happens in a function that holds the client
+           secret, so nobody is sent back to Google and it works on any origin. The old
+           path went straight to the GIS popup, which is why Refresh on a machine whose
+           address is not an Authorized JavaScript origin for the OAuth client answered
+           "popup_failed_to_open" instead of fetching mail. The popup below is now only
+           for rows old enough to predate the code flow, which have no refresh token. */
+        const fresh = await gmailRefreshSlot(tokenRow);
+        if (fresh) {
+          gmailAccessToken = fresh.access_token;
+          gmailTokenExpiresAt = fresh.expires_at;
+          tokenRow.access_token = fresh.access_token;
         } else {
-        // Try a silent re-auth (no UI) — re-uses the user's Google session if still active.
-        // Same pattern as Calendar (gcal) for a seamless Inbox experience.
-        try {
-          await initGisTokenClient();
-          await new Promise((resolve, reject) => {
-            // Temporarily swap the token callback to capture this silent attempt
-            const originalCb = gmailTokenClient.callback;
-            const timer = setTimeout(() => {
-              gmailTokenClient.callback = originalCb;
-              reject(new Error('silent reauth timed out'));
-            }, 4000);
-            gmailTokenClient.callback = async (resp) => {
-              clearTimeout(timer);
-              gmailTokenClient.callback = originalCb;
-              if (resp.error) {
-                reject(new Error(resp.error_description || resp.error));
-                return;
-              }
-              gmailAccessToken = resp.access_token;
-              gmailTokenExpiresAt = Date.now() + (resp.expires_in * 1000);
-              // Persist refreshed token
-              try {
-                await supabase.from('gmail_tokens').upsert({
-                  profile_id: session.user.id,
-                  access_token: resp.access_token,
-                  expires_at: new Date(gmailTokenExpiresAt).toISOString(),
-                  scope: resp.scope || tokenRow.scope,
-                  email: tokenRow.email,
-                  last_sync_at: tokenRow.last_sync_at,
-                  connected_at: tokenRow.connected_at
-                });
-              } catch(e) { console.warn('[gmail] silent token persist failed:', e); }
-              resolve();
-            };
-            gmailTokenClient.requestAccessToken({ prompt: '' });
-          });
-          // If we got here, silent refresh worked — continue as if not expired
-        } catch(e) {
-          console.log('[gmail] silent reauth failed, will need user action:', e.message);
+          /* Nothing silent is left to try. The refresh token is the only way back
+             without the person doing something, and when it fails the reason is
+             already recorded -- so this stops rather than opening a Google window
+             that cannot work here and says nothing useful when it fails. */
+          if (!gmailAuthProblem) gmailAuthProblem = 'The Gmail session expired and could not be renewed.';
           gmailAccessToken = null;
           gmailTokenExpiresAt = null;
-        }
         }
       } else {
         gmailAccessToken = tokenRow.access_token;
@@ -52823,6 +52830,8 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const requiredScopes = GMAIL_SCOPE.split(/\s+/);
       const missingScopes = requiredScopes.filter(s => !storedScopes.includes(s));
       if (missingScopes.length > 0) {
+        gmailAuthProblem = 'Gmail is connected but has not granted: '
+          + missingScopes.map(x => x.split('/').pop()).join(', ') + '. Reconnect to grant it.';
         console.log('[gmail] Missing scopes, re-consent needed:', missingScopes);
         // Show a different banner asking to reconnect for new features
         if (inboxConnectBanner) {
@@ -52839,8 +52848,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           const btn = document.getElementById('inboxReconnectBtn');
           if (btn) btn.addEventListener('click', async () => {
             btn.disabled = true; btn.textContent = 'Re-authorizing…';
-            await initGisTokenClient();
-            gmailTokenClient.requestAccessToken({ prompt: 'consent' });
+            startGmailOAuth(gmailCurrentSlot());
           });
         }
         return false;
@@ -52850,114 +52858,50 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     }
 
     // ── Sync Gmail inbox into Supabase emails table ──────────────
+    /* SYNCING IS NOT THE BROWSER'S JOB ANY MORE. It used to list five label queries,
+       download every message and write them all from the page, which meant a mailbox
+       was only ever as current as the last time somebody had the Email tab open -- and
+       on a fresh load the unread badge was whatever it had been hours ago.
+
+       The same endpoint the ten-minute schedule calls does it now, so there is one
+       implementation instead of two that drift, and it asks Gmail what has CHANGED
+       rather than re-listing everything: mail archived, deleted, read or starred
+       anywhere else finally reaches Giant, which the old insert-only scan could never
+       do no matter how often it ran.
+
+       The page keeps its own Gmail token for the things that are genuinely the page's
+       to do -- sending, and marking a message read as you open it. */
     async function syncGmailInbox(maxResults = 25, opts = {}) {
-      const silent = opts.showLoading === false; // background auto-refresh shouldn't pop OAuth windows
-      if (!gmailAccessToken) {
-        if (silent) {
-          // Auto-refresh fires every 2 min — never trigger an OAuth popup from there.
-          // The user will get a fresh token next time they actively open Inbox.
-          console.warn('[gmail] auto-refresh skipped — no access token (user needs to open Inbox)');
-          return;
-        }
-        await initGisTokenClient();
-        gmailTokenClient.requestAccessToken({ prompt: '' });
-        return;
-      }
-      // Only show loading if explicitly requested OR if no cache exists
-      const showLoading = opts.showLoading !== false && (opts.showLoading === true || !inboxRows.children.length);
-      if (showLoading && inboxLoading) inboxLoading.style.display = 'block';
+      const silent = opts.showLoading === false;
+      if (!silent && inboxLoading && !inboxRows.children.length) inboxLoading.style.display = 'block';
       try {
-        // Fetch from multiple categories — inbox, sent, drafts (we use Gmail label filters)
-        // We sync up to 50 from each category, then dedupe
-        const categories = [
-          { q: 'in:inbox', label: 'INBOX', limit: 100 },
-          { q: 'in:sent', label: 'SENT', limit: 50 },
-          { q: 'is:draft', label: 'DRAFT', limit: 20 },
-          { q: 'category:updates', label: 'UPDATES', limit: 100 },
-          { q: 'category:promotions', label: 'PROMOTIONS', limit: 100 }
-        ];
-        let allMessageIds = [];
-        for (const cat of categories) {
-          const listRes = await fetch(`https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=${cat.limit}&q=${encodeURIComponent(cat.q)}`, {
-            headers: { Authorization: 'Bearer ' + gmailAccessToken }
-          });
-          if (!listRes.ok) {
-            if (listRes.status === 401) {
-              gmailAccessToken = null;
-              if (silent) {
-                console.warn('[gmail] auto-refresh aborted — token expired');
-                return;
-              }
-              await initGisTokenClient();
-              gmailTokenClient.requestAccessToken({ prompt: '' });
-              return;
-            }
-            console.warn(`[gmail] List ${cat.label} failed:`, listRes.status);
-            continue;
+        const { data: sess } = await supabase.auth.getSession();
+        const at = sess && sess.session && sess.session.access_token;
+        const res = await fetch('/.netlify/functions/gmail-sync', {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' },
+                                 at ? { Authorization: 'Bearer ' + at } : {}),
+          body: '{}'
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || ('sync failed (' + res.status + ')'));
+        /* One mailbox failing is not "the sync ran". The reason is carried back so the
+           screen can say it, the same way a failed renewal does. */
+        const bad = (data.results || []).filter(r => !r.ok);
+        if (bad.length && bad.length === (data.results || []).length) {
+          gmailAuthProblem = bad[0].skipped || bad[0].error || 'Gmail would not sync.';
+          if (!silent && typeof toast === 'function') {
+            toast({ type: 'error', message: gmailAuthProblem, duration: 6000 });
           }
-          const data = await listRes.json();
-          (data.messages || []).forEach(m => {
-            if (!allMessageIds.find(x => x.id === m.id)) {
-              allMessageIds.push({ id: m.id, threadId: m.threadId });
-            }
-          });
+        } else {
+          gmailAuthProblem = null;
         }
-        if (!allMessageIds.length) {
-          if (inboxLoading) inboxLoading.style.display = 'none';
-          return;
-        }
-        // Fetch each message metadata in batches of 10
-        const fetchOne = async (id) => {
-          const r = await fetch(`https://www.googleapis.com/gmail/v1/users/me/messages/${id}?format=full`, {
-            headers: { Authorization: 'Bearer ' + gmailAccessToken }
-          });
-          return r.json();
-        };
-        const fetched = [];
-        for (let i = 0; i < allMessageIds.length; i += 10) {
-          const batch = allMessageIds.slice(i, i + 10);
-          const results = await Promise.all(batch.map(m => fetchOne(m.id)));
-          fetched.push(...results);
-        }
-        const rows = fetched.map(parseGmailMessage).filter(Boolean);
-        if (rows.length) {
-          // ── DEDUPE: only upsert emails we don't already have ──
-          // Fetches existing gmail_ids in one query, then filters out emails already in DB.
-          // This is critical for NANO compute — re-upserting 50 emails causes Unhealthy state.
-          const gmailIds = rows.map(r => r.gmail_id);
-          const { data: existing } = await supabase.from('emails')
-            .select('gmail_id')
-            .eq('profile_id', session.user.id)
-            .in('gmail_id', gmailIds);
-          const existingSet = new Set((existing || []).map(e => e.gmail_id));
-          const newRows = rows.filter(r => !existingSet.has(r.gmail_id));
-          if (newRows.length === 0) {
-            console.log('[gmail] no new emails to insert (all', rows.length, 'already in DB)');
-          } else {
-            console.log('[gmail] inserting', newRows.length, 'new emails (skipped', rows.length - newRows.length, 'duplicates)');
-            // ── BATCH INSERT: 10 at a time with 200ms delay between batches ──
-            // Prevents NANO compute from going Unhealthy on bulk inserts.
-            const upsertRows = newRows.map(r => ({ ...r, profile_id: session.user.id }));
-            const BATCH_SIZE = 10;
-            for (let i = 0; i < upsertRows.length; i += BATCH_SIZE) {
-              const chunk = upsertRows.slice(i, i + BATCH_SIZE);
-              const { error } = await supabase.from('emails').upsert(chunk, { onConflict: 'profile_id,gmail_id' });
-              if (error) {
-                console.warn('[gmail] batch', i / BATCH_SIZE, 'upsert error:', error);
-                // Don't break — try next batch (one bad email shouldn't kill the whole sync)
-              }
-              // Delay between batches except after the last one
-              if (i + BATCH_SIZE < upsertRows.length) {
-                await new Promise(r => setTimeout(r, 200));
-              }
-            }
-          }
-        }
-        await supabase.from('gmail_tokens').update({ last_sync_at: new Date().toISOString() })
-          .eq('profile_id', session.user.id).eq('slot', gmailCurrentSlot());
+        return data;
       } catch (e) {
         console.error('[gmail] sync error:', e);
-        if (typeof toast==='function') toast({type:'error', message:'Sync failed: ' + e.message});
+        if (!silent && typeof toast === 'function') {
+          toast({ type: 'error', message: 'Sync failed: ' + e.message });
+        }
       } finally {
         if (inboxLoading) inboxLoading.style.display = 'none';
       }
@@ -52968,65 +52912,11 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       return h ? h.value : '';
     }
 
-    function decodeBase64Url(s) {
-      try {
-        const padded = s.replace(/-/g, '+').replace(/_/g, '/');
-        return decodeURIComponent(escape(atob(padded)));
-      } catch(e) { return ''; }
-    }
-
-    function extractBody(payload) {
-      let html = '', text = '';
-      function walk(part) {
-        if (!part) return;
-        const mime = part.mimeType || '';
-        if (part.body && part.body.data) {
-          const decoded = decodeBase64Url(part.body.data);
-          if (mime === 'text/html' && !html) html = decoded;
-          else if (mime === 'text/plain' && !text) text = decoded;
-        }
-        (part.parts || []).forEach(walk);
-      }
-      walk(payload);
-      return { html, text };
-    }
-
-    function parseGmailMessage(msg) {
-      if (!msg || !msg.id) return null;
-      const headers = msg.payload?.headers || [];
-      const from = getHeader(headers, 'From');
-      const subject = getHeader(headers, 'Subject');
-      const to = getHeader(headers, 'To');
-      const dateHeader = getHeader(headers, 'Date');
-      const receivedAt = msg.internalDate ? new Date(parseInt(msg.internalDate)).toISOString() : (dateHeader ? new Date(dateHeader).toISOString() : new Date().toISOString());
-      // Parse "Name <email@x.com>"
-      let fromName = from, fromEmail = from;
-      const fromMatch = from.match(/^(.*?)\s*<(.+?)>\s*$/);
-      if (fromMatch) { fromName = fromMatch[1].trim().replace(/^"|"$/g,''); fromEmail = fromMatch[2].trim(); }
-      else if (from.includes('@')) { fromName = from.split('@')[0]; fromEmail = from; }
-      const labels = msg.labelIds || [];
-      const isUnread = labels.includes('UNREAD');
-      const isStarred = labels.includes('STARRED');
-      const { html, text } = extractBody(msg.payload);
-      const snippet = msg.snippet || '';
-      const hasAttachments = !!(msg.payload?.parts || []).find(p => p.filename && p.filename.length);
-      return {
-        gmail_id: msg.id,
-        thread_id: msg.threadId || null,
-        from_email: fromEmail,
-        from_name: fromName,
-        to_emails: to,
-        subject: subject || '(no subject)',
-        snippet,
-        body_html: html || null,
-        body_text: text || null,
-        is_unread: isUnread,
-        is_starred: isStarred,
-        has_attachments: hasAttachments,
-        labels,
-        received_at: receivedAt
-      };
-    }
+    /* decodeBase64Url / extractBody / parseGmailMessage used to live here: the page
+       turning raw Gmail payloads into rows. Gone with the browser-side sync -- the
+       function does that now, and bodies are read from the database when a message is
+       opened. Two copies of a message parser is exactly the kind of pair that drifts
+       until the one nobody is looking at starts storing the wrong thing. */
 
     let activeMailFilter = 'INBOX';
     let inboxSearchQuery = '';
@@ -53144,36 +53034,34 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       window._inboxLoadFailed = false;
       window._inboxLoadErrLogged = false;
       const allList = allEmails || [];
+      inboxAll = allList;
       // Update folder counts
       const setCount = (id, n) => { const el = document.getElementById(id); if (el) el.textContent = n; };
       const inInbox = (e) => (e.labels||[]).includes('INBOX');
       const inNotifications = (e) => inInbox(e) && (e.labels||[]).includes('CATEGORY_UPDATES');
       const inNewsletters = (e) => inInbox(e) && (e.labels||[]).includes('CATEGORY_PROMOTIONS');
-      // "Primary" Inbox = inbox emails that are NOT notifications and NOT newsletters
-      // BUT also includes ALL recent emails (last 24h) from any category — so important new mails are surfaced
-      // even after they're read. This matches Gmail's behavior of pinning recent activity to Primary.
-      const recentCutoff = Date.now() - 24 * 60 * 60 * 1000;
-      const isRecent = (e) => {
-        const t = e.received_at ? new Date(e.received_at).getTime() : 0;
-        return t >= recentCutoff;
-      };
-      const inPrimary = (e) => inInbox(e) && (
-        (!inNotifications(e) && !inNewsletters(e)) ||
-        isRecent(e)  // any recent inbox email → surface in Primary too
-      );
-      // Emails the user manually marked-as-read are hidden from the list — the badge/counters must respect this too.
-      let hiddenSet = new Set();
-      try {
-        const _hk = 'giant_inbox_hidden_' + (session?.user?.id || 'anon');
-        hiddenSet = new Set(JSON.parse(localStorage.getItem(_hk) || '[]'));
-      } catch(_) {}
+      /* INBOX MEANS INBOX, the way Gmail means it. This used to subtract everything
+         Google had filed under Updates or Promotions and call what was left "Primary":
+         Gmail's own Inbox read 886 while Giant's read 13, from the same mailbox, and
+         the 873 missing ones were not missing at all -- they were under two headings
+         nobody went looking in. Gmail only splits like that when category tabs are
+         switched on, and on this account they are not.
+
+         Updates and Promotions stay as their own filters, because looking at just
+         those is useful. They are no longer taken OUT of the inbox to do it. */
+      const inPrimary = (e) => inInbox(e);
+      /* THE LOCAL HIDE IS GONE. Marking read used to add the id to a list in this one
+         browser and drop the row from the view -- invisible to Gmail, invisible on
+         another machine, and with nothing anywhere to undo it. Gmail has no such
+         state, so neither does this. Anything hidden that way comes back, which is the
+         right way round: those messages were always still in the mailbox. */
       setCount('folderCountInbox', allList.filter(inPrimary).length);
       setCount('folderCountNotifications', allList.filter(inNotifications).length);
       setCount('folderCountNewsletters', allList.filter(inNewsletters).length);
       setCount('folderCountStarred', allList.filter(e => e.is_starred).length);
       setCount('folderCountSent', allList.filter(e => (e.labels||[]).includes('SENT')).length);
       setCount('folderCountDraft', allList.filter(e => (e.labels||[]).includes('DRAFT')).length);
-      setCount('folderCountUnread', allList.filter(e => e.is_unread && inPrimary(e) && !hiddenSet.has(e.id)).length);
+      setCount('folderCountUnread', allList.filter(e => e.is_unread && inPrimary(e)).length);
       // Filter by active filter (or skip filter when searching — search applies globally)
       let emails;
       if (inboxSearchQuery) {
@@ -53192,7 +53080,6 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         }
       }
       // Filter out emails the user has manually marked-as-read (hidden from this view, still in Gmail)
-      if (hiddenSet.size) emails = emails.filter(e => !hiddenSet.has(e.id));
 
       // Apply search query if any (matches subject, from, body, to)
       if (inboxSearchQuery) {
@@ -53205,7 +53092,12 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           return fields.some(f => f.includes(q));
         });
       }
-      emails = emails.slice(0, inboxSearchQuery ? 200 : 50);
+      /* Changing folder or typing a search starts again at the top: carrying "show 400"
+         across to a folder of 12 would be meaningless, and worse, silent. */
+      const pageKey = activeMailFilter + '|' + (inboxSearchQuery || '');
+      if (pageKey !== inboxPageKey) { inboxPageKey = pageKey; inboxPageSize = 50; }
+      const inboxTotalInView = emails.length;
+      emails = emails.slice(0, inboxPageSize);
       if (!emails || !emails.length) {
         inboxRows.innerHTML = '';
         if (inboxEmpty) {
@@ -53219,7 +53111,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         return;
       }
       if (inboxEmpty) inboxEmpty.style.display = 'none';
-      const unreadCount = allList.filter(e => e.is_unread && inPrimary(e) && !hiddenSet.has(e.id)).length;
+      const unreadCount = allList.filter(e => e.is_unread && inPrimary(e)).length;
       updateInboxBadge(unreadCount);
 
       // === SPARK-STYLE RENDERING ===
@@ -53236,6 +53128,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         // Legacy flat render
         inboxRows.innerHTML = emails.map((e, i) => renderMailItem(e, i)).join('');
         wireMailItems(emails);
+        renderInboxMore(emails.length, inboxTotalInView);
         // Nothing opens by itself here either -- see the note in the grouped renderer.
         return;
       }
@@ -53268,18 +53161,10 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         const main = [];
         const notifs = [];
         sec.items.forEach(e => {
-          /* TWO RULES WERE FIGHTING. inPrimary deliberately surfaces a RECENT
-             notification into the inbox -- "any recent inbox email → surface in Primary
-             too" -- and then this folded every notification into a bundle, so those
-             emails were counted in the Inbox total and shown nowhere. On a mailbox
-             where the recent post happens to be all LinkedIn and Netlify, that is an
-             inbox reading 13 with nothing in it.
-
-             Recent ones now keep their own row in the inbox; older ones still bundle,
-             which is what the bundle is for. In the Notifications category itself
-             nothing is bundled, because that IS the bundle. */
-          const isNotif = inNotifications(e) || inNewsletters(e) || isLikelyNotification(e);
-          if (isNotif && !(activeMailFilter === 'INBOX' && isRecent(e))) notifs.push(e);
+          // Nothing is bundled out of the inbox any more -- see inPrimary above.
+          const isNotif = activeMailFilter !== 'INBOX'
+            && (inNotifications(e) || inNewsletters(e) || isLikelyNotification(e));
+          if (isNotif) notifs.push(e);
           else main.push(e);
         });
         return { main, notifs };
@@ -53342,79 +53227,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       });
 
       inboxRows.innerHTML = html;
-      // Wire main email clicks
-      inboxRows.querySelectorAll('.mailitem:not(.mail-notif-aggr)').forEach(el => {
-        // Mark-as-read checkbox handler (must be wired here too — this is a separate render path)
-        /* The star. Written straight to the row and to the database, and the count on
-           the Starred folder re-read from the list -- a star that paints and does not
-           save is the kind of thing somebody only discovers when they come back for the
-           message and it is not there. */
-        const star = el.querySelector('[data-star]');
-        if (star && !star.dataset.wired) {
-          star.dataset.wired = '1';
-          star.addEventListener('click', async (ev) => {
-            ev.stopPropagation();
-            const id = star.dataset.star;
-            const row = (emails || []).find(x => x.id === id);
-            const next = !(row && row.is_starred);
-            if (row) row.is_starred = next;
-            star.classList.toggle('on', next);
-            star.textContent = next ? '\u2605' : '\u2606';
-            star.setAttribute('aria-label', next ? 'Unstar' : 'Star');
-            try {
-              await supabase.from('emails').update({ is_starred: next })
-                .eq('id', id).eq('profile_id', session.user.id);
-            } catch (err) {
-              // Put the star back rather than leaving the screen claiming something the
-              // database never took.
-              if (row) row.is_starred = !next;
-              star.classList.toggle('on', !next);
-              star.textContent = !next ? '\u2605' : '\u2606';
-            }
-            const cnt = document.getElementById('folderCountStarred');
-            if (cnt) cnt.textContent = String((emails || []).filter(x => x.is_starred).length);
-          });
-        }
-        const check = el.querySelector('[data-mark-read]');
-        if (check && !check.dataset.wired) {
-          check.dataset.wired = '1';
-          check.addEventListener('click', (ev) => {
-            ev.stopPropagation();
-            ev.preventDefault();
-            const mailId = check.dataset.markRead;
-            // Visual feedback: fill + tick
-            check.style.background = 'var(--red)';
-            check.style.borderColor = 'var(--red)';
-            const tick = check.querySelector('.mi-check-tick');
-            if (tick) tick.style.opacity = '1';
-            // Persist hidden state
-            const key = 'giant_inbox_hidden_' + (session?.user?.id || 'anon');
-            let hidden = [];
-            try { hidden = JSON.parse(localStorage.getItem(key) || '[]'); } catch(_){}
-            if (!hidden.includes(mailId)) {
-              hidden.push(mailId);
-              localStorage.setItem(key, JSON.stringify(hidden));
-            }
-            // Animate out
-            setTimeout(() => {
-              el.style.transition = 'opacity .22s, max-height .22s, margin .22s, padding .22s';
-              el.style.opacity = '0';
-              el.style.maxHeight = '0';
-              el.style.marginTop = '0';
-              el.style.marginBottom = '0';
-              el.style.padding = '0';
-              el.style.overflow = 'hidden';
-              setTimeout(() => { el.remove(); }, 220);
-            }, 180);
-            if (typeof toast === 'function') toast({type:'info', message:'Email hidden from view (still in Gmail)', duration: 2000});
-          });
-        }
-        el.addEventListener('click', () => {
-          const id = el.dataset.mailId;
-          const mail = emails.find(e => e.id === id);
-          if (mail) openMail(mail);
-        });
-      });
+      wireMailItems(emails);
       /* NOTHING OPENS BY ITSELF. Opening the newest message the moment the screen
          loads marks somebody else's choice as read, hides the list behind it, and means
          the first thing you see is whatever happened to arrive last -- a LinkedIn digest
@@ -53528,7 +53341,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           : '';
         return '<div class="mailitem mi-row ' + (e.is_unread ? 'unread' : '') +
             (e.id === activeMailId ? ' active' : '') + '" data-mail-id="' + inboxEsc(e.id) + '">' +
-          '<button type="button" class="mi-check" title="Mark as read (hides from view)" ' +
+          '<button type="button" class="mi-check" title="Select" aria-pressed="false" ' +
             'data-mark-read="' + inboxEsc(e.id) + '" style="position:relative;z-index:2;">' +
             '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" class="mi-check-tick" ' +
             'style="opacity:0;color:#fff;transition:.12s;pointer-events:none;">' +
@@ -53550,47 +53363,226 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         '</div>';
       }
 
+      /* THE CHECKBOX SELECTS. It used to mark the message read and hide it on one
+         click: a box shaped exactly like Gmail's select box that quietly did something
+         with no visible result. Selecting is selecting now, and hiding is one of the
+         actions you pick afterwards, with the count in front of you. */
+      function paintSelection() {
+        const rows = inboxRows.querySelectorAll('.mailitem[data-mail-id]');
+        rows.forEach(el => {
+          const on = inboxSel.has(el.dataset.mailId);
+          el.classList.toggle('sel', on);
+          const chk = el.querySelector('[data-mark-read]');
+          if (!chk) return;
+          chk.style.background = on ? 'var(--red)' : 'var(--surface)';
+          chk.style.borderColor = on ? 'var(--red)' : 'var(--line-2)';
+          chk.setAttribute('aria-pressed', on ? 'true' : 'false');
+          const tick = chk.querySelector('.mi-check-tick');
+          if (tick) tick.style.opacity = on ? '1' : '0';
+        });
+        const n = inboxSel.size;
+        const bar = document.getElementById('inboxBulkBar');
+        const cnt = document.getElementById('inboxSelCount');
+        const all = document.getElementById('inboxSelectAll');
+        if (cnt) cnt.textContent = n + ' selected';
+        if (bar) bar.classList.toggle('has-sel', n > 0);
+        if (all) { all.checked = n > 0 && n === rows.length; all.indeterminate = n > 0 && n < rows.length; }
+      }
+
+      function inboxPaintStars() {
+        inboxRows.querySelectorAll('[data-star]').forEach(b => {
+          const row = inboxAll.find(x => x.id === b.dataset.star);
+          const on = !!(row && row.is_starred);
+          b.classList.toggle('on', on);
+          b.textContent = on ? '★' : '☆';
+          b.setAttribute('aria-label', on ? 'Unstar' : 'Star');
+          b.title = on ? 'Unstar' : 'Star';
+        });
+        const cnt = document.getElementById('folderCountStarred');
+        if (cnt) cnt.textContent = String(inboxAll.filter(x => x.is_starred).length);
+      }
+
+      /* RLS refuses by returning no rows, not by erroring -- so the write asks for the
+         ids back and puts the stars where it found them if none come. A star that
+         paints and does not save is only discovered when somebody comes back for the
+         message and it is not in Starred. */
+      async function inboxSetStarred(ids, on) {
+        const list = [...new Set(ids.filter(Boolean))];
+        if (!list.length) return false;
+        const touch = (v) => {
+          list.forEach(id => { const r = inboxAll.find(x => x.id === id); if (r) r.is_starred = v; });
+          inboxPaintStars();
+        };
+        touch(on);
+        /* GMAIL IS THE MAILBOX, so the star goes there first and here second. Starring
+           in Giant used to write is_starred to our table and nothing else: the star
+           did not appear in Gmail, a star added in Gmail did not appear here, and the
+           two drifted apart in both directions. Gmail first because if it refuses
+           there is nothing to record. */
+        let gmailFailed = null;
+        try {
+          const token = await ensureGmailTokenForAthena();
+          const payload = on ? { addLabelIds: ['STARRED'] } : { removeLabelIds: ['STARRED'] };
+          for (const id of list) {
+            const row = inboxAll.find(x => x.id === id);
+            if (!row || !row.gmail_id) continue;
+            const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/'
+              + encodeURIComponent(row.gmail_id) + '/modify', {
+              method: 'POST',
+              headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload)
+            });
+            if (!res.ok) { gmailFailed = 'Gmail would not save the star (' + res.status + ')'; break; }
+          }
+        } catch (err) { gmailFailed = (err && err.message) || 'Gmail is not connected.'; }
+        if (gmailFailed) {
+          touch(!on);
+          if (typeof toast === 'function') toast({ type: 'error', message: gmailFailed, duration: 4500 });
+          return false;
+        }
+        let data = null, error = null;
+        try {
+          ({ data, error } = await supabase.from('emails')
+            .update({ is_starred: on }).in('id', list)
+            .eq('profile_id', session.user.id).select('id'));
+        } catch (err) { error = err; }
+        if (error || !data || !data.length) {
+          touch(!on);
+          if (typeof toast === 'function') toast({ type: 'error', duration: 4500,
+            message: error ? ('Could not save: ' + (error.message || error)) : 'Not saved — the server refused that change.' });
+          return false;
+        }
+        return true;
+      }
+
+      /* Same shape as the star: Gmail first, then our copy, and the screen only
+         claims what actually happened. */
+      async function inboxMarkRead(ids) {
+        const list = [...new Set(ids.filter(Boolean))];
+        if (!list.length) return false;
+        try {
+          const token = await ensureGmailTokenForAthena();
+          for (const id of list) {
+            const row = inboxAll.find(x => x.id === id);
+            if (!row || !row.gmail_id || !row.is_unread) continue;
+            const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/'
+              + encodeURIComponent(row.gmail_id) + '/modify', {
+              method: 'POST',
+              headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ removeLabelIds: ['UNREAD'] })
+            });
+            if (!res.ok) throw new Error('Gmail would not mark it read (' + res.status + ')');
+          }
+        } catch (err) {
+          if (typeof toast === 'function') toast({ type: 'error', duration: 4500,
+            message: (err && err.message) || 'Could not mark as read.' });
+          return false;
+        }
+        const { data, error } = await supabase.from('emails')
+          .update({ is_unread: false }).in('id', list)
+          .eq('profile_id', session.user.id).select('id');
+        // RLS refuses with no rows rather than an error.
+        if (error || !data || !data.length) {
+          if (typeof toast === 'function') toast({ type: 'error', duration: 4500,
+            message: error ? ('Not saved: ' + error.message) : 'Not saved \u2014 the server refused that change.' });
+          return false;
+        }
+        list.forEach(id => { const r = inboxAll.find(x => x.id === id); if (r) r.is_unread = false; });
+        return true;
+      }
+
+      function wireInboxBulkBar() {
+        const bar = document.getElementById('inboxBulkBar');
+        if (!bar || bar.dataset.wired) return;
+        bar.dataset.wired = '1';
+        const all = document.getElementById('inboxSelectAll');
+        if (all) all.addEventListener('change', () => {
+          inboxSel.clear();
+          if (all.checked) inboxRows.querySelectorAll('.mailitem[data-mail-id]')
+            .forEach(el => inboxSel.add(el.dataset.mailId));
+          paintSelection();
+        });
+        bar.querySelectorAll('[data-bulk]').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const act = btn.dataset.bulk;
+            if (act === 'clear') { inboxSel.clear(); paintSelection(); return; }
+            const ids = [...inboxSel];
+            if (!ids.length) return;
+            if (act === 'star' || act === 'unstar') {
+              await inboxSetStarred(ids, act === 'star');
+              inboxSel.clear();
+              paintSelection();
+              return;
+            }
+            if (act === 'read') {
+              /* MARKING READ NOW MARKS READ. It used to write the ids to localStorage
+                 and hide the rows -- a state that existed in one browser, that Gmail
+                 knew nothing about, and that nothing could undo. Gmail has no such
+                 idea; read is read, and the row stays where it is, unbolded. */
+              const ok = await inboxMarkRead(ids);
+              inboxSel.clear();
+              if (ok && typeof toast === 'function') toast({ type: 'success', duration: 2000,
+                message: ids.length + (ids.length > 1 ? ' emails' : ' email') + ' marked read' });
+              renderInbox();
+            }
+          });
+        });
+      }
+
+      /* Shown only when there IS more, and it says how much more -- a button reading
+         "Load more" with nothing behind it is worse than no button. */
+      function renderInboxMore(shown, total) {
+        const old = document.getElementById('inboxMoreRow');
+        if (old) old.remove();
+        if (!(total > shown)) return;
+        const row = document.createElement('div');
+        row.id = 'inboxMoreRow';
+        row.className = 'ml-more';
+        row.innerHTML = '<button type="button" class="btn-ghost" id="inboxMoreBtn">Load more</button>'
+          + '<span class="ml-more-n">' + shown.toLocaleString() + ' of ' + total.toLocaleString() + '</span>';
+        inboxRows.appendChild(row);
+        const btn = row.querySelector('#inboxMoreBtn');
+        btn.addEventListener('click', () => {
+          btn.disabled = true;
+          btn.textContent = 'Loading…';
+          inboxPageSize += 50;
+          renderInbox();
+        });
+      }
+
       function wireMailItems(emails) {
-        inboxRows.querySelectorAll('[data-mail-id]').forEach(el => {
-          // ── Mark-as-read checkbox handler (hides without deleting from DB) ──
+        wireInboxBulkBar();
+        inboxRows.querySelectorAll('.mailitem[data-mail-id]').forEach(el => {
+          const id = el.dataset.mailId;
           const check = el.querySelector('[data-mark-read]');
-          if (check) {
-            check.addEventListener('click', (e) => {
-              e.stopPropagation();
-              e.preventDefault();
-              const mailId = check.dataset.markRead;
-              // Visual feedback: fill the checkbox + show tick
-              check.style.background = 'var(--red)';
-              check.style.borderColor = 'var(--red)';
-              const tick = check.querySelector('.mi-check-tick');
-              if (tick) tick.style.opacity = '1';
-              // Persist hidden state
-              const key = 'giant_inbox_hidden_' + (session?.user?.id || 'anon');
-              let hidden = [];
-              try { hidden = JSON.parse(localStorage.getItem(key) || '[]'); } catch(_){}
-              if (!hidden.includes(mailId)) {
-                hidden.push(mailId);
-                localStorage.setItem(key, JSON.stringify(hidden));
-              }
-              // Animate out + remove from view (after a brief tick-visible moment)
-              setTimeout(() => {
-                el.style.transition = 'opacity .22s, max-height .22s, margin .22s, padding .22s';
-                el.style.opacity = '0';
-                el.style.maxHeight = '0';
-                el.style.marginTop = '0';
-                el.style.marginBottom = '0';
-                el.style.padding = '0';
-                el.style.overflow = 'hidden';
-                setTimeout(() => { el.remove(); }, 220);
-              }, 180);
-              if (typeof toast === 'function') toast({type:'info', message:'Email hidden from view (still in Gmail)', duration: 2000});
+          if (check && !check.dataset.wired) {
+            check.dataset.wired = '1';
+            check.title = 'Select';
+            check.addEventListener('click', (ev) => {
+              ev.stopPropagation();
+              ev.preventDefault();
+              if (inboxSel.has(id)) inboxSel.delete(id); else inboxSel.add(id);
+              paintSelection();
+            });
+          }
+          /* The star was drawn in every row and wired in neither path that runs --
+             clicking it opened the message instead of starring it. */
+          const star = el.querySelector('[data-star]');
+          if (star && !star.dataset.wired) {
+            star.dataset.wired = '1';
+            star.addEventListener('click', (ev) => {
+              ev.stopPropagation();
+              ev.preventDefault();
+              const row = inboxAll.find(x => x.id === id);
+              inboxSetStarred([id], !(row && row.is_starred));
             });
           }
           el.addEventListener('click', () => {
-            const mail = emails.find(e => e.id === el.dataset.mailId);
+            const mail = (emails || []).find(e => e.id === id);
             if (mail) openMail(mail);
           });
         });
+        paintSelection();
       }
 
       // Helpers for notification detection + brand coloring
@@ -54005,17 +53997,39 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
        person back to Google. The swap needs the client secret, so it happens in a
        function; the browser only ever holds the short-lived token that comes back. */
     async function gmailRefreshSlot(tokenRow) {
-      if (!tokenRow || !tokenRow.refresh_token) return null;
+      if (!tokenRow || !tokenRow.refresh_token) {
+        gmailAuthProblem = 'This mailbox was connected before Giant could keep it signed '
+          + 'in. Reconnect once and it stays connected.';
+        return null;
+      }
       const { data: sess } = await supabase.auth.getSession();
       const at = sess && sess.session && sess.session.access_token;
-      const res = await fetch('/.netlify/functions/google-oauth', {
-        method: 'POST',
-        headers: Object.assign({ 'Content-Type': 'application/json' },
-                               at ? { Authorization: 'Bearer ' + at } : {}),
-        body: JSON.stringify({ action: 'refresh', refresh_token: tokenRow.refresh_token })
-      });
+      let res;
+      try {
+        res = await fetch('/.netlify/functions/google-oauth', {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' },
+                                 at ? { Authorization: 'Bearer ' + at } : {}),
+          body: JSON.stringify({ action: 'refresh', refresh_token: tokenRow.refresh_token })
+        });
+      } catch (e) {
+        /* The function not being reachable at all -- offline, or a build without it --
+           threw out of here and out of whoever called it, which is how a network error
+           ended up as a blank screen rather than a sentence. */
+        gmailAuthProblem = 'Could not reach Giant\u2019s server to renew the Gmail session.';
+        console.warn('[gmail] refresh request failed:', e && e.message);
+        return null;
+      }
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
+        /* This used to return null and say nothing anywhere -- no log, no message -- so
+           a refresh failing and a mailbox never being connected looked identical on
+           screen and in the console. */
+        gmailAuthProblem = (res.status === 410 || data.dead)
+          ? 'Google has ended this connection (access removed, or the password changed). '
+            + 'Reconnect Gmail.'
+          : 'Google would not renew the session: ' + (data.error || ('HTTP ' + res.status));
+        console.warn('[gmail] refresh failed:', res.status, data.error || '');
         // 410 means the grant is gone for good -- revoked, or password changed. Keeping
         // the dead refresh token would make every send retry something that can never
         // work, so it is cleared and the screen asks for a reconnect.
@@ -54073,32 +54087,11 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       if (giantIsDesktop()) {
         throw new Error('Gmail session expired. Reconnect from your browser: Inbox tab → Connect Gmail (the desktop app can’t refresh Google sign-in itself).');
       }
-      await initGisTokenClient();
-      await new Promise((resolve, reject) => {
-        const originalCb = gmailTokenClient.callback;
-        const timer = setTimeout(() => { gmailTokenClient.callback = originalCb; reject(new Error('Gmail token refresh timed out')); }, 6000);
-        gmailTokenClient.callback = async (resp) => {
-          clearTimeout(timer);
-          gmailTokenClient.callback = originalCb;
-          if (resp.error) { reject(new Error(resp.error_description || resp.error)); return; }
-          gmailAccessToken = resp.access_token;
-          gmailTokenExpiresAt = Date.now() + (resp.expires_in * 1000);
-          try {
-            await supabase.from('gmail_tokens').upsert({
-              profile_id: session.user.id,
-              access_token: resp.access_token,
-              expires_at: new Date(gmailTokenExpiresAt).toISOString(),
-              scope: resp.scope || tokenRow.scope,
-              email: tokenRow.email,
-              last_sync_at: tokenRow.last_sync_at,
-              connected_at: tokenRow.connected_at
-            });
-          } catch(_) {}
-          resolve();
-        };
-        gmailTokenClient.requestAccessToken({ prompt: '' });
-      });
-      return gmailAccessToken;
+      /* Sending cannot redirect the page to Google halfway through composing, and the
+         popup this used to open is the one Google now refuses on an unregistered
+         origin. Say what will fix it instead of failing silently. */
+      throw new Error(gmailAuthProblem
+        || 'Gmail needs reconnecting \u2014 open the Inbox and click Connect Gmail.');
     }
     window.giantGmailReady = async () => { try { await ensureGmailTokenForAthena(); return true; } catch(_) { return false; } };
     window.giantGmailSend = async (args) => { await ensureGmailTokenForAthena(); return sendGmailMessage(args); };
@@ -54293,9 +54286,18 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     if (composeBtn) {
       composeBtn.addEventListener('click', async () => {
         composeAlert.className = 'auth-alert';
+        composeAlert.innerHTML = '';
+        /* An hour after the page loaded, the token in memory is stale and this said
+           "Gmail not connected" to somebody whose Gmail is perfectly connected. The
+           refresh token fixes it without a popup, so ask for a live token before
+           deciding there is a problem. It cannot open a Google window: there is no
+           longer one to open. */
+        try { await loadGmailConnection(); } catch (_) {}
         if (!gmailAccessToken) {
           composeAlert.className = 'auth-alert error';
-          composeAlert.innerHTML = '⚠️ Gmail not connected (or token expired). Reconnect in Inbox account settings to send.';
+          composeAlert.innerHTML = '\u26a0\ufe0f ' + inboxEsc(gmailAuthProblem
+            || 'Gmail is not connected (or the session expired).')
+            + ' You can still write this \u2014 it cannot be sent until Gmail reconnects.';
         }
         composeTo.value = '';
         composeSubject.value = '';
@@ -54441,7 +54443,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
 
     // ── Bootstrap when navigating to Inbox ───────────────────────
     async function bootstrapInbox() {
-      const connected = await loadGmailConnection({ allowPopup: false });
+      const connected = await loadGmailConnection();
       if (connected) {
         await renderInbox();
         if (!inboxLoaded) {
@@ -54458,7 +54460,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     });
     // Also trigger initial load early in background to populate the badge
     setTimeout(async () => {
-      const connected = await loadGmailConnection({ allowPopup: false });
+      const connected = await loadGmailConnection();
       if (connected) {
         renderInbox();
         // Background sync — silent (never pops the OAuth window on load)
@@ -54480,7 +54482,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       if (!inboxOn) return; // silent skip — don't spam console
       if (document.hidden) return;
       if (window._inboxLoadFailed) return; // DB is failing — stop hammering
-      const connected = await loadGmailConnection({ allowPopup: false });
+      const connected = await loadGmailConnection();
       if (!connected) return;
       try {
         await syncGmailInbox(25, { showLoading: false });
@@ -54499,34 +54501,23 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         const icon = btn.querySelector('svg');
         if (icon) icon.style.animation = 'spin 0.6s linear';
         try {
-          const connected = await loadGmailConnection({ allowPopup: true });
+          const connected = await loadGmailConnection();
           if (!connected) {
             if (typeof toast === 'function') toast({type:'error', message:'Gmail not connected — go to Admin to connect', duration: 3500});
             return;
           }
-          // If no token (expired or first time), trigger OAuth re-auth.
+          /* loadGmailConnection has already tried the refresh token. If there is still
+             no access token, this mailbox has no refresh token to swap -- it was
+             connected under the old implicit flow -- and the fix is one reconnect,
+             which grants one. Opening the sign-in popup here was the wrong answer
+             twice over: it fails outright on an unauthorised origin, and even where it
+             works it buys another hour and the same message next time. */
           if (!gmailAccessToken) {
-            await initGisTokenClient();
-            // Try silent first (uses Google session cookie) — 3s timeout
-            gmailTokenClient.requestAccessToken({ prompt: '' });
-            let waited = 0;
-            while (!gmailAccessToken && waited < 3000) {
-              await new Promise(r => setTimeout(r, 100));
-              waited += 100;
-            }
-            // If silent failed, retry with explicit consent popup (visible to user)
-            if (!gmailAccessToken) {
-              if (typeof toast === 'function') toast({type:'info', message:'Sign in to Google to refresh', duration: 3000});
-              gmailTokenClient.requestAccessToken({ prompt: 'consent' });
-              const startTime = Date.now();
-              while (!gmailAccessToken && (Date.now() - startTime) < 60000) {
-                await new Promise(r => setTimeout(r, 200));
-              }
-            }
-            if (!gmailAccessToken) {
-              if (typeof toast === 'function') toast({type:'error', message:'Could not refresh — reconnect Gmail in Admin', duration: 4000});
-              return;
-            }
+            if (inboxConnectBanner) inboxConnectBanner.style.display = 'block';
+            if (typeof toast === 'function') toast({ type: 'error', duration: 7000,
+              message: gmailAuthProblem
+                || 'Gmail needs reconnecting \u2014 click Connect Gmail once and it will stay connected.' });
+            return;
           }
           // Now sync. Use showLoading:true for clear feedback.
           await syncGmailInbox(25, { showLoading: true });

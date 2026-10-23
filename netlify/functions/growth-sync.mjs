@@ -10,13 +10,15 @@
 //   Calendly bookings   pulled in, attached to the matching deal by email address.
 //                       Shares runSync() with the Sync now button, so there is one
 //                       implementation rather than two that drift.
-//   Gmail replies       NOT done here, and the row says so rather than staying silent.
-//                       gmail_tokens holds an access token with an hour on it and no
-//                       refresh token, because the browser gets it through Google's
-//                       implicit flow. A server cannot renew that on its own, so a
-//                       half-hourly server side pull would work for an hour after
-//                       somebody opened the app and then quietly stop. Saying "not set
-//                       up" is honest; a step that works for an hour a day is not.
+//   Gmail replies       NOT done here -- but no longer for the reason this comment
+//                       used to give. It said a server cannot renew a Gmail token on
+//                       its own, which was true while the browser got tokens through
+//                       Google's implicit flow: an hour of access and nothing to renew
+//                       it with. Gmail uses the authorization code flow now and
+//                       gmail_tokens holds a refresh token, so a server CAN. The
+//                       mailbox itself is synced by gmail-sync (every ten minutes);
+//                       what is still missing is the Growth-specific part -- matching
+//                       replies back to deals -- not the ability to read mail.
 //   Fathom call notes   not built.
 //
 // A step that cannot run is still REPORTED. A screen that lists only what works tells

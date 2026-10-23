@@ -6,6 +6,17 @@
 [functions]
   node_bundler = "esbuild"
 
+# Gmail stays in step on its own. Every ten minutes, each connected mailbox is asked
+# what has changed since last time -- usually nothing, for a few hundred bytes. This is
+# only possible at all because the authorization code flow returns a refresh token; the
+# implicit flow it replaced handed back an hour of access and nothing to renew it with,
+# so a server-side sync would have worked for an hour after somebody opened the app and
+# then quietly stopped. The same endpoint is what the Refresh button calls, so there is
+# one implementation rather than two that drift.
+[functions."gmail-sync"]
+  schedule = "*/10 * * * *"
+  timeout = 26
+
 [functions."hercules-url-audit"]
   timeout = 26
 
