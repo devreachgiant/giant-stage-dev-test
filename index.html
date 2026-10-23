@@ -53172,13 +53172,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         // Legacy flat render
         inboxRows.innerHTML = emails.map((e, i) => renderMailItem(e, i)).join('');
         wireMailItems(emails);
-        // Auto-open first email of this category (mirrors spark-style behavior)
-        if (!activeMailId && emails.length) {
-          const firstToOpen = emails[0];
-          setTimeout(() => {
-            if (!activeMailId) openMail(firstToOpen);
-          }, 50);
-        }
+        // Nothing opens by itself here either -- see the note in the grouped renderer.
         return;
       }
 
@@ -53210,9 +53204,18 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         const main = [];
         const notifs = [];
         sec.items.forEach(e => {
-          // Treat as notification if it's a known notification-like sender
+          /* TWO RULES WERE FIGHTING. inPrimary deliberately surfaces a RECENT
+             notification into the inbox -- "any recent inbox email → surface in Primary
+             too" -- and then this folded every notification into a bundle, so those
+             emails were counted in the Inbox total and shown nowhere. On a mailbox
+             where the recent post happens to be all LinkedIn and Netlify, that is an
+             inbox reading 13 with nothing in it.
+
+             Recent ones now keep their own row in the inbox; older ones still bundle,
+             which is what the bundle is for. In the Notifications category itself
+             nothing is bundled, because that IS the bundle. */
           const isNotif = inNotifications(e) || inNewsletters(e) || isLikelyNotification(e);
-          if (isNotif) notifs.push(e);
+          if (isNotif && !(activeMailFilter === 'INBOX' && isRecent(e))) notifs.push(e);
           else main.push(e);
         });
         return { main, notifs };
@@ -53318,26 +53321,10 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
           if (mail) openMail(mail);
         });
       });
-      // Auto-open the first email of this category (always, when nothing selected)
-      if (!activeMailId && emails.length) {
-        // For category-specific filters, pick the most recent email in this category.
-        // For INBOX filter, prefer non-notification, falls back to first overall.
-        let firstToOpen;
-        if (activeMailFilter === 'INBOX') {
-          firstToOpen = emails.find(e => {
-            const isNotif = inNotifications(e) || inNewsletters(e);
-            return !isNotif;
-          }) || emails[0];
-        } else {
-          firstToOpen = emails[0];
-        }
-        if (firstToOpen) {
-          setTimeout(() => {
-            // Only open if user hasn't already picked something else in the meantime
-            if (!activeMailId) openMail(firstToOpen);
-          }, 50);
-        }
-      }
+      /* NOTHING OPENS BY ITSELF. Opening the newest message the moment the screen
+         loads marks somebody else's choice as read, hides the list behind it, and means
+         the first thing you see is whatever happened to arrive last -- a LinkedIn digest
+         as often as not. The list is the screen; a message opens when it is picked. */
       // Wire notification aggregate clicks → expand into a temporary view
       inboxRows.querySelectorAll('[data-notif-section]').forEach(el => {
         el.addEventListener('click', () => {
@@ -53551,7 +53538,13 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     document.querySelectorAll('[data-mail-filter]').forEach(folder => {
       folder.addEventListener('click', () => {
         activeMailFilter = folder.dataset.mailFilter;
-        activeMailId = null; // Reset selection so first email of new category auto-opens
+        /* Clearing the selection used to be the cue for the next category to open
+           something by itself. Nothing opens by itself now, so the reader has to go back
+           to its empty state -- otherwise switching category leaves the message from the
+           PREVIOUS one sitting open beside a list it does not belong to. */
+        activeMailId = null;
+        if (mailReaderContent) mailReaderContent.style.display = 'none';
+        if (mailReaderEmpty) mailReaderEmpty.style.display = 'flex';
         document.querySelectorAll('[data-mail-filter]').forEach(f => f.classList.remove('active'));
         folder.classList.add('active');
         renderInbox();

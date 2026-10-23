@@ -684,15 +684,44 @@
      implicit-flow row with none, which is the one that stops working within the hour.
      A fixture with two identical rows could not tell those apart, and telling them
      apart is the whole point of the change. */
+  /* A mailbox whose recent post is ALL notification-like, which is the shape that made
+     the inbox look empty: inPrimary surfaces recent notifications into the inbox, and
+     the renderer used to fold every notification into a bundle, so the count said 13 and
+     the list showed nothing but bundles. One older notification too, which should still
+     bundle, and one ordinary email, which must never have. */
+  DB.emails = [
+    { id: 'em-1', profile_id: ME, gmail_id: 'g1', thread_id: 't1',
+      from_email: 'messages-noreply@linkedin.com', from_name: 'LinkedIn',
+      subject: 'Someone at Sandhata you may know', snippet: 'Do you know Bharath?',
+      body_text: 'Do you know Bharath?', is_unread: true, is_starred: false,
+      labels: ['INBOX', 'CATEGORY_UPDATES'], received_at: new Date(Date.now() - 2 * 3600e3).toISOString() },
+    { id: 'em-2', profile_id: ME, gmail_id: 'g2', thread_id: 't2',
+      from_email: 'noreply@netlify.com', from_name: 'Netlify',
+      subject: 'Deploy succeeded', snippet: 'Your site is live',
+      body_text: 'Your site is live', is_unread: true, is_starred: false,
+      labels: ['INBOX', 'CATEGORY_UPDATES'], received_at: new Date(Date.now() - 4 * 3600e3).toISOString() },
+    { id: 'em-3', profile_id: ME, gmail_id: 'g3', thread_id: 't3',
+      from_email: 'michael.cash@example.com', from_name: 'Michael Cash',
+      subject: 'Re: the proposal', snippet: 'This looks good, can you send the agreement?',
+      body_text: 'This looks good, can you send the agreement?', is_unread: true, is_starred: false,
+      labels: ['INBOX'], received_at: new Date(Date.now() - 5 * 3600e3).toISOString() },
+    { id: 'em-4', profile_id: ME, gmail_id: 'g4', thread_id: 't4',
+      from_email: 'noreply@hubspot.com', from_name: 'Hubspot',
+      subject: 'Your weekly summary', snippet: 'Here is what happened',
+      body_text: 'Here is what happened', is_unread: false, is_starred: false,
+      labels: ['INBOX', 'CATEGORY_UPDATES'], received_at: new Date(Date.now() - 12 * 86400e3).toISOString() }
+  ];
   DB.gmail_tokens = [
     { profile_id: ME, slot: 1, email: 'big@reachgiant.com', label: null,
       access_token: 'mock-access-1', refresh_token: 'mock-refresh-1',
       expires_at: new Date(Date.now() + 50 * 60000).toISOString(),
-      scope: 'https://www.googleapis.com/auth/gmail.send', connected_at: giso(30, 0), last_sync_at: giso(0, 1) },
+      // The full scope list the app asks for: with a narrower one it correctly decides
+      // consent is missing and shows the connect banner instead of the mail.
+      scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify email', connected_at: giso(30, 0), last_sync_at: giso(0, 1) },
     { profile_id: ME, slot: 2, email: 'hello@reachgiant.com', label: null,
       access_token: 'mock-access-2', refresh_token: null,
       expires_at: new Date(Date.now() - 60 * 60000).toISOString(),
-      scope: 'https://www.googleapis.com/auth/gmail.send', connected_at: giso(10, 0), last_sync_at: null }
+      scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify email', connected_at: giso(10, 0), last_sync_at: null }
   ];
   DB.growth_settings.push(
     { key: 'philosophy', value: { tips: [{ h: 'They want to feel heard', t: 'Ask thoughtful questions and really listen.' }],
