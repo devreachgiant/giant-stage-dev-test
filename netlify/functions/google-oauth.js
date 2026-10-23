@@ -20,7 +20,7 @@ const { allowOrigin } = require('./_cors');
 const { requireUser } = require('./_auth');
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID
-  || '821166997756-483v3q5verbk94el54lq05c5m7ppqe99.apps.googleusercontent.com';
+  || '345496937897-g58n7lgeo90qd8h1rqasn8b8aepbvu75.apps.googleusercontent.com';
 
 // Exchange an authorization code for tokens.
 async function exchangeCode(code, redirectUri) {

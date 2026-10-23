@@ -21,4 +21,4 @@ window.GIANT_GIPHY_KEY = "8bAdkcborDMRSuCKUTHWnGsakxWRUnCd";
 //
 // Everyone reconnects Gmail and Calendar once after a change here: tokens are issued to
 // a client id and are meaningless to a different one.
-window.GIANT_GOOGLE_CLIENT_ID = "821166997756-483v3q5verbk94el54lq05c5m7ppqe99.apps.googleusercontent.com";
+window.GIANT_GOOGLE_CLIENT_ID = "345496937897-g58n7lgeo90qd8h1rqasn8b8aepbvu75.apps.googleusercontent.com";

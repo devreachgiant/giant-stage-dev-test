@@ -210,8 +210,9 @@ ALLOWED = [(1, BEFORE_BAR_SELECTOR, AFTER_BAR_SELECTOR, _BAR_WHY),
            # anyone until that line does.
            (1,
             "    const GMAIL_CLIENT_ID = '821166997756-483v3q5verbk94el54lq05c5m7ppqe99.apps.googleusercontent.com';",
-            "    const GMAIL_CLIENT_ID = (window.GIANT_GOOGLE_CLIENT_ID || '821166997756-483v3q5verbk94el54lq05c5m7ppqe99.apps.googleusercontent.com');",
-            'the Google client id reads from config.js so a project swap is one edit')]
+            "    const GMAIL_CLIENT_ID = (window.GIANT_GOOGLE_CLIENT_ID || '345496937897-g58n7lgeo90qd8h1rqasn8b8aepbvu75.apps.googleusercontent.com');",
+            'the Google client id reads from config.js, and names the Google project '
+            'ReachGiant owns rather than a former developer\'s personal one')]
 
 # The baseline is the last commit BEFORE New Chat was merged into main, not main itself.
 # Once the branch landed, "main:index.html" became the file this tool is checking, so it

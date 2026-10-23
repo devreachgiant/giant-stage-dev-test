@@ -28,7 +28,7 @@ async function sb(path, method = 'GET', payload = null) {
 }
 
 async function refreshGoogleToken(refreshToken) {
-  const clientId = process.env.GOOGLE_CLIENT_ID || '821166997756-483v3q5verbk94el54lq05c5m7ppqe99.apps.googleusercontent.com';
+  const clientId = process.env.GOOGLE_CLIENT_ID || '345496937897-g58n7lgeo90qd8h1rqasn8b8aepbvu75.apps.googleusercontent.com';
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   if (!clientSecret) throw new Error('GOOGLE_CLIENT_SECRET not set');
   const res = await fetch('https://oauth2.googleapis.com/token', {

@@ -85,7 +85,7 @@ exports.handler = async (event) => {
 
     // If 401, try refresh
     if (res.status === 401 && refresh_token && profile_id) {
-      const clientId = process.env.GOOGLE_CLIENT_ID || '821166997756-483v3q5verbk94el54lq05c5m7ppqe99.apps.googleusercontent.com';
+      const clientId = process.env.GOOGLE_CLIENT_ID || '345496937897-g58n7lgeo90qd8h1rqasn8b8aepbvu75.apps.googleusercontent.com';
       const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
       if (!clientSecret) {
         return { statusCode: 500, headers, body: JSON.stringify({ error: 'GOOGLE_CLIENT_SECRET not configured on server. Contact admin.', config_error: true }) };
