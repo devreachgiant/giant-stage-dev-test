@@ -995,6 +995,122 @@ await step('mail arrives without anybody pressing Refresh', async () => {
   }
 });
 
+await step('refreshing does not make the list flash', async () => {
+  /* Every row slid in on an entry animation, and the list is rebuilt on every render
+     -- so a refresh, a realtime row, or the 60-second tick replayed it on all fifty
+     rows at once. The whole list flashing, several times a minute, while you read. */
+  await ensureApp();
+  let syncBody = { ok: true, results: [{ ok: true, mode: 'history', added: 0 }] };
+  await page.unroute('**/.netlify/functions/gmail-sync').catch(() => {});
+  await page.route('**/.netlify/functions/gmail-sync', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(syncBody) }));
+
+  const animOf = () => page.evaluate(() => {
+    const row = document.querySelector('#inboxRows .mailitem');
+    return row ? getComputedStyle(row).animationName : null;
+  });
+  const settled = await animOf();
+  check('a settled list is not animating', settled === 'none', String(settled));
+
+  await page.locator('#inboxRefreshBtn').click();
+  await page.waitForTimeout(2500);
+  const afterRefresh = await animOf();
+  check('and it still is not, after a refresh', afterRefresh === 'none', String(afterRefresh));
+  check('the first-paint flag is off once the list is filled',
+    !(await page.evaluate(() => document.getElementById('inboxRows').classList.contains('first-paint'))), '');
+});
+
+await step('Refresh says what it found', async () => {
+  const toastsAfterClick = async () => {
+    await page.evaluate(() => {
+      window.__toasts = [];
+      const host = document.getElementById('toastHost');
+      host.querySelectorAll('.toast').forEach(t => t.remove());
+      if (!host.__wired) {
+        host.__wired = 1;
+        new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => {
+          if (n.nodeType === 1) window.__toasts.push((n.textContent || '').trim());
+        }))).observe(host, { childList: true });
+      }
+    });
+    await page.locator('#inboxRefreshBtn').click();
+    await page.waitForTimeout(2600);
+    return page.evaluate(() => (window.__toasts || []).join(' | '));
+  };
+
+  /* "Inbox refreshed" said the same thing whether twenty messages had arrived or none
+     had -- the one question somebody pressing Refresh is actually asking. */
+  await page.unroute('**/.netlify/functions/gmail-sync').catch(() => {});
+  await page.route('**/.netlify/functions/gmail-sync', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ ok: true, results: [{ ok: true, mode: 'history', added: 0 }] }) }));
+  let said = await toastsAfterClick();
+  check('nothing new says so plainly', /up to date/i.test(said), said.slice(0, 90));
+
+  await page.unroute('**/.netlify/functions/gmail-sync');
+  await page.route('**/.netlify/functions/gmail-sync', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ ok: true, results: [{ ok: true, mode: 'history', added: 3 }] }) }));
+  said = await toastsAfterClick();
+  check('new mail is counted', /3 new messages/.test(said), said.slice(0, 90));
+
+  await page.unroute('**/.netlify/functions/gmail-sync');
+  await page.route('**/.netlify/functions/gmail-sync', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ ok: true, results: [{ ok: true, mode: 'full', added: 120, remaining: 640, done: false }] }) }));
+  said = await toastsAfterClick();
+  check('a first sync says it is still catching up', /still catching up/i.test(said) && /640/.test(said),
+    said.slice(0, 110));
+});
+
+await step('a sync does not throw you back to the top', async () => {
+  /* A GUARD, NOT A FIX. The list is rebuilt wholesale on every render and syncing is
+     now automatic, so being thrown back to the top mid-read would hit everybody,
+     constantly. I wrote code to save and restore the position -- and then this check
+     passed with that code deleted, which means the position was never being lost:
+     replacing innerHTML in one go never leaves an intermediate layout for the browser
+     to clamp against. The restore was removed as dead weight.
+
+     This stays as a regression guard. Being honest about it: no sabotage makes it
+     fail today, so it is proving a property rather than catching a bug. */
+  await ensureApp();
+  await page.evaluate(() => {
+    const db = window.__mockDB.emails;
+    const me = (db[0] && db[0].profile_id) || window.__mockDB.profiles[0].id;
+    for (let i = 0; i < 60; i++) db.push({
+      id: 'scroll-' + i, profile_id: me, gmail_id: 'g-scroll-' + i, thread_id: 't-scroll-' + i,
+      from_email: 's' + i + '@example.com', from_name: 'Sender ' + i,
+      to_emails: 'me@example.com', subject: 'Scrollable ' + i, snippet: 'body',
+      is_unread: false, is_starred: false, has_attachments: false,
+      labels: ['INBOX'], received_at: new Date(Date.now() - (i + 5) * 3600000).toISOString() });
+  });
+  await page.evaluate(() => document.querySelector('.ml-folder[data-mail-filter="SENT"]')?.click());
+  await page.waitForTimeout(800);
+  await page.evaluate(() => document.querySelector('.ml-folder[data-mail-filter="INBOX"]')?.click());
+  await page.waitForTimeout(1500);
+
+  const scrolled = await page.evaluate(() => {
+    const sc = document.querySelector('.ml-scroll');
+    if (!sc) return null;
+    sc.scrollTop = 400;
+    return { set: sc.scrollTop, max: sc.scrollHeight - sc.clientHeight };
+  });
+  check('the list is long enough to scroll', !!scrolled && scrolled.set > 200,
+    JSON.stringify(scrolled));
+  if (!scrolled || scrolled.set <= 200) return;
+
+  await page.unroute('**/.netlify/functions/gmail-sync').catch(() => {});
+  await page.route('**/.netlify/functions/gmail-sync', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ ok: true, results: [{ ok: true, mode: 'history', added: 0 }] }) }));
+  await page.locator('#inboxRefreshBtn').click();
+  await page.waitForTimeout(2600);
+
+  const after = await page.evaluate(() => document.querySelector('.ml-scroll').scrollTop);
+  check('your place in the list is kept', Math.abs(after - scrolled.set) <= 4,
+    scrolled.set + ' -> ' + after);
+});
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');
