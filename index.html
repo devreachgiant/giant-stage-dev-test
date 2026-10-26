@@ -7181,6 +7181,10 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 // deep-link handlers (which run on a delay, after their screen exists) get a chance to read them.
 // Captured here, as early as physically possible, so those handlers have a stable source of truth.
 window.__giantInitialSearch = window.location.search;
+// The hash goes the same way -- replaceState('', '/app') takes it with the query -- and
+// Projects 2.0's Copy link writes #task=<id>, so without this a shared link from that
+// screen arrives with nothing left to read and lands on the project table instead.
+window.__giantInitialHash = window.location.hash;
 
 // ── Security batch 2: authenticated function calls ─────────────────────────
 // Netlify functions now require `Authorization: Bearer <supabase access token>`
@@ -71427,15 +71431,39 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     setTimeout(() => document.getElementById('tdpName')?.focus(), 200);
   }
 
-  // ── Open a shared task link (?task=<id>) directly into its detail panel.
+  /* ── Open a shared task link directly into its detail view.
+     TWO FORMS, because two screens wrote links and only one form was ever read.
+     Projects 2.0's Copy link produced #task=<id> while this only looked at ?task=<id>,
+     so every link copied from the new module opened the app, landed on the project
+     table and stopped there. New links are ?task=; the hash is still accepted, because
+     the ones already sent to people do not change. */
+  function sharedTaskIdFromUrl() {
+    const q = new URLSearchParams(window.__giantInitialSearch || window.location.search).get('task');
+    if (q) return q;
+    const h = String(window.__giantInitialHash || window.location.hash || '');
+    const m = h.match(/[#&]task=([^&]+)/);
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
   async function openSharedTaskFromUrl() {
-    const taskId = new URLSearchParams(window.__giantInitialSearch || window.location.search).get('task');
+    const taskId = sharedTaskIdFromUrl();
     if (!taskId) return;
     window.giantOpenProjects();
-    // The detail panel is a fixed overlay owned by the Clients screen, so it opens over
-    // whichever Projects is showing. That is what lets a shared task link survive the move:
-    // the panel never depended on the old screen being the one in front.
-    setTimeout(() => openTaskDetailPanel(taskId), 400);
+    /* Projects 2.0 first, where the link was copied from and where its full view lives.
+       It needs its screen built, which the nav click above starts but does not finish,
+       so this is attempted a few times before giving up.
+
+       The fallback is the original overlay panel: it is owned by the Clients screen and
+       opens over whichever Projects is showing, which is what lets the link still work
+       for somebody who cannot see Projects 2.0 at all. */
+    const tryOpen = async (attempt) => {
+      if (typeof window.p2OpenTaskById === 'function') {
+        try { if (await window.p2OpenTaskById(taskId)) return; } catch (_) {}
+      }
+      if (attempt < 4) { setTimeout(() => tryOpen(attempt + 1), 600); return; }
+      openTaskDetailPanel(taskId);
+    };
+    setTimeout(() => tryOpen(0), 400);
   }
   setTimeout(openSharedTaskFromUrl, 1500);
 
@@ -90264,6 +90292,33 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   function closeTask(){ p2.detailId = null; renderDetail(); }
   window.p2OpenTask = openTask;
 
+  /* OPEN A TASK BY ID ALONE, which is what a shared link has. openTask needs the task
+     to be in p2.tasks already, so it only ever worked for something in the project you
+     were already looking at -- a link to anything else did nothing. This finds which
+     project the task belongs to, switches to it, and then opens it.
+
+     Returns whether the panel is actually on screen, not merely that the calls ran:
+     renderDetail returns silently when the Projects screen has not been built yet, so
+     "no error" is not the same as "it opened". */
+  async function openTaskById(id){
+    if (!id) return false;
+    if (!p2.projects.length) { try { await loadProjects(); } catch (_) { return false; } }
+    let t = p2.tasks.find(x => x.id === id);
+    if (!t) {
+      const { data } = await sb().from('tasks').select('id, project_id').eq('id', id).maybeSingle();
+      // No row means it is gone, or it belongs to someone this person cannot see --
+      // RLS answers both the same way, with nothing.
+      if (!data) return false;
+      if (data.project_id && data.project_id !== p2.activeId) await selectProject(data.project_id);
+      else await loadTasks();
+      t = p2.tasks.find(x => x.id === id);
+    }
+    if (!t) return false;
+    await openTask(id);
+    return !!document.getElementById('p2_detail');
+  }
+  window.p2OpenTaskById = openTaskById;
+
   // Field writes go straight through; typing is debounced. Either way the row behind the
   // panel is re-rendered, so the table never disagrees with what is open on top of it.
   let _saveTimer = null;
@@ -90615,7 +90670,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     });
 
     on('p2_dCopy', 'click', () => {
-      const url = location.origin + location.pathname + '#task=' + id;
+      // ?task=, the one form the app reads. This wrote #task= and nothing anywhere
+      // looked for it, so every link copied here opened the project table instead.
+      const url = location.origin + '/app?task=' + encodeURIComponent(id);
       try { navigator.clipboard.writeText(url); if (window.toast) toast({ type:'success', message:'Link copied' }); }
       catch (_) { if (window.toast) toast({ type:'error', message:'Could not copy that link' }); }
     });
