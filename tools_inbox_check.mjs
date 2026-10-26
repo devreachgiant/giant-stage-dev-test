@@ -794,6 +794,33 @@ await step('the page asks the server to sync, it does not sync itself', async ()
   await page.waitForTimeout(3000);
   check('Refresh asks the sync endpoint', syncCalls === 1, 'calls=' + syncCalls);
   check('and the page downloads no mail itself', gmailCalls === 0, 'gmail calls=' + gmailCalls);
+
+  /* A FAILED SYNC MUST NOT BE ANNOUNCED AS A GOOD ONE. On the live site the endpoint
+     answered 403 and the screen showed "Sync failed: sync failed (403)" with
+     "Inbox refreshed" directly underneath it -- two toasts, one of them false, and
+     nothing to say which. syncGmailInbox caught its own error and returned nothing,
+     so the caller could not tell the difference. */
+  await page.unroute('**/.netlify/functions/gmail-sync');
+  await page.route('**/.netlify/functions/gmail-sync', (route) =>
+    route.fulfill({ status: 403, contentType: 'text/plain', body: '' }));
+  /* Recorded as they appear, not read afterwards: a toast auto-dismisses, so looking
+     three seconds later can find an empty host and call that "nothing claimed
+     success" -- a check that passes because it measured nothing. */
+  await page.evaluate(() => {
+    window.__toasts = [];
+    const host = document.getElementById('toastHost');
+    if (!host) return;
+    host.querySelectorAll('.toast').forEach(t => t.remove());
+    new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => {
+      if (n.nodeType === 1) window.__toasts.push((n.textContent || '').trim());
+    }))).observe(host, { childList: true });
+  });
+  await page.locator('#inboxRefreshBtn').click();
+  await page.waitForTimeout(3000);
+  const said = await page.evaluate(() => (window.__toasts || []).join(' | '));
+  check('a 403 is reported', /fail/i.test(said), said.slice(0, 120));
+  check('and nothing claims the inbox refreshed', !/Inbox refreshed/i.test(said),
+    said.slice(0, 120));
 });
 
 await step('the categories rail reads like the rest of the app', async () => {
@@ -837,6 +864,135 @@ await step('the categories rail reads like the rest of the app', async () => {
     JSON.stringify(m.rows.map(r => r.bgImage.slice(0, 18) + '|' + r.border)));
   check('the icons are still there, at sidebar size', m.icon === 16, m.icon + 'px');
   check('and the counts stay on the right', m.count);
+});
+
+await step('the list header has room to breathe', async () => {
+  /* The title, the search box, the select bar and the first message were stacked with
+     4px between them and a hard rule running the full width right underneath --
+     everything touching everything, with a separator doing the job that space should.
+     Measured as gaps, because "it looks cramped" is not something a check can read. */
+  await ensureApp();
+  /* Scrolled to the top first. An earlier step pressed Load more, and measuring a
+     viewport gap against a scrolled list gave -723px -- a number that says nothing
+     about spacing and everything about where the list happened to be. */
+  await page.evaluate(() => {
+    const sc = document.querySelector('.ml-scroll');
+    if (sc) sc.scrollTop = 0;
+  });
+  await page.waitForTimeout(250);
+  const m = await page.evaluate(() => {
+    const head = document.querySelector('.ml-head');
+    const search = document.querySelector('.ml-search');
+    const bulk = document.getElementById('inboxBulkBar');
+    const row = document.querySelector('#inboxRows .mailitem');
+    if (!head || !search || !bulk || !row) return null;
+    const r = (el) => el.getBoundingClientRect();
+    return {
+      headPadTop: parseFloat(getComputedStyle(head).paddingTop),
+      titleGap: Math.round(r(search).top - r(head.querySelector('h2')).bottom),
+      bulkH: Math.round(r(bulk).height),
+      searchToFirstRow: Math.round(r(row).top - r(search).bottom),
+    };
+  });
+  check('there is a header to measure', !!m, JSON.stringify(m));
+  if (!m) return;
+  check('the title is not jammed against the top', m.headPadTop >= 18, m.headPadTop + 'px');
+  check('the search box clears the title', m.titleGap >= 20, m.titleGap + 'px');
+  check('the select bar is a bar, not a seam', m.bulkH >= 36, m.bulkH + 'px');
+  check('and the first message clears the search box', m.searchToFirstRow >= 60,
+    m.searchToFirstRow + 'px');
+});
+
+await step('mail arrives without anybody pressing Refresh', async () => {
+  /* Three things have to line up, and only one was here. The server syncs every ten
+     minutes; realtime pushes what it writes into an open page. What was missing was
+     the sync running from a page that is open: the old poll required the EMAIL SCREEN
+     to be the one showing, so sitting in Chat meant no sync and an unread badge that
+     had stopped counting -- the number people actually watch. */
+  await ensureApp();
+  let syncCalls = 0;
+  await page.unroute('**/.netlify/functions/gmail-sync').catch(() => {});
+  await page.route('**/.netlify/functions/gmail-sync', (route) => {
+    syncCalls++;
+    route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ ok: true, results: [{ ok: true, mode: 'history', added: 0 }] }) });
+  });
+
+  // On another screen entirely -- which used to mean no syncing at all.
+  await page.evaluate(() => document.querySelector('#appSidebar .nav-item[data-screen="chat"]')?.click());
+  await page.waitForTimeout(1200);
+  const onInbox = await page.evaluate(() =>
+    !!document.querySelector('.screen[data-screen="inbox"].on'));
+  check('we are no longer on the Email screen', !onInbox, String(onInbox));
+
+  syncCalls = 0;
+  await page.evaluate(() => { window.__inboxTickProbe = true; });
+  // Coming back to the window syncs straight away rather than waiting for a tick.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(300);
+  check('nothing syncs while the tab is hidden', syncCalls === 0, 'calls=' + syncCalls);
+
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(2500);
+  check('coming back to the tab syncs at once, from any screen',
+    syncCalls >= 1, 'calls=' + syncCalls);
+
+  // And it does not stampede: focus and visibility together are still one sync.
+  const before = syncCalls;
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('focus'));
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('focus'));
+  });
+  await page.waitForTimeout(1500);
+  check('a flurry of focus events is still one sync', syncCalls === before,
+    before + ' -> ' + syncCalls);
+
+  // Realtime is what makes a row appear without any sync at all.
+  const live = await page.evaluate(() => typeof window.__mock?.emit === 'function');
+  if (live) {
+    await page.evaluate(() => document.querySelector('#appSidebar .nav-item[data-screen="inbox"]')?.click());
+    await page.waitForTimeout(1500);
+    /* On the INBOX folder, not wherever an earlier step left it. The new row is
+       labelled INBOX, so emitting it while the list is filtered to Notifications
+       proves nothing -- and reads as "realtime is broken". */
+    await page.evaluate(() => document.querySelector('.ml-folder[data-mail-filter="INBOX"]')?.click());
+    await page.waitForTimeout(1500);
+    const was = await page.evaluate(() =>
+      document.querySelectorAll('#inboxRows .mailitem[data-mail-id]').length);
+    await page.evaluate(() => {
+      const me = window.__mockDB.emails[0].profile_id;
+      const row = { id: 'rt-1', profile_id: me, gmail_id: 'g-rt-1', thread_id: 't-rt-1',
+        from_email: 'live@example.com', from_name: 'Arrived By Itself',
+        to_emails: 'me@example.com', subject: 'Pushed in', snippet: 'no refresh pressed',
+        is_unread: true, is_starred: false, has_attachments: false,
+        labels: ['INBOX'], received_at: new Date().toISOString() };
+      window.__mockDB.emails.unshift(row);
+      window.__mock.emit('emails', 'INSERT', row);
+    });
+    await page.waitForTimeout(2000);
+    const now = await page.evaluate(() => ({
+      rows: document.querySelectorAll('#inboxRows .mailitem[data-mail-id]').length,
+      shown: !!document.querySelector('#inboxRows .mailitem[data-mail-id="rt-1"]'),
+      first: (document.querySelector('#inboxRows .mailitem[data-mail-id]') || {}).dataset?.mailId,
+      count: (document.getElementById('folderCountInbox') || {}).textContent,
+    }));
+    /* The row COUNT cannot grow -- a page is capped at 50 -- so asserting was+1 here
+       measured the cap, not the arrival, and failed on working code. What proves it
+       is the message being on screen, at the top, and counted. */
+    check('a message written by the server appears with no Refresh', now.shown,
+      'rows ' + was + ' -> ' + now.rows + ', shown=' + now.shown);
+    check('and it is the newest, so it is at the top', now.first === 'rt-1', now.first);
+    check('the Inbox count went up', Number(now.count) === 91, now.count);
+  } else {
+    check('the mock can deliver a realtime event', false, 'no __mock.emit');
+  }
 });
 
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));

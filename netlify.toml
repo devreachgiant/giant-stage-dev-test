@@ -13,8 +13,16 @@
 # so a server-side sync would have worked for an hour after somebody opened the app and
 # then quietly stopped. The same endpoint is what the Refresh button calls, so there is
 # one implementation rather than two that drift.
-[functions."gmail-sync"]
+[functions."gmail-sync-cron"]
   schedule = "*/10 * * * *"
+  timeout = 26
+
+# The on-demand half, which Refresh calls. It is a separate file because Netlify
+# answers 403 to any HTTP request aimed at a SCHEDULED function -- so one file doing
+# both jobs cannot work, and fails quietly: the schedule keeps running while every
+# Refresh gets a 403 with an empty body. The sync itself lives in _gmail.js, which
+# both of them call, so there is still one implementation.
+[functions."gmail-sync"]
   timeout = 26
 
 [functions."hercules-url-audit"]

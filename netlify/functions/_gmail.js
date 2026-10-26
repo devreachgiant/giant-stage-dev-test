@@ -153,18 +153,35 @@ async function storeMessages(profileId, messages) {
 const SCAN_CAP = 120;
 
 async function fullScan(token, profileId) {
+  /* GMAIL HANDS BACK 500 IDS AT MOST, however large maxResults is, and the first
+     version asked once and stopped there. Against a real inbox of 891 that is not a
+     window -- it is a ceiling, and the count would have sat at 500 looking like a bug
+     in the filter rather than a missing page. nextPageToken is followed until the
+     limit below is reached.
+
+     The limits are a ceiling on how far back Giant mirrors, not on how much it can
+     fetch in one go -- the per-run cap further down handles that. */
   const windows = [
-    { q: 'in:inbox', limit: 500 },
-    { q: 'in:sent', limit: 200 },
-    { q: 'is:draft', limit: 50 },
-    { q: 'category:updates', limit: 300 },
-    { q: 'category:promotions', limit: 300 }
+    { q: 'in:inbox', limit: 2000 },
+    { q: 'in:sent', limit: 500 },
+    { q: 'is:draft', limit: 100 },
+    { q: 'category:updates', limit: 500 },
+    { q: 'category:promotions', limit: 500 }
   ];
+  const seen = new Set();          // a Set, not Array.includes: this runs thousands of times
   const ids = [];
   for (const w of windows) {
-    const r = await gapi(token, 'messages?maxResults=' + w.limit + '&q=' + encodeURIComponent(w.q));
-    if (!r.ok) continue;
-    (r.body.messages || []).forEach(m => { if (!ids.includes(m.id)) ids.push(m.id); });
+    let pageToken = null, got = 0;
+    do {
+      const r = await gapi(token, 'messages?maxResults=' + Math.min(500, w.limit - got)
+        + '&q=' + encodeURIComponent(w.q)
+        + (pageToken ? '&pageToken=' + encodeURIComponent(pageToken) : ''));
+      if (!r.ok) break;
+      const page = r.body.messages || [];
+      page.forEach(m => { if (!seen.has(m.id)) { seen.add(m.id); ids.push(m.id); } });
+      got += page.length;
+      pageToken = r.body.nextPageToken || null;
+    } while (pageToken && got < w.limit);
   }
   if (!ids.length) return { added: 0, seen: 0 };
 

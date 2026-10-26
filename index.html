@@ -2110,14 +2110,19 @@ body.chat-fullscreen .sidebar{display:none;}
    the width, which is what forced the three-line card and three messages on screen.
    One line each, full width, and the reader takes over when something is opened. */
 .maillist{background:var(--pane);border-right:1px solid var(--line);display:flex;flex-direction:column;flex:1;min-width:0;transition:background .3s var(--ease),border-color .3s var(--ease);}
-.ml-head{padding:16px 16px 0;}
-.ml-head h2{font-size:16px;font-weight:700;letter-spacing:-0.02em;margin-bottom:12px;}
+/* BREATHING ROOM. The title row, the search box, the select bar and the first
+   message were stacked with 4px between them and a hard rule running the full width
+   right underneath -- everything touching everything, with the separator doing the
+   work that space should. More room above and below each part, the rule lifted off
+   the content, and the side padding lined up with the rows beneath it. */
+.ml-head{padding:22px 14px 0;}
+.ml-head h2{font-size:16px;font-weight:700;letter-spacing:-0.02em;margin-bottom:22px;}
 .acct-tabs{display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap;}
 .acct{font-size:10.5px;font-weight:600;color:var(--text-2);padding:5px 9px;border-radius:7px;cursor:pointer;border:1px solid transparent;transition:.14s;}
 .acct:hover{background:var(--surface-2);}
 .acct.active{background:var(--red);color:#fff;}
-.ml-search{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line-2);border-radius:9px;padding:7px 10px;color:var(--text-3);font-size:11.5px;cursor:text;margin-bottom:4px;}
-.ml-scroll{flex:1;overflow-y:auto;padding:6px 8px;}
+.ml-search{display:flex;align-items:center;gap:9px;background:var(--surface);border:1px solid var(--line-2);border-radius:10px;padding:9px 12px;color:var(--text-3);font-size:12.5px;cursor:text;margin-bottom:0;}
+.ml-scroll{flex:1;overflow-y:auto;padding:10px 8px 8px;}
 .mailitem{display:flex;gap:10px;padding:11px 11px;border-radius:10px;cursor:pointer;position:relative;margin-bottom:1px;transition:background .13s var(--ease);animation:rise .4s var(--ease) backwards;align-items:center;}
 .mailitem:hover{background:var(--surface-2);}
 /* The box had no rule of its own -- only a :hover -- so it rendered as whatever the
@@ -2175,7 +2180,7 @@ html[data-theme="light"] .chan-msgr{background:#DCE9F5;color:#0084FF;}
 .mi-when{flex:none;font-size:11.5px;color:var(--text-3);min-width:62px;text-align:right;}
 .mi-row.unread .mi-when{color:var(--text-2);font-weight:700;}
 .mi-att{flex:none;font-size:11px;color:var(--text-3);}
-.ml-bulk{display:flex;align-items:center;gap:10px;padding:7px 12px;border-bottom:1px solid var(--line);font-size:12px;}
+.ml-bulk{display:flex;align-items:center;gap:11px;padding:14px 4px 12px;margin-top:10px;border-bottom:1px solid var(--line);font-size:12px;}
 .ml-bulk-all{display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--text-3);}
 .ml-bulk-all input{width:14px;height:14px;accent-color:var(--red);cursor:pointer;}
 .ml-bulk-n{color:var(--text-3);min-width:78px;}
@@ -52896,12 +52901,17 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         } else {
           gmailAuthProblem = null;
         }
-        return data;
+        return Object.assign({ synced: !bad.length }, data);
       } catch (e) {
         console.error('[gmail] sync error:', e);
         if (!silent && typeof toast === 'function') {
           toast({ type: 'error', message: 'Sync failed: ' + e.message });
         }
+        /* The failure has to come BACK, not just be logged. This returned undefined
+           and the caller went on to announce "Inbox refreshed" directly underneath
+           its own "Sync failed" toast -- two messages, one of them false, with no way
+           to tell which. */
+        return { synced: false, error: e.message };
       } finally {
         if (inboxLoading) inboxLoading.style.display = 'none';
       }
@@ -54475,20 +54485,45 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       })
       .subscribe();
 
-    // ─── AUTO-REFRESH every 2 minutes ───
-    // Runs only when Inbox tab is visible AND the tab has focus AND DB is healthy
-    setInterval(async () => {
-      const inboxOn = document.querySelector('.screen[data-screen="inbox"].on, .screen.fullbleed[data-screen="inbox"].on');
-      if (!inboxOn) return; // silent skip — don't spam console
+    /* ─── MAIL ARRIVES BY ITSELF ─────────────────────────────────────────────
+       Three things have to line up for that, and only one of them was here.
+
+       The server syncs every ten minutes whether anybody is looking or not, and the
+       realtime subscription above means rows it writes appear in an open page the
+       moment they land -- no polling involved in SHOWING new mail.
+
+       What was missing is when the sync RUNS from a page that is open. The old poll
+       required the Email screen to be the one on screen, so sitting in Chat meant no
+       sync at all and an unread badge that stopped counting -- the number people
+       actually watch. It also waited the full two minutes after you came back to the
+       tab, which is the moment you most want it to have already happened.
+
+       So: every 60 seconds while the window is visible, from any screen; immediately
+       when the tab or window comes back, if it has been more than 45 seconds; and
+       never while hidden, where the ten-minute server run has it covered. */
+    let inboxLastSyncTry = 0;
+
+    async function inboxTick(reason) {
       if (document.hidden) return;
-      if (window._inboxLoadFailed) return; // DB is failing — stop hammering
-      const connected = await loadGmailConnection();
-      if (!connected) return;
+      if (window._inboxLoadFailed) return;      // the database is failing -- stop hammering
+      if (Date.now() - inboxLastSyncTry < 45000) return;
+      inboxLastSyncTry = Date.now();
       try {
+        const connected = await loadGmailConnection();
+        if (!connected) return;
         await syncGmailInbox(25, { showLoading: false });
         await renderInbox();
-      } catch(e) { console.warn('[inbox] auto-refresh failed:', e); }
-    }, 120 * 1000);
+      } catch (e) { console.warn('[inbox] auto-refresh (' + reason + ') failed:', e); }
+    }
+
+    setInterval(() => inboxTick('tick'), 60 * 1000);
+    /* Coming back to the tab is the moment it matters most, so it does not wait for
+       the next tick. The 45-second floor in inboxTick keeps a flurry of focus and
+       visibility events from turning into a flurry of syncs. */
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) inboxTick('visible');
+    });
+    window.addEventListener('focus', () => inboxTick('focus'));
 
     // Manual refresh button — wired below once the DOM is ready
     function wireInboxRefreshButton() {
@@ -54519,10 +54554,13 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
                 || 'Gmail needs reconnecting \u2014 click Connect Gmail once and it will stay connected.' });
             return;
           }
-          // Now sync. Use showLoading:true for clear feedback.
-          await syncGmailInbox(25, { showLoading: true });
+          // Now sync. The list is redrawn either way -- a failed sync still leaves
+          // the stored mail worth showing -- but only a real one gets announced.
+          const synced = await syncGmailInbox(25, { showLoading: true });
           await renderInbox();
-          if (typeof toast === 'function') toast({type:'success', message:'Inbox refreshed', duration: 1500});
+          if (synced && synced.synced && typeof toast === 'function') {
+            toast({ type: 'success', message: 'Inbox refreshed', duration: 1500 });
+          }
         } catch(e) {
           console.error('[inbox] manual refresh error:', e);
           if (typeof toast === 'function') toast({type:'error', message:'Refresh failed: ' + e.message, duration: 3000});

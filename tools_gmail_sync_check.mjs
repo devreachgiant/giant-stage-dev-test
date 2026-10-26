@@ -95,7 +95,19 @@ globalThis.fetch = async (url, opts = {}) => {
       if (gmail.historyStatus === 404) return json({ error: { message: 'historyId too old' } }, 404);
       return json({ history: gmail.history });
     }
-    if (tail.startsWith('messages?')) { calls.list++; return json({ messages: [...gmail.messages.keys()].map(id => ({ id, threadId: 't-' + id })) }); }
+    if (tail.startsWith('messages?')) {
+      calls.list++;
+      /* Gmail returns 500 ids at most per call, whatever maxResults says, and hands
+         back a nextPageToken for the rest. The stub used to return everything in one
+         page, so it could not have caught a caller that never asked for page two. */
+      const all = [...gmail.messages.keys()];
+      const q = new URLSearchParams(tail.split('?')[1]);
+      const PAGE = gmail.pageSize || 500;
+      const from = q.get('pageToken') ? parseInt(q.get('pageToken'), 10) : 0;
+      const slice = all.slice(from, from + PAGE);
+      const next = from + PAGE < all.length ? String(from + PAGE) : undefined;
+      return json({ messages: slice.map(id => ({ id, threadId: 't-' + id })), nextPageToken: next });
+    }
     if (tail.startsWith('messages/')) {
       const id = tail.split('messages/')[1].split('?')[0];
       calls.detail.push(id);
@@ -293,6 +305,54 @@ await scenario('The next run continues where it stopped', async () => {
   check('no message is fetched more than once',
     new Set(calls.detail).size === calls.detail.length,
     calls.detail.length + ' fetches, ' + new Set(calls.detail).size + ' distinct');
+});
+
+// ── 12. The endpoint the page calls must not be a scheduled function ────────
+await scenario('The browser calls something the browser is allowed to call', async () => {
+  /* SHIPPED AND CAUGHT ON THE LIVE URL. Netlify answers 403, empty body, to any HTTP
+     request aimed at a scheduled function -- before the handler runs at all. The first
+     version of this had one file doing both jobs, so the ten-minute schedule ran
+     perfectly while every press of Refresh got a 403 that explained nothing. Nothing
+     in the browser checks caught it either, because the test stubs the endpoint: a
+     route that answers 200 cannot tell you Netlify would have refused.
+
+     So this reads the two files that actually decide it. */
+  const toml = readFileSync(path.join(HERE, 'netlify.toml'), 'utf8');
+  const html = readFileSync(path.join(HERE, 'index.html'), 'utf8');
+
+  // Every function the toml puts on a schedule.
+  const scheduled = [];
+  const re = /\[functions\."([^"]+)"\]([\s\S]*?)(?=\n\[|$)/g;
+  let m;
+  while ((m = re.exec(toml))) { if (/\n\s*schedule\s*=/.test(m[2])) scheduled.push(m[1]); }
+  check('the sync is on a schedule at all', scheduled.includes('gmail-sync-cron'),
+    scheduled.join(',') || 'none');
+
+  // Every function the page POSTs to.
+  const called = [...html.matchAll(/\/\.netlify\/functions\/([a-z0-9-]+)/g)].map(x => x[1]);
+  check('the page calls the sync endpoint', called.includes('gmail-sync'),
+    [...new Set(called)].join(','));
+  const clash = called.filter(n => scheduled.includes(n));
+  check('and no endpoint it calls is a scheduled function', clash.length === 0,
+    clash.join(',') || 'none');
+});
+
+// ── 13. A mailbox larger than one page of ids ───────────────────────────────
+await scenario('An inbox bigger than Gmail will list in one call', async () => {
+  resetWorld();
+  gmail.pageSize = 100;                       // stands in for Gmail's 500
+  for (let i = 1; i <= 250; i++) gmail.messages.set('p' + i, msg('p' + i));
+  /* Gmail answers with at most 500 ids however large maxResults is. Asking once and
+     stopping there is not a window, it is a ceiling -- against a real inbox of 891 the
+     count would have sat at 500, looking like a filter bug rather than a missing page. */
+  const r = await syncMailbox(MAILBOX());
+  check('every page of ids is collected', r.seen === 250, 'seen=' + r.seen);
+  check('it took more than one list call', calls.list >= 3, 'list calls=' + calls.list);
+  // The per-run fetch cap still applies on top of that.
+  check('and the fetch cap still holds', calls.detail.length === 120,
+    'fetched=' + calls.detail.length);
+  check('no id is listed twice', new Set(calls.detail).size === calls.detail.length,
+    calls.detail.length + ' vs ' + new Set(calls.detail).size);
 });
 
 for (const r2 of results) console.log((r2.pass ? 'PASS  ' : 'FAIL  ') + r2.name + (r2.detail ? '   ' + r2.detail : ''));
