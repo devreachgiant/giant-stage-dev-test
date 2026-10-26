@@ -206,6 +206,127 @@ await step('a plain visit opens nothing', async () => {
   await fresh.close();
 });
 
+await step('the link still works on a slow cold load', async () => {
+  /* The harness boots in well under a second; a real sign-in on the live site does
+     not. The handler fired on a fixed 1500ms timer and clicked a sidebar that might
+     not exist yet -- which looks exactly like "the link does nothing and does not even
+     switch screen". The supabase module is held back here to reproduce that. */
+  if (!taskId) { check('there is a task to link to', false, ''); return; }
+  const slow = await ctx.newPage();
+  await slow.route('**/@supabase/supabase-js@2*', async (r) => {
+    await new Promise(res => setTimeout(res, 4000));   // a slow cold load
+    r.fulfill({ status: 200, contentType: 'application/javascript', body: MOCK });
+  });
+  await slow.route('**://*.supabase.co/**', r => r.abort());
+  await slow.goto(BASE + '/app?task=' + encodeURIComponent(taskId),
+    { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await slow.waitForSelector('#view-app.on', { timeout: 40000 });
+
+  let open = false;
+  for (let i = 0; i < 40; i++) {
+    open = await slow.evaluate(() => !!document.getElementById('p2_detail'));
+    if (open) break;
+    await slow.waitForTimeout(500);
+  }
+  const where = await slow.evaluate(() => {
+    const on = document.querySelector('.screen.on[data-screen]');
+    return on ? on.getAttribute('data-screen') : null;
+  });
+  check('it switches to Projects even when the app was slow to start',
+    where === 'projects2' || where === 'tasks', String(where));
+  check('and the task opens', open, String(open));
+  await slow.close();
+});
+
+await step('a task link clicked with Giant already open', async () => {
+  /* The handler ran once, on load. A link followed while Giant is already open in that
+     tab changes the URL WITHOUT reloading -- the browser treats it as navigation
+     inside the same document -- so nothing re-ran and the link did nothing at all. */
+  if (!taskId) { check('there is a task to link to', false, ''); return; }
+  const live = await ctx.newPage();
+  await live.route('**/@supabase/supabase-js@2*', r =>
+    r.fulfill({ status: 200, contentType: 'application/javascript', body: MOCK }));
+  await live.route('**://*.supabase.co/**', r => r.abort());
+  await live.goto(BASE + '/app', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await live.waitForSelector('#view-app.on', { timeout: 30000 });
+  await live.waitForTimeout(4000);
+  check('nothing is open to start with',
+    !(await live.evaluate(() => !!document.getElementById('p2_detail'))), '');
+
+  // Follow the link in this tab, which is a hash change and not a load.
+  await live.evaluate((id) => { window.location.hash = 'task=' + id; }, taskId);
+  let open = false;
+  for (let i = 0; i < 30; i++) {
+    open = await live.evaluate(() => !!document.getElementById('p2_detail'));
+    if (open) break;
+    await live.waitForTimeout(500);
+  }
+  check('it opens without a page reload', open, String(open));
+  if (open) {
+    const showing = await live.evaluate(() => window.p2State.detailId);
+    check('showing the task from the link', showing === taskId, showing + ' vs ' + taskId);
+  }
+  await live.close();
+});
+
+await step('a task link CLICKED inside the app opens the full view', async () => {
+  /* The reported bug, and the case none of the checks above touched. A link clicked
+     inside Giant never reaches the URL handler: a global interceptor catches our own
+     links, calls preventDefault so nothing navigates, and opened the old side panel
+     over whatever screen you happened to be on. Clicking a task link in Chat left you
+     in Chat with an overlay; the same link pasted into the address bar opened the full
+     view in Projects. Same link, two behaviours. */
+  if (!taskId) { check('there is a task to link to', false, ''); return; }
+  const app = await ctx.newPage();
+  await app.route('**/@supabase/supabase-js@2*', r =>
+    r.fulfill({ status: 200, contentType: 'application/javascript', body: MOCK }));
+  await app.route('**://*.supabase.co/**', r => r.abort());
+  await app.goto(BASE + '/app', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await app.waitForSelector('#view-app.on', { timeout: 30000 });
+  await app.waitForTimeout(3500);
+
+  // Sit on a screen that is NOT Projects, as somebody reading Chat would be.
+  await app.evaluate(() => document.querySelector('#appSidebar .nav-item[data-screen="chat"]')?.click());
+  await app.waitForTimeout(2500);
+  const before = await app.evaluate(() =>
+    (document.querySelector('.screen.on[data-screen]') || {}).dataset?.screen);
+  check('we start somewhere else', before && before !== 'projects2', String(before));
+
+  // A real anchor, exactly as the chat linkifier writes one.
+  await app.evaluate(({ base, id }) => {
+    const a = document.createElement('a');
+    a.id = '__linkprobe';
+    a.href = base + '/app?task=' + id;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.textContent = 'the task';
+    a.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:99999;color:#fff;';
+    document.body.appendChild(a);
+  }, { base: BASE, id: taskId });
+  await app.click('#__linkprobe');
+
+  let open = false;
+  for (let i = 0; i < 30; i++) {
+    open = await app.evaluate(() => !!document.getElementById('p2_detail'));
+    if (open) break;
+    await app.waitForTimeout(500);
+  }
+  const after = await app.evaluate(() => ({
+    screen: (document.querySelector('.screen.on[data-screen]') || {}).dataset?.screen,
+    detailId: window.p2State && window.p2State.detailId,
+    overlay: (() => { const o = document.getElementById('taskDetailPanelOverlay');
+      return o ? getComputedStyle(o).display : 'missing'; })(),
+    tabs: 1
+  }));
+  check('clicking it switches to Projects', after.screen === 'projects2', String(after.screen));
+  check('and opens the full view, not the side panel', open, String(open));
+  check('showing the task that was linked', after.detailId === taskId,
+    after.detailId + ' vs ' + taskId);
+  check('the old side overlay is not what opened', after.overlay === 'none' || after.overlay === 'missing',
+    after.overlay);
+  await app.close();
+});
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');

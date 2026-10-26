@@ -8237,13 +8237,26 @@ await step('a link to Giant opens in Giant, not in a second copy of it', async (
       + 'href="https://giant.reachgiant.com/onboard/abc123">onboarding form</a>';
     document.body.appendChild(host);
 
+    /* THE CONTRACT CHANGED, DELIBERATELY. This used to assert the click opened the
+       SIDE PANEL, which was right when that was the only way the app could open a
+       task. It is not any more: a link clicked inside Giant and the same link pasted
+       into the address bar went to two different places -- an overlay over whatever
+       screen you were on, versus the full view in Projects. Both go through
+       giantOpenTask now, which prefers the full view and falls back to the panel for
+       somebody who cannot see Projects 2.0.
+
+       So what is watched is "the app opened the task", by whichever route exists,
+       rather than one particular panel. */
     let openedWith = null;
     const realOpen = window.openTaskDetailPanel;
+    const realUnified = window.giantOpenTask;
     window.openTaskDetailPanel = (id) => { openedWith = id; };
+    if (typeof realUnified === 'function') window.giantOpenTask = (id) => { openedWith = id; };
     // nothing must reach the browser's own navigation
     let navigated = null;
     const realAssign = window.location.assign;
-    out.hasHandler = typeof realOpen === 'function';
+    out.hasHandler = typeof realOpen === 'function' || typeof realUnified === 'function';
+    out.unified = typeof realUnified === 'function';
 
     const fire = (id) => {
       const el = document.getElementById(id);
@@ -8269,10 +8282,11 @@ await step('a link to Giant opens in Giant, not in a second copy of it', async (
     out.metaClickLeftAlone = !meta.defaultPrevented;
 
     window.openTaskDetailPanel = realOpen;
+    if (typeof realUnified === 'function') window.giantOpenTask = realUnified;
     host.remove();
     return out;
   });
-  check('clicking a task link opens the panel here instead of a new tab',
+  check('clicking a task link opens the task here instead of a new tab',
     r.hasHandler && r.taskPrevented && r.openedWith === 't-probe', JSON.stringify(r));
   check('a link to anywhere else is left exactly as it was',
     r.externalPrevented === false, JSON.stringify(r));

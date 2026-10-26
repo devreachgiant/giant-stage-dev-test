@@ -38683,9 +38683,20 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     if (!/^\/(app\/?)?$/.test(u.pathname)) return;
 
     const q = u.searchParams;
+    // #task= as well as ?task=: links copied before the formats were unified are still
+    // in people's messages, and a link that opens from the address bar but not from a
+    // click is the worst of both.
+    const clickedTask = q.get('task')
+      || (String(u.hash || '').match(/[#&]task=([^&]+)/) || [])[1];
     const opened =
-      (q.get('task')    && typeof window.openTaskDetailPanel === 'function'
-        && (window.openTaskDetailPanel(q.get('task')), true)) ||
+      (clickedTask && (() => {
+        /* giantOpenTask takes it to the full view in Projects; openTaskDetailPanel is
+           the fallback for a build where the former is not there. */
+        const open = window.giantOpenTask || window.openTaskDetailPanel;
+        if (typeof open !== 'function') return false;
+        open(decodeURIComponent(clickedTask));
+        return true;
+      })()) ||
       (q.get('message') && q.get('channel') && typeof window.jumpToChatMessage === 'function'
         && (window.jumpToChatMessage(q.get('channel'), q.get('message')), true)) ||
       (q.get('c3thread') && typeof window.chat3OpenThread === 'function'
@@ -71445,27 +71456,54 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     return m ? decodeURIComponent(m[1]) : null;
   }
 
+  /* ONE WAY TO OPEN A TASK, because there were two and they disagreed. A link clicked
+     inside the app never reaches the URL handler at all: a global interceptor catches
+     our own links, calls preventDefault so nothing navigates, and opened the old side
+     panel over whatever screen you were on -- so clicking a task link in Chat left you
+     in Chat with an overlay, while the same link pasted into the address bar opened
+     the full view in Projects. Both go through this now. */
+  async function giantOpenTask(taskId) {
+    if (!taskId) return false;
+    window.giantOpenProjects();
+    const attempt = async (n) => {
+      if (typeof window.p2OpenTaskById === 'function') {
+        try { if (await window.p2OpenTaskById(taskId)) return true; } catch (_) {}
+      }
+      if (n < 4) {
+        await new Promise(r => setTimeout(r, 600));
+        return attempt(n + 1);
+      }
+      // Projects 2.0 is gated, and somebody who cannot see it still has to be able to
+      // open the task. The overlay works over any screen, which is why it is the floor.
+      openTaskDetailPanel(taskId);
+      return true;
+    };
+    return attempt(0);
+  }
+  window.giantOpenTask = giantOpenTask;
+
   async function openSharedTaskFromUrl() {
     const taskId = sharedTaskIdFromUrl();
     if (!taskId) return;
-    window.giantOpenProjects();
-    /* Projects 2.0 first, where the link was copied from and where its full view lives.
-       It needs its screen built, which the nav click above starts but does not finish,
-       so this is attempted a few times before giving up.
-
-       The fallback is the original overlay panel: it is owned by the Clients screen and
-       opens over whichever Projects is showing, which is what lets the link still work
-       for somebody who cannot see Projects 2.0 at all. */
-    const tryOpen = async (attempt) => {
-      if (typeof window.p2OpenTaskById === 'function') {
-        try { if (await window.p2OpenTaskById(taskId)) return; } catch (_) {}
-      }
-      if (attempt < 4) { setTimeout(() => tryOpen(attempt + 1), 600); return; }
-      openTaskDetailPanel(taskId);
-    };
-    setTimeout(() => tryOpen(0), 400);
+    await giantOpenTask(taskId);
   }
   setTimeout(openSharedTaskFromUrl, 1500);
+
+  /* A link clicked while Giant is ALREADY open in that tab changes the URL without
+     reloading the page -- the browser treats it as navigation within the same
+     document, so nothing re-runs and the link does nothing at all. The handler above
+     only ever fires once, on load, which is the case it was written for. */
+  window.addEventListener('hashchange', () => {
+    const id = (String(window.location.hash || '').match(/[#&]task=([^&]+)/) || [])[1];
+    if (!id) return;
+    window.__giantInitialHash = window.location.hash;
+    openSharedTaskFromUrl();
+  });
+  window.addEventListener('popstate', () => {
+    if (!/[?&]task=/.test(window.location.search)) return;
+    window.__giantInitialSearch = window.location.search;
+    openSharedTaskFromUrl();
+  });
 
   function closeTaskDetailPanel() {
     const overlay = document.getElementById('taskDetailPanelOverlay');
