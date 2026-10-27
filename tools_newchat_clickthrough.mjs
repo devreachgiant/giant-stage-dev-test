@@ -3336,9 +3336,19 @@ await step('clicking your profile opens the status menu, and it saves', async ()
     out.opensOnClick = seen(menu);
     if (!out.opensOnClick) return out;
 
-    // A preset writes it down. It used to change a dot on your own screen and nothing else.
+    /* A preset writes it down. It used to change a dot on your own screen and nothing
+       else -- and it used to write on the FIRST click, which is what this asserted.
+       Picking a status now asks when it should reset itself, because a status with no
+       end is the one people forget: "On lunch" set on Friday is still there on Monday.
+       So the preset opens that question, and the answer is what saves. Both steps are
+       driven here; tools_status_check.mjs covers the reset itself. */
     const writesBefore = window.__mock.log.writes.filter(w => w.startsWith('profiles.update')).length;
     menu.querySelector('[data-status="lunch"]').click();
+    await wait(500);
+    const whenPanel = document.getElementById('statusWhenPanel');
+    out.asksWhenToReset = !!whenPanel && getComputedStyle(whenPanel).display !== 'none';
+    out.nothingWrittenYet = window.__mock.log.writes.filter(w => w.startsWith('profiles.update')).length === writesBefore;
+    if (whenPanel) whenPanel.querySelector('[data-when="30"]').click();
     await wait(1200);
     out.presetWrote = window.__mock.log.writes.filter(w => w.startsWith('profiles.update')).length > writesBefore;
     const me = window.__mock.db.profiles.find(p => p.id === window.__mock.me);
@@ -3374,6 +3384,7 @@ await step('clicking your profile opens the status menu, and it saves', async ()
   });
   check('clicking your profile opens the status menu, and it saves',
     r.hasPerson && r.menuInsidePerson && r.opensOnClick
+      && r.asksWhenToReset && r.nothingWrittenYet
       && r.presetWrote && r.savedKey === 'lunch' && r.savedEmoji === '🍱'
       && r.modalOpens && r.customText === 'shipping chat' && r.customEmoji === '🚀'
       && r.hasExpiry && /shipping chat/.test(r.labelAfter) && r.expiredHidden,

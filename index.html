@@ -8651,6 +8651,23 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style="margin-right:2px;"><path d="M6 3H4a1 1 0 00-1 1v8a1 1 0 001 1h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M10 11l3-3-3-3M13 8H7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Sign out
           </div>
+          <!-- Second step: when it clears itself. A status with no end is the one people
+               forget -- "On lunch" set on Friday is still there on Monday, because the
+               only thing that ever cleared it was noticing. -->
+          <div id="statusWhenPanel" style="display:none;">
+            <div class="status-menu-head" style="display:flex;align-items:center;gap:7px;">
+              <span id="statusWhenBack" title="Back" style="cursor:pointer;color:var(--text-2);">&#8249;</span>
+              <span>Reset <b id="statusWhenWhat" style="color:var(--text);"></b> after</span>
+            </div>
+            <div class="status-menu-item" data-when="30">In 30 minutes</div>
+            <div class="status-menu-item" data-when="60">In 1 hour</div>
+            <div class="status-menu-item" data-when="240">In 4 hours</div>
+            <div class="status-menu-item" data-when="today">Today</div>
+            <div class="status-menu-item" data-when="tomorrow">Tomorrow</div>
+            <div class="status-menu-sep"></div>
+            <div class="status-menu-item" data-when="custom">&#9998; Pick a time…</div>
+            <div class="status-menu-item" data-when="" style="color:var(--text-2);">Don't reset</div>
+          </div>
         </div>
       </div>
     </aside>
@@ -8682,6 +8699,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
               <option value="60">In 1 hour</option>
               <option value="240">In 4 hours</option>
               <option value="today">Today</option>
+              <option value="tomorrow">Tomorrow</option>
               <option value="week">This week</option>
             </select>
           </div>
@@ -35952,8 +35970,34 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
     if(!p.status_text&&!p.status_emoji&&!p.status_key)return null;
     return p;
   }
+  /* IT HAS TO ACTUALLY RESET. The expiry was only ever consulted when something
+     happened to repaint, so "clear after 30 minutes" meant "stop showing it the next
+     time anybody looks" -- leave the tab open and On lunch sat there all afternoon.
+     A timer is set for the moment itself: the row is cleared and the header repainted
+     without anybody touching it.
+
+     Written to the database rather than just hidden, because the status is on the
+     profile every screen reads, and a row that says On lunch three hours later is the
+     thing that has to go. */
+  let expiryTimer=null;
+  function scheduleExpiry(p){
+    clearTimeout(expiryTimer); expiryTimer=null;
+    if(!p||!p.status_expires_at)return;
+    const ms=new Date(p.status_expires_at).getTime()-Date.now();
+    // setTimeout overflows past ~24.8 days and fires immediately, which would wipe a
+    // status the moment it was set. Longer than that is left to the lazy check.
+    if(ms<=0||ms>2147483000)return;
+    expiryTimer=setTimeout(()=>{
+      const cur=window.giantCurrentProfile;
+      if(!cur||!cur.status_expires_at)return;
+      if(new Date(cur.status_expires_at).getTime()>Date.now())return;  // changed since
+      save({status_key:null,status_emoji:null,status_text:null,status_expires_at:null});
+    },ms);
+  }
+
   function paint(){
     const p=live(window.giantCurrentProfile)||{};
+    scheduleExpiry(window.giantCurrentProfile);
     const clearBtn=document.getElementById('statusMenuClear');
     const has=!!(p.status_text||p.status_emoji||(p.status_key&&p.status_key!=='online'));
     if(clearBtn)clearBtn.style.display=has?'':'none';
@@ -35978,8 +36022,8 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
     if(error&&window.toast)toast({type:'error',message:'Could not save your status: '+error.message});
   }
 
-  function open(){menu.classList.add('on');paint();}
-  function close(){menu.classList.remove('on');}
+  function open(){menu.classList.add('on');showWhen(false);paint();}
+  function close(){menu.classList.remove('on');showWhen(false);}
   // #hdrPerson is built after this script runs, so wait for it rather than giving up.
   (function anchor(){
     const person=document.getElementById('hdrPerson');
@@ -36000,16 +36044,72 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
     paint();
   })();
 
+  /* One place that turns "in 4 hours" into a moment. The custom modal had its own copy
+     of this; two copies of a date calculation drift, and the one nobody is looking at
+     is the one that starts clearing statuses at the wrong hour. */
+  function statusExpiryFrom(when){
+    if(!when) return null;
+    const d=new Date();
+    if(when==='today'){ d.setHours(23,59,59,999); return d.toISOString(); }
+    if(when==='tomorrow'){ d.setDate(d.getDate()+1); d.setHours(23,59,59,999); return d.toISOString(); }
+    if(when==='week'){ d.setDate(d.getDate()+(7-d.getDay())); d.setHours(23,59,59,999); return d.toISOString(); }
+    return new Date(Date.now()+Number(when)*60000).toISOString();
+  }
+  window.giantStatusExpiryFrom=statusExpiryFrom;
+
+  /* Picking a status asks when it ends. "Online" is not a status -- it is the absence of
+     one -- and "Offline" is a state you leave by coming back, so neither asks. */
+  const whenPanel=menu.querySelector('#statusWhenPanel');
+  const mainItems=()=>[...menu.children].filter(el=>el!==whenPanel);
+  let pending=null;
+  function showWhen(on){
+    if(!whenPanel) return;
+    whenPanel.style.display=on?'':'none';
+    mainItems().forEach(el=>{ el.style.display=on?'none':''; });
+    if(!on) pending=null;
+  }
   menu.querySelectorAll('.status-menu-item[data-status]').forEach(it=>{
     it.addEventListener('click',()=>{
       const key=it.dataset.status;
-      save({status_key:key,
-            status_emoji:PRESET_EMOJI[key]||null,
-            status_text:(key==='online')?null:it.dataset.label,
-            status_expires_at:null});
-      close();
+      const base={status_key:key,
+                  status_emoji:PRESET_EMOJI[key]||null,
+                  status_text:(key==='online')?null:it.dataset.label,
+                  status_expires_at:null};
+      if(key==='online'||key==='offline'||!whenPanel){ save(base); close(); return; }
+      pending=base;
+      const what=menu.querySelector('#statusWhenWhat');
+      if(what) what.textContent=it.dataset.label||'';
+      showWhen(true);
     });
   });
+  if(whenPanel){
+    const back=whenPanel.querySelector('#statusWhenBack');
+    if(back) back.addEventListener('click',(e)=>{ e.stopPropagation(); showWhen(false); });
+    whenPanel.querySelectorAll('[data-when]').forEach(it=>{
+      it.addEventListener('click',()=>{
+        const when=it.dataset.when;
+        const p=pending; showWhen(false);
+        if(!p) return;
+        if(when==='custom'){
+          /* Straight into the existing dialog, carrying what was already chosen, so
+             "Pick a time" does not mean "type it all again". */
+          close();
+          const e1=document.getElementById('statusEmojiInput');
+          const t1=document.getElementById('statusTextInput');
+          const c1=document.getElementById('statusClearAfter');
+          if(e1) e1.value=p.status_emoji||'';
+          if(t1) t1.value=p.status_text||'';
+          if(c1) c1.value='';
+          if(typeof openModal==='function') openModal('statusCustomModal');
+          setTimeout(()=>t1&&t1.focus(),120);
+          return;
+        }
+        p.status_expires_at=statusExpiryFrom(when);
+        save(p);
+        close();
+      });
+    });
+  }
   const clearBtn=document.getElementById('statusMenuClear');
   if(clearBtn)clearBtn.addEventListener('click',()=>{
     save({status_key:'online',status_emoji:null,status_text:null,status_expires_at:null});
@@ -36033,10 +36133,7 @@ document.querySelectorAll('.ch-section-head').forEach(h=>{
     const emoji=(document.getElementById('statusEmojiInput')||{}).value||'';
     const text=(document.getElementById('statusTextInput')||{}).value||'';
     const after=(document.getElementById('statusClearAfter')||{}).value||'';
-    let expires=null;
-    if(after==='today'){const d=new Date();d.setHours(23,59,59,999);expires=d.toISOString();}
-    else if(after==='week'){const d=new Date();d.setDate(d.getDate()+(7-d.getDay()));d.setHours(23,59,59,999);expires=d.toISOString();}
-    else if(after){expires=new Date(Date.now()+Number(after)*60000).toISOString();}
+    const expires=statusExpiryFrom(after);
     save({status_key:null,
           status_emoji:emoji.trim()||null,
           status_text:text.trim()||null,
