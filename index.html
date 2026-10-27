@@ -6592,6 +6592,92 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_note{background:var(--surface);border-radius:14px;padding:14px 16px;}
 .gr_note>span{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--text-3);font-weight:700;}
 .gr_note p{margin:6px 0 0;font-size:14px;line-height:1.6;}
+/* To-dos on one deal. The tick is the control, so it is the size of a tick target
+   rather than a checkbox glyph, and a finished line greys and strikes rather than
+   vanishing -- "I already did that" is worth seeing for a day. */
+.gr_todos{display:flex;flex-direction:column;}
+.gr_tdo{display:flex;align-items:center;gap:11px;padding:8px 0;border-top:1px solid var(--line);font-size:13.5px;}
+.gr_tdo:first-of-type{border-top:0;}
+.gr_tdo>span{flex:1;min-width:0;overflow-wrap:anywhere;}
+.gr_tdo.gr_done>span{color:var(--text-3);text-decoration:line-through;}
+.gr_tdtick{width:22px;height:22px;flex:none;border:0;border-radius:50%;background:none;box-shadow:inset 0 0 0 2px var(--line-2);color:#fff;font-size:12px;font-weight:800;cursor:pointer;display:grid;place-items:center;}
+.gr_tdtick:hover{box-shadow:inset 0 0 0 2px var(--text-3);}
+.gr_tdo.gr_done .gr_tdtick{background:#1F7A45;box-shadow:none;}
+.gr_tdx{flex:none;border:0;background:none;color:var(--text-3);font-size:12px;cursor:pointer;padding:4px 2px;line-height:1;}
+.gr_tdx:hover{color:#F08A8A;}
+.gr_tdadd{display:flex;gap:8px;margin-top:10px;}
+/* A Loom answer. 16/9 held by aspect-ratio rather than the padding-top trick, because
+   the iframe has to fill it and a percentage padding box does not give it a height. */
+.gr_qavid{margin-top:12px;display:flex;flex-direction:column;gap:7px;}
+.gr_qavid>span{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--text-3);font-weight:700;}
+.gr_qavf{position:relative;width:100%;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:var(--surface-3);}
+.gr_qavf iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
+/* Editing the stages on the board. The heading is a drag handle for staff, so it says
+   so with the cursor; everybody else gets the heading they always had. */
+.gr_colh[data-gr-colgrab]{cursor:grab;}
+.gr_colh[data-gr-colgrab]:active{cursor:grabbing;}
+.gr_coldrag{opacity:.4;}
+.gr_colx{flex:none;border:0;background:none;color:var(--text-3);font-size:11px;line-height:1;cursor:pointer;padding:3px;opacity:0;}
+.gr_col:hover .gr_colx,.gr_colx:focus-visible{opacity:1;}
+.gr_colx:hover{color:#F08A8A;}
+.gr_colh.gr_coldel{display:flex;flex-direction:column;align-items:stretch;gap:8px;padding-bottom:10px;white-space:normal;}
+.gr_colh.gr_coldel b{white-space:normal;overflow:visible;}
+.gr_colmv{display:flex;flex-direction:column;gap:5px;}
+.gr_colmv>span{font-size:11px;color:var(--text-3);}
+.gr_colba{display:flex;gap:8px;align-items:center;justify-content:flex-end;}
+.gr_colnew{display:flex;flex-direction:column;gap:9px;}
+.gr_colsw{display:flex;gap:7px;flex-wrap:wrap;}
+/* Practice. The picker reads like the course cards; the call itself is set apart,
+   because it is the one screen here you are meant to be inside rather than reading. */
+.gr_pickg{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-bottom:14px;}
+.gr_pick{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:7px;cursor:pointer;color:var(--text);font:inherit;}
+.gr_pick:hover{border-color:var(--line-2);}
+.gr_pick>b{font-size:15.5px;font-weight:800;letter-spacing:-.01em;}
+.gr_pickw{font-size:12.5px;color:var(--text-3);line-height:1.45;}
+.gr_pick u,.gr_skills u{display:block;height:6px;border-radius:9px;background:var(--surface-3);text-decoration:none;}
+.gr_pick u s,.gr_skills u s{display:block;height:100%;border-radius:9px;background:var(--red);text-decoration:none;}
+.gr_pick em{font-style:normal;font-size:12px;color:var(--text-3);}
+.gr_room{display:flex;flex-direction:column;gap:12px;}
+.gr_roomh{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.gr_roomt{display:flex;align-items:center;gap:10px;}
+.gr_roomt b{display:block;font-size:14.5px;font-weight:700;}
+.gr_roomt span{font-size:12px;color:var(--text-3);}
+.gr_roomw{display:flex;align-items:center;gap:11px;padding-bottom:4px;border-bottom:1px solid var(--line);}
+.gr_rmsgs{display:flex;flex-direction:column;gap:9px;min-height:170px;max-height:360px;overflow-y:auto;padding:4px 2px;}
+.gr_rmb{max-width:82%;padding:11px 14px;border-radius:16px;font-size:14.5px;line-height:1.5;}
+.gr_rmb.gr_p{align-self:flex-start;background:var(--surface-3);border-bottom-left-radius:5px;}
+.gr_rmb.gr_t{align-self:flex-end;background:var(--red);color:#fff;border-bottom-right-radius:5px;}
+.gr_typing{display:flex;gap:5px;align-items:center;}
+.gr_typing i{width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:grblink 1s infinite;}
+.gr_typing i:nth-child(2){animation-delay:.2s;}
+.gr_typing i:nth-child(3){animation-delay:.4s;}
+@keyframes grblink{0%,100%{opacity:.25;}50%{opacity:1;}}
+.gr_roomin{display:flex;gap:10px;align-items:flex-end;}
+/* 16px or iOS zooms the page the moment you tap to type, which is the one thing you
+   came here to do. Same reason the chat composer is 16px. */
+.gr_roomin textarea{flex:1;min-width:0;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;color:var(--text);font:inherit;font-size:16px;line-height:1.5;resize:vertical;min-height:52px;}
+.gr_roomin textarea:focus{outline:none;border-color:var(--line-2);}
+.gr_rep{display:flex;flex-direction:column;gap:16px;}
+.gr_reph{display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
+.gr_reph h3{margin:0;font-size:20px;font-weight:800;letter-spacing:-.02em;}
+.gr_reph p{margin:3px 0 0;}
+.gr_ring{width:112px;height:112px;border-radius:50%;display:grid;place-items:center;flex:none;}
+.gr_ring>div{width:88px;height:88px;border-radius:50%;background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.gr_ring b{font-size:30px;font-weight:800;letter-spacing:-.03em;}
+.gr_ring span{font-size:10.5px;color:var(--text-3);}
+.gr_skills{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;}
+.gr_skills span{display:flex;justify-content:space-between;font-size:12.5px;font-weight:600;margin-bottom:5px;}
+.gr_skills em{font-style:normal;color:var(--text-3);}
+.gr_better{background:var(--red);color:#fff;border-radius:14px;padding:14px 16px;}
+.gr_better>span{font-size:10px;text-transform:uppercase;letter-spacing:.12em;font-weight:700;opacity:.8;}
+.gr_better p{margin:6px 0 0;font-size:15px;line-height:1.55;}
+.gr_sub2 b{display:block;font-size:15px;font-weight:800;letter-spacing:-.01em;}
+.gr_sub2 span{font-size:12.5px;color:var(--text-3);}
+.gr_coach{display:flex;flex-direction:column;gap:11px;}
+.gr_coachin{display:flex;gap:8px;}
+.gr_tgb{cursor:pointer;border:0;font:inherit;}
+.gr_tgb:hover{background:var(--line-2);}
+@media(max-width:760px){.gr_skills,.gr_two{grid-template-columns:1fr;}}
 .gr_two{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
 @media(max-width:560px){.gr_two{grid-template-columns:1fr;}}
 .gr_field{display:flex;flex-direction:column;gap:5px;}
@@ -95539,6 +95625,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   let grTasks = [], grWatch = [], grDiscounts = [];
   let grPlanSeeding = false, grWatchAdd = false;
   let grSetTab = 'templates', grTrainTab = 'course', grEdit = null;
+  // Editing the board's own columns, in place: {k:'add'|'del', ...}. Null the rest of the time.
+  let grColEdit = null;
+  /* THE PRACTICE CALL. One at a time -- you cannot be on two -- so it is a single object
+     rather than a list, and null means "not on a call, showing the picker". */
+  let grRoom = null, grPracticeRuns = [], grCoach = { q: '', a: '', busy: false };
+  const GR_TURNS = 3;   // replies before it stops and scores you
   let grTplDraft = { n: '', s: '', b: '' }, grDcEdit = null,
       grDcDraft = { code: '', label: '', colour: '' }, grTestBusy = '';
   let grCourseDone = [], grCourseWho = null, grLessonOpen = null, grEditT = null;
@@ -95716,7 +95808,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const s = sb();
     if (!s) { grLoading = false; return; }
     try {
-      const [cl, mt, ms, tp, st, pf, tk, wc, dc, cd, rn] = await Promise.all([
+      const [cl, mt, ms, tp, st, pf, tk, wc, dc, cd, rn, pr] = await Promise.all([
         s.from('growth_clients').select('*').order('updated_at', { ascending: false }),
         s.from('growth_meetings').select('*').order('starts_at', { ascending: true }),
         s.from('growth_messages').select('*').order('sent_at', { ascending: true }),
@@ -95728,7 +95820,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         s.from('growth_watch_calls').select('*').order('position', { ascending: true }),
         s.from('growth_discounts').select('*').order('position', { ascending: true }),
         s.from('growth_course_done').select('*'),
-        s.from('growth_runs').select('*').order('ran_at', { ascending: false }).limit(20)
+        s.from('growth_runs').select('*').order('ran_at', { ascending: false }).limit(20),
+        s.from('growth_practice_runs').select('*').order('ran_at', { ascending: false }).limit(200)
       ]);
       if (cl.error) throw cl.error;
       grClients   = cl.data || [];
@@ -95741,6 +95834,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grDiscounts = dc.data || [];
       grCourseDone = cd.data || [];
       grRuns       = rn.data || [];
+      grPracticeRuns = pr.data || [];
       grSettings  = {};
       (st.data || []).forEach(r => { grSettings[r.key] = r.value || {}; });
       const pipe = grSettings.pipeline || {};
@@ -95791,6 +95885,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const r = await grWrite('growth_settings', 'upsert',
       { key: key, value: value, updated_at: new Date().toISOString(), updated_by: me() });
     if (r) grToast('Saved');
+    /* AND PAINT IT. This never re-rendered, so every content editor on Training -- a
+       lesson, a clear answer, a question, the pricing -- closed its form in state and
+       left it on the screen: you pressed Save, the row stayed an edit form, and the
+       change did not appear until you left the screen and came back. grSaveStages was
+       the only caller that happened to render afterwards, which is why the board looked
+       fine while the rest did not. One render here rather than one per caller, because
+       a caller that forgets is exactly how this happened. */
+    grRender();
     return r;
   }
 
@@ -96535,17 +96637,74 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         ? '<section class="gr_card">' + grEmpty('&#128269;', 'Nothing matches "' + esc(grQuery.trim()) + '"',
             'Try part of a name, a company, or an email address.') + '</section>'
       : grPView === 'todo' ? grTodoHtml(pool) :
-      '<div class="gr_board" style="--grcols:' + grStages.length + '">' + grStages.map(st => {
+      /* The extra column only exists WHILE you are adding one. A permanent "+ Add stage"
+         column is a seventh share of the width taken from six columns that already
+         ellipsis their headings -- "Proposal sent" became "Proposa...". The board is
+         meant to fit rather than scroll, so the button lives under it instead. */
+      '<div class="gr_board" style="--grcols:' + (grStages.length + (grColEdit && grColEdit.k === 'add' ? 1 : 0)) + '">' + grStages.map(st => {
         const g = pool.filter(c => c.stage === st.key);
         const sum = g.reduce((n, x) => n + grVal(x), 0);
+        const killing = grColEdit && grColEdit.k === 'del' && grColEdit.key === st.key;
         return '<div class="gr_col" data-gr-stage="' + st.key + '" style="--sc:' + st.color + '">' +
-          '<div class="gr_colh"><b>' + esc(st.label) + '</b>' +
-            (g.filter(grNextAction).length ? '<em class="gr_need" title="' + g.filter(grNextAction).length + ' need an action">' + g.filter(grNextAction).length + '</em>' : '') +
-            '<span>' + g.length + '</span></div>' +
+          (killing ? grColDelBar(st, g.length)
+            : '<div class="gr_colh"' + (grIsStaff() ? ' draggable="true" data-gr-colgrab="' + st.key + '"' : '') + '>' +
+              '<b>' + esc(st.label) + '</b>' +
+              (g.filter(grNextAction).length ? '<em class="gr_need" title="' + g.filter(grNextAction).length + ' need an action">' + g.filter(grNextAction).length + '</em>' : '') +
+              '<span>' + g.length + '</span>' +
+              (grIsStaff() && grStages.length > 2
+                ? '<button class="gr_colx" data-gr-coldel="' + st.key + '" aria-label="Delete the ' + esc(st.label) + ' stage">&#10005;</button>'
+                : '') + '</div>') +
           (sum ? '<div class="gr_colsum">' + grMoney(sum) + '/mo</div>' : '') +
           (g.length ? g.map(card).join('') : '<div class="gr_colempty">Drop a client here</div>') + '</div>';
-      }).join('') + '</div>' +
-      '<p class="gr_hint">Tap a card to open the client. Drag a card to move it, or use the three dots.</p>');
+      }).join('') + (grIsStaff() ? grColAddHtml() : '') + '</div>' +
+      '<p class="gr_hint">Tap a card to open the client. Drag a card to move it, or use the three dots.' +
+        (grIsStaff() ? ' Drag a column heading to reorder the stages.' : '') + '</p>' +
+      (grIsStaff() && !(grColEdit && grColEdit.k === 'add')
+        ? '<p class="gr_mid"><button class="gr_ghost gr_sm" data-gr-coladd="open">+ Add stage</button></p>'
+        : ''));
+  }
+
+  /* Editing the stages where you are looking at them. They were only editable on
+     Settings, which is three clicks away from the board and does not show you how many
+     deals are sitting in the column you are about to delete.
+
+     DELETING ASKS WHERE THEY GO. Settings sends them to the first stage because it has
+     nowhere to ask; here there is room, so it asks -- "move these six to Lost" and
+     "move these six to Booked" are very different instructions and the old one picked
+     for you. The bar replaces the heading rather than opening a dialog, so the count it
+     is talking about stays on screen while you answer. */
+  function grColDelBar(st, n) {
+    const others = grStages.filter(function (x) { return x.key !== st.key; });
+    const to = (grColEdit && others.some(function (x) { return x.key === grColEdit.to; }))
+      ? grColEdit.to : (others[0] || {}).key;
+    return '<div class="gr_colh gr_coldel">' +
+      '<b>Delete ' + esc(st.label) + '?</b>' +
+      (n ? '<label class="gr_colmv"><span>Move ' + n + ' deal' + (n === 1 ? '' : 's') + ' to</span>' +
+             '<select class="gr_in" id="grColTo" aria-label="Move the deals to">' +
+               others.map(function (x) {
+                 return '<option value="' + x.key + '"' + (x.key === to ? ' selected' : '') + '>' + esc(x.label) + '</option>';
+               }).join('') + '</select></label>'
+         : '<span class="gr_colmv"><span>Nothing is in it.</span></span>') +
+      '<div class="gr_colba"><button class="gr_ghost gr_sm" data-gr-colno>Keep</button>' +
+        '<button class="gr_danger" data-gr-coldo="' + st.key + '">Delete</button></div></div>';
+  }
+
+  /* Adding one. The column appears in the grid as you fill it in, so you are looking at
+     the thing you are making rather than at a dialog about it. */
+  function grColAddHtml() {
+    if (!(grColEdit && grColEdit.k === 'add')) return '';
+    return '<div class="gr_col gr_colnew" style="--sc:' + grColEdit.color + '">' +
+      '<div class="gr_colh"><b>New stage</b></div>' +
+      '<input class="gr_in" id="grColName" maxlength="24" placeholder="Stage name" aria-label="Stage name" value="' +
+        esc(grColEdit.name) + '">' +
+      '<div class="gr_colsw" role="group" aria-label="Colour">' +
+        GR_PALETTE.map(function (p) {
+          return '<button class="gr_sw2' + (p[1] === grColEdit.color ? ' gr_on2' : '') + '" data-gr-colsw="' + p[1] +
+            '" style="background:' + p[1] + '" aria-label="' + esc(p[0]) + '"' +
+            ' aria-pressed="' + (p[1] === grColEdit.color) + '"></button>';
+        }).join('') + '</div>' +
+      '<div class="gr_colba"><button class="gr_ghost gr_sm" data-gr-coladd="cancel">Cancel</button>' +
+        '<button class="btn-red gr_sm" data-gr-coladd="go">Add stage</button></div></div>';
   }
 
   /* The To-do view: the same deals ordered by what is most overdue rather than by stage.
@@ -96571,30 +96730,68 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   /* Dragging a card to another column. The write is the same grSave every other path
      uses, so a refusal is reported rather than leaving the card where it was dropped. */
-  let grDragId = null;
+  let grDragId = null, grDragCol = null;
   document.addEventListener('dragstart', e => {
-    const card = e.target.closest && e.target.closest('[data-gr-card]');
+    if (!e.target.closest) return;
+    /* A column heading drags the COLUMN; a card drags the deal. Both live inside the
+       same [data-gr-stage], so which one started is the only thing that tells the
+       listeners below apart -- hence two variables rather than one. */
+    const head = e.target.closest('[data-gr-colgrab]');
+    if (head) {
+      grDragCol = head.dataset.grColgrab;
+      const col = head.closest('[data-gr-stage]');
+      if (col) col.classList.add('gr_coldrag');
+      try { e.dataTransfer.setData('text/plain', grDragCol); e.dataTransfer.effectAllowed = 'move'; } catch (x) {}
+      return;
+    }
+    const card = e.target.closest('[data-gr-card]');
     if (!card) return;
     grDragId = card.dataset.grCard;
     card.classList.add('gr_dragging');
     try { e.dataTransfer.setData('text/plain', grDragId); e.dataTransfer.effectAllowed = 'move'; } catch (x) {}
   });
   const grDragClear = () => {
-    grDragId = null;
-    document.querySelectorAll('.gr_dragging,.gr_over').forEach(el => el.classList.remove('gr_dragging', 'gr_over'));
+    grDragId = null; grDragCol = null;
+    document.querySelectorAll('.gr_dragging,.gr_over,.gr_coldrag')
+      .forEach(el => el.classList.remove('gr_dragging', 'gr_over', 'gr_coldrag'));
   };
   document.addEventListener('dragend', grDragClear);
   document.addEventListener('dragover', e => {
     const col = e.target.closest && e.target.closest('[data-gr-stage]');
-    if (!col || !grDragId) return;
+    if (!col || (!grDragId && !grDragCol)) return;
+    if (grDragCol) {
+      e.preventDefault();
+      document.querySelectorAll('.gr_over').forEach(el => { if (el !== col) el.classList.remove('gr_over'); });
+      if (col.dataset.grStage !== grDragCol) col.classList.add('gr_over');
+      return;
+    }
     e.preventDefault();
     document.querySelectorAll('.gr_over').forEach(el => { if (el !== col) el.classList.remove('gr_over'); });
     col.classList.add('gr_over');
   });
   document.addEventListener('drop', e => {
     const col = e.target.closest && e.target.closest('[data-gr-stage]');
-    if (!col || !grDragId) return;
+    if (!col || (!grDragId && !grDragCol)) return;
     e.preventDefault();
+    if (grDragCol) {
+      const from = grDragCol, onto = col.dataset.grStage;
+      grDragClear();
+      if (!onto || onto === from) return;
+      const list = grStages.slice();
+      const i = list.findIndex(function (x) { return x.key === from; });
+      if (i < 0) return;
+      const moving = list.splice(i, 1)[0];
+      // Dropped on the right half of a column means after it, the left half means
+      // before. Without this you can never put a stage last -- there is nothing to the
+      // right of the final column to drop onto.
+      const box = col.getBoundingClientRect();
+      let at = list.findIndex(function (x) { return x.key === onto; });
+      if (at < 0) at = list.length;
+      else if (e.clientX > box.left + box.width / 2) at += 1;
+      list.splice(at, 0, moving);
+      grSaveStages(list);
+      return;
+    }
     const c = grClients.find(x => x.id === grDragId);
     const to = col.dataset.grStage;
     grDragClear();
@@ -96644,9 +96841,312 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     grPlanSeeding = false;
   }
 
+  /* ---------- Practice ----------
+     The course tells you and the Q and A answers for you. Neither makes anybody say the
+     words out loud, which is the only part that transfers to a real call. So: pick what
+     you want to work on, a prospect says something, you reply three times, and then you
+     are scored and told one thing to change.
+
+     THE SCENARIOS ARE CONTENT, not code -- growth_settings 'practice', edited like a
+     lesson -- and a person's runs are their own rows (20261027120000). Same split the
+     course uses, for the same reason: finishing a practice call is not editing shared
+     material.
+
+     THE STRONG ANSWER IS NOT SHOWN UNTIL AFTER THE SCORE. Shown first it is reading, and
+     reading is the thing this screen exists to replace. */
+  const grAreas = () => Array.isArray((grSettings.practice || {}).areas) ? grSettings.practice.areas : [];
+  const grArea  = (id) => grAreas().find(a => a.id === id) || null;
+  /* YOUR runs, always. A manager looking at a rep's scores belongs on the course screen
+     where the chips already are; here the only question is how YOU did, and a picker
+     that quietly scored somebody else would be worse than no picker. */
+  const grMyRuns = (area) => grPracticeRuns.filter(r =>
+    r.owner_id === me() && (!area || r.area === area));
+  function grAreaAvg(id) {
+    const r = grMyRuns(id);
+    return r.length ? r.reduce((n, x) => n + (Number(x.score) || 0), 0) / r.length : null;
+  }
+  /* Never practised beats practised badly: an area with no runs is the one you are
+     avoiding. -1 sorts it below a genuine zero. */
+  function grWeakest() {
+    const list = grAreas();
+    if (!list.length) return null;
+    let worst = null, low = Infinity;
+    list.forEach(a => {
+      const v = grAreaAvg(a.id);
+      const n = v == null ? -1 : v;
+      if (n < low) { low = n; worst = a; }
+    });
+    return worst;
+  }
+
+  function grPracticeHtml() {
+    const head = grSub('Practice',
+      'Get on a practice call. Say it out loud, then get told one thing to change.');
+    if (!grAreas().length) {
+      return head + grEmpty('&#127908;', 'Nothing to practise yet',
+        grIsStaff() ? 'Add the scenarios in Settings.' : 'Luke is still writing these.');
+    }
+    if (grRoom && grRoom.phase === 'review') return head + grPracReviewHtml() + grCoachHtml();
+    if (grRoom) return head + grPracRoomHtml() + grCoachHtml();
+    return head + grPracPickHtml() + grCoachHtml();
+  }
+
+  function grPracPickHtml() {
+    const weak = grWeakest();
+    return '<div class="gr_pickg">' + grAreas().map(a => {
+      const v = grAreaAvg(a.id), n = grMyRuns(a.id).length;
+      return '<button class="gr_pick" data-gr-prac-start="' + esc(a.id) + '">' +
+        '<b>' + esc(a.t) + '</b>' +
+        '<span class="gr_pickw">' + esc(a.who || '') + '</span>' +
+        '<u><s style="width:' + (v == null ? 0 : Math.round(v * 10)) + '%"></s></u>' +
+        '<em>' + (v == null ? 'Not tried yet' : v.toFixed(1) + ' out of 10 · ' + n +
+          (n === 1 ? ' call' : ' calls')) + '</em></button>';
+    }).join('') + '</div>' +
+    (weak ? '<p class="gr_mid"><button class="btn-red" data-gr-prac-start="' + esc(weak.id) +
+      '">Start with my weakest: ' + esc(weak.t) + '</button></p>' : '');
+  }
+
+  function grPracRoomHtml() {
+    const a = grArea(grRoom.area) || {};
+    const thinking = grRoom.busy || grRoom.phase === 'scoring';
+    return '<section class="gr_card gr_room">' +
+      '<div class="gr_roomh"><div class="gr_roomt">' +
+        '<i class="gr_lt ' + (thinking ? 'gr_wait' : 'gr_on') + '"></i>' +
+        '<div><b>' + esc(a.t || 'Practice') + '</b><span>' +
+          (grRoom.phase === 'scoring' ? 'Scoring your call...'
+            : grRoom.turns + ' of ' + GR_TURNS + ' replies') + '</span></div></div>' +
+        '<button class="gr_ghost gr_sm" data-gr-prac-end>End call</button></div>' +
+      '<div class="gr_roomw">' + grAvatar(String(a.who || 'P').split(',')[0], '#7C3AED') +
+        '<div class="gr_rm"><b>' + esc(String(a.who || '').split(',')[0]) + '</b>' +
+        '<span>' + esc(a.goal || '') + '</span></div></div>' +
+      '<div class="gr_rmsgs" id="grRoomMsgs">' +
+        grRoom.msgs.map(m => '<div class="gr_rmb gr_' + m.who + '">' + esc(m.text) + '</div>').join('') +
+        (thinking ? '<div class="gr_rmb gr_p gr_typing"><i></i><i></i><i></i></div>' : '') +
+      '</div>' +
+      '<div class="gr_roomin">' +
+        '<textarea id="grRoomSay" rows="2" placeholder="Say your reply out loud, then type it. ' +
+          'Ctrl or Cmd and Enter sends." aria-label="Your reply">' + esc(grRoom.draft) + '</textarea>' +
+        '<button class="btn-red" data-gr-prac-send' + (thinking || !grRoom.draft.trim() ? ' disabled' : '') +
+          '>Send</button></div></section>';
+  }
+
+  function grPracReviewHtml() {
+    const r = grRoom.review || {}, a = grArea(grRoom.area) || {};
+    const sc = Math.max(0, Math.min(10, Number(r.score) || 0));
+    const grade = sc >= 8 ? 'Strong call' : sc >= 6 ? 'Solid, with room to grow' : 'Keep practising';
+    const scen = grRoom.scen || {};
+    return '<section class="gr_card gr_rep">' +
+      '<div class="gr_reph">' +
+        '<div class="gr_ring" style="background:conic-gradient(var(--red) ' + Math.round(sc * 36) +
+          'deg, var(--surface-3) 0)"><div><b>' + sc.toFixed(1) + '</b><span>out of 10</span></div></div>' +
+        '<div><h3>' + esc(grade) + '</h3><p class="gr_mute">' + esc(a.t || '') + '</p>' +
+          (r.local ? '<p class="gr_mute">Scored here on the page: the writer was not reachable.</p>' : '') +
+        '</div></div>' +
+      ((r.skills || []).length ? '<div class="gr_skills">' + r.skills.map(k => {
+        const v = Math.max(0, Math.min(10, Number(k.score) || 0));
+        return '<div><span>' + esc(k.name) + '<em>' + v + '</em></span>' +
+          '<u><s style="width:' + (v * 10) + '%"></s></u></div>';
+      }).join('') + '</div>' : '') +
+      '<div class="gr_two">' +
+        '<div class="gr_note"><span>Went well</span>' +
+          ((r.went_well || []).map(x => '<p>' + esc(x) + '</p>').join('') || '<p class="gr_mute">Nothing noted.</p>') + '</div>' +
+        '<div class="gr_note"><span>Change next time</span>' +
+          ((r.to_change || []).map(x => '<p>' + esc(x) + '</p>').join('') || '<p class="gr_mute">Nothing noted.</p>') + '</div>' +
+      '</div>' +
+      (r.better ? '<div class="gr_better"><span>A stronger way to say it</span><p>' + esc(r.better) + '</p></div>' : '') +
+      // ...and not twice, on the off chance the writer lands on the same sentence.
+      (scen.b && scen.b !== r.better
+        ? '<div class="gr_note"><span>What a strong opener sounds like</span><p>' + esc(scen.b) + '</p></div>' : '') +
+      '<div class="gr_csx"><button class="btn-red" data-gr-prac-start="' + esc(grRoom.area) + '">Try this again</button>' +
+        '<button class="gr_ghost" data-gr-prac-weak>Next, my weakest</button>' +
+        '<button class="gr_ghost" data-gr-prac-end>Choose a call</button></div></section>';
+  }
+
+  const GR_COACH_Q = ['How do I ask for the yes?', 'What if they say it is too expensive?',
+                      'What do I say about results?', 'How long does it take?'];
+  function grCoachHtml() {
+    return '<section class="gr_card gr_coach"><div class="gr_sub2"><b>Ask the coach</b>' +
+      '<span>A question about selling this, answered from the clear answers and the Q and A.</span></div>' +
+      '<div class="gr_coachin"><input class="gr_in" id="grCoachQ" value="' + esc(grCoach.q) +
+        '" placeholder="How do I handle somebody who needs to think about it?" aria-label="Ask the coach">' +
+        '<button class="gr_ghost" data-gr-coach-ask' + (grCoach.busy ? ' disabled' : '') + '>' +
+        (grCoach.busy ? 'Thinking...' : 'Ask') + '</button></div>' +
+      '<div class="gr_tags">' + GR_COACH_Q.map(q =>
+        '<button class="gr_tg gr_tgb" data-gr-coach-q="' + esc(q) + '">' + esc(q) + '</button>').join('') + '</div>' +
+      (grCoach.a ? '<div class="gr_qaa"><span>Coach</span><p>' + esc(grCoach.a) + '</p></div>' : '') +
+      '</section>';
+  }
+
+  /* One place that talks to Claude, because three copies of "post, check res.ok, read
+     data.text" is three places to forget the zero-length case. Throws rather than
+     returning empty: every caller here has a real fallback and needs to know to use it. */
+  async function grClaude(system, user, maxTokens) {
+    const res = await fetch('/.netlify/functions/claude-api', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ max_tokens: maxTokens || 700, system: system,
+        messages: [{ role: 'user', content: user }] })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'AI error');
+    const out = String(data.text || '').trim();
+    if (!out) throw new Error('nothing came back');
+    return out;
+  }
+  // Models wrap JSON in prose and fences however they feel. Take the outermost braces.
+  function grJson(t) {
+    const str = String(t || '').replace(/^```(?:json)?/i, '').replace(/```$/, '');
+    const a = str.indexOf('{'), b = str.lastIndexOf('}');
+    if (a < 0 || b < a) throw new Error('no json');
+    return JSON.parse(str.slice(a, b + 1));
+  }
+
+  function grPracStart(areaId) {
+    const a = grArea(areaId);
+    if (!a || !(a.s || []).length) { grToast('That one has no scenarios yet.'); return; }
+    const scen = a.s[Math.floor(Math.random() * a.s.length)];
+    grRoom = { area: areaId, scen: scen, msgs: [{ who: 'p', text: scen.p }],
+               turns: 0, phase: 'call', review: null, draft: '', busy: false };
+    grRender();
+  }
+
+  /* Your reply goes in, then either the prospect answers or the call ends and is scored.
+     The prospect's answer is written by Claude so it responds to what you actually said;
+     when that is not available it falls back to a nudge, because a practice call that
+     stops dead because the network did is worse than a slightly generic one. */
+  const GR_PUSH = ['Okay. Tell me more about how that works.',
+                   'Hmm. I have heard that before. What makes this different?',
+                   'Alright. What would you need from me to get started?'];
+  async function grPracSend() {
+    if (!grRoom || grRoom.busy) return;
+    const said = String(grRoom.draft || '').trim();
+    if (!said) return;
+    grRoom.msgs.push({ who: 't', text: said });
+    grRoom.turns += 1;
+    grRoom.draft = '';
+    if (grRoom.turns >= GR_TURNS) { grPracScore(); return; }
+    grRoom.busy = true; grRender();
+    const a = grArea(grRoom.area) || {};
+    try {
+      const line = await grClaude(
+        'You are playing a prospect on a sales practice call. Stay in character. Plain ' +
+        'words, 1 to 3 short sentences, a little guarded. If they listened and answered ' +
+        'well, warm up slightly; if they rambled or pitched, push back. Never coach and ' +
+        'never mention that this is practice. Reply with the prospect line only.',
+        'Who you are: ' + (a.who || 'a prospect') + '\nThe situation: ' + (a.goal || '') +
+        '\n\nThe call so far:\n' + grRoom.msgs.map(m =>
+          (m.who === 'p' ? 'Prospect: ' : 'Salesperson: ') + m.text).join('\n'), 300);
+      grRoom.msgs.push({ who: 'p', text: line.replace(/^prospect:\s*/i, '') });
+    } catch (e) {
+      grRoom.msgs.push({ who: 'p', text: GR_PUSH[Math.min(grRoom.turns - 1, GR_PUSH.length - 1)] });
+    }
+    grRoom.busy = false; grRender();
+  }
+
+  /* The five things that separate a reply that lands from one that does not, each one
+     readable off the text. This is the fallback when Claude is not reachable, and it is
+     deliberately strict about the last one: anybody can promise a result, and promising
+     one is the single worst habit this course is trying to break. */
+  function grPracLocal() {
+    const said = grRoom.msgs.filter(m => m.who === 't').map(m => m.text).join(' ');
+    const t = said.toLowerCase();
+    const checks = [
+      ['Opening',          /(understand|makes sense|fair|hear you|good question|thanks|appreciate|of course|sounds like)/.test(t),
+       'Show you heard them first. "That makes sense" costs nothing and buys the rest.'],
+      ['Listening',        (said.match(/\?/g) || []).length === 1,
+       'Ask one question, then stop and let them answer it.'],
+      ['Clear offer',      /(\$|\d|day|week|month|minute|hour)/.test(t),
+       'Give one real number or timeframe. "Soon" is not an answer.'],
+      ['Next step',        /(next|send|link|call|book|start|form|plan)/.test(t),
+       'End with one small next step they can say yes to.'],
+      ['Stayed honest',    !/(guarantee|guaranteed|100%|definitely will|always work|never fail|promise you)/.test(t),
+       'Never promise a result. Promise daily work and honesty.']
+    ];
+    return {
+      local: true,
+      score: checks.filter(c => c[1]).length * 2,
+      skills: checks.map(c => ({ name: c[0], score: c[1] ? 8 : 4 })),
+      went_well: checks.filter(c => c[1]).map(c => c[0]),
+      to_change: checks.filter(c => !c[1]).map(c => c[2]),
+      /* Deliberately empty. "A stronger way to say it" means a rewrite of YOUR words,
+         which five regexes cannot write; the scenario's model opener is a different
+         thing and is shown under it either way. Filling this in with the model opener
+         printed the same sentence twice under two different headings. */
+      better: ''
+    };
+  }
+
+  async function grPracScore() {
+    grRoom.phase = 'scoring'; grRoom.busy = true; grRender();
+    const a = grArea(grRoom.area) || {};
+    let rv = null;
+    try {
+      const raw = await grClaude(
+        'You coach salespeople at a marketing agency. Score the call honestly and kindly. ' +
+        'Return JSON only: {"score": 0-10, "skills":[{"name","score"} x5 named Opening, ' +
+        'Listening, Handling worries, Clear offer, Next step], "went_well":[2 or 3 short ' +
+        'strings], "change":[2 or 3 short strings], "better": one stronger reply in 2 to 4 ' +
+        'sentences}. Plain words. No dashes of any kind.',
+        'They were practising: ' + (a.t || '') + '. The goal was: ' + (a.goal || '') +
+        '\n\n' + grRoom.msgs.map(m =>
+          (m.who === 'p' ? 'Prospect: ' : 'Salesperson: ') + m.text).join('\n'), 900);
+      const j = grJson(raw);
+      if (typeof j.score === 'number' && Array.isArray(j.skills)) {
+        rv = { score: j.score, skills: j.skills,
+               went_well: Array.isArray(j.went_well) ? j.went_well : [],
+               to_change: Array.isArray(j.change) ? j.change : [],
+               better: String(j.better || '') };
+      }
+    } catch (e) { /* falls back below */ }
+    if (!rv) rv = grPracLocal();
+    grRoom.review = rv; grRoom.phase = 'review'; grRoom.busy = false;
+    grRender();
+    grPracSave(rv);
+  }
+
+  /* Kept, because "start me on my weakest" is the point and that needs yesterday's runs.
+     grWrite asks for the row back, so a refusal is said out loud rather than leaving the
+     score on screen and nothing in the table. */
+  async function grPracSave(rv) {
+    const row = await grWrite('growth_practice_runs', 'insert', {
+      owner_id: me(), area: grRoom.area,
+      score: Math.max(0, Math.min(10, Math.round((Number(rv.score) || 0) * 10) / 10)),
+      skills: rv.skills || [], went_well: rv.went_well || [], to_change: rv.to_change || [],
+      better: rv.better || '', opener: (grRoom.scen || {}).p || ''
+    });
+    if (row) { grPracticeRuns = row.concat(grPracticeRuns); grRender(); }
+  }
+
+  async function grCoachAsk(q) {
+    q = String(q || '').trim();
+    if (!q || grCoach.busy) return;
+    grCoach = { q: q, a: '', busy: true }; grRender();
+    const known = grClears().map(x => 'Q: ' + x.q + ' A: ' + x.a)
+      .concat(grQas().slice(0, 12).map(x => 'Q: ' + x.q + ' A: ' + (x.better || ''))).join('\n');
+    try {
+      grCoach.a = await grClaude(
+        'You are a warm, relaxed sales coach at a marketing agency. Answer in 2 to 4 short ' +
+        'plain sentences. Use ONLY the approved answers below. Never invent a price, a date ' +
+        'or a promise. No dashes of any kind.',
+        'They asked: ' + q + '\n\nApproved answers:\n' + known, 500);
+    } catch (e) {
+      /* Rather than an apology: the nearest approved answer we already hold. */
+      const words = q.toLowerCase().split(/\W+/).filter(w => w.length > 3);
+      let best = null, hits = 0;
+      grClears().concat(grQas().map(x => ({ q: x.q, a: x.better })))
+        .forEach(c => {
+          const hay = (String(c.q) + ' ' + String(c.a)).toLowerCase();
+          const n = words.filter(w => hay.indexOf(w) >= 0).length;
+          if (n > hits) { hits = n; best = c; }
+        });
+      grCoach.a = best ? best.a
+        : 'I could not reach the writer. Try it out loud on your next call, then ask again.';
+    }
+    grCoach.busy = false; grRender();
+  }
+
   function grRenderTraining() {
-    const tabs = [['course','Course'],['clear','Clear answers'],['lib','Best calls'],
-                  ['qa','Q&amp;A'],['pricing','Pricing']];
+    const tabs = [['course','Course'],['practice','Practice'],['clear','Clear answers'],
+                  ['lib','Best calls'],['qa','Q&amp;A'],['pricing','Pricing']];
     // Philosophy, the call script and the personal task list are reached FROM a lesson
     // rather than from the strip, the same as the design. The strip still has to say
     // where you are, so Course stays lit while one of them is open.
@@ -96658,6 +97158,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     let body = '';
 
     if (grTrainTab === 'course') body = grCourseHtml();
+    else if (grTrainTab === 'practice') body = grPracticeHtml();
     else if (grTrainTab === 'clear') body = grClearHtml();
     else if (grTrainTab === 'qa') body = grQaHtml();
     else if (grTrainTab === 'plan') {
@@ -97252,6 +97753,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               '<input class="gr_in" data-gr-qa="why" value="' + esc(x.why || '') + '"></div>' +
             '<div class="gr_field"><label>The tricks, one per line</label>' +
               '<textarea class="gr_in" rows="2" data-gr-qa="tricks">' + esc((x.tricks || []).join('\n')) + '</textarea></div>' +
+            '<div class="gr_field"><label>Video answer, a Loom link (optional)</label>' +
+              '<input class="gr_in" data-gr-qa="video" placeholder="https://www.loom.com/share/..." value="' +
+                esc(x.video || '') + '"></div>' +
             '<div class="gr_csx"><button class="btn-red" data-gr-qa-save="' + x.id + '">Save</button>' +
               '<button class="gr_ghost" data-gr-qa-edit="' + x.id + '">Cancel</button><span class="gr_sp"></span>' +
               '<button class="gr_danger" data-gr-qa-del="' + x.id + '">Delete</button></div></section>';
@@ -97273,6 +97777,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               (x.why ? '<p class="gr_qaw">' + esc(x.why) + '</p>' : '') + '</div>' +
             ((x.tricks || []).length ? '<div class="gr_tags">' +
               x.tricks.map(t => '<span class="gr_tg">' + esc(t) + '</span>').join('') + '</div>' : '') +
+            /* Watch somebody say it. Reading a good answer and hearing one land are
+               different lessons, and this is the one Luke records. */
+            (x.video ? '<div class="gr_qavid"><span>Watch the answer</span>' +
+              '<div class="gr_qavf"><iframe src="' + esc(x.video) + '" title="Video answer"' +
+              ' allowfullscreen loading="lazy" referrerpolicy="no-referrer"></iframe></div></div>' : '') +
             (x.a ? '<div class="gr_qaf"><span>How you usually answer</span><p>' + esc(x.a) + '</p></div>' : '') +
             /* What was actually said on a call, and a better way to say it. This is the
                part a rep learns from: a model answer in the abstract is advice, the same
@@ -98331,14 +98840,26 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     await grSetting('pipeline', { stages: list, staleDays: grStaleDays });
     grRender();
   }
-  async function grStageDel(key) {
+  /* Deleting a stage has to say where its deals go, because they cannot stay. Settings
+     has no room to ask, so it keeps the confirm and sends them to the first stage; the
+     board asks, and passes the answer in. One function either way -- two copies of
+     "and then move everyone" drift until one of them loses a deal. */
+  async function grStageDel(key, toKey) {
     const holding = grClients.filter(function (c) { return c.stage === key; });
     if (grStages.length <= 2) { grToast('Keep at least two stages.'); return; }
-    const ok = await window.giantConfirmWarn(holding.length
-      ? 'Delete this stage? ' + holding.length + ' deal' + (holding.length === 1 ? '' : 's') + ' will move to ' + grStages[0].label + '.'
-      : 'Delete this stage?');
-    if (!ok) return;
-    for (const c of holding) await grSave(c, { stage: grStages[0].key });
+    const dest = grStages.filter(function (x) { return x.key !== key; })
+      .find(function (x) { return x.key === toKey; }) ||
+      grStages.find(function (x) { return x.key !== key; });
+    if (!dest) return;
+    if (!toKey) {
+      const ok = await window.giantConfirmWarn(holding.length
+        ? 'Delete this stage? ' + holding.length + ' deal' + (holding.length === 1 ? '' : 's') + ' will move to ' + dest.label + '.'
+        : 'Delete this stage?');
+      if (!ok) return;
+    }
+    // The deals move FIRST. Drop the stage first and a refused move leaves a deal
+    // pointing at a stage that no longer has a column, which is a deal nobody can see.
+    for (const c of holding) await grSave(c, { stage: dest.key });
     await grSaveStages(grStages.filter(function (x) { return x.key !== key; }));
   }
 
@@ -98485,6 +99006,30 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     host.classList.add('on');
   }
 
+  /* Work owed on ONE deal. growth_tasks is a person's own list -- the training plan --
+     and "send Dana the case study" is not that: it belongs to Dana, somebody else opening
+     her should see it, and it should go when she does. So it rides on the client row as
+     jsonb (20261027120000), the same reasoning moments ride on a call.
+
+     Open ones first. A list that keeps finished work at the top stops being a list of
+     what is left, which is the only thing it is for. */
+  function grDealTodos(c) {
+    const list = (c.todos || []).slice().sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0));
+    const open = list.filter(t => !t.done).length;
+    return '<div class="gr_note gr_todos"><span>To do' +
+      (open ? ' \u00B7 ' + open + ' open' : '') + '</span>' +
+      list.map(t =>
+        '<div class="gr_tdo' + (t.done ? ' gr_done' : '') + '">' +
+          '<button class="gr_tdtick" data-gr-todo="tick" data-cid="' + c.id + '" data-tid="' + esc(t.id) + '"' +
+            ' aria-label="' + (t.done ? 'Mark not done' : 'Mark done') + '">' + (t.done ? '&#10003;' : '') + '</button>' +
+          '<span>' + esc(t.text) + '</span>' +
+          '<button class="gr_tdx" data-gr-todo="del" data-cid="' + c.id + '" data-tid="' + esc(t.id) + '"' +
+            ' aria-label="Delete this to-do">&#10005;</button></div>').join('') +
+      '<div class="gr_tdadd"><input class="gr_in" id="grTodoNew" maxlength="200"' +
+        ' placeholder="Add a to-do, e.g. Send the case study" aria-label="New to-do">' +
+        '<button class="gr_ghost" data-gr-todo="add" data-cid="' + c.id + '">Add</button></div></div>';
+  }
+
   function grRenderSheet() {
     const wrap = $('grSheet');
     const c = grOpenId && grClients.find(x => x.id === grOpenId);
@@ -98613,6 +99158,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             '<button class="gr_chip" data-gr-logcall="' + c.id + '">+ Call held</button>' +
             '</div></div>'
           : '') +
+
+        grDealTodos(c) +
 
         (function () {
           // What has actually happened, newest first. Meetings and emails are real rows;
@@ -99121,6 +99668,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
              min: Math.max(1, Math.min(90, parseInt(g('grLsM'), 10) || 5)),
              blocks: grTextBlocks(g('grLsB')), do: g('grLsD').trim() };
   }
+  /* A video answer, which for this company means Loom -- "we communicate over email, Zoom
+     and Loom videos" is in the clear answers. Normalised to the embed form once, when it
+     is saved, so the display never has to think about which flavour of link was pasted.
+
+     ONLY LOOM. This URL goes into an iframe src, and an iframe pointed at whatever
+     somebody pasted is a hole, not a feature. Anything else returns '' and the save says
+     so rather than quietly dropping it. */
+  function grLoomEmbed(u) {
+    const m = /loom\.com\/(?:share|embed)\/([A-Za-z0-9]+)/.exec(String(u || ''));
+    return m ? 'https://www.loom.com/embed/' + m[1] : '';
+  }
+
   function grFieldsOf(sel) {
     const out = {};
     document.querySelectorAll('[data-gr-' + sel + ']').forEach(el => {
@@ -99400,6 +99959,29 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grWon = null; grRender(); return;
     }
 
+    /* Add, tick, delete. Every one goes through grSave, which asks for the row back and
+       says so when RLS hands back nothing -- a to-do that silently failed to save is a
+       promise to a client that nobody kept. Delete is undoable because the usual mistake
+       is the wrong line, and there is nothing else to recover it from. */
+    const tdo = e.target.closest('[data-gr-todo]');
+    if (tdo) {
+      const c2 = grClients.find(x => x.id === tdo.dataset.cid);
+      if (!c2) return;
+      const was = (c2.todos || []).slice();
+      const act = tdo.dataset.grTodo;
+      if (act === 'add') {
+        const inp = $('grTodoNew'), text = inp ? inp.value.trim() : '';
+        if (!text) { if (inp) inp.focus(); return; }
+        grSave(c2, { todos: [{ id: 't' + Date.now().toString(36), text: text, done: false, done_on: null }].concat(was) });
+      } else if (act === 'tick') {
+        grSave(c2, { todos: was.map(t => t.id === tdo.dataset.tid
+          ? Object.assign({}, t, { done: !t.done, done_on: t.done ? null : grToday() }) : t) });
+      } else if (act === 'del') {
+        grSave(c2, { todos: was.filter(t => t.id !== tdo.dataset.tid) });
+        grToast('To-do deleted', () => grSave(c2, { todos: was }));
+      }
+      return;
+    }
     const lm = e.target.closest('[data-gr-logmail]');
     if (lm) {
       const c2 = grClients.find(x => x.id === lm.dataset.grLogmail);
@@ -99799,12 +100381,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (qs) {
       const f = grFieldsOf('qa'), id = qs.dataset.grQaSave;
       if (!String(f.q || '').trim()) return;
+      /* MERGE, never rebuild. This used to return a fresh object with only the fields the
+         form has, which quietly threw away everything it does not: `ex` (what was really
+         said on calls), `n` and `calls` (how often it comes up, which is what ranks the
+         list) and `a`. Editing a typo in a question deleted its evidence. */
+      const vid = String(f.video || '').trim();
+      const embed = vid ? grLoomEmbed(vid) : '';
       grEditT = null;
-      grSaveQas(grQas().map(x => x.id === id ? {
+      // After the save, not before: grSetting raises its own "Saved" and would wipe this.
+      const warn = (vid && !embed) ? 'That is not a Loom link, so the video was not saved.' : '';
+      grSaveQas(grQas().map(x => x.id === id ? Object.assign({}, x, {
         id: id, q: f.q.trim(), theme: (f.theme || '').trim(), feel: (f.feel || '').trim(),
         better: (f.better || '').trim(), why: (f.why || '').trim(),
+        video: embed,
         tricks: String(f.tricks || '').split('\n').map(t => t.trim()).filter(Boolean)
-      } : x));
+      }) : x)).then(function () { if (warn) grToast(warn); });
       return;
     }
     const qd = e.target.closest('[data-gr-qa-del]');
@@ -99843,6 +100434,76 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grSetTab = st.dataset.grSettab === 'discounts' ? 'templates' : st.dataset.grSettab;
       grEdit = null; grDcEdit = null; grRender(); return;
     }
+
+    /* The same three stage edits, reached from the board instead of Settings. They call
+       the same grSaveStages and grStageDel, so there is one rule about what a stage is
+       and where its deals go, wherever you happen to be standing. */
+    // ---- Training: the practice call ----
+    const ps = e.target.closest('[data-gr-prac-start]');
+    if (ps) { grPracStart(ps.dataset.grPracStart); return; }
+    if (e.target.closest('[data-gr-prac-end]')) { grRoom = null; grRender(); return; }
+    if (e.target.closest('[data-gr-prac-weak]')) {
+      const w = grWeakest();
+      if (w) grPracStart(w.id); else { grRoom = null; grRender(); }
+      return;
+    }
+    if (e.target.closest('[data-gr-prac-send]')) { grPracSend(); return; }
+    if (e.target.closest('[data-gr-coach-ask]')) {
+      const el = $('grCoachQ');
+      grCoachAsk(el ? el.value : grCoach.q);
+      return;
+    }
+    const cq = e.target.closest('[data-gr-coach-q]');
+    if (cq) { grCoachAsk(cq.dataset.grCoachQ); return; }
+
+    const cdel = e.target.closest('[data-gr-coldel]');
+    if (cdel) {
+      const key = cdel.dataset.grColdel;
+      const other = grStages.find(function (x) { return x.key !== key; });
+      grColEdit = { k: 'del', key: key, to: other ? other.key : null };
+      grRender();
+      return;
+    }
+    if (e.target.closest('[data-gr-colno]')) { grColEdit = null; grRender(); return; }
+    const cdo = e.target.closest('[data-gr-coldo]');
+    if (cdo) {
+      const sel = $('grColTo');
+      const to = sel ? sel.value : (grColEdit && grColEdit.to);
+      const key = cdo.dataset.grColdo;
+      grColEdit = null;
+      grStageDel(key, to);
+      return;
+    }
+    const cadd = e.target.closest('[data-gr-coladd]');
+    if (cadd) {
+      const act = cadd.dataset.grColadd;
+      if (act === 'open') {
+        // Start on a colour nothing else is using, so two stages are not the same blue.
+        const free = GR_PALETTE.map(function (p) { return p[1]; })
+          .find(function (hex) { return !grStages.some(function (x) { return String(x.color).toLowerCase() === hex.toLowerCase(); }); });
+        grColEdit = { k: 'add', name: '', color: free || GR_PALETTE[1][1] };
+        grRender();
+        const n = $('grColName'); if (n) n.focus();
+        return;
+      }
+      if (act === 'cancel') { grColEdit = null; grRender(); return; }
+      if (act === 'go') {
+        const el = $('grColName'), v = (el && el.value || '').trim();
+        if (!v) { if (el) el.focus(); return; }
+        const list = grStages.slice();
+        // Before Lost, never after it: Lost is the end of the road. Same rule as Settings.
+        const lost = list.findIndex(function (x) { return x.key === 'lost'; });
+        list.splice(lost >= 0 ? lost : list.length, 0,
+          { key: 's' + Date.now().toString(36), label: v, color: grColEdit.color });
+        grColEdit = null;
+        grSaveStages(list);
+        grToast('Added ' + v);
+        return;
+      }
+      return;
+    }
+    const csw = e.target.closest('[data-gr-colsw]');
+    if (csw) { if (grColEdit) { grColEdit.color = csw.dataset.grColsw; grRender(); const n = $('grColName'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } } return; }
 
     const sm = e.target.closest('[data-gr-stage-move]');
     if (sm) {
@@ -100236,6 +100897,26 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (e.target && e.target.id === 'grCalToken' && e.key === 'Enter') {
       e.preventDefault(); grCalConnect(); return;
     }
+    // Enter adds the to-do. Reaching for the mouse between every line is how a list of
+    // three things becomes a list of one.
+    if (e.target && e.target.id === 'grRoomSay' && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+      e.preventDefault(); grPracSend(); return;
+    }
+    if (e.target && e.target.id === 'grCoachQ' && e.key === 'Enter') {
+      e.preventDefault(); grCoachAsk(e.target.value); return;
+    }
+    if (e.target && e.target.id === 'grColName' && e.key === 'Enter') {
+      e.preventDefault();
+      const b = document.querySelector('[data-gr-coladd="go"]');
+      if (b) b.click();
+      return;
+    }
+    if (e.target && e.target.id === 'grTodoNew' && e.key === 'Enter') {
+      e.preventDefault();
+      const b = document.querySelector('[data-gr-todo="add"]');
+      if (b) b.click();
+      return;
+    }
     if (e.target && e.target.id === 'grAsk') {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -100246,6 +100927,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
   });
   document.addEventListener('input', function (e) {
+    if (e.target && e.target.id === 'grColName') { if (grColEdit) grColEdit.name = e.target.value; return; }
+    /* Held in state, not read off the box at send time: the screen repaints while you
+       are typing -- the prospect's line arrives, the busy dot stops -- and a re-render
+       throws away whatever the textarea was holding. */
+    if (e.target && e.target.id === 'grRoomSay') {
+      if (grRoom) {
+        grRoom.draft = e.target.value;
+        const b = document.querySelector('[data-gr-prac-send]');
+        if (b) b.disabled = !grRoom.draft.trim() || grRoom.busy;
+      }
+      return;
+    }
+    if (e.target && e.target.id === 'grCoachQ') { grCoach.q = e.target.value; return; }
+    if (e.target && e.target.id === 'grColTo') { if (grColEdit) grColEdit.to = e.target.value; return; }
     if (e.target && e.target.id === 'grFcQ') {
       // The whole screen re-renders, so the box is a NEW element every keystroke. Without
       // putting the caret back, every letter after the first lands at position 0 and the
