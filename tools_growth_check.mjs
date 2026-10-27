@@ -559,6 +559,67 @@ await step('the scenarios edit here, like every other Training page', async () =
   await page.waitForTimeout(600);
 });
 
+/* ---------------------------------------------------------------- on a phone */
+await step('every Training tab is still reachable at phone width', async () => {
+  /* Adding Practice made six tabs. .gr_seg was inline-flex with no wrap and no scroll,
+     so the sixth -- Pricing -- was CLIPPED by the screen edge and could not be reached
+     at all. Nothing looked wrong from a desktop, and the page did not even scroll
+     sideways to hint at it, which is why this is measured against the viewport rather
+     than eyeballed. */
+  const ph = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const pp = await ph.newPage();
+  await pp.route('**/@supabase/supabase-js@2*', r =>
+    r.fulfill({ status: 200, contentType: 'application/javascript', body: MOCK }));
+  await pp.route('**://*.supabase.co/**', r => r.abort());
+  await pp.goto(BASE + '/app', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await pp.waitForSelector('#view-app.on', { timeout: 30000 });
+  await pp.waitForTimeout(3000);
+  await pp.evaluate(() => document.querySelector('#appSidebar .nav-item[data-screen="gr_training"]')?.click());
+  await pp.waitForTimeout(1800);
+
+  const m = await pp.evaluate(() => {
+    const seg = document.querySelector('.gr_seg');
+    if (!seg) return null;
+    const names = [...seg.querySelectorAll('button')].map(b => b.textContent);
+    // Scroll the strip to its end: the last tab has to come into view.
+    seg.scrollLeft = seg.scrollWidth;
+    const last = [...seg.querySelectorAll('button')].pop().getBoundingClientRect();
+    return {
+      names: names,
+      clipped: seg.scrollWidth > seg.clientWidth + 1 && getComputedStyle(seg).overflowX === 'visible',
+      lastVisible: last.right <= innerWidth + 1 && last.left >= -1,
+      // The strip scrolls; the PAGE must not.
+      pageSideways: document.documentElement.scrollWidth > innerWidth + 1
+    };
+  });
+  check('all six tabs are rendered', !!m && m.names.length === 6, JSON.stringify(m && m.names));
+  check('the strip scrolls rather than clipping what will not fit', !!m && !m.clipped, String(m && m.clipped));
+  check('so the last tab can actually be reached', !!m && m.lastVisible, String(m && m.lastVisible));
+  check('and the page itself does not scroll sideways', !!m && !m.pageSideways, String(m && m.pageSideways));
+
+  // The call screen is the one you would actually use on a phone.
+  await pp.evaluate(() => document.querySelector('[data-gr-traintab="practice"]')?.click());
+  await pp.waitForTimeout(1200);
+  await pp.evaluate(() => {
+    const b = [...document.querySelectorAll('[data-gr-prac-start]')].find(x => !/weakest/.test(x.textContent));
+    if (b) b.click();
+  });
+  await pp.waitForTimeout(1200);
+  const room = await pp.evaluate(() => {
+    const t = document.querySelector('#grRoomSay'), s = document.querySelector('[data-gr-prac-send]');
+    const tb = t ? t.getBoundingClientRect() : null, sb = s ? s.getBoundingClientRect() : null;
+    return { tw: tb ? Math.round(tb.width) : 0, th: tb ? Math.round(tb.height) : 0,
+             sendOn: sb ? sb.right <= innerWidth + 1 : false,
+             font: t ? getComputedStyle(t).fontSize : null,
+             sideways: document.documentElement.scrollWidth > innerWidth + 1 };
+  });
+  check('you can type a reply on a phone', room.tw > 150 && room.th >= 44, JSON.stringify(room));
+  check('and reach Send', room.sendOn, String(room.sendOn));
+  check('without the page zooming when you tap', room.font && parseFloat(room.font) >= 16, room.font);
+  check('and nothing runs off the side', !room.sideways, String(room.sideways));
+  await ph.close();
+});
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');

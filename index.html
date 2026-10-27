@@ -6516,8 +6516,11 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_bars i{display:block;width:13px;border-radius:3px 3px 0 0;}
 .gr_wk b{display:block;font-size:13px;font-weight:800;margin-top:7px;}
 .gr_wk span{font-size:10.5px;color:var(--text-3);}
-.gr_seg{display:inline-flex;background:var(--surface-2);border-radius:99px;padding:3px;}
-.gr_seg button{border:0;background:none;color:var(--text-3);font:inherit;font-size:12.5px;font-weight:700;padding:7px 15px;border-radius:99px;cursor:pointer;}
+.gr_seg{display:inline-flex;background:var(--surface-2);border-radius:99px;padding:3px;max-width:100%;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
+.gr_seg::-webkit-scrollbar{display:none;}
+/* flex:none or the tabs squash instead of scrolling, which loses the words rather
+   than the position -- "Clear answers" became two illegible lines. */
+.gr_seg button{flex:none;white-space:nowrap;border:0;background:none;color:var(--text-3);font:inherit;font-size:12.5px;font-weight:700;padding:7px 15px;border-radius:99px;cursor:pointer;}
 .gr_seg button[aria-pressed="true"]{background:var(--bg);color:var(--text);}
 .gr_prog{height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden;margin-bottom:10px;}
 .gr_prog i{display:block;height:100%;background:var(--red);}
@@ -96966,8 +96969,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         (thinking ? '<div class="gr_rmb gr_p gr_typing"><i></i><i></i><i></i></div>' : '') +
       '</div>' +
       '<div class="gr_roomin">' +
-        '<textarea id="grRoomSay" rows="2" placeholder="Say your reply out loud, then type it. ' +
-          'Ctrl or Cmd and Enter sends." aria-label="Your reply">' + esc(grRoom.draft) + '</textarea>' +
+        '<textarea id="grRoomSay" rows="2" placeholder="Say it out loud, then type it here."' +
+          ' aria-label="Your reply">' + esc(grRoom.draft) + '</textarea>' +
         '<button class="btn-red" data-gr-prac-send' + (thinking || !grRoom.draft.trim() ? ' disabled' : '') +
           '>Send</button></div></section>';
   }
