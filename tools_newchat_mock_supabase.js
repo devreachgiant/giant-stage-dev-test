@@ -726,6 +726,33 @@
       expires_at: new Date(Date.now() - 60 * 60000).toISOString(),
       scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify email', connected_at: giso(10, 0), last_sync_at: null }
   ];
+  /* Practice: the scenarios are shared content, the runs are each person's own. Two
+     areas rather than four, with different numbers of past runs, so "start me on my
+     weakest" has a right answer a check can name: nobody has practised 'worry' at all,
+     so it is weaker than an 'open' that has been scored twice. */
+  DB.growth_settings.push({ key: 'practice', value: { areas: [
+    { id: 'open', t: 'Opening the call',
+      who: 'Dana, owner of a busy home services business. Guarded and short on time.',
+      goal: 'Build trust in the first minute and find out what they want.',
+      s: [{ p: 'Hi, I have about ten minutes. What is this call about?',
+            b: 'Thanks for making the time. What made you book this, and what would a good outcome look like?' }] },
+    /* `source` is not on the edit form. It is here so the check that the editor MERGES
+       rather than rebuilds has something real to measure -- the Q and A form rebuilt and
+       silently dropped four call examples and an ask count, and a check that only looks
+       at fields the form shows cannot see that happen. */
+    { id: 'worry', t: 'Handling worries', source: 'Luke, from a real call',
+      who: 'Marcus, who is comparing your price with another quote.',
+      goal: 'Name the worry, answer it calmly, and keep the door open.',
+      s: [{ p: 'Your fee is more than another agency quoted me.',
+            b: 'That makes sense to check. What did that other quote include?' }] }
+  ] }, updated_at: iso(30,0), updated_by: ME });
+  DB.growth_practice_runs = [
+    { id: 'gp-1', owner_id: ME, area: 'open', score: 6, skills: [], went_well: [], to_change: [],
+      better: '', opener: '', ran_at: iso(4, 0) },
+    { id: 'gp-2', owner_id: ME, area: 'open', score: 8, skills: [], went_well: [], to_change: [],
+      better: '', opener: '', ran_at: iso(2, 0) }
+  ];
+
   DB.growth_settings.push(
     { key: 'philosophy', value: { tips: [{ h: 'They want to feel heard', t: 'Ask thoughtful questions and really listen.' }],
         checklist: ['Stay calm and do not oversell'] }, updated_at: iso(30,0), updated_by: ME },
