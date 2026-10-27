@@ -6630,6 +6630,10 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 /* Practice. The picker reads like the course cards; the call itself is set apart,
    because it is the one screen here you are meant to be inside rather than reading. */
 .gr_pickg{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-bottom:14px;}
+.gr_pickw2{position:relative;display:flex;}
+.gr_pickw2>.gr_pick{flex:1;min-width:0;}
+.gr_picked{position:absolute;top:8px;right:8px;z-index:1;opacity:0;}
+.gr_pickw2:hover .gr_picked,.gr_picked:focus-visible{opacity:1;}
 .gr_pick{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:7px;cursor:pointer;color:var(--text);font:inherit;}
 .gr_pick:hover{border-color:var(--line-2);}
 .gr_pick>b{font-size:15.5px;font-weight:800;letter-spacing:-.01em;}
@@ -96891,19 +96895,57 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     return head + grPracPickHtml() + grCoachHtml();
   }
 
+  /* Edited here rather than nowhere. Lessons, clear answers and the questions all edit
+     inline on this screen; scenarios living only in the database would be the one piece
+     of Training content a manager has to ask a developer about. The lines are the same
+     "one per line, two halves split by ::" the philosophy and call script use, so there
+     is one thing to learn rather than a fourth shape. */
+  const grSavePractice = (list) => grSetting('practice', { areas: list });
+
+  function grPracAreaEdit(a) {
+    return '<section class="gr_card">' +
+      '<div class="gr_two">' +
+        '<div class="gr_field"><label>What it is</label>' +
+          '<input class="gr_in" data-gr-pa="t" value="' + esc(a.t || '') + '"></div>' +
+        '<div class="gr_field"><label>Who they are</label>' +
+          '<input class="gr_in" data-gr-pa="who" value="' + esc(a.who || '') + '"></div></div>' +
+      '<div class="gr_field"><label>What a good call does</label>' +
+        '<input class="gr_in" data-gr-pa="goal" value="' + esc(a.goal || '') + '"></div>' +
+      '<div class="gr_field"><label>Openers, one per line, written as ' +
+        'What the prospect says :: a strong reply</label>' +
+        '<textarea class="gr_in" rows="5" data-gr-pa="s">' +
+          esc(grPairsText(a.s, 'p', 'b')) + '</textarea></div>' +
+      '<p class="gr_mute">The strong reply is never shown during a call, only after the ' +
+        'score. Leave it off and the call still works.</p>' +
+      '<div class="gr_csx"><button class="btn-red" data-gr-pa-save="' + esc(a.id) + '">Save</button>' +
+        '<button class="gr_ghost" data-gr-pa-edit="' + esc(a.id) + '">Cancel</button>' +
+        '<span class="gr_sp"></span>' +
+        '<button class="gr_danger" data-gr-pa-del="' + esc(a.id) + '">Delete</button></div></section>';
+  }
+
   function grPracPickHtml() {
     const weak = grWeakest();
+    const editing = grAreas().find(a => grEditT === 'P' + a.id);
+    if (editing && grIsStaff()) return grPracAreaEdit(editing);
     return '<div class="gr_pickg">' + grAreas().map(a => {
       const v = grAreaAvg(a.id), n = grMyRuns(a.id).length;
-      return '<button class="gr_pick" data-gr-prac-start="' + esc(a.id) + '">' +
+      return '<div class="gr_pickw2">' +
+        (grIsStaff() ? '<button class="gr_ib gr_picked" data-gr-pa-edit="' + esc(a.id) +
+          '" title="Edit" aria-label="Edit ' + esc(a.t || '') + '">' + GR_PEN + '</button>' : '') +
+        '<button class="gr_pick" data-gr-prac-start="' + esc(a.id) + '">' +
         '<b>' + esc(a.t) + '</b>' +
         '<span class="gr_pickw">' + esc(a.who || '') + '</span>' +
         '<u><s style="width:' + (v == null ? 0 : Math.round(v * 10)) + '%"></s></u>' +
         '<em>' + (v == null ? 'Not tried yet' : v.toFixed(1) + ' out of 10 · ' + n +
-          (n === 1 ? ' call' : ' calls')) + '</em></button>';
+          (n === 1 ? ' call' : ' calls')) + '</em></button></div>';
     }).join('') + '</div>' +
     (weak ? '<p class="gr_mid"><button class="btn-red" data-gr-prac-start="' + esc(weak.id) +
-      '">Start with my weakest: ' + esc(weak.t) + '</button></p>' : '');
+      '">Start with my weakest: ' + esc(weak.t) + '</button></p>' : '') +
+    (grIsStaff()
+      ? '<div class="gr_task gr_addt"><input class="gr_in gr_flat" id="grNewArea" ' +
+        'placeholder="Add something to practise..." aria-label="New practice area">' +
+        '<button class="btn-red gr_addb" data-gr-pa-add>Add</button></div>'
+      : '');
   }
 
   function grPracRoomHtml() {
@@ -100438,6 +100480,45 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     /* The same three stage edits, reached from the board instead of Settings. They call
        the same grSaveStages and grStageDel, so there is one rule about what a stage is
        and where its deals go, wherever you happen to be standing. */
+    // ---- Training: editing what there is to practise ----
+    const pae = e.target.closest('[data-gr-pa-edit]');
+    if (pae) {
+      const k = 'P' + pae.dataset.grPaEdit;
+      grEditT = grEditT === k ? null : k;
+      grRoom = null;            // the editor and a call in progress cannot share the screen
+      grRender(); return;
+    }
+    const pas = e.target.closest('[data-gr-pa-save]');
+    if (pas) {
+      const f = grFieldsOf('pa'), id = pas.dataset.grPaSave;
+      if (!String(f.t || '').trim()) return;
+      grEditT = null;
+      grSavePractice(grAreas().map(a => a.id === id ? Object.assign({}, a, {
+        t: f.t.trim(), who: (f.who || '').trim(), goal: (f.goal || '').trim(),
+        s: grTextPairs(f.s, 'p', 'b')
+      }) : a));
+      return;
+    }
+    const pad = e.target.closest('[data-gr-pa-del]');
+    if (pad) {
+      (async function () {
+        const ok = await window.giantConfirmWarn('Delete this practice area? ' +
+          'The runs people have already done stay.');
+        if (!ok) return;
+        grEditT = null;
+        await grSavePractice(grAreas().filter(a => a.id !== pad.dataset.grPaDel));
+      })();
+      return;
+    }
+    if (e.target.closest('[data-gr-pa-add]')) {
+      const el = $('grNewArea'), v = (el && el.value || '').trim();
+      if (!v) { if (el) el.focus(); return; }
+      const id = grNewId('p');
+      grEditT = 'P' + id;
+      grSavePractice(grAreas().concat([{ id: id, t: v, who: '', goal: '', s: [] }]));
+      return;
+    }
+
     // ---- Training: the practice call ----
     const ps = e.target.closest('[data-gr-prac-start]');
     if (ps) { grPracStart(ps.dataset.grPracStart); return; }

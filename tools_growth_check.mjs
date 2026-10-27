@@ -498,6 +498,67 @@ await step('and the picker counts it from then on', async () => {
     !!txt && !/Not tried yet/.test(txt) && /1 call/.test(txt), String(txt));
 });
 
+await step('the scenarios edit here, like every other Training page', async () => {
+  /* Lessons, clear answers and the questions all edit inline on this screen. Scenarios
+     living only in the database would be the one piece of Training content a manager has
+     to ask a developer about, which is how the pricing page ended up hard-coded before. */
+  const read = () => page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'practice');
+    return r && r.value && r.value.areas ? r.value.areas : null;
+  });
+  const before = await read();
+  await page.evaluate(() => document.querySelector('[data-gr-pa-edit="worry"]')?.click());
+  await page.waitForTimeout(900);
+  const fields = await page.evaluate(() => ({
+    t: (document.querySelector('[data-gr-pa="t"]') || {}).value,
+    lines: (document.querySelector('[data-gr-pa="s"]') || {}).value
+  }));
+  check('the editor opens on what is there', fields.t === 'Handling worries', String(fields.t));
+  check('with the openers as one line each, split by ::',
+    /quoted me\. :: That makes sense/.test(fields.lines || ''), String(fields.lines).slice(0, 80));
+
+  await page.fill('[data-gr-pa="s"]',
+    'They have gone quiet on me. :: Ask what changed since the call.\nI need to speak to my partner. :: Ask what the partner would want to know.');
+  await page.fill('[data-gr-pa="t"]', 'Handling worries and stalls');
+  await page.evaluate(() => document.querySelector('[data-gr-pa-save="worry"]')?.click());
+  await page.waitForTimeout(1500);
+
+  const after = await read();
+  const a2 = (after || []).find(x => x.id === 'worry');
+  check('the name is saved', a2 && a2.t === 'Handling worries and stalls', a2 && a2.t);
+  check('and both openers round trip into the row',
+    a2 && (a2.s || []).length === 2 && a2.s[0].p === 'They have gone quiet on me.' &&
+    a2.s[1].b === 'Ask what the partner would want to know.', JSON.stringify(a2 && a2.s));
+  /* Same merge rule as the questions. `source` is deliberately NOT on the form: an
+     earlier version of this check asserted `who`, which the form DOES write back, so it
+     passed happily against a rebuild. A check that only looks at fields the form shows
+     cannot see a rebuild drop anything. */
+  check('and a field the form never shows survives the save',
+    a2 && a2.source === 'Luke, from a real call', String(a2 && a2.source));
+
+  const shown = await page.evaluate(() => ({
+    editorGone: !document.querySelector('[data-gr-pa="t"]'),
+    card: [...document.querySelectorAll('.gr_pick')].map(b => b.textContent).join(' ')
+  }));
+  check('the form is put away on save', shown.editorGone, String(shown.editorGone));
+  check('and the picker shows the new name straight away',
+    /Handling worries and stalls/.test(shown.card), shown.card.slice(0, 60));
+
+  // And the call that follows uses the new openers, not the ones it was seeded with.
+  await page.evaluate(() => {
+    const b = [...document.querySelectorAll('[data-gr-prac-start]')]
+      .find(x => /Handling worries and stalls/.test(x.textContent) && !/weakest/.test(x.textContent));
+    if (b) b.click();
+  });
+  await page.waitForTimeout(1100);
+  const line = await page.evaluate(() =>
+    (document.querySelector('.gr_rmb') || {}).textContent || '');
+  check('a call started from it opens on one of the new openers',
+    /gone quiet on me|speak to my partner/.test(line), line);
+  await page.evaluate(() => document.querySelector('[data-gr-prac-end]')?.click());
+  await page.waitForTimeout(600);
+});
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');

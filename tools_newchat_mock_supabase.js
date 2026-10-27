@@ -736,7 +736,11 @@
       goal: 'Build trust in the first minute and find out what they want.',
       s: [{ p: 'Hi, I have about ten minutes. What is this call about?',
             b: 'Thanks for making the time. What made you book this, and what would a good outcome look like?' }] },
-    { id: 'worry', t: 'Handling worries',
+    /* `source` is not on the edit form. It is here so the check that the editor MERGES
+       rather than rebuilds has something real to measure -- the Q and A form rebuilt and
+       silently dropped four call examples and an ask count, and a check that only looks
+       at fields the form shows cannot see that happen. */
+    { id: 'worry', t: 'Handling worries', source: 'Luke, from a real call',
       who: 'Marcus, who is comparing your price with another quote.',
       goal: 'Name the worry, answer it calmly, and keep the door open.',
       s: [{ p: 'Your fee is more than another agency quoted me.',
