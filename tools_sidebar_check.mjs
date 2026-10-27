@@ -151,6 +151,91 @@ for (const [group, allowed, nice] of GROUPS) {
   }
 }
 
+/* ── A named member in Growth, and nowhere else ──────────────────────────────
+   Growth is manager and up. The sales team is not all managers, and promoting
+   somebody so they can use Growth also hands them Team Pay, Proposals, White Label,
+   Workspace, System, Pod System and the rest of Business -- twenty-three items for the
+   sake of one. So named accounts are let through the Growth gate specifically.
+
+   Both halves are measured, because only letting them in is easy and only the second
+   half is the dangerous one: Business must stay shut, and so must the Growth screens
+   that configure the module for everybody. */
+await (async () => {
+  const ME = 'annie-probe-id';
+  // Open both groups first, as a role that can see them -- a label that cannot be
+  // clicked never opens, and every item then reads as hidden for everybody.
+  await page.evaluate(() => {
+    document.body.className = document.body.className.replace(/role-[a-z_]+/g, '').trim() + ' role-inhouse_dev';
+  });
+  await page.waitForTimeout(200);
+  /* ONE GROUP AT A TIME. The nav is an accordion: opening Business closes Growth, so
+     measuring both after opening both read every Growth item as hidden -- a failure
+     that was mine, not the code's. */
+  const openGroup = async (g) => {
+    await page.evaluate((grp) => {
+      document.body.className = document.body.className.replace(/role-[a-z_]+/g, '').trim() + ' role-inhouse_dev';
+      const lbl = document.querySelector('.nav-group-label[data-navgroup="' + grp + '"]');
+      const body = document.querySelector('[data-navgroup-body="' + grp + '"]');
+      if (lbl && body && !(body.getBoundingClientRect().height > 0)) lbl.click();
+    }, g);
+    await page.waitForTimeout(400);
+  };
+  await openGroup('growth');
+
+  // What the boot code does for somebody on the list.
+  const ADMIN = ['gr_settings', 'gr_connectors', 'gr_automations'];
+  await page.evaluate((admin) => {
+    document.querySelectorAll('[data-navgroup="growth"], [data-navgroup-body="growth"]')
+      .forEach(el => el.removeAttribute('data-role-min'));
+    document.querySelectorAll('[data-screen^="gr_"]').forEach(el => {
+      if (!admin.includes(el.getAttribute('data-screen'))) el.removeAttribute('data-role-min');
+    });
+    document.body.className = document.body.className.replace(/role-[a-z_]+/g, '').trim() + ' role-member';
+  }, ADMIN);
+  await page.waitForTimeout(300);
+
+  const asMember = async (fn, arg) => {
+    const r = await page.evaluate(([a]) => {
+      document.body.className = document.body.className.replace(/role-[a-z_]+/g, '').trim() + ' role-member';
+      return null;
+    }, [null]);
+    await page.waitForTimeout(250);
+    return page.evaluate(fn, arg);
+  };
+
+  const growth = await asMember((admin) => {
+    const vis = (el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0; };
+    const items = [...document.querySelectorAll('[data-navgroup-body="growth"] .nav-item[data-screen]')]
+      .filter(vis).map(el => el.getAttribute('data-screen'));
+    return {
+      growthLabel: vis(document.querySelector('.nav-group-label[data-navgroup="growth"]')),
+      growthItems: items,
+      adminShown: items.filter(x => admin.includes(x))
+    };
+  }, ADMIN);
+
+  await openGroup('business');
+  const business = await asMember(() => {
+    const vis = (el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0; };
+    return {
+      businessLabel: vis(document.querySelector('.nav-group-label[data-navgroup="business"]')),
+      businessItems: [...document.querySelectorAll('[data-navgroup-body="business"] .nav-item[data-screen]')]
+        .filter(vis).length
+    };
+  });
+  const seen = Object.assign({}, growth, business);
+
+  check('Named Growth: a member on the list sees Growth', seen.growthLabel, JSON.stringify(seen.growthLabel));
+  check('Named Growth: and the screens that do the work',
+    seen.growthItems.length >= 6, seen.growthItems.join(','));
+  // The half that would be a leak, not a bug.
+  check('Named Growth: Business stays shut', !seen.businessLabel, String(seen.businessLabel));
+  check('Named Growth: and not one Business item', seen.businessItems === 0, String(seen.businessItems));
+  // Using the module is not the same as configuring it for everybody.
+  check('Named Growth: the admin screens stay manager-only',
+    seen.adminShown.length === 0, seen.adminShown.join(',') || 'none');
+})();
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');

@@ -41198,7 +41198,38 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     // partner-view data loading. Async since it needs a DB round-trip; the nav item starts
     // hidden by the module's own data-role-min="manager" and only gets unhidden once we know
     // this account actually has at least one company membership.
+    /* GROWTH FOR NAMED PEOPLE. Growth is manager and up, which is right for the module
+       but wrong for the sales team: the people who actually run it are not all managers,
+       and promoting somebody just so they can use Growth also hands them Team Pay,
+       Proposals, White Label, Workspace, System, Pod System and the rest of Business --
+       twenty-three items for the sake of one. So the gate stays and named accounts are
+       let through it, exactly the way White Label lets a partner in below.
+
+       The list lives in growth_settings under 'access', so adding somebody is a row
+       rather than a deploy. Members can read that table -- the only restrictive policy
+       on it blocks clients -- and writing it still needs staff, so nobody can add
+       themselves.
+
+       The admin screens are deliberately NOT opened: Settings, Connectors and
+       Automations configure the module for everybody, which is a different thing from
+       using it. The database agrees separately -- growth_is_staff() gates the writes --
+       so this is the sidebar matching what the rows already allow. */
     if (!['owner', 'manager', 'inhouse_dev'].includes(profile.role) && window.giantSupabase) {
+      const GR_ADMIN_ONLY = ['gr_settings', 'gr_connectors', 'gr_automations'];
+      window.giantSupabase.from('growth_settings').select('value').eq('key', 'access').maybeSingle()
+        .then(({ data }) => {
+          const ids = Array.isArray(data && data.value) ? data.value : [];
+          if (!ids.includes(profile.id)) return;
+          const open = (el) => { if (el) el.removeAttribute('data-role-min'); };
+          // The group label and its rail, or the items unhide inside something hidden.
+          document.querySelectorAll('[data-navgroup="growth"], [data-navgroup-body="growth"]').forEach(open);
+          document.querySelectorAll('[data-screen^="gr_"]').forEach(el => {
+            if (!GR_ADMIN_ONLY.includes(el.getAttribute('data-screen'))) open(el);
+          });
+          window._grNamedAccess = true;
+        })
+        .catch(() => { /* no access row, or it could not be read: the gate simply stays */ });
+
       window.giantSupabase.from('white_label_company_members').select('company_id, access_level').eq('profile_id', profile.id).then(({ data }) => {
         if (data && data.length) {
           document.querySelectorAll('[data-screen="whitelabel"]').forEach(el => el.removeAttribute('data-role-min'));
