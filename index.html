@@ -6197,6 +6197,71 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .nc_chat-media-thumb:hover .nc_att-dl-float{opacity:1;}
 @media (hover:none){.nc_att-dl-float{opacity:1;}}
 @media (max-width:820px){.nc_att-dl-float{opacity:1;}}
+
+/* Off the phone there is a second pane to click, so the back button is noise. It is
+   declared BEFORE the phone block on purpose: same specificity, so whichever comes
+   last wins, and putting it after left the button 0x0 on a phone. */
+.nc_backBtn{display:none;}
+
+/* ── CHAT ON A PHONE ─────────────────────────────────────────────────────────
+   Three fixed columns in a 390px viewport: the menu takes 236 of it, the channel
+   list is a fixed 300, and the thread -- the messages and the box you reply in --
+   is left with ZERO. Measured, not guessed: .nc_thread came out 0px wide and
+   #nc_chatMsgs 44px, which is why Chat could be opened on a phone and not used.
+
+   So on a phone it is one pane at a time, which is what every mail and chat app on
+   a phone does: the conversation list, then the conversation, with a way back. The
+   breakpoint is 760px -- below a small tablet in portrait. Nothing above it changes. */
+@media (max-width:760px){
+  /* The menu becomes a drawer. At 236px it is most of the screen, and even
+     collapsed it is 74px of 390 before anything useful starts. */
+  .sidebar{position:fixed;left:0;top:0;bottom:0;z-index:70;width:280px;max-width:84vw;
+    transform:translateX(-102%);transition:transform .22s var(--ease);box-shadow:18px 0 44px rgba(0,0,0,.55);}
+  body.nav-open .sidebar{transform:none;}
+  .nav-scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:69;}
+  body.nav-open .nav-scrim{display:block;}
+
+  /* One pane at a time. */
+  .screen[data-screen="newchat"] .nc_chatChannels,
+  .screen[data-screen="newchat"] #nc_chatChannels{width:100% !important;max-width:none;flex:1 1 auto;}
+  .screen[data-screen="newchat"] .nc_col-resize{display:none;}
+  .screen[data-screen="newchat"] .nc_thread{display:none;}
+  .screen[data-screen="newchat"].nc-thread-open #nc_chatChannels{display:none;}
+  .screen[data-screen="newchat"].nc-thread-open .nc_thread{display:flex;width:100%;flex:1 1 auto;min-width:0;}
+
+  /* The way back, which a phone has no other way to offer: there is no second pane
+     on screen to click. */
+  .nc_backBtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;
+    flex-shrink:0;margin-right:8px;border-radius:9px;border:1px solid var(--line);
+    background:var(--surface);color:var(--text-2);cursor:pointer;}
+  .nc_backBtn:active{background:var(--surface-2);}
+
+  /* THE HEADER DID NOT FIT. Measured: #nc_chatHuddleBtn ran to 416px in a 390px
+     viewport and the Public/private toggle alone was 104 of it, so the right-hand
+     controls were simply off the screen with no way to scroll to them.
+
+     The toggle goes: it sets who can see the channel, which is not something anybody
+     does from a phone mid-conversation, and it is still there on a laptop. Huddle
+     stays but loses its label -- the icon is the button. The name takes what is left
+     and truncates instead of wrapping to three lines. */
+  /* !important, and only here: JS sets display:flex INLINE on this button, and an
+     inline style beats any stylesheet rule however specific -- so the plain version of
+     this did nothing and the toggle stayed on screen taking 104 of 390px. */
+  .screen[data-screen="newchat"] #nc_chatHeadPrivacyBtn{display:none !important;}
+  .screen[data-screen="newchat"] #nc_chatHuddleBtnLabel{display:none;}
+  .screen[data-screen="newchat"] #nc_chatHuddleBtn{padding:0;width:34px;height:34px;
+    justify-content:center;flex-shrink:0;}
+  .screen[data-screen="newchat"] .nc_thread-head{flex-wrap:nowrap;gap:8px;padding:10px 12px;min-height:0;}
+  .screen[data-screen="newchat"] .nc_thread-head > div:not([id]){min-width:0;flex:1 1 auto;}
+  .screen[data-screen="newchat"] .nc_thread-head .nc_thread-title,
+  .screen[data-screen="newchat"] .nc_thread-head > div:not([id]) > *{
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+  /* Touch sizes. A 28px control is a miss on a phone; 40 is the usual floor. */
+  .screen[data-screen="newchat"] .nc_input{font-size:16px;min-height:40px;}
+  .screen[data-screen="newchat"] .nc_tool{width:34px;height:34px;}
+}
+
 /* Said once, above a set of them. */
 .nc_att-bar{display:flex;align-items:center;gap:10px;margin:4px 0 6px;font-size:11px;
   font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);}
@@ -15158,6 +15223,21 @@ function enterApp(){
       + `border:1px solid ${v ? 'rgba(217,31,15,0.5)' : 'rgba(217,31,15,0.22)'};`;
     el.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#d91f0f" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="${FOCUS_ICON[v]}"/></svg>`;
   }
+  /* Tapping away from an open drawer shuts it, which is the gesture people try first.
+     Created once, here, rather than in the markup: it only exists for the phone. */
+  if (!document.querySelector('.nav-scrim')) {
+    const scrim = document.createElement('div');
+    scrim.className = 'nav-scrim';
+    scrim.addEventListener('click', () => document.body.classList.remove('nav-open'));
+    document.body.appendChild(scrim);
+  }
+  /* Choosing a screen shuts it too: on a phone the drawer covers what you just asked
+     for, so leaving it open would mean two taps for every single navigation. */
+  document.addEventListener('click', (e) => {
+    const item = e.target && e.target.closest && e.target.closest('#appSidebar .nav-item[data-screen]');
+    if (item) document.body.classList.remove('nav-open');
+  }, true);
+
   const btn = document.getElementById('sidebarCollapseBtn');
   if (btn) {
     // Replaces the old binary collapse so there is one control, not two competing ones.
@@ -15165,7 +15245,17 @@ function enterApp(){
     fresh.id = 'sidebarCollapseBtn';
     fresh.className = 'sidebar-collapse';
     btn.parentNode.replaceChild(fresh, btn);
-    fresh.addEventListener('click', (e) => { e.stopPropagation(); setStage(stage() + 1); });
+    fresh.addEventListener('click', (e) => {
+      e.stopPropagation();
+      /* ON A PHONE THE MENU IS A DRAWER, so this button opens and shuts it rather than
+         cycling the three desktop widths -- 236px of a 390px screen is the screen, and
+         the narrow stage is still 74 of it before anything useful begins. */
+      if (window.matchMedia('(max-width:760px)').matches) {
+        document.body.classList.toggle('nav-open');
+        return;
+      }
+      setStage(stage() + 1);
+    });
   }
   // Escape returns to full from anywhere — spec §5. Ignored while typing, or it
   // would fight every text field in the app.
@@ -81733,18 +81823,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           chatChannels.some(c => c.id === savedChannelId) || chatDmChannels.some(c => c.id === savedChannelId)
         );
         if (savedStillValid) {
-          await switchChannel(savedChannelId);
+          await switchChannel(savedChannelId, { fromBoot: true });
         }
       }
       // Pick first channel if none active — skip card channels (section_id) and the Home channel
       if (!activeChannelId) {
         const firstNormal = chatChannels.find(c => !c.section_id && !((c.name || '').toLowerCase().startsWith('reachgiant-home')) && !((c.slug || '').toLowerCase().startsWith('reachgiant-home')));
         if (firstNormal) {
-          await switchChannel(firstNormal.id);
+          await switchChannel(firstNormal.id, { fromBoot: true });
         } else if (chatChannels.length) {
-          await switchChannel(chatChannels[0].id);
+          await switchChannel(chatChannels[0].id, { fromBoot: true });
         } else if (chatDmChannels.length) {
-          await switchChannel(chatDmChannels[0].id);
+          await switchChannel(chatDmChannels[0].id, { fromBoot: true });
         }
       }
       // Refresh custom sidebar cards so section-assigned channels render inside them
@@ -82422,12 +82512,46 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       });
     }
 
-    async function switchChannel(channelId) {
+    /* Scoped by screen, not by class: .nc_thread-head appears twice in the file and a
+       bare selector would reach the other copy -- the mistake that cost days on Chat. */
+    function ncPhoneShowThread(on) {
+      const screen = document.querySelector('.screen[data-screen="newchat"]');
+      if (!screen) return;
+      screen.classList.toggle('nc-thread-open', !!on);
+      if (!on) return;
+      const head = screen.querySelector('.nc_thread-head');
+      if (!head || head.querySelector('.nc_backBtn')) return;
+      const back = document.createElement('button');
+      back.type = 'button';
+      back.className = 'nc_backBtn';
+      back.setAttribute('aria-label', 'Back to conversations');
+      back.title = 'Back to conversations';
+      back.innerHTML = '<svg width="15" height="15" viewBox="0 0 16 16" fill="none">'
+        + '<path d="M10 3.5 5.5 8l4.5 4.5" stroke="currentColor" stroke-width="1.7" '
+        + 'stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      back.addEventListener('click', (e) => { e.stopPropagation(); ncPhoneShowThread(false); });
+      head.insertBefore(back, head.firstChild);
+    }
+    window.nc_phoneShowThread = ncPhoneShowThread;
+
+    async function switchChannel(channelId, opts) {
       // The strip belongs to whichever client the newly-opened channel is under, so
       // it has to be redrawn on every switch, not only when the client changes.
       setTimeout(() => { try { renderDeptStrip(); syncMgmtTab(); } catch(_){} }, 0);
       activeChannelId = channelId;
       window.nc_activeChannelId = channelId; // expose for voice note + other features
+      /* ON A PHONE THE THREAD TAKES THE SCREEN. Both panes side by side leaves the
+         thread 0px wide at 390, so opening a conversation has to replace the list the
+         way every phone mail and chat app does. Set here rather than on the click,
+         because a channel is also opened from a notification, a search result and a
+         deep link -- and every one of those comes through here. */
+      /* ON A PHONE, CHAT OPENS ON THE LIST. The boot picks a channel so the thread is
+         loaded and one tap away, but landing inside whichever DM you had open on a
+         laptop last week is not how a phone works -- the list IS the navigation there.
+         The boot calls say so rather than being undone afterwards: undoing it raced a
+         tap made before the channels had finished loading, which bounced you straight
+         back to the list. */
+      if (!(opts && opts.fromBoot)) ncPhoneShowThread(true);
       try { localStorage.setItem('giant_nc_active_channel', channelId); } catch(_) {}
       if (window.giantRefreshScheduledPill) window.giantRefreshScheduledPill();
       if (window.nc__resetChatSubtab) window.nc__resetChatSubtab();
@@ -85778,8 +85902,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // ── HOOK INTO EXISTING FUNCTIONS ──────────────────────────────
     // Re-wrap switchChannel to: load reactions, pins, mark as read, setup typing
     const _origSwitchChannel = switchChannel;
-    switchChannel = async function(channelId) {
-      await _origSwitchChannel(channelId);
+    /* opts is PASSED THROUGH. This wrapper took only channelId, so every caller's
+       second argument was silently dropped on the way in -- which is why marking the
+       boot's channel picks as fromBoot changed nothing and Chat still opened inside a
+       thread on a phone. A wrapper that quietly narrows the signature of the thing it
+       wraps makes the bug look like the caller's fault. */
+    switchChannel = async function(channelId, opts) {
+      await _origSwitchChannel(channelId, opts);
       // Now that messages are loaded, load reactions + pins for them (in background, doesn't block render)
       reattachReactBarsForChannel(channelId);
       loadPinnedMessages(channelId);
