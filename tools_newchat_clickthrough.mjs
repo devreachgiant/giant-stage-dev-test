@@ -534,7 +534,7 @@ await step('each nav card has its own icon, not a dot', async () => {
 // resolved dropping the whole row, and the "start a DM" fallback rows never reaching the
 // card. The mock has no RLS and a fully-hydrated profile cache, which is exactly why none
 // of them ever showed up here.
-await step('a DM still lists when its counterparty has not resolved', async () => {
+await step('a DM whose counterparty no longer exists is not listed', async () => {
   const r = await page.evaluate(async () => {
     const db = window.__mock.db, me = window.__mock.me;
     const dm = db.channels.find(c => c.is_dm);
@@ -562,8 +562,22 @@ await step('a DM still lists when its counterparty has not resolved', async () =
     try { localStorage.removeItem('giant_nc_chat_scope'); } catch (e) {}
     return out;
   });
-  check('a DM still lists when its counterparty has not resolved',
-    !r.noToggle && r.listed > 1 && r.orphanListed, JSON.stringify(r));
+  /* THE CONTRACT CHANGED, DELIBERATELY. This asserted the opposite: that an
+     unresolved counterparty should label the row rather than drop it, because a DM
+     silently vanishing was the fault being guarded against. Three such rows turned up
+     in the real sidebar reading "Unknown member" -- channels left behind when an
+     account went, with nobody to reply to -- and three rows named after nobody read as
+     a fault in the list rather than as history. They are unlisted now. Nothing is
+     deleted: the channel and its messages stay, and stay searchable.
+
+     The guard that still matters is kept: the rest of the list must not collapse with
+     it. And the dangerous half -- a lookup that FAILED must hide nothing, or a dropped
+     request takes live conversations off the screen -- is covered in
+     tools_dead_dm_check.mjs, where the lookup can be made to fail on demand. */
+  check('a DM whose counterparty no longer exists is not listed',
+    !r.noToggle && !r.orphanListed, JSON.stringify(r));
+  check('and the rest of the DM list is still there',
+    !r.noToggle && r.listed > 1, JSON.stringify(r));
 });
 
 // ── open a team channel and read messages ────────────────────────────────────

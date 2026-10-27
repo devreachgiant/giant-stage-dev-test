@@ -81982,9 +81982,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // If any are missing, fetch them in a single batch query.
       const allOtherIds = [...new Set(Object.values(channelToOthers).flat())];
       const missing = allOtherIds.filter(id => !chatProfilesCache[id]);
+      /* WHETHER THE LOOKUP WORKED MATTERS, because "not in the cache" has two very
+         different causes: the person no longer exists, or we failed to ask. The error
+         was being discarded here, so the two were indistinguishable -- and a rule that
+         hides unresolved DMs would, on a failed request, hide live conversations. */
+      let lookupOk = true;
+      const confirmedGone = new Set();
       if (missing.length) {
-        const { data: missingProfiles } = await window.giantSupabase.from('profiles').select('id, full_name, email, avatar_url, avatar_bg, avatar_fg, role, deactivated_at').in('id', missing);
-        (missingProfiles || []).forEach(p => { chatProfilesCache[p.id] = p; });
+        const { data: missingProfiles, error: missingErr } = await window.giantSupabase
+          .from('profiles').select('id, full_name, email, avatar_url, avatar_bg, avatar_fg, role, deactivated_at')
+          .in('id', missing);
+        if (missingErr) {
+          lookupOk = false;
+          console.warn('[chat] could not look up DM profiles:', missingErr.message);
+        } else {
+          (missingProfiles || []).forEach(p => { chatProfilesCache[p.id] = p; });
+          // Asked for by id and not returned: that profile is gone.
+          missing.forEach(id => { if (!chatProfilesCache[id]) confirmedGone.add(id); });
+        }
       }
       const profilesById = chatProfilesCache;
 
@@ -82025,9 +82040,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // messages are not lost, they are still in the channel and still searchable. A
         // GROUP with one departed member is left alone: the rest of it is live.
         if (ncIsDeactivated(profilesById[otherId])) return;
-        // A profile that has not resolved is a reason to label the row "Unknown", not to
-        // drop the conversation. Skipping meant a DM could vanish from the sidebar and
-        // there was nothing on screen to say one had.
+        /* A DM WITH AN ACCOUNT THAT NO LONGER EXISTS. Three of these were sitting in the
+           sidebar reading "Unknown member": channels whose only channel_members row is
+           your own, left behind when the other account went. Nothing can be done with
+           them -- there is nobody to reply to -- and three rows named after nobody read
+           as a fault in the list rather than as history.
+
+           Nothing is deleted. The channel and its messages stay and stay searchable;
+           this is the sidebar declining to list a conversation it cannot name.
+           
+           ONLY WHEN WE KNOW. An id missing from the cache after a lookup that SUCCEEDED
+           means the profile is gone. After a lookup that failed it means nothing, and
+           hiding then would take live conversations off the screen -- which is the
+           reason the previous version labelled instead of dropping. On a failed lookup
+           the old label is still what happens. */
+        const gone = !others.length || confirmedGone.has(otherId);
+        if (lookupOk && gone) return;
         const p = profilesById[otherId] || { id: otherId, full_name: 'Unknown member', email: '' };
 
         // Apply search query
