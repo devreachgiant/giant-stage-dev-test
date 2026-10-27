@@ -96888,7 +96888,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   function grPracticeHtml() {
     const head = grSub('Practice',
-      'Get on a practice call. Say it out loud, then get told one thing to change.');
+      'Get on a live practice call. Talk out loud, then get honest coaching.');
     if (!grAreas().length) {
       return head + grEmpty('&#127908;', 'Nothing to practise yet',
         grIsStaff() ? 'Add the scenarios in Settings.' : 'Luke is still writing these.');
@@ -96972,13 +96972,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<textarea id="grRoomSay" rows="2" placeholder="Say it out loud, then type it here."' +
           ' aria-label="Your reply">' + esc(grRoom.draft) + '</textarea>' +
         '<button class="btn-red" data-gr-prac-send' + (thinking || !grRoom.draft.trim() ? ' disabled' : '') +
-          '>Send</button></div></section>';
+          '>Send</button></div>' +
+      '<p class="gr_hint">Say your reply out loud, then type it. After ' + GR_TURNS +
+        ' replies you get your coaching.</p></section>';
   }
 
   function grPracReviewHtml() {
     const r = grRoom.review || {}, a = grArea(grRoom.area) || {};
     const sc = Math.max(0, Math.min(10, Number(r.score) || 0));
-    const grade = sc >= 8 ? 'Strong call' : sc >= 6 ? 'Solid, with room to grow' : 'Keep practising';
+    const grade = sc >= 8 ? 'Strong call' : sc >= 6 ? 'Solid, with room to grow'
+                                           : 'Keep practising, you are learning';
     const scen = grRoom.scen || {};
     return '<section class="gr_card gr_rep">' +
       '<div class="gr_reph">' +
@@ -97003,7 +97006,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       (scen.b && scen.b !== r.better
         ? '<div class="gr_note"><span>What a strong opener sounds like</span><p>' + esc(scen.b) + '</p></div>' : '') +
       '<div class="gr_csx"><button class="btn-red" data-gr-prac-start="' + esc(grRoom.area) + '">Try this again</button>' +
-        '<button class="gr_ghost" data-gr-prac-weak>Next, my weakest</button>' +
+        '<button class="gr_ghost" data-gr-prac-weak>Next call, weakest first</button>' +
         '<button class="gr_ghost" data-gr-prac-end>Choose a call</button></div></section>';
   }
 
@@ -97260,7 +97263,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const gone = grWatch.filter(function (w) { return !!hid[w.id]; });
       body = '<div class="gr_sech gr_row2">' +
           '<div><h2>Best calls</h2><p>' + shelf.length + ' call' + (shelf.length === 1 ? '' : 's') +
-            ' worth learning from, with the lesson underneath</p></div>' +
+            ' that moved forward. Watch the moments that matter.</p></div>' +
           (can ? '<button class="btn-red" data-gr-watch-open>+ Add a call</button>' : '') + '</div>' +
         (can && grWatchAdd ? '<div class="gr_card gr_addbox">' +
           '<div class="gr_field"><label for="grNewWatchTitle">Call name</label>' +
@@ -97753,7 +97756,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<button data-gr-qaview="' + v[0] + '"' + (grQaView === v[0] ? ' aria-pressed="true"' : '') + '>' +
         v[1] + '</button>').join('') + '</div>';
     const head = grSub('Questions people ask',
-      items.length + ' question' + (items.length === 1 ? '' : 's') + ' from real sales calls, with the answer that worked');
+      'Short, honest answers, from ' + items.length + ' question' +
+      (items.length === 1 ? '' : 's') + ' that came up on real sales calls.');
 
     if (grQaView === 'practice') {
       // Say it out loud, THEN look. Reading the answer first teaches nothing.
