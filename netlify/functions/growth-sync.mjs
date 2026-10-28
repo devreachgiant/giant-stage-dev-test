@@ -19,7 +19,8 @@
 //                       mailbox itself is synced by gmail-sync (every ten minutes);
 //                       what is still missing is the Growth-specific part -- matching
 //                       replies back to deals -- not the ability to read mail.
-//   Fathom call notes   not built.
+//   Fathom             removed 20261028. Zoom and Calendly record calls themselves,
+//                      so a third recorder was a connector nobody was going to set up.
 //
 // A step that cannot run is still REPORTED. A screen that lists only what works tells
 // you nothing about the thing you are actually wondering about.
@@ -81,8 +82,6 @@ export default async () => {
   // ---------------------------------------------------------------- the rest, honestly
   steps.push({ k: 'gmail', label: 'Gmail replies', ok: null,
                said: 'Not set up. The stored Google token lasts an hour and cannot be renewed from a server.' });
-  steps.push({ k: 'fathom', label: 'Fathom call notes', ok: null,
-               said: 'Not built yet' });
 
   const note = steps.filter(x => x.ok === false).length
     ? steps.filter(x => x.ok === false).map(x => x.label + ': ' + x.said).join(' ')

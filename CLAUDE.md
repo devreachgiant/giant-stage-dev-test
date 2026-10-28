@@ -78,10 +78,17 @@ python3 tools_newchat_parse.py          # syntax of all 14 script blocks     ~1s
 python3 tools_newchat_audit.py          # cross-screen id leaks             ~7s
 python3 tools_newchat_isolation.py      # old chat vs New Chat separation   <1s
 node tools_newchat_clickthrough.mjs     # ~355 checks, drives a real browser ~3m
-node tools_growth_check.mjs             # ~218 checks, Growth only          ~2m
+node tools_growth_check.mjs             # ~250 checks, Growth only          ~2m
+node tools_growth_zoom_check.mjs        # 18 checks, the Zoom connector     ~1s
 ```
 
 **The first three are eight seconds together. Never skip them.**
+
+`tools_growth_zoom_check.mjs` needs no browser and no network: it replaces `fetch` and
+drives `netlify/functions/growth-zoom.js` directly, so it covers the two things the
+browser suite cannot see — that the stored credential beats the Netlify environment,
+and that only an owner/manager/inhouse_dev can write one. Run it whenever you touch
+that function or `bookings-api.js`.
 
 **The clickthrough is the expensive one, and it is the only check that would notice you
 breaking a screen you were not working on.** Run it:

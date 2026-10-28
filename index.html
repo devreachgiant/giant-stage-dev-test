@@ -6508,20 +6508,6 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_stc{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;flex:none;}
 .gr_stc i{width:6px;height:6px;border-radius:50%;background:currentColor;}
 .gr_leg{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 4px 0 9px;vertical-align:middle;}
-/* Analytics' second view: the Fathom call list. */
-.gr_anv{margin:0 0 14px;}
-.gr_anv button b{display:inline-block;margin-left:6px;background:var(--surface-3);border-radius:99px;padding:1px 7px;font-size:11px;}
-.gr_samp{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;margin-bottom:13px;font-size:12.5px;color:var(--text-3);}
-.gr_samp b{color:var(--text);}
-.gr_fc{display:flex;align-items:center;gap:11px;padding:9px 0;border-top:1px solid var(--line);font-size:13px;}
-.gr_fc>b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.gr_fck{font-size:11px;font-weight:700;color:var(--text-3);background:var(--surface-2);border-radius:99px;padding:3px 9px;flex:none;}
-.gr_fc .gr_cll{flex:none;min-width:92px;}
-.gr_fcm{font-size:12px;color:var(--text-3);flex:none;min-width:52px;text-align:right;}
-.gr_fcw{flex:none;padding:5px 12px;font-size:12px;text-decoration:none;}
-.gr_fcq{width:100%;margin-bottom:4px;}
-.gr_fcmore{margin-top:10px;}
-@media(max-width:700px){.gr_fck,.gr_fc .gr_cll{display:none;}}
 .gr_wks{display:flex;align-items:flex-end;gap:14px;padding-top:8px;}
 .gr_wk{flex:1;text-align:center;}
 /* The bars sit on one baseline, so the pair is bottom-aligned, not centred. */
@@ -6655,61 +6641,7 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_colsw{display:flex;gap:7px;flex-wrap:wrap;}
 .gr_coladd{align-self:start;width:100%;min-height:96px;background:none;border:1.5px dashed var(--line);border-radius:22px;color:var(--text-3);font:inherit;font-size:13px;font-weight:700;cursor:pointer;padding:20px 8px;}
 .gr_coladd:hover{border-color:var(--line-2);color:var(--text);}
-/* Practice. The picker reads like the course cards; the call itself is set apart,
-   because it is the one screen here you are meant to be inside rather than reading. */
-.gr_pickg{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-bottom:14px;}
-.gr_pickw2{position:relative;display:flex;}
-.gr_pickw2>.gr_pick{flex:1;min-width:0;}
-.gr_picked{position:absolute;top:8px;right:8px;z-index:1;opacity:0;}
-.gr_pickw2:hover .gr_picked,.gr_picked:focus-visible{opacity:1;}
-.gr_pick{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:7px;cursor:pointer;color:var(--text);font:inherit;}
-.gr_pick:hover{border-color:var(--line-2);}
-.gr_pick>b{font-size:15.5px;font-weight:800;letter-spacing:-.01em;}
-.gr_pickw{font-size:12.5px;color:var(--text-3);line-height:1.45;}
-.gr_pick u,.gr_skills u{display:block;height:6px;border-radius:9px;background:var(--surface-3);text-decoration:none;}
-.gr_pick u s,.gr_skills u s{display:block;height:100%;border-radius:9px;background:var(--red);text-decoration:none;}
-.gr_pick em{font-style:normal;font-size:12px;color:var(--text-3);}
-.gr_room{display:flex;flex-direction:column;gap:12px;}
-.gr_roomh{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
-.gr_roomt{display:flex;align-items:center;gap:10px;}
-.gr_roomt b{display:block;font-size:14.5px;font-weight:700;}
-.gr_roomt span{font-size:12px;color:var(--text-3);}
-.gr_roomw{display:flex;align-items:center;gap:11px;padding-bottom:4px;border-bottom:1px solid var(--line);}
-.gr_rmsgs{display:flex;flex-direction:column;gap:9px;min-height:170px;max-height:360px;overflow-y:auto;padding:4px 2px;}
-.gr_rmb{max-width:82%;padding:11px 14px;border-radius:16px;font-size:14.5px;line-height:1.5;}
-.gr_rmb.gr_p{align-self:flex-start;background:var(--surface-3);border-bottom-left-radius:5px;}
-.gr_rmb.gr_t{align-self:flex-end;background:var(--red);color:#fff;border-bottom-right-radius:5px;}
-.gr_typing{display:flex;gap:5px;align-items:center;}
-.gr_typing i{width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:grblink 1s infinite;}
-.gr_typing i:nth-child(2){animation-delay:.2s;}
-.gr_typing i:nth-child(3){animation-delay:.4s;}
-@keyframes grblink{0%,100%{opacity:.25;}50%{opacity:1;}}
-.gr_roomin{display:flex;gap:10px;align-items:flex-end;}
-/* 16px or iOS zooms the page the moment you tap to type, which is the one thing you
-   came here to do. Same reason the chat composer is 16px. */
-.gr_roomin textarea{flex:1;min-width:0;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:11px 13px;color:var(--text);font:inherit;font-size:16px;line-height:1.5;resize:vertical;min-height:52px;}
-.gr_roomin textarea:focus{outline:none;border-color:var(--line-2);}
-.gr_rep{display:flex;flex-direction:column;gap:16px;}
-.gr_reph{display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
-.gr_reph h3{margin:0;font-size:20px;font-weight:800;letter-spacing:-.02em;}
-.gr_reph p{margin:3px 0 0;}
-.gr_ring{width:112px;height:112px;border-radius:50%;display:grid;place-items:center;flex:none;}
-.gr_ring>div{width:88px;height:88px;border-radius:50%;background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;}
-.gr_ring b{font-size:30px;font-weight:800;letter-spacing:-.03em;}
-.gr_ring span{font-size:10.5px;color:var(--text-3);}
-.gr_skills{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;}
-.gr_skills span{display:flex;justify-content:space-between;font-size:12.5px;font-weight:600;margin-bottom:5px;}
-.gr_skills em{font-style:normal;color:var(--text-3);}
-.gr_better{background:var(--red);color:#fff;border-radius:14px;padding:14px 16px;}
-.gr_better>span{font-size:10px;text-transform:uppercase;letter-spacing:.12em;font-weight:700;opacity:.8;}
-.gr_better p{margin:6px 0 0;font-size:15px;line-height:1.55;}
-.gr_sub2 b{display:block;font-size:15px;font-weight:800;letter-spacing:-.01em;}
-.gr_sub2 span{font-size:12.5px;color:var(--text-3);}
-.gr_coach{display:flex;flex-direction:column;gap:11px;}
-.gr_coachin{display:flex;gap:8px;}
-.gr_tgb{cursor:pointer;border:0;font:inherit;}
-.gr_tgb:hover{background:var(--line-2);}
-@media(max-width:760px){.gr_skills,.gr_two{grid-template-columns:1fr;}}
+@media(max-width:760px){.gr_two{grid-template-columns:1fr;}}
 .gr_two{display:grid;grid-template-columns:1fr 1fr;gap:11px;}
 @media(max-width:560px){.gr_two{grid-template-columns:1fr;}}
 .gr_field{display:flex;flex-direction:column;gap:5px;}
@@ -6726,18 +6658,96 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_vasrow{display:flex;align-items:center;gap:9px;justify-content:flex-end;margin:0 0 10px;}
 .gr_vasrow span{font-size:11.5px;color:var(--text-3);}
 /* The strip of clocks on Home and Meetings. */
-.gr_wclk{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:2px 0 18px;}
-@media(max-width:900px){.gr_wclk{grid-template-columns:repeat(2,minmax(0,1fr));}}
-.gr_wz{border:1px solid var(--line);border-top:4px solid var(--zc);background:var(--surface);border-radius:15px;
-  padding:11px 13px 10px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px;color:var(--text);
-  min-width:0;transition:transform .14s,background .14s;font:inherit;}
+/* The four clocks, at the artifact's measurements: a centred 820px track of four equal
+   cards, not a row stretched across the window. The one you are reading times in is
+   FILLED with its own colour rather than outlined -- at a glance the strip answers
+   "whose 3pm" before you have read a word of it. */
+/* GMAIL ACCOUNTS, at the artifact's measurements. Each mailbox is its own outlined box
+   rather than a row separated by a rule: with a rule, the active mailbox was a green dot
+   in a list, and which one Growth sends from is the single thing this card exists to
+   say. The active box carries the colour itself. */
+.gr_gma{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:20px;
+  display:flex;flex-direction:column;gap:10px;margin-bottom:14px;}
+.gr_gma>h3{margin:0;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--text);display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.gr_gma>h3 span{font-size:12px;font-weight:500;letter-spacing:0;color:var(--text-2);}
+.gr_gm{display:flex;align-items:center;gap:12px;border:1.5px solid var(--line);background:var(--surface-2);
+  border-radius:14px;padding:11px 14px;min-width:0;}
+.gr_gmon{border-color:#1F9D63;background:linear-gradient(0deg,rgba(31,157,99,.12),rgba(31,157,99,.12)),var(--surface-2);}
+.gr_gmav{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;flex:none;
+  background:#D7D7DC;color:#131313;font-size:15px;font-weight:800;}
+.gr_gmon .gr_gmav{background:#4F9E77;color:#06180F;}
+.gr_gmm{flex:1;min-width:0;display:flex;flex-direction:column;}
+.gr_gmm b{font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gr_gmm span{font-size:12px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gr_gmpill{flex:none;font-size:11px;font-weight:600;letter-spacing:.02em;padding:3px 9px;border-radius:99px;
+  background:rgba(31,157,99,.18);color:#6FD3A1;white-space:nowrap;}
+.gr_gmuse{flex:none;border:0;border-radius:9px;padding:9px 15px;font:inherit;font-size:13px;font-weight:700;
+  background:#F5A197;color:#2A0A06;cursor:pointer;white-space:nowrap;}
+.gr_gmuse:hover{background:#FFB3AA;}
+.gr_gmx{flex:none;border:0;background:transparent;color:var(--text);width:30px;height:30px;border-radius:8px;
+  display:grid;place-items:center;cursor:pointer;opacity:.6;font-size:13px;}
+.gr_gmx:hover{opacity:1;background:var(--surface-3);}
+.gr_gmadd{width:100%;border-style:dashed;justify-content:center;color:var(--text-2);
+  font:inherit;font-size:14px;font-weight:700;cursor:pointer;}
+.gr_gmadd:hover{border-color:var(--line-2);color:var(--text);}
+.gr_gmnone{margin:0;font-size:13px;color:var(--text-2);}
+.gr_gmnote{margin:0;border-left:5px solid #F59F00;background:var(--surface-2);border-radius:10px;
+  padding:10px 12px;font-size:12.5px;line-height:1.5;color:var(--text-2);}
+.gr_wclk{display:flex;justify-content:center;margin:2px 0 40px;}
+.gr_wclkin{display:grid;grid-template-columns:repeat(var(--zn,4),minmax(0,1fr));gap:10px;width:min(calc(207.5px * var(--zn,4) - 10px),100%);}
+.gr_wz{border:1px solid var(--line);border-top:4px solid var(--zc);background:var(--surface);border-radius:20px;
+  padding:14px 16px 13px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:3px;color:var(--text);
+  min-width:0;transition:transform .14s,background .14s,box-shadow .14s;font:inherit;}
 .gr_wz:hover:not(.gr_wzon){transform:translateY(-2px);}
-.gr_wzon{background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line-2);}
-.gr_wzt{display:flex;align-items:center;gap:6px;min-width:0;}
-.gr_wzc{font-size:12.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.gr_wzn{margin-left:auto;font-size:12px;opacity:.75;}
-.gr_wz b{font-size:19px;font-weight:800;letter-spacing:-.02em;}
-.gr_wzs{font-size:10.5px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gr_wz:active{transform:scale(.98);}
+.gr_wzt{display:flex;align-items:center;gap:7px;min-width:0;}
+.gr_wzf{font-size:17px;line-height:1;flex:none;}
+.gr_wzc{font-size:13px;font-weight:700;letter-spacing:-.005em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gr_wzn{font-size:13px;color:var(--text-3);flex:none;}
+.gr_wz b{font-size:30px;line-height:1.1;font-weight:800;letter-spacing:-.035em;
+  font-variant-numeric:tabular-nums;white-space:nowrap;margin-top:4px;}
+.gr_wz b small{font-size:12px;font-weight:700;letter-spacing:.04em;margin-left:5px;color:var(--text-2);}
+.gr_wzs{font-size:12.5px;font-weight:500;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gr_wzs u{text-decoration:none;font-size:10.5px;font-weight:700;background:var(--surface-3);color:var(--text);
+  border-radius:99px;padding:1px 7px;margin-right:2px;}
+.gr_wzon{background:var(--zc);color:#fff;border-color:var(--zc);box-shadow:0 12px 26px -14px var(--zc);}
+.gr_wzon .gr_wzn,.gr_wzon b small,.gr_wzon .gr_wzs{color:rgba(255,255,255,.88);}
+.gr_wzon .gr_wzs{font-weight:700;}
+.gr_wzon .gr_wzs u{background:rgba(255,255,255,.22);color:#fff;}
+@media(max-width:760px){.gr_wclkin{grid-template-columns:repeat(2,minmax(0,1fr));width:100%;}.gr_wz b{font-size:26px;}}
+/* HOME, AS LUKE'S ARTIFACT HAS IT: a dashboard you read, not a screen you type into.
+   His design hides the ask box outright -- .as-badge,.as-dock,#as-chips{display:none}
+   -- so the first thing on the screen is the numbers, not a prompt. The three tiles
+   carry his pastels as a translucent layer OVER var(--surface) rather than his
+   color-mix(), which Electron cannot parse; rgba at .18 is the same 18% mix and works
+   in both themes. His accent is #7048E8; Giant's is --red, so the time and the link
+   take that instead. */
+.gr_hmhero{display:flex;flex-direction:column;align-items:center;padding:6px 2px 4px;}
+.gr_hmhero h1{margin:0;font-size:30px;line-height:1.15;font-weight:800;letter-spacing:-.02em;color:var(--text);text-align:center;}
+.gr_hmhero p{margin:4px 0 0;font-size:15px;font-weight:500;color:var(--text-2);}
+.gr_hmstats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:72px;}
+.gr_hmstat{border:1px solid var(--line);border-radius:20px;padding:18px 20px;display:flex;flex-direction:column;gap:2px;color:var(--text);min-width:0;}
+.gr_hmstat:nth-child(1){background:linear-gradient(135deg,rgba(237,231,255,.08),rgba(248,245,255,.03)),var(--surface);}
+.gr_hmstat:nth-child(2){background:linear-gradient(135deg,rgba(255,227,238,.08),rgba(255,245,249,.03)),var(--surface);}
+.gr_hmstat:nth-child(3){background:linear-gradient(135deg,rgba(211,249,232,.08),rgba(242,252,248,.03)),var(--surface);}
+.gr_hmstat b{font-size:36px;line-height:1;font-weight:800;letter-spacing:-.03em;}
+.gr_hmstat span{font-size:13px;font-weight:600;opacity:.8;}
+.gr_hmcols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:30px;align-items:start;}
+.gr_hmcard{background:var(--surface);border:1px solid var(--line);border-radius:24px;padding:18px;display:flex;flex-direction:column;gap:4px;min-width:0;}
+.gr_hmcard h2{margin:4px 6px 10px;font-size:17px;font-weight:800;color:var(--text);}
+.gr_hmrow{display:flex;align-items:center;gap:12px;padding:12px 10px;border-radius:16px;cursor:pointer;min-width:0;}
+.gr_hmrow:hover{background:var(--surface-2);}
+.gr_hmtime{font-size:13px;font-weight:700;color:var(--red);min-width:76px;flex:none;}
+.gr_hmtx{display:flex;flex-direction:column;min-width:0;flex:1;}
+.gr_hmtx b{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gr_hmtx span{font-size:13px;line-height:1.4;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gr_hmwhen{font-size:12px;font-weight:600;color:var(--text-2);white-space:nowrap;flex:none;}
+.gr_hmlive .gr_hmwhen{color:#fff;background:var(--red);padding:4px 10px;border-radius:99px;}
+.gr_hmoff{opacity:.5;}
+.gr_hmempty{margin:8px 6px;font-size:14px;font-weight:500;color:var(--text-2);}
+.gr_hmmore{background:none;border:0;cursor:pointer;margin:22px 0 0;font:inherit;font-size:14px;font-weight:600;color:var(--red);align-self:flex-start;padding:0;}
+@media(max-width:700px){.gr_hmcols{grid-template-columns:1fr;}.gr_hmstat b{font-size:28px;}}
 /* Somebody not in Growth is still listed, so you can tick them -- just quieter. */
 .gr_toff{opacity:.55;}
 /* The Info tab, grouped into cards the way the design has it: a wall of twelve inputs
@@ -7182,13 +7192,6 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
    here because this rule never set one -- so the 44px switch hung out of an 11px box
    and over the edge of the card. Same shape as the .gr_cn collision on the board. */
 .gr_swc{flex:none;display:flex;align-items:center;padding-left:4px;}
-.gr_gacc{align-items:center;gap:11px;}
-.gr_gaon{box-shadow:inset 0 0 0 1px rgba(31,157,99,.45);border-radius:12px;}
-.gr_gx{flex:none;opacity:.6;}
-.gr_gx:hover{opacity:1;color:#F08A8A;}
-.gr_gadd{margin-top:10px;min-height:0;padding:13px 8px;}
-.gr_cnurl{margin:0 0 10px;}
-.gr_cnurl code{display:inline-block;background:var(--surface-2);border-radius:8px;padding:6px 10px;font-size:12.5px;color:var(--text-2);overflow-wrap:anywhere;}
 /* A connector Growth has been told to leave alone still reads clearly, just quieter. */
 .gr_cnoff .gr_cnrow .gr_rm b{color:var(--text-3);}
 .gr_rcf2{display:inline-flex;align-items:center;gap:7px;}
@@ -12892,9 +12895,6 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       </div>
       <div class="screen" data-screen="gr_meetings" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grMeetings"></div>
-      </div>
-            <div class="screen" data-screen="gr_recordings" data-role-min="manager" data-client-hidden>
-        <div class="gr_wrap" id="grRecordings"></div>
       </div>
       <div class="screen" data-screen="gr_pipeline" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grPipeline"></div>
@@ -95677,10 +95677,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   let grSetTab = 'templates', grTrainTab = 'course', grEdit = null;
   // Editing the board's own columns, in place: {k:'add'|'del', ...}. Null the rest of the time.
   let grColEdit = null;
-  /* THE PRACTICE CALL. One at a time -- you cannot be on two -- so it is a single object
-     rather than a list, and null means "not on a call, showing the picker". */
-  let grRoom = null, grPracticeRuns = [], grCoach = { q: '', a: '', busy: false };
-  const GR_TURNS = 3;   // replies before it stops and scores you
   let grTplDraft = { n: '', s: '', b: '' }, grDcEdit = null,
       grDcDraft = { code: '', label: '', colour: '' }, grTestBusy = '';
   let grCourseDone = [], grCourseWho = null, grLessonOpen = null, grEditT = null;
@@ -95691,47 +95687,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   let grPView = 'board';
   let grOpenId = null, grTab = 'overview', grQuery = '', grComposer = null, grLost = null, grWon = null;
   let grRange = 'week';
-  // Analytics has two views. Fathom is not connected yet (the Connectors panel says so
-  // in as many words), so the calls below are a sample that shows the shape of the
-  // screen. The moment a real list lands in growth_settings under 'fathom_calls', it
-  // is used instead and the sample banner goes away -- so this is a placeholder with a
-  // seam, not a screen that will have to be rewritten.
-  let grAnView = 'sales', grFcQ = '', grFcMore = 40;
-  const GR_FC_KIND = { G: 'Strategy session', D: 'Discovery call', O: 'Sales call' };
-  const GR_FC_SAMPLE = (function () {
-    const reps = ['Luke Griffin', 'Annie', 'Kristina'];
-    const names = ['Northview Door Systems', 'Costa Rica Brokerage', 'PPA Youth Sports',
-      'Kreative Expressions', 'Finzanza', 'Harbour Dental', 'Bluewater Roofing',
-      'Mesa Pet Clinic', 'Lantern Legal', 'Verity Fitness', 'Oakline Interiors',
-      'Summit Auto Glass', 'Rivet Plumbing', 'Cedar Row Cafe', 'Patton Electrical'];
-    const out = [];
-    for (let i = 0; i < 48; i++) {
-      const d = new Date(Date.now() - (i * 29 + (i % 5) * 11) * 36e5);
-      const nm = names[i % names.length];
-      out.push({ id: 'fc-' + i, d: d.toISOString().slice(0, 10),
-                 n: nm + (i >= names.length ? ' (follow up)' : ''),
-                 k: ['G', 'D', 'O'][i % 3], rep: reps[i % reps.length],
-                 min: 24 + (i * 7) % 38, u: 'https://fathom.video/share/sample',
-                 // Enough of a write-up for the Recordings screen to show what a real
-                 // one will look like. Matched to a client by name at render time rather
-                 // than by id, because the ids here are invented and real ones are not.
-                 who: nm,
-                 headline: [
-                   'Wants more leads without paying more per click.',
-                   'Happy with the volume, unhappy with the quality.',
-                   'Comparing us against two other agencies this week.'
-                 ][i % 3],
-                 highlights: [
-                   'Budget is set for the quarter',
-                   'Tracking has never been checked',
-                   'Decision sits with one person'
-                 ].slice(0, 2 + (i % 2)),
-                 actions: i % 4 === 0
-                   ? [{ t: 'Send the proposal', who: reps[i % reps.length] }]
-                   : [] });
-    }
-    return out;
-  })();
 
   const DEFAULT_STAGES = [
     { key: 'booked',   label: 'Booked',        color: '#626262' },
@@ -95775,23 +95730,32 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      shift every time for anybody not sitting in Portugal -- and the strip on Home and
      Meetings switches it. Only the display moves; nothing stored changes, so switching
      cannot damage a date. */
-  /* The clocks used to be four cities typed in here -- Lisbon, New York, Johannesburg,
-     Los Angeles -- which matched the clients in exactly one case. A clock for a city
-     nobody is in is decoration taking up the top of the screen. They are built from the
-     timezones the deals are actually in now, so an empty pipeline shows only your own. */
-  const GR_ZCOL = ['#2563EB', '#0E8F5A', '#E08A00', '#E4572E', '#7C3AED', '#B3302A'];
+  /* THE FOUR CLOCKS ARE THE TEAM, not the clients. These were briefly built from the
+     timezones the DEALS were in, on the reasoning that a clock for a city nobody is in
+     is decoration -- which measured them against the wrong people. The question the
+     strip answers is "whose 3pm", and the four answers are the four places the team
+     works from. A deal's own local time is on its card, where it belongs. */
+  const GR_ZONES = [
+    ['Europe/Lisbon',       'Lisbon',       '&#127477;&#127481;', '#0E8F5A'],
+    ['America/New_York',    'New York',     '&#127482;&#127480;', '#2563EB'],
+    ['Africa/Johannesburg', 'Johannesburg', '&#127487;&#127462;', '#E08A00'],
+    ['America/Los_Angeles', 'Los Angeles',  '&#127482;&#127480;', '#E4572E']
+  ];
   const grHere = (function () {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; }
   })();
+  /* Your own zone when you work in one of the four, Lisbon otherwise. The design simply
+     hard-codes Lisbon; that would print Lisbon times to somebody sitting in New York
+     until they noticed the strip and clicked. A saved choice wins, but only if it is
+     still one of the four -- an old saved zone must not leave every card inactive. */
   let grZone = (function () {
+    const known = (z) => GR_ZONES.some(function (x) { return x[0] === z; });
     try {
       const z = localStorage.getItem('giant.growthTz');
-      // A zone saved on another machine can be one this one does not know.
-      if (z) { new Date().toLocaleTimeString([], { timeZone: z }); return z; }
-    } catch (e) { /* unknown or blocked -- fall through to this machine's own zone */ }
-    return grHere;
+      if (z && known(z)) return z;
+    } catch (e) { /* blocked -- fall through */ }
+    return known(grHere) ? grHere : GR_ZONES[0][0];
   })();
-  const grZoneCity = (z) => String(z || '').split('/').pop().replace(/_/g, ' ');
   // en-US with hour12, not the machine's locale: the rest of Giant prints 12 hour times
   // (fmtClock, fmtTimeShort), and leaving the locale to decide meant Growth alone read
   // 15:11 on a machine set to 24 hour time while every other screen said 3:11 PM.
@@ -95871,8 +95835,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         s.from('growth_watch_calls').select('*').order('position', { ascending: true }),
         s.from('growth_discounts').select('*').order('position', { ascending: true }),
         s.from('growth_course_done').select('*'),
-        s.from('growth_runs').select('*').order('ran_at', { ascending: false }).limit(20),
-        s.from('growth_practice_runs').select('*').order('ran_at', { ascending: false }).limit(200)
+        s.from('growth_runs').select('*').order('ran_at', { ascending: false }).limit(20)
       ]);
       if (cl.error) throw cl.error;
       grClients   = cl.data || [];
@@ -95885,7 +95848,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grDiscounts = dc.data || [];
       grCourseDone = cd.data || [];
       grRuns       = rn.data || [];
-      grPracticeRuns = pr.data || [];
       grSettings  = {};
       (st.data || []).forEach(r => { grSettings[r.key] = r.value || {}; });
       const pipe = grSettings.pipeline || {};
@@ -96184,20 +96146,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       } catch (e) { return 0; }
     };
     const base = off(grZone);
-    const counts = {};
-    grClients.forEach(function (c) {
-      const z = String(c.timezone || '').trim();
-      if (z) counts[z] = (counts[z] || 0) + 1;
-    });
-    const list = [[grHere, grZoneCity(grHere), '&#127968;', '#D00400', counts[grHere] || 0]]
-      .concat(Object.keys(counts)
-        .filter(function (z) { return z !== grHere; })
-        .sort(function (a, b) { return counts[b] - counts[a] || a.localeCompare(b); })
-        .slice(0, 5)
-        .map(function (z, i) {
-          return [z, grZoneCity(z), '', GR_ZCOL[i % GR_ZCOL.length], counts[z]];
-        }));
+    const list = GR_ZONES;
+    /* An inner track, so the four cards are a fixed 820 wide block centred in whatever
+       space there is, rather than four cards stretched across the window. */
     return '<div class="gr_wclk" role="group" aria-label="Show times in">' +
+      '<div class="gr_wclkin" style="--zn:' + list.length + '">' +
       list.map(function (z) {
         const on = z[0] === grZone;
         let hour = 12, time = '';
@@ -96213,15 +96166,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const sub = on ? 'Times shown here'
           : (df === 0 ? 'Same time'
              : Math.abs(df) + (Math.abs(df) === 1 ? ' hr ' : ' hrs ') + (df > 0 ? 'ahead' : 'behind'));
+        const tp = String(time).split(' ');
         return '<button type="button" class="gr_wz' + (on ? ' gr_wzon' : '') + '" style="--zc:' + z[3] +
           '" data-gr-tz="' + esc(z[0]) + '" aria-pressed="' + on + '">' +
           '<span class="gr_wzt">' + (z[2] ? '<span class="gr_wzf">' + z[2] + '</span>' : '') +
           '<span class="gr_wzc">' + esc(z[1]) + '</span>' +
-          (z[4] ? '<span class="gr_wzk">' + z[4] + '</span>' : '') +
           '<span class="gr_wzn">' + (hour >= 6 && hour < 19 ? '&#9728;' : '&#9790;') + '</span></span>' +
-          '<b>' + esc(time) + '</b>' +
-          '<span class="gr_wzs">' + esc(sub) + (day ? ' \u00B7 ' + day : '') + '</span></button>';
-      }).join('') + '</div>';
+          // The am/pm goes in a <small> so the number itself reads big, the way the
+          // design has it. A 24-hour locale simply has no second part.
+          '<b>' + esc(tp[0]) + (tp[1] ? '<small>' + esc(tp[1]) + '</small>' : '') + '</b>' +
+          '<span class="gr_wzs">' + (day ? '<u>' + esc(day) + '</u> ' : '') + esc(sub) + '</span></button>';
+      }).join('') + '</div></div>';
   }
 
   const grDayLabel = iso => grSameDay(iso, Date.now()) ? 'Today'
@@ -96241,68 +96196,78 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const replies = grVis.filter(c => grActive(c) && grWaiting(c));
     const today = grMeetings.filter(m => grSameDay(m.starts_at, Date.now()));
     const todo = grVis.filter(c => grActive(c) && grNextAction(c) && !grWaiting(c));
-    const quiet = grVis.filter(c =>
-      grActive(c) && !grWaiting(c) && !(c.follow_up_draft && c.follow_up_draft.body) &&
-      (grQuietDays(c) == null ? -1 : grQuietDays(c)) >= 3);
-    const drafts = grVis.filter(c => grActive(c) && c.follow_up_draft && c.follow_up_draft.body);
 
+    /* Who, what they said, how long ago -- and nothing else. Reply and Done used to sit
+       on every row; two buttons per row made the list read as a queue to work through
+       rather than something to glance at. The row opens the client, where both still
+       are. The snippet is 90 characters, not 140: it has one line to live on now. */
     const rRow = c => {
       const li = grLastIn(c);
-      return '<div class="gr_row" data-gr-open="' + c.id + '">' + grAvatar(c.name, grStageColor(c.stage)) +
-        '<div class="gr_rm"><div class="gr_rt"><b>' + esc(c.name) + '</b><time>' +
-          esc(li ? grAgo(grDaysAgo(li.sent_at)) : '') + '</time></div>' +
-        '<div class="gr_rs">' + esc(grSnip(li ? li.body : '', 140)) + '</div>' +
-        (li ? '<span class="gr_intent">' + esc(grIntent(li.body)) + '</span>' : '') + '</div>' +
-        '<span class="gr_btns"><button class="btn-red gr_sm" data-gr-act="' + c.id + '" data-t="reply">Reply</button>' +
-        '<button class="gr_x2" data-gr-done="' + c.id + '" title="Mark as handled">Done</button></span></div>';
+      return '<div class="gr_hmrow" data-gr-open="' + c.id + '">' +
+        grAvatar(c.name, grStageColor(c.stage)) +
+        '<span class="gr_hmtx"><b>' + esc(c.name) + '</b><span>' +
+          esc(grSnip(li ? li.body : '', 90)) + '</span></span>' +
+        '<time class="gr_hmwhen">' + esc(li ? grAgo(grDaysAgo(li.sent_at)) : '') + '</time></div>';
     };
-    // The relative time AND the Join link, the way the artifact has it. Hiding Join until
-    // fifteen minutes before meant the row told you about a call you could not join.
+    /* The relative time AND the Join link. Hiding Join until fifteen minutes before meant
+       the row told you about a call you could not join. Luke's row has no Join at all,
+       which is the one place this does not follow him. "Live now" is his, and is worth
+       having: a call in progress read as "in 0 min" before. */
     const mRow = m => {
       const c = grVis.find(x => x.id === m.client_id);
-      const done = new Date(m.starts_at).getTime() + (m.minutes || 45) * 60000 < Date.now();
-      return '<div class="gr_row' + (done ? ' gr_done' : '') + '"' + (c ? ' data-gr-open="' + c.id + '"' : '') + '>' +
-        '<div class="gr_time"><b>' + esc(grHm(m.starts_at)) + '</b></div>' +
-        '<div class="gr_rm"><b>' + esc(c ? c.name : m.title) + '</b><span>' +
-          esc(m.title) + ' &middot; ' + (m.minutes || 45) + ' min</span></div>' +
-        (done ? '<span class="gr_st">Done</span>'
-              : '<span class="gr_st">' + esc(grRelIn(m.starts_at)) + '</span>') +
+      const at = new Date(m.starts_at).getTime(), now = Date.now();
+      const done = at + (m.minutes || 45) * 60000 < now;
+      const live = !done && at <= now;
+      return '<div class="gr_hmrow' + (done ? ' gr_hmoff' : live ? ' gr_hmlive' : '') + '"' +
+        (c ? ' data-gr-open="' + c.id + '"' : '') + '>' +
+        '<span class="gr_hmtime">' + esc(grHm(m.starts_at)) + '</span>' +
+        '<span class="gr_hmtx"><b>' + esc(c ? c.name : m.title) + '</b><span>' +
+          esc(m.title) + ' &middot; ' + (m.minutes || 45) + ' min</span></span>' +
+        '<span class="gr_hmwhen">' + (done ? 'Done' : live ? 'Live now' : esc(grRelIn(m.starts_at))) + '</span>' +
         (!done && m.zoom_url ? '<a class="gr_join" href="' + esc(m.zoom_url) + '" target="_blank" rel="noopener" data-gr-stop>Join</a>' : '') +
         '</div>';
     };
 
-    const vas = grViewAsHtml();
+    const h = new Date().getHours();
+    const hello = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+    const who = (window.giantCurrentProfile && window.giantCurrentProfile.full_name) || '';
+    // Printed in grZone, like every other time Growth shows, so the date under the
+    // greeting cannot disagree with the clocks directly above it.
+    let dateLine = '';
+    try {
+      dateLine = new Date().toLocaleDateString(undefined,
+        { weekday: 'long', month: 'long', day: 'numeric', timeZone: grZone });
+    } catch (e) {
+      dateLine = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+    }
+
+    /* grChatHtml() and grViewAsHtml() are deliberately NOT here. The artifact's Home is
+       four clocks, a greeting, three numbers and two lists, and nothing else -- the ask
+       box is hidden in its own CSS rather than deleted. Both are left standing for the
+       same reason: they still work, and putting either back is one line. "Showing" is
+       still on Pipeline and Analytics, which is where picking whose deals to look at
+       belongs. */
     $('grHome').innerHTML =
-      grChatHtml() +
-      (vas ? '<div class="gr_vasrow"><span>Showing</span>' + vas + '</div>' : '') +
       grClockHtml() +
-      '<div class="gr_grid2">' +
-        '<section class="gr_card"><div class="gr_ct"><h2>Reply to</h2>' +
-          (replies.length ? '<span class="gr_n hot">' + replies.length + '</span>' : '') + '</div>' +
-          (replies.length ? replies.map(rRow).join('') : grEmpty('&#10003;', 'Inbox zero', 'Nobody is waiting on you.')) + '</section>' +
-        '<section class="gr_card"><div class="gr_ct"><h2>Meetings today</h2>' +
-          (today.length ? '<span class="gr_n">' + today.length + '</span>' : '') + '</div>' +
-          (today.length ? today.map(mRow).join('') : grEmpty('&#9719;', 'No meetings today', 'Your calendar is clear.')) + '</section>' +
+      '<div class="gr_hmhero"><h1>' + esc(hello + (who ? ', ' + who.split(' ')[0] : '')) + '</h1>' +
+        '<p>' + esc(dateLine) + '</p></div>' +
+      '<div class="gr_hmstats">' +
+        '<div class="gr_hmstat"><b>' + today.length + '</b><span>Meetings today</span></div>' +
+        '<div class="gr_hmstat"><b>' + replies.length + '</b><span>Need a reply</span></div>' +
+        '<div class="gr_hmstat"><b>' + todo.length + '</b><span>To follow up</span></div>' +
       '</div>' +
-      (todo.length ? '<button class="gr_more" data-gr-go="gr_pipeline">' + todo.length +
-        ' more client' + (todo.length === 1 ? '' : 's') + ' to follow up in Pipeline &rsaquo;</button>' : '') +
-      (drafts.length
-        ? '<section class="gr_card"><div class="gr_ct"><h2>Follow ups ready</h2><span class="gr_n">' + drafts.length + '</span></div>' +
-          '<p class="gr_mute">Nothing has been sent. Read one, change anything, then send it yourself.</p>' +
-          drafts.map(c => '<div class="gr_row" data-gr-open="' + c.id + '">' + grAvatar(c.name, grStageColor(c.stage)) +
-            '<div class="gr_rm"><div class="gr_rt"><b>' + esc(c.name) + '</b><time>' +
-              esc(c.follow_up_draft.quiet_days ? 'quiet ' + c.follow_up_draft.quiet_days + 'd' : '') + '</time></div>' +
-            '<div class="gr_rs">' + esc(grSnip(c.follow_up_draft.body, 130)) + '</div></div>' +
-            '<span class="gr_btns"><button class="btn-red gr_sm" data-gr-fudraft="' + c.id + '">Review</button>' +
-            '<button class="gr_x2" data-gr-fudismiss="' + c.id + '">Dismiss</button></span></div>').join('') +
-          '</section>'
-        : quiet.length
-        ? '<section class="gr_card"><div class="gr_ct"><h2>Gone quiet</h2><span class="gr_n">' + quiet.length + '</span></div>' +
-          '<p class="gr_mute">' + quiet.length + ' client' + (quiet.length === 1 ? ' has' : 's have') +
-          ' not replied in 3 days or more. Want drafts?</p>' +
-          '<button class="gr_write" data-gr-fuwrite' + (grFuBusy ? ' disabled' : '') + '>' +
-            (grFuBusy ? 'Writing ' + grFuDone + ' of ' + grFuTotal + '...' : 'Write follow ups') + '</button></section>'
-        : '');
+      '<div class="gr_hmcols">' +
+        '<section class="gr_hmcard"><h2>Meetings today</h2>' +
+          (today.length ? today.map(mRow).join('') : '<p class="gr_hmempty">No meetings today.</p>') + '</section>' +
+        '<section class="gr_hmcard"><h2>Reply to</h2>' +
+          (replies.length ? replies.map(rRow).join('') : '<p class="gr_hmempty">Nobody is waiting on you.</p>') + '</section>' +
+      '</div>' +
+      (todo.length ? '<button class="gr_hmmore" data-gr-go="gr_pipeline">See all clients &rsaquo;</button>' : '');
+    /* "Follow ups ready" and "Gone quiet" used to hang off the bottom here. They are not
+       in the artifact's Home and are gone from it. NOTE: this was the only way into
+       "Write follow ups" -- grWriteFollowUps and both handlers are still in the file and
+       still work, but nothing reaches them until they are given a home, most sensibly
+       Pipeline. */
   }
 
   /* "Write follow ups" drafts a nudge for everyone who has gone quiet. It writes them and
@@ -96902,23 +96867,69 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   });
 
   /* --- Growth Inbox --- */
+  /* WAITING ON THEM CAME FROM A TABLE THAT WAS EMPTY.
+
+     Both halves of this screen read growth_messages, and nothing has ever written an
+     inbound row into it -- so "All caught up" meant "no rows exist", not "nobody is
+     waiting on you", and the Waiting on them section could not draw at all. It was the
+     only empty screen in Growth that looked finished.
+
+     A deal that has been emailed and has not replied is a fact we already hold:
+     last_email_on is set on the client. That is what fills Waiting on them now, so it
+     works with no mail plumbing at all. Your turn still needs a reply to match, which is
+     the half that is not built -- see the note under the list rather than a tick saying
+     everything is fine. */
   function grRenderInbox() {
-    const rows = grClients.map(c => {
+    const threaded = grClients.map(c => {
       const t = grThread(c); if (!t.length) return null;
-      return { c: c, last: t[t.length - 1] };
-    }).filter(Boolean).sort((a, b) => new Date(b.last.sent_at) - new Date(a.last.sent_at));
-    const mine = rows.filter(x => x.last.direction === 'in' && grActive(x.c));
-    const wait = rows.filter(x => !(x.last.direction === 'in' && grActive(x.c)));
-    const row = (x, act) => '<div class="gr_row" data-gr-open="' + x.c.id + '">' + grAvatar(x.c.name, grStageColor(x.c.stage)) +
-      '<div class="gr_rm"><div class="gr_rt"><b>' + esc(x.c.name) + '</b><time>' + esc(grAgo(grDaysAgo(x.last.sent_at))) + '</time></div>' +
-      '<div class="gr_rs">' + (x.last.direction === 'out' ? 'You: ' : '') + esc(grSnip(x.last.body, 140)) + '</div></div>' +
+      return { c: c, last: t[t.length - 1], at: t[t.length - 1].sent_at };
+    }).filter(Boolean);
+    const byId = {};
+    threaded.forEach(x => { byId[x.c.id] = x; });
+
+    // Emailed, nothing back. No thread needed: the client row remembers the date.
+    const emailedOnly = grClients.filter(c =>
+      !byId[c.id] && c.last_email_on && grActive(c))
+      .map(c => ({ c: c, last: null, at: c.last_email_on }));
+
+    const mine = threaded.filter(x => x.last.direction === 'in' && grActive(x.c))
+      .sort((a, b) => new Date(b.at) - new Date(a.at));
+    const wait = threaded.filter(x => !(x.last.direction === 'in' && grActive(x.c)))
+      .concat(emailedOnly)
+      .sort((a, b) => new Date(b.at) - new Date(a.at));
+
+    const row = (x, act) => '<div class="gr_row" data-gr-open="' + x.c.id + '">' +
+      grAvatar(x.c.name, grStageColor(x.c.stage)) +
+      '<div class="gr_rm"><div class="gr_rt"><b>' + esc(x.c.name) + '</b><time>' +
+        esc(grAgo(grDaysAgo(x.at))) + '</time></div>' +
+      '<div class="gr_rs">' + (x.last
+        ? (x.last.direction === 'out' ? 'You: ' : '') + esc(grSnip(x.last.body, 140))
+        /* No body to show, because the email was sent from somewhere this app cannot
+           read. Say what IS known rather than printing an empty line. */
+        : 'You emailed ' + esc(grFirst(x.c)) + (x.c.emails_sent > 1
+            ? ' \u00B7 ' + x.c.emails_sent + ' emails so far' : '')) +
+      '</div></div>' +
       (act ? '<button class="btn-red gr_sm" data-gr-act="' + x.c.id + '" data-t="reply">Reply</button>'
            : '<span class="gr_st ok">Waiting on them</span>') + '</div>';
+
     $('grInbox').innerHTML =
       grHead('Growth Inbox', 'Replies from your clients, only what comes into this app', '') +
-      '<section class="gr_card"><div class="gr_ct"><h2>Your turn</h2>' + (mine.length ? '<span class="gr_n hot">' + mine.length + '</span>' : '') + '</div>' +
-        (mine.length ? mine.map(x => row(x, true)).join('') : grEmpty('&#10003;', 'All caught up', 'Nobody is waiting on you.')) + '</section>' +
-      (wait.length ? '<section class="gr_card"><div class="gr_ct"><h2>Waiting on them</h2><span class="gr_n">' + wait.length + '</span></div>' + wait.map(x => row(x, false)).join('') + '</section>' : '');
+      '<section class="gr_card"><div class="gr_ct"><h2>Your turn</h2>' +
+        (mine.length ? '<span class="gr_n hot">' + mine.length + '</span>' : '') + '</div>' +
+        (mine.length
+          ? mine.map(x => row(x, true)).join('')
+          /* NOT a tick. A tick says you are on top of it; this screen cannot know that
+             yet, because replies are not matched back to deals. Saying so is the honest
+             empty state, and it stops being shown the moment one arrives. */
+          : grEmpty('&#9993;', 'No replies have reached this app yet',
+              'Replies are not matched to deals yet, so this stays empty even when somebody '
+              + 'has written back. Waiting on them below is built from the deals themselves.')) +
+      '</section>' +
+      (wait.length
+        ? '<section class="gr_card"><div class="gr_ct"><h2>Waiting on them</h2>' +
+          '<span class="gr_n">' + wait.length + '</span></div>' +
+          wait.map(x => row(x, false)).join('') + '</section>'
+        : '');
   }
 
   /* --- Training: five tabs, all of it from the database ---
@@ -96939,352 +96950,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     grPlanSeeding = false;
   }
 
-  /* ---------- Practice ----------
-     The course tells you and the Q and A answers for you. Neither makes anybody say the
-     words out loud, which is the only part that transfers to a real call. So: pick what
-     you want to work on, a prospect says something, you reply three times, and then you
-     are scored and told one thing to change.
-
-     THE SCENARIOS ARE CONTENT, not code -- growth_settings 'practice', edited like a
-     lesson -- and a person's runs are their own rows (20261027120000). Same split the
-     course uses, for the same reason: finishing a practice call is not editing shared
-     material.
-
-     THE STRONG ANSWER IS NOT SHOWN UNTIL AFTER THE SCORE. Shown first it is reading, and
-     reading is the thing this screen exists to replace. */
-  const grAreas = () => Array.isArray((grSettings.practice || {}).areas) ? grSettings.practice.areas : [];
-  const grArea  = (id) => grAreas().find(a => a.id === id) || null;
-  /* YOUR runs, always. A manager looking at a rep's scores belongs on the course screen
-     where the chips already are; here the only question is how YOU did, and a picker
-     that quietly scored somebody else would be worse than no picker. */
-  const grMyRuns = (area) => grPracticeRuns.filter(r =>
-    r.owner_id === me() && (!area || r.area === area));
-  function grAreaAvg(id) {
-    const r = grMyRuns(id);
-    return r.length ? r.reduce((n, x) => n + (Number(x.score) || 0), 0) / r.length : null;
-  }
-  /* Never practised beats practised badly: an area with no runs is the one you are
-     avoiding. -1 sorts it below a genuine zero. */
-  function grWeakest() {
-    const list = grAreas();
-    if (!list.length) return null;
-    let worst = null, low = Infinity;
-    list.forEach(a => {
-      const v = grAreaAvg(a.id);
-      const n = v == null ? -1 : v;
-      if (n < low) { low = n; worst = a; }
-    });
-    return worst;
-  }
-
-  function grPracticeHtml() {
-    const head = grSub('Practice',
-      'Get on a live practice call. Talk out loud, then get honest coaching.');
-    if (!grAreas().length) {
-      return head + grEmpty('&#127908;', 'Nothing to practise yet',
-        grIsStaff() ? 'Add the scenarios in Settings.' : 'Luke is still writing these.');
-    }
-    if (grRoom && grRoom.phase === 'review') return head + grPracReviewHtml() + grCoachHtml();
-    if (grRoom) return head + grPracRoomHtml() + grCoachHtml();
-    return head + grPracPickHtml() + grCoachHtml();
-  }
-
-  /* Edited here rather than nowhere. Lessons, clear answers and the questions all edit
-     inline on this screen; scenarios living only in the database would be the one piece
-     of Training content a manager has to ask a developer about. The lines are the same
-     "one per line, two halves split by ::" the philosophy and call script use, so there
-     is one thing to learn rather than a fourth shape. */
-  const grSavePractice = (list) => grSetting('practice', { areas: list });
-
-  function grPracAreaEdit(a) {
-    return '<section class="gr_card">' +
-      '<div class="gr_two">' +
-        '<div class="gr_field"><label>What it is</label>' +
-          '<input class="gr_in" data-gr-pa="t" value="' + esc(a.t || '') + '"></div>' +
-        '<div class="gr_field"><label>Who they are</label>' +
-          '<input class="gr_in" data-gr-pa="who" value="' + esc(a.who || '') + '"></div></div>' +
-      '<div class="gr_field"><label>What a good call does</label>' +
-        '<input class="gr_in" data-gr-pa="goal" value="' + esc(a.goal || '') + '"></div>' +
-      '<div class="gr_field"><label>Openers, one per line, written as ' +
-        'What the prospect says :: a strong reply</label>' +
-        '<textarea class="gr_in" rows="5" data-gr-pa="s">' +
-          esc(grPairsText(a.s, 'p', 'b')) + '</textarea></div>' +
-      '<p class="gr_mute">The strong reply is never shown during a call, only after the ' +
-        'score. Leave it off and the call still works.</p>' +
-      '<div class="gr_csx"><button class="btn-red" data-gr-pa-save="' + esc(a.id) + '">Save</button>' +
-        '<button class="gr_ghost" data-gr-pa-edit="' + esc(a.id) + '">Cancel</button>' +
-        '<span class="gr_sp"></span>' +
-        '<button class="gr_danger" data-gr-pa-del="' + esc(a.id) + '">Delete</button></div></section>';
-  }
-
-  function grPracPickHtml() {
-    const weak = grWeakest();
-    const editing = grAreas().find(a => grEditT === 'P' + a.id);
-    if (editing && grIsStaff()) return grPracAreaEdit(editing);
-    return '<div class="gr_pickg">' + grAreas().map(a => {
-      const v = grAreaAvg(a.id), n = grMyRuns(a.id).length;
-      return '<div class="gr_pickw2">' +
-        (grIsStaff() ? '<button class="gr_ib gr_picked" data-gr-pa-edit="' + esc(a.id) +
-          '" title="Edit" aria-label="Edit ' + esc(a.t || '') + '">' + GR_PEN + '</button>' : '') +
-        '<button class="gr_pick" data-gr-prac-start="' + esc(a.id) + '">' +
-        '<b>' + esc(a.t) + '</b>' +
-        '<span class="gr_pickw">' + esc(a.who || '') + '</span>' +
-        '<u><s style="width:' + (v == null ? 0 : Math.round(v * 10)) + '%"></s></u>' +
-        '<em>' + (v == null ? 'Not tried yet' : v.toFixed(1) + ' out of 10 · ' + n +
-          (n === 1 ? ' call' : ' calls')) + '</em></button></div>';
-    }).join('') + '</div>' +
-    (weak ? '<p class="gr_mid"><button class="btn-red" data-gr-prac-start="' + esc(weak.id) +
-      '">Start with my weakest: ' + esc(weak.t) + '</button></p>' : '') +
-    (grIsStaff()
-      ? '<div class="gr_task gr_addt"><input class="gr_in gr_flat" id="grNewArea" ' +
-        'placeholder="Add something to practise..." aria-label="New practice area">' +
-        '<button class="btn-red gr_addb" data-gr-pa-add>Add</button></div>'
-      : '');
-  }
-
-  function grPracRoomHtml() {
-    const a = grArea(grRoom.area) || {};
-    const thinking = grRoom.busy || grRoom.phase === 'scoring';
-    return '<section class="gr_card gr_room">' +
-      '<div class="gr_roomh"><div class="gr_roomt">' +
-        '<i class="gr_lt ' + (thinking ? 'gr_wait' : 'gr_on') + '"></i>' +
-        '<div><b>' + esc(a.t || 'Practice') + '</b><span>' +
-          (grRoom.phase === 'scoring' ? 'Scoring your call...'
-            : grRoom.turns + ' of ' + GR_TURNS + ' replies') + '</span></div></div>' +
-        '<button class="gr_ghost gr_sm" data-gr-prac-end>End call</button></div>' +
-      '<div class="gr_roomw">' + grAvatar(String(a.who || 'P').split(',')[0], '#7C3AED') +
-        '<div class="gr_rm"><b>' + esc(String(a.who || '').split(',')[0]) + '</b>' +
-        '<span>' + esc(a.goal || '') + '</span></div></div>' +
-      '<div class="gr_rmsgs" id="grRoomMsgs">' +
-        grRoom.msgs.map(m => '<div class="gr_rmb gr_' + m.who + '">' + esc(m.text) + '</div>').join('') +
-        (thinking ? '<div class="gr_rmb gr_p gr_typing"><i></i><i></i><i></i></div>' : '') +
-      '</div>' +
-      '<div class="gr_roomin">' +
-        '<textarea id="grRoomSay" rows="2" placeholder="Say it out loud, then type it here."' +
-          ' aria-label="Your reply">' + esc(grRoom.draft) + '</textarea>' +
-        '<button class="btn-red" data-gr-prac-send' + (thinking || !grRoom.draft.trim() ? ' disabled' : '') +
-          '>Send</button></div>' +
-      '<p class="gr_hint">Say your reply out loud, then type it. After ' + GR_TURNS +
-        ' replies you get your coaching.</p></section>';
-  }
-
-  function grPracReviewHtml() {
-    const r = grRoom.review || {}, a = grArea(grRoom.area) || {};
-    const sc = Math.max(0, Math.min(10, Number(r.score) || 0));
-    const grade = sc >= 8 ? 'Strong call' : sc >= 6 ? 'Solid, with room to grow'
-                                           : 'Keep practising, you are learning';
-    const scen = grRoom.scen || {};
-    return '<section class="gr_card gr_rep">' +
-      '<div class="gr_reph">' +
-        '<div class="gr_ring" style="background:conic-gradient(var(--red) ' + Math.round(sc * 36) +
-          'deg, var(--surface-3) 0)"><div><b>' + sc.toFixed(1) + '</b><span>out of 10</span></div></div>' +
-        '<div><h3>' + esc(grade) + '</h3><p class="gr_mute">' + esc(a.t || '') + '</p>' +
-          (r.local ? '<p class="gr_mute">Scored here on the page: the writer was not reachable.</p>' : '') +
-        '</div></div>' +
-      ((r.skills || []).length ? '<div class="gr_skills">' + r.skills.map(k => {
-        const v = Math.max(0, Math.min(10, Number(k.score) || 0));
-        return '<div><span>' + esc(k.name) + '<em>' + v + '</em></span>' +
-          '<u><s style="width:' + (v * 10) + '%"></s></u></div>';
-      }).join('') + '</div>' : '') +
-      '<div class="gr_two">' +
-        '<div class="gr_note"><span>Went well</span>' +
-          ((r.went_well || []).map(x => '<p>' + esc(x) + '</p>').join('') || '<p class="gr_mute">Nothing noted.</p>') + '</div>' +
-        '<div class="gr_note"><span>Change next time</span>' +
-          ((r.to_change || []).map(x => '<p>' + esc(x) + '</p>').join('') || '<p class="gr_mute">Nothing noted.</p>') + '</div>' +
-      '</div>' +
-      (r.better ? '<div class="gr_better"><span>A stronger way to say it</span><p>' + esc(r.better) + '</p></div>' : '') +
-      // ...and not twice, on the off chance the writer lands on the same sentence.
-      (scen.b && scen.b !== r.better
-        ? '<div class="gr_note"><span>What a strong opener sounds like</span><p>' + esc(scen.b) + '</p></div>' : '') +
-      '<div class="gr_csx"><button class="btn-red" data-gr-prac-start="' + esc(grRoom.area) + '">Try this again</button>' +
-        '<button class="gr_ghost" data-gr-prac-weak>Next call, weakest first</button>' +
-        '<button class="gr_ghost" data-gr-prac-end>Choose a call</button></div></section>';
-  }
-
-  const GR_COACH_Q = ['How do I ask for the yes?', 'What if they say it is too expensive?',
-                      'What do I say about results?', 'How long does it take?'];
-  function grCoachHtml() {
-    return '<section class="gr_card gr_coach"><div class="gr_sub2"><b>Ask the coach</b>' +
-      '<span>A question about selling this, answered from the clear answers and the Q and A.</span></div>' +
-      '<div class="gr_coachin"><input class="gr_in" id="grCoachQ" value="' + esc(grCoach.q) +
-        '" placeholder="How do I handle somebody who needs to think about it?" aria-label="Ask the coach">' +
-        '<button class="gr_ghost" data-gr-coach-ask' + (grCoach.busy ? ' disabled' : '') + '>' +
-        (grCoach.busy ? 'Thinking...' : 'Ask') + '</button></div>' +
-      '<div class="gr_tags">' + GR_COACH_Q.map(q =>
-        '<button class="gr_tg gr_tgb" data-gr-coach-q="' + esc(q) + '">' + esc(q) + '</button>').join('') + '</div>' +
-      (grCoach.a ? '<div class="gr_qaa"><span>Coach</span><p>' + esc(grCoach.a) + '</p></div>' : '') +
-      '</section>';
-  }
-
-  /* One place that talks to Claude, because three copies of "post, check res.ok, read
-     data.text" is three places to forget the zero-length case. Throws rather than
-     returning empty: every caller here has a real fallback and needs to know to use it. */
-  async function grClaude(system, user, maxTokens) {
-    const res = await fetch('/.netlify/functions/claude-api', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ max_tokens: maxTokens || 700, system: system,
-        messages: [{ role: 'user', content: user }] })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'AI error');
-    const out = String(data.text || '').trim();
-    if (!out) throw new Error('nothing came back');
-    return out;
-  }
-  // Models wrap JSON in prose and fences however they feel. Take the outermost braces.
-  function grJson(t) {
-    const str = String(t || '').replace(/^```(?:json)?/i, '').replace(/```$/, '');
-    const a = str.indexOf('{'), b = str.lastIndexOf('}');
-    if (a < 0 || b < a) throw new Error('no json');
-    return JSON.parse(str.slice(a, b + 1));
-  }
-
-  function grPracStart(areaId) {
-    const a = grArea(areaId);
-    if (!a || !(a.s || []).length) { grToast('That one has no scenarios yet.'); return; }
-    const scen = a.s[Math.floor(Math.random() * a.s.length)];
-    grRoom = { area: areaId, scen: scen, msgs: [{ who: 'p', text: scen.p }],
-               turns: 0, phase: 'call', review: null, draft: '', busy: false };
-    grRender();
-  }
-
-  /* Your reply goes in, then either the prospect answers or the call ends and is scored.
-     The prospect's answer is written by Claude so it responds to what you actually said;
-     when that is not available it falls back to a nudge, because a practice call that
-     stops dead because the network did is worse than a slightly generic one. */
-  const GR_PUSH = ['Okay. Tell me more about how that works.',
-                   'Hmm. I have heard that before. What makes this different?',
-                   'Alright. What would you need from me to get started?'];
-  async function grPracSend() {
-    if (!grRoom || grRoom.busy) return;
-    const said = String(grRoom.draft || '').trim();
-    if (!said) return;
-    grRoom.msgs.push({ who: 't', text: said });
-    grRoom.turns += 1;
-    grRoom.draft = '';
-    if (grRoom.turns >= GR_TURNS) { grPracScore(); return; }
-    grRoom.busy = true; grRender();
-    const a = grArea(grRoom.area) || {};
-    try {
-      const line = await grClaude(
-        'You are playing a prospect on a sales practice call. Stay in character. Plain ' +
-        'words, 1 to 3 short sentences, a little guarded. If they listened and answered ' +
-        'well, warm up slightly; if they rambled or pitched, push back. Never coach and ' +
-        'never mention that this is practice. Reply with the prospect line only.',
-        'Who you are: ' + (a.who || 'a prospect') + '\nThe situation: ' + (a.goal || '') +
-        '\n\nThe call so far:\n' + grRoom.msgs.map(m =>
-          (m.who === 'p' ? 'Prospect: ' : 'Salesperson: ') + m.text).join('\n'), 300);
-      grRoom.msgs.push({ who: 'p', text: line.replace(/^prospect:\s*/i, '') });
-    } catch (e) {
-      grRoom.msgs.push({ who: 'p', text: GR_PUSH[Math.min(grRoom.turns - 1, GR_PUSH.length - 1)] });
-    }
-    grRoom.busy = false; grRender();
-  }
-
-  /* The five things that separate a reply that lands from one that does not, each one
-     readable off the text. This is the fallback when Claude is not reachable, and it is
-     deliberately strict about the last one: anybody can promise a result, and promising
-     one is the single worst habit this course is trying to break. */
-  function grPracLocal() {
-    const said = grRoom.msgs.filter(m => m.who === 't').map(m => m.text).join(' ');
-    const t = said.toLowerCase();
-    const checks = [
-      ['Opening',          /(understand|makes sense|fair|hear you|good question|thanks|appreciate|of course|sounds like)/.test(t),
-       'Show you heard them first. "That makes sense" costs nothing and buys the rest.'],
-      ['Listening',        (said.match(/\?/g) || []).length === 1,
-       'Ask one question, then stop and let them answer it.'],
-      ['Clear offer',      /(\$|\d|day|week|month|minute|hour)/.test(t),
-       'Give one real number or timeframe. "Soon" is not an answer.'],
-      ['Next step',        /(next|send|link|call|book|start|form|plan)/.test(t),
-       'End with one small next step they can say yes to.'],
-      ['Stayed honest',    !/(guarantee|guaranteed|100%|definitely will|always work|never fail|promise you)/.test(t),
-       'Never promise a result. Promise daily work and honesty.']
-    ];
-    return {
-      local: true,
-      score: checks.filter(c => c[1]).length * 2,
-      skills: checks.map(c => ({ name: c[0], score: c[1] ? 8 : 4 })),
-      went_well: checks.filter(c => c[1]).map(c => c[0]),
-      to_change: checks.filter(c => !c[1]).map(c => c[2]),
-      /* Deliberately empty. "A stronger way to say it" means a rewrite of YOUR words,
-         which five regexes cannot write; the scenario's model opener is a different
-         thing and is shown under it either way. Filling this in with the model opener
-         printed the same sentence twice under two different headings. */
-      better: ''
-    };
-  }
-
-  async function grPracScore() {
-    grRoom.phase = 'scoring'; grRoom.busy = true; grRender();
-    const a = grArea(grRoom.area) || {};
-    let rv = null;
-    try {
-      const raw = await grClaude(
-        'You coach salespeople at a marketing agency. Score the call honestly and kindly. ' +
-        'Return JSON only: {"score": 0-10, "skills":[{"name","score"} x5 named Opening, ' +
-        'Listening, Handling worries, Clear offer, Next step], "went_well":[2 or 3 short ' +
-        'strings], "change":[2 or 3 short strings], "better": one stronger reply in 2 to 4 ' +
-        'sentences}. Plain words. No dashes of any kind.',
-        'They were practising: ' + (a.t || '') + '. The goal was: ' + (a.goal || '') +
-        '\n\n' + grRoom.msgs.map(m =>
-          (m.who === 'p' ? 'Prospect: ' : 'Salesperson: ') + m.text).join('\n'), 900);
-      const j = grJson(raw);
-      if (typeof j.score === 'number' && Array.isArray(j.skills)) {
-        rv = { score: j.score, skills: j.skills,
-               went_well: Array.isArray(j.went_well) ? j.went_well : [],
-               to_change: Array.isArray(j.change) ? j.change : [],
-               better: String(j.better || '') };
-      }
-    } catch (e) { /* falls back below */ }
-    if (!rv) rv = grPracLocal();
-    grRoom.review = rv; grRoom.phase = 'review'; grRoom.busy = false;
-    grRender();
-    grPracSave(rv);
-  }
-
-  /* Kept, because "start me on my weakest" is the point and that needs yesterday's runs.
-     grWrite asks for the row back, so a refusal is said out loud rather than leaving the
-     score on screen and nothing in the table. */
-  async function grPracSave(rv) {
-    const row = await grWrite('growth_practice_runs', 'insert', {
-      owner_id: me(), area: grRoom.area,
-      score: Math.max(0, Math.min(10, Math.round((Number(rv.score) || 0) * 10) / 10)),
-      skills: rv.skills || [], went_well: rv.went_well || [], to_change: rv.to_change || [],
-      better: rv.better || '', opener: (grRoom.scen || {}).p || ''
-    });
-    if (row) { grPracticeRuns = row.concat(grPracticeRuns); grRender(); }
-  }
-
-  async function grCoachAsk(q) {
-    q = String(q || '').trim();
-    if (!q || grCoach.busy) return;
-    grCoach = { q: q, a: '', busy: true }; grRender();
-    const known = grClears().map(x => 'Q: ' + x.q + ' A: ' + x.a)
-      .concat(grQas().slice(0, 12).map(x => 'Q: ' + x.q + ' A: ' + (x.better || ''))).join('\n');
-    try {
-      grCoach.a = await grClaude(
-        'You are a warm, relaxed sales coach at a marketing agency. Answer in 2 to 4 short ' +
-        'plain sentences. Use ONLY the approved answers below. Never invent a price, a date ' +
-        'or a promise. No dashes of any kind.',
-        'They asked: ' + q + '\n\nApproved answers:\n' + known, 500);
-    } catch (e) {
-      /* Rather than an apology: the nearest approved answer we already hold. */
-      const words = q.toLowerCase().split(/\W+/).filter(w => w.length > 3);
-      let best = null, hits = 0;
-      grClears().concat(grQas().map(x => ({ q: x.q, a: x.better })))
-        .forEach(c => {
-          const hay = (String(c.q) + ' ' + String(c.a)).toLowerCase();
-          const n = words.filter(w => hay.indexOf(w) >= 0).length;
-          if (n > hits) { hits = n; best = c; }
-        });
-      grCoach.a = best ? best.a
-        : 'I could not reach the writer. Try it out loud on your next call, then ask again.';
-    }
-    grCoach.busy = false; grRender();
-  }
-
   function grRenderTraining() {
-    const tabs = [['course','Course'],['practice','Practice'],['clear','Clear answers'],
+    const tabs = [['course','Course'],['clear','Clear answers'],
                   ['lib','Best calls'],['qa','Q&amp;A']];
     // Philosophy, the call script and the personal task list are reached FROM a lesson
     // rather than from the strip, the same as the design. The strip still has to say
@@ -97297,7 +96964,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     let body = '';
 
     if (grTrainTab === 'course') body = grCourseHtml();
-    else if (grTrainTab === 'practice') body = grPracticeHtml();
     else if (grTrainTab === 'clear') body = grClearHtml();
     else if (grTrainTab === 'qa') body = grQaHtml();
     else if (grTrainTab === 'plan') {
@@ -97360,7 +97026,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           '<div class="gr_field"><label for="grNewWatchTitle">Call name</label>' +
             '<input class="gr_in" id="grNewWatchTitle" placeholder="e.g. Amy Neighbors"></div>' +
           '<div class="gr_field"><label for="grNewWatchUrl">Link</label>' +
-            '<input class="gr_in" id="grNewWatchUrl" placeholder="https://fathom.video/..."></div>' +
+            '<input class="gr_in" id="grNewWatchUrl" placeholder="Link to the recording"></div>' +
           '<div class="gr_acts"><button class="btn-red" data-gr-watch-add>Add call</button>' +
             '<button class="gr_ghost" data-gr-watch-cancel>Cancel</button></div></div>' : '') +
         (shelf.length ? '<div class="gr_bcg">' + shelf.map(w =>
@@ -97441,7 +97107,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               '<textarea class="gr_in" id="grPhC" rows="6">' + esc(grLinesText(ph.checklist)) + '</textarea>' +
               '<span class="gr_hint">One line each. These are the boxes you tick before a call.</span></div>' +
             grEditBar('H') + '</section>' + back;
-        $('grTraining').innerHTML = grHead('Training', 'Learn the offer, study great calls, practice',
+        $('grTraining').innerHTML = grHead('Training', 'Learn the offer, study great calls, get the answers right',
           '<div class="gr_seg">' + tabs.map(t => '<button data-gr-traintab="' + t[0] + '"' +
             (lit === t[0] ? ' aria-pressed="true"' : '') + '>' + t[1] + '</button>').join('') + '</div>') + body;
         return;
@@ -97469,7 +97135,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               '<textarea class="gr_in" id="grScW" rows="8">' + esc(grPairsText(sc.worries, 'q', 'a')) + '</textarea>' +
               '<span class="gr_hint">What they say :: what you say back. One per line.</span></div>' +
             grEditBar('S') + '</section>' + back;
-        $('grTraining').innerHTML = grHead('Training', 'Learn the offer, study great calls, practice',
+        $('grTraining').innerHTML = grHead('Training', 'Learn the offer, study great calls, get the answers right',
           '<div class="gr_seg">' + tabs.map(t => '<button data-gr-traintab="' + t[0] + '"' +
             (lit === t[0] ? ' aria-pressed="true"' : '') + '>' + t[1] + '</button>').join('') + '</div>') + body;
         return;
@@ -97513,7 +97179,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               '<textarea class="gr_in" id="grPrN" rows="4">' + esc(grLinesText(pr.notes)) + '</textarea>' +
               '<span class="gr_hint">One note per line.</span></div>' +
             grEditBar('P') + '</section>';
-        $('grTraining').innerHTML = grHead('Training', 'Learn the offer, study great calls, practice',
+        $('grTraining').innerHTML = grHead('Training', 'Learn the offer, study great calls, get the answers right',
           '<div class="gr_seg">' + tabs.map(t => '<button data-gr-traintab="' + t[0] + '"' +
             (lit === t[0] ? ' aria-pressed="true"' : '') + '>' + t[1] + '</button>').join('') + '</div>') + body;
         return;
@@ -97537,7 +97203,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
 
     $('grTraining').innerHTML =
-      grHead('Training', 'Learn the offer, study great calls, practice',
+      grHead('Training', 'Learn the offer, study great calls, get the answers right',
         '<div class="gr_seg">' + tabs.map(t =>
           '<button data-gr-traintab="' + t[0] + '"' + (lit === t[0] ? ' aria-pressed="true"' : '') + '>' +
           t[1] + '</button>').join('') + '</div>') +
@@ -97980,186 +97646,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      reply, what calls happened, and who did we win. The funnel is all time on purpose --
      a funnel inside a 7 day window mostly measures how quiet the week was. */
   const grMeetDone = (m) => new Date(m.starts_at).getTime() + (m.minutes || 45) * 60000 < Date.now();
-  // The booked length until the call actually happened and Fathom said how long it ran.
+  // The booked length until the call actually happened and the recording said how long.
   const grCallMin = (m) => Number(m.actual_min) || Number(m.minutes) || 45;
   const grPct = (a, b) => (b ? Math.round(a / b * 100) : 0) + '%';
-
-  const grFcAll = () => {
-    const live = grSettings.fathom_calls;
-    return Array.isArray(live) && live.length ? live : GR_FC_SAMPLE;
-  };
-  const grFcIsSample = () => !(Array.isArray(grSettings.fathom_calls) && grSettings.fathom_calls.length);
 
   /* The head is shared, so switching views cannot leave the range chips behind on one
      of them -- which is how a screen ends up with two different ideas of "last 7 days". */
   function grAnHead() {
-    const n = grFcAll().length;
     return grHead('Analytics',
-      grAnView === 'fathom' ? 'Every sales call from Fathom' : 'How the sales team is doing',
+      'How the sales team is doing',
       '<div class="gr_seg">' + [['week', '7 days'], ['month', '30 days'], ['all', 'All time']]
         .map(r => '<button data-gr-range="' + r[0] + '"' + (grRange === r[0] ? ' aria-pressed="true"' : '') +
-          '>' + r[1] + '</button>').join('') + '</div>' + grViewAsHtml()) +
-      '<div class="gr_seg gr_anv">' +
-        '<button data-gr-anview="sales" aria-pressed="' + (grAnView === 'sales') + '">Sales</button>' +
-        '<button data-gr-anview="fathom" aria-pressed="' + (grAnView === 'fathom') + '">Fathom calls<b>' +
-          n + '</b></button></div>';
-  }
-
-  function grRenderFathom() {
-    const within = (iso) => {
-      if (grRange === 'all') return true; if (!iso) return false;
-      return new Date(iso + 'T12:00:00Z').getTime() >= Date.now() - (grRange === 'week' ? 7 : 30) * 86400000;
-    };
-    const all = grFcAll().slice().sort((a, b) => String(b.d).localeCompare(String(a.d)));
-    const per = all.filter(c => within(c.d));
-    const q = grFcQ.trim().toLowerCase();
-    const list = q ? all.filter(c => (c.n + ' ' + (c.rep || '')).toLowerCase().includes(q)) : all;
-    const since = (n) => all.filter(c => new Date(c.d + 'T12:00:00Z').getTime() > Date.now() - n * 86400000).length;
-
-    const reps = {};
-    all.forEach(c => { const r = c.rep || 'Unknown'; reps[r] = (reps[r] || 0) + 1; });
-    const repL = Object.keys(reps).map(k => [k, reps[k]]).sort((a, b) => b[1] - a[1]);
-
-    const DAY = 86400000, tonight = new Date(); tonight.setHours(24, 0, 0, 0);
-    const wk = [];
-    for (let i = 7; i >= 0; i--) {
-      const end = tonight.getTime() - i * 7 * DAY, st = end - 7 * DAY;
-      wk.push({ d: new Date(st).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-                n: all.filter(c => { const t = new Date(c.d + 'T12:00:00Z').getTime(); return t > st && t <= end; }).length });
-    }
-    const wm = Math.max(1, ...wk.map(w => w.n));
-    const hero = (cls, v, l, s2) => '<div class="gr_hero ' + cls + '"><div class="gr_hv">' + v +
-      '</div><div class="gr_hl">' + esc(l) + '</div><div class="gr_hs">' + esc(s2) + '</div></div>';
-    const period = grRange === 'all' ? 'All time' : grRange === 'week' ? 'Last 7 days' : 'Last 30 days';
-
-    const row = (c) => '<div class="gr_fc">' +
-      '<span class="gr_cld">' + esc(grFmt(c.d)) + '</span><b>' + esc(c.n) + '</b>' +
-      '<span class="gr_fck">' + esc(GR_FC_KIND[c.k] || 'Sales call') + '</span>' +
-      '<span class="gr_cll">' + esc(c.rep || '') + '</span>' +
-      '<span class="gr_fcm">' + (c.min ? c.min + ' min' : '') + '</span>' +
-      (c.u ? '<a class="gr_ghost gr_fcw" href="' + esc(c.u) + '" target="_blank" rel="noopener" data-gr-stop>Watch</a>' : '') +
-      '</div>';
-
-    $('grAnalytics').innerHTML = grAnHead() +
-      (grFcIsSample()
-        ? '<div class="gr_samp"><b>Sample calls.</b> Fathom is not connected yet, so this is ' +
-          'what the screen will look like. Connect it on Connectors and the real list takes ' +
-          'its place.</div>'
-        : '') +
-      '<div class="gr_heroes">' +
-        hero('gr_hb', per.length, 'Calls recorded', period) +
-        hero('gr_hp', since(7), 'This week', 'Last 7 days') +
-        hero('gr_ho', since(30), 'Last 30 days', 'Sales calls') +
-        hero('gr_hg', all.length, 'All time', 'Every recorded call') +
-      '</div>' +
-      '<div class="gr_two">' +
-        '<section class="gr_card"><div class="gr_ct"><h2>Calls per week</h2><span>Last 8 weeks</span></div>' +
-          '<div class="gr_wks">' + wk.map(w => '<div class="gr_wk"><div class="gr_bars">' +
-            '<i style="height:' + (Math.round(w.n / wm * 80) + 3) + 'px;background:#7048E8"></i></div>' +
-            '<b>' + w.n + '</b><span>' + esc(w.d) + '</span></div>').join('') + '</div></section>' +
-        '<section class="gr_card"><div class="gr_ct"><h2>By salesperson</h2><span>Who recorded the call</span></div>' +
-          repL.map(r => '<div class="gr_sr"><i style="background:#7048E8"></i><span>' + esc(r[0]) +
-            '</span><b>' + r[1] + '</b><em></em></div>').join('') +
-          '<p class="gr_mute">To include somebody, add them to the Fathom team. Their calls then ' +
-          'arrive here on their own.</p></section>' +
-      '</div>' +
-      '<section class="gr_card"><div class="gr_ct"><h2>All sales calls</h2><span>Newest first</span></div>' +
-        '<input class="gr_in gr_fcq" id="grFcQ" placeholder="Search by name or person" ' +
-          'value="' + esc(grFcQ) + '" aria-label="Search calls">' +
-        (list.slice(0, grFcMore).map(row).join('') || '<p class="gr_mute">No calls match.</p>') +
-        (list.length > grFcMore
-          ? '<button class="gr_ghost gr_fcmore" data-gr-fcmore>Show 40 more (' +
-            (list.length - grFcMore) + ' left)</button>'
-          : '') +
-      '</section>';
-  }
-
-  /* RECORDINGS: the library, newest first. Analytics' Fathom tab counts the calls; this
-     is for finding one. Same list behind both -- two lists of the same thing drift, and
-     the one nobody is looking at is the one that goes wrong.
-
-     Grouped by day, because "which call was that" is nearly always remembered as a day. */
-  let grRecF = 'all';
-  function grRecClient(r) {
-    const who = String(r.who || r.n || '').toLowerCase();
-    if (!who) return null;
-    return grClients.find(c =>
-      String(c.company || '').toLowerCase() === who ||
-      String(c.name || '').toLowerCase() === who) || null;
-  }
-  function grRenderRecordings() {
-    const all = grFcAll().slice().sort((a2, b2) => String(b2.d).localeCompare(String(a2.d)));
-    const withC = all.filter(r => !!grRecClient(r));
-    const list = grRecF === 'client' ? withC
-      : grRecF === 'other' ? all.filter(r => !grRecClient(r))
-      : all;
-    const chip = (k, l, n) => '<button class="gr_rcf" data-gr-recf="' + k + '"' +
-      (grRecF === k ? ' aria-pressed="true"' : '') + '>' + l + '<b>' + n + '</b></button>';
-
-    const card = (r) => {
-      const c = grRecClient(r);
-      const fresh = (Date.now() - new Date(r.d + 'T12:00:00Z').getTime()) < 2 * 86400000;
-      const hl = Array.isArray(r.highlights) ? r.highlights : [];
-      const ac = Array.isArray(r.actions) ? r.actions : [];
-      return '<article class="gr_rc">' +
-        '<a class="gr_rcp" href="' + esc(r.u || '#') + '" target="_blank" rel="noopener" ' +
-          'data-gr-stop aria-label="Watch ' + esc(r.n) + '">&#9654;</a>' +
-        '<div class="gr_rcb">' +
-          '<div class="gr_rch"><b>' + esc(r.n) + '</b>' +
-            (fresh ? '<em class="gr_rcnew">New</em>' : '') + '</div>' +
-          '<div class="gr_rcm">' +
-            (c
-              ? '<span class="gr_rctag" style="background:' + grStageColor(c.stage) + '1f;color:' +
-                grStageColor(c.stage) + '"><i style="background:' + grStageColor(c.stage) + '"></i>' +
-                esc(c.name) + '</span>'
-              : '<span class="gr_rctag gr_rcsoft">Not matched to a client</span>') +
-            '<span>' + esc(grLongDate(r.d)) + '</span>' +
-            '<span>' + esc(GR_FC_KIND[r.k] || 'Sales call') + '</span>' +
-            (r.rep ? '<span>' + esc(r.rep) + '</span>' : '') +
-            (r.min ? '<span>' + r.min + ' min</span>' : '') +
-          '</div>' +
-          (r.headline ? '<p class="gr_rcs">' + esc(r.headline) + '</p>' : '') +
-          (hl.length ? '<ul class="gr_rcl">' + hl.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul>' : '') +
-          (ac.length ? '<div class="gr_rca"><span>Next steps</span>' +
-            ac.map(x => '<div><i></i>' + esc(x.t) + '<em>' + esc(x.who || '') + '</em></div>').join('') +
-            '</div>' : '') +
-          '<div class="gr_rcx">' +
-            '<a class="btn-red gr_sm" href="' + esc(r.u || '#') + '" target="_blank" rel="noopener" ' +
-              'data-gr-stop>&#9654; Watch recording</a>' +
-            (c ? '<button class="gr_ghost gr_sm" data-gr-open="' + c.id + '">Open ' + esc(grFirst(c)) + '</button>' : '') +
-            (r.u ? '<button class="gr_ghost gr_sm" data-gr-reccopy="' + esc(r.u) + '">Copy link</button>' : '') +
-          '</div>' +
-        '</div></article>';
-    };
-
-    let body = '', lastDay = '';
-    list.forEach(r => {
-      const d = grLongDate(r.d);
-      if (d !== lastDay) { body += '<div class="gr_rcday">' + esc(d) + '</div>'; lastDay = d; }
-      body += card(r);
-    });
-
-    $('grRecordings').innerHTML =
-      grHead('Recordings', 'Every recorded call, newest first', '') +
-      (grFcIsSample()
-        ? '<div class="gr_samp"><b>Sample recordings.</b> Fathom is not connected yet, so ' +
-          'this is what the shelf will look like. Connect it on Connectors and the real ' +
-          'calls take their place.</div>'
-        : '') +
-      '<div class="gr_who">' +
-        chip('all', 'All', all.length) +
-        chip('client', 'With a client', withC.length) +
-        chip('other', 'Not matched', all.length - withC.length) +
-      '</div>' +
-      (body || grEmpty('&#9654;', 'Nothing recorded yet',
-        'Calls land here once Fathom is connected.'));
+          '>' + r[1] + '</button>').join('') + '</div>' + grViewAsHtml());
   }
 
   function grRenderAnalytics() {
     // Whoever the manager is looking at. "Everyone" for a rep, because RLS has
     // already given them only their own rows.
     const grVis = grVisible();
-    if (grAnView === 'fathom') return grRenderFathom();
     const within = (iso) => {
       if (grRange === 'all') return true; if (!iso) return false;
       const t = new Date(iso).getTime();
@@ -98296,36 +97800,27 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      Reports what is actually true, asked of the thing itself. A hard-coded "Not connected"
      list looks the same whether it is right or stale, and this screen is the one place
      somebody comes to find out why an email did not go. */
-  const grConn = { probed: false, zoom: null, calendly: null, claude: null, mcp: null, mcpN: 0, mcpUsed: '' };
+  const grConn = { probed: false, zoom: null, calendly: null, claude: null,
+                   zoomWho: '', zoomHow: '', zoomErr: '' };
   let grConnOpen = null, grConnBusy = '', grConnSay = {};
   async function grProbeConnectors() {
     if (grConn.probed) return;
     grConn.probed = true;
     try {
-      /* POST. bookings-api answers POST only, so the GET this used to send came back
-         405 "Method not allowed" every time -- configured was undefined and the row
-         said "Not connected" whether the credentials were set or not. It was reporting
-         a broken probe as a missing connection. */
-      const r = await fetch('/.netlify/functions/bookings-api', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ action: 'zoom_status' })
-      });
+      /* growth-zoom, not bookings-api's zoom_status, for the same reason Calendly asks
+         its own function: this one MINTS a token, so it answers whether Zoom works
+         rather than whether three environment variables are non-empty. Credentials
+         revoked at Zoom's end look identical to working ones until something asks.
+         (bookings-api answers POST only -- the GET this used to send came back 405
+         every time, so the row said "Not connected" whether the credentials were set or
+         not. It was reporting a broken probe as a missing connection.) */
+      const r = await fetch('/.netlify/functions/growth-zoom?action=status');
       const j = await r.json().catch(() => ({}));
-      grConn.zoom = !!(j && (j.configured || j.zoomConfigured));
+      grConn.zoom = !!(j && j.configured);
+      grConn.zoomWho = (j && j.who) || '';
+      grConn.zoomHow = (j && j.source) || '';
+      grConn.zoomErr = (j && j.error) || '';
     } catch (e) { grConn.zoom = false; }
-    /* api_tokens is own-row, so this counts YOUR connections, which is what the row
-       claims. Somebody else's assistant is not yours to report on. */
-    try {
-      const s3 = sb();
-      const { data } = s3
-        ? await s3.from('api_tokens').select('last_used_at,revoked_at').is('revoked_at', null)
-        : { data: null };
-      const live = data || [];
-      grConn.mcpN = live.length;
-      grConn.mcp = live.length > 0;
-      grConn.mcpUsed = live.map(r2 => r2.last_used_at).filter(Boolean).sort().pop() || '';
-    } catch (e) { grConn.mcp = false; grConn.mcpN = 0; grConn.mcpUsed = ''; }
     try {
       const r = await fetch('/.netlify/functions/growth-calendly?action=status');
       const j = await r.json().catch(() => ({}));
@@ -98342,7 +97837,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      the other side, and the one thing the screen must not do is keep saying the old answer. */
   async function grReprobe() {
     grConn.probed = false;
-    grConn.zoom = null; grConn.calendly = null; grConn.mcp = null;
+    grConn.zoom = null; grConn.calendly = null;
     /* Gmail's answer is cached too, and clearing the flag is not the same as asking
        again: this used to reset `checked` and re-render, which painted the STALE answer
        and only re-asked the next time somebody navigated back into Growth. So "Check
@@ -98431,6 +97926,63 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     grConnBusy = ''; grRender();
   }
 
+  /* Zoom, connected from here rather than from Netlify -- the last connector that
+     needed somebody with a deploy login. All three values go in one row: two-thirds of a
+     credential would leave the row saying Connected while every meeting it minted failed
+     on the missing piece. The function proves them against Zoom before storing them. */
+  async function grZoomConnect() {
+    const a = $('grZoomAcct'), c = $('grZoomId'), sec = $('grZoomSecret');
+    const accountId = (a && a.value || '').trim();
+    const clientId = (c && c.value || '').trim();
+    const clientSecret = (sec && sec.value || '').trim();
+    if (!accountId) { if (a) a.focus(); return; }
+    if (!clientId) { if (c) c.focus(); return; }
+    if (!clientSecret) { if (sec) sec.focus(); return; }
+    grConnBusy = 'zoom'; grConnSay.zoom = ''; grRender();
+    try {
+      const s2 = sb();
+      const { data: sess } = s2 ? await s2.auth.getSession() : { data: null };
+      const at = sess && sess.session && sess.session.access_token;
+      const r = await fetch('/.netlify/functions/growth-zoom?action=save', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' },
+                               at ? { Authorization: 'Bearer ' + at } : {}),
+        body: JSON.stringify({ account_id: accountId, client_id: clientId, client_secret: clientSecret })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { grConnSay.zoom = j.error || 'That did not work.'; grConnBusy = ''; grRender(); return; }
+      grConn.zoom = true;
+      grConn.zoomWho = j.who || '';
+      grConn.zoomHow = 'app';
+      grConn.zoomErr = '';
+      grConnBusy = '';
+      grToast('Zoom connected' + (j.who ? ' as ' + j.who : ''));
+      grRender();
+    } catch (e) {
+      grConnSay.zoom = 'Could not reach the server. ' + String((e && e.message) || e).slice(0, 120);
+      grConnBusy = ''; grRender();
+    }
+  }
+
+  async function grZoomForget() {
+    const ok = await window.giantConfirmWarn('Forget the Zoom keys? Giant stops minting its own join links until you connect them again.');
+    if (!ok) return;
+    grConnBusy = 'zoom'; grRender();
+    try {
+      const s2 = sb();
+      const { data: sess } = s2 ? await s2.auth.getSession() : { data: null };
+      const at = sess && sess.session && sess.session.access_token;
+      const r = await fetch('/.netlify/functions/growth-zoom?action=disconnect', {
+        method: 'POST', headers: at ? { Authorization: 'Bearer ' + at } : {} });
+      const j = await r.json().catch(() => ({}));
+      grConnSay.zoom = j.note || '';
+      grConn.zoom = !!j.configured;
+      grConn.zoomHow = j.source || '';
+      grToast('Zoom disconnected');
+    } catch (e) { grConnSay.zoom = 'Could not reach the server.'; }
+    grConnBusy = ''; grRender();
+  }
+
   async function grGmailConnect() {
     if (!window.giantGmailConnect) {
       grConnSay.gmail = 'Open Email in the sidebar once, then come back. That screen owns the connection.';
@@ -98509,8 +98061,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     zoom: {
       name: 'Zoom',
       what: 'Puts a join link on every booking, and lets Giant mint its own for a call you add by hand.',
-      how: 'Zoom is shared with Bookings, so its credentials live in Netlify rather than here: ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID and ZOOM_CLIENT_SECRET on the site, from a Server to Server OAuth app. Add them, redeploy, then press Check again.',
-      on: 'The server credentials are set in Netlify and Zoom accepted them.',
+      how: 'Build a Server to Server OAuth app in Zoom (Develop, then Build App), then paste its Account ID, Client ID and Client Secret below. Giant checks them with Zoom before keeping them. The old ZOOM_* variables in Netlify still work and are used if nothing is set here.',
+      on: 'Zoom accepted the credentials when it was last asked.',
       off: 'Bookings made through Calendly still carry a Zoom link, because Calendly creates it. '
            + 'These credentials are only needed for a meeting Giant makes itself.'
     },
@@ -98520,18 +98072,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       how: 'It runs on Giant\u2019s own key and is already deployed. Press Test to make it answer something, which is the only way to know.',
       on: 'It answered when asked. Writing and the Home assistant both work.'
     },
-    mcp: {
-      name: 'Connected AI',
-      what: 'Lets Claude or ChatGPT read Giant directly \u2014 your projects, meetings, clients, tasks, channels and people \u2014 so you can ask about them where you already work.',
-      how: 'Settings, then Connected AI, then New connection. Giant makes the token in your browser and keeps only its hash, so it can be shown once and never again. Point the assistant at ' +
-           ((window.GIANT_ORIGIN || location.origin || 'https://giant.reachgiant.com') + '/mcp') + '.',
-      on: 'An assistant is holding a token. It can read; writing needs a token with write ticked, and there is no delete tool at all.'
-    },
-    fathom: {
-      name: 'Fathom',
-      what: 'Would put the call recap straight onto the client: what they want, what they said, and the next steps.',
-      how: 'Not built yet. Until it is, paste the recap into Call notes on the client, and put the calls worth learning from on the Best calls shelf in Training.'
-    }
+
   };
 
   function grRenderConnectors() {
@@ -98557,8 +98098,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           : grConn.calendlyErr ? 'A token is set but Calendly rejected it.'
           : 'Not connected, so bookings have to be typed in by hand.'],
       ['zoom', grConn.zoom,
-        grConn.zoom ? 'Join links come with each booking, and Giant can mint its own.'
+        grConn.zoom ? 'Join links come with each booking, and Giant can mint its own' +
+            (grConn.zoomWho ? ' as ' + grConn.zoomWho : '') + '.'
           : grConn.zoom === null ? 'Checking...'
+          : grConn.zoomErr ? 'Keys are set but Zoom rejected them.'
           /* Calendly puts a Zoom link on every booking it makes, and those work. Giant's
              own credentials are a separate thing, for a meeting Giant creates itself. */
           : 'Calendly still puts a join link on every booking. Giant cannot mint its own.'],
@@ -98567,20 +98110,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           : grConn.claude === null ? 'Deployed. Press Test to find out whether it answers.'
           : 'It did not answer when asked.',
         grConn.claude === null ? 'Not tested' : null],
-      /* Giant is the SERVER here, not a client. Luke's board has a "ReachGiant App" card
-         with switches for projects, meetings and channels -- that is HIS artifact
-         choosing which of our tools to pull, and it works against what we already serve
-         (list_projects, list_meetings, list_channels, list_clients, list_tasks,
-         list_people). Rebuilding that card inside Giant would be Giant connecting to
-         itself, with nothing on the other end of the switches. What is true from this
-         side is whether anybody holds a token, so that is what this row says. */
-      ['mcp', grConn.mcp,
-        grConn.mcp === null ? 'Checking...'
-          : grConn.mcp
-            ? grConn.mcpN + ' connection' + (grConn.mcpN === 1 ? '' : 's') +
-              (grConn.mcpUsed ? ', last used ' + grFmt(String(grConn.mcpUsed).slice(0, 10)) : ', never used yet')
-            : 'No assistant is connected, so nothing can read Giant from outside.'],
-      ['fathom', false, 'Not built yet. Call notes can be pasted onto a client in the meantime.']
+      /* Connected AI used to sit here. It belongs in Settings -> Connected AI, which is
+         where the tokens are made and revoked; a second place to read the same thing is
+         a second place for it to go stale. */
     ];
     const live = rows.filter(r => r[1] === true).length;
     // Off is not the same as not connected. A connector can be working perfectly and
@@ -98630,28 +98162,42 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     let slot = 1;
     try { slot = parseInt(localStorage.getItem('giant.gmailSlot'), 10) || 1; } catch (e) { /* private window */ }
     const active = rows.some(r => r.slot === slot) ? slot : (rows[0] || {}).slot;
-    return '<div class="gr_sech"><h3>Gmail accounts</h3>' +
-        (rows.length ? '<span class="gr_n">' + rows.length + '</span>' : '') + '</div>' +
-      '<section class="gr_card gr_connl">' +
+    /* The card as the artifact draws it: the heading and the count on one line, each
+       mailbox its own outlined box rather than a row divided by a rule, and the active
+       one outlined and tinted in its own colour so it is picked out before it is read.
+       The wording is NOT the artifact's -- that one talks about switching accounts in
+       Claude's Gmail connector, which is how HIS page sends. Giant sends through its own
+       Gmail connection, so copying it would have put a sentence on the screen that is
+       not true here. */
+    const initial = (e2) => String(e2 || '?').trim().charAt(0).toUpperCase() || '?';
+    return '<section class="gr_gma">' +
+        '<h3>Gmail accounts<span>' + rows.length + '</span></h3>' +
         (rows.length
           ? rows.map(function (r) {
               const on = r.slot === active;
-              return '<div class="gr_row gr_gacc' + (on ? ' gr_gaon' : '') + '">' +
-                grAvatar(r.email || 'Gmail', on ? '#1F9D63' : '#626262', 'gr_xs') +
-                '<span class="gr_rm"><b>' + esc(r.email || 'Mailbox ' + r.slot) + '</b>' +
+              const who = r.email || ('Mailbox ' + r.slot);
+              return '<div class="gr_gm' + (on ? ' gr_gmon' : '') + '">' +
+                '<span class="gr_gmav">' + esc(initial(r.email)) + '</span>' +
+                '<span class="gr_gmm"><b>' + esc(who) + '</b>' +
                   '<span>' + esc(r.label || ('Slot ' + r.slot)) +
                   (r.lasting ? '' : ' \u00B7 asks for a password again within the hour') + '</span></span>' +
-                (on ? '<span class="gr_st ok">Active</span>'
-                    : '<button class="gr_chip" data-gr-gm-use="' + r.slot + '">Use this one</button>') +
-                '<button class="gr_x gr_gx" data-gr-gm-forget="' + r.slot + '"' +
-                  ' aria-label="Disconnect ' + esc(r.email || 'this mailbox') + '">&#10005;</button>' +
+                (on ? '<span class="gr_gmpill">Active</span>'
+                    : '<button class="gr_gmuse" data-gr-gm-use="' + r.slot + '">Use this one</button>') +
+                /* No cross on the active mailbox, and none at all when it is the only
+                   one. Growth sends from the active mailbox, so a cross there is a
+                   button that stops Growth sending; to swap, add the new one, switch to
+                   it, then drop the old. */
+                (!on && rows.length > 1
+                  ? '<button class="gr_gmx" data-gr-gm-forget="' + r.slot + '"' +
+                    ' aria-label="Disconnect ' + esc(who) + '">&#10005;</button>'
+                  : '') +
               '</div>';
             }).join('')
-          : '<p class="gr_mute">No mailbox connected yet.</p>') +
-        '<button class="gr_coladd gr_gadd" data-gr-conn-gmail>+ Add another Gmail</button>' +
-      '</section>' +
-      '<p class="gr_hint">The active one is what Growth sends from. Disconnecting a mailbox ' +
-        'forgets its token here; the account itself is untouched and can be added again.</p>';
+          : '<p class="gr_gmnone">No mailbox connected yet.</p>') +
+        '<button class="gr_gm gr_gmadd" data-gr-conn-gmail>+ Add another Gmail</button>' +
+        '<p class="gr_gmnote">The active one is what Growth sends from. Disconnecting a mailbox ' +
+          'forgets its token here; the account itself is untouched and can be added again.</p>' +
+      '</section>';
   }
 
   function grConnPanel(k, state) {
@@ -98696,16 +98242,35 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             'where this page cannot read it back. Nobody signed in to Giant can see it again, including you.</p>';
       }
     } else if (k === 'zoom') {
-      act = '<div class="gr_acts"><button class="gr_ghost" data-gr-conn-recheck' + (busy ? ' disabled' : '') + '>Check again</button>' +
-        '<a class="gr_ghost" href="https://marketplace.zoom.us/develop/create" target="_blank" rel="noopener" data-gr-stop>Zoom app settings</a></div>';
+      if (state === true) {
+        act = '<div class="gr_acts">' +
+            '<button class="gr_ghost" data-gr-conn-recheck' + (busy ? ' disabled' : '') + '>Check again</button>' +
+            (grConn.zoomHow === 'app'
+              ? '<button class="gr_ghost" data-gr-zoom-forget' + (busy ? ' disabled' : '') + '>Disconnect</button>'
+              : '<span class="gr_mute">Set as ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID and ZOOM_CLIENT_SECRET in Netlify.</span>') +
+          '</div>';
+      } else {
+        act = (grConn.zoomErr ? '<div class="gr_cstat bad">' + esc(grConn.zoomErr) + '</div>' : '') +
+          '<div class="gr_field"><label for="grZoomAcct">Account ID</label>' +
+            '<input class="gr_in" id="grZoomAcct" type="text" autocomplete="off" spellcheck="false" ' +
+              'placeholder="abc123XYZ..." aria-label="Zoom account ID"></div>' +
+          '<div class="gr_field"><label for="grZoomId">Client ID</label>' +
+            '<input class="gr_in" id="grZoomId" type="text" autocomplete="off" spellcheck="false" ' +
+              'placeholder="aBcDeF..." aria-label="Zoom client ID"></div>' +
+          '<div class="gr_field"><label for="grZoomSecret">Client Secret</label>' +
+            '<input class="gr_in" id="grZoomSecret" type="password" autocomplete="off" spellcheck="false" ' +
+              'placeholder="..." aria-label="Zoom client secret"></div>' +
+          '<div class="gr_acts"><button class="btn-red" data-gr-zoom-save' + (busy ? ' disabled' : '') + '>' +
+            (busy ? 'Checking with Zoom...' : 'Connect Zoom') + '</button>' +
+            '<a class="gr_ghost" href="https://marketplace.zoom.us/develop/create" target="_blank" ' +
+              'rel="noopener" data-gr-stop>Zoom app settings</a></div>' +
+          '<p class="gr_hint">Build a Server-to-Server OAuth app in Zoom, then paste its three values here. ' +
+            'Giant asks Zoom whether they work before keeping them, and stores them where this page cannot ' +
+            'read them back. Nobody signed in to Giant can see them again, including you.</p>';
+      }
     } else if (k === 'claude') {
       act = '<div class="gr_acts"><button class="' + (state === true ? 'gr_ghost' : 'btn-red') + '" data-gr-conn-test' +
         (busy ? ' disabled' : '') + '>' + (busy ? 'Asking...' : 'Test it') + '</button></div>';
-    } else if (k === 'mcp') {
-      const url = (window.GIANT_ORIGIN || location.origin || 'https://giant.reachgiant.com') + '/mcp';
-      act = '<div class="gr_cnurl"><code>' + esc(url) + '</code></div>' +
-        '<div class="gr_acts"><button class="btn-red" data-gr-go="settings">' +
-          (state === true ? 'Manage connections' : 'Connect an assistant') + '</button></div>';
     } else {
       act = '<div class="gr_acts"><button class="gr_ghost" data-gr-go="gr_training">Open Best calls</button></div>';
     }
@@ -98730,7 +98295,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   const GR_STEPS = {
     calendly: 'Adds new bookings to Meetings with their Zoom link, and attaches each one to the matching deal',
     gmail:    'Would look for new replies from your clients and file them in the Growth Inbox',
-    fathom:   'Would write the notes from your recent calls onto the client'
+
   };
   function grAgoLong(iso) {
     if (!iso) return 'never';
@@ -98755,7 +98320,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       ? last.steps
       : [{ k: 'calendly', label: 'Calendly bookings', said: 'Nothing reported yet', ok: null },
          { k: 'gmail', label: 'Gmail replies', said: 'Nothing reported yet', ok: null },
-         { k: 'fathom', label: 'Fathom call notes', said: 'Nothing reported yet', ok: null }];
+         ];
     const nextIn = mins == null ? '' : mins >= 30 ? 'any moment' : 'in ' + Math.max(1, Math.round(30 - mins)) + ' min';
     /* A step whose connector has been switched off on Connectors says so, rather than
        reporting "nothing found" every half hour and reading as a fault.
@@ -99149,15 +98714,40 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const meets = grMeetings.filter(m => grSameDay(m.starts_at, Date.now()) && !grMeetDone(m)).length;
     return replies + meets;
   }
+  /* Which screen is actually showing, read from the DOM. This used to read grScreen,
+     which is only ever set by grInit, and grInit only runs for gr_ screens -- so walking
+     from Growth to Chat left it holding the last Growth screen and the button stayed
+     floating over somebody else's work. */
+  function grOnGrowthScreen() {
+    const el = document.querySelector('.screen.on');
+    return !!el && String(el.dataset.screen || '').indexOf('gr_') === 0;
+  }
   function grPaintTodayBtn() {
     const b2 = $('grTodayBtn');
     if (!b2) return;
     // Only on Growth screens: a Today button floating over Chat would be somebody
     // else's today.
-    const on = String(grScreen || '').indexOf('gr_') === 0;
+    const on = grOnGrowthScreen();
     b2.classList.toggle('on', on && !grTodayOpen);
     const n = grTodayCount();
     b2.innerHTML = '<span>Today</span>' + (n ? '<b>' + n + '</b>' : '');
+  }
+
+  /* And repaint when the screen changes. Watched with a MutationObserver on the screens'
+     class rather than hung off the nav click handler, because a reload restores the last
+     screen without anybody clicking. Screens carry .on, not .active. The drawer closes
+     too -- leaving Growth with it open left a Growth panel over Chat. */
+  let grScreenWatch = false;
+  function grWatchScreens() {
+    if (grScreenWatch) return;
+    const screens = document.querySelectorAll('.screen');
+    if (!screens.length) return;
+    const mo = new MutationObserver(function () {
+      if (!grOnGrowthScreen() && grTodayOpen) { grTodayOpen = false; grRenderToday(); }
+      grPaintTodayBtn();
+    });
+    screens.forEach(s2 => mo.observe(s2, { attributes: true, attributeFilter: ['class'] }));
+    grScreenWatch = true;
   }
 
   function grRenderToday() {
@@ -99277,7 +98867,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       let body;
       const cn = c.call_notes || [], tn = c.team_notes || [];
       body = (cn.length ? cn.map(grCallNote).join('')
-        : '<p class="gr_mute">No call notes yet. Paste what came out of the call below, or connect Fathom.</p>') +
+        : '<p class="gr_mute">No call notes yet. Paste what came out of the call below.</p>') +
         '<div class="gr_field"><label for="grNote">Add a note for the team</label>' +
           '<textarea id="grNote" rows="3" placeholder="What came out of the call..."></textarea></div>' +
         '<div class="gr_acts"><button class="btn-red" data-gr-addnote="' + c.id + '">Add note</button></div>' +
@@ -100119,7 +99709,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     try {
       if (grScreen === 'gr_home') grRenderHome();
       else if (grScreen === 'gr_meetings') grRenderMeetings();
-      else if (grScreen === 'gr_recordings') grRenderRecordings();
       else if (grScreen === 'gr_pipeline') grRenderPipeline();
       else if (grScreen === 'gr_inbox') grRenderInbox();
       else if (grScreen === 'gr_training') grRenderTraining();
@@ -100231,10 +99820,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (e.target.closest('[data-gr-conn-gmail]'))   { grGmailConnect(); return; }
     if (e.target.closest('[data-gr-cal-save]'))     { grCalConnect(); return; }
     if (e.target.closest('[data-gr-cal-forget]'))   { grCalForget(); return; }
+    if (e.target.closest('[data-gr-zoom-save]'))    { grZoomConnect(); return; }
+    if (e.target.closest('[data-gr-zoom-forget]'))  { grZoomForget(); return; }
     if (e.target.closest('[data-gr-conn-recheck]')) { grReprobe(); return; }
     if (e.target.closest('[data-gr-conn-test]'))    { grTestClaude(); return; }
     const rf = e.target.closest('[data-gr-recf]');
-    if (rf) { grRecF = rf.dataset.grRecf; grRender(); return; }
     const rcp = e.target.closest('[data-gr-reccopy]');
     if (rcp) {
       const url = rcp.dataset.grReccopy;
@@ -100755,63 +100345,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     /* The same three stage edits, reached from the board instead of Settings. They call
        the same grSaveStages and grStageDel, so there is one rule about what a stage is
        and where its deals go, wherever you happen to be standing. */
-    // ---- Training: editing what there is to practise ----
-    const pae = e.target.closest('[data-gr-pa-edit]');
-    if (pae) {
-      const k = 'P' + pae.dataset.grPaEdit;
-      grEditT = grEditT === k ? null : k;
-      grRoom = null;            // the editor and a call in progress cannot share the screen
-      grRender(); return;
-    }
-    const pas = e.target.closest('[data-gr-pa-save]');
-    if (pas) {
-      const f = grFieldsOf('pa'), id = pas.dataset.grPaSave;
-      if (!String(f.t || '').trim()) return;
-      grEditT = null;
-      grSavePractice(grAreas().map(a => a.id === id ? Object.assign({}, a, {
-        t: f.t.trim(), who: (f.who || '').trim(), goal: (f.goal || '').trim(),
-        s: grTextPairs(f.s, 'p', 'b')
-      }) : a));
-      return;
-    }
-    const pad = e.target.closest('[data-gr-pa-del]');
-    if (pad) {
-      (async function () {
-        const ok = await window.giantConfirmWarn('Delete this practice area? ' +
-          'The runs people have already done stay.');
-        if (!ok) return;
-        grEditT = null;
-        await grSavePractice(grAreas().filter(a => a.id !== pad.dataset.grPaDel));
-      })();
-      return;
-    }
-    if (e.target.closest('[data-gr-pa-add]')) {
-      const el = $('grNewArea'), v = (el && el.value || '').trim();
-      if (!v) { if (el) el.focus(); return; }
-      const id = grNewId('p');
-      grEditT = 'P' + id;
-      grSavePractice(grAreas().concat([{ id: id, t: v, who: '', goal: '', s: [] }]));
-      return;
-    }
-
-    // ---- Training: the practice call ----
-    const ps = e.target.closest('[data-gr-prac-start]');
-    if (ps) { grPracStart(ps.dataset.grPracStart); return; }
-    if (e.target.closest('[data-gr-prac-end]')) { grRoom = null; grRender(); return; }
-    if (e.target.closest('[data-gr-prac-weak]')) {
-      const w = grWeakest();
-      if (w) grPracStart(w.id); else { grRoom = null; grRender(); }
-      return;
-    }
-    if (e.target.closest('[data-gr-prac-send]')) { grPracSend(); return; }
-    if (e.target.closest('[data-gr-coach-ask]')) {
-      const el = $('grCoachQ');
-      grCoachAsk(el ? el.value : grCoach.q);
-      return;
-    }
-    const cq = e.target.closest('[data-gr-coach-q]');
-    if (cq) { grCoachAsk(cq.dataset.grCoachQ); return; }
-
     const cdel = e.target.closest('[data-gr-coldel]');
     if (cdel) {
       const key = cdel.dataset.grColdel;
@@ -100994,8 +100527,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const anv = e.target.closest('[data-gr-anview]');
     // Switching view resets the search and the page size: carrying a half-typed search
     // across to a screen that does not have a search box leaves it filtering invisibly.
-    if (anv) { grAnView = anv.dataset.grAnview; grFcQ = ''; grFcMore = 40; grRender(); return; }
-    if (e.target.closest('[data-gr-fcmore]')) { grFcMore += 40; grRender(); return; }
 
     const act = e.target.closest('[data-gr-act]');
     if (act) {
@@ -101254,12 +100785,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
     // Enter adds the to-do. Reaching for the mouse between every line is how a list of
     // three things becomes a list of one.
-    if (e.target && e.target.id === 'grRoomSay' && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault(); grPracSend(); return;
-    }
-    if (e.target && e.target.id === 'grCoachQ' && e.key === 'Enter') {
-      e.preventDefault(); grCoachAsk(e.target.value); return;
-    }
     if (e.target && e.target.id === 'grColName' && e.key === 'Enter') {
       e.preventDefault();
       const b = document.querySelector('[data-gr-coladd="go"]');
@@ -101283,30 +100808,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   });
   document.addEventListener('input', function (e) {
     if (e.target && e.target.id === 'grColName') { if (grColEdit) grColEdit.name = e.target.value; return; }
-    /* Held in state, not read off the box at send time: the screen repaints while you
-       are typing -- the prospect's line arrives, the busy dot stops -- and a re-render
-       throws away whatever the textarea was holding. */
-    if (e.target && e.target.id === 'grRoomSay') {
-      if (grRoom) {
-        grRoom.draft = e.target.value;
-        const b = document.querySelector('[data-gr-prac-send]');
-        if (b) b.disabled = !grRoom.draft.trim() || grRoom.busy;
-      }
-      return;
-    }
-    if (e.target && e.target.id === 'grCoachQ') { grCoach.q = e.target.value; return; }
     if (e.target && e.target.id === 'grColTo') { if (grColEdit) grColEdit.to = e.target.value; return; }
-    if (e.target && e.target.id === 'grFcQ') {
-      // The whole screen re-renders, so the box is a NEW element every keystroke. Without
-      // putting the caret back, every letter after the first lands at position 0 and the
-      // search reads backwards.
-      const at = e.target.selectionStart;
-      grFcQ = e.target.value; grFcMore = 40;
-      grRender();
-      const n = $('grFcQ');
-      if (n) { n.focus(); try { n.setSelectionRange(at, at); } catch (err) { /* older engines */ } }
-      return;
-    }
     if (e.target && e.target.id === 'grAsk') {
       e.target.style.height = 'auto';
       e.target.style.height = Math.min(160, e.target.scrollHeight) + 'px';
@@ -101361,6 +100863,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       b2.setAttribute('aria-label', "Today's work");
       document.body.appendChild(b2);
     }
+    grWatchScreens();
     grCheckGmail();
     if (!grLoaded && !grLoading) grLoad(); else grRender();
   };

@@ -383,61 +383,20 @@ await step('wins, and the range changes what is counted', async () => {
   await page.waitForTimeout(400);
 });
 
-/* The second view. Fathom is not connected, so the list is a sample -- which makes it
-   all the more important that the screen SAYS so, and that the parts that will carry
-   real data (the search, the weekly bars, the per-person tally) actually work now
-   rather than being drawn once and discovered broken on the day the data arrives. */
-await step('Analytics has a second view for the calls', async () => {
-  await page.locator('#grAnalytics [data-gr-anview="fathom"]').click();
-  await page.waitForTimeout(500);
+/* Analytics had a second view listing calls from Fathom. Fathom was removed on
+   20261028 -- Zoom and Calendly record their own calls -- and that list had never been
+   anything but a sample, so the view went with it. What is checked now is that it is
+   gone and that the one remaining view did not go with it. */
+await step('Analytics is one view, with no Fathom tab left behind', async () => {
   const m = await page.evaluate(() => {
     const el = document.getElementById('grAnalytics');
-    return {
-      sub: (el.querySelector('.gr_sub, .gr_hd p, header p') || {}).textContent || el.innerText.slice(0, 120),
-      sample: !!el.querySelector('.gr_samp'),
-      heroes: [...el.querySelectorAll('.gr_hero .gr_hl')].map(x => x.textContent.trim()),
-      cards: [...el.querySelectorAll('.gr_ct h2')].map(x => x.textContent.trim()),
-      rows: el.querySelectorAll('.gr_fc').length,
-      count: (el.querySelector('[data-gr-anview="fathom"] b') || {}).textContent,
-      search: !!document.getElementById('grFcQ')
-    };
+    return { anv: !!el.querySelector('[data-gr-anview]'),
+             saysFathom: /fathom/i.test(el.textContent),
+             stillHasNumbers: el.querySelectorAll('.gr_kpi, .gr_stat, b').length };
   });
-  check('it says plainly that these are sample calls', m.sample);
-  check('the three cards are there',
-    JSON.stringify(m.cards) === JSON.stringify(['Calls per week', 'By salesperson', 'All sales calls']),
-    JSON.stringify(m.cards));
-  check('with four heroes above them', m.heroes.length === 4, JSON.stringify(m.heroes));
-  check('the tab carries the number of calls', Number(m.count) > 0, m.count);
-  check('and the list is rendered', m.rows > 0, m.rows + ' rows');
-  check('there is a search box', m.search);
-  await shot('23-fathom');
-});
-
-await step('the per-week bars and the per-person tally add up', async () => {
-  const m = await page.evaluate(() => {
-    const el = document.getElementById('grAnalytics');
-    const weeks = [...el.querySelectorAll('.gr_wk')].map(k => ({
-      n: Number(k.querySelector('b').textContent),
-      h: Math.round(k.querySelector('.gr_bars i').getBoundingClientRect().height)
-    }));
-    const reps = [...el.querySelectorAll('.gr_sr')].map(r => ({
-      who: r.querySelector('span').textContent.trim(), n: Number(r.querySelector('b').textContent) }));
-    return { weeks, reps, total: Number((el.querySelector('[data-gr-anview="fathom"] b') || {}).textContent) };
-  });
-  check('eight weeks of bars', m.weeks.length === 8, m.weeks.length + '');
-  // Pixels, not presence: a bar at 0px high has passed a check in this repo before.
-  check('a week with calls draws a taller bar than a week without',
-    Math.max(...m.weeks.map(w => w.h)) > Math.min(...m.weeks.map(w => w.h)) ||
-    m.weeks.every(w => w.n === m.weeks[0].n), JSON.stringify(m.weeks));
-  check('the busiest week has the tallest bar',
-    m.weeks.reduce((a, b) => a.n >= b.n ? a : b).h === Math.max(...m.weeks.map(w => w.h)),
-    JSON.stringify(m.weeks));
-  check('every salesperson in the list is named', m.reps.length > 0 && m.reps.every(r => r.who.length > 1),
-    JSON.stringify(m.reps));
-  // The per-person counts must account for every call, or one of them is being dropped.
-  check('their calls add up to the total',
-    m.reps.reduce((n, r) => n + r.n, 0) === m.total,
-    m.reps.reduce((n, r) => n + r.n, 0) + ' vs ' + m.total);
+  check('no view strip', !m.anv, String(m.anv));
+  check('and no mention of Fathom', !m.saysFathom, String(m.saysFathom));
+  check('the sales numbers are still drawn', m.stillHasNumbers > 0, String(m.stillHasNumbers));
 });
 
 await step('the search actually filters, and the caret stays put', async () => {
