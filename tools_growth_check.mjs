@@ -72,6 +72,393 @@ const stages = () => page.evaluate(() => {
 
 await screen('gr_pipeline');
 
+/* ---------------------------------------------------------------- the board reads */
+await step('a card says one thing, and it is the thing to do next', async () => {
+  await screen('gr_pipeline');
+  /* The card used to carry an avatar, a status pill, the money, a meeting-or-email line,
+     a heat word and the owner's initials -- six things in a 193px column. One line now,
+     picked by where the deal is. */
+  const m = await page.evaluate(() => {
+    const out = {};
+    document.querySelectorAll('.gr_bc').forEach(el => {
+      const n = el.querySelector('.gr_bn b');
+      const lines = el.querySelectorAll('.gr_bl');
+      out[n ? n.textContent : '?'] = {
+        lines: lines.length,
+        says: lines[0] ? lines[0].textContent.trim() : null,
+        avatar: !!el.querySelector('.gr_av'),
+        heat: !!el.querySelector('.gr_sc')
+      };
+    });
+    return out;
+  });
+  const cesar = m['Cesar Diaz'], michael = m['Michael Cash'], pete = m['Pete Patrino'];
+  check('every card has exactly one line of context',
+    Object.values(m).every(x => x.lines === 1), JSON.stringify(m));
+  // An unanswered reply beats everything else: it is the only thing that is YOUR move.
+  check('an unanswered reply says so, in red', cesar && cesar.says === 'Reply needed', JSON.stringify(cesar));
+  check('otherwise it is the next action', michael && michael.says === 'Send proposal', JSON.stringify(michael));
+  check('a won deal says when it was won', pete && /^Won /.test(pete.says), JSON.stringify(pete));
+  check('the avatar and the heat word are off the card',
+    Object.values(m).every(x => !x.avatar && !x.heat), JSON.stringify(m));
+});
+
+await step('the board is the header and the columns, nothing between', async () => {
+  /* The search box and the Board / To do strip sat between the heading and the board,
+     pushing the columns down; Luke's goes straight from one to the other. New client did
+     NOT go with them -- it moved into the header, because removing the only way to add a
+     client is not a tidy-up. And the To do list is still reachable: a working screen with
+     no door to it is worse than the strip was. */
+  await screen('gr_pipeline');
+  const m = await page.evaluate(() => {
+    const head = document.querySelector('.gr_head');
+    const board = document.querySelector('.gr_board');
+    return {
+      search: !!document.querySelector('#grSearch, .gr_search'),
+      tabs: !!document.querySelector('[data-gr-pview="board"]'),
+      addClient: !!document.querySelector('#grAddClient'),
+      addInHead: !!head && !!head.querySelector('#grAddClient'),
+      toDoDoor: !!document.querySelector('[data-gr-pview="todo"]'),
+      // Measured, not assumed: the board has to start near the heading now.
+      gap: (head && board)
+        ? Math.round(board.getBoundingClientRect().top - head.getBoundingClientRect().bottom) : -1
+    };
+  });
+  check('no search box', !m.search, String(m.search));
+  check('no Board / To do strip', !m.tabs, String(m.tabs));
+  check('New client survived, in the header', m.addClient && m.addInHead, JSON.stringify(m));
+  check('and the To do list still has a way in', m.toDoDoor, String(m.toDoDoor));
+  check('the columns start right under the heading', m.gap >= 0 && m.gap < 120, String(m.gap));
+
+  // It is a door, not a label: clicking it has to actually get you there and back.
+  await page.evaluate(() => document.querySelector('[data-gr-pview="todo"]')?.click());
+  await page.waitForTimeout(1100);
+  const onTodo = await page.evaluate(() => ({
+    board: !!document.querySelector('.gr_board'),
+    back: !!document.querySelector('[data-gr-pview="board"]')
+  }));
+  check('it opens the To do list', !onTodo.board && onTodo.back, JSON.stringify(onTodo));
+  await page.evaluate(() => document.querySelector('[data-gr-pview="board"]')?.click());
+  await page.waitForTimeout(1100);
+  const backOnBoard = await page.evaluate(() => !!document.querySelector('.gr_board'));
+  check('and gets you back to the board', backOnBoard, String(backOnBoard));
+});
+
+await step('opening a client gives Luke\'s side drawer, not a centred sheet', async () => {
+  /* It was a 780px box floating in the middle with a five-tab strip, so opening a deal
+     told you one thing and the other four were a click each. His is a drawer down the
+     right at 520px with everything stacked in one scroll. Measured off the viewport,
+     because "it has a class" would pass on a sheet still sitting in the middle. */
+  await screen('gr_pipeline');
+  await page.evaluate(() => document.querySelector('.gr_board .gr_bc')?.click());
+  await page.waitForTimeout(1400);
+  const m = await page.evaluate(() => {
+    const sh = document.querySelector('.gr_sheet');
+    if (!sh) return null;
+    const r = sh.getBoundingClientRect();
+    return {
+      w: Math.round(r.width),
+      top: Math.round(r.top),
+      // 0 means it is flush with the right edge; a centred sheet leaves a big gap.
+      fromRight: Math.round(innerWidth - r.right),
+      fillsHeight: Math.round(r.height) >= Math.round(innerHeight) - 2,
+      tabs: !!sh.querySelector('[data-gr-tab]'),
+      sections: [...sh.querySelectorAll('.gr_spanel h3')].map(e => e.textContent.trim()),
+      stageLabel: !!sh.querySelector('.gr_stagel'),
+      pillInHead: !!sh.querySelector('.gr_sh .gr_pill'),
+      // Still has to say what to do next, or the drawer is a tidy empty box.
+      doNext: !!sh.querySelector('.gr_next')
+    };
+  });
+  check('a drawer, pinned to the right edge', !!m && m.fromRight === 0 && m.top === 0, JSON.stringify(m));
+  check('about 520 wide, not a 780 sheet', !!m && m.w <= 560 && m.w >= 420, String(m && m.w));
+  check('the full height of the window', !!m && m.fillsHeight, JSON.stringify(m));
+  check('the tab strip is gone', !!m && !m.tabs, String(m && m.tabs));
+  check('and what was behind it is stacked instead',
+    !!m && ['Info', 'Call notes', 'Sent emails', 'Meetings'].every(t => m.sections.indexOf(t) >= 0),
+    JSON.stringify(m && m.sections));
+  check('the stage picker says Stage', !!m && m.stageLabel, String(m && m.stageLabel));
+  check('the stage reads as a pill beside the name', !!m && m.pillInHead, String(m && m.pillInHead));
+  check('and it still opens on what to do next', !!m && m.doNext, String(m && m.doNext));
+  await page.evaluate(() => document.querySelector('[data-gr-close]')?.click());
+  await page.waitForTimeout(700);
+});
+
+await step('a failed Gmail check is not a disconnected mailbox', async () => {
+  /* The row said "Not connected" on a mailbox that was fine. grCheckGmail caught ANY
+     error -- a dropped request, a slow token refresh -- and recorded ready=false with
+     checked=true, so one blip latched it for the whole session. "Check all again" reset
+     the flag and re-rendered WITHOUT re-asking, which painted the stale answer, so the
+     one button for fixing it could not. Driven here through the UI, because the state
+     lives in a closure and the bug was in how the screen asks, not in what it stores. */
+  await screen('gr_connectors');
+  const gmailRow = () => page.evaluate(() => {
+    const r = [...document.querySelectorAll('.gr_cnw')]
+      .find(e => /Gmail/.test((e.querySelector('.gr_rm b') || {}).textContent || ''));
+    if (!r) return null;
+    const dot = r.querySelector('.gr_lt');
+    return {
+      says: (r.querySelector('.gr_rm span') || {}).textContent || '',
+      on: !!dot && dot.classList.contains('gr_on'),
+      hasSwitch: !!r.querySelector('[data-gr-conn-use]')
+    };
+  });
+  // Make the CHECK fail, the way a blip does. The mailbox itself is untouched.
+  await page.evaluate(() => { window.giantGmailReady = async () => { throw new Error('blip'); }; });
+  await page.evaluate(() => document.querySelector('[data-gr-conn-recheck]')?.click());
+  await page.waitForTimeout(1600);
+  const broken = await gmailRow();
+  /* Still connected -- a row in gmail_tokens is what connected MEANS -- but it says
+     plainly that it cannot send. Reporting "Not connected" here was the bug: the Email
+     screen was listing 478 messages at the time, because that list comes out of the
+     emails table and never needed a live token. */
+  check('a failed refresh does not read as a missing connection', !!broken && broken.on,
+    JSON.stringify(broken));
+  check('but it says it needs reconnecting before it can send',
+    !!broken && /renew|reconnect/i.test(broken.says), JSON.stringify(broken));
+
+  // Now it answers again. The row has to come back WITHOUT a reload.
+  await page.evaluate(() => { window.giantGmailReady = async () => true; });
+  await page.evaluate(() => document.querySelector('[data-gr-conn-recheck]')?.click());
+  await page.waitForTimeout(1800);
+  const healed = await gmailRow();
+  check('and Check all again actually re-asks, rather than repainting the old answer',
+    !!healed && healed.on, JSON.stringify(healed));
+  check('the warning clears once Google answers again',
+    !!healed && !/renew|reconnect/i.test(healed.says), JSON.stringify(healed));
+
+  /* AND THE LATCH ITSELF. The two above exercise the SENDING signal, which is a
+     different field now -- so make the read of gmail_tokens fail, which is the only
+     thing that can still throw. A check that fails must not record a disconnection:
+     it has to leave itself unasked so the next render tries again. Without that, one
+     blip stuck "Not connected" for the whole session. */
+  await page.evaluate(() => { window.__realAccts = window.giantGmailAccounts; });
+  /* BOTH routes have to fail. Growth asks the Email screen's helper first and falls back
+     to reading gmail_tokens itself, so breaking only the helper proves the fallback
+     rather than the latch -- which is exactly what this check did until the fallback
+     existed, and it passed while measuring the wrong thing. */
+  await page.evaluate(() => { window.giantGmailAccounts = async () => { throw new Error('blip'); }; });
+  await page.evaluate(() => window.__mock.hideTable('gmail_tokens'));
+  await page.evaluate(() => document.querySelector('[data-gr-conn-recheck]')?.click());
+  await page.waitForTimeout(1600);
+  const thrown = await gmailRow();
+  check('a read that throws reads as not connected for now', !!thrown && !thrown.on,
+    JSON.stringify(thrown));
+  /* Put both back, then come at it through a plain re-render -- leave the screen and
+     return -- rather than pressing Check all again. That button clears the cache flag
+     itself, so recovering through it would pass whether the failure latched or not.
+     This is the path that was actually broken: it stuck until you navigated away. */
+  await page.evaluate(() => { window.giantGmailAccounts = window.__realAccts; });
+  await page.evaluate(() => window.__mock.showTable('gmail_tokens'));
+  await screen('gr_pipeline');
+  // Past the ten second staleness window, so the plain re-render really does re-ask.
+  await page.waitForTimeout(10500);
+  await screen('gr_connectors');
+  await page.waitForTimeout(1600);
+  const recovered = await gmailRow();
+  check('and it comes back by itself, rather than latching for the session',
+    !!recovered && recovered.on, JSON.stringify(recovered));
+  check('with the mailbox named again',
+    !!recovered && /@/.test(recovered.says), JSON.stringify(recovered));
+
+  /* THE FALLBACK, on its own. giantGmailAccounts lives deep inside initApp, which
+     bootstrap wraps in a try/catch -- anything throwing earlier leaves it undefined and
+     Growth reported a working mailbox as "Not connected", with the accounts section
+     vanishing alongside it. Growth reads gmail_tokens itself now, same own-row RLS. */
+  await page.evaluate(() => { window.giantGmailAccounts = undefined; });
+  await page.evaluate(() => document.querySelector('[data-gr-conn-recheck]')?.click());
+  await page.waitForTimeout(1800);
+  const noHelper = await gmailRow();
+  check('the mailbox survives the Email screen helper not existing',
+    !!noHelper && noHelper.on, JSON.stringify(noHelper));
+  const section = await page.evaluate(() => {
+    const h = [...document.querySelectorAll('.gr_sech h3')].find(x => /Gmail accounts/.test(x.textContent));
+    return { there: !!h, rows: document.querySelectorAll('[data-gr-gm-forget]').length,
+             add: !!document.querySelector('[data-gr-conn-gmail].gr_gadd') };
+  });
+  check('and the Gmail accounts section is still on the page', section.there, JSON.stringify(section));
+  check('listing the mailbox, with a way to add another',
+    section.rows >= 1 && section.add, JSON.stringify(section));
+  await page.evaluate(() => { window.giantGmailAccounts = window.__realAccts; });
+
+  /* WITH NOTHING TO LIST. The section returned '' when there were no mailboxes, so it
+     disappeared -- and "none connected" looked exactly like "this part of the screen is
+     missing", which is what it was reported as. Staff must still get the heading and a
+     way to connect one. */
+  await page.evaluate(() => { window.giantGmailAccounts = async () => []; });
+  await page.evaluate(() => window.__mock.hideTable('gmail_tokens'));
+  await page.evaluate(() => document.querySelector('[data-gr-conn-recheck]')?.click());
+  await page.waitForTimeout(1700);
+  const empty = await page.evaluate(() => {
+    const h = [...document.querySelectorAll('.gr_sech h3')].find(x => /Gmail accounts/.test(x.textContent));
+    return { there: !!h, rows: document.querySelectorAll('[data-gr-gm-forget]').length,
+             add: !!document.querySelector('[data-gr-conn-gmail].gr_gadd'),
+             says: (document.querySelector('.gr_connl .gr_mute') || {}).textContent || '' };
+  });
+  check('with no mailbox at all the section is still there', empty.there, JSON.stringify(empty));
+  check('and says so, rather than vanishing',
+    /no mailbox/i.test(empty.says) && empty.rows === 0, JSON.stringify(empty));
+  check('and still offers a way to connect one', empty.add, JSON.stringify(empty));
+  await page.evaluate(() => { window.giantGmailAccounts = window.__realAccts; });
+  await page.evaluate(() => window.__mock.showTable('gmail_tokens'));
+  await page.evaluate(() => document.querySelector('[data-gr-conn-recheck]')?.click());
+  await page.waitForTimeout(1500);
+});
+
+await step('a connected connector shows a switch, not a tick and a word', async () => {
+  // Luke's rows carry a switch where there is something to switch and a word where
+  // there is not. Ours showed both, which is the same fact twice, and the switch was a
+  // 17px tickbox rather than something you would read as on or off.
+  const m = await page.evaluate(() => {
+    const row = [...document.querySelectorAll('.gr_cnw')]
+      .find(e => !!e.querySelector('[data-gr-conn-use]'));
+    if (!row) return null;
+    const sw = row.querySelector('[data-gr-conn-use]');
+    const r = sw.getBoundingClientRect();
+    return {
+      w: Math.round(r.width), h: Math.round(r.height),
+      round: parseFloat(getComputedStyle(sw).borderRadius) >= 12,
+      alsoAWord: !!row.querySelector('.gr_st'),
+      checked: sw.checked
+    };
+  });
+  check('the switch is switch-sized, not a tickbox', !!m && m.w >= 36 && m.h >= 20,
+    JSON.stringify(m));
+  check('and reads as a pill', !!m && m.round, JSON.stringify(m));
+  check('the status word is not repeated beside it', !!m && !m.alsoAWord, JSON.stringify(m));
+});
+
+await step('an Automations step is one clean row', async () => {
+  /* The row carried a hide button that was broken two ways: the <li> declared three grid
+     columns for four children, so it fell onto an implicit second row, and it wore
+     .gr_rm -- the row's TEXT block, flex:1 and a column -- because "rm" reads as remove.
+     It drew a tall empty box with an x under every step. Luke's has no controls in the
+     row at all, and growth_settings had never held an automations_hidden row, so the
+     repair was to remove it rather than restyle something nobody used. */
+  await screen('gr_automations');
+  const m = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('.gr_aus li')];
+    return rows.map(li => {
+      const r = li.getBoundingClientRect();
+      const said = li.querySelector('em');
+      return {
+        h: Math.round(r.height),
+        kids: li.children.length,
+        cols: getComputedStyle(li).gridTemplateColumns.split(' ').length,
+        hideBtn: !!li.querySelector('[data-gr-auhide]'),
+        rmOnAButton: !!li.querySelector('button.gr_rm'),
+        // Still has to say what it did, or this passes on an empty row.
+        saysSomething: !!said && !!said.textContent.trim()
+      };
+    });
+  });
+  check('the steps are listed', m.length >= 3, String(m.length));
+  check('no hide button in the row', m.every(x => !x.hideBtn), JSON.stringify(m));
+  check('and nothing wearing .gr_rm, which would stretch it', m.every(x => !x.rmOnAButton),
+    JSON.stringify(m));
+  /* The real guard: a column for every child. One more child than columns is what put
+     the button on its own line, and it would do the same to anything added later. */
+  check('a grid column for every child', m.every(x => x.cols >= x.kids),
+    JSON.stringify(m.map(x => x.kids + ' children / ' + x.cols + ' cols')));
+  check('each step still reports what it did', m.every(x => x.saysSomething), JSON.stringify(m));
+  // The height was the giveaway: a wrapped button roughly doubled it, 65px became 111px.
+  check('so the row is a single row high', m.every(x => x.h < 100), JSON.stringify(m.map(x => x.h)));
+});
+
+await step('the card carries a name, a company and the next thing, at a readable size', async () => {
+  /* Luke's card is three lines. Ours had grown a money chip and the owner's initials in a
+     fourth row, and the column a running total under its heading -- both are on the
+     client and on Analytics, and on the board they are noise you read past to find the
+     action. Sizes are measured, not described: the text was a point or two smaller than
+     his everywhere, which is the sort of difference that only shows up side by side. */
+  const m = await page.evaluate(() => {
+    const c = document.querySelector('.gr_board .gr_bc');
+    if (!c) return null;
+    const px = (el) => el ? Math.round(parseFloat(getComputedStyle(el).fontSize)) : 0;
+    const name = c.querySelector('.gr_bn b'), co = c.querySelector('.gr_bn span'),
+          line = c.querySelector('.gr_bl'), head = document.querySelector('.gr_colh b');
+    return {
+      money: !!c.querySelector('.gr_vt'),
+      initials: !!c.querySelector('.gr_ow'),
+      footer: !!c.querySelector('.gr_bf'),
+      colTotal: !!document.querySelector('.gr_colsum'),
+      namePx: px(name), coPx: px(co), linePx: px(line), headPx: px(head),
+      pad: Math.round(parseFloat(getComputedStyle(c).paddingLeft)),
+      // It must still say the three things, or this passes by the card being empty.
+      hasName: !!name && !!name.textContent.trim(),
+      hasLine: !!line && !!line.textContent.trim()
+    };
+  });
+  check('the name and the next action are on it', !!m && m.hasName && m.hasLine, JSON.stringify(m));
+  check('no money chip on the card', !!m && !m.money, JSON.stringify(m));
+  check('no owner initials', !!m && !m.initials, JSON.stringify(m));
+  check('and no running total under the stage heading', !!m && !m.colTotal, JSON.stringify(m));
+  check('the name is 15px, not the 13.5px it was', !!m && m.namePx === 15, String(m && m.namePx));
+  check('the company is 13px', !!m && m.coPx === 13, String(m && m.coPx));
+  check('the action line is 13px', !!m && m.linePx === 13, String(m && m.linePx));
+  check('the stage heading is 15.5px', !!m && m.headPx >= 15, String(m && m.headPx));
+  check('and the card has room to breathe', !!m && m.pad >= 14, String(m && m.pad));
+});
+
+await step('the stage heading fits, with its count on the right', async () => {
+  // Say where we are. Steps above this one visit other screens, and a board that is
+  // display:none measures 0 wide -- which would read as a layout fault that is not there.
+  await screen('gr_pipeline');
+  /* TWO BUGS IN ONE ROW. The count was styled by `.gr_colh span:last-child`, and adding
+     the delete button made the span no longer last -- so it lost its margin-left:auto and
+     its colour, and the heading read "Booked 1 1" with both numbers jammed together.
+     Giving it a class then collided with .gr_cn, which is the call-note card, and the
+     later rule won: it came back as a padded blob that pushed "Proposal sent" into
+     "Proposa...". Both are measured here rather than described. */
+  const m = await page.evaluate(() => [...document.querySelectorAll('.gr_colh')].map(h => {
+    const t = h.querySelector('b'), c = h.querySelector('.gr_colcnt');
+    if (!t || !c) return null;
+    const tb = t.getBoundingClientRect(), cb = c.getBoundingClientRect(), hb = h.getBoundingClientRect();
+    return { name: t.textContent,
+             ellipsised: t.scrollWidth > t.clientWidth + 1,
+             gap: Math.round(cb.left - tb.right),
+             /* How much empty row is left AFTER the last thing in the heading. The count
+                carries margin-left:auto, so the free space belongs in front of it and
+                this is ~the padding. Measuring count-to-delete instead reads the flex
+                gap, which is 6px whether the auto margin is there or not -- it cannot
+                fail, and a check that cannot fail is worse than none. */
+             toRight: Math.round(hb.right -
+               h.children[h.children.length - 1].getBoundingClientRect().right),
+             clear: Math.round(cb.left) >= Math.round(tb.right),
+             countW: Math.round(cb.width) };
+  }).filter(Boolean));
+  check('all six headings are present', m.length === 6, String(m.length));
+  check('none of the stage names is cut off',
+    m.every(x => !x.ellipsised), JSON.stringify(m.filter(x => x.ellipsised).map(x => x.name)));
+  /* "Pushed to the far end" is the thing to measure, and the gap to the NAME stopped
+     saying that once long names were allowed to wrap: the text reaches the count, so the
+     gap is small while the count is still hard right. The distance to the heading's own
+     right edge says it for a long name and a short one alike, and still fails the way
+     the original bug failed -- without margin-left:auto the count sits against the name
+     and leaves that whole distance open. */
+  check('the count sits at the far end of the heading, long name or short',
+    m.every(x => x.toRight <= 10), JSON.stringify(m.map(x => x.name.slice(0, 18) + ':' + x.toRight + 'px')));
+  check('and does not overlap the name', m.every(x => x.clear), JSON.stringify(m.map(x => x.clear)));
+  /* The board is Luke's: 260px columns that scroll. It spent a while squeezed to fit the
+     window instead, which is what made a 15.5px heading wrap to four lines. The original
+     bug was never that it scrolled -- it was Lost sitting past the right edge with no
+     scrollbar and no way to get to it. So: wide enough to read, and reachable. */
+  const fit = await page.evaluate(() => {
+    const b = document.querySelector('.gr_board');
+    const cols = [...b.querySelectorAll('.gr_col')];
+    return { widths: cols.map(e => Math.round(e.getBoundingClientRect().width)),
+             unreachable: cols.filter(e =>
+               (e.getBoundingClientRect().right - b.getBoundingClientRect().left + b.scrollLeft)
+                 > b.scrollWidth + 2).length,
+             canScroll: getComputedStyle(b).overflowX === 'auto' ||
+                        getComputedStyle(b).overflowX === 'scroll' };
+  });
+  check('columns are at least Luke\'s 260px', fit.widths.every(w => w >= 260), JSON.stringify(fit.widths));
+  check('every stage is reachable, not stranded past the edge', fit.unreachable === 0,
+    String(fit.unreachable));
+  check('and the board can actually be scrolled to reach them', fit.canScroll, String(fit.canScroll));
+});
+
 /* ---------------------------------------------------------------- to-dos */
 let CID = null;
 await step('a to-do goes on the deal, not on the screen', async () => {
@@ -143,6 +530,56 @@ await step('deleting one takes it out of the row, and can be undone', async () =
   await page.waitForTimeout(700);
 });
 
+await step('marking a deal lost is only offered when Lost exists', async () => {
+  /* 20261028114500 removed the Lost stage to match Luke's board. The Lost button went on
+     writing stage='lost' regardless, and a stage with no column renders nowhere -- the
+     deal would drop off the board while still sitting in the table, reason attached,
+     with no screen that shows it. Deleting the column through the board's own UI is the
+     path a person would actually take, so that is the one driven here. */
+  await screen('gr_pipeline');
+  const openFirst = async () => {
+    // Must be a live deal: a won or lost one shows a status word instead of the buttons.
+    await page.evaluate(() => document.querySelector('[data-gr-stage="call"] .gr_bc')?.click());
+    await page.waitForTimeout(900);
+    return page.evaluate(() => ({
+      panel: !!document.querySelector('.gr_sbar2'),
+      won: !!document.querySelector('[data-gr-won]'),
+      lost: !!document.querySelector('[data-gr-lost]')
+    }));
+  };
+  const before = await openFirst();
+  check('a deal offers Mark won and Lost while the stage is there', before.won && before.lost,
+    JSON.stringify(before));
+  await page.evaluate(() => document.querySelector('[data-gr-close]')?.click());
+  await page.waitForTimeout(600);
+
+  // Delete Lost through the board, sending anything in it to the first stage offered.
+  await page.evaluate(() => document.querySelector('[data-gr-coldel="lost"]')?.click());
+  await page.waitForTimeout(800);
+  await page.evaluate(() => document.querySelector('[data-gr-coldo="lost"]')?.click());
+  await page.waitForTimeout(1300);
+  const stagesNow = await stages();
+  check('the Lost stage is gone from the board',
+    !!stagesNow && !stagesNow.some(x => /^lost:/.test(x)), JSON.stringify(stagesNow));
+
+  const after = await openFirst();
+  check('Mark won is still there', after.panel && after.won, JSON.stringify(after));
+  check('but Lost is not offered any more, so no deal can be stranded',
+    !after.lost, JSON.stringify(after));
+  // Nothing may be sitting in a stage the board cannot draw.
+  const orphan = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'pipeline');
+    const keys = ((r && r.value && r.value.stages) || []).map(s => s.key);
+    return (window.__mockDB.growth_clients || []).filter(c => keys.indexOf(c.stage) < 0)
+      .map(c => c.name + ':' + c.stage);
+  });
+  check('and no deal is left in a stage the board cannot draw', orphan.length === 0,
+    JSON.stringify(orphan));
+  // Put the board back in front: the open panel covers it, and every later step clicks it.
+  await page.evaluate(() => document.querySelector('[data-gr-close]')?.click());
+  await page.waitForTimeout(700);
+});
+
 /* ---------------------------------------------------------------- board columns */
 await step('a stage can be added from the board, in the colour chosen', async () => {
   const before = await stages();
@@ -176,19 +613,76 @@ await step('a stage can be added from the board, in the colour chosen', async ()
   check('the board now draws it', cols === (after || []).length, String(cols));
 });
 
-await step('the board still fits rather than scrolling', async () => {
-  /* The reason the add control is not a permanent column. The board is a fixed grid on
-     purpose -- "the stages have to FIT, not scroll" -- and a seventh share taken from
-     six columns turned "Proposal sent" into "Proposa...". */
+await step('the board still fits, with Add stage in it', async () => {
+  /* Add stage is a dashed column after the last stage, the way Luke's board has it. It
+     spent a while under the board because a seventh share of the width pushed "Proposal
+     sent" into "Proposa..." -- so the thing to measure is not where the button is, it is
+     that putting it back has not re-broken the fit or the headings. */
   const m = await page.evaluate(() => {
     const b = document.querySelector('.gr_board');
-    return { overflows: b.scrollWidth > b.clientWidth + 1,
-             extraCol: !!document.querySelector('.gr_colnew'),
-             addOffBoard: !!document.querySelector('.gr_hint ~ * [data-gr-coladd], p [data-gr-coladd]') };
+    const add = b.querySelector('[data-gr-coladd="open"]');
+    const cols = [...b.querySelectorAll('.gr_col')];
+    return {
+      overflows: b.scrollWidth > b.clientWidth + 1,
+      addInBoard: !!add,
+      addW: add ? Math.round(add.getBoundingClientRect().width) : 0,
+      addH: add ? Math.round(add.getBoundingClientRect().height) : 0,
+      addLast: !!add && b.lastElementChild === add,
+      // Inside the board's scrollable width, not inside the window: a column you can
+      // scroll to is fine, one past scrollWidth is lost.
+      unreachable: cols.concat(add ? [add] : []).filter(e =>
+        (e.getBoundingClientRect().right - b.getBoundingClientRect().left + b.scrollLeft)
+          > b.scrollWidth + 2).length,
+      scrollW: Math.round(b.scrollWidth),
+      pageScrolls: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      narrowest: Math.min(...cols.map(e => Math.round(e.getBoundingClientRect().width))),
+      ellipsised: [...b.querySelectorAll('.gr_colh b')]
+        .filter(t => t.scrollWidth > t.clientWidth + 1).map(t => t.textContent)
+    };
   });
-  check('no sideways scrollbar on the board', !m.overflows, String(m.overflows));
-  check('and no empty column parked there waiting', !m.extraCol, String(m.extraCol));
-  check('the add button lives under the board instead', m.addOffBoard, String(m.addOffBoard));
+  check('Add stage is a column on the board', m.addInBoard, JSON.stringify(m));
+  check('and it is the last one', m.addLast, String(m.addLast));
+  check('drawn at a real size, not a 0px slot', m.addW > 100 && m.addH > 60,
+    JSON.stringify({ w: m.addW, h: m.addH }));
+  /* THE BUG WAS NEVER "IT SCROLLS", it was a column sitting past the right edge with
+     nothing to say so and no way to get to it. Luke's board is 260px columns that scroll,
+     which is what gives a heading room to read on one or two lines instead of four. So
+     the guard is reachability: every column, Add stage included, has to be inside the
+     board's own scrollable width. */
+  check('every stage is at least as wide as Luke\'s 260', m.narrowest >= 260, String(m.narrowest));
+  check('and no stage heading is cut off', m.ellipsised.length === 0, JSON.stringify(m.ellipsised));
+  check('every column is reachable by scrolling the board, not stranded off it',
+    m.unreachable === 0, JSON.stringify({ unreachable: m.unreachable, scrollW: m.scrollW }));
+  check('and the board is what scrolls, not the page',
+    !m.pageScrolls, String(m.pageScrolls));
+});
+
+await step('every stage can be dragged, and says so', async () => {
+  /* Reordering always worked and nothing on screen admitted it: no handle, no cursor,
+     nothing. A feature you have to guess at is one nobody uses. */
+  const m = await page.evaluate(() => [...document.querySelectorAll('.gr_board .gr_col')].map(c => {
+    const h = c.querySelector('.gr_colh');
+    const g = h && h.querySelector('.gr_colgrip');
+    return {
+      stage: c.dataset.grStage,
+      draggable: !!h && h.getAttribute('draggable') === 'true',
+      grabbable: !!h && !!h.dataset.grColgrab,
+      grip: !!g,
+      gripW: g ? Math.round(g.getBoundingClientRect().width) : 0,
+      del: !!h && !!h.querySelector('[data-gr-coldel]'),
+      // Hidden at opacity 0 it may as well not be there, and a screenshot proves nothing.
+      delVisible: !!h && !!h.querySelector('[data-gr-coldel]') &&
+        Number(getComputedStyle(h.querySelector('[data-gr-coldel]')).opacity) > 0.3
+    };
+  }));
+  check('every stage is draggable', m.length >= 5 && m.every(x => x.draggable && x.grabbable),
+    JSON.stringify(m.filter(x => !x.draggable || !x.grabbable)));
+  check('every stage shows a grip', m.every(x => x.grip), JSON.stringify(m.map(x => x.stage + ':' + x.grip)));
+  check('and the grip is actually drawn', m.every(x => x.gripW >= 6),
+    JSON.stringify(m.map(x => x.stage + ':' + x.gripW)));
+  check('every stage offers a delete', m.every(x => x.del), JSON.stringify(m.map(x => x.stage + ':' + x.del)));
+  check('and it is visible without hovering first', m.every(x => x.delVisible),
+    JSON.stringify(m.map(x => x.stage + ':' + x.delVisible)));
 });
 
 await step('deleting a stage asks where its deals go, and they actually go there', async () => {
@@ -289,9 +783,11 @@ await step('a Loom link becomes a video on the answer', async () => {
   await page.waitForTimeout(900);
 
   const before = await qaItem('q-budget');
-  check('the question has call examples to lose', (before.ex || []).length === 4,
-    String((before.ex || []).length));
-  check('and an ask count that ranks the list', before.n === 12, String(before.n));
+  /* The examples moved to their own row, so the thing the save can still silently drop
+     is the counting: n ranks the whole list and calls prints under the examples, and
+     neither appears in the edit form. */
+  check('the question has an ask count to lose', before.n === 12, String(before.n));
+  check('and a call count the form never shows', before.calls === 9, String(before.calls));
 
   await page.evaluate(() => document.querySelector('[data-gr-qa-edit="q-budget"]')?.click());
   await page.waitForTimeout(800);
@@ -309,9 +805,8 @@ await step('a Loom link becomes a video on the answer', async () => {
   /* THE REASON THIS SAVE WAS REWRITTEN. It used to build a fresh object out of the form
      fields, which quietly dropped everything the form does not have -- the call examples
      and the ask count that ranks the whole list. Editing a typo deleted the evidence. */
-  check('and did not throw away the call examples', (after.ex || []).length === 4,
-    String((after.ex || []).length));
-  check('or the ask count', after.n === 12, String(after.n));
+  check('and did not throw away the ask count', after.n === 12, String(after.n));
+  check('or the call count', after.calls === 9, String(after.calls));
 
   await page.evaluate(() => document.querySelector('[data-gr-qa-open="q-budget"]')?.click());
   await page.waitForTimeout(400);
@@ -380,7 +875,307 @@ await step('saving any Training edit puts the form away and shows the change', a
   check('and it is in the row too, not only on screen', stored === 'Rewritten on the spot.', String(stored));
 });
 
+await step("Luke's apostrophes survive the screen and the editor", async () => {
+  /* The content was seeded with every contraction and quotation mark stripped out:
+     "don't oversell" became "do not oversell", 'Replace "um"' became 'Replace um'. Nothing
+     rendered wrong, so nothing caught it -- the copy on screen simply was not the copy Luke
+     wrote. Restored in 20261028090000.
+
+     Two separate things can eat them, so both are measured. The renderer runs text through
+     esc(), which escapes & < > via textContent; if that ever became a hand-rolled replace
+     it could emit a literal &#39; instead. And every Training page round trips through a
+     plain-text editor that joins pairs with " :: " and splits them again, which is exactly
+     the kind of parse that quietly mangles a quote. Saving an UNCHANGED lesson has to give
+     back byte-identical text, so the second half asserts on the database row, not the DOM. */
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="course"]')?.click());
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => document.querySelector('[data-gr-lesson="why"]')?.click());
+  await page.waitForTimeout(900);
+
+  const seen = await page.evaluate(() => {
+    const t = document.body.innerText;
+    return {
+      apos:   t.indexOf("Don't try too hard.") >= 0,
+      quoted: t.indexOf('Replace "um" with a short pause.') >= 0,
+      // A hand-rolled escape would put the entity on the screen as visible text.
+      entity: /&#39;|&quot;|&amp;/.test(t),
+      // The shape the stripped seed had.
+      flattened: t.indexOf('Do not try too hard') >= 0 || t.indexOf('Replace um with') >= 0
+    };
+  });
+  check('the apostrophe is on screen as an apostrophe', seen.apos, JSON.stringify(seen));
+  check('and the quoted word keeps its quotes', seen.quoted, JSON.stringify(seen));
+  check('no HTML entity leaked into the visible text', !seen.entity, JSON.stringify(seen));
+  check('nothing was flattened back to the seeded wording', !seen.flattened, JSON.stringify(seen));
+
+  // Open the editor and save WITHOUT touching anything. The text must come back whole.
+  await page.evaluate(() => document.querySelector('[data-gr-lesson-edit="why"]')?.click());
+  await page.waitForTimeout(800);
+  const opened = await page.evaluate(() => {
+    const el = document.querySelector('[data-gr-ls="blocks"]');
+    return el ? el.value : null;
+  });
+  check('the lesson opens for editing', !!opened, String(opened && opened.slice(0, 40)));
+  check('the editor shows the apostrophe, not an entity',
+    !!opened && opened.indexOf("Don't try too hard.") >= 0 && !/&#39;/.test(opened),
+    String(opened && opened.slice(0, 120)));
+
+  await page.evaluate(() => document.querySelector('[data-gr-lesson-save="why"]')?.click());
+  await page.waitForTimeout(1400);
+  const stored = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'course');
+    const l = r && r.value && r.value.lessons ? r.value.lessons.find(x => x.id === 'why') : null;
+    return l ? (l.blocks || []).map(b => [b.h, b.t].filter(Boolean).join(' :: ')).join('\n') : null;
+  });
+  check('a save that changed nothing changed nothing, in the row',
+    !!stored && stored.indexOf("Don't try too hard. Replace \"um\" with a short pause.") >= 0,
+    String(stored));
+});
+
+await step('the Q and A list is ranked, counted and tagged', async () => {
+  /* Giant had 6 questions and no counts, so every row showed a caret and the rank was
+     hidden -- correctly, since ranking nothing is a lie. Luke's board carries the ask
+     count, so the list ranks and each row is tagged with how often it came up. The ten
+     that come from Clear answers have no count and say "AI answer" instead. */
+  await screen('gr_training');
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="qa"]')?.click());
+  await page.waitForTimeout(1300);
+  const rows = await page.evaluate(() => [...document.querySelectorAll('.gr_qa3')].map(el => ({
+    rank: (el.querySelector('.gr_qrk') || {}).textContent || null,
+    q: (el.querySelector('.gr_qah b:not(.gr_qrk)') || {}).textContent || null,
+    tag: (el.querySelector('.gr_qah > i') || {}).textContent || null,
+    ai: !!el.querySelector('.gr_qaai'),
+    // A 0px badge passes "exists". Measure it.
+    rankW: Math.round(((el.querySelector('.gr_qrk') || { getBoundingClientRect: () => ({ width: 0 }) })
+      .getBoundingClientRect()).width)
+  })));
+  check('every row carries a rank', rows.length === 3 && rows.every(r => r.rank),
+    JSON.stringify(rows));
+  check('and the ranks run 1, 2, 3 without restarting for the AI rows',
+    rows.map(r => r.rank).join(',') === '1,2,3', JSON.stringify(rows.map(r => r.rank)));
+  check('the badge is actually drawn, not 0px', rows.every(r => r.rankW >= 20),
+    JSON.stringify(rows.map(r => r.rankW)));
+  // Most asked first: q-budget at 12 outranks q-lock at 5, whatever order they were declared.
+  check('the most asked question is first', /budget/i.test(rows[0].q || ''), String(rows[0].q));
+  check('a counted question is tagged with its count', rows[0].tag === '12x', String(rows[0].tag));
+  check('the second says 5x', rows[1].tag === '5x', String(rows[1].tag));
+  /* The Clear answers row has no count to show. It must not fall back to a caret, which
+     is what an uncounted row used to render, and must not claim a number it has not got. */
+  check('the Clear answers row says AI answer, not a count or a caret',
+    rows[2].tag === 'AI answer' && rows[2].ai, JSON.stringify(rows[2]));
+});
+
+await step('a question shows the model answer and the rewrite, not just one', async () => {
+  /* The first import took `better` and dropped `aiBetter`, so the screen showed the
+     rewrite with nothing to compare it against. Reading the two next to each other IS
+     the lesson -- the rewrite is shorter, splits the long sentence up and adds what only
+     somebody on the calls would know. */
+  await screen('gr_training');
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="qa"]')?.click());
+  await page.waitForTimeout(1300);
+  for (let i = 0; i < 3 && !(await page.evaluate(() =>
+      !!document.querySelector('[data-gr-qa-open="q-budget"]')?.closest('.gr_qa3')?.querySelector('.gr_qaa'))); i++) {
+    await page.evaluate(() => document.querySelector('[data-gr-qa-open="q-budget"]')?.click());
+    await page.waitForTimeout(900);
+  }
+  const m = await page.evaluate(() => {
+    const sec = document.querySelector('[data-gr-qa-open="q-budget"]')?.closest('.gr_qa3');
+    if (!sec) return null;
+    const lab = [...sec.querySelectorAll('.gr_qaa > span')].map(e => e.textContent.trim());
+    const orig = sec.querySelector('.gr_qaorig');
+    const mine = [...sec.querySelectorAll('.gr_qaa')].find(e => !e.classList.contains('gr_qaorig'));
+    const bl = sec.querySelector('.gr_qabl');
+    return {
+      labels: lab,
+      origText: orig ? (orig.querySelector('p') || {}).textContent : null,
+      mineText: mine ? (mine.querySelector('p') || {}).textContent : null,
+      origBullets: orig ? [...orig.querySelectorAll('.gr_qapts li')].map(l => l.textContent) : [],
+      blBullets: bl ? [...bl.querySelectorAll('li')].map(l => l.textContent) : [],
+      // A block that is there but 0px high is not on screen.
+      origH: orig ? Math.round(orig.getBoundingClientRect().height) : 0
+    };
+  });
+  check('both blocks are labelled', !!m && m.labels.join(' | ') === "Original AI answer | Annie's version",
+    JSON.stringify(m && m.labels));
+  check('the model answer is the one it stored', !!m && /We fix the tracking first/.test(m.origText || ''),
+    String(m && m.origText));
+  check('the rewrite is the other one, and they are not the same text',
+    !!m && m.mineText && m.origText && m.mineText !== m.origText, JSON.stringify(m && { o: m.origText, v: m.mineText }));
+  check('the model answer is actually drawn, not a 0px block', !!m && m.origH > 40, String(m && m.origH));
+  /* Each set of bullets comes off its OWN text. Deriving both from the rewrite would
+     look right and say the wrong thing under the model's answer. */
+  check('the original keeps its own bullets',
+    !!m && m.origBullets.some(b => /We fix the tracking first/.test(b)), JSON.stringify(m && m.origBullets));
+  check('and the rewrite has its own under Bullet points',
+    !!m && m.blBullets.length === 3 && m.blBullets.some(b => /Only grow when it works/.test(b)),
+    JSON.stringify(m && m.blBullets));
+});
+
+await step('hand-written bullets beat the ones split out of the answer', async () => {
+  // Somebody took the trouble to write them. Re-deriving would throw that away silently.
+  for (let i = 0; i < 3 && !(await page.evaluate(() =>
+      !!document.querySelector('[data-gr-qa-open="q-lock"]')?.closest('.gr_qa3')?.querySelector('.gr_qabl'))); i++) {
+    await page.evaluate(() => document.querySelector('[data-gr-qa-open="q-lock"]')?.click());
+    await page.waitForTimeout(900);
+  }
+  const b = await page.evaluate(() => {
+    const sec = document.querySelector('[data-gr-qa-open="q-lock"]')?.closest('.gr_qa3');
+    const bl = sec && sec.querySelector('.gr_qabl');
+    return bl ? [...bl.querySelectorAll('li')].map(l => l.textContent.trim()) : null;
+  });
+  check('the written bullets are the ones shown',
+    !!b && b[0] === 'Nobody is locked in for a year', JSON.stringify(b));
+  check('not the sentences split out of the answer',
+    !!b && !b.some(x => /^No annual lock in\.$/.test(x)), JSON.stringify(b));
+});
+
+await step('a Clear answer does not print the same text twice', async () => {
+  /* The ten rows that come from Clear answers carry the same words in both fields. Two
+     identical blocks under one question reads as a bug, so the original is only shown
+     when it genuinely differs. */
+  for (let i = 0; i < 3 && !(await page.evaluate(() =>
+      !!document.querySelector('[data-gr-qa-open="ai-what"]')?.closest('.gr_qa3')?.querySelector('.gr_qaa'))); i++) {
+    await page.evaluate(() => document.querySelector('[data-gr-qa-open="ai-what"]')?.click());
+    await page.waitForTimeout(900);
+  }
+  const m = await page.evaluate(() => {
+    const sec = document.querySelector('[data-gr-qa-open="ai-what"]')?.closest('.gr_qa3');
+    if (!sec) return null;
+    return { blocks: sec.querySelectorAll('.gr_qaa').length,
+             orig: sec.querySelectorAll('.gr_qaorig').length,
+             label: (sec.querySelector('.gr_qaa > span') || {}).textContent };
+  });
+  check('only one answer block', !!m && m.blocks === 1, JSON.stringify(m));
+  check('and no Original AI answer above it', !!m && m.orig === 0, JSON.stringify(m));
+  check('labelled plainly, since there is nothing to compare it to',
+    !!m && /The best answer/.test(m.label || ''), JSON.stringify(m));
+});
+
+await step('the Q and A tab is questions and answers, nothing else', async () => {
+  /* It used to end with "Tricks from your calls" -- ten cards -- and "Answers to tighten",
+     both about the calls rather than about any question. You scrolled past a report to
+     reach the thing you came for. The data is still in growth_settings qa_extra, so they
+     can come back on a screen of their own; what must not come back is them hanging off
+     the bottom of this list. */
+  await screen('gr_training');
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="qa"]')?.click());
+  await page.waitForTimeout(1300);
+  const m = await page.evaluate(() => {
+    const t = document.body.innerText;
+    return {
+      tricksHeading: /Tricks from your calls/i.test(t),
+      weakHeading: /Answers to tighten/i.test(t),
+      trickCards: document.querySelectorAll('.gr_tkc').length,
+      // What SHOULD be there, so this cannot pass by the tab failing to render at all.
+      rows: document.querySelectorAll('.gr_qa3').length,
+      search: !!document.querySelector('#grQaQ')
+    };
+  });
+  check('the questions are still listed', m.rows >= 3 && m.search, JSON.stringify(m));
+  check('no Tricks from your calls heading', !m.tricksHeading, JSON.stringify(m));
+  check('no Answers to tighten heading', !m.weakHeading, JSON.stringify(m));
+  check('and no trick cards left behind', m.trickCards === 0, String(m.trickCards));
+  // The data itself is kept, so this was a screen decision and not a delete.
+  const kept = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'qa_extra');
+    return r && r.value ? { tricks: (r.value.tricks || []).length, weak: (r.value.weak || []).length } : null;
+  });
+  check('the tricks and weak answers are still in the database, just not on this tab',
+    !!kept && kept.tricks > 0 && kept.weak > 0, JSON.stringify(kept));
+});
+
+await step('the open row is the two answers, the bullets and the video', async () => {
+  /* The row used to carry six more blocks: what they are really asking, why the answer
+     works, the trick tags, how you usually answer, and three call examples with a "show
+     all 62". Luke's row has five things and that is the brief. The 588 examples and the
+     rest of the fields are all still in growth_settings -- nothing was deleted, it is
+     the row that got shorter -- and the boot query still leaves the 364KB out. */
+  await screen('gr_training');
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="qa"]')?.click());
+  await page.waitForTimeout(1300);
+  for (let i = 0; i < 3 && !(await page.evaluate(() =>
+      !!document.querySelector('[data-gr-qa-open="q-budget"]')?.closest('.gr_qa3')?.querySelector('.gr_qaa'))); i++) {
+    await page.evaluate(() => document.querySelector('[data-gr-qa-open="q-budget"]')?.click());
+    await page.waitForTimeout(900);
+  }
+  const m = await page.evaluate(() => {
+    const sec = document.querySelector('[data-gr-qa-open="q-budget"]').closest('.gr_qa3');
+    return {
+      text: sec.innerText,
+      examples: sec.querySelectorAll('.gr_qe').length,
+      showAll: !!sec.querySelector('[data-gr-qa-all]'),
+      answers: sec.querySelectorAll('.gr_qaa').length,
+      bullets: sec.querySelectorAll('.gr_qabl li').length,
+      video: !!sec.querySelector('.gr_qavid')
+    };
+  });
+  check('both answers are there', m.answers === 2, JSON.stringify({ a: m.answers }));
+  check('so are the bullet points', m.bullets === 3, String(m.bullets));
+  check('and the video answer', m.video, String(m.video));
+  check('no call examples on the row', m.examples === 0 && !m.showAll, JSON.stringify(m));
+  check('no "what they are really asking"', !/really asking/i.test(m.text), 'present');
+  check('no "how you usually answer"', !/usually answer/i.test(m.text), 'present');
+  check('and no trick tags', !/Name the fear out loud/.test(m.text), 'present');
+  // Kept, not deleted: the examples are still in the database for a screen of their own.
+  const kept = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'qa_examples');
+    return r && r.value && r.value.byId ? (r.value.byId['q-budget'] || []).length : -1;
+  });
+  check('the call examples are still in the database', kept === 4, String(kept));
+  // And nothing fetches them any more, since nothing draws them.
+  const q = await page.evaluate(() =>
+    (window.__mock.log.queries || []).filter(x => /^growth_settings\.select/.test(x)));
+  check('the boot read still leaves the 364KB out', /key neq qa_examples/.test(q[0] || ''),
+    JSON.stringify(q));
+  check('and nothing fetches them any more', !q.some(x => /key eq qa_examples/.test(x)),
+    JSON.stringify(q));
+});
+
+await step('a Loom link can be saved from the row itself', async () => {
+  // Recording the answer and filing it are one job, so the field is on the row.
+  const row = '[data-gr-qa-open="q-budget"]';
+  const has = await page.evaluate(s => !!document.querySelector(s).closest('.gr_qa3')
+    .querySelector('[data-gr-qa-loom]'), row);
+  check('the row offers somewhere to paste it', has, String(has));
+  await page.fill('#grLoom-q-budget', 'https://www.loom.com/share/zz9PlaskedZ?t=30');
+  await page.evaluate(() => document.querySelector('[data-gr-qa-loom="q-budget"]')?.click());
+  await page.waitForTimeout(1300);
+  const stored = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'qa');
+    const it = r.value.items.find(q => q.id === 'q-budget');
+    return it ? it.video : null;
+  });
+  check('it is stored in embed form, on the row',
+    stored === 'https://www.loom.com/embed/zz9PlaskedZ', String(stored));
+  const framed = await page.evaluate(s => {
+    const f = document.querySelector(s).closest('.gr_qa3').querySelector('.gr_qavf iframe');
+    return f ? { src: f.getAttribute('src'), w: Math.round(f.getBoundingClientRect().width) } : null;
+  }, row);
+  check('and it is on screen at a watchable size',
+    !!framed && framed.w > 300, JSON.stringify(framed));
+  check('pointed at the embed url',
+    !!framed && framed.src === 'https://www.loom.com/embed/zz9PlaskedZ', JSON.stringify(framed));
+});
+
+await step('anything that is not a Loom link is refused on the row too', async () => {
+  await page.evaluate(() => document.querySelector('[data-gr-qa-vdel="q-budget"]')?.click());
+  await page.waitForTimeout(1200);
+  await page.fill('#grLoom-q-budget', 'https://evil.example.com/x');
+  await page.evaluate(() => document.querySelector('[data-gr-qa-loom="q-budget"]')?.click());
+  await page.waitForTimeout(1200);
+  const after = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'qa');
+    const it = r.value.items.find(q => q.id === 'q-budget');
+    return { video: it ? (it.video || '') : null,
+             framed: !!document.querySelector('.gr_qavf iframe') };
+  });
+  check('nothing was stored', after.video === '', JSON.stringify(after));
+  check('and nothing points at it', !after.framed, JSON.stringify(after));
+});
+
 /* ---------------------------------------------------------------- the practice call */
+// Read off the DATABASE rows, not the screen: a run that paints a score and never files
+// it looks identical until you reload.
 const runs = () => page.evaluate(() => (window.__mockDB.growth_practice_runs || [])
   .map(r => ({ owner: r.owner_id, area: r.area, score: Number(r.score) })));
 
@@ -559,6 +1354,155 @@ await step('the scenarios edit here, like every other Training page', async () =
   await page.waitForTimeout(600);
 });
 
+await step('Pricing is off the Training strip but not orphaned', async () => {
+  await screen('gr_training');
+  const tabs = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-gr-traintab]')].map(b => b.dataset.grTraintab));
+  check('Pricing is not a tab any more', tabs.indexOf('pricing') < 0, tabs.join(','));
+  check('the other five are', ['course', 'practice', 'clear', 'lib', 'qa'].every(t => tabs.indexOf(t) >= 0),
+    tabs.join(','));
+  /* Hidden, not deleted. "Know the offer" links straight to it, which is the one place
+     anybody actually wants it, and the strip lights Course while you are there rather
+     than lighting nothing at all. */
+  // Earlier steps left Training on another tab; the lessons only exist on Course.
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="course"]')?.click());
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => document.querySelector('[data-gr-lesson="offer"]')?.click());
+  await page.waitForTimeout(900);
+  const link = await page.evaluate(() => {
+    const b = [...document.querySelectorAll('[data-gr-traintab="pricing"]')][0];
+    if (b) b.click();
+    return !!b;
+  });
+  check('a lesson still links to it', link, String(link));
+  if (link) {
+    await page.waitForTimeout(1000);
+    const m = await page.evaluate(() => ({
+      onPricing: /per month|Payment link|pricing/i.test(document.body.textContent),
+      lit: [...document.querySelectorAll('[data-gr-traintab]')]
+        .filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.dataset.grTraintab)
+    }));
+    check('and it opens', m.onPricing, String(m.onPricing));
+    check('with Course lit rather than nothing', m.lit.indexOf('course') >= 0, m.lit.join(','));
+  }
+});
+
+await step('Recordings is off the sidebar', async () => {
+  const m = await page.evaluate(() => ({
+    nav: !!document.querySelector('#appSidebar .nav-item[data-screen="gr_recordings"]'),
+    growthNav: [...document.querySelectorAll('#appSidebar .nav-item[data-screen^="gr_"]')]
+      .map(n => n.dataset.screen)
+  }));
+  check('there is no Recordings item', !m.nav, String(m.nav));
+  // The rest of Growth is untouched -- a nav item removed with a greedy regex would take
+  // its neighbours with it and nothing else here would notice.
+  check('and the other Growth items are all still there',
+    ['gr_home', 'gr_meetings', 'gr_pipeline', 'gr_inbox', 'gr_training', 'gr_analytics',
+     'gr_connectors', 'gr_settings', 'gr_automations'].every(k => m.growthNav.indexOf(k) >= 0),
+    m.growthNav.join(','));
+});
+
+await step('the Q and A screen is the answer, not a wall of controls', async () => {
+  await screen('gr_training');
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="qa"]')?.click());
+  await page.waitForTimeout(1300);
+  const m = await page.evaluate(() => ({
+    themeChips: document.querySelectorAll('[data-gr-qatheme]').length,
+    viewStrip: document.querySelectorAll('[data-gr-qaview]').length,
+    search: !!document.querySelector('#grQaQ'),
+    rows: document.querySelectorAll('.gr_qa3').length
+  }));
+  /* Luke dropped both in his latest pass, and the second one had become actively
+     confusing: Practice is a tab of its own now, so a button called Practice inside
+     Q and A went somewhere else entirely. */
+  check('no theme filter chips', m.themeChips === 0, String(m.themeChips));
+  check('no Browse / Practice strip', m.viewStrip === 0, String(m.viewStrip));
+  check('the search box stays', m.search, String(m.search));
+  check('and the questions are listed', m.rows > 0, String(m.rows));
+});
+
+await step('the answer reads in the same ink as the rest of the page', async () => {
+  /* THE ONE THAT WAS REPORTED. The answer card was `background:var(--text)` with
+     `color:var(--bg)` -- an inverted block, which is a dark card on Luke's white page
+     and a WHITE card with black text in the middle of ours. Luke's latest replaced it
+     with a faint tint of the accent, which is what this now is.
+
+     Measured as ink rather than as a colour name: the card's text must be the page's
+     text colour, and its background must not be the page's text colour. */
+  // Earlier steps leave a row open, so a single click can CLOSE one. Open whichever
+  // row is needed rather than assuming the list starts shut.
+  for (let i = 0; i < 3 && !(await page.evaluate(() => !!document.querySelector('.gr_qaa'))); i++) {
+    await page.evaluate(() => document.querySelector('.gr_qah')?.click());
+    await page.waitForTimeout(700);
+  }
+  const m = await page.evaluate(() => {
+    const card = document.querySelector('.gr_qaa');
+    if (!card) return null;
+    const p = card.querySelector('p');
+    const lum = (c) => { const n = (c.match(/\d+/g) || []).slice(0, 3).map(Number);
+                         return n.length === 3 ? Math.round((n[0] * 299 + n[1] * 587 + n[2] * 114) / 1000) : null; };
+    return { cardBg: getComputedStyle(card).backgroundColor,
+             cardInk: lum(getComputedStyle(p || card).color),
+             pageInk: lum(getComputedStyle(document.body).color),
+             pageBg: lum(getComputedStyle(document.body).backgroundColor),
+             w: Math.round(card.getBoundingClientRect().width) };
+  });
+  check('the answer card is on screen', !!m && m.w > 300, JSON.stringify(m && m.w));
+  check('its text is the page\'s text colour, not inverted',
+    !!m && Math.abs(m.cardInk - m.pageInk) < 40, JSON.stringify(m && { card: m.cardInk, page: m.pageInk }));
+  // On a dark theme the page ink is near-white; a card painted THAT is the bug.
+  check('and its background is not the page\'s ink',
+    !!m && Math.abs((m.cardBg.match(/\d+/g) || [0]).slice(0, 3).reduce((a2, b2) => a2 + Number(b2), 0) / 3 - m.pageInk) > 60,
+    m && m.cardBg);
+});
+
+await step('the ranking disappears when nothing has been counted', async () => {
+  /* Nothing in Giant counts how often a question is asked, so on real data every row
+     said "New", numbered 1 to 6 by nothing. Driven here by serving a mock with the two
+     ask counts stripped out, rather than by poking at the page's own state. */
+  const blank = MOCK.replace(/byId\['q-[a-z]+'\]\.n = \d+;/g, '');
+  check('the fixture really lost its counts', blank !== MOCK && !/\]\.n = \d+;/.test(blank),
+    String(blank === MOCK));
+  const ctx2 = await browser.newContext({ viewport: { width: 1500, height: 980 } });
+  const p2 = await ctx2.newPage();
+  await p2.route('**/@supabase/supabase-js@2*', r =>
+    r.fulfill({ status: 200, contentType: 'application/javascript', body: blank }));
+  await p2.route('**://*.supabase.co/**', r => r.abort());
+  await p2.goto(BASE + '/app', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await p2.waitForSelector('#view-app.on', { timeout: 30000 });
+  await p2.waitForTimeout(3000);
+  await p2.evaluate(() => document.querySelector('#appSidebar .nav-item[data-screen="gr_training"]')?.click());
+  await p2.waitForTimeout(1500);
+  await p2.evaluate(() => document.querySelector('[data-gr-traintab="qa"]')?.click());
+  await p2.waitForTimeout(1300);
+  const m = await p2.evaluate(() => ({
+    rows: document.querySelectorAll('.gr_qa3').length,
+    ranks: document.querySelectorAll('.gr_qrk').length,
+    bars: document.querySelectorAll('.gr_qah span u').length,
+    says: [...document.querySelectorAll('.gr_qah > i')].map(e => e.textContent.trim())
+  }));
+  check('the questions are still all there', m.rows > 0, String(m.rows));
+  check('but no rank chips', m.ranks === 0, String(m.ranks));
+  check('no empty bars under them', m.bars === 0, String(m.bars));
+  check('and nothing claims an ask count', m.says.every(t => !/\dx/.test(t)), JSON.stringify(m.says));
+  await ctx2.close();
+});
+
+await step('the Pipeline header answers the two questions you open it with', async () => {
+  await screen('gr_pipeline');
+  const m = await page.evaluate(() => {
+    const h = document.querySelector('.gr_head p');
+    return { text: h ? h.textContent.replace(/\s+/g, ' ').trim() : null,
+             pill: !!document.querySelector('.gr_head .gr_flag'),
+             bigStats: !!document.querySelector('.gr_head .gr_stats') };
+  });
+  check('it says how much is active', !!m.text && /\d+ active/.test(m.text), m.text);
+  check('and flags replies waiting on you', m.pill, String(m.pill));
+  /* The three big numbers that used to sit here are on Analytics; across the top of a
+     board they read as a dashboard nobody asked for and pushed the board below the fold. */
+  check('without the dashboard of numbers', !m.bigStats, String(m.bigStats));
+});
+
 /* ---------------------------------------------------------------- on a phone */
 await step('every Training tab is still reachable at phone width', async () => {
   /* Adding Practice made six tabs. .gr_seg was inline-flex with no wrap and no scroll,
@@ -592,7 +1536,7 @@ await step('every Training tab is still reachable at phone width', async () => {
       pageSideways: document.documentElement.scrollWidth > innerWidth + 1
     };
   });
-  check('all six tabs are rendered', !!m && m.names.length === 6, JSON.stringify(m && m.names));
+  check('all five tabs are rendered', !!m && m.names.length === 5, JSON.stringify(m && m.names));
   check('the strip scrolls rather than clipping what will not fit', !!m && !m.clipped, String(m && m.clipped));
   check('so the last tab can actually be reached', !!m && m.lastVisible, String(m && m.lastVisible));
   check('and the page itself does not scroll sideways', !!m && !m.pageSideways, String(m && m.pageSideways));

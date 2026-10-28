@@ -536,7 +536,11 @@
         { key: 'booked', label: 'Booked', color: '#626262' },
         { key: 'call', label: 'Call done', color: '#1D5FA8' },
         { key: 'proposal', label: 'Proposal sent', color: '#7C3AED' },
-        { key: 'follow', label: 'Following up', color: '#B7791F' },
+        /* A deliberately long one. Stage names are typed by a person -- Luke's own board
+           has "Asked to Book Another Meeting" -- and the heading used to ellipse, which
+           hides the one thing a column heading has to say. With six short names the
+           not-cut-off check passed against the bug. */
+        { key: 'follow', label: 'Asked to Book Another Meeting', color: '#B7791F' },
         { key: 'won', label: 'Won', color: '#1F7A45' },
         { key: 'lost', label: 'Lost', color: '#B3302A' } ] },
       updated_at: giso(30, 0), updated_by: ME }
@@ -607,7 +611,12 @@
                     { k: 'ul', items: ['Who are your main customers?', 'What made you look for help now?'] } ],
           do: 'Ask one question at a time.', go: [] },
         { id: 'why', t: 'Understand why people buy', g: 'This is the key to selling.', min: 5,
-          blocks: [ { k: 'b', h: 'They want to feel heard', t: 'Ask thoughtful questions and really listen.' } ],
+          // Luke's wording, with the apostrophe and the quoted word intact. The seed that
+          // first filled this content stripped every one of them ("don't" -> "do not",
+          // '"um"' -> 'um'), so the copy on screen was not the copy he wrote. Kept here so
+          // a renderer or an editor that mangles them fails a check instead of shipping.
+          blocks: [ { k: 'b', h: 'They want to feel heard', t: 'Ask thoughtful questions and really listen.' },
+                    { k: 'b', h: 'They want someone real', t: 'Don\'t try too hard. Replace "um" with a short pause.' } ],
           do: 'Learn what they want before you say a word about what you sell.',
           go: [['See the principles', 'phil']] },
         { id: 'offer', t: 'Know the offer', g: 'Prices and the 10 day exit.', min: 5,
@@ -629,11 +638,21 @@
         { id: 'q-lock', theme: 'Contracts and commitment', q: 'I do not want a long contract.',
           feel: 'They have been trapped before.',
           better: 'No annual lock in. Three month minimum and a 10 day exit.',
+          // Written by hand, and deliberately NOT what splitting the answer would give.
+          bullets: ['Nobody is locked in for a year', 'Three months, then ten days notice'],
           why: 'Say the exit before they ask for it.', tricks: ['Offer the exit first'] },
         { id: 'q-budget', theme: 'Pricing and budget', q: 'Is it worth it at my budget?',
           feel: 'They are afraid of spending money and getting nothing back.',
-          better: 'Start small, fix the tracking first, and only grow when it works.',
-          why: 'Answer the fear, not the number.', tricks: ['Name the fear out loud'] } ] },
+          // Two answers that really differ: the model's, and the rewrite a person says.
+          // Both have to reach the screen, and their bullets come from different text --
+          // a check that only read one of them could not tell them apart.
+          aiBetter: 'You can start small. We fix the tracking first. Then we grow it.',
+          better: 'Start small. Fix the tracking first. Only grow when it works.',
+          why: 'Answer the fear, not the number.', tricks: ['Name the fear out loud'] },
+        // Comes from Clear answers, so it is never counted and never ranked by asks. It
+        // still gets a row and a number, and says "AI answer" where a count would be.
+        { id: 'ai-what', theme: 'Services and fit', q: 'What does ReachGiant do?',
+          better: 'We help customers find you and choose you.', ai: true } ] },
       updated_at: iso(30,0), updated_by: ME }
   );
   // How often each question comes up, and four examples on the first one so "show all"
@@ -645,7 +664,13 @@
     qa.value.items.forEach(function (it) { byId[it.id] = it; });
     byId['q-budget'].n = 12; byId['q-budget'].calls = 9;
     byId['q-budget'].a = 'I usually say it depends on the spend.';
-    byId['q-budget'].ex = [
+    byId['q-lock'].n = 5; byId['q-lock'].calls = 4;
+    /* IN ITS OWN ROW, not on the item. 364KB of call transcripts rode along on every
+       Growth page load when they sat in `qa`; the boot query now excludes this key and
+       the Q and A screen fetches it. A check that still found them on the item would be
+       measuring the fixture rather than the fetch. */
+    const exById = {};
+    exById['q-budget'] = [
       { call: 'Amy Neighbors', q: 'Is $1,500 enough to see anything?',
         a: 'It depends on your spend really.',
         better: 'At $1,500 we fix tracking first, then scale what converts.',
@@ -661,11 +686,12 @@
         a: 'Sure, we can work something out.',
         better: 'Yes. One service, one month, and we grow it when it pays.' }
     ];
-    byId['q-lock'].n = 5; byId['q-lock'].calls = 4;
-    byId['q-lock'].ex = [{ call: 'Amy Neighbors', q: 'Am I locked in for a year?',
+    exById['q-lock'] = [{ call: 'Amy Neighbors', q: 'Am I locked in for a year?',
       a: 'No, it is three months.',
       better: 'No annual lock in. Three month minimum, then ten days notice any time.',
       url: 'https://fathom.video/share/example', s: 905 }];
+    DB.growth_settings.push({ key: 'qa_examples', value: { byId: exById },
+      updated_at: iso(30,0), updated_by: ME });
     DB.growth_settings.push({ key: 'qa_extra', value: {
       tricks: [{ t: 'Name the fear out loud', b: 'Say the worry before they do and it stops being a weapon.' },
                { t: 'Give the first month a job', b: 'A month with a purpose is easier to buy than a month of hope.' },
@@ -962,7 +988,10 @@
 
   P._run = function () {
     const t = this._t;
-    log.queries.push(t + '.' + this._mode);
+    /* The filters go in the log too. Without them every read of a table looks alike,
+       and a check cannot tell `select *` from one that deliberately leaves a row out. */
+    log.queries.push(t + '.' + this._mode +
+      (this._f.length ? '[' + this._f.map(f => f.join(' ')).join(',') + ']' : ''));
     if (hidden.has(t)) return MISSING(t);
     try {
       if (this._mode === 'select') {
