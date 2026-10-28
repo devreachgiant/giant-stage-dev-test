@@ -6415,8 +6415,6 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_stats b{display:block;font-size:24px;font-weight:800;letter-spacing:-.02em;}
 .gr_stats b.gr_g{color:#1F7A45;}
 .gr_stats span{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--text-3);}
-.gr_tools{display:flex;gap:10px;margin-bottom:14px;}
-.gr_search{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:99px;padding:11px 18px;color:var(--text);font:inherit;font-size:13.5px;}
 /* The stages have to FIT, not scroll. grid-auto-columns:minmax(192px,1fr) sizes each
    column against its own content rather than the container, so six of them grew past the
    right-hand edge and clipped Lost behind a scrollbar. An explicit column count with
@@ -6427,45 +6425,41 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
    there -- which reads as broken, not as "scroll me". The room came from dropping the
    per-column "needs an action" badge instead: the To do tab counts that, and every card
    now says it in words. */
-.gr_board{display:grid;grid-template-columns:repeat(var(--grcols,6),minmax(0,1fr));gap:12px;align-items:start;}
+.gr_board{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(260px,1fr);gap:14px;align-items:start;overflow-x:auto;padding-bottom:6px;scrollbar-width:thin;}
 /* Below this they genuinely do not fit, so then and only then it scrolls. */
 @media(max-width:1180px){
   .gr_board{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(230px,82%);overflow-x:auto;padding-bottom:10px;}
 }
 /* Growth Inbox is the longest label in the sidebar and wrapped onto two lines. */
 #appSidebar .nav-item[data-screen^="gr_"]{white-space:nowrap;}
-.gr_col{border:1px solid var(--line);border-radius:22px;padding:14px 11px 11px;position:relative;min-width:0;box-shadow:inset 0 3px 0 var(--sc);overflow:hidden;}
+.gr_col{border:1px solid var(--line);border-radius:22px;padding:12px;position:relative;min-width:0;box-shadow:inset 0 3px 0 var(--sc);overflow:hidden;}
 /* One line, always. "Proposal sent" and "Following up" wrapped and pushed the count
    out of line, which made six tidy columns look like a broken grid. */
-.gr_colh{display:flex;align-items:center;gap:6px;padding:2px 6px 8px;flex-wrap:nowrap;}
-.gr_colh b{font-size:13.5px;font-weight:800;letter-spacing:-.01em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gr_colh{display:flex;align-items:flex-start;gap:6px;padding:2px 6px 8px;flex-wrap:nowrap;}
+.gr_colh b{font-size:15.5px;font-weight:800;letter-spacing:-.01em;min-width:0;flex:0 1 auto;white-space:normal;overflow-wrap:anywhere;line-height:1.25;}
 /* Its own class, not span:last-child. The delete button is a later sibling, so the
    count silently lost its right-alignment and its colour the moment staff could
    delete a stage -- the heading read "Booked 1 1" with both numbers jammed together. */
 .gr_colcnt{margin-left:auto;font-size:12px;font-weight:800;color:var(--sc);flex:none;border-radius:99px;padding:2px 9px;background:var(--surface-2);}
 .gr_need{font-style:normal;font-size:10.5px;font-weight:700;color:var(--red);background:rgba(208,4,0,.14);border-radius:99px;padding:1px 7px;flex:none;}
-.gr_colsum{font-size:11.5px;color:var(--text-3);padding:0 6px 6px;}
 .gr_colempty{border:1.5px dashed var(--line-2);border-radius:12px;color:var(--text-3);font-size:12.5px;padding:20px 8px;text-align:center;}
-.gr_bc{position:relative;background:var(--surface);border-radius:14px;padding:12px 13px;margin-bottom:8px;cursor:pointer;box-shadow:inset 0 0 0 1px var(--line);}
+.gr_bc{position:relative;background:var(--surface);border-radius:16px;padding:13px 15px;margin-bottom:8px;cursor:pointer;box-shadow:inset 0 0 0 1px var(--line);}
 .gr_bc:hover{box-shadow:inset 0 0 0 2px var(--sc);}
 /* The one line that says what to do about this deal. */
-.gr_bl{margin-top:7px;font-size:12.5px;font-weight:600;line-height:1.35;overflow-wrap:anywhere;}
+.gr_bl{margin-top:8px;font-size:13px;font-weight:600;line-height:1.4;overflow-wrap:anywhere;}
 .gr_bl .gr_dim{font-weight:400;color:var(--text-3);}
 .gr_flag{display:inline-block;background:var(--red);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:2px 9px;}
 .gr_bh{display:flex;align-items:flex-start;gap:10px;}
 .gr_bn{min-width:0;flex:1;}
 /* The name holds one line; the company is allowed two, which is what the design does --
    "Costa Rica luxury real estate brokerage" was never going to fit on one. */
-.gr_bn b{display:block;font-size:13.5px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.gr_bn span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:11.5px;color:var(--text-3);overflow:hidden;margin-top:2px;line-height:1.35;}
-.gr_bf{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:9px;}
-.gr_bf .gr_ow{margin-left:auto;}
+.gr_bn b{display:block;font-size:15px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gr_bn span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:13px;color:var(--text-3);overflow:hidden;margin-top:3px;line-height:1.35;}
 .gr_bm{display:flex;align-items:center;gap:6px;margin-top:7px;}
 .gr_bm>span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .gr_st{font-size:11px;font-weight:700;border-radius:99px;padding:3px 9px;background:var(--surface);color:var(--text-3);white-space:nowrap;}
 .gr_st.hot{background:rgba(208,4,0,.14);color:#F08A8A;}
 .gr_st.ok{background:rgba(31,122,69,.16);color:#5CCB8A;}
-.gr_vt{font-size:11.5px;font-weight:700;background:var(--surface);border-radius:7px;padding:2px 8px;}
 .gr_bm{font-size:11px;color:var(--text-3);}
 .gr_own{font-size:11px;color:var(--text-3);margin-left:auto;}
 .gr_heroes{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px;}
@@ -6635,8 +6629,12 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_colh[data-gr-colgrab]{cursor:grab;}
 .gr_colh[data-gr-colgrab]:active{cursor:grabbing;}
 .gr_coldrag{opacity:.4;}
-.gr_colx{flex:none;border:0;background:none;color:var(--text-3);font-size:11px;line-height:1;cursor:pointer;padding:3px;opacity:0;}
+.gr_colx{flex:none;border:0;background:none;color:var(--text-3);font-size:11px;line-height:1;cursor:pointer;padding:3px;opacity:.75;}
+.gr_colgrip{flex:none;font-style:normal;font-size:13px;line-height:1;letter-spacing:0;color:var(--text-3);cursor:grab;user-select:none;margin-right:1px;}
+.gr_hacts{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.gr_flagb{border:0;font:inherit;font-size:11px;font-weight:700;cursor:pointer;}
 .gr_col:hover .gr_colx,.gr_colx:focus-visible{opacity:1;}
+.gr_coladd{align-self:stretch;min-height:120px;}
 .gr_colx:hover{color:#F08A8A;}
 .gr_colh.gr_coldel{display:flex;flex-direction:column;align-items:stretch;gap:8px;padding-bottom:10px;white-space:normal;}
 .gr_colh.gr_coldel b{white-space:normal;overflow:visible;}
@@ -7112,7 +7110,7 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_edb{position:absolute;top:14px;right:14px;}
 .gr_edb2{vertical-align:middle;margin-left:6px;}
 .gr_search2{margin-bottom:12px;}
-.gr_qa3{background:var(--surface);border:1px solid var(--line);border-radius:16px;margin-bottom:9px;overflow:hidden;}
+.gr_qa3{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--red);border-radius:16px;margin-bottom:9px;overflow:hidden;}
 .gr_qa3.gr_qaon{box-shadow:inset 0 0 0 1.5px var(--text-2);}
 .gr_qah{width:100%;border:0;background:none;color:var(--text);font:inherit;text-align:left;display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;}
 .gr_qah>span{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}
@@ -7121,12 +7119,15 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_qah>i{font-style:normal;font-size:11.5px;font-weight:700;color:var(--text-3);flex:none;background:var(--surface-2);border-radius:99px;padding:3px 9px;}
 .gr_qab{padding:0 16px 16px;display:flex;flex-direction:column;gap:10px;}
 .gr_qaa{background:rgba(208,4,0,.07);color:var(--text);border-radius:16px;padding:14px 16px;box-shadow:inset 0 0 0 1px rgba(208,4,0,.16);}
+.gr_qaorig{background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line);}
+.gr_qaorig span{color:var(--text-3);}
+.gr_qabl{border-top:1px solid var(--line);padding-top:12px;}
+.gr_qavt{margin:0;font-size:13.5px;color:var(--text-3);}
+.gr_qavr{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;}
+.gr_qavin{flex:1;min-width:200px;}
+.gr_qabl>span{display:block;font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3);margin-bottom:6px;}
 .gr_qaa span{display:block;font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--red);margin-bottom:5px;}
 .gr_qaa p{margin:0;font-size:15px;line-height:1.55;}
-.gr_qaw{margin:9px 0 0 !important;font-size:13px !important;color:var(--text-3);}
-.gr_qaf{background:var(--surface-2);border-radius:12px;padding:10px 13px;}
-.gr_qaf span{display:block;font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);margin-bottom:3px;}
-.gr_qaf p{margin:0;font-size:14px;line-height:1.5;font-style:italic;color:var(--text-2);}
 .gr_pr{display:flex;flex-direction:column;gap:10px;}
 .gr_prn{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);}
 .gr_pr h3{margin:0;font-size:22px;font-weight:800;letter-spacing:-.02em;line-height:1.25;}
@@ -7155,21 +7156,11 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_tip p{margin:5px 0 0;font-size:13.5px;color:var(--text-2);line-height:1.6;}
 .gr_qa2{padding:14px 18px;}
 /* Q and A: the rank, how often it comes up, and what was really said. */
-.gr_qrk{flex:none;min-width:26px;height:26px;padding:0 7px;border-radius:9px;background:rgba(208,4,0,.14);color:var(--red);display:grid;place-items:center;font-size:12px;font-weight:800;}
+.gr_qrk{flex:none;min-width:26px;height:26px;padding:0 7px;border-radius:9px;background:var(--red);color:#fff;display:grid;place-items:center;font-size:12px;font-weight:800;}
+.gr_qaai{background:rgba(208,4,0,.12) !important;color:var(--red) !important;}
 .gr_qai{font-size:9.5px;letter-spacing:.04em;color:var(--text-3);}
 .gr_qah span u{display:block;height:4px;border-radius:2px;background:var(--surface-3);margin-top:6px;text-decoration:none;max-width:220px;}
 .gr_qah span u s{display:block;height:100%;border-radius:2px;background:var(--red);text-decoration:none;}
-.gr_qax{margin-top:12px;}
-.gr_qax>span{display:block;font-size:11.5px;color:var(--text-3);margin-bottom:8px;}
-.gr_qe{border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-bottom:8px;background:var(--surface-2);}
-.gr_qeq em{font-style:normal;font-size:10.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--text-3);display:block;}
-.gr_qeq b{display:block;font-size:13.5px;margin:3px 0 8px;}
-.gr_qea,.gr_qeb{margin-top:7px;}
-.gr_qea span,.gr_qeb span{display:block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);}
-.gr_qeb span{color:#1F7A45;}
-.gr_qea p,.gr_qeb p{margin:3px 0 0;font-size:13px;line-height:1.55;}
-.gr_qeb i{display:inline-block;margin-top:6px;font-style:normal;font-size:11px;font-weight:700;background:var(--bg);border:1px solid var(--line);border-radius:99px;padding:3px 9px;}
-.gr_qe>a{display:inline-block;margin-top:9px;color:var(--red);font-size:12px;font-weight:700;text-decoration:none;}
 .gr_sw{flex:none;display:flex;align-items:center;padding-left:4px;}
 /* A connector Growth has been told to leave alone still reads clearly, just quieter. */
 .gr_cnoff .gr_cnrow .gr_rm b{color:var(--text-3);}
@@ -7177,11 +7168,6 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 /* A call taken off the shelf: still readable, plainly not on the list any more. */
 .gr_bcgone{opacity:.6;border-style:dashed;}
 .gr_sigimg{display:block;max-width:160px;max-height:54px;margin-bottom:8px;border-radius:6px;}
-.gr_tkg{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:11px;}
-.gr_tkc{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;}
-.gr_tkc i{display:grid;place-items:center;width:24px;height:24px;border-radius:7px;background:var(--red);color:#fff;font-style:normal;font-size:12px;font-weight:800;margin-bottom:8px;}
-.gr_tkc b{display:block;font-size:13.5px;}
-.gr_tkc p{margin:5px 0 0;font-size:12.5px;color:var(--text-2);line-height:1.55;}
 .gr_wk h4{margin:0 0 4px;font-size:14px;}
 .gr_wk p{margin:0 0 4px;font-size:13px;line-height:1.55;}
 .gr_qa2 b{font-size:14px;}
@@ -95658,7 +95644,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grDcDraft = { code: '', label: '', colour: '' }, grTestBusy = '';
   let grCourseDone = [], grCourseWho = null, grLessonOpen = null, grEditT = null;
   let grRuns = [];
-  let grQaQuery = '', grQaOpen = {}, grQaAll = {}, grWatchGone = false;
+  let grQaQuery = '', grQaOpen = {}, grWatchGone = false;
   let grPeople = [];                 // profiles who can own a deal
   let grScreen = 'gr_home';
   let grPView = 'board';
@@ -95835,7 +95821,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         s.from('growth_meetings').select('*').order('starts_at', { ascending: true }),
         s.from('growth_messages').select('*').order('sent_at', { ascending: true }),
         s.from('growth_templates').select('*').order('position', { ascending: true }),
-        s.from('growth_settings').select('*'),
+        // qa_examples is 364KB of call transcripts that only the Q and A screen reads,
+        // and it shows three of them. It loads when that screen opens, not here.
+        s.from('growth_settings').select('*').neq('key', 'qa_examples'),
         s.from('profiles').select('id, full_name, avatar_url, role')
          .in('role', ['owner', 'manager', 'inhouse_dev', 'member']),
         s.from('growth_tasks').select('*').order('position', { ascending: true }),
@@ -96639,7 +96627,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       return '<span class="gr_dim">' + esc(lt ? 'Last touch ' + grFmt(lt) : 'No activity yet') + '</span>';
     };
     const card = (c) => {
-      const own = grIsStaff() ? grPerson(c.owner_id) : null;
       return '<div class="gr_bc" draggable="true" data-gr-card="' + c.id + '" data-gr-open="' + c.id + '">' +
         '<span class="gr_ba">' +
           '<button class="gr_ib2" data-gr-mail="' + c.id + '" title="Write an email" aria-label="Write an email">' + IC_MAIL + '</button>' +
@@ -96648,12 +96635,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<div class="gr_bn"><b>' + esc(c.name) + '</b>' +
           (c.company ? '<span>' + esc(c.company) + '</span>' : '') + '</div>' +
         '<div class="gr_bl">' + grCardLine(c) + '</div>' +
-        ((grVal(c) || own)
-          ? '<div class="gr_bf">' +
-            (grVal(c) ? '<span class="gr_vt">' + grMoney(grVal(c)) + '/mo</span>' : '') +
-            (own ? '<span class="gr_ow" title="' + esc(own.full_name) + '">' +
-              esc(grInitials(own.full_name)) + '</span>' : '') + '</div>'
-          : '') +
+        /* The money and the owner's initials came off the card. Luke's carries a name, a
+           company and the one thing to do next, and the card is easier to read across a
+           column for it. Both are still on the client itself, and Analytics has the
+           money; the board is for what to do, not for what it is worth. */
         '</div>';
     };
 
@@ -96664,13 +96649,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
          dashboard nobody asked for while pushing the board itself below the fold. */
       grHead('Pipeline',
         pool.filter(c => c.stage !== 'lost').length + ' active' + (waiting ? ' \u00B7 ' : ''),
-        grViewAsHtml(),
-        waiting ? '<span class="gr_flag">' + waiting + ' repl' + (waiting === 1 ? 'y' : 'ies') +
-          ' waiting</span>' : '') +
-      '<div class="gr_tools"><input class="gr_search" id="grSearch" placeholder="Search name or company" value="' + esc(grQuery) + '" aria-label="Search the pipeline">' +
-        '<button class="btn-red" id="grAddClient">+ New client</button></div>' +
-      '<div class="gr_seg gr_wide"><button data-gr-pview="board"' + (grPView === 'board' ? ' aria-pressed="true"' : '') + '>Board</button>' +
-        '<button data-gr-pview="todo"' + (grPView === 'todo' ? ' aria-pressed="true"' : '') + '>To do' + (need ? ' (' + need + ')' : '') + '</button></div>' +
+        /* The search box and the Board / To do strip came off: Luke's board is the
+           header and then the columns. New client moved up here rather than going with
+           them, because losing the only way to add a client is not a tidy-up. */
+        '<div class="gr_hacts">' + grViewAsHtml() +
+          '<button class="btn-red" id="grAddClient">+ New client</button></div>',
+        /* And the reply count is now the way into the To do list, which the tab strip
+           used to be. A working screen with no door to it is worse than a strip. */
+        waiting
+          ? '<button class="gr_flag gr_flagb" data-gr-pview="' +
+            (grPView === 'todo' ? 'board' : 'todo') + '">' + waiting + ' repl' +
+            (waiting === 1 ? 'y' : 'ies') + ' waiting</button>'
+          : (grPView === 'todo'
+              ? '<button class="gr_flag gr_flagb" data-gr-pview="board">Back to the board</button>'
+              : '')) +
       (grVis.length === 0
         ? '<section class="gr_card gr_first">' +
             grEmpty('&#43;', 'No clients yet',
@@ -96682,13 +96674,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         ? '<section class="gr_card">' + grEmpty('&#128269;', 'Nothing matches "' + esc(grQuery.trim()) + '"',
             'Try part of a name, a company, or an email address.') + '</section>'
       : grPView === 'todo' ? grTodoHtml(pool) :
-      /* The extra column only exists WHILE you are adding one. A permanent "+ Add stage"
-         column is a seventh share of the width taken from six columns that already
-         ellipsis their headings -- "Proposal sent" became "Proposa...". The board is
-         meant to fit rather than scroll, so the button lives under it instead. */
-      '<div class="gr_board" style="--grcols:' + grStages.length + '">' + grStages.map(st => {
+      /* Add stage sits in the board, as its own dashed column after the last stage, the
+         way Luke's does. It was under the board for a while: with six stages a seventh
+         share of the width pushed "Proposal sent" into "Proposa...". Five stages leave
+         the room, and the heading wraps now rather than ellipsing, so the reason for
+         moving it out has gone. Staff only -- a rep sees the stages, not the slot. */
+      '<div class="gr_board" style="--grcols:' + (grStages.length + (grIsStaff() ? 1 : 0)) + '">' + grStages.map(st => {
         const g = pool.filter(c => c.stage === st.key);
-        const sum = g.reduce((n, x) => n + grVal(x), 0);
         const killing = grColEdit && grColEdit.k === 'del' && grColEdit.key === st.key;
         /* Tinted with its own stage colour rather than a 36px stub of it at the top
            left. grTint, not color-mix(): a colour the Electron build cannot parse leaves
@@ -96697,19 +96689,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           ';background:' + grTint(st.color, .035) + '">' +
           (killing ? grColDelBar(st, g.length)
             : '<div class="gr_colh"' + (grIsStaff() ? ' draggable="true" data-gr-colgrab="' + st.key + '"' : '') + '>' +
+              /* Say it is draggable. Every stage could always be reordered, but nothing
+                 on screen said so, and a drag handle you have to guess at is a feature
+                 nobody uses. */
+              (grIsStaff() ? '<i class="gr_colgrip" aria-hidden="true">\u22EE\u22EE</i>' : '') +
               '<b>' + esc(st.label) + '</b>' +
               '<span class="gr_colcnt" style="background:' + grTint(st.color, .16) + '">' + g.length + '</span>' +
               (grIsStaff() && grStages.length > 2
                 ? '<button class="gr_colx" data-gr-coldel="' + st.key + '" aria-label="Delete the ' + esc(st.label) + ' stage">&#10005;</button>'
                 : '') + '</div>') +
-          (sum ? '<div class="gr_colsum">' + grMoney(sum) + '/mo</div>' : '') +
           (g.length ? g.map(card).join('') : '<div class="gr_colempty">Drop a client here</div>') + '</div>';
-      }).join('') + (grIsStaff() ? grColAddHtml() : '') + '</div>' +
+      }).join('') +
+      (grIsStaff()
+        ? ((grColEdit && grColEdit.k === 'add')
+            ? grColAddHtml()
+            : '<button class="gr_coladd" data-gr-coladd="open">+ Add stage</button>')
+        : '') + '</div>' +
       '<p class="gr_hint">Tap a card to open the client. Drag a card to move it, or use the three dots.' +
-        (grIsStaff() ? ' Drag a column heading to reorder the stages.' : '') + '</p>' +
-      (grIsStaff() && !(grColEdit && grColEdit.k === 'add')
-        ? '<p class="gr_mid"><button class="gr_ghost gr_sm" data-gr-coladd="open">+ Add stage</button></p>'
-        : ''));
+        (grIsStaff() ? ' Drag a column heading to reorder the stages.' : '') + '</p>');
   }
 
   /* Editing the stages where you are looking at them. They were only editable on
@@ -97796,9 +97793,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     });
     const ranked = items.filter(x => Number(x.n) > 0);
     const mostAsked = Math.max(1, ...ranked.map(x => Number(x.n) || 0));
-    const qaExtra = grSettings.qa_extra || {};
-    const tricks = Array.isArray(qaExtra.tricks) ? qaExtra.tricks : [];
-    const weak = Array.isArray(qaExtra.weak) ? qaExtra.weak : [];
     const head = grSub('Questions people ask',
       'Short, honest answers, from ' + items.length + ' question' +
       (items.length === 1 ? '' : 's') + ' that came up on real sales calls.');
@@ -97831,7 +97825,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               '<button class="gr_danger" data-gr-qa-del="' + x.id + '">Delete</button></div></section>';
         }
         const asked = Number(x.n) || 0;
-        const rank = ranked.indexOf(x) + 1;
+        /* Numbered by position in the whole sorted list, not by position among the
+           counted ones, so the ten Clear answers at the end read 25 to 34 instead of
+           restarting. Searching does not renumber: the rank is of `items`, not `list`. */
+        const rank = items.indexOf(x) + 1;
         /* RANK ONLY WHEN THERE IS SOMETHING TO RANK BY. Nothing in Giant counts how often
            a question is asked -- those numbers came from Luke reading his own calls -- so
            on real data every row showed "New", numbered 1 to 6 by nothing, under an empty
@@ -97840,72 +97837,71 @@ User (no attachment): "create a post for our new alpaca pillow launch"
            back on its own. */
         return '<section class="gr_qa3' + (open ? ' gr_qaon' : '') + '">' +
           '<button class="gr_qah" data-gr-qa-open="' + x.id + '" aria-expanded="' + open + '">' +
-            (ranked.length ? (asked ? '<b class="gr_qrk">' + rank + '</b>'
-                                    : '<b class="gr_qrk gr_qai">New</b>') : '') +
+            (ranked.length ? '<b class="gr_qrk">' + rank + '</b>' : '') +
             '<span><b>' + esc(x.q) + '</b>' +
               (asked ? '<u><s style="width:' + Math.max(6, Math.round(asked / mostAsked * 100)) + '%"></s></u>' : '') +
             '</span>' +
-            '<i>' + (asked ? asked + 'x' : (open ? '&#9650;' : '&#9660;')) + '</i></button>' +
+            '<i' + (x.ai ? ' class="gr_qaai"' : '') + '>' +
+              (x.ai ? 'AI answer' : (asked ? asked + 'x' : (open ? '&#9650;' : '&#9660;'))) +
+            '</i></button>' +
           (open ? '<div class="gr_qab">' +
-            (x.feel ? '<div class="gr_qaf"><span>What they are really asking</span><p>' + esc(x.feel) + '</p></div>' : '') +
-            (function () {
-              const pts = grQaPoints(x.better);
-              return '<div class="gr_qaa"><span>The best answer</span><p>' + esc(x.better || '') + '</p>' +
-                (pts.length > 1 ? '<ul class="gr_qapts">' +
-                  pts.map(p => '<li>' + esc(p) + '</li>').join('') + '</ul>' : '') +
-                (x.why ? '<p class="gr_qaw">' + esc(x.why) + '</p>' : '') + '</div>';
-            })() +
-            ((x.tricks || []).length ? '<div class="gr_tags">' +
-              x.tricks.map(t => '<span class="gr_tg">' + esc(t) + '</span>').join('') + '</div>' : '') +
-            /* Watch somebody say it. Reading a good answer and hearing one land are
-               different lessons, and this is the one Luke records. */
-            (x.video ? '<div class="gr_qavid"><span>Watch the answer</span>' +
-              '<div class="gr_qavf"><iframe src="' + esc(x.video) + '" title="Video answer"' +
-              ' allowfullscreen loading="lazy" referrerpolicy="no-referrer"></iframe></div></div>' : '') +
-            (x.a ? '<div class="gr_qaf"><span>How you usually answer</span><p>' + esc(x.a) + '</p></div>' : '') +
-            /* What was actually said on a call, and a better way to say it. This is the
-               part a rep learns from: a model answer in the abstract is advice, the same
-               answer next to the words somebody really used is a correction. */
-            ((x.ex || []).length
-              ? '<div class="gr_qax"><span>' +
-                  (asked ? 'Asked ' + asked + ' times across ' + esc(String(x.calls || 'several')) + ' calls. ' : '') +
-                  'Here is what was said, and a better way.</span>' +
-                (grQaAll[x.id] ? x.ex : x.ex.slice(0, 3)).map(e =>
-                  '<div class="gr_qe"><div class="gr_qeq"><em>' + esc(e.call || 'A call') + '</em>' +
-                    '<b>' + esc(e.q || '') + '</b></div>' +
-                  '<div class="gr_qea"><span>You said</span><p>' + esc(e.a || '') + '</p></div>' +
-                  (e.better ? '<div class="gr_qeb"><span>Better</span><p>' + esc(e.better) + '</p>' +
-                    (e.trick ? '<i>' + esc(e.trick) + '</i>' : '') + '</div>' : '') +
-                  (e.url ? '<a href="' + esc(e.url) + (e.s != null ? '?timestamp=' + Math.round(e.s) : '') +
-                    '" target="_blank" rel="noopener" data-gr-stop>&#9654; Hear it in the call</a>' : '') +
-                  '</div>').join('') +
-                (x.ex.length > 3
-                  ? '<button class="gr_ghost gr_sm" data-gr-qa-all="' + x.id + '">' +
-                    (grQaAll[x.id] ? 'Show fewer' : 'Show all ' + x.ex.length) + '</button>'
-                  : '') +
-                '</div>'
+            /* TWO ANSWERS, not one. The model's answer and the rewrite a person actually
+               says are different texts, and the whole point of the screen is reading them
+               next to each other -- the rewrite is shorter, breaks the long sentence up
+               and adds what only somebody on the calls would know. Collapsing them to one
+               loses the lesson. Only shown apart when they really differ; the ten Clear
+               answers carry the same text in both, and a row that printed it twice would
+               look like a bug. */
+            ((x.aiBetter && x.aiBetter !== x.better)
+              ? (function () {
+                  const ai = grQaPoints(x.aiBetter);
+                  return '<div class="gr_qaa gr_qaorig"><span>Original AI answer</span>' +
+                    '<p>' + esc(x.aiBetter) + '</p>' +
+                    (ai.length > 1 ? '<ul class="gr_qapts">' +
+                      ai.map(p => '<li>' + esc(p) + '</li>').join('') + '</ul>' : '') + '</div>';
+                })()
               : '') +
-            (grIsStaff() ? '<div class="gr_csx"><span class="gr_sp"></span>' +
-              '<button class="gr_ib" data-gr-qa-edit="' + x.id + '" title="Edit" aria-label="Edit">' + GR_PEN + '</button></div>' : '') +
+            (function () {
+              /* Stored bullets win when somebody has written them; otherwise they come
+                 off the answer, split at sentence ends and capped at six. */
+              const pts = (Array.isArray(x.bullets) && x.bullets.length)
+                ? x.bullets : grQaPoints(x.better);
+              const mine = (x.aiBetter && x.aiBetter !== x.better) ? "Annie's version" : 'The best answer';
+              return '<div class="gr_qaa"><span>' + mine + '</span><p>' + esc(x.better || '') + '</p></div>' +
+                (pts.length > 1 ? '<div class="gr_qabl"><span>Bullet points</span>' +
+                  '<ul class="gr_qapts">' + pts.map(p => '<li>' + esc(p) + '</li>').join('') +
+                  '</ul></div>' : '');
+            })() +
+            /* Record it once, paste the link here. The field is on the row rather than
+               buried in the edit form, because recording the answer and filing it are one
+               job. Saving normalises share links to embed form; anything that is not Loom
+               is refused rather than framed. */
+            '<div class="gr_qavid"><span>Video answer</span>' +
+              (x.video
+                ? '<div class="gr_qavf"><iframe src="' + esc(x.video) + '" title="Video answer"' +
+                  ' allowfullscreen loading="lazy" referrerpolicy="no-referrer"></iframe></div>' +
+                  (grIsStaff() ? '<div class="gr_csx"><button class="gr_ghost gr_sm" data-gr-qa-vdel="' +
+                    x.id + '">Remove video</button></div>' : '')
+                : (grIsStaff()
+                    ? '<p class="gr_qavt">Record the answer in Loom, then paste the link here.</p>' +
+                      '<div class="gr_qavr"><input class="gr_in gr_qavin" id="grLoom-' + x.id + '"' +
+                      ' placeholder="Paste the Loom link" aria-label="Loom link">' +
+                      '<button class="btn-red gr_sm" data-gr-qa-loom="' + x.id + '">Save video</button></div>'
+                    : '<p class="gr_qavt">No video yet.</p>')) +
+            '</div>' +
+            (grIsStaff() ? '<div class="gr_csx">' +
+              '<button class="gr_ghost gr_sm" data-gr-qa-edit="' + x.id + '">Edit ' +
+                ((x.aiBetter && x.aiBetter !== x.better) ? "Annie's version" : 'the answer') + '</button>' +
+              '<button class="gr_ghost gr_sm" data-gr-qa-del="' + x.id + '">Remove</button></div>' : '') +
           '</div>' : '') + '</section>';
       }).join('')
         : grEmpty('&#128269;', q ? 'Nothing matches that' : 'No questions yet',
             q ? 'Try part of a question.' : (grIsStaff() ? 'Add the first one below.' : 'Luke is still writing these.'))) +
-      /* Both of these are about the list as a whole, so they only make sense when you
-         are looking at the whole list -- searching or filtering hides them rather than
-         showing "tricks from your calls" above three matching rows. */
-      ((tricks.length && !q)
-        ? '<div class="gr_sech"><h3>Tricks from your calls</h3></div>' +
-          '<div class="gr_tkg">' + tricks.map((t, i) =>
-            '<div class="gr_tkc"><i>' + (i + 1) + '</i><b>' + esc(t.t || '') + '</b>' +
-            '<p>' + esc(t.b || '') + '</p></div>').join('') + '</div>'
-        : '') +
-      ((weak.length && !q)
-        ? '<div class="gr_sech"><h3>Answers to tighten</h3></div>' +
-          weak.map(w => '<section class="gr_card gr_wk"><h4>' + esc(w.q || '') + '</h4>' +
-            (w.why ? '<p class="gr_mute">' + esc(w.why) + '</p>' : '') +
-            (w.fix ? '<p><b>Fix:</b> ' + esc(w.fix) + '</p>' : '') + '</section>').join('')
-        : '') +
+      /* "Tricks from your calls" and "Answers to tighten" used to hang off the bottom of
+         this list. They are about the calls, not about any question, and they turned the
+         tab into a report you had to scroll past. The tab is questions and answers. The
+         data behind them is untouched in growth_settings qa_extra, so they can go back
+         on a screen of their own. */
       (grIsStaff()
         ? '<div class="gr_task gr_addt"><input class="gr_in gr_flat" id="grNewQa" ' +
           'placeholder="Add a question people ask..." aria-label="New question">' +
@@ -99288,8 +99284,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
         '<div class="gr_sbar gr_sbar2">' +
           (grActive(c)
+            /* Lost only when there is a Lost column to land in. The board's stages are
+               editable, and 20261028114500 removed Lost to match Luke's. Marking a deal
+               lost writes stage='lost', and a stage with no column renders nowhere: the
+               deal would vanish off the board while still sitting in the table, with its
+               reason attached and no way back to it. Put a Lost stage back and the button
+               returns on its own. */
             ? '<button class="gr_won" data-gr-won="' + c.id + '">Mark won</button>' +
-              '<button class="gr_ghost" data-gr-lost="' + c.id + '">Lost</button>'
+              (grStages.some(st => st.key === 'lost')
+                ? '<button class="gr_ghost" data-gr-lost="' + c.id + '">Lost</button>' : '')
             : '<span class="gr_st ' + (c.stage === 'won' ? 'ok' : '') + '">' +
               esc(c.stage === 'won' ? 'Won' + (c.won_on ? ' ' + grFmt(c.won_on) : '')
                                     : 'Lost' + (c.lost_reason ? ' \u00B7 ' + c.lost_reason : '')) +
@@ -100442,13 +100445,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
 
     // ---- Training: the questions ----
-    const qall = e.target.closest('[data-gr-qa-all]');
-    if (qall) {
-      const k = qall.dataset.grQaAll;
-      grQaAll[k] = !grQaAll[k];
-      grRender();
-      return;
-    }
     const qo = e.target.closest('[data-gr-qa-open]');
     if (qo) { const k = qo.dataset.grQaOpen; grQaOpen[k] = !grQaOpen[k]; grRender(); return; }
     const qe2 = e.target.closest('[data-gr-qa-edit]');
@@ -100472,6 +100468,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         video: embed,
         tricks: String(f.tricks || '').split('\n').map(t => t.trim()).filter(Boolean)
       }) : x)).then(function () { if (warn) grToast(warn); });
+      return;
+    }
+    const qvl = e.target.closest('[data-gr-qa-loom]');
+    if (qvl) {
+      const id = qvl.dataset.grQaLoom;
+      const el = document.getElementById('grLoom-' + id);
+      const raw = String((el && el.value) || '').trim();
+      if (!raw) return;
+      const embed = grLoomEmbed(raw);
+      /* Refused, not framed. A non-Loom url in an iframe is somebody else's page inside
+         ours, and the old bug was that it looked saved either way. */
+      if (!embed) { grToast('That is not a Loom link, so the video was not saved.'); return; }
+      grSaveQas(grQas().map(x => x.id === id ? Object.assign({}, x, { video: embed }) : x));
+      return;
+    }
+    const qvd = e.target.closest('[data-gr-qa-vdel]');
+    if (qvd) {
+      const id = qvd.dataset.grQaVdel;
+      grSaveQas(grQas().map(x => x.id === id ? Object.assign({}, x, { video: '' }) : x));
       return;
     }
     const qd = e.target.closest('[data-gr-qa-del]');
@@ -100799,7 +100814,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   });
 
   document.addEventListener('input', function (e) {
-    if (e.target.id === 'grSearch') { grQuery = e.target.value; grRenderPipeline(); return; }
     const dft = { grTplN: 'n', grTplS: 's', grTplB: 'b' }[e.target.id];
     if (dft) { grTplDraft[dft] = e.target.value; return; }     // no re-render: it is a draft
     if (e.target.id === 'grDcCode')  { grDcDraft.code  = e.target.value; return; }

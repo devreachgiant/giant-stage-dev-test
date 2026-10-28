@@ -102,6 +102,82 @@ await step('a card says one thing, and it is the thing to do next', async () => 
     Object.values(m).every(x => !x.avatar && !x.heat), JSON.stringify(m));
 });
 
+await step('the board is the header and the columns, nothing between', async () => {
+  /* The search box and the Board / To do strip sat between the heading and the board,
+     pushing the columns down; Luke's goes straight from one to the other. New client did
+     NOT go with them -- it moved into the header, because removing the only way to add a
+     client is not a tidy-up. And the To do list is still reachable: a working screen with
+     no door to it is worse than the strip was. */
+  await screen('gr_pipeline');
+  const m = await page.evaluate(() => {
+    const head = document.querySelector('.gr_head');
+    const board = document.querySelector('.gr_board');
+    return {
+      search: !!document.querySelector('#grSearch, .gr_search'),
+      tabs: !!document.querySelector('[data-gr-pview="board"]'),
+      addClient: !!document.querySelector('#grAddClient'),
+      addInHead: !!head && !!head.querySelector('#grAddClient'),
+      toDoDoor: !!document.querySelector('[data-gr-pview="todo"]'),
+      // Measured, not assumed: the board has to start near the heading now.
+      gap: (head && board)
+        ? Math.round(board.getBoundingClientRect().top - head.getBoundingClientRect().bottom) : -1
+    };
+  });
+  check('no search box', !m.search, String(m.search));
+  check('no Board / To do strip', !m.tabs, String(m.tabs));
+  check('New client survived, in the header', m.addClient && m.addInHead, JSON.stringify(m));
+  check('and the To do list still has a way in', m.toDoDoor, String(m.toDoDoor));
+  check('the columns start right under the heading', m.gap >= 0 && m.gap < 120, String(m.gap));
+
+  // It is a door, not a label: clicking it has to actually get you there and back.
+  await page.evaluate(() => document.querySelector('[data-gr-pview="todo"]')?.click());
+  await page.waitForTimeout(1100);
+  const onTodo = await page.evaluate(() => ({
+    board: !!document.querySelector('.gr_board'),
+    back: !!document.querySelector('[data-gr-pview="board"]')
+  }));
+  check('it opens the To do list', !onTodo.board && onTodo.back, JSON.stringify(onTodo));
+  await page.evaluate(() => document.querySelector('[data-gr-pview="board"]')?.click());
+  await page.waitForTimeout(1100);
+  const backOnBoard = await page.evaluate(() => !!document.querySelector('.gr_board'));
+  check('and gets you back to the board', backOnBoard, String(backOnBoard));
+});
+
+await step('the card carries a name, a company and the next thing, at a readable size', async () => {
+  /* Luke's card is three lines. Ours had grown a money chip and the owner's initials in a
+     fourth row, and the column a running total under its heading -- both are on the
+     client and on Analytics, and on the board they are noise you read past to find the
+     action. Sizes are measured, not described: the text was a point or two smaller than
+     his everywhere, which is the sort of difference that only shows up side by side. */
+  const m = await page.evaluate(() => {
+    const c = document.querySelector('.gr_board .gr_bc');
+    if (!c) return null;
+    const px = (el) => el ? Math.round(parseFloat(getComputedStyle(el).fontSize)) : 0;
+    const name = c.querySelector('.gr_bn b'), co = c.querySelector('.gr_bn span'),
+          line = c.querySelector('.gr_bl'), head = document.querySelector('.gr_colh b');
+    return {
+      money: !!c.querySelector('.gr_vt'),
+      initials: !!c.querySelector('.gr_ow'),
+      footer: !!c.querySelector('.gr_bf'),
+      colTotal: !!document.querySelector('.gr_colsum'),
+      namePx: px(name), coPx: px(co), linePx: px(line), headPx: px(head),
+      pad: Math.round(parseFloat(getComputedStyle(c).paddingLeft)),
+      // It must still say the three things, or this passes by the card being empty.
+      hasName: !!name && !!name.textContent.trim(),
+      hasLine: !!line && !!line.textContent.trim()
+    };
+  });
+  check('the name and the next action are on it', !!m && m.hasName && m.hasLine, JSON.stringify(m));
+  check('no money chip on the card', !!m && !m.money, JSON.stringify(m));
+  check('no owner initials', !!m && !m.initials, JSON.stringify(m));
+  check('and no running total under the stage heading', !!m && !m.colTotal, JSON.stringify(m));
+  check('the name is 15px, not the 13.5px it was', !!m && m.namePx === 15, String(m && m.namePx));
+  check('the company is 13px', !!m && m.coPx === 13, String(m && m.coPx));
+  check('the action line is 13px', !!m && m.linePx === 13, String(m && m.linePx));
+  check('the stage heading is 15.5px', !!m && m.headPx >= 15, String(m && m.headPx));
+  check('and the card has room to breathe', !!m && m.pad >= 14, String(m && m.pad));
+});
+
 await step('the stage heading fits, with its count on the right', async () => {
   /* TWO BUGS IN ONE ROW. The count was styled by `.gr_colh span:last-child`, and adding
      the delete button made the span no longer last -- so it lost its margin-left:auto and
@@ -116,30 +192,46 @@ await step('the stage heading fits, with its count on the right', async () => {
     return { name: t.textContent,
              ellipsised: t.scrollWidth > t.clientWidth + 1,
              gap: Math.round(cb.left - tb.right),
+             /* How much empty row is left AFTER the last thing in the heading. The count
+                carries margin-left:auto, so the free space belongs in front of it and
+                this is ~the padding. Measuring count-to-delete instead reads the flex
+                gap, which is 6px whether the auto margin is there or not -- it cannot
+                fail, and a check that cannot fail is worse than none. */
+             toRight: Math.round(hb.right -
+               h.children[h.children.length - 1].getBoundingClientRect().right),
              clear: Math.round(cb.left) >= Math.round(tb.right),
              countW: Math.round(cb.width) };
   }).filter(Boolean));
   check('all six headings are present', m.length === 6, String(m.length));
   check('none of the stage names is cut off',
     m.every(x => !x.ellipsised), JSON.stringify(m.filter(x => x.ellipsised).map(x => x.name)));
-  check('the count is pushed away from the name, however short the name is',
-    // The flex gap is 6px, so 6px is exactly what you get WITHOUT the auto margin.
-    // The longest heading still leaves 18px with it, which is the separation to test.
-    m.every(x => x.gap > 12), JSON.stringify(m.map(x => x.name + ':' + x.gap + 'px')));
+  /* "Pushed to the far end" is the thing to measure, and the gap to the NAME stopped
+     saying that once long names were allowed to wrap: the text reaches the count, so the
+     gap is small while the count is still hard right. The distance to the heading's own
+     right edge says it for a long name and a short one alike, and still fails the way
+     the original bug failed -- without margin-left:auto the count sits against the name
+     and leaves that whole distance open. */
+  check('the count sits at the far end of the heading, long name or short',
+    m.every(x => x.toRight <= 10), JSON.stringify(m.map(x => x.name.slice(0, 18) + ':' + x.toRight + 'px')));
   check('and does not overlap the name', m.every(x => x.clear), JSON.stringify(m.map(x => x.clear)));
-  /* The board FITS. Luke's columns have a 260px floor and his board scrolls; carried
-     over here that put Lost half off the right edge with no scrollbar to say so. */
+  /* The board is Luke's: 260px columns that scroll. It spent a while squeezed to fit the
+     window instead, which is what made a 15.5px heading wrap to four lines. The original
+     bug was never that it scrolled -- it was Lost sitting past the right edge with no
+     scrollbar and no way to get to it. So: wide enough to read, and reachable. */
   const fit = await page.evaluate(() => {
     const b = document.querySelector('.gr_board');
-    return { scrolls: b.scrollWidth > b.clientWidth + 1,
-             widths: [...document.querySelectorAll('.gr_board .gr_col')]
-               .map(e => Math.round(e.getBoundingClientRect().width)),
-             offRight: [...document.querySelectorAll('.gr_board .gr_col')]
-               .filter(e => e.getBoundingClientRect().right > innerWidth + 1).length };
+    const cols = [...b.querySelectorAll('.gr_col')];
+    return { widths: cols.map(e => Math.round(e.getBoundingClientRect().width)),
+             unreachable: cols.filter(e =>
+               (e.getBoundingClientRect().right - b.getBoundingClientRect().left + b.scrollLeft)
+                 > b.scrollWidth + 2).length,
+             canScroll: getComputedStyle(b).overflowX === 'auto' ||
+                        getComputedStyle(b).overflowX === 'scroll' };
   });
-  check('all six stages fit without the board scrolling', !fit.scrolls, String(fit.scrolls));
-  check('and none of them runs off the right edge', fit.offRight === 0, String(fit.offRight));
-  check('with columns wide enough to read', fit.widths.every(w => w >= 150), JSON.stringify(fit.widths));
+  check('columns are at least Luke\'s 260px', fit.widths.every(w => w >= 260), JSON.stringify(fit.widths));
+  check('every stage is reachable, not stranded past the edge', fit.unreachable === 0,
+    String(fit.unreachable));
+  check('and the board can actually be scrolled to reach them', fit.canScroll, String(fit.canScroll));
 });
 
 /* ---------------------------------------------------------------- to-dos */
@@ -213,6 +305,56 @@ await step('deleting one takes it out of the row, and can be undone', async () =
   await page.waitForTimeout(700);
 });
 
+await step('marking a deal lost is only offered when Lost exists', async () => {
+  /* 20261028114500 removed the Lost stage to match Luke's board. The Lost button went on
+     writing stage='lost' regardless, and a stage with no column renders nowhere -- the
+     deal would drop off the board while still sitting in the table, reason attached,
+     with no screen that shows it. Deleting the column through the board's own UI is the
+     path a person would actually take, so that is the one driven here. */
+  await screen('gr_pipeline');
+  const openFirst = async () => {
+    // Must be a live deal: a won or lost one shows a status word instead of the buttons.
+    await page.evaluate(() => document.querySelector('[data-gr-stage="call"] .gr_bc')?.click());
+    await page.waitForTimeout(900);
+    return page.evaluate(() => ({
+      panel: !!document.querySelector('.gr_sbar2'),
+      won: !!document.querySelector('[data-gr-won]'),
+      lost: !!document.querySelector('[data-gr-lost]')
+    }));
+  };
+  const before = await openFirst();
+  check('a deal offers Mark won and Lost while the stage is there', before.won && before.lost,
+    JSON.stringify(before));
+  await page.evaluate(() => document.querySelector('[data-gr-close]')?.click());
+  await page.waitForTimeout(600);
+
+  // Delete Lost through the board, sending anything in it to the first stage offered.
+  await page.evaluate(() => document.querySelector('[data-gr-coldel="lost"]')?.click());
+  await page.waitForTimeout(800);
+  await page.evaluate(() => document.querySelector('[data-gr-coldo="lost"]')?.click());
+  await page.waitForTimeout(1300);
+  const stagesNow = await stages();
+  check('the Lost stage is gone from the board',
+    !!stagesNow && !stagesNow.some(x => /^lost:/.test(x)), JSON.stringify(stagesNow));
+
+  const after = await openFirst();
+  check('Mark won is still there', after.panel && after.won, JSON.stringify(after));
+  check('but Lost is not offered any more, so no deal can be stranded',
+    !after.lost, JSON.stringify(after));
+  // Nothing may be sitting in a stage the board cannot draw.
+  const orphan = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'pipeline');
+    const keys = ((r && r.value && r.value.stages) || []).map(s => s.key);
+    return (window.__mockDB.growth_clients || []).filter(c => keys.indexOf(c.stage) < 0)
+      .map(c => c.name + ':' + c.stage);
+  });
+  check('and no deal is left in a stage the board cannot draw', orphan.length === 0,
+    JSON.stringify(orphan));
+  // Put the board back in front: the open panel covers it, and every later step clicks it.
+  await page.evaluate(() => document.querySelector('[data-gr-close]')?.click());
+  await page.waitForTimeout(700);
+});
+
 /* ---------------------------------------------------------------- board columns */
 await step('a stage can be added from the board, in the colour chosen', async () => {
   const before = await stages();
@@ -246,19 +388,76 @@ await step('a stage can be added from the board, in the colour chosen', async ()
   check('the board now draws it', cols === (after || []).length, String(cols));
 });
 
-await step('the board still fits rather than scrolling', async () => {
-  /* The reason the add control is not a permanent column. The board is a fixed grid on
-     purpose -- "the stages have to FIT, not scroll" -- and a seventh share taken from
-     six columns turned "Proposal sent" into "Proposa...". */
+await step('the board still fits, with Add stage in it', async () => {
+  /* Add stage is a dashed column after the last stage, the way Luke's board has it. It
+     spent a while under the board because a seventh share of the width pushed "Proposal
+     sent" into "Proposa..." -- so the thing to measure is not where the button is, it is
+     that putting it back has not re-broken the fit or the headings. */
   const m = await page.evaluate(() => {
     const b = document.querySelector('.gr_board');
-    return { overflows: b.scrollWidth > b.clientWidth + 1,
-             extraCol: !!document.querySelector('.gr_colnew'),
-             addOffBoard: !!document.querySelector('.gr_hint ~ * [data-gr-coladd], p [data-gr-coladd]') };
+    const add = b.querySelector('[data-gr-coladd="open"]');
+    const cols = [...b.querySelectorAll('.gr_col')];
+    return {
+      overflows: b.scrollWidth > b.clientWidth + 1,
+      addInBoard: !!add,
+      addW: add ? Math.round(add.getBoundingClientRect().width) : 0,
+      addH: add ? Math.round(add.getBoundingClientRect().height) : 0,
+      addLast: !!add && b.lastElementChild === add,
+      // Inside the board's scrollable width, not inside the window: a column you can
+      // scroll to is fine, one past scrollWidth is lost.
+      unreachable: cols.concat(add ? [add] : []).filter(e =>
+        (e.getBoundingClientRect().right - b.getBoundingClientRect().left + b.scrollLeft)
+          > b.scrollWidth + 2).length,
+      scrollW: Math.round(b.scrollWidth),
+      pageScrolls: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+      narrowest: Math.min(...cols.map(e => Math.round(e.getBoundingClientRect().width))),
+      ellipsised: [...b.querySelectorAll('.gr_colh b')]
+        .filter(t => t.scrollWidth > t.clientWidth + 1).map(t => t.textContent)
+    };
   });
-  check('no sideways scrollbar on the board', !m.overflows, String(m.overflows));
-  check('and no empty column parked there waiting', !m.extraCol, String(m.extraCol));
-  check('the add button lives under the board instead', m.addOffBoard, String(m.addOffBoard));
+  check('Add stage is a column on the board', m.addInBoard, JSON.stringify(m));
+  check('and it is the last one', m.addLast, String(m.addLast));
+  check('drawn at a real size, not a 0px slot', m.addW > 100 && m.addH > 60,
+    JSON.stringify({ w: m.addW, h: m.addH }));
+  /* THE BUG WAS NEVER "IT SCROLLS", it was a column sitting past the right edge with
+     nothing to say so and no way to get to it. Luke's board is 260px columns that scroll,
+     which is what gives a heading room to read on one or two lines instead of four. So
+     the guard is reachability: every column, Add stage included, has to be inside the
+     board's own scrollable width. */
+  check('every stage is at least as wide as Luke\'s 260', m.narrowest >= 260, String(m.narrowest));
+  check('and no stage heading is cut off', m.ellipsised.length === 0, JSON.stringify(m.ellipsised));
+  check('every column is reachable by scrolling the board, not stranded off it',
+    m.unreachable === 0, JSON.stringify({ unreachable: m.unreachable, scrollW: m.scrollW }));
+  check('and the board is what scrolls, not the page',
+    !m.pageScrolls, String(m.pageScrolls));
+});
+
+await step('every stage can be dragged, and says so', async () => {
+  /* Reordering always worked and nothing on screen admitted it: no handle, no cursor,
+     nothing. A feature you have to guess at is one nobody uses. */
+  const m = await page.evaluate(() => [...document.querySelectorAll('.gr_board .gr_col')].map(c => {
+    const h = c.querySelector('.gr_colh');
+    const g = h && h.querySelector('.gr_colgrip');
+    return {
+      stage: c.dataset.grStage,
+      draggable: !!h && h.getAttribute('draggable') === 'true',
+      grabbable: !!h && !!h.dataset.grColgrab,
+      grip: !!g,
+      gripW: g ? Math.round(g.getBoundingClientRect().width) : 0,
+      del: !!h && !!h.querySelector('[data-gr-coldel]'),
+      // Hidden at opacity 0 it may as well not be there, and a screenshot proves nothing.
+      delVisible: !!h && !!h.querySelector('[data-gr-coldel]') &&
+        Number(getComputedStyle(h.querySelector('[data-gr-coldel]')).opacity) > 0.3
+    };
+  }));
+  check('every stage is draggable', m.length >= 5 && m.every(x => x.draggable && x.grabbable),
+    JSON.stringify(m.filter(x => !x.draggable || !x.grabbable)));
+  check('every stage shows a grip', m.every(x => x.grip), JSON.stringify(m.map(x => x.stage + ':' + x.grip)));
+  check('and the grip is actually drawn', m.every(x => x.gripW >= 6),
+    JSON.stringify(m.map(x => x.stage + ':' + x.gripW)));
+  check('every stage offers a delete', m.every(x => x.del), JSON.stringify(m.map(x => x.stage + ':' + x.del)));
+  check('and it is visible without hovering first', m.every(x => x.delVisible),
+    JSON.stringify(m.map(x => x.stage + ':' + x.delVisible)));
 });
 
 await step('deleting a stage asks where its deals go, and they actually go there', async () => {
@@ -359,9 +558,11 @@ await step('a Loom link becomes a video on the answer', async () => {
   await page.waitForTimeout(900);
 
   const before = await qaItem('q-budget');
-  check('the question has call examples to lose', (before.ex || []).length === 4,
-    String((before.ex || []).length));
-  check('and an ask count that ranks the list', before.n === 12, String(before.n));
+  /* The examples moved to their own row, so the thing the save can still silently drop
+     is the counting: n ranks the whole list and calls prints under the examples, and
+     neither appears in the edit form. */
+  check('the question has an ask count to lose', before.n === 12, String(before.n));
+  check('and a call count the form never shows', before.calls === 9, String(before.calls));
 
   await page.evaluate(() => document.querySelector('[data-gr-qa-edit="q-budget"]')?.click());
   await page.waitForTimeout(800);
@@ -379,9 +580,8 @@ await step('a Loom link becomes a video on the answer', async () => {
   /* THE REASON THIS SAVE WAS REWRITTEN. It used to build a fresh object out of the form
      fields, which quietly dropped everything the form does not have -- the call examples
      and the ask count that ranks the whole list. Editing a typo deleted the evidence. */
-  check('and did not throw away the call examples', (after.ex || []).length === 4,
-    String((after.ex || []).length));
-  check('or the ask count', after.n === 12, String(after.n));
+  check('and did not throw away the ask count', after.n === 12, String(after.n));
+  check('or the call count', after.calls === 9, String(after.calls));
 
   await page.evaluate(() => document.querySelector('[data-gr-qa-open="q-budget"]')?.click());
   await page.waitForTimeout(400);
@@ -507,7 +707,250 @@ await step("Luke's apostrophes survive the screen and the editor", async () => {
     String(stored));
 });
 
+await step('the Q and A list is ranked, counted and tagged', async () => {
+  /* Giant had 6 questions and no counts, so every row showed a caret and the rank was
+     hidden -- correctly, since ranking nothing is a lie. Luke's board carries the ask
+     count, so the list ranks and each row is tagged with how often it came up. The ten
+     that come from Clear answers have no count and say "AI answer" instead. */
+  await screen('gr_training');
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="qa"]')?.click());
+  await page.waitForTimeout(1300);
+  const rows = await page.evaluate(() => [...document.querySelectorAll('.gr_qa3')].map(el => ({
+    rank: (el.querySelector('.gr_qrk') || {}).textContent || null,
+    q: (el.querySelector('.gr_qah b:not(.gr_qrk)') || {}).textContent || null,
+    tag: (el.querySelector('.gr_qah > i') || {}).textContent || null,
+    ai: !!el.querySelector('.gr_qaai'),
+    // A 0px badge passes "exists". Measure it.
+    rankW: Math.round(((el.querySelector('.gr_qrk') || { getBoundingClientRect: () => ({ width: 0 }) })
+      .getBoundingClientRect()).width)
+  })));
+  check('every row carries a rank', rows.length === 3 && rows.every(r => r.rank),
+    JSON.stringify(rows));
+  check('and the ranks run 1, 2, 3 without restarting for the AI rows',
+    rows.map(r => r.rank).join(',') === '1,2,3', JSON.stringify(rows.map(r => r.rank)));
+  check('the badge is actually drawn, not 0px', rows.every(r => r.rankW >= 20),
+    JSON.stringify(rows.map(r => r.rankW)));
+  // Most asked first: q-budget at 12 outranks q-lock at 5, whatever order they were declared.
+  check('the most asked question is first', /budget/i.test(rows[0].q || ''), String(rows[0].q));
+  check('a counted question is tagged with its count', rows[0].tag === '12x', String(rows[0].tag));
+  check('the second says 5x', rows[1].tag === '5x', String(rows[1].tag));
+  /* The Clear answers row has no count to show. It must not fall back to a caret, which
+     is what an uncounted row used to render, and must not claim a number it has not got. */
+  check('the Clear answers row says AI answer, not a count or a caret',
+    rows[2].tag === 'AI answer' && rows[2].ai, JSON.stringify(rows[2]));
+});
+
+await step('a question shows the model answer and the rewrite, not just one', async () => {
+  /* The first import took `better` and dropped `aiBetter`, so the screen showed the
+     rewrite with nothing to compare it against. Reading the two next to each other IS
+     the lesson -- the rewrite is shorter, splits the long sentence up and adds what only
+     somebody on the calls would know. */
+  await screen('gr_training');
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="qa"]')?.click());
+  await page.waitForTimeout(1300);
+  for (let i = 0; i < 3 && !(await page.evaluate(() =>
+      !!document.querySelector('[data-gr-qa-open="q-budget"]')?.closest('.gr_qa3')?.querySelector('.gr_qaa'))); i++) {
+    await page.evaluate(() => document.querySelector('[data-gr-qa-open="q-budget"]')?.click());
+    await page.waitForTimeout(900);
+  }
+  const m = await page.evaluate(() => {
+    const sec = document.querySelector('[data-gr-qa-open="q-budget"]')?.closest('.gr_qa3');
+    if (!sec) return null;
+    const lab = [...sec.querySelectorAll('.gr_qaa > span')].map(e => e.textContent.trim());
+    const orig = sec.querySelector('.gr_qaorig');
+    const mine = [...sec.querySelectorAll('.gr_qaa')].find(e => !e.classList.contains('gr_qaorig'));
+    const bl = sec.querySelector('.gr_qabl');
+    return {
+      labels: lab,
+      origText: orig ? (orig.querySelector('p') || {}).textContent : null,
+      mineText: mine ? (mine.querySelector('p') || {}).textContent : null,
+      origBullets: orig ? [...orig.querySelectorAll('.gr_qapts li')].map(l => l.textContent) : [],
+      blBullets: bl ? [...bl.querySelectorAll('li')].map(l => l.textContent) : [],
+      // A block that is there but 0px high is not on screen.
+      origH: orig ? Math.round(orig.getBoundingClientRect().height) : 0
+    };
+  });
+  check('both blocks are labelled', !!m && m.labels.join(' | ') === "Original AI answer | Annie's version",
+    JSON.stringify(m && m.labels));
+  check('the model answer is the one it stored', !!m && /We fix the tracking first/.test(m.origText || ''),
+    String(m && m.origText));
+  check('the rewrite is the other one, and they are not the same text',
+    !!m && m.mineText && m.origText && m.mineText !== m.origText, JSON.stringify(m && { o: m.origText, v: m.mineText }));
+  check('the model answer is actually drawn, not a 0px block', !!m && m.origH > 40, String(m && m.origH));
+  /* Each set of bullets comes off its OWN text. Deriving both from the rewrite would
+     look right and say the wrong thing under the model's answer. */
+  check('the original keeps its own bullets',
+    !!m && m.origBullets.some(b => /We fix the tracking first/.test(b)), JSON.stringify(m && m.origBullets));
+  check('and the rewrite has its own under Bullet points',
+    !!m && m.blBullets.length === 3 && m.blBullets.some(b => /Only grow when it works/.test(b)),
+    JSON.stringify(m && m.blBullets));
+});
+
+await step('hand-written bullets beat the ones split out of the answer', async () => {
+  // Somebody took the trouble to write them. Re-deriving would throw that away silently.
+  for (let i = 0; i < 3 && !(await page.evaluate(() =>
+      !!document.querySelector('[data-gr-qa-open="q-lock"]')?.closest('.gr_qa3')?.querySelector('.gr_qabl'))); i++) {
+    await page.evaluate(() => document.querySelector('[data-gr-qa-open="q-lock"]')?.click());
+    await page.waitForTimeout(900);
+  }
+  const b = await page.evaluate(() => {
+    const sec = document.querySelector('[data-gr-qa-open="q-lock"]')?.closest('.gr_qa3');
+    const bl = sec && sec.querySelector('.gr_qabl');
+    return bl ? [...bl.querySelectorAll('li')].map(l => l.textContent.trim()) : null;
+  });
+  check('the written bullets are the ones shown',
+    !!b && b[0] === 'Nobody is locked in for a year', JSON.stringify(b));
+  check('not the sentences split out of the answer',
+    !!b && !b.some(x => /^No annual lock in\.$/.test(x)), JSON.stringify(b));
+});
+
+await step('a Clear answer does not print the same text twice', async () => {
+  /* The ten rows that come from Clear answers carry the same words in both fields. Two
+     identical blocks under one question reads as a bug, so the original is only shown
+     when it genuinely differs. */
+  for (let i = 0; i < 3 && !(await page.evaluate(() =>
+      !!document.querySelector('[data-gr-qa-open="ai-what"]')?.closest('.gr_qa3')?.querySelector('.gr_qaa'))); i++) {
+    await page.evaluate(() => document.querySelector('[data-gr-qa-open="ai-what"]')?.click());
+    await page.waitForTimeout(900);
+  }
+  const m = await page.evaluate(() => {
+    const sec = document.querySelector('[data-gr-qa-open="ai-what"]')?.closest('.gr_qa3');
+    if (!sec) return null;
+    return { blocks: sec.querySelectorAll('.gr_qaa').length,
+             orig: sec.querySelectorAll('.gr_qaorig').length,
+             label: (sec.querySelector('.gr_qaa > span') || {}).textContent };
+  });
+  check('only one answer block', !!m && m.blocks === 1, JSON.stringify(m));
+  check('and no Original AI answer above it', !!m && m.orig === 0, JSON.stringify(m));
+  check('labelled plainly, since there is nothing to compare it to',
+    !!m && /The best answer/.test(m.label || ''), JSON.stringify(m));
+});
+
+await step('the Q and A tab is questions and answers, nothing else', async () => {
+  /* It used to end with "Tricks from your calls" -- ten cards -- and "Answers to tighten",
+     both about the calls rather than about any question. You scrolled past a report to
+     reach the thing you came for. The data is still in growth_settings qa_extra, so they
+     can come back on a screen of their own; what must not come back is them hanging off
+     the bottom of this list. */
+  await screen('gr_training');
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="qa"]')?.click());
+  await page.waitForTimeout(1300);
+  const m = await page.evaluate(() => {
+    const t = document.body.innerText;
+    return {
+      tricksHeading: /Tricks from your calls/i.test(t),
+      weakHeading: /Answers to tighten/i.test(t),
+      trickCards: document.querySelectorAll('.gr_tkc').length,
+      // What SHOULD be there, so this cannot pass by the tab failing to render at all.
+      rows: document.querySelectorAll('.gr_qa3').length,
+      search: !!document.querySelector('#grQaQ')
+    };
+  });
+  check('the questions are still listed', m.rows >= 3 && m.search, JSON.stringify(m));
+  check('no Tricks from your calls heading', !m.tricksHeading, JSON.stringify(m));
+  check('no Answers to tighten heading', !m.weakHeading, JSON.stringify(m));
+  check('and no trick cards left behind', m.trickCards === 0, String(m.trickCards));
+  // The data itself is kept, so this was a screen decision and not a delete.
+  const kept = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'qa_extra');
+    return r && r.value ? { tricks: (r.value.tricks || []).length, weak: (r.value.weak || []).length } : null;
+  });
+  check('the tricks and weak answers are still in the database, just not on this tab',
+    !!kept && kept.tricks > 0 && kept.weak > 0, JSON.stringify(kept));
+});
+
+await step('the open row is the two answers, the bullets and the video', async () => {
+  /* The row used to carry six more blocks: what they are really asking, why the answer
+     works, the trick tags, how you usually answer, and three call examples with a "show
+     all 62". Luke's row has five things and that is the brief. The 588 examples and the
+     rest of the fields are all still in growth_settings -- nothing was deleted, it is
+     the row that got shorter -- and the boot query still leaves the 364KB out. */
+  await screen('gr_training');
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="qa"]')?.click());
+  await page.waitForTimeout(1300);
+  for (let i = 0; i < 3 && !(await page.evaluate(() =>
+      !!document.querySelector('[data-gr-qa-open="q-budget"]')?.closest('.gr_qa3')?.querySelector('.gr_qaa'))); i++) {
+    await page.evaluate(() => document.querySelector('[data-gr-qa-open="q-budget"]')?.click());
+    await page.waitForTimeout(900);
+  }
+  const m = await page.evaluate(() => {
+    const sec = document.querySelector('[data-gr-qa-open="q-budget"]').closest('.gr_qa3');
+    return {
+      text: sec.innerText,
+      examples: sec.querySelectorAll('.gr_qe').length,
+      showAll: !!sec.querySelector('[data-gr-qa-all]'),
+      answers: sec.querySelectorAll('.gr_qaa').length,
+      bullets: sec.querySelectorAll('.gr_qabl li').length,
+      video: !!sec.querySelector('.gr_qavid')
+    };
+  });
+  check('both answers are there', m.answers === 2, JSON.stringify({ a: m.answers }));
+  check('so are the bullet points', m.bullets === 3, String(m.bullets));
+  check('and the video answer', m.video, String(m.video));
+  check('no call examples on the row', m.examples === 0 && !m.showAll, JSON.stringify(m));
+  check('no "what they are really asking"', !/really asking/i.test(m.text), 'present');
+  check('no "how you usually answer"', !/usually answer/i.test(m.text), 'present');
+  check('and no trick tags', !/Name the fear out loud/.test(m.text), 'present');
+  // Kept, not deleted: the examples are still in the database for a screen of their own.
+  const kept = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'qa_examples');
+    return r && r.value && r.value.byId ? (r.value.byId['q-budget'] || []).length : -1;
+  });
+  check('the call examples are still in the database', kept === 4, String(kept));
+  // And nothing fetches them any more, since nothing draws them.
+  const q = await page.evaluate(() =>
+    (window.__mock.log.queries || []).filter(x => /^growth_settings\.select/.test(x)));
+  check('the boot read still leaves the 364KB out', /key neq qa_examples/.test(q[0] || ''),
+    JSON.stringify(q));
+  check('and nothing fetches them any more', !q.some(x => /key eq qa_examples/.test(x)),
+    JSON.stringify(q));
+});
+
+await step('a Loom link can be saved from the row itself', async () => {
+  // Recording the answer and filing it are one job, so the field is on the row.
+  const row = '[data-gr-qa-open="q-budget"]';
+  const has = await page.evaluate(s => !!document.querySelector(s).closest('.gr_qa3')
+    .querySelector('[data-gr-qa-loom]'), row);
+  check('the row offers somewhere to paste it', has, String(has));
+  await page.fill('#grLoom-q-budget', 'https://www.loom.com/share/zz9PlaskedZ?t=30');
+  await page.evaluate(() => document.querySelector('[data-gr-qa-loom="q-budget"]')?.click());
+  await page.waitForTimeout(1300);
+  const stored = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'qa');
+    const it = r.value.items.find(q => q.id === 'q-budget');
+    return it ? it.video : null;
+  });
+  check('it is stored in embed form, on the row',
+    stored === 'https://www.loom.com/embed/zz9PlaskedZ', String(stored));
+  const framed = await page.evaluate(s => {
+    const f = document.querySelector(s).closest('.gr_qa3').querySelector('.gr_qavf iframe');
+    return f ? { src: f.getAttribute('src'), w: Math.round(f.getBoundingClientRect().width) } : null;
+  }, row);
+  check('and it is on screen at a watchable size',
+    !!framed && framed.w > 300, JSON.stringify(framed));
+  check('pointed at the embed url',
+    !!framed && framed.src === 'https://www.loom.com/embed/zz9PlaskedZ', JSON.stringify(framed));
+});
+
+await step('anything that is not a Loom link is refused on the row too', async () => {
+  await page.evaluate(() => document.querySelector('[data-gr-qa-vdel="q-budget"]')?.click());
+  await page.waitForTimeout(1200);
+  await page.fill('#grLoom-q-budget', 'https://evil.example.com/x');
+  await page.evaluate(() => document.querySelector('[data-gr-qa-loom="q-budget"]')?.click());
+  await page.waitForTimeout(1200);
+  const after = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'qa');
+    const it = r.value.items.find(q => q.id === 'q-budget');
+    return { video: it ? (it.video || '') : null,
+             framed: !!document.querySelector('.gr_qavf iframe') };
+  });
+  check('nothing was stored', after.video === '', JSON.stringify(after));
+  check('and nothing points at it', !after.framed, JSON.stringify(after));
+});
+
 /* ---------------------------------------------------------------- the practice call */
+// Read off the DATABASE rows, not the screen: a run that paints a score and never files
+// it looks identical until you reload.
 const runs = () => page.evaluate(() => (window.__mockDB.growth_practice_runs || [])
   .map(r => ({ owner: r.owner_id, area: r.area, score: Number(r.score) })));
 
