@@ -46,22 +46,16 @@ async function refreshGoogleToken(refreshToken) {
 
 // ── ZOOM (Server-to-Server OAuth) ──────────────────────────────────
 // Gets an OAuth access token via Server-to-Server (account_credentials grant).
-// Requires env: ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET.
+// The credentials come from growth_secrets.zoom_s2s first and the Netlify environment
+// second -- growth-zoom.js owns that order, and is imported rather than copied so the
+// row the Connectors screen calls Connected is the row a booking actually mints with.
+const { zoomCreds, mintToken } = require('./growth-zoom');
 async function getZoomAccessToken() {
-  const accountId = process.env.ZOOM_ACCOUNT_ID;
-  const clientId = process.env.ZOOM_CLIENT_ID;
-  const clientSecret = process.env.ZOOM_CLIENT_SECRET;
-  if (!accountId || !clientId || !clientSecret) {
-    throw new Error('Zoom env not configured (need ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET)');
+  const creds = await zoomCreds();
+  if (!creds) {
+    throw new Error('Zoom is not connected (connect it in Growth -> Connectors, or set ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET)');
   }
-  const basic = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
-  const res = await fetch(`https://zoom.us/oauth/token?grant_type=account_credentials&account_id=${encodeURIComponent(accountId)}`, {
-    method: 'POST',
-    headers: { 'Authorization': `Basic ${basic}` }
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.reason || data.error || 'Zoom token request failed');
-  return data.access_token;
+  return mintToken(creds);
 }
 // Creates a Zoom meeting for the given host email (or 'me' for the account default user).
 // Returns { meetingId, joinUrl, startUrl } on success, or null on failure.
@@ -467,10 +461,15 @@ exports.handler = async (event) => {
 
   try {
     if (action === 'zoom_status') {
-      // Returns whether Zoom Server-to-Server credentials are configured server-side.
-      // Used by the admin Integrations panel to show "connected" or not.
-      const configured = !!(process.env.ZOOM_ACCOUNT_ID && process.env.ZOOM_CLIENT_ID && process.env.ZOOM_CLIENT_SECRET);
-      return { statusCode: 200, headers, body: JSON.stringify({ configured }) };
+      // Whether Zoom credentials are configured server-side, for the admin Integrations
+      // panel. It used to read the environment only, so credentials connected from the
+      // app saved fine and this still answered "not connected" -- the panel reporting
+      // where it looked rather than whether Zoom works. Reports presence and where they
+      // came from, never the values.
+      const creds = await zoomCreds();
+      return { statusCode: 200, headers, body: JSON.stringify({
+        configured: !!creds, source: creds ? creds.source : ''
+      }) };
     }
 
     // Is email actually configured HERE? Local .env and the deployed environment are two
