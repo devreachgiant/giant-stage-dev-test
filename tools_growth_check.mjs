@@ -74,6 +74,7 @@ await screen('gr_pipeline');
 
 /* ---------------------------------------------------------------- the board reads */
 await step('a card says one thing, and it is the thing to do next', async () => {
+  await screen('gr_pipeline');
   /* The card used to carry an avatar, a status pill, the money, a meeting-or-email line,
      a heat word and the owner's initials -- six things in a 193px column. One line now,
      picked by where the deal is. */
@@ -143,6 +144,227 @@ await step('the board is the header and the columns, nothing between', async () 
   check('and gets you back to the board', backOnBoard, String(backOnBoard));
 });
 
+await step('opening a client gives Luke\'s side drawer, not a centred sheet', async () => {
+  /* It was a 780px box floating in the middle with a five-tab strip, so opening a deal
+     told you one thing and the other four were a click each. His is a drawer down the
+     right at 520px with everything stacked in one scroll. Measured off the viewport,
+     because "it has a class" would pass on a sheet still sitting in the middle. */
+  await screen('gr_pipeline');
+  await page.evaluate(() => document.querySelector('.gr_board .gr_bc')?.click());
+  await page.waitForTimeout(1400);
+  const m = await page.evaluate(() => {
+    const sh = document.querySelector('.gr_sheet');
+    if (!sh) return null;
+    const r = sh.getBoundingClientRect();
+    return {
+      w: Math.round(r.width),
+      top: Math.round(r.top),
+      // 0 means it is flush with the right edge; a centred sheet leaves a big gap.
+      fromRight: Math.round(innerWidth - r.right),
+      fillsHeight: Math.round(r.height) >= Math.round(innerHeight) - 2,
+      tabs: !!sh.querySelector('[data-gr-tab]'),
+      sections: [...sh.querySelectorAll('.gr_spanel h3')].map(e => e.textContent.trim()),
+      stageLabel: !!sh.querySelector('.gr_stagel'),
+      pillInHead: !!sh.querySelector('.gr_sh .gr_pill'),
+      // Still has to say what to do next, or the drawer is a tidy empty box.
+      doNext: !!sh.querySelector('.gr_next')
+    };
+  });
+  check('a drawer, pinned to the right edge', !!m && m.fromRight === 0 && m.top === 0, JSON.stringify(m));
+  check('about 520 wide, not a 780 sheet', !!m && m.w <= 560 && m.w >= 420, String(m && m.w));
+  check('the full height of the window', !!m && m.fillsHeight, JSON.stringify(m));
+  check('the tab strip is gone', !!m && !m.tabs, String(m && m.tabs));
+  check('and what was behind it is stacked instead',
+    !!m && ['Info', 'Call notes', 'Sent emails', 'Meetings'].every(t => m.sections.indexOf(t) >= 0),
+    JSON.stringify(m && m.sections));
+  check('the stage picker says Stage', !!m && m.stageLabel, String(m && m.stageLabel));
+  check('the stage reads as a pill beside the name', !!m && m.pillInHead, String(m && m.pillInHead));
+  check('and it still opens on what to do next', !!m && m.doNext, String(m && m.doNext));
+  await page.evaluate(() => document.querySelector('[data-gr-close]')?.click());
+  await page.waitForTimeout(700);
+});
+
+await step('a failed Gmail check is not a disconnected mailbox', async () => {
+  /* The row said "Not connected" on a mailbox that was fine. grCheckGmail caught ANY
+     error -- a dropped request, a slow token refresh -- and recorded ready=false with
+     checked=true, so one blip latched it for the whole session. "Check all again" reset
+     the flag and re-rendered WITHOUT re-asking, which painted the stale answer, so the
+     one button for fixing it could not. Driven here through the UI, because the state
+     lives in a closure and the bug was in how the screen asks, not in what it stores. */
+  await screen('gr_connectors');
+  const gmailRow = () => page.evaluate(() => {
+    const r = [...document.querySelectorAll('.gr_cnw')]
+      .find(e => /Gmail/.test((e.querySelector('.gr_rm b') || {}).textContent || ''));
+    if (!r) return null;
+    const dot = r.querySelector('.gr_lt');
+    return {
+      says: (r.querySelector('.gr_rm span') || {}).textContent || '',
+      on: !!dot && dot.classList.contains('gr_on'),
+      hasSwitch: !!r.querySelector('[data-gr-conn-use]')
+    };
+  });
+  // Make the CHECK fail, the way a blip does. The mailbox itself is untouched.
+  await page.evaluate(() => { window.giantGmailReady = async () => { throw new Error('blip'); }; });
+  await page.evaluate(() => document.querySelector('[data-gr-conn-recheck]')?.click());
+  await page.waitForTimeout(1600);
+  const broken = await gmailRow();
+  /* Still connected -- a row in gmail_tokens is what connected MEANS -- but it says
+     plainly that it cannot send. Reporting "Not connected" here was the bug: the Email
+     screen was listing 478 messages at the time, because that list comes out of the
+     emails table and never needed a live token. */
+  check('a failed refresh does not read as a missing connection', !!broken && broken.on,
+    JSON.stringify(broken));
+  check('but it says it needs reconnecting before it can send',
+    !!broken && /renew|reconnect/i.test(broken.says), JSON.stringify(broken));
+
+  // Now it answers again. The row has to come back WITHOUT a reload.
+  await page.evaluate(() => { window.giantGmailReady = async () => true; });
+  await page.evaluate(() => document.querySelector('[data-gr-conn-recheck]')?.click());
+  await page.waitForTimeout(1800);
+  const healed = await gmailRow();
+  check('and Check all again actually re-asks, rather than repainting the old answer',
+    !!healed && healed.on, JSON.stringify(healed));
+  check('the warning clears once Google answers again',
+    !!healed && !/renew|reconnect/i.test(healed.says), JSON.stringify(healed));
+
+  /* AND THE LATCH ITSELF. The two above exercise the SENDING signal, which is a
+     different field now -- so make the read of gmail_tokens fail, which is the only
+     thing that can still throw. A check that fails must not record a disconnection:
+     it has to leave itself unasked so the next render tries again. Without that, one
+     blip stuck "Not connected" for the whole session. */
+  await page.evaluate(() => { window.__realAccts = window.giantGmailAccounts; });
+  /* BOTH routes have to fail. Growth asks the Email screen's helper first and falls back
+     to reading gmail_tokens itself, so breaking only the helper proves the fallback
+     rather than the latch -- which is exactly what this check did until the fallback
+     existed, and it passed while measuring the wrong thing. */
+  await page.evaluate(() => { window.giantGmailAccounts = async () => { throw new Error('blip'); }; });
+  await page.evaluate(() => window.__mock.hideTable('gmail_tokens'));
+  await page.evaluate(() => document.querySelector('[data-gr-conn-recheck]')?.click());
+  await page.waitForTimeout(1600);
+  const thrown = await gmailRow();
+  check('a read that throws reads as not connected for now', !!thrown && !thrown.on,
+    JSON.stringify(thrown));
+  /* Put both back, then come at it through a plain re-render -- leave the screen and
+     return -- rather than pressing Check all again. That button clears the cache flag
+     itself, so recovering through it would pass whether the failure latched or not.
+     This is the path that was actually broken: it stuck until you navigated away. */
+  await page.evaluate(() => { window.giantGmailAccounts = window.__realAccts; });
+  await page.evaluate(() => window.__mock.showTable('gmail_tokens'));
+  await screen('gr_pipeline');
+  // Past the ten second staleness window, so the plain re-render really does re-ask.
+  await page.waitForTimeout(10500);
+  await screen('gr_connectors');
+  await page.waitForTimeout(1600);
+  const recovered = await gmailRow();
+  check('and it comes back by itself, rather than latching for the session',
+    !!recovered && recovered.on, JSON.stringify(recovered));
+  check('with the mailbox named again',
+    !!recovered && /@/.test(recovered.says), JSON.stringify(recovered));
+
+  /* THE FALLBACK, on its own. giantGmailAccounts lives deep inside initApp, which
+     bootstrap wraps in a try/catch -- anything throwing earlier leaves it undefined and
+     Growth reported a working mailbox as "Not connected", with the accounts section
+     vanishing alongside it. Growth reads gmail_tokens itself now, same own-row RLS. */
+  await page.evaluate(() => { window.giantGmailAccounts = undefined; });
+  await page.evaluate(() => document.querySelector('[data-gr-conn-recheck]')?.click());
+  await page.waitForTimeout(1800);
+  const noHelper = await gmailRow();
+  check('the mailbox survives the Email screen helper not existing',
+    !!noHelper && noHelper.on, JSON.stringify(noHelper));
+  const section = await page.evaluate(() => {
+    const h = [...document.querySelectorAll('.gr_sech h3')].find(x => /Gmail accounts/.test(x.textContent));
+    return { there: !!h, rows: document.querySelectorAll('[data-gr-gm-forget]').length,
+             add: !!document.querySelector('[data-gr-conn-gmail].gr_gadd') };
+  });
+  check('and the Gmail accounts section is still on the page', section.there, JSON.stringify(section));
+  check('listing the mailbox, with a way to add another',
+    section.rows >= 1 && section.add, JSON.stringify(section));
+  await page.evaluate(() => { window.giantGmailAccounts = window.__realAccts; });
+
+  /* WITH NOTHING TO LIST. The section returned '' when there were no mailboxes, so it
+     disappeared -- and "none connected" looked exactly like "this part of the screen is
+     missing", which is what it was reported as. Staff must still get the heading and a
+     way to connect one. */
+  await page.evaluate(() => { window.giantGmailAccounts = async () => []; });
+  await page.evaluate(() => window.__mock.hideTable('gmail_tokens'));
+  await page.evaluate(() => document.querySelector('[data-gr-conn-recheck]')?.click());
+  await page.waitForTimeout(1700);
+  const empty = await page.evaluate(() => {
+    const h = [...document.querySelectorAll('.gr_sech h3')].find(x => /Gmail accounts/.test(x.textContent));
+    return { there: !!h, rows: document.querySelectorAll('[data-gr-gm-forget]').length,
+             add: !!document.querySelector('[data-gr-conn-gmail].gr_gadd'),
+             says: (document.querySelector('.gr_connl .gr_mute') || {}).textContent || '' };
+  });
+  check('with no mailbox at all the section is still there', empty.there, JSON.stringify(empty));
+  check('and says so, rather than vanishing',
+    /no mailbox/i.test(empty.says) && empty.rows === 0, JSON.stringify(empty));
+  check('and still offers a way to connect one', empty.add, JSON.stringify(empty));
+  await page.evaluate(() => { window.giantGmailAccounts = window.__realAccts; });
+  await page.evaluate(() => window.__mock.showTable('gmail_tokens'));
+  await page.evaluate(() => document.querySelector('[data-gr-conn-recheck]')?.click());
+  await page.waitForTimeout(1500);
+});
+
+await step('a connected connector shows a switch, not a tick and a word', async () => {
+  // Luke's rows carry a switch where there is something to switch and a word where
+  // there is not. Ours showed both, which is the same fact twice, and the switch was a
+  // 17px tickbox rather than something you would read as on or off.
+  const m = await page.evaluate(() => {
+    const row = [...document.querySelectorAll('.gr_cnw')]
+      .find(e => !!e.querySelector('[data-gr-conn-use]'));
+    if (!row) return null;
+    const sw = row.querySelector('[data-gr-conn-use]');
+    const r = sw.getBoundingClientRect();
+    return {
+      w: Math.round(r.width), h: Math.round(r.height),
+      round: parseFloat(getComputedStyle(sw).borderRadius) >= 12,
+      alsoAWord: !!row.querySelector('.gr_st'),
+      checked: sw.checked
+    };
+  });
+  check('the switch is switch-sized, not a tickbox', !!m && m.w >= 36 && m.h >= 20,
+    JSON.stringify(m));
+  check('and reads as a pill', !!m && m.round, JSON.stringify(m));
+  check('the status word is not repeated beside it', !!m && !m.alsoAWord, JSON.stringify(m));
+});
+
+await step('an Automations step is one clean row', async () => {
+  /* The row carried a hide button that was broken two ways: the <li> declared three grid
+     columns for four children, so it fell onto an implicit second row, and it wore
+     .gr_rm -- the row's TEXT block, flex:1 and a column -- because "rm" reads as remove.
+     It drew a tall empty box with an x under every step. Luke's has no controls in the
+     row at all, and growth_settings had never held an automations_hidden row, so the
+     repair was to remove it rather than restyle something nobody used. */
+  await screen('gr_automations');
+  const m = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('.gr_aus li')];
+    return rows.map(li => {
+      const r = li.getBoundingClientRect();
+      const said = li.querySelector('em');
+      return {
+        h: Math.round(r.height),
+        kids: li.children.length,
+        cols: getComputedStyle(li).gridTemplateColumns.split(' ').length,
+        hideBtn: !!li.querySelector('[data-gr-auhide]'),
+        rmOnAButton: !!li.querySelector('button.gr_rm'),
+        // Still has to say what it did, or this passes on an empty row.
+        saysSomething: !!said && !!said.textContent.trim()
+      };
+    });
+  });
+  check('the steps are listed', m.length >= 3, String(m.length));
+  check('no hide button in the row', m.every(x => !x.hideBtn), JSON.stringify(m));
+  check('and nothing wearing .gr_rm, which would stretch it', m.every(x => !x.rmOnAButton),
+    JSON.stringify(m));
+  /* The real guard: a column for every child. One more child than columns is what put
+     the button on its own line, and it would do the same to anything added later. */
+  check('a grid column for every child', m.every(x => x.cols >= x.kids),
+    JSON.stringify(m.map(x => x.kids + ' children / ' + x.cols + ' cols')));
+  check('each step still reports what it did', m.every(x => x.saysSomething), JSON.stringify(m));
+  // The height was the giveaway: a wrapped button roughly doubled it, 65px became 111px.
+  check('so the row is a single row high', m.every(x => x.h < 100), JSON.stringify(m.map(x => x.h)));
+});
+
 await step('the card carries a name, a company and the next thing, at a readable size', async () => {
   /* Luke's card is three lines. Ours had grown a money chip and the owner's initials in a
      fourth row, and the column a running total under its heading -- both are on the
@@ -179,6 +401,9 @@ await step('the card carries a name, a company and the next thing, at a readable
 });
 
 await step('the stage heading fits, with its count on the right', async () => {
+  // Say where we are. Steps above this one visit other screens, and a board that is
+  // display:none measures 0 wide -- which would read as a layout fault that is not there.
+  await screen('gr_pipeline');
   /* TWO BUGS IN ONE ROW. The count was styled by `.gr_colh span:last-child`, and adding
      the delete button made the span no longer last -- so it lost its margin-left:auto and
      its colour, and the heading read "Booked 1 1" with both numbers jammed together.

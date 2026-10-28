@@ -71,18 +71,37 @@ assert s.count(old) == 1, s.count(old)
 
 ---
 
-## 3. Verify before you commit — all four, every time
+## 3. Verify before you commit
 
 ```bash
-python3 tools_newchat_parse.py          # syntax of all 14 script blocks
-python3 tools_newchat_audit.py          # cross-screen id leaks
-python3 tools_newchat_isolation.py      # old chat vs New Chat separation
-node tools_newchat_clickthrough.mjs     # ~298 checks, drives a real browser
+python3 tools_newchat_parse.py          # syntax of all 14 script blocks     ~1s
+python3 tools_newchat_audit.py          # cross-screen id leaks             ~7s
+python3 tools_newchat_isolation.py      # old chat vs New Chat separation   <1s
+node tools_newchat_clickthrough.mjs     # ~355 checks, drives a real browser ~3m
+node tools_growth_check.mjs             # ~218 checks, Growth only          ~2m
 ```
+
+**The first three are eight seconds together. Never skip them.**
+
+**The clickthrough is the expensive one, and it is the only check that would notice you
+breaking a screen you were not working on.** Run it:
+
+- before any push to `main`;
+- whenever a change touches shared code — `window.giant*`, anything without a module
+  prefix, or a file outside the module you are in;
+- when you have changed a screen the module checks do not cover.
+
+Skip it while iterating on one module's CSS and copy, and lean on that module's own check
+instead. That is the common case: skipped twenty times a day, run once. The module checks
+only cover their own screens, so they cannot tell you that Chat still works.
 
 The clickthrough serves the repo, replaces supabase-js with
 `tools_newchat_mock_supabase.js`, and clicks through the app. It is the only one that opens a
 page.
+
+One clickthrough check fails on `main` and has for some time —
+`a Needs you row lands on the message that put it there`. 354/355 is the clean result; a
+different number is yours.
 
 **The first three can all be clean on a visibly broken screen.** None of them renders anything.
 If you changed something a person looks at, look at it — screenshot it or drive it — before

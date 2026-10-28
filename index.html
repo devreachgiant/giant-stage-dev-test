@@ -6392,6 +6392,13 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_row:hover{background:var(--surface-2);border-radius:10px;}
 .gr_row.gr_done{opacity:.55;}
 .gr_rm{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+/* NOT .gr_rm. That is the row's text block above: flex:1 and a column. Five delete
+   buttons carried it because "rm" reads as remove, which stretched each one across
+   its row and wrapped the x onto a line of its own -- an empty box under every step
+   on Automations, and the same under tasks, packs, watch calls and stages. */
+.gr_rmb{flex:none;align-self:center;opacity:.55;}
+.gr_wzk{font-size:11px;font-weight:800;color:var(--text-3);background:var(--surface-2);border-radius:99px;padding:1px 7px;}
+.gr_rmb:hover,.gr_rmb:focus-visible{opacity:1;color:#F08A8A;}
 .gr_rm b{font-size:14px;font-weight:700;}
 .gr_rm span{font-size:12.5px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .gr_rt{display:flex;justify-content:space-between;gap:8px;align-items:baseline;}
@@ -6542,10 +6549,13 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_mute{color:var(--text-3);font-size:13px;line-height:1.6;}
 .gr_mn{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .gr_src{font-size:10px;text-transform:uppercase;letter-spacing:.05em;background:var(--surface-2);color:var(--text-3);border-radius:5px;padding:2px 6px;}
-.gr_sheetwrap{position:fixed;inset:0;z-index:60;display:none;align-items:flex-start;justify-content:center;padding:48px 16px 16px;background:rgba(8,8,10,.55);overflow-y:auto;}
-.gr_sheetwrap.on{display:flex;flex-direction:column;align-items:center;}
-.gr_sheetwrap.on>*{flex:none;}
-.gr_sheet{background:var(--bg);border:1px solid var(--line);border-radius:22px;width:min(780px,100%);overflow:hidden;}
+.gr_sheetwrap{position:fixed;inset:0;z-index:60;display:none;background:rgba(8,8,10,.45);}
+.gr_sheetwrap.on{display:block;}
+.gr_sheet{position:fixed;top:0;right:0;bottom:0;width:min(520px,100%);background:var(--bg);border:0;border-left:1px solid var(--line);border-radius:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:14px;padding:22px 22px 32px;box-shadow:-18px 0 44px rgba(0,0,0,.34);}
+.gr_spanel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px;}
+.gr_spanel h3{margin:0 0 10px;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3);}
+.gr_stagel{font-size:13px;font-weight:600;color:var(--text-3);}
+.gr_ss .gr_pill{border-radius:99px;padding:2px 10px;font-size:12px;font-weight:700;}
 .gr_sh{display:flex;align-items:center;gap:14px;padding:22px 24px 12px;}
 .gr_si{flex:1;min-width:0;}
 .gr_si h2{margin:0;font-size:25px;font-weight:800;letter-spacing:-.03em;}
@@ -6707,7 +6717,11 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_field input,.gr_field select,.gr_field textarea{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--text);font:inherit;font-size:13.5px;width:100%;}
 .gr_field textarea{min-height:90px;resize:vertical;}
 .gr_acts{display:flex;gap:9px;flex-wrap:wrap;align-items:center;}
-.gr_tck{width:17px;height:17px;flex:none;accent-color:var(--red);cursor:pointer;}
+.gr_tck{appearance:none;-webkit-appearance:none;width:44px;height:25px;border-radius:99px;background:var(--surface-3);box-shadow:inset 0 0 0 1px var(--line);position:relative;flex:none;cursor:pointer;transition:background .15s;margin:0;}
+.gr_tck::after{content:'';position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;background:#fff;transition:transform .15s;}
+.gr_tck:checked{background:#1F9D63;box-shadow:none;}
+.gr_tck:checked::after{transform:translateX(19px);}
+.gr_tck:focus-visible{outline:2px solid var(--red);outline-offset:2px;}
 .gr_vas{background:var(--surface-2);border:1px solid var(--line);border-radius:99px;padding:8px 13px;color:var(--text);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;}
 .gr_vasrow{display:flex;align-items:center;gap:9px;justify-content:flex-end;margin:0 0 10px;}
 .gr_vasrow span{font-size:11.5px;color:var(--text-3);}
@@ -6893,7 +6907,10 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_aum span{font-size:12.5px;font-weight:700;background:var(--surface-2);color:var(--text-2);border-radius:99px;padding:7px 14px;}
 .gr_aut{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);margin-top:4px;}
 .gr_aus{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;}
-.gr_aus li{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:start;padding:14px 0;border-top:1px solid var(--line);}
+/* Three columns for three children: the dot, the text, and what it said. It briefly
+   had a fourth child -- a hide button -- with no column to sit in, so it fell onto an
+   implicit second row and drew as an empty box under every step. The button is gone. */
+.gr_aus li{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:14px 0;border-top:1px solid var(--line);}
 .gr_aus li:first-child{border-top:0;}
 .gr_aus li.gr_auoff{opacity:.6;}
 .gr_aus i{width:10px;height:10px;border-radius:50%;margin-top:6px;flex:none;}
@@ -7161,7 +7178,17 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_qai{font-size:9.5px;letter-spacing:.04em;color:var(--text-3);}
 .gr_qah span u{display:block;height:4px;border-radius:2px;background:var(--surface-3);margin-top:6px;text-decoration:none;max-width:220px;}
 .gr_qah span u s{display:block;height:100%;border-radius:2px;background:var(--red);text-decoration:none;}
-.gr_sw{flex:none;display:flex;align-items:center;padding-left:4px;}
+/* Its own class. .gr_sw is the 11px stage colour swatch, and that width still applied
+   here because this rule never set one -- so the 44px switch hung out of an 11px box
+   and over the edge of the card. Same shape as the .gr_cn collision on the board. */
+.gr_swc{flex:none;display:flex;align-items:center;padding-left:4px;}
+.gr_gacc{align-items:center;gap:11px;}
+.gr_gaon{box-shadow:inset 0 0 0 1px rgba(31,157,99,.45);border-radius:12px;}
+.gr_gx{flex:none;opacity:.6;}
+.gr_gx:hover{opacity:1;color:#F08A8A;}
+.gr_gadd{margin-top:10px;min-height:0;padding:13px 8px;}
+.gr_cnurl{margin:0 0 10px;}
+.gr_cnurl code{display:inline-block;background:var(--surface-2);border-radius:8px;padding:6px 10px;font-size:12.5px;color:var(--text-2);overflow-wrap:anywhere;}
 /* A connector Growth has been told to leave alone still reads clearly, just quieter. */
 .gr_cnoff .gr_cnrow .gr_rm b{color:var(--text-3);}
 .gr_rcf2{display:inline-flex;align-items:center;gap:7px;}
@@ -54490,6 +54517,20 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       return false;
     };
     window.giantGmailAccounts = async () => { try { return await gmailAccounts(); } catch (e) { return []; } };
+    window.giantGmailForget = async (slot) => {
+      const rows = await gmailAccounts();
+      const row = rows.find(r => r.slot === slot);
+      if (!row) return false;
+      await supabase.from('gmail_tokens').delete()
+        .eq('profile_id', session.user.id).eq('slot', slot);
+      if (gmailCurrentSlot() === slot) {
+        gmailAccessToken = null; gmailTokenExpiresAt = 0;
+        const left = (await gmailAccounts())[0];
+        if (left) gmailSetSlot(left.slot);
+      }
+      try { window.dispatchEvent(new CustomEvent('giant:gmail-changed')); } catch (e) { /* older engines */ }
+      return true;
+    };
     window.giantGmailUse = async (slot) => {
       const rows = await gmailAccounts();
       if (!rows.some(r => r.slot === slot)) return false;
@@ -95734,11 +95775,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      shift every time for anybody not sitting in Portugal -- and the strip on Home and
      Meetings switches it. Only the display moves; nothing stored changes, so switching
      cannot damage a date. */
-  const GR_ZONES = [
-    ['Europe/Lisbon', 'Lisbon', '&#127477;&#127481;', '#0E8F5A'],
-    ['America/New_York', 'New York', '&#127482;&#127480;', '#2563EB'],
-    ['Africa/Johannesburg', 'Johannesburg', '&#127487;&#127462;', '#E08A00'],
-    ['America/Los_Angeles', 'Los Angeles', '&#127482;&#127480;', '#E4572E']];
+  /* The clocks used to be four cities typed in here -- Lisbon, New York, Johannesburg,
+     Los Angeles -- which matched the clients in exactly one case. A clock for a city
+     nobody is in is decoration taking up the top of the screen. They are built from the
+     timezones the deals are actually in now, so an empty pipeline shows only your own. */
+  const GR_ZCOL = ['#2563EB', '#0E8F5A', '#E08A00', '#E4572E', '#7C3AED', '#B3302A'];
   const grHere = (function () {
     try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) { return 'UTC'; }
   })();
@@ -96143,8 +96184,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       } catch (e) { return 0; }
     };
     const base = off(grZone);
-    const list = [[grHere, grZoneCity(grHere), '&#127968;', '#D00400']]
-      .concat(GR_ZONES.filter(z => z[0] !== grHere));
+    const counts = {};
+    grClients.forEach(function (c) {
+      const z = String(c.timezone || '').trim();
+      if (z) counts[z] = (counts[z] || 0) + 1;
+    });
+    const list = [[grHere, grZoneCity(grHere), '&#127968;', '#D00400', counts[grHere] || 0]]
+      .concat(Object.keys(counts)
+        .filter(function (z) { return z !== grHere; })
+        .sort(function (a, b) { return counts[b] - counts[a] || a.localeCompare(b); })
+        .slice(0, 5)
+        .map(function (z, i) {
+          return [z, grZoneCity(z), '', GR_ZCOL[i % GR_ZCOL.length], counts[z]];
+        }));
     return '<div class="gr_wclk" role="group" aria-label="Show times in">' +
       list.map(function (z) {
         const on = z[0] === grZone;
@@ -96163,8 +96215,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
              : Math.abs(df) + (Math.abs(df) === 1 ? ' hr ' : ' hrs ') + (df > 0 ? 'ahead' : 'behind'));
         return '<button type="button" class="gr_wz' + (on ? ' gr_wzon' : '') + '" style="--zc:' + z[3] +
           '" data-gr-tz="' + esc(z[0]) + '" aria-pressed="' + on + '">' +
-          '<span class="gr_wzt"><span class="gr_wzf">' + z[2] + '</span>' +
+          '<span class="gr_wzt">' + (z[2] ? '<span class="gr_wzf">' + z[2] + '</span>' : '') +
           '<span class="gr_wzc">' + esc(z[1]) + '</span>' +
+          (z[4] ? '<span class="gr_wzk">' + z[4] + '</span>' : '') +
           '<span class="gr_wzn">' + (hour >= 6 && hour < 19 ? '&#9728;' : '&#9790;') + '</span></span>' +
           '<b>' + esc(time) + '</b>' +
           '<span class="gr_wzs">' + esc(sub) + (day ? ' \u00B7 ' + day : '') + '</span></button>';
@@ -97261,7 +97314,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           '<input class="gr_in gr_flat" data-gr-task-text="' + t.id + '" value="' + esc(t.text) + '" aria-label="Task">' +
           '<label class="gr_due' + (late ? ' gr_late' : '') + '"><span>' + esc(grDue(t.due_on)) + '</span>' +
             '<input type="date" data-gr-task-due="' + t.id + '" value="' + esc(t.due_on || '') + '" aria-label="Due date"></label>' +
-          '<button class="gr_ib gr_rm" data-gr-task-del="' + t.id + '" aria-label="Delete task">&#10005;</button></div>';
+          '<button class="gr_ib gr_rmb" data-gr-task-del="' + t.id + '" aria-label="Delete task">&#10005;</button></div>';
       };
       body =
         '<section class="gr_card gr_planh"><div class="gr_ct"><h2>Training plan</h2>' +
@@ -97316,7 +97369,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               (w.call_date ? '<span>' + esc(grLongDate(w.call_date)) + '</span>' : '') + '</div>' +
               '<div class="gr_bcb">' +
                 (w.outcome ? '<em class="gr_out3">' + esc(w.outcome) + '</em>' : '') +
-                (can ? '<button class="gr_ib gr_rm" data-gr-watch-del="' + w.id +
+                (can ? '<button class="gr_ib gr_rmb" data-gr-watch-del="' + w.id +
                   '" title="Remove" aria-label="Remove ' + esc(w.title) + '">&#10005;</button>' : '') +
               '</div></div>' +
             (w.note ? '<p class="gr_bcs">' + esc(w.note) + '</p>' : '') +
@@ -97440,7 +97493,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         body = grSub('Pricing', 'Editing. These are the numbers you say on a call, so they are worth getting right.') +
           (pr.packs || []).map((p, i) =>
             '<section class="gr_card"><div class="gr_ct"><h2>Pack ' + (i + 1) + '</h2>' +
-              '<button class="gr_ib gr_rm" data-gr-pk-del="' + i + '" aria-label="Remove this pack">&#10005;</button></div>' +
+              '<button class="gr_ib gr_rmb" data-gr-pk-del="' + i + '" aria-label="Remove this pack">&#10005;</button></div>' +
               '<div class="gr_two">' + f('grPk' + i + 'tag', 'Label', p.tag, 'Pack 1') + f('grPk' + i + 'name', 'Name', p.name, 'Paid Ads Volt') + '</div>' +
               '<div class="gr_two">' + f('grPk' + i + 'price', 'Price', p.price, '$3,000') + f('grPk' + i + 'inc', 'What is in it', p.inc, 'Google Ads + Meta Ads') + '</div>' +
               '<div class="gr_field"><label for="grPk' + i + 'txt">The sentence under it</label>' +
@@ -98243,16 +98296,36 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      Reports what is actually true, asked of the thing itself. A hard-coded "Not connected"
      list looks the same whether it is right or stale, and this screen is the one place
      somebody comes to find out why an email did not go. */
-  const grConn = { probed: false, zoom: null, calendly: null, claude: null };
+  const grConn = { probed: false, zoom: null, calendly: null, claude: null, mcp: null, mcpN: 0, mcpUsed: '' };
   let grConnOpen = null, grConnBusy = '', grConnSay = {};
   async function grProbeConnectors() {
     if (grConn.probed) return;
     grConn.probed = true;
     try {
-      const r = await fetch('/.netlify/functions/bookings-api?action=zoom_status');
+      /* POST. bookings-api answers POST only, so the GET this used to send came back
+         405 "Method not allowed" every time -- configured was undefined and the row
+         said "Not connected" whether the credentials were set or not. It was reporting
+         a broken probe as a missing connection. */
+      const r = await fetch('/.netlify/functions/bookings-api', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'zoom_status' })
+      });
       const j = await r.json().catch(() => ({}));
       grConn.zoom = !!(j && (j.configured || j.zoomConfigured));
     } catch (e) { grConn.zoom = false; }
+    /* api_tokens is own-row, so this counts YOUR connections, which is what the row
+       claims. Somebody else's assistant is not yours to report on. */
+    try {
+      const s3 = sb();
+      const { data } = s3
+        ? await s3.from('api_tokens').select('last_used_at,revoked_at').is('revoked_at', null)
+        : { data: null };
+      const live = data || [];
+      grConn.mcpN = live.length;
+      grConn.mcp = live.length > 0;
+      grConn.mcpUsed = live.map(r2 => r2.last_used_at).filter(Boolean).sort().pop() || '';
+    } catch (e) { grConn.mcp = false; grConn.mcpN = 0; grConn.mcpUsed = ''; }
     try {
       const r = await fetch('/.netlify/functions/growth-calendly?action=status');
       const j = await r.json().catch(() => ({}));
@@ -98269,18 +98342,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      the other side, and the one thing the screen must not do is keep saying the old answer. */
   async function grReprobe() {
     grConn.probed = false;
-    grConn.zoom = null; grConn.calendly = null;
-    /* Gmail's answer is cached too, and leaving it out meant "Check all again" could
-       re-ask everything EXCEPT the one connector somebody had just changed -- so a
-       mailbox connected a moment ago stayed "Not connected" with no way to correct it
-       short of a reload. */
-    /* Gmail's answer is cached too, and leaving it out meant "Check all again" could
-       re-ask everything EXCEPT the one connector somebody had just changed -- so a
-       mailbox connected a moment ago stayed "Not connected" with no way to correct it
-       short of a reload. */
+    grConn.zoom = null; grConn.calendly = null; grConn.mcp = null;
+    /* Gmail's answer is cached too, and clearing the flag is not the same as asking
+       again: this used to reset `checked` and re-render, which painted the STALE answer
+       and only re-asked the next time somebody navigated back into Growth. So "Check
+       all again" could not fix the one row it was pressed for. */
     grGmail.checked = false;
     grRender();
-    await grProbeConnectors();
+    await Promise.all([grProbeConnectors(), grCheckGmail()]);
     // The run log is server side too, so "check again" should re-read that as well.
     if (window.grReload) await window.grReload();
   }
@@ -98441,13 +98510,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       name: 'Zoom',
       what: 'Puts a join link on every booking, and lets Giant mint its own for a call you add by hand.',
       how: 'Zoom is shared with Bookings, so its credentials live in Netlify rather than here: ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID and ZOOM_CLIENT_SECRET on the site, from a Server to Server OAuth app. Add them, redeploy, then press Check again.',
-      on: 'The server credentials are set in Netlify and Zoom accepted them.'
+      on: 'The server credentials are set in Netlify and Zoom accepted them.',
+      off: 'Bookings made through Calendly still carry a Zoom link, because Calendly creates it. '
+           + 'These credentials are only needed for a meeting Giant makes itself.'
     },
     claude: {
       name: 'Claude AI',
       what: 'Writes the first draft of an email from the call notes, rewrites one you do not like, and answers questions about your pipeline on Home.',
       how: 'It runs on Giant\u2019s own key and is already deployed. Press Test to make it answer something, which is the only way to know.',
       on: 'It answered when asked. Writing and the Home assistant both work.'
+    },
+    mcp: {
+      name: 'Connected AI',
+      what: 'Lets Claude or ChatGPT read Giant directly \u2014 your projects, meetings, clients, tasks, channels and people \u2014 so you can ask about them where you already work.',
+      how: 'Settings, then Connected AI, then New connection. Giant makes the token in your browser and keeps only its hash, so it can be shown once and never again. Point the assistant at ' +
+           ((window.GIANT_ORIGIN || location.origin || 'https://giant.reachgiant.com') + '/mcp') + '.',
+      on: 'An assistant is holding a token. It can read; writing needs a token with write ticked, and there is no delete tool at all.'
     },
     fathom: {
       name: 'Fathom',
@@ -98458,11 +98536,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   function grRenderConnectors() {
     grProbeConnectors();
+    // Ask rather than assume: a check that failed left itself unchecked, and one that
+    // found no mailbox goes stale so connecting one is noticed without a reload.
+    if (!grGmail.checked || !grGmail.ready) grCheckGmail();
     const synced = grMeetings.filter(m => m.source === 'Calendly').length;
     const rows = [
       ['gmail', grGmail.ready,
-        grGmail.ready ? 'Sending as ' + (grGmail.email || 'your Gmail account') + '.'
-                      : 'Not connected, so nothing can be sent from Growth yet.'],
+        grGmail.ready
+          ? (grGmail.sending === false
+              ? 'Connected as ' + (grGmail.email || 'your Gmail account') +
+                ', but Google would not renew it. Reconnect to send.'
+              : 'Sending as ' + (grGmail.email || 'your Gmail account') + '.')
+          : 'Not connected, so nothing can be sent from Growth yet.',
+        grGmail.ready && grGmail.sending === false ? 'Needs reconnecting' : null],
       ['calendly', grConn.calendly,
         grConn.calendly
           ? 'Bookings sync into Meetings' + (grConn.calendlyWho ? ' for ' + grConn.calendlyWho : '') +
@@ -98473,12 +98559,27 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       ['zoom', grConn.zoom,
         grConn.zoom ? 'Join links come with each booking, and Giant can mint its own.'
           : grConn.zoom === null ? 'Checking...'
-          : 'Not connected, so bookings arrive without a join link.'],
+          /* Calendly puts a Zoom link on every booking it makes, and those work. Giant's
+             own credentials are a separate thing, for a meeting Giant creates itself. */
+          : 'Calendly still puts a join link on every booking. Giant cannot mint its own.'],
       ['claude', grConn.claude,
         grConn.claude === true ? 'Answering. Writing and the Home assistant both work.'
           : grConn.claude === null ? 'Deployed. Press Test to find out whether it answers.'
           : 'It did not answer when asked.',
         grConn.claude === null ? 'Not tested' : null],
+      /* Giant is the SERVER here, not a client. Luke's board has a "ReachGiant App" card
+         with switches for projects, meetings and channels -- that is HIS artifact
+         choosing which of our tools to pull, and it works against what we already serve
+         (list_projects, list_meetings, list_channels, list_clients, list_tasks,
+         list_people). Rebuilding that card inside Giant would be Giant connecting to
+         itself, with nothing on the other end of the switches. What is true from this
+         side is whether anybody holds a token, so that is what this row says. */
+      ['mcp', grConn.mcp,
+        grConn.mcp === null ? 'Checking...'
+          : grConn.mcp
+            ? grConn.mcpN + ' connection' + (grConn.mcpN === 1 ? '' : 's') +
+              (grConn.mcpUsed ? ', last used ' + grFmt(String(grConn.mcpUsed).slice(0, 10)) : ', never used yet')
+            : 'No assistant is connected, so nothing can read Giant from outside.'],
       ['fathom', false, 'Not built yet. Call notes can be pasted onto a client in the meantime.']
     ];
     const live = rows.filter(r => r[1] === true).length;
@@ -98499,19 +98600,58 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             '<span class="gr_lt ' + (off ? 'gr_off' : r[1] === true ? 'gr_on' : r[1] === null ? 'gr_wait' : 'gr_off') + '"></span>' +
             '<span class="gr_rm"><b>' + esc(meta.name) + '</b><span>' +
               esc(off ? 'Switched off here. The connection is untouched.' : r[2]) + '</span></span>' +
-            '<span class="gr_st ' + (!off && r[1] === true ? 'ok' : '') + '">' +
-              esc(off ? 'Off' : (r[3] || (r[1] === true ? 'Connected' : r[1] === null ? 'Checking' : 'Not connected'))) + '</span>' +
-            (grIsStaff() && r[1] === true
-              ? '<span class="gr_sw"><input type="checkbox" class="gr_tck" data-gr-conn-use="' + k + '"' +
+            ((grIsStaff() && r[1] === true)
+              ? '<span class="gr_swc"><input type="checkbox" class="gr_tck" data-gr-conn-use="' + k + '"' +
                 (off ? '' : ' checked') + ' aria-label="Use ' + esc(meta.name) + ' in Growth"></span>'
-              : '') +
+              : '<span class="gr_st ' + (!off && r[1] === true ? 'ok' : '') + '">' +
+                esc(off ? 'Off' : (r[3] || (r[1] === true ? 'Connected' : r[1] === null ? 'Checking' : 'Not connected'))) +
+                '</span>') +
             '<span class="gr_cnc" aria-hidden="true">' + (open ? '&#9650;' : '&#9660;') + '</span>' +
           '</button>' +
           (open ? '<div class="gr_cnp">' + grConnPanel(k, r[1]) + '</div>' : '') +
         '</div>';
       }).join('') + '</section>' +
+      grGmailAcctsHtml() +
       '<div class="gr_acts gr_mid2"><button class="gr_ghost" data-gr-conn-recheck' +
         (grConn.probed && grConn.calendly !== null ? '' : ' disabled') + '>Check all again</button></div>';
+  }
+
+  /* THE MAILBOXES THEMSELVES, not just "Gmail: connected". gmail_tokens is keyed
+     (profile_id, slot), so a person can hold more than one and send from whichever they
+     pick -- and until now the only place that said so was the Email screen. Disconnect
+     is here because that is what somebody means by "remove it so I can add a new one":
+     Reconnect re-authorises the SAME account, which is not the same thing. */
+  function grGmailAcctsHtml() {
+    const rows = grGmailAccts || [];
+    /* Always drawn for staff. It used to return '' when there were no rows, so the
+       section vanished -- and "no mailbox connected" looked exactly like "this part of
+       the screen is missing", which is what it was mistaken for. */
+    if (!grIsStaff() && !rows.length) return '';
+    let slot = 1;
+    try { slot = parseInt(localStorage.getItem('giant.gmailSlot'), 10) || 1; } catch (e) { /* private window */ }
+    const active = rows.some(r => r.slot === slot) ? slot : (rows[0] || {}).slot;
+    return '<div class="gr_sech"><h3>Gmail accounts</h3>' +
+        (rows.length ? '<span class="gr_n">' + rows.length + '</span>' : '') + '</div>' +
+      '<section class="gr_card gr_connl">' +
+        (rows.length
+          ? rows.map(function (r) {
+              const on = r.slot === active;
+              return '<div class="gr_row gr_gacc' + (on ? ' gr_gaon' : '') + '">' +
+                grAvatar(r.email || 'Gmail', on ? '#1F9D63' : '#626262', 'gr_xs') +
+                '<span class="gr_rm"><b>' + esc(r.email || 'Mailbox ' + r.slot) + '</b>' +
+                  '<span>' + esc(r.label || ('Slot ' + r.slot)) +
+                  (r.lasting ? '' : ' \u00B7 asks for a password again within the hour') + '</span></span>' +
+                (on ? '<span class="gr_st ok">Active</span>'
+                    : '<button class="gr_chip" data-gr-gm-use="' + r.slot + '">Use this one</button>') +
+                '<button class="gr_x gr_gx" data-gr-gm-forget="' + r.slot + '"' +
+                  ' aria-label="Disconnect ' + esc(r.email || 'this mailbox') + '">&#10005;</button>' +
+              '</div>';
+            }).join('')
+          : '<p class="gr_mute">No mailbox connected yet.</p>') +
+        '<button class="gr_coladd gr_gadd" data-gr-conn-gmail>+ Add another Gmail</button>' +
+      '</section>' +
+      '<p class="gr_hint">The active one is what Growth sends from. Disconnecting a mailbox ' +
+        'forgets its token here; the account itself is untouched and can be added again.</p>';
   }
 
   function grConnPanel(k, state) {
@@ -98520,7 +98660,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // Once it is connected, "how to connect it" is the wrong thing to be reading, and
     // there is no box to paste into any more either.
     const head = '<p class="gr_cnwhat">' + esc(meta.what) + '</p>' +
-      '<p class="gr_cnhow">' + esc(state === true && meta.on ? meta.on : meta.how) + '</p>';
+      '<p class="gr_cnhow">' + esc(state === true && meta.on ? meta.on : meta.how) + '</p>' +
+      (state !== true && meta.off ? '<p class="gr_cnhow">' + esc(meta.off) + '</p>' : '');
     const note = say ? '<div class="gr_cstat' + (/not|could not|no answer|did not|closed/i.test(say) ? ' bad' : '') + '">' +
       esc(say) + '</div>' : '';
     let act = '';
@@ -98560,6 +98701,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     } else if (k === 'claude') {
       act = '<div class="gr_acts"><button class="' + (state === true ? 'gr_ghost' : 'btn-red') + '" data-gr-conn-test' +
         (busy ? ' disabled' : '') + '>' + (busy ? 'Asking...' : 'Test it') + '</button></div>';
+    } else if (k === 'mcp') {
+      const url = (window.GIANT_ORIGIN || location.origin || 'https://giant.reachgiant.com') + '/mcp';
+      act = '<div class="gr_cnurl"><code>' + esc(url) + '</code></div>' +
+        '<div class="gr_acts"><button class="btn-red" data-gr-go="settings">' +
+          (state === true ? 'Manage connections' : 'Connect an assistant') + '</button></div>';
     } else {
       act = '<div class="gr_acts"><button class="gr_ghost" data-gr-go="gr_training">Open Best calls</button></div>';
     }
@@ -98612,13 +98758,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
          { k: 'fathom', label: 'Fathom call notes', said: 'Nothing reported yet', ok: null }];
     const nextIn = mins == null ? '' : mins >= 30 ? 'any moment' : 'in ' + Math.max(1, Math.round(30 - mins)) + ' min';
     /* A step whose connector has been switched off on Connectors says so, rather than
-       reporting "nothing found" every half hour and reading as a fault. Hidden rows are
-       a separate thing: somebody who is never going to use Fathom should be able to stop
-       reading about it, and that must not look like a connector being off. */
+       reporting "nothing found" every half hour and reading as a fault.
+
+       THE PER-ROW HIDE BUTTON IS GONE. Luke's Automations is a dot, a name, what it does
+       and what it said -- no controls in the row at all. Ours had an x on every step
+       that was broken two ways at once, and growth_settings had no automations_hidden
+       row in it: nobody had ever hidden anything in the life of the screen. Styling an
+       unused control would have been the wrong repair. */
     const offMap = grSettings.connectors_off || {};
-    const hidden = grSettings.automations_hidden || {};
-    const shown = steps.filter(function (st) { return !hidden[st.k]; });
-    const hiddenCount = steps.length - shown.length;
+    const shown = steps;
 
     $('grAutomations').innerHTML =
       grHead('Automations', 'Everything that runs for Growth, and what it does', '') +
@@ -98640,16 +98788,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             '<div><b>' + esc(st2.label || st2.k) + '</b>' +
               '<span>' + esc(GR_STEPS[st2.k] || '') + '</span></div>' +
             '<em>' + esc(isOff ? 'Switched off on Connectors' : (st2.said || '')) + '</em>' +
-            (grIsStaff()
-              ? '<button class="gr_ib gr_rm" data-gr-auhide="' + esc(st2.k) +
-                '" title="Hide this row" aria-label="Hide ' + esc(st2.label || st2.k) + '">&#10005;</button>'
-              : '') +
             '</li>';
         }).join('') + '</ol>' +
-        (hiddenCount && grIsStaff()
-          ? '<button class="gr_ghost gr_sm" data-gr-aushow>Show ' + hiddenCount +
-            ' hidden row' + (hiddenCount === 1 ? '' : 's') + '</button>'
-          : '') +
         (last && last.note
           ? '<div class="gr_aur"><span>Last result</span>' + esc(last.note) + '</div>' : '') +
       '</section>' +
@@ -98843,7 +98983,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               }).join('') + '</select>' +
             '<button class="gr_ib" data-gr-stage-move="' + st.key + '" data-d="-1"' + (i === 0 ? ' disabled' : '') + ' aria-label="Move up">&#9650;</button>' +
             '<button class="gr_ib" data-gr-stage-move="' + st.key + '" data-d="1"' + (i === grStages.length - 1 ? ' disabled' : '') + ' aria-label="Move down">&#9660;</button>' +
-            '<button class="gr_ib gr_rm" data-gr-stage-del="' + st.key + '" aria-label="Delete stage">&#10005;</button>' +
+            '<button class="gr_ib gr_rmb" data-gr-stage-del="' + st.key + '" aria-label="Delete stage">&#10005;</button>' +
           '</div>';
         }).join('') +
         '<div class="gr_erow gr_add"><input class="gr_in" id="grNewStage" placeholder="Add a stage..." aria-label="New stage">' +
@@ -99119,13 +99259,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                   ['emails', 'Emails' + (th.length ? ' (' + th.length + ')' : '') + (grWaiting(c) ? ' \u25CF' : '')],
                   ['meetings', 'Meetings' + (ms.length ? ' (' + ms.length + ')' : '')],
                   ['details', 'Info']];
-    let body = '';
-    if (grTab === 'emails') {
+    /* ONE SCROLLING COLUMN, no tab strip. Luke's panel stacks the next action, Info,
+       To do, Notes and the sent emails; ours hid four of those behind a click each, so
+       opening a deal told you one thing and you had to go looking for the rest. Each
+       former tab is a section now, in the order he has them. */
+    const sect = (title, inner) =>
+      '<section class="gr_spanel"><h3>' + title + '</h3>' + inner + '</section>';
+    const emailsHtml = (function () {
+      let body;
       body = th.length
         ? th.map(m => '<div class="gr_bub ' + m.direction + '"><div class="gr_bh2"><b>' + (m.direction === 'in' ? esc(grFirst(c)) : 'You') + '</b><time>' + esc(grFmt(m.sent_at)) + '</time></div><p>' + esc(m.body) + '</p></div>').join('')
         : '<p class="gr_mute">No emails yet.</p>';
       body += '<div class="gr_acts"><button class="btn-red" data-gr-act="' + c.id + '" data-t="' + (na ? na.t : 'followup') + '">Write an email</button></div>';
-    } else if (grTab === 'notes') {
+      return body;
+    })();
+    const notesHtml = (function () {
+      let body;
       const cn = c.call_notes || [], tn = c.team_notes || [];
       body = (cn.length ? cn.map(grCallNote).join('')
         : '<p class="gr_mute">No call notes yet. Paste what came out of the call below, or connect Fathom.</p>') +
@@ -99136,7 +99285,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           '<div class="gr_note"><span>' + esc(n.by || 'Team') + ' · ' + esc(grFmt(String(n.d || '').slice(0, 10))) + '</span>' +
           '<p>' + esc(n.t) + '</p></div>').join('') : '');
 
-    } else if (grTab === 'meetings') {
+      return body;
+    })();
+    const meetingsHtml = (function () {
+      let body;
       body = ms.length ? ms.map(m => {
         const done = new Date(m.starts_at).getTime() + (m.minutes || 45) * 60000 < Date.now();
         return '<div class="gr_row" style="cursor:default">' +
@@ -99148,7 +99300,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                 : '<span class="gr_st">' + esc(grRelIn(m.starts_at)) + '</span>') + '</div>';
       }).join('') : '<p class="gr_mute">No meetings booked with ' + esc(grFirst(c)) + ' yet.</p>';
 
-    } else if (grTab === 'details') {
+      return body;
+    })();
+    const detailsHtml = (function () {
+      let body;
       const f = (id, label, key, val, ph) => '<div class="gr_field"><label for="' + id + '">' + label + '</label>' +
         '<input id="' + id + '" data-gr-f="' + key + '" placeholder="' + esc(ph || '') + '" value="' + esc(val || '') + '"></div>';
       /* What they filled in on the booking form. It has been stored and scored since the
@@ -99188,7 +99343,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<div class="gr_field"><label for="grfSum">Your own notes</label>' +
         '<textarea id="grfSum" data-gr-f="summary">' + esc(c.summary) + '</textarea></div></div>' +
         '<div class="gr_acts"><button class="gr_danger" data-gr-remove="' + c.id + '">Remove client</button></div>';
-    } else {
+      return body;
+    })();
+    const overviewHtml = (function () {
+      let body;
       const li = grLastIn(c);
       const nm = grNextMeeting(c);
       const notes = (c.call_notes || []).length;
@@ -99215,7 +99373,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '</div>' +
 
         (c.summary ? '<div class="gr_note"><span>Summary</span><p>' + esc(c.summary) + '</p>' +
-          (notes ? '<button class="gr_slink" data-gr-tab="notes">Read call notes &rsaquo;</button>' : '') + '</div>' : '') +
+          '</div>' : '') +
 
         (grActive(c) ? '<div class="gr_fuc"><span>Follow up</span><div class="gr_acts">' +
           (c.follow_up_on
@@ -99254,7 +99412,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             acts.slice(0, 8).map(a => '<div><i></i><time>' + esc(grFmt(a.d)) + '</time><span>' +
               esc(a.t) + '</span></div>').join('') + '</div></div>';
         })();
-    }
+      return body;
+    })();
+
+    const body = overviewHtml +
+      sect('Info', detailsHtml) +
+      sect('Call notes', notesHtml) +
+      sect('Sent emails', emailsHtml) +
+      sect('Meetings', meetingsHtml);
 
     const heat = grHeat(c), own = grPerson(c.owner_id);
     const handed = c.giant_handoff && c.giant_handoff.client_id;
@@ -99262,11 +99427,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       '<div class="gr_sheet" data-gr-id="' + c.id + '">' +
         '<div class="gr_sh">' + grAvatar(c.name, col, 'gr_lg') +
           '<div class="gr_si"><h2>' + esc(c.name) + '</h2><div class="gr_ss">' +
-            [c.company, c.email, c.phone, grLocalTime(c) ? grLocalTime(c) + ' their time' : '']
-              .filter(Boolean).map(esc).join(' \u00B7 ') + '</div></div>' +
+            '<span class="gr_pill" style="background:' + grTint(col, .18) + ';color:' + col + '">' +
+              esc(grStageLabel(c.stage)) + '</span>' +
+            (c.company ? '<span>' + esc(c.company) + '</span>' : '') + '</div></div>' +
           '<button class="gr_x" data-gr-close aria-label="Close">&#10005;</button></div>' +
 
         '<div class="gr_sbar">' +
+          '<span class="gr_stagel">Stage</span>' +
           '<select class="gr_stage" data-gr-stage-sel aria-label="Stage" style="background:' + grTint(col, .2) +
             ';box-shadow:inset 0 0 0 1px ' + grTint(col, .5) + '">' +
             grStages.map(s => '<option value="' + s.key + '"' + (s.key === c.stage ? ' selected' : '') + '>' + esc(s.label) + '</option>').join('') +
@@ -99300,7 +99467,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
         grJourney(c) +
 
-        '<div class="gr_stabs">' + tabs.map(t => '<button data-gr-tab="' + t[0] + '"' + (grTab === t[0] ? ' aria-pressed="true"' : '') + '>' + t[1] + '</button>').join('') + '</div>' +
         '<div class="gr_sbody">' + body + '</div>' +
       '</div>' + (grComposer ? grComposerHtml(c) : '') + (grLost ? grLostHtml(c) : '') +
       (grWon ? grWonHtml(c) : '');
@@ -99641,7 +99807,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   /* Giant already has Gmail: the Email screen holds the tokens in gmail_tokens, refreshes
      them, and exposes window.giantGmailSend. Growth calls that rather than asking for a
      second connection to the same mailbox -- one set of tokens, one place to revoke. */
-  const grGmail = { ready: false, email: '', checked: false };
+  const grGmail = { ready: false, email: '', checked: false, busy: false, sending: null, at: 0 };
+  let grGmailAccts = [];
   /* Connecting a mailbox happens on the Email screen, and Growth had no way to hear
      about it: it asked once when it loaded and cached the answer. At boot that is a
      race -- the Google callback writes the token at the same time -- so a connection
@@ -99651,28 +99818,83 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     grCheckGmail();
   });
 
+  /* CONNECTED IS A FACT ABOUT THE DATABASE, not about this minute's network.
+
+     This used to decide by calling giantGmailReady(), which forces a token exchange:
+     it reads gmail_tokens, and if the access token has aged out it goes to Google for
+     a new one. Any failure along that path -- an expired token mid-refresh, a dropped
+     request, Google being slow -- threw, and the row said "Not connected" about a
+     mailbox that was perfectly well connected. Which is exactly what it was doing while
+     the Email screen sat there listing 478 messages, because that list comes out of the
+     emails table and never needed a live token at all.
+
+     So: holding a row in gmail_tokens IS being connected. Whether the access token
+     needs refreshing is a detail of the next send, and it is reported separately rather
+     than being allowed to flip the answer. */
   async function grCheckGmail() {
-    if (grGmail.checked) return grGmail.ready;
-    grGmail.checked = true;
+    /* "No mailboxes" is a successful read, so it used to set checked and never look
+       again -- connect one afterwards and this screen went on saying Not connected for
+       the rest of the session. A found mailbox is worth caching; NOT finding one is
+       worth re-asking, so that answer goes stale after ten seconds. Cheap: one own-row
+       indexed read, and only while the answer is still no. */
+    if (grGmail.busy) return grGmail.ready;
+    const stale = !grGmail.ready && (Date.now() - grGmail.at) > 10000;
+    if (grGmail.checked && !stale) return grGmail.ready;
+    // Re-entrancy guard. grRenderConnectors asks when it has no answer, and this ends
+    // in grRender(), so without it a failing check would call itself round and round.
+    grGmail.busy = true;
     try {
-      grGmail.ready = !!(window.giantGmailReady && await window.giantGmailReady());
-      if (grGmail.ready) {
-        /* WHICH mailbox Growth would send from, asked of the screen that owns the
-           tokens rather than read out of the table here. Reading it directly used
-           maybeSingle on profile_id alone, which ERRORS the moment somebody connects a
-           second mailbox (20261022210000) -- and the catch below would have turned that
-           into "Gmail not connected" on a perfectly good connection. */
-        let addr = '';
-        try {
-          const rows = window.giantGmailAccounts ? await window.giantGmailAccounts() : [];
-          let slot = 1;
-          try { slot = parseInt(localStorage.getItem('giant.gmailSlot'), 10) || 1; } catch (e2) { /* private window */ }
-          const pick = rows.find(r => r.slot === slot) || rows[0];
-          addr = (pick && pick.email) || '';
-        } catch (e3) { /* the address is a nicety; being connected is the answer */ }
-        grGmail.email = addr;
+      /* The Email screen owns the mailbox helpers, and Growth asked it for the list.
+         That made a Growth screen depend on initApp having run all the way to where
+         those helpers are defined -- and initApp is wrapped in a try/catch at bootstrap,
+         so anything throwing earlier leaves giantGmailAccounts undefined and Growth
+         reporting a perfectly good mailbox as "Not connected". Ask the helper first,
+         because it knows about slots, then fall back to reading the table directly.
+         gmail_tokens is own-row RLS, so both routes give the same rows by the same
+         rules. */
+      let rows = [];
+      try {
+        rows = (window.giantGmailAccounts ? await window.giantGmailAccounts() : []) || [];
+      } catch (e5) { rows = []; }
+      if (!rows.length) {
+        const s4 = sb();
+        if (s4) {
+          const { data } = await s4.from('gmail_tokens')
+            .select('slot, email, label, expires_at, connected_at, refresh_token')
+            .order('slot');
+          rows = (data || []).map(function (r) {
+            return { slot: r.slot, email: r.email, label: r.label,
+                     expires_at: r.expires_at, connected_at: r.connected_at,
+                     lasting: !!r.refresh_token };
+          });
+        }
       }
-    } catch (e) { grGmail.ready = false; }
+      grGmailAccts = rows;
+      grGmail.ready = rows.length > 0;
+      let slot = 1;
+      try { slot = parseInt(localStorage.getItem('giant.gmailSlot'), 10) || 1; } catch (e2) { /* private window */ }
+      const pick = rows.find(r => r.slot === slot) || rows[0];
+      grGmail.email = (pick && pick.email) || '';
+      /* Separately: can it send RIGHT NOW. A mailbox whose refresh token has been
+         revoked is still connected and still needs saying so, but it cannot send, and
+         that is worth a word rather than a lie in either direction. */
+      grGmail.sending = null;
+      if (grGmail.ready && window.giantGmailReady) {
+        try { grGmail.sending = !!(await window.giantGmailReady()); }
+        catch (e4) { grGmail.sending = false; }
+      }
+      grGmail.checked = true;
+      grGmail.at = Date.now();
+    } catch (e) {
+      /* The CHECK failed, which is not the same as the mailbox being disconnected. It
+         used to record ready=false AND checked=true, so one blip latched "Not connected"
+         for the session and "Check all again" could not talk it round. Leave it
+         unchecked so the next render asks again. */
+      grGmail.checked = false;
+      grGmail.ready = false;
+      grGmail.at = Date.now();
+    }
+    grGmail.busy = false;
     grRender();
     return grGmail.ready;
   }
@@ -99977,6 +100199,35 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (e.target.closest('[data-gr-conn-use]')) return;
     const cnr = e.target.closest('[data-gr-conn]');
     if (cnr) { grConnOpen = grConnOpen === cnr.dataset.grConn ? null : cnr.dataset.grConn; grRender(); return; }
+    const gmu = e.target.closest('[data-gr-gm-use]');
+    if (gmu) {
+      const slot = parseInt(gmu.dataset.grGmUse, 10);
+      (async function () {
+        if (window.giantGmailUse && await window.giantGmailUse(slot)) {
+          grGmail.checked = false;
+          await grCheckGmail();
+          grToast('Growth now sends from that mailbox');
+        }
+      })();
+      return;
+    }
+    const gmf = e.target.closest('[data-gr-gm-forget]');
+    if (gmf) {
+      const slot = parseInt(gmf.dataset.grGmForget, 10);
+      (async function () {
+        const who = (grGmailAccts.find(x => x.slot === slot) || {}).email || 'this mailbox';
+        /* giantConfirmWarn, not confirm(): window.confirm is a no-op in the desktop
+           build, so a confirm() guard makes the button quietly do nothing there. */
+        const ok = await window.giantConfirmWarn('Disconnect ' + who +
+          ' from Growth? The account itself is untouched and can be added again.');
+        if (!ok) return;
+        if (window.giantGmailForget) await window.giantGmailForget(slot);
+        grGmail.checked = false;
+        await grCheckGmail();
+        grToast('Disconnected ' + who);
+      })();
+      return;
+    }
     if (e.target.closest('[data-gr-conn-gmail]'))   { grGmailConnect(); return; }
     if (e.target.closest('[data-gr-cal-save]'))     { grCalConnect(); return; }
     if (e.target.closest('[data-gr-cal-forget]'))   { grCalForget(); return; }
@@ -99996,21 +100247,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (e.target.closest('[data-gr-today-open]')) { grTodayOpen = true; grRender(); return; }
     if (e.target.closest('[data-gr-today-close]')) { grTodayOpen = false; grRender(); return; }
 
-    const ah = e.target.closest('[data-gr-auhide]');
-    if (ah) {
-      const map = Object.assign({}, grSettings.automations_hidden || {});
-      map[ah.dataset.grAuhide] = true;
-      grSettings.automations_hidden = map;
-      grSetting('automations_hidden', map).then(function (r) { if (!r) window.grReload(); });
-      grRender();
-      return;
-    }
-    if (e.target.closest('[data-gr-aushow]')) {
-      grSettings.automations_hidden = {};
-      grSetting('automations_hidden', {}).then(function (r) { if (!r) window.grReload(); });
-      grRender();
-      return;
-    }
 
     const won = e.target.closest('[data-gr-won]');
     if (won) { grWon = { id: won.dataset.grWon, v: null }; grRender(); return; }
