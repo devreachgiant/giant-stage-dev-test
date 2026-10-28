@@ -450,6 +450,63 @@ await step('saving any Training edit puts the form away and shows the change', a
   check('and it is in the row too, not only on screen', stored === 'Rewritten on the spot.', String(stored));
 });
 
+await step("Luke's apostrophes survive the screen and the editor", async () => {
+  /* The content was seeded with every contraction and quotation mark stripped out:
+     "don't oversell" became "do not oversell", 'Replace "um"' became 'Replace um'. Nothing
+     rendered wrong, so nothing caught it -- the copy on screen simply was not the copy Luke
+     wrote. Restored in 20261028090000.
+
+     Two separate things can eat them, so both are measured. The renderer runs text through
+     esc(), which escapes & < > via textContent; if that ever became a hand-rolled replace
+     it could emit a literal &#39; instead. And every Training page round trips through a
+     plain-text editor that joins pairs with " :: " and splits them again, which is exactly
+     the kind of parse that quietly mangles a quote. Saving an UNCHANGED lesson has to give
+     back byte-identical text, so the second half asserts on the database row, not the DOM. */
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="course"]')?.click());
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => document.querySelector('[data-gr-lesson="why"]')?.click());
+  await page.waitForTimeout(900);
+
+  const seen = await page.evaluate(() => {
+    const t = document.body.innerText;
+    return {
+      apos:   t.indexOf("Don't try too hard.") >= 0,
+      quoted: t.indexOf('Replace "um" with a short pause.') >= 0,
+      // A hand-rolled escape would put the entity on the screen as visible text.
+      entity: /&#39;|&quot;|&amp;/.test(t),
+      // The shape the stripped seed had.
+      flattened: t.indexOf('Do not try too hard') >= 0 || t.indexOf('Replace um with') >= 0
+    };
+  });
+  check('the apostrophe is on screen as an apostrophe', seen.apos, JSON.stringify(seen));
+  check('and the quoted word keeps its quotes', seen.quoted, JSON.stringify(seen));
+  check('no HTML entity leaked into the visible text', !seen.entity, JSON.stringify(seen));
+  check('nothing was flattened back to the seeded wording', !seen.flattened, JSON.stringify(seen));
+
+  // Open the editor and save WITHOUT touching anything. The text must come back whole.
+  await page.evaluate(() => document.querySelector('[data-gr-lesson-edit="why"]')?.click());
+  await page.waitForTimeout(800);
+  const opened = await page.evaluate(() => {
+    const el = document.querySelector('[data-gr-ls="blocks"]');
+    return el ? el.value : null;
+  });
+  check('the lesson opens for editing', !!opened, String(opened && opened.slice(0, 40)));
+  check('the editor shows the apostrophe, not an entity',
+    !!opened && opened.indexOf("Don't try too hard.") >= 0 && !/&#39;/.test(opened),
+    String(opened && opened.slice(0, 120)));
+
+  await page.evaluate(() => document.querySelector('[data-gr-lesson-save="why"]')?.click());
+  await page.waitForTimeout(1400);
+  const stored = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'course');
+    const l = r && r.value && r.value.lessons ? r.value.lessons.find(x => x.id === 'why') : null;
+    return l ? (l.blocks || []).map(b => [b.h, b.t].filter(Boolean).join(' :: ')).join('\n') : null;
+  });
+  check('a save that changed nothing changed nothing, in the row',
+    !!stored && stored.indexOf("Don't try too hard. Replace \"um\" with a short pause.") >= 0,
+    String(stored));
+});
+
 /* ---------------------------------------------------------------- the practice call */
 const runs = () => page.evaluate(() => (window.__mockDB.growth_practice_runs || [])
   .map(r => ({ owner: r.owner_id, area: r.area, score: Number(r.score) })));

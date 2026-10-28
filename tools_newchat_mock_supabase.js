@@ -607,7 +607,12 @@
                     { k: 'ul', items: ['Who are your main customers?', 'What made you look for help now?'] } ],
           do: 'Ask one question at a time.', go: [] },
         { id: 'why', t: 'Understand why people buy', g: 'This is the key to selling.', min: 5,
-          blocks: [ { k: 'b', h: 'They want to feel heard', t: 'Ask thoughtful questions and really listen.' } ],
+          // Luke's wording, with the apostrophe and the quoted word intact. The seed that
+          // first filled this content stripped every one of them ("don't" -> "do not",
+          // '"um"' -> 'um'), so the copy on screen was not the copy he wrote. Kept here so
+          // a renderer or an editor that mangles them fails a check instead of shipping.
+          blocks: [ { k: 'b', h: 'They want to feel heard', t: 'Ask thoughtful questions and really listen.' },
+                    { k: 'b', h: 'They want someone real', t: 'Don\'t try too hard. Replace "um" with a short pause.' } ],
           do: 'Learn what they want before you say a word about what you sell.',
           go: [['See the principles', 'phil']] },
         { id: 'offer', t: 'Know the offer', g: 'Prices and the 10 day exit.', min: 5,
