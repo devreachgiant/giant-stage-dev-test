@@ -325,7 +325,7 @@ await step('Claude is tested by being asked something', async () => {
   check('the row says Connected afterwards', /Connected/.test(m.state) && !/Not/.test(m.state), m.state);
 });
 
-await step('Zoom and Fathom are honest about not connecting here', async () => {
+await step('Zoom is honest about where its credentials live', async () => {
   await page.locator('[data-gr-conn="zoom"]').click();
   await page.waitForTimeout(350);
   const z = await page.evaluate(() => ({
@@ -339,14 +339,13 @@ await step('Zoom and Fathom are honest about not connecting here', async () => {
   check('and says where its credentials live', /Netlify/.test(z.how) && /ZOOM_ACCOUNT_ID/.test(z.how), z.how.slice(0, 90));
   check('with a way to re-check', z.acts.some(a => /Check again/i.test(a)), JSON.stringify(z.acts));
 
-  await page.locator('[data-gr-conn="fathom"]').click();
-  await page.waitForTimeout(350);
-  const f = await page.evaluate(() => ({
-    how: (document.querySelector('#grConnectors .gr_cnhow') || {}).textContent || '',
-    boxes: document.querySelectorAll('#grConnectors .gr_cnp input').length }));
-  check('Fathom says it is not built yet', /not built/i.test(f.how), f.how.slice(0, 80));
-  check('and does not pretend to have a setup', f.boxes === 0, f.boxes + ' inputs');
-  check('but points at what does work today', /Call notes/i.test(f.how), f.how.slice(0, 120));
+  /* Fathom was removed on 20261028. Zoom and Calendly record their own calls, so a
+     third recorder was a connector nobody was ever going to set up -- and its screens
+     were showing sample data that looked real. */
+  const gone = await page.evaluate(() =>
+    !document.querySelector('[data-gr-conn="fathom"]') &&
+    !/fathom/i.test(document.getElementById('grConnectors').textContent));
+  check('and Fathom is not offered at all any more', gone, String(gone));
 });
 
 await step('nothing raw reaches the screen', async () => {

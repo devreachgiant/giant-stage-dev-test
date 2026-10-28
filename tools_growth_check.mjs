@@ -272,9 +272,9 @@ await step('a failed Gmail check is not a disconnected mailbox', async () => {
   check('the mailbox survives the Email screen helper not existing',
     !!noHelper && noHelper.on, JSON.stringify(noHelper));
   const section = await page.evaluate(() => {
-    const h = [...document.querySelectorAll('.gr_sech h3')].find(x => /Gmail accounts/.test(x.textContent));
-    return { there: !!h, rows: document.querySelectorAll('[data-gr-gm-forget]').length,
-             add: !!document.querySelector('[data-gr-conn-gmail].gr_gadd') };
+    const h = [...document.querySelectorAll('.gr_gma>h3')].find(x => /Gmail accounts/i.test(x.textContent));
+    return { there: !!h, rows: document.querySelectorAll('.gr_gm:not(.gr_gmadd)').length,
+             add: !!document.querySelector('[data-gr-conn-gmail].gr_gmadd') };
   });
   check('and the Gmail accounts section is still on the page', section.there, JSON.stringify(section));
   check('listing the mailbox, with a way to add another',
@@ -290,10 +290,10 @@ await step('a failed Gmail check is not a disconnected mailbox', async () => {
   await page.evaluate(() => document.querySelector('[data-gr-conn-recheck]')?.click());
   await page.waitForTimeout(1700);
   const empty = await page.evaluate(() => {
-    const h = [...document.querySelectorAll('.gr_sech h3')].find(x => /Gmail accounts/.test(x.textContent));
-    return { there: !!h, rows: document.querySelectorAll('[data-gr-gm-forget]').length,
-             add: !!document.querySelector('[data-gr-conn-gmail].gr_gadd'),
-             says: (document.querySelector('.gr_connl .gr_mute') || {}).textContent || '' };
+    const h = [...document.querySelectorAll('.gr_gma>h3')].find(x => /Gmail accounts/i.test(x.textContent));
+    return { there: !!h, rows: document.querySelectorAll('.gr_gm:not(.gr_gmadd)').length,
+             add: !!document.querySelector('[data-gr-conn-gmail].gr_gmadd'),
+             says: (document.querySelector('.gr_gmnone') || {}).textContent || '' };
   });
   check('with no mailbox at all the section is still there', empty.there, JSON.stringify(empty));
   check('and says so, rather than vanishing',
@@ -1173,194 +1173,14 @@ await step('anything that is not a Loom link is refused on the row too', async (
   check('and nothing points at it', !after.framed, JSON.stringify(after));
 });
 
-/* ---------------------------------------------------------------- the practice call */
-// Read off the DATABASE rows, not the screen: a run that paints a score and never files
-// it looks identical until you reload.
-const runs = () => page.evaluate(() => (window.__mockDB.growth_practice_runs || [])
-  .map(r => ({ owner: r.owner_id, area: r.area, score: Number(r.score) })));
-
-await step('the picker says how you have done, per area', async () => {
-  await page.evaluate(() => document.querySelector('[data-gr-traintab="practice"]')?.click());
-  await page.waitForTimeout(1400);
-  const m = await page.evaluate(() => ({
-    cards: [...document.querySelectorAll('[data-gr-prac-start]')].map(b => ({
-      id: b.dataset.grPracStart,
-      text: b.textContent.replace(/\s+/g, ' ').trim(),
-      w: Math.round(b.getBoundingClientRect().width)
-    }))
-  }));
-  const open  = m.cards.find(c => /Opening the call/.test(c.text));
-  const worry = m.cards.find(c => /Handling worries/.test(c.text));
-  check('both areas are offered', !!open && !!worry, JSON.stringify(m.cards.map(c => c.id)));
-  // Two runs at 6 and 8 are seeded, so the average is a real number, not a placeholder.
-  check('an area that has been practised shows its average', !!open && /7\.0 out of 10/.test(open.text), open && open.text);
-  check('and one that has not says so', !!worry && /Not tried yet/.test(worry.text), worry && worry.text);
-  check('the cards are a readable size', !!open && open.w > 180, String(open && open.w));
-
-  const weak = m.cards.find(c => /Start with my weakest/.test(c.text));
-  /* Never practised beats practised badly. 'open' averages 7 and 'worry' has never been
-     tried, so the one you are avoiding is the one to offer -- picking the lower average
-     would send you back to the thing you already do. */
-  check('and the weakest offered is the one never tried, not the lower average',
-    !!weak && /Handling worries/.test(weak.text), weak && weak.text);
-});
-
-await step('a call opens on what the prospect says, and keeps the answer back', async () => {
-  await page.evaluate(() => {
-    const b = [...document.querySelectorAll('[data-gr-prac-start]')]
-      .find(x => /Handling worries/.test(x.textContent) && !/weakest/.test(x.textContent));
-    if (b) b.click();
-  });
-  await page.waitForTimeout(1100);
-  const m = await page.evaluate(() => {
-    const box = document.querySelector('.gr_rmsgs');
-    const b = box ? box.getBoundingClientRect() : null;
-    const say = document.querySelector('#grRoomSay');
-    return {
-      lines: [...document.querySelectorAll('.gr_rmb')].map(e => e.textContent.trim()),
-      h: b ? Math.round(b.height) : 0, w: b ? Math.round(b.width) : 0,
-      sayFont: say ? getComputedStyle(say).fontSize : null,
-      sayH: say ? Math.round(say.getBoundingClientRect().height) : 0,
-      body: document.body.textContent
-    };
-  });
-  check('the prospect speaks first, from the scenario',
-    m.lines.length === 1 && /more than another agency quoted me/.test(m.lines[0]), JSON.stringify(m.lines));
-  check('the call is a size you can hold a conversation in', m.h > 150 && m.w > 300,
-    JSON.stringify({ w: m.w, h: m.h }));
-  // 16px or iOS zooms the page the moment you tap to type.
-  check('typing will not zoom the page', m.sayFont && parseFloat(m.sayFont) >= 16, m.sayFont);
-  check('and the box is big enough to type into', m.sayH >= 44, String(m.sayH));
-  /* THE WHOLE POINT. The strong answer is in the scenario and must not be on screen
-     while you are answering -- shown first, this screen is reading, which is the thing
-     it exists to replace. */
-  check('the strong answer is NOT on screen during the call',
-    m.body.indexOf('What did that other quote include?') < 0, 'leaked');
-});
-
-await step('three replies end the call and score it', async () => {
-  const before = (await runs()).length;
-  for (const line of ['That makes sense to check. What did that quote include?',
-                      'We charge for the management, and the ad spend stays yours.',
-                      'Shall I send you the plan today?']) {
-    await page.fill('#grRoomSay', line);
-    await page.evaluate(() => document.querySelector('[data-gr-prac-send]')?.click());
-    await page.waitForTimeout(1400);
-  }
-  await page.waitForTimeout(2500);
-  const m = await page.evaluate(() => {
-    const ring = document.querySelector('.gr_ring b');
-    const r = document.querySelector('.gr_ring');
-    return { score: ring ? ring.textContent : null,
-             ringW: r ? Math.round(r.getBoundingClientRect().width) : 0,
-             skills: [...document.querySelectorAll('.gr_skills > div > span')].map(e => e.textContent.trim()),
-             // The SECOND note is "Change next time". The first is "Went well", and
-             // reading both as one list let this pass while the advice half was empty.
-             change: [...document.querySelectorAll('.gr_rep .gr_two .gr_note')].slice(1, 2)
-               .flatMap(n => [...n.querySelectorAll('p')].map(e => e.textContent.trim())),
-             body: document.body.textContent };
-  });
-  check('a score comes back', !!m.score && /^\d+(\.\d)?$/.test(m.score), String(m.score));
-  check('the ring is drawn, not a 0px circle', m.ringW > 60, String(m.ringW));
-  check('with the five skills scored', m.skills.length === 5, JSON.stringify(m.skills));
-  check('and something to change', m.change.length > 0, JSON.stringify(m.change.slice(0, 2)));
-  /* AFTER the score, the strong answer is the lesson. Before it, it was the spoiler. */
-  check('now the strong answer is shown',
-    m.body.indexOf('What did that other quote include?') >= 0, 'missing');
-  /* It was printed twice: the local scorer filled "a stronger way to say it" with the
-     scenario's model opener, which is already shown under its own heading. */
-  check('and only once', (m.body.match(/What did that other quote include\?/g) || []).length === 1,
-    String((m.body.match(/What did that other quote include\?/g) || []).length));
-
-  const after = await runs();
-  check('the run was filed', after.length === before + 1, JSON.stringify({ before, after: after.length }));
-  const fresh = after.find(r => r.area === 'worry');
-  check('under the right area, owned by the person who did it',
-    !!fresh && fresh.area === 'worry' && !!fresh.owner, JSON.stringify(fresh));
-  check('and with the score that was shown', !!fresh && String(fresh.score) === String(parseFloat(m.score)),
-    JSON.stringify({ row: fresh && fresh.score, screen: m.score }));
-});
-
-await step('and the picker counts it from then on', async () => {
-  await page.evaluate(() => document.querySelector('[data-gr-prac-end]')?.click());
-  await page.waitForTimeout(1200);
-  const txt = await page.evaluate(() => {
-    const b = [...document.querySelectorAll('[data-gr-prac-start]')]
-      .find(x => /Handling worries/.test(x.textContent) && !/weakest/.test(x.textContent));
-    return b ? b.textContent.replace(/\s+/g, ' ').trim() : null;
-  });
-  check('the area that was just practised is no longer untried',
-    !!txt && !/Not tried yet/.test(txt) && /1 call/.test(txt), String(txt));
-});
-
-await step('the scenarios edit here, like every other Training page', async () => {
-  /* Lessons, clear answers and the questions all edit inline on this screen. Scenarios
-     living only in the database would be the one piece of Training content a manager has
-     to ask a developer about, which is how the pricing page ended up hard-coded before. */
-  const read = () => page.evaluate(() => {
-    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'practice');
-    return r && r.value && r.value.areas ? r.value.areas : null;
-  });
-  const before = await read();
-  await page.evaluate(() => document.querySelector('[data-gr-pa-edit="worry"]')?.click());
-  await page.waitForTimeout(900);
-  const fields = await page.evaluate(() => ({
-    t: (document.querySelector('[data-gr-pa="t"]') || {}).value,
-    lines: (document.querySelector('[data-gr-pa="s"]') || {}).value
-  }));
-  check('the editor opens on what is there', fields.t === 'Handling worries', String(fields.t));
-  check('with the openers as one line each, split by ::',
-    /quoted me\. :: That makes sense/.test(fields.lines || ''), String(fields.lines).slice(0, 80));
-
-  await page.fill('[data-gr-pa="s"]',
-    'They have gone quiet on me. :: Ask what changed since the call.\nI need to speak to my partner. :: Ask what the partner would want to know.');
-  await page.fill('[data-gr-pa="t"]', 'Handling worries and stalls');
-  await page.evaluate(() => document.querySelector('[data-gr-pa-save="worry"]')?.click());
-  await page.waitForTimeout(1500);
-
-  const after = await read();
-  const a2 = (after || []).find(x => x.id === 'worry');
-  check('the name is saved', a2 && a2.t === 'Handling worries and stalls', a2 && a2.t);
-  check('and both openers round trip into the row',
-    a2 && (a2.s || []).length === 2 && a2.s[0].p === 'They have gone quiet on me.' &&
-    a2.s[1].b === 'Ask what the partner would want to know.', JSON.stringify(a2 && a2.s));
-  /* Same merge rule as the questions. `source` is deliberately NOT on the form: an
-     earlier version of this check asserted `who`, which the form DOES write back, so it
-     passed happily against a rebuild. A check that only looks at fields the form shows
-     cannot see a rebuild drop anything. */
-  check('and a field the form never shows survives the save',
-    a2 && a2.source === 'Luke, from a real call', String(a2 && a2.source));
-
-  const shown = await page.evaluate(() => ({
-    editorGone: !document.querySelector('[data-gr-pa="t"]'),
-    card: [...document.querySelectorAll('.gr_pick')].map(b => b.textContent).join(' ')
-  }));
-  check('the form is put away on save', shown.editorGone, String(shown.editorGone));
-  check('and the picker shows the new name straight away',
-    /Handling worries and stalls/.test(shown.card), shown.card.slice(0, 60));
-
-  // And the call that follows uses the new openers, not the ones it was seeded with.
-  await page.evaluate(() => {
-    const b = [...document.querySelectorAll('[data-gr-prac-start]')]
-      .find(x => /Handling worries and stalls/.test(x.textContent) && !/weakest/.test(x.textContent));
-    if (b) b.click();
-  });
-  await page.waitForTimeout(1100);
-  const line = await page.evaluate(() =>
-    (document.querySelector('.gr_rmb') || {}).textContent || '');
-  check('a call started from it opens on one of the new openers',
-    /gone quiet on me|speak to my partner/.test(line), line);
-  await page.evaluate(() => document.querySelector('[data-gr-prac-end]')?.click());
-  await page.waitForTimeout(600);
-});
-
 await step('Pricing is off the Training strip but not orphaned', async () => {
   await screen('gr_training');
   const tabs = await page.evaluate(() =>
     [...document.querySelectorAll('[data-gr-traintab]')].map(b => b.dataset.grTraintab));
   check('Pricing is not a tab any more', tabs.indexOf('pricing') < 0, tabs.join(','));
-  check('the other five are', ['course', 'practice', 'clear', 'lib', 'qa'].every(t => tabs.indexOf(t) >= 0),
+  check('the other four are', ['course', 'clear', 'lib', 'qa'].every(t => tabs.indexOf(t) >= 0),
     tabs.join(','));
+  check('and Practice is gone with it', tabs.indexOf('practice') < 0, tabs.join(','));
   /* Hidden, not deleted. "Know the offer" links straight to it, which is the one place
      anybody actually wants it, and the strip lights Course while you are there rather
      than lighting nothing at all. */
@@ -1413,7 +1233,7 @@ await step('the Q and A screen is the answer, not a wall of controls', async () 
     rows: document.querySelectorAll('.gr_qa3').length
   }));
   /* Luke dropped both in his latest pass, and the second one had become actively
-     confusing: Practice is a tab of its own now, so a button called Practice inside
+     confusing: a button called Practice inside
      Q and A went somewhere else entirely. */
   check('no theme filter chips', m.themeChips === 0, String(m.themeChips));
   check('no Browse / Practice strip', m.viewStrip === 0, String(m.viewStrip));
@@ -1505,11 +1325,12 @@ await step('the Pipeline header answers the two questions you open it with', asy
 
 /* ---------------------------------------------------------------- on a phone */
 await step('every Training tab is still reachable at phone width', async () => {
-  /* Adding Practice made six tabs. .gr_seg was inline-flex with no wrap and no scroll,
-     so the sixth -- Pricing -- was CLIPPED by the screen edge and could not be reached
-     at all. Nothing looked wrong from a desktop, and the page did not even scroll
-     sideways to hint at it, which is why this is measured against the viewport rather
-     than eyeballed. */
+  /* Six tabs once overflowed here: .gr_seg was inline-flex with no wrap and no scroll,
+     so the last one was CLIPPED by the screen edge and could not be reached at all.
+     Nothing looked wrong from a desktop, and the page did not even scroll sideways to
+     hint at it, which is why this is measured against the viewport rather than
+     eyeballed. There are four tabs now, which fit -- the check stays because the next
+     tab somebody adds is the one that would not. */
   const ph = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const pp = await ph.newPage();
   await pp.route('**/@supabase/supabase-js@2*', r =>
@@ -1536,33 +1357,325 @@ await step('every Training tab is still reachable at phone width', async () => {
       pageSideways: document.documentElement.scrollWidth > innerWidth + 1
     };
   });
-  check('all five tabs are rendered', !!m && m.names.length === 5, JSON.stringify(m && m.names));
+  check('all four tabs are rendered', !!m && m.names.length === 4, JSON.stringify(m && m.names));
   check('the strip scrolls rather than clipping what will not fit', !!m && !m.clipped, String(m && m.clipped));
   check('so the last tab can actually be reached', !!m && m.lastVisible, String(m && m.lastVisible));
   check('and the page itself does not scroll sideways', !!m && !m.pageSideways, String(m && m.pageSideways));
 
-  // The call screen is the one you would actually use on a phone.
-  await pp.evaluate(() => document.querySelector('[data-gr-traintab="practice"]')?.click());
-  await pp.waitForTimeout(1200);
-  await pp.evaluate(() => {
-    const b = [...document.querySelectorAll('[data-gr-prac-start]')].find(x => !/weakest/.test(x.textContent));
-    if (b) b.click();
-  });
-  await pp.waitForTimeout(1200);
-  const room = await pp.evaluate(() => {
-    const t = document.querySelector('#grRoomSay'), s = document.querySelector('[data-gr-prac-send]');
-    const tb = t ? t.getBoundingClientRect() : null, sb = s ? s.getBoundingClientRect() : null;
-    return { tw: tb ? Math.round(tb.width) : 0, th: tb ? Math.round(tb.height) : 0,
-             sendOn: sb ? sb.right <= innerWidth + 1 : false,
-             font: t ? getComputedStyle(t).fontSize : null,
-             sideways: document.documentElement.scrollWidth > innerWidth + 1 };
-  });
-  check('you can type a reply on a phone', room.tw > 150 && room.th >= 44, JSON.stringify(room));
-  check('and reach Send', room.sendOn, String(room.sendOn));
-  check('without the page zooming when you tap', room.font && parseFloat(room.font) >= 16, room.font);
-  check('and nothing runs off the side', !room.sideways, String(room.sideways));
   await ph.close();
 });
+
+await step('the Today button belongs to Growth and stays there', async () => {
+  /* It was floating over Chat. The guard existed -- it read grScreen, which is only ever
+     set by grInit, and grInit only runs for gr_ screens. So leaving Growth never told it
+     anything and the last Growth screen stuck forever. Measure the button, not the flag:
+     .gr_tdbtn is display:none until .on, so a hidden one is 0px wide. */
+  const widthOf = () => page.evaluate(() => {
+    const b = document.querySelector('.gr_tdbtn');
+    if (!b) return { exists: false, w: 0 };
+    return { exists: true, w: Math.round(b.getBoundingClientRect().width) };
+  });
+  await screen('gr_pipeline');
+  const onGrowth = await widthOf();
+  check('it is there on a Growth screen', onGrowth.exists && onGrowth.w > 40, JSON.stringify(onGrowth));
+
+  await screen('tasks');
+  const onTasks = await widthOf();
+  check('and gone the moment you leave for another screen', onTasks.w === 0, JSON.stringify(onTasks));
+
+  await screen('gr_pipeline');
+  const back = await widthOf();
+  check('and back when you return', back.w > 40, JSON.stringify(back));
+
+  // The drawer too: walking away with it open left a Growth panel sitting over Chat.
+  await page.evaluate(() => document.querySelector('.gr_tdbtn')?.click());
+  await page.waitForTimeout(500);
+  const opened = await page.evaluate(() => {
+    const d = document.querySelector('#grToday .gr_tdd');
+    return d ? Math.round(d.getBoundingClientRect().width) : 0;
+  });
+  check('the drawer opens from it', opened > 100, String(opened));
+  await screen('tasks');
+  const left = await page.evaluate(() => {
+    const d = document.querySelector('#grToday .gr_tdd');
+    return d ? Math.round(d.getBoundingClientRect().width) : 0;
+  });
+  check('and closes behind you when you leave Growth', left === 0, String(left));
+  await screen('gr_pipeline');
+});
+
+
+await step('Home is the dashboard Luke drew', async () => {
+  /* It was an AI ask box on top of two cards in the wrong order. Luke's Home is numbers
+     first: clocks, greeting, three tiles, then Meetings today BEFORE Reply to. Measured,
+     not counted: the tiles have to AGREE with the rows under them, or they are three
+     numbers that happen to be printed near a list. */
+  await screen('gr_home');
+  const m = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('.gr_hmcard')];
+    const h2 = c => (c.querySelector('h2') || {}).textContent || '';
+    const meetCard = cards.find(c => /Meetings today/.test(h2(c)));
+    const replyCard = cards.find(c => /Reply to/.test(h2(c)));
+    const tiles = [...document.querySelectorAll('.gr_hmstat')].map(e => ({
+      n: (e.querySelector('b') || {}).textContent,
+      label: ((e.querySelector('span') || {}).textContent || '').trim(),
+      w: Math.round(e.getBoundingClientRect().width),
+      size: Math.round(parseFloat(getComputedStyle(e.querySelector('b')).fontSize))
+    }));
+    const wrap = document.querySelector('.gr_wclk');
+    const track = document.querySelector('.gr_wclkin');
+    const zs = [...document.querySelectorAll('.gr_wz')];
+    const wb = wrap ? wrap.getBoundingClientRect() : null;
+    const onCard = zs.find(z => z.classList.contains('gr_wzon'));
+    const offCard = zs.find(z => !z.classList.contains('gr_wzon'));
+    const bigTime = zs[0] && zs[0].querySelector('b');
+    const hero = document.querySelector('.gr_hmhero');
+    return {
+      tiles,
+      order: cards.map(h2).map(t => t.trim()),
+      heroH1: hero ? ((hero.querySelector('h1') || {}).textContent || '').trim() : '',
+      heroDate: hero ? ((hero.querySelector('p') || {}).textContent || '').trim() : '',
+      askBoxes: document.querySelectorAll('#grHome .gr_as').length,
+      meetRows: meetCard ? meetCard.querySelectorAll('.gr_hmrow').length : -1,
+      replyRows: replyCard ? replyCard.querySelectorAll('.gr_hmrow').length : -1,
+      btnsOnReplyRows: replyCard ? replyCard.querySelectorAll('.gr_hmrow button').length : -1,
+      clockSlackL: (zs.length && wb) ? Math.round(zs[0].getBoundingClientRect().left - wb.left) : -1,
+      clockSlackR: (zs.length && wb) ? Math.round(wb.right - zs[zs.length - 1].getBoundingClientRect().right) : -1,
+      more: (document.querySelector('.gr_hmmore') || {}).textContent || '',
+      clocks: zs.length,
+      cities: zs.map(z => (z.querySelector('.gr_wzc') || {}).textContent || ''),
+      flags: zs.map(z => ((z.querySelector('.gr_wzf') || {}).textContent || '').trim()).filter(Boolean).length,
+      times: zs.map(z => ((z.querySelector('b') || {}).textContent || '').trim()),
+      cardW: zs[0] ? Math.round(zs[0].getBoundingClientRect().width) : -1,
+      timeSize: bigTime ? Math.round(parseFloat(getComputedStyle(bigTime).fontSize)) : -1,
+      trackW: track ? Math.round(track.getBoundingClientRect().width) : -1,
+      activeFilled: onCard ? getComputedStyle(onCard).backgroundColor : '',
+      restFilled: offCard ? getComputedStyle(offCard).backgroundColor : '',
+      showingRows: document.querySelectorAll('#grHome .gr_vasrow').length,
+      oldCards: document.querySelectorAll('#grHome .gr_card').length,
+      headings: [...document.querySelectorAll('#grHome h2')].map(h => h.textContent.trim())
+    };
+  });
+
+  check('the three tiles say what they count',
+    JSON.stringify(m.tiles.map(t => t.label)) ===
+      JSON.stringify(['Meetings today', 'Need a reply', 'To follow up']),
+    JSON.stringify(m.tiles));
+  // A tile that disagrees with the list beneath it is worse than no tile.
+  check('the meetings tile agrees with the rows under it',
+    m.tiles[0] && String(m.tiles[0].n) === String(m.meetRows),
+    JSON.stringify({ tile: m.tiles[0] && m.tiles[0].n, rows: m.meetRows }));
+  check('and the replies tile agrees with its rows',
+    m.tiles[1] && String(m.tiles[1].n) === String(m.replyRows),
+    JSON.stringify({ tile: m.tiles[1] && m.tiles[1].n, rows: m.replyRows }));
+  check('the number is the big thing on the tile, not a label-sized digit',
+    m.tiles.every(t => t.size >= 30), JSON.stringify(m.tiles.map(t => t.size)));
+  check('the three share the row equally',
+    m.tiles.length === 3 && Math.max(...m.tiles.map(t => t.w)) - Math.min(...m.tiles.map(t => t.w)) <= 2,
+    JSON.stringify(m.tiles.map(t => t.w)));
+
+  check("Meetings today comes before Reply to, the way Luke has it",
+    m.order[0] === 'Meetings today' && m.order[1] === 'Reply to', JSON.stringify(m.order));
+  check('the greeting names somebody', /^Good (morning|afternoon|evening), \S/.test(m.heroH1), m.heroH1);
+  check('and carries the date under it', /\d/.test(m.heroDate) && m.heroDate.length > 8, m.heroDate);
+  check('the ask box is off Home', m.askBoxes === 0, String(m.askBoxes));
+  check('a reply row is a row, not a row with two buttons',
+    m.btnsOnReplyRows === 0, String(m.btnsOnReplyRows));
+  check('See all clients is the way through to the board',
+    /See all clients/.test(m.more), m.more);
+  /* The clocks are built from the zones the deals are in, so there can be two of them.
+     On a five-column grid two sat in the left fifth with a hole beside them. */
+  check('the clocks sit centred rather than stranded at one end',
+    m.clockSlackL >= 0 && Math.abs(m.clockSlackL - m.clockSlackR) <= 2,
+    JSON.stringify({ left: m.clockSlackL, right: m.clockSlackR }));
+
+  /* The four places the team works from, by name and in order -- not a count, which a
+     list of the wrong four cities would also satisfy. They were briefly derived from the
+     deals' timezones, which answered a question nobody asked: the strip says whose 3pm a
+     meeting is, and that is the team's zones, not the client's. */
+  check('the four clocks are the team\'s cities, in order',
+    JSON.stringify(m.cities) ===
+      JSON.stringify(['Lisbon', 'New York', 'Johannesburg', 'Los Angeles']),
+    JSON.stringify(m.cities));
+  check('each one flagged', m.flags === 4, String(m.flags));
+  /* Four cities and one clock would also pass a name check. These must be real, distinct
+     times -- a timeZone that silently failed printed the same local time on all four. */
+  check('showing four genuinely different times',
+    m.times.every(t => /\d/.test(t)) && new Set(m.times).size >= 3,
+    JSON.stringify(m.times));
+  /* The artifact's measurements, kept because "a bit smaller" compounds: the card was
+     270 wide with a 19px time, against its 197.5 and 30. */
+  check('at the size the design draws them, not shrunk to fit',
+    m.cardW >= 193 && m.cardW <= 203 && m.timeSize === 30,
+    JSON.stringify({ card: m.cardW, time: m.timeSize }));
+  check('in a fixed track rather than stretched across the window',
+    m.trackW > 0 && m.trackW <= 830, String(m.trackW));
+  /* The zone you are reading times in is FILLED, so the strip answers "whose 3pm"
+     before you have read a word. Outlined, it was one border colour among five.
+     Compared against a SIBLING card, not against transparent: the first version of this
+     asked only whether the active card had a background, which every card has, so it
+     passed with the fill removed and told me nothing. */
+  check('and the zone in use is filled, so it differs from the cards beside it',
+    !!m.activeFilled && !!m.restFilled && m.activeFilled !== m.restFilled,
+    JSON.stringify({ active: m.activeFilled, rest: m.restFilled }));
+
+  // Nothing but the four clocks, the greeting, three numbers and two lists.
+  check('the Showing selector is off Home, where the page is symmetrical',
+    m.showingRows === 0, String(m.showingRows));
+  check('and Gone quiet / Follow ups ready are gone with it',
+    m.oldCards === 0 && m.headings.length === 2, JSON.stringify(m.headings));
+});
+
+
+await step('Zoom connects from the app, the way Calendly does', async () => {
+  /* Zoom was the last connector that needed a Netlify login, so whoever owned the Zoom
+     account waited on whoever owned the deploy. These watch the REQUEST and the screen
+     after it, not the buttons: a form that collects three values and posts two looks
+     identical on screen, and the first thing to fail would be a booking nobody is
+     watching. The function itself is stubbed here -- what is under test is the page. */
+  const seen = { save: null, headers: null };
+  await page.route('**/growth-zoom*', async (route) => {
+    const req = route.request();
+    if (/action=save/.test(req.url())) {
+      seen.save = req.postData();
+      seen.headers = req.headers();
+      return route.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ configured: true, who: 'zoom@reachgiant.com', source: 'app' }) });
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ configured: false, who: '', source: '' }) });
+  });
+
+  await screen('gr_connectors');
+  await page.evaluate(() => document.querySelector('[data-gr-conn="zoom"]')?.click());
+  await page.waitForTimeout(700);
+
+  const form = await page.evaluate(() => ['grZoomAcct', 'grZoomId', 'grZoomSecret'].map(i => {
+    const e = document.getElementById(i);
+    return e ? { id: i, type: e.type, w: Math.round(e.getBoundingClientRect().width) } : null;
+  }));
+  check('all three values are asked for, and are actually on screen',
+    form.every(x => x && x.w > 40), JSON.stringify(form));
+  check('the secret is a password field, not plain text somebody can read over a shoulder',
+    form[2] && form[2].type === 'password', JSON.stringify(form[2]));
+
+  /* ALL THREE OR NONE. Two-thirds of a credential stored would leave the row saying
+     Connected while every meeting it minted failed on the missing piece. */
+  await page.fill('#grZoomAcct', 'ACC-1');
+  await page.fill('#grZoomId', 'CID-1');
+  await page.evaluate(() => document.querySelector('[data-gr-zoom-save]')?.click());
+  await page.waitForTimeout(800);
+  check('two of the three is not sent anywhere', seen.save === null, String(seen.save));
+
+  await page.fill('#grZoomSecret', 'SECRET-1');
+  await page.evaluate(() => document.querySelector('[data-gr-zoom-save]')?.click());
+  await page.waitForTimeout(1200);
+  let body = null;
+  try { body = JSON.parse(seen.save || 'null'); } catch (e) { /* reported below */ }
+  check('all three go up together',
+    !!body && body.account_id === 'ACC-1' && body.client_id === 'CID-1' && body.client_secret === 'SECRET-1',
+    JSON.stringify(body));
+  /* The function decides the caller's role from their own login. Without this header it
+     cannot, and it refuses -- so a page that forgets it is a connector that never saves. */
+  check('and the caller proves who they are, so the function can check the role',
+    !!(seen.headers && /^Bearer .+/.test(seen.headers.authorization || seen.headers.Authorization || '')),
+    JSON.stringify(seen.headers ? (seen.headers.authorization || '') : null));
+
+  const after = await page.evaluate(() => {
+    const card = document.querySelector('[data-gr-conn="zoom"]')?.closest('.gr_cn') || document.body;
+    const inputs = [...document.querySelectorAll('input')].map(i => i.value);
+    return {
+      says: (card.innerText || '').replace(/\n/g, ' '),
+      offersForget: !!document.querySelector('[data-gr-zoom-forget]'),
+      stillAsking: !!document.getElementById('grZoomSecret'),
+      secretAnywhereOnThePage: /SECRET-1/.test(document.body.innerText) || inputs.indexOf('SECRET-1') >= 0
+    };
+  });
+  check('the row turns over to connected and names the account',
+    /zoom@reachgiant\.com/.test(after.says), after.says.slice(0, 160));
+  check('the form goes away once there is nothing left to paste',
+    !after.stillAsking, String(after.stillAsking));
+  check('and offers a way to disconnect, so a new account can replace it',
+    after.offersForget, String(after.offersForget));
+  /* The whole point of storing it server-side: once handed over it never comes back. */
+  check('the secret is nowhere on the page afterwards',
+    !after.secretAnywhereOnThePage, String(after.secretAnywhereOnThePage));
+
+  await page.unroute('**/growth-zoom*');
+});
+
+
+await step('Connectors: the Gmail card, and one row fewer', async () => {
+  /* Two things. Connected AI is off this screen -- it is made and revoked in Settings,
+     and a second place reading the same thing is a second place for it to go stale.
+     And the Gmail card is the artifact's: each mailbox its own outlined box rather than
+     rows split by a rule, because which mailbox Growth SENDS from is the one thing the
+     card exists to say, and as a list it was a green dot you had to hunt for. */
+  await screen('gr_connectors');
+  await page.waitForTimeout(1200);
+  const m = await page.evaluate(() => {
+    const card = document.querySelector('.gr_gma');
+    const rows = [...document.querySelectorAll('.gr_gm:not(.gr_gmadd)')];
+    const cs = (e) => e ? getComputedStyle(e) : null;
+    const on = rows.find(r => r.classList.contains('gr_gmon'));
+    const off = rows.find(r => !r.classList.contains('gr_gmon'));
+    return {
+      connectors: [...document.querySelectorAll('.gr_cnrow b')].map(b => b.textContent.trim()),
+      cardRadius: card ? Math.round(parseFloat(cs(card).borderTopLeftRadius)) : -1,
+      cardPad: card ? Math.round(parseFloat(cs(card).paddingTop)) : -1,
+      headingCaps: card ? cs(card.querySelector('h3')).textTransform : '',
+      rowRadius: rows[0] ? Math.round(parseFloat(cs(rows[0]).borderTopLeftRadius)) : -1,
+      rowPadY: rows[0] ? Math.round(parseFloat(cs(rows[0]).paddingTop)) : -1,
+      // Outlined per row: a visible border on every box, and a DIFFERENT one on the
+      // active box. Asserting the colours differ, not that a border exists.
+      onBorder: on ? cs(on).borderTopColor : '',
+      offBorder: off ? cs(off).borderTopColor : '',
+      onBg: on ? cs(on).backgroundImage : '',
+      offBg: off ? cs(off).backgroundImage : '',
+      crossOnActive: on ? on.querySelectorAll('[data-gr-gm-forget]').length : -1,
+      crossOnOther: off ? off.querySelectorAll('[data-gr-gm-forget]').length : -1,
+      addDashed: cs(document.querySelector('.gr_gmadd')) ? cs(document.querySelector('.gr_gmadd')).borderTopStyle : '',
+      noteBar: cs(document.querySelector('.gr_gmnote')) ? Math.round(parseFloat(cs(document.querySelector('.gr_gmnote')).borderLeftWidth)) : -1,
+      noteText: (document.querySelector('.gr_gmnote') || {}).textContent || ''
+    };
+  });
+
+  check('Connected AI is off the Connectors screen',
+    m.connectors.indexOf('Connected AI') < 0, JSON.stringify(m.connectors));
+  check('and the connectors that remain are still listed',
+    m.connectors.length >= 3 && m.connectors.indexOf('Gmail') >= 0 && m.connectors.indexOf('Zoom') >= 0,
+    JSON.stringify(m.connectors));
+
+  check('the card is the rounded, padded one from the design',
+    m.cardRadius === 24 && m.cardPad === 20, JSON.stringify({ r: m.cardRadius, p: m.cardPad }));
+  check('with the heading in caps and a count beside it',
+    m.headingCaps === 'uppercase', m.headingCaps);
+  check('each mailbox is its own box, not a row under a rule',
+    m.rowRadius === 14 && m.rowPadY === 11, JSON.stringify({ r: m.rowRadius, p: m.rowPadY }));
+  /* The point of the card. Both must differ from the inactive row, measured -- an
+     earlier version of a check like this asked only whether a background existed, which
+     every row has, and passed with the highlight removed. */
+  check('and the active one is outlined and tinted differently from the rest',
+    !!m.onBorder && m.onBorder !== m.offBorder && m.onBg !== m.offBg && m.onBg !== 'none',
+    JSON.stringify({ onB: m.onBorder, offB: m.offBorder, tint: m.onBg.slice(0, 40), rest: m.offBg }));
+
+  /* Growth sends from the active mailbox, so a cross on it is a button that stops
+     Growth sending. */
+  check('no way to disconnect the mailbox Growth is sending from',
+    m.crossOnActive === 0, String(m.crossOnActive));
+  check('but the one you are not using can go',
+    m.crossOnOther === 1, String(m.crossOnOther));
+
+  check('adding another reads as the empty slot it is',
+    m.addDashed === 'dashed', m.addDashed);
+  check('and the note keeps its marker bar', m.noteBar >= 4, String(m.noteBar));
+  /* NOT the artifact's wording: that one tells you to switch accounts in Claude's Gmail
+     connector settings, which is how HIS page sends, not how Giant does. */
+  check('the note describes how Giant sends, not how the artifact does',
+    /Growth sends from/.test(m.noteText) && !/connector settings/i.test(m.noteText),
+    m.noteText.slice(0, 90));
+});
+
 
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
