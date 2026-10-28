@@ -72,6 +72,76 @@ const stages = () => page.evaluate(() => {
 
 await screen('gr_pipeline');
 
+/* ---------------------------------------------------------------- the board reads */
+await step('a card says one thing, and it is the thing to do next', async () => {
+  /* The card used to carry an avatar, a status pill, the money, a meeting-or-email line,
+     a heat word and the owner's initials -- six things in a 193px column. One line now,
+     picked by where the deal is. */
+  const m = await page.evaluate(() => {
+    const out = {};
+    document.querySelectorAll('.gr_bc').forEach(el => {
+      const n = el.querySelector('.gr_bn b');
+      const lines = el.querySelectorAll('.gr_bl');
+      out[n ? n.textContent : '?'] = {
+        lines: lines.length,
+        says: lines[0] ? lines[0].textContent.trim() : null,
+        avatar: !!el.querySelector('.gr_av'),
+        heat: !!el.querySelector('.gr_sc')
+      };
+    });
+    return out;
+  });
+  const cesar = m['Cesar Diaz'], michael = m['Michael Cash'], pete = m['Pete Patrino'];
+  check('every card has exactly one line of context',
+    Object.values(m).every(x => x.lines === 1), JSON.stringify(m));
+  // An unanswered reply beats everything else: it is the only thing that is YOUR move.
+  check('an unanswered reply says so, in red', cesar && cesar.says === 'Reply needed', JSON.stringify(cesar));
+  check('otherwise it is the next action', michael && michael.says === 'Send proposal', JSON.stringify(michael));
+  check('a won deal says when it was won', pete && /^Won /.test(pete.says), JSON.stringify(pete));
+  check('the avatar and the heat word are off the card',
+    Object.values(m).every(x => !x.avatar && !x.heat), JSON.stringify(m));
+});
+
+await step('the stage heading fits, with its count on the right', async () => {
+  /* TWO BUGS IN ONE ROW. The count was styled by `.gr_colh span:last-child`, and adding
+     the delete button made the span no longer last -- so it lost its margin-left:auto and
+     its colour, and the heading read "Booked 1 1" with both numbers jammed together.
+     Giving it a class then collided with .gr_cn, which is the call-note card, and the
+     later rule won: it came back as a padded blob that pushed "Proposal sent" into
+     "Proposa...". Both are measured here rather than described. */
+  const m = await page.evaluate(() => [...document.querySelectorAll('.gr_colh')].map(h => {
+    const t = h.querySelector('b'), c = h.querySelector('.gr_colcnt');
+    if (!t || !c) return null;
+    const tb = t.getBoundingClientRect(), cb = c.getBoundingClientRect(), hb = h.getBoundingClientRect();
+    return { name: t.textContent,
+             ellipsised: t.scrollWidth > t.clientWidth + 1,
+             gap: Math.round(cb.left - tb.right),
+             clear: Math.round(cb.left) >= Math.round(tb.right),
+             countW: Math.round(cb.width) };
+  }).filter(Boolean));
+  check('all six headings are present', m.length === 6, String(m.length));
+  check('none of the stage names is cut off',
+    m.every(x => !x.ellipsised), JSON.stringify(m.filter(x => x.ellipsised).map(x => x.name)));
+  check('the count is pushed away from the name, however short the name is',
+    // The flex gap is 6px, so 6px is exactly what you get WITHOUT the auto margin.
+    // The longest heading still leaves 18px with it, which is the separation to test.
+    m.every(x => x.gap > 12), JSON.stringify(m.map(x => x.name + ':' + x.gap + 'px')));
+  check('and does not overlap the name', m.every(x => x.clear), JSON.stringify(m.map(x => x.clear)));
+  /* The board FITS. Luke's columns have a 260px floor and his board scrolls; carried
+     over here that put Lost half off the right edge with no scrollbar to say so. */
+  const fit = await page.evaluate(() => {
+    const b = document.querySelector('.gr_board');
+    return { scrolls: b.scrollWidth > b.clientWidth + 1,
+             widths: [...document.querySelectorAll('.gr_board .gr_col')]
+               .map(e => Math.round(e.getBoundingClientRect().width)),
+             offRight: [...document.querySelectorAll('.gr_board .gr_col')]
+               .filter(e => e.getBoundingClientRect().right > innerWidth + 1).length };
+  });
+  check('all six stages fit without the board scrolling', !fit.scrolls, String(fit.scrolls));
+  check('and none of them runs off the right edge', fit.offRight === 0, String(fit.offRight));
+  check('with columns wide enough to read', fit.widths.every(w => w >= 150), JSON.stringify(fit.widths));
+});
+
 /* ---------------------------------------------------------------- to-dos */
 let CID = null;
 await step('a to-do goes on the deal, not on the screen', async () => {
@@ -559,6 +629,155 @@ await step('the scenarios edit here, like every other Training page', async () =
   await page.waitForTimeout(600);
 });
 
+await step('Pricing is off the Training strip but not orphaned', async () => {
+  await screen('gr_training');
+  const tabs = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-gr-traintab]')].map(b => b.dataset.grTraintab));
+  check('Pricing is not a tab any more', tabs.indexOf('pricing') < 0, tabs.join(','));
+  check('the other five are', ['course', 'practice', 'clear', 'lib', 'qa'].every(t => tabs.indexOf(t) >= 0),
+    tabs.join(','));
+  /* Hidden, not deleted. "Know the offer" links straight to it, which is the one place
+     anybody actually wants it, and the strip lights Course while you are there rather
+     than lighting nothing at all. */
+  // Earlier steps left Training on another tab; the lessons only exist on Course.
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="course"]')?.click());
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => document.querySelector('[data-gr-lesson="offer"]')?.click());
+  await page.waitForTimeout(900);
+  const link = await page.evaluate(() => {
+    const b = [...document.querySelectorAll('[data-gr-traintab="pricing"]')][0];
+    if (b) b.click();
+    return !!b;
+  });
+  check('a lesson still links to it', link, String(link));
+  if (link) {
+    await page.waitForTimeout(1000);
+    const m = await page.evaluate(() => ({
+      onPricing: /per month|Payment link|pricing/i.test(document.body.textContent),
+      lit: [...document.querySelectorAll('[data-gr-traintab]')]
+        .filter(b => b.getAttribute('aria-pressed') === 'true').map(b => b.dataset.grTraintab)
+    }));
+    check('and it opens', m.onPricing, String(m.onPricing));
+    check('with Course lit rather than nothing', m.lit.indexOf('course') >= 0, m.lit.join(','));
+  }
+});
+
+await step('Recordings is off the sidebar', async () => {
+  const m = await page.evaluate(() => ({
+    nav: !!document.querySelector('#appSidebar .nav-item[data-screen="gr_recordings"]'),
+    growthNav: [...document.querySelectorAll('#appSidebar .nav-item[data-screen^="gr_"]')]
+      .map(n => n.dataset.screen)
+  }));
+  check('there is no Recordings item', !m.nav, String(m.nav));
+  // The rest of Growth is untouched -- a nav item removed with a greedy regex would take
+  // its neighbours with it and nothing else here would notice.
+  check('and the other Growth items are all still there',
+    ['gr_home', 'gr_meetings', 'gr_pipeline', 'gr_inbox', 'gr_training', 'gr_analytics',
+     'gr_connectors', 'gr_settings', 'gr_automations'].every(k => m.growthNav.indexOf(k) >= 0),
+    m.growthNav.join(','));
+});
+
+await step('the Q and A screen is the answer, not a wall of controls', async () => {
+  await screen('gr_training');
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="qa"]')?.click());
+  await page.waitForTimeout(1300);
+  const m = await page.evaluate(() => ({
+    themeChips: document.querySelectorAll('[data-gr-qatheme]').length,
+    viewStrip: document.querySelectorAll('[data-gr-qaview]').length,
+    search: !!document.querySelector('#grQaQ'),
+    rows: document.querySelectorAll('.gr_qa3').length
+  }));
+  /* Luke dropped both in his latest pass, and the second one had become actively
+     confusing: Practice is a tab of its own now, so a button called Practice inside
+     Q and A went somewhere else entirely. */
+  check('no theme filter chips', m.themeChips === 0, String(m.themeChips));
+  check('no Browse / Practice strip', m.viewStrip === 0, String(m.viewStrip));
+  check('the search box stays', m.search, String(m.search));
+  check('and the questions are listed', m.rows > 0, String(m.rows));
+});
+
+await step('the answer reads in the same ink as the rest of the page', async () => {
+  /* THE ONE THAT WAS REPORTED. The answer card was `background:var(--text)` with
+     `color:var(--bg)` -- an inverted block, which is a dark card on Luke's white page
+     and a WHITE card with black text in the middle of ours. Luke's latest replaced it
+     with a faint tint of the accent, which is what this now is.
+
+     Measured as ink rather than as a colour name: the card's text must be the page's
+     text colour, and its background must not be the page's text colour. */
+  // Earlier steps leave a row open, so a single click can CLOSE one. Open whichever
+  // row is needed rather than assuming the list starts shut.
+  for (let i = 0; i < 3 && !(await page.evaluate(() => !!document.querySelector('.gr_qaa'))); i++) {
+    await page.evaluate(() => document.querySelector('.gr_qah')?.click());
+    await page.waitForTimeout(700);
+  }
+  const m = await page.evaluate(() => {
+    const card = document.querySelector('.gr_qaa');
+    if (!card) return null;
+    const p = card.querySelector('p');
+    const lum = (c) => { const n = (c.match(/\d+/g) || []).slice(0, 3).map(Number);
+                         return n.length === 3 ? Math.round((n[0] * 299 + n[1] * 587 + n[2] * 114) / 1000) : null; };
+    return { cardBg: getComputedStyle(card).backgroundColor,
+             cardInk: lum(getComputedStyle(p || card).color),
+             pageInk: lum(getComputedStyle(document.body).color),
+             pageBg: lum(getComputedStyle(document.body).backgroundColor),
+             w: Math.round(card.getBoundingClientRect().width) };
+  });
+  check('the answer card is on screen', !!m && m.w > 300, JSON.stringify(m && m.w));
+  check('its text is the page\'s text colour, not inverted',
+    !!m && Math.abs(m.cardInk - m.pageInk) < 40, JSON.stringify(m && { card: m.cardInk, page: m.pageInk }));
+  // On a dark theme the page ink is near-white; a card painted THAT is the bug.
+  check('and its background is not the page\'s ink',
+    !!m && Math.abs((m.cardBg.match(/\d+/g) || [0]).slice(0, 3).reduce((a2, b2) => a2 + Number(b2), 0) / 3 - m.pageInk) > 60,
+    m && m.cardBg);
+});
+
+await step('the ranking disappears when nothing has been counted', async () => {
+  /* Nothing in Giant counts how often a question is asked, so on real data every row
+     said "New", numbered 1 to 6 by nothing. Driven here by serving a mock with the two
+     ask counts stripped out, rather than by poking at the page's own state. */
+  const blank = MOCK.replace(/byId\['q-[a-z]+'\]\.n = \d+;/g, '');
+  check('the fixture really lost its counts', blank !== MOCK && !/\]\.n = \d+;/.test(blank),
+    String(blank === MOCK));
+  const ctx2 = await browser.newContext({ viewport: { width: 1500, height: 980 } });
+  const p2 = await ctx2.newPage();
+  await p2.route('**/@supabase/supabase-js@2*', r =>
+    r.fulfill({ status: 200, contentType: 'application/javascript', body: blank }));
+  await p2.route('**://*.supabase.co/**', r => r.abort());
+  await p2.goto(BASE + '/app', { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await p2.waitForSelector('#view-app.on', { timeout: 30000 });
+  await p2.waitForTimeout(3000);
+  await p2.evaluate(() => document.querySelector('#appSidebar .nav-item[data-screen="gr_training"]')?.click());
+  await p2.waitForTimeout(1500);
+  await p2.evaluate(() => document.querySelector('[data-gr-traintab="qa"]')?.click());
+  await p2.waitForTimeout(1300);
+  const m = await p2.evaluate(() => ({
+    rows: document.querySelectorAll('.gr_qa3').length,
+    ranks: document.querySelectorAll('.gr_qrk').length,
+    bars: document.querySelectorAll('.gr_qah span u').length,
+    says: [...document.querySelectorAll('.gr_qah > i')].map(e => e.textContent.trim())
+  }));
+  check('the questions are still all there', m.rows > 0, String(m.rows));
+  check('but no rank chips', m.ranks === 0, String(m.ranks));
+  check('no empty bars under them', m.bars === 0, String(m.bars));
+  check('and nothing claims an ask count', m.says.every(t => !/\dx/.test(t)), JSON.stringify(m.says));
+  await ctx2.close();
+});
+
+await step('the Pipeline header answers the two questions you open it with', async () => {
+  await screen('gr_pipeline');
+  const m = await page.evaluate(() => {
+    const h = document.querySelector('.gr_head p');
+    return { text: h ? h.textContent.replace(/\s+/g, ' ').trim() : null,
+             pill: !!document.querySelector('.gr_head .gr_flag'),
+             bigStats: !!document.querySelector('.gr_head .gr_stats') };
+  });
+  check('it says how much is active', !!m.text && /\d+ active/.test(m.text), m.text);
+  check('and flags replies waiting on you', m.pill, String(m.pill));
+  /* The three big numbers that used to sit here are on Analytics; across the top of a
+     board they read as a dashboard nobody asked for and pushed the board below the fold. */
+  check('without the dashboard of numbers', !m.bigStats, String(m.bigStats));
+});
+
 /* ---------------------------------------------------------------- on a phone */
 await step('every Training tab is still reachable at phone width', async () => {
   /* Adding Practice made six tabs. .gr_seg was inline-flex with no wrap and no scroll,
@@ -592,7 +811,7 @@ await step('every Training tab is still reachable at phone width', async () => {
       pageSideways: document.documentElement.scrollWidth > innerWidth + 1
     };
   });
-  check('all six tabs are rendered', !!m && m.names.length === 6, JSON.stringify(m && m.names));
+  check('all five tabs are rendered', !!m && m.names.length === 5, JSON.stringify(m && m.names));
   check('the strip scrolls rather than clipping what will not fit', !!m && !m.clipped, String(m && m.clipped));
   check('so the last tab can actually be reached', !!m && m.lastVisible, String(m && m.lastVisible));
   check('and the page itself does not scroll sideways', !!m && !m.pageSideways, String(m && m.pageSideways));

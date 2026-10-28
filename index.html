@@ -6422,25 +6422,36 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
    right-hand edge and clipped Lost behind a scrollbar. An explicit column count with
    minmax(0,1fr) shares the width that actually exists. --grcols is set from the stage
    list, so adding a stage in Settings still fits instead of overflowing again. */
-.gr_board{display:grid;grid-template-columns:repeat(var(--grcols,6),minmax(0,1fr));gap:10px;align-items:start;}
+/* The stages FIT. Luke's board scrolls because his columns have a 260px floor, and
+   carried over here that put Lost half off the right edge with nothing to say it was
+   there -- which reads as broken, not as "scroll me". The room came from dropping the
+   per-column "needs an action" badge instead: the To do tab counts that, and every card
+   now says it in words. */
+.gr_board{display:grid;grid-template-columns:repeat(var(--grcols,6),minmax(0,1fr));gap:12px;align-items:start;}
 /* Below this they genuinely do not fit, so then and only then it scrolls. */
 @media(max-width:1180px){
-  .gr_board{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(220px,1fr);overflow-x:auto;padding-bottom:10px;}
+  .gr_board{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(230px,82%);overflow-x:auto;padding-bottom:10px;}
 }
 /* Growth Inbox is the longest label in the sidebar and wrapped onto two lines. */
 #appSidebar .nav-item[data-screen^="gr_"]{white-space:nowrap;}
-.gr_col{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px 10px 10px;position:relative;min-width:0;}
-.gr_col::before{content:"";position:absolute;top:0;left:14px;width:36px;height:4px;border-radius:0 0 5px 5px;background:var(--sc);}
+.gr_col{border:1px solid var(--line);border-radius:22px;padding:14px 11px 11px;position:relative;min-width:0;box-shadow:inset 0 3px 0 var(--sc);overflow:hidden;}
 /* One line, always. "Proposal sent" and "Following up" wrapped and pushed the count
    out of line, which made six tidy columns look like a broken grid. */
 .gr_colh{display:flex;align-items:center;gap:6px;padding:2px 6px 8px;flex-wrap:nowrap;}
 .gr_colh b{font-size:13.5px;font-weight:800;letter-spacing:-.01em;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.gr_colh span:last-child{margin-left:auto;font-size:12.5px;font-weight:700;color:var(--sc);}
+/* Its own class, not span:last-child. The delete button is a later sibling, so the
+   count silently lost its right-alignment and its colour the moment staff could
+   delete a stage -- the heading read "Booked 1 1" with both numbers jammed together. */
+.gr_colcnt{margin-left:auto;font-size:12px;font-weight:800;color:var(--sc);flex:none;border-radius:99px;padding:2px 9px;background:var(--surface-2);}
 .gr_need{font-style:normal;font-size:10.5px;font-weight:700;color:var(--red);background:rgba(208,4,0,.14);border-radius:99px;padding:1px 7px;flex:none;}
 .gr_colsum{font-size:11.5px;color:var(--text-3);padding:0 6px 6px;}
-.gr_colempty{border:1.5px dashed var(--line);border-radius:12px;color:var(--text-3);font-size:12.5px;padding:20px 8px;text-align:center;}
-.gr_bc{position:relative;background:var(--surface-2);border-radius:13px;padding:11px;margin-bottom:7px;cursor:pointer;}
-.gr_bc:hover{box-shadow:inset 0 0 0 1.5px var(--line-2);}
+.gr_colempty{border:1.5px dashed var(--line-2);border-radius:12px;color:var(--text-3);font-size:12.5px;padding:20px 8px;text-align:center;}
+.gr_bc{position:relative;background:var(--surface);border-radius:14px;padding:12px 13px;margin-bottom:8px;cursor:pointer;box-shadow:inset 0 0 0 1px var(--line);}
+.gr_bc:hover{box-shadow:inset 0 0 0 2px var(--sc);}
+/* The one line that says what to do about this deal. */
+.gr_bl{margin-top:7px;font-size:12.5px;font-weight:600;line-height:1.35;overflow-wrap:anywhere;}
+.gr_bl .gr_dim{font-weight:400;color:var(--text-3);}
+.gr_flag{display:inline-block;background:var(--red);color:#fff;font-size:11px;font-weight:700;border-radius:99px;padding:2px 9px;}
 .gr_bh{display:flex;align-items:flex-start;gap:10px;}
 .gr_bn{min-width:0;flex:1;}
 /* The name holds one line; the company is allowed two, which is what the design does --
@@ -6448,6 +6459,7 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_bn b{display:block;font-size:13.5px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .gr_bn span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:11.5px;color:var(--text-3);overflow:hidden;margin-top:2px;line-height:1.35;}
 .gr_bf{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:9px;}
+.gr_bf .gr_ow{margin-left:auto;}
 .gr_bm{display:flex;align-items:center;gap:6px;margin-top:7px;}
 .gr_bm>span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .gr_st{font-size:11px;font-weight:700;border-radius:99px;padding:3px 9px;background:var(--surface);color:var(--text-3);white-space:nowrap;}
@@ -6611,6 +6623,9 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_tdadd{display:flex;gap:8px;margin-top:10px;}
 /* A Loom answer. 16/9 held by aspect-ratio rather than the padding-top trick, because
    the iframe has to fill it and a percentage padding box does not give it a height. */
+.gr_qa3{border-left:3px solid var(--red);}
+.gr_qapts{margin:10px 0 0;padding-left:19px;display:flex;flex-direction:column;gap:6px;}
+.gr_qapts li{font-size:14px;line-height:1.5;}
 .gr_qavid{margin-top:12px;display:flex;flex-direction:column;gap:7px;}
 .gr_qavid>span{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--text-3);font-weight:700;}
 .gr_qavf{position:relative;width:100%;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:var(--surface-3);}
@@ -6630,6 +6645,8 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_colba{display:flex;gap:8px;align-items:center;justify-content:flex-end;}
 .gr_colnew{display:flex;flex-direction:column;gap:9px;}
 .gr_colsw{display:flex;gap:7px;flex-wrap:wrap;}
+.gr_coladd{align-self:start;width:100%;min-height:96px;background:none;border:1.5px dashed var(--line);border-radius:22px;color:var(--text-3);font:inherit;font-size:13px;font-weight:700;cursor:pointer;padding:20px 8px;}
+.gr_coladd:hover{border-color:var(--line-2);color:var(--text);}
 /* Practice. The picker reads like the course cards; the call itself is set apart,
    because it is the one screen here you are meant to be inside rather than reading. */
 .gr_pickg{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-bottom:14px;}
@@ -7101,12 +7118,12 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_qah>span{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}
 .gr_qah em{font-style:normal;font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);}
 .gr_qah b{font-size:15.5px;font-weight:700;line-height:1.3;}
-.gr_qah>i{font-style:normal;font-size:10px;color:var(--text-3);flex:none;}
+.gr_qah>i{font-style:normal;font-size:11.5px;font-weight:700;color:var(--text-3);flex:none;background:var(--surface-2);border-radius:99px;padding:3px 9px;}
 .gr_qab{padding:0 16px 16px;display:flex;flex-direction:column;gap:10px;}
-.gr_qaa{background:var(--text);color:var(--bg);border-radius:14px;padding:12px 14px;}
-.gr_qaa span{display:block;font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--red);margin-bottom:4px;}
+.gr_qaa{background:rgba(208,4,0,.07);color:var(--text);border-radius:16px;padding:14px 16px;box-shadow:inset 0 0 0 1px rgba(208,4,0,.16);}
+.gr_qaa span{display:block;font-size:10.5px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--red);margin-bottom:5px;}
 .gr_qaa p{margin:0;font-size:15px;line-height:1.55;}
-.gr_qaw{margin:8px 0 0 !important;font-size:13px !important;opacity:.68;}
+.gr_qaw{margin:9px 0 0 !important;font-size:13px !important;color:var(--text-3);}
 .gr_qaf{background:var(--surface-2);border-radius:12px;padding:10px 13px;}
 .gr_qaf span{display:block;font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);margin-bottom:3px;}
 .gr_qaf p{margin:0;font-size:14px;line-height:1.5;font-style:italic;color:var(--text-2);}
@@ -7138,7 +7155,7 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_tip p{margin:5px 0 0;font-size:13.5px;color:var(--text-2);line-height:1.6;}
 .gr_qa2{padding:14px 18px;}
 /* Q and A: the rank, how often it comes up, and what was really said. */
-.gr_qrk{flex:none;width:26px;height:26px;border-radius:8px;background:var(--surface-2);display:grid;place-items:center;font-size:12px;font-weight:800;}
+.gr_qrk{flex:none;min-width:26px;height:26px;padding:0 7px;border-radius:9px;background:rgba(208,4,0,.14);color:var(--red);display:grid;place-items:center;font-size:12px;font-weight:800;}
 .gr_qai{font-size:9.5px;letter-spacing:.04em;color:var(--text-3);}
 .gr_qah span u{display:block;height:4px;border-radius:2px;background:var(--surface-3);margin-top:6px;text-decoration:none;max-width:220px;}
 .gr_qah span u s{display:block;height:100%;border-radius:2px;background:var(--red);text-decoration:none;}
@@ -8635,7 +8652,6 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         <div class="nav-pill" id="pillGrowth" style="opacity:0;"></div>
         <div class="nav-item" data-screen="gr_home" data-label="Home" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 7.2 8 2.5l5.5 4.7M4 6.6v7h8v-7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Home <span class="badge" id="grHomeBadge" style="display:none;">0</span></div>
         <div class="nav-item" data-screen="gr_meetings" data-label="Meetings" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 3.8h11v10h-11zM2.5 6.6h11M5.5 2v2.6M10.5 2v2.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Meetings</div>
-        <div class="nav-item" data-screen="gr_recordings" data-label="Recordings" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><rect x="2" y="3.5" width="12" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M6.6 6.6l3.2 1.9-3.2 1.9z" fill="currentColor"/></svg></span>Recordings</div>
         <div class="nav-item" data-screen="gr_pipeline" data-label="Pipeline" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M6 5.2a2.2 2.2 0 100 4.4 2.2 2.2 0 000-4.4ZM1.8 13.4c.5-2.2 2.1-3.4 4.2-3.4s3.7 1.2 4.2 3.4M11 5.5a2.2 2.2 0 010 4M12.6 10.2c1.2.5 2 1.5 2.2 3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Pipeline</div>
         <div class="nav-item" data-screen="gr_inbox" data-label="Growth Inbox" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.2h12v7.6H2zM2.3 4.6 8 8.6l5.7-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Growth Inbox <span class="badge" id="grInboxBadge" style="display:none;">0</span></div>
         <div class="nav-item" data-screen="gr_training" data-label="Training" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M3 3.6A1.6 1.6 0 014.6 2H13v11H4.6A1.6 1.6 0 003 14.6zM3 3.6v11M6 5.4h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Training</div>
@@ -95642,8 +95658,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grDcDraft = { code: '', label: '', colour: '' }, grTestBusy = '';
   let grCourseDone = [], grCourseWho = null, grLessonOpen = null, grEditT = null;
   let grRuns = [];
-  let grQaView = 'browse', grQaTheme = 'All', grQaQuery = '', grQaOpen = {}, grQaAll = {}, grWatchGone = false;
-  let grPrac = { id: null, show: false, n: 0 };
+  let grQaQuery = '', grQaOpen = {}, grQaAll = {}, grWatchGone = false;
   let grPeople = [];                 // profiles who can own a deal
   let grScreen = 'gr_home';
   let grPView = 'board';
@@ -95967,8 +95982,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   /* ---------- rendering ---------- */
-  function grHead(title, sub, right) {
-    return '<div class="gr_head"><div><h1>' + esc(title) + '</h1><p>' + esc(sub) + '</p></div>' + (right || '') + '</div>';
+  function grHead(title, sub, right, subExtra) {
+    return '<div class="gr_head"><div><h1>' + esc(title) + '</h1><p>' + esc(sub) +
+      (subExtra || '') + '</p></div>' + (right || '') + '</div>';
   }
   function grAvatar(name, colour, cls) {
     return '<span class="gr_av ' + (cls || '') + '" style="background:' + colour + '">' + esc(grInitials(name)) + '</span>';
@@ -96598,37 +96614,59 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const inPlay = pool.filter(grActive).reduce((n, c) => n + grVal(c), 0);
     const won = pool.filter(c => c.stage === 'won').reduce((n, c) => n + grVal(c), 0);
     const need = pool.filter(c => grNextAction(c)).length;
+    const waiting = pool.filter(grWaiting).length;
 
     const IC_MAIL = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none"><rect x="2" y="4" width="12" height="8" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M2.4 4.8 8 8.8l5.6-4" stroke="currentColor" stroke-width="1.4"/></svg>';
     const IC_DOTS = '<svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor"><circle cx="8" cy="3.4" r="1.3"/><circle cx="8" cy="8" r="1.3"/><circle cx="8" cy="12.6" r="1.3"/></svg>';
+    /* ONE line of context, chosen by where the deal is, rather than four rows of chips.
+       The old card carried an avatar, a status pill, the money, a meeting-or-email line,
+       a heat word and the owner's initials -- six things in a 193px column, which is how
+       you end up reading none of them. The board answers "where is everything and what
+       is stuck"; the panel answers everything else, and is one click away.
+
+       What survives is the line that changes what you would do next, and the money,
+       because the column totals it. */
+    const grCardLine = (c) => {
+      if (grWaiting(c)) return '<span class="gr_flag">Reply needed</span>';
+      const nm = grNextMeeting(c);
+      if (nm) return esc(grDayLabel(nm.starts_at) + ' · ' + grHm(nm.starts_at));
+      if (c.stage === 'won') return esc(c.won_on ? 'Won ' + grFmt(c.won_on) : 'Won');
+      if (c.stage === 'lost') return '<span class="gr_dim">' +
+        esc(c.lost_reason ? 'Lost · ' + c.lost_reason : 'Lost') + '</span>';
+      const na = grNextAction(c);
+      if (na) return esc(na.label);
+      const lt = grLastTouch(c);
+      return '<span class="gr_dim">' + esc(lt ? 'Last touch ' + grFmt(lt) : 'No activity yet') + '</span>';
+    };
     const card = (c) => {
-      const lt = grDaysAgo(grLastTouch(c)), sc = grScore(c), nm = grNextMeeting(c), st = grStatus(c);
+      const own = grIsStaff() ? grPerson(c.owner_id) : null;
       return '<div class="gr_bc" draggable="true" data-gr-card="' + c.id + '" data-gr-open="' + c.id + '">' +
         '<span class="gr_ba">' +
           '<button class="gr_ib2" data-gr-mail="' + c.id + '" title="Write an email" aria-label="Write an email">' + IC_MAIL + '</button>' +
           '<button class="gr_ib2" data-gr-menu="' + c.id + '" title="More" aria-label="More">' + IC_DOTS + '</button>' +
         '</span>' +
-        '<div class="gr_bh">' + grAvatar(c.name, grStageColor(c.stage), 'gr_sm2') +
-          '<div class="gr_bn"><b>' + esc(c.name) + '</b><span>' + esc(c.company || '') + '</span></div>' +
-          '</div>' +
-        '<div class="gr_bf"><span class="gr_st ' + st.k + '"><i></i>' + esc(st.t) + '</span>' +
-          (grVal(c) ? '<span class="gr_vt">' + grMoney(grVal(c)) + '/mo</span>' : '') + '</div>' +
-        '<div class="gr_bm"><span>' + esc(nm
-          ? grDayLabel(nm.starts_at) + ' ' + grHm(nm.starts_at)
-          : (c.emails_sent || 0) + ' email' + ((c.emails_sent || 0) === 1 ? '' : 's') +
-            ' · ' + (lt == null ? 'new' : grAgo(lt))) + '</span>' +
-          (sc ? '<span class="gr_sc ' + sc.k + '" title="' + esc(sc.why) + '">' + sc.label + '</span>' : '') +
-          (grIsStaff() ? '<span class="gr_ow" title="' + esc(grPerson(c.owner_id).full_name) + '">' +
-            esc(grInitials(grPerson(c.owner_id).full_name)) + '</span>' : '') +
-          '</div>' +
+        '<div class="gr_bn"><b>' + esc(c.name) + '</b>' +
+          (c.company ? '<span>' + esc(c.company) + '</span>' : '') + '</div>' +
+        '<div class="gr_bl">' + grCardLine(c) + '</div>' +
+        ((grVal(c) || own)
+          ? '<div class="gr_bf">' +
+            (grVal(c) ? '<span class="gr_vt">' + grMoney(grVal(c)) + '/mo</span>' : '') +
+            (own ? '<span class="gr_ow" title="' + esc(own.full_name) + '">' +
+              esc(grInitials(own.full_name)) + '</span>' : '') + '</div>'
+          : '') +
         '</div>';
     };
 
     $('grPipeline').innerHTML =
-      grHead('Pipeline', pool.length + ' client' + (pool.length === 1 ? '' : 's'),
-        '<div class="gr_stats"><div><b>' + need + '</b><span>need you</span></div>' +
-        '<div><b>' + grMoney(inPlay) + '</b><span>in play / mo</span></div>' +
-        '<div><b class="gr_g">' + grMoney(won) + '</b><span>won / mo</span></div></div>' + grViewAsHtml()) +
+      /* The two things you open this screen to find out: how much is live, and whether
+         anybody is waiting on you. The three big numbers that used to sit across the top
+         -- need you, in play, won -- are all on Analytics, and up here they read as a
+         dashboard nobody asked for while pushing the board itself below the fold. */
+      grHead('Pipeline',
+        pool.filter(c => c.stage !== 'lost').length + ' active' + (waiting ? ' \u00B7 ' : ''),
+        grViewAsHtml(),
+        waiting ? '<span class="gr_flag">' + waiting + ' repl' + (waiting === 1 ? 'y' : 'ies') +
+          ' waiting</span>' : '') +
       '<div class="gr_tools"><input class="gr_search" id="grSearch" placeholder="Search name or company" value="' + esc(grQuery) + '" aria-label="Search the pipeline">' +
         '<button class="btn-red" id="grAddClient">+ New client</button></div>' +
       '<div class="gr_seg gr_wide"><button data-gr-pview="board"' + (grPView === 'board' ? ' aria-pressed="true"' : '') + '>Board</button>' +
@@ -96648,16 +96686,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
          column is a seventh share of the width taken from six columns that already
          ellipsis their headings -- "Proposal sent" became "Proposa...". The board is
          meant to fit rather than scroll, so the button lives under it instead. */
-      '<div class="gr_board" style="--grcols:' + (grStages.length + (grColEdit && grColEdit.k === 'add' ? 1 : 0)) + '">' + grStages.map(st => {
+      '<div class="gr_board" style="--grcols:' + grStages.length + '">' + grStages.map(st => {
         const g = pool.filter(c => c.stage === st.key);
         const sum = g.reduce((n, x) => n + grVal(x), 0);
         const killing = grColEdit && grColEdit.k === 'del' && grColEdit.key === st.key;
-        return '<div class="gr_col" data-gr-stage="' + st.key + '" style="--sc:' + st.color + '">' +
+        /* Tinted with its own stage colour rather than a 36px stub of it at the top
+           left. grTint, not color-mix(): a colour the Electron build cannot parse leaves
+           the column with no background at all rather than an obviously wrong one. */
+        return '<div class="gr_col" data-gr-stage="' + st.key + '" style="--sc:' + st.color +
+          ';background:' + grTint(st.color, .035) + '">' +
           (killing ? grColDelBar(st, g.length)
             : '<div class="gr_colh"' + (grIsStaff() ? ' draggable="true" data-gr-colgrab="' + st.key + '"' : '') + '>' +
               '<b>' + esc(st.label) + '</b>' +
-              (g.filter(grNextAction).length ? '<em class="gr_need" title="' + g.filter(grNextAction).length + ' need an action">' + g.filter(grNextAction).length + '</em>' : '') +
-              '<span>' + g.length + '</span>' +
+              '<span class="gr_colcnt" style="background:' + grTint(st.color, .16) + '">' + g.length + '</span>' +
               (grIsStaff() && grStages.length > 2
                 ? '<button class="gr_colx" data-gr-coldel="' + st.key + '" aria-label="Delete the ' + esc(st.label) + ' stage">&#10005;</button>'
                 : '') + '</div>') +
@@ -97194,11 +97235,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   function grRenderTraining() {
     const tabs = [['course','Course'],['practice','Practice'],['clear','Clear answers'],
-                  ['lib','Best calls'],['qa','Q&amp;A'],['pricing','Pricing']];
+                  ['lib','Best calls'],['qa','Q&amp;A']];
     // Philosophy, the call script and the personal task list are reached FROM a lesson
     // rather than from the strip, the same as the design. The strip still has to say
     // where you are, so Course stays lit while one of them is open.
-    const SUB = { phil: 'course', script: 'course', plan: 'course' };
+    const SUB = { phil: 'course', script: 'course', plan: 'course', pricing: 'course' };
     const lit = SUB[grTrainTab] || grTrainTab;
     const back = '<p class="gr_mid"><button class="gr_slink" data-gr-traintab="course">' +
       '&lsaquo; Back to the course</button></p>';
@@ -97735,6 +97776,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   /* --- questions people ask --- */
+  /* The answer, broken where its sentences already break. Luke's page shows these under
+     every answer because a paragraph is what you read and a list is what you remember on
+     a call. Derived rather than stored: one thing to edit, nothing to fall out of step. */
+  function grQaPoints(t) {
+    return String(t || '').replace(/\s+/g, ' ').split(/(?<=[.!?])\s+/)
+      .map(x => x.trim()).filter(Boolean).slice(0, 6);
+  }
+
   function grQaHtml() {
     /* MOST ASKED FIRST. The rank badge was worked out from a sorted copy while the list
        itself stayed in the order the questions were written in, so the top row could be
@@ -97750,43 +97799,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const qaExtra = grSettings.qa_extra || {};
     const tricks = Array.isArray(qaExtra.tricks) ? qaExtra.tricks : [];
     const weak = Array.isArray(qaExtra.weak) ? qaExtra.weak : [];
-    const themes = ['All'].concat(items.map(x => x.theme).filter((v, i, a) => v && a.indexOf(v) === i));
-    const seg = '<div class="gr_seg gr_wide">' +
-      [['browse', 'Browse'], ['practice', 'Practice']].map(v =>
-        '<button data-gr-qaview="' + v[0] + '"' + (grQaView === v[0] ? ' aria-pressed="true"' : '') + '>' +
-        v[1] + '</button>').join('') + '</div>';
     const head = grSub('Questions people ask',
       'Short, honest answers, from ' + items.length + ' question' +
       (items.length === 1 ? '' : 's') + ' that came up on real sales calls.');
 
-    if (grQaView === 'practice') {
-      // Say it out loud, THEN look. Reading the answer first teaches nothing.
-      const pick = items.find(x => x.id === grPrac.id) || items[0];
-      if (!pick) return head + seg + grEmpty('&#128172;', 'Nothing to practise yet', 'Questions show up here once they are added.');
-      return head + seg +
-        '<section class="gr_card gr_pr"><div class="gr_prn">Question ' + (grPrac.n + 1) + '</div>' +
-          '<h3>' + esc(pick.q) + '</h3>' +
-          '<p class="gr_mute">Say your answer out loud first. Then check.</p>' +
-          (grPrac.show
-            ? '<div class="gr_qaa"><span>A strong answer</span><p>' + esc(pick.better || '') + '</p>' +
-              (pick.why ? '<p class="gr_qaw">' + esc(pick.why) + '</p>' : '') + '</div>' +
-              ((pick.tricks || []).length ? '<div class="gr_tags">' +
-                pick.tricks.map(t => '<span class="gr_tg">' + esc(t) + '</span>').join('') + '</div>' : '')
-            : '') +
-          '<div class="gr_csx"><button class="' + (grPrac.show ? 'gr_ghost' : 'btn-red') + '" data-gr-prac-show>' +
-            (grPrac.show ? 'Hide the answer' : 'Show a strong answer') + '</button>' +
-            '<button class="gr_ghost" data-gr-prac-next>Next question</button></div></section>';
-    }
-
     const q = grQaQuery.trim().toLowerCase();
     const list = items.filter(x =>
-      (grQaTheme === 'All' || x.theme === grQaTheme) &&
-      (!q || ((x.q || '') + ' ' + (x.better || '') + ' ' + (x.feel || '')).toLowerCase().indexOf(q) >= 0));
-    return head + seg +
+      !q || ((x.q || '') + ' ' + (x.better || '') + ' ' + (x.feel || '')).toLowerCase().indexOf(q) >= 0);
+    return head +
       '<input class="gr_in gr_search2" id="grQaQ" placeholder="Search questions" value="' + esc(grQaQuery) + '" aria-label="Search questions">' +
-      (themes.length > 2 ? '<div class="gr_who">' + themes.map(t =>
-        '<button class="gr_rcf" data-gr-qatheme="' + esc(t) + '"' + (grQaTheme === t ? ' aria-pressed="true"' : '') + '>' +
-        esc(t) + '</button>').join('') + '</div>' : '') +
       (list.length ? list.map(x => {
         const open = !!grQaOpen[x.id];
         if (grIsStaff() && grEditT === 'Q' + x.id) {
@@ -97811,19 +97832,29 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         }
         const asked = Number(x.n) || 0;
         const rank = ranked.indexOf(x) + 1;
+        /* RANK ONLY WHEN THERE IS SOMETHING TO RANK BY. Nothing in Giant counts how often
+           a question is asked -- those numbers came from Luke reading his own calls -- so
+           on real data every row showed "New", numbered 1 to 6 by nothing, under an empty
+           bar. A leaderboard with no scores is worse than a list, because it looks like
+           it means something. The moment any question carries a count, all of this comes
+           back on its own. */
         return '<section class="gr_qa3' + (open ? ' gr_qaon' : '') + '">' +
           '<button class="gr_qah" data-gr-qa-open="' + x.id + '" aria-expanded="' + open + '">' +
-            // The rank says which questions come up most, which is the whole reason to
-            // read this list top to bottom rather than hunt through it.
-            (asked ? '<b class="gr_qrk">' + rank + '</b>' : '<b class="gr_qrk gr_qai">New</b>') +
-            '<span><em>' + esc(x.theme || 'General') + '</em><b>' + esc(x.q) + '</b>' +
+            (ranked.length ? (asked ? '<b class="gr_qrk">' + rank + '</b>'
+                                    : '<b class="gr_qrk gr_qai">New</b>') : '') +
+            '<span><b>' + esc(x.q) + '</b>' +
               (asked ? '<u><s style="width:' + Math.max(6, Math.round(asked / mostAsked * 100)) + '%"></s></u>' : '') +
             '</span>' +
             '<i>' + (asked ? asked + 'x' : (open ? '&#9650;' : '&#9660;')) + '</i></button>' +
           (open ? '<div class="gr_qab">' +
             (x.feel ? '<div class="gr_qaf"><span>What they are really asking</span><p>' + esc(x.feel) + '</p></div>' : '') +
-            '<div class="gr_qaa"><span>The best answer</span><p>' + esc(x.better || '') + '</p>' +
-              (x.why ? '<p class="gr_qaw">' + esc(x.why) + '</p>' : '') + '</div>' +
+            (function () {
+              const pts = grQaPoints(x.better);
+              return '<div class="gr_qaa"><span>The best answer</span><p>' + esc(x.better || '') + '</p>' +
+                (pts.length > 1 ? '<ul class="gr_qapts">' +
+                  pts.map(p => '<li>' + esc(p) + '</li>').join('') + '</ul>' : '') +
+                (x.why ? '<p class="gr_qaw">' + esc(x.why) + '</p>' : '') + '</div>';
+            })() +
             ((x.tricks || []).length ? '<div class="gr_tags">' +
               x.tricks.map(t => '<span class="gr_tg">' + esc(t) + '</span>').join('') + '</div>' : '') +
             /* Watch somebody say it. Reading a good answer and hearing one land are
@@ -97863,13 +97894,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       /* Both of these are about the list as a whole, so they only make sense when you
          are looking at the whole list -- searching or filtering hides them rather than
          showing "tricks from your calls" above three matching rows. */
-      ((tricks.length && !q && grQaTheme === 'All')
+      ((tricks.length && !q)
         ? '<div class="gr_sech"><h3>Tricks from your calls</h3></div>' +
           '<div class="gr_tkg">' + tricks.map((t, i) =>
             '<div class="gr_tkc"><i>' + (i + 1) + '</i><b>' + esc(t.t || '') + '</b>' +
             '<p>' + esc(t.b || '') + '</p></div>').join('') + '</div>'
         : '') +
-      ((weak.length && !q && grQaTheme === 'All')
+      ((weak.length && !q)
         ? '<div class="gr_sech"><h3>Answers to tighten</h3></div>' +
           weak.map(w => '<section class="gr_card gr_wk"><h4>' + esc(w.q || '') + '</h4>' +
             (w.why ? '<p class="gr_mute">' + esc(w.why) + '</p>' : '') +
@@ -100411,10 +100442,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
 
     // ---- Training: the questions ----
-    const qv = e.target.closest('[data-gr-qaview]');
-    if (qv) { grQaView = qv.dataset.grQaview; grRender(); return; }
-    const qt = e.target.closest('[data-gr-qatheme]');
-    if (qt) { grQaTheme = qt.dataset.grQatheme; grRender(); return; }
     const qall = e.target.closest('[data-gr-qa-all]');
     if (qall) {
       const k = qall.dataset.grQaAll;
@@ -100464,16 +100491,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grEditT = 'Q' + id;
       grSaveQas(grQas().concat([{ id: id, q: v, theme: '', feel: '', better: '', why: '', tricks: [] }]));
       return;
-    }
-    if (e.target.closest('[data-gr-prac-show]')) { grPrac.show = !grPrac.show; grRender(); return; }
-    if (e.target.closest('[data-gr-prac-next]')) {
-      const pool = grQas();
-      if (pool.length) {
-        let n = pool[Math.floor(Math.random() * pool.length)];
-        if (pool.length > 1) { let guard = 0; while (n.id === grPrac.id && guard++ < 20) n = pool[Math.floor(Math.random() * pool.length)]; }
-        grPrac = { id: n.id, show: false, n: grPrac.n + 1 };
-      }
-      grRender(); return;
     }
 
     const st = e.target.closest('[data-gr-settab]');
