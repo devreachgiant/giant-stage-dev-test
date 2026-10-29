@@ -6626,6 +6626,13 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_colh[data-gr-colgrab]:active{cursor:grabbing;}
 .gr_coldrag{opacity:.4;}
 .gr_colx{flex:none;border:0;background:none;color:var(--text-3);font-size:11px;line-height:1;cursor:pointer;padding:3px;opacity:.75;}
+/* The stage's own settings, on the stage. */
+.gr_colset{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 2px 2px;}
+.gr_colset .gr_in{flex:1 1 90px;min-width:0;}
+.gr_colpen{opacity:.6;}
+.gr_colpen:hover,.gr_colpen[aria-expanded="true"]{opacity:1;}
+.gr_quiet{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:14px 2px 0;font-size:13px;color:var(--text-2);}
+.gr_quiet .gr_num{width:70px;flex:none;}
 .gr_colgrip{flex:none;font-style:normal;font-size:13px;line-height:1;letter-spacing:0;color:var(--text-3);cursor:grab;user-select:none;margin-right:1px;}
 .gr_hacts{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
 .gr_flagb{border:0;font:inherit;font-size:11px;font-weight:700;cursor:pointer;}
@@ -96765,9 +96772,29 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               (grIsStaff() ? '<i class="gr_colgrip" aria-hidden="true">\u22EE\u22EE</i>' : '') +
               '<b>' + esc(st.label) + '</b>' +
               '<span class="gr_colcnt" style="background:' + grTint(st.color, .16) + '">' + g.length + '</span>' +
+              /* Renaming and recolouring used to be in Settings, which meant leaving the
+                 board to change the board. The pencil opens them here. */
+              (grIsStaff()
+                ? '<button class="gr_colx gr_colpen" data-gr-colset="' + st.key + '"' +
+                  ' aria-expanded="' + (grColEdit && grColEdit.k === 'set' && grColEdit.key === st.key) + '"' +
+                  ' aria-label="Rename or recolour the ' + esc(st.label) + ' stage">' + GR_PEN + '</button>'
+                : '') +
               (grIsStaff() && grStages.length > 2
                 ? '<button class="gr_colx" data-gr-coldel="' + st.key + '" aria-label="Delete the ' + esc(st.label) + ' stage">&#10005;</button>'
-                : '') + '</div>') +
+                : '') + '</div>' +
+            (grIsStaff() && grColEdit && grColEdit.k === 'set' && grColEdit.key === st.key
+              ? '<div class="gr_colset">' +
+                  '<input class="gr_in gr_sm" data-gr-stage-label="' + st.key + '" value="' + esc(st.label) +
+                    '" aria-label="Stage name">' +
+                  '<select class="gr_in gr_sm" data-gr-stage-colour="' + st.key + '" aria-label="Colour">' +
+                    GR_PALETTE.map(function (p) {
+                      return '<option value="' + p[1] + '"' +
+                        (p[1].toLowerCase() === String(st.color).toLowerCase() ? ' selected' : '') +
+                        '>' + p[0] + '</option>';
+                    }).join('') + '</select>' +
+                  '<button class="gr_ghost gr_sm" data-gr-colset="' + st.key + '">Done</button>' +
+                '</div>'
+              : '')) +
           (g.length ? g.map(card).join('') : '<div class="gr_colempty">Drop a client here</div>') + '</div>';
       }).join('') +
       (grIsStaff()
@@ -96776,7 +96803,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             : '<button class="gr_coladd" data-gr-coladd="open">+ Add stage</button>')
         : '') + '</div>' +
       '<p class="gr_hint">Tap a card to open the client. Drag a card to move it, or use the three dots.' +
-        (grIsStaff() ? ' Drag a column heading to reorder the stages.' : '') + '</p>');
+        (grIsStaff() ? ' Drag a column heading to reorder the stages, or use the pencil to rename one.' : '') + '</p>' +
+      /* This came off Settings with the stages. It decides when a deal on this board
+         starts asking to be chased, so it belongs under the board rather than two
+         screens away from the thing it changes. */
+      (grIsStaff()
+        ? '<div class="gr_quiet"><label for="grStale">Flag a client after</label>' +
+            '<input id="grStale" class="gr_in gr_num" type="number" min="1" max="30" value="' +
+            grStaleDays + '" data-gr-stale aria-label="Days with no contact before a client is flagged">' +
+            '<span>days with no contact</span></div>'
+        : ''));
   }
 
   /* Editing the stages where you are looking at them. They were only editable on
@@ -98472,6 +98508,29 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   const grDcColour = (d, i) => d.colour || GR_DC_COLOURS[(i || 0) % GR_DC_COLOURS.length];
   const grTestTo = () => (grSettings.signature || {}).testTo || grGmail.email || '';
 
+  /* WHAT THE TEMPLATE ACTUALLY SENDS. You could write one with {name} and {discount}
+     in it and have no way of seeing the result until it was in a client's inbox. This
+     is built from the SAME fill and the same signature grTplTest uses, so the preview
+     and the test email cannot say different things. */
+  function grTplPreview(t) {
+    const who = { first: 'Luke', company: 'Test Company' };
+    const sig = grSigText();
+    const d = grDiscounts[0];
+    const fill = (x) => String(x || '').replace(/\{name\}/gi, who.first)
+                                      .replace(/\{company\}/gi, who.company);
+    const to = grTestTo();
+    return '<div class="gr_tplpv" id="grTplPv' + t.id + '">' +
+      '<div class="gr_pvl"><span>To</span><b>' + esc(to || 'nobody yet \u2014 set an address below') + '</b></div>' +
+      '<div class="gr_pvl"><span>Subject</span><b>' +
+        esc(fill(t.subject) || 'No subject yet') + '</b></div>' +
+      '<pre class="gr_pvb">' + esc(grTplFill(t, who) + (sig ? '\n\n' + sig : '')) + '</pre>' +
+      '<p class="gr_hint">Shown with a sample name and company. ' +
+        (d ? 'A discount spot is shown with ' + esc(d.code) + '; you pick the code when you use the template. '
+           : 'No discount codes yet, so a discount spot shows as nothing. ') +
+        (sig ? 'Your signature is on the end.' : 'No signature set, so nothing is added on the end.') +
+      '</p></div>';
+  }
+
   function grTplPart() {
     const to = grTestTo();
     return '<section class="gr_card gr_addtpl"><div class="gr_lab2">Add a template</div>' +
@@ -98495,6 +98554,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
     '<section class="gr_card"><div class="gr_ct"><h2>Your templates</h2>' +
       '<span class="gr_n">' + grTemplates.length + '</span></div>' +
+      /* Beside the button that uses it. This was a field in the signature block, which
+         is where you would look for it last: a test address is not part of a signature,
+         and the button that sends the tests was in a different card. One field, here;
+         it still falls back to the mailbox Growth sends from. */
+      (grTemplates.length
+        ? '<div class="gr_field gr_testto"><label for="grTestTo">Send tests to</label>' +
+            '<input class="gr_in" id="grTestTo" type="email" data-gr-testto value="' +
+            esc((grSettings.signature || {}).testTo || '') + '" placeholder="' +
+            esc(grGmail.email || 'you@reachgiant.com') + '">' +
+            '<span class="gr_hint">' + (grGmail.email
+              ? 'Leave it empty to use ' + esc(grGmail.email) + ', the mailbox Growth sends from.'
+              : 'Connect Gmail and this defaults to the mailbox Growth sends from.') +
+            '</span></div>'
+        : '') +
       (grTemplates.length && grGmail.ready && to
         ? '<div class="gr_acts gr_testbar"><button class="btn-red" data-gr-tpl-testall' +
             (grTestBusy ? ' disabled' : '') + '>' +
@@ -98520,6 +98593,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                   '<option value="">Insert...</option><option value="{name}">Their first name</option>' +
                   '<option value="{company}">Their company</option><option value="{discount}">Discount code spot</option></select></div>' +
                 '<textarea class="gr_in gr_tplb" id="grTplBody' + t.id + '" rows="10" data-gr-tpl-body="' + t.id + '">' + esc(t.body) + '</textarea></div>' +
+              '<div class="gr_field"><label>How it will look</label>' + grTplPreview(t) + '</div>' +
               '<div class="gr_acts">' +
                 (grGmail.ready && to ? '<button class="gr_ghost" data-gr-tpl-test="' + t.id + '"' +
                   (grTestBusy ? ' disabled' : '') + '>' + (grTestBusy === t.id ? 'Sending...' : 'Send a test') + '</button>' : '') +
@@ -98578,7 +98652,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       '<span class="gr_n2">Added to every email</span></div>' +
       '<div class="gr_two">' + f('name', 'Name', 'Luke Griffin') + f('title', 'Title or company', 'ReachGiant') + '</div>' +
       '<div class="gr_two">' + f('phone', 'Phone', '') + f('email', 'Email', 'big@reachgiant.com') + '</div>' +
-      '<div class="gr_two">' + f('site', 'Website', 'reachgiant.com') + f('testTo', 'Send tests to', 'big@reachgiant.com') + '</div>' +
+      f('site', 'Website', 'reachgiant.com') +
       '<div class="gr_sigprev">' + grSigPreview() + '</div></section>';
   }
 
@@ -98620,34 +98694,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // Three tabs, as the design has them. Discount codes and the signature are not
     // separate places: they are things you reach for WHILE writing a template, so they
     // live under it rather than behind another click.
-    const tabs = [['templates','Email templates'],['stages','Pipeline'],['team','Team']];
+    /* Pipeline is not here any more. Stages belong with the board they are the columns
+       of -- renaming one in a settings screen meant leaving the thing you were looking
+       at to change it. Everything it could do, the board can do now. */
+    const tabs = [['templates','Email templates'],['team','Team']];
+    if (grSetTab !== 'templates' && grSetTab !== 'team') grSetTab = 'templates';
     let body = '';
 
-    if (grSetTab === 'stages') {
-      body =
-        '<section class="gr_card"><div class="gr_ct"><h2>Stages</h2><span class="gr_n">' + grStages.length + '</span></div>' +
-        '<p class="gr_mute">Left to right is the order on the board. Renaming one renames it everywhere; the deals stay where they are.</p>' +
-        grStages.map(function (st, i) {
-          return '<div class="gr_erow">' +
-            '<span class="gr_sw" style="background:' + st.color + '"></span>' +
-            '<input class="gr_in" data-gr-stage-label="' + st.key + '" value="' + esc(st.label) + '" aria-label="Stage name">' +
-            '<select class="gr_in gr_narrow" data-gr-stage-colour="' + st.key + '" aria-label="Colour">' +
-              GR_PALETTE.map(function (p) {
-                return '<option value="' + p[1] + '"' + (p[1].toLowerCase() === String(st.color).toLowerCase() ? ' selected' : '') + '>' + p[0] + '</option>';
-              }).join('') + '</select>' +
-            '<button class="gr_ib" data-gr-stage-move="' + st.key + '" data-d="-1"' + (i === 0 ? ' disabled' : '') + ' aria-label="Move up">&#9650;</button>' +
-            '<button class="gr_ib" data-gr-stage-move="' + st.key + '" data-d="1"' + (i === grStages.length - 1 ? ' disabled' : '') + ' aria-label="Move down">&#9660;</button>' +
-            '<button class="gr_ib gr_rmb" data-gr-stage-del="' + st.key + '" aria-label="Delete stage">&#10005;</button>' +
-          '</div>';
-        }).join('') +
-        '<div class="gr_erow gr_add"><input class="gr_in" id="grNewStage" placeholder="Add a stage..." aria-label="New stage">' +
-          '<button class="gr_ghost" data-gr-stage-add>Add</button></div>' +
-        '</section>' +
-        '<section class="gr_card"><div class="gr_ct"><h2>Gone quiet</h2></div>' +
-          '<div class="gr_field"><label for="grStale">Flag a client after this many days with no contact</label>' +
-          '<input id="grStale" class="gr_in" type="number" min="1" max="30" value="' + grStaleDays + '" data-gr-stale></div></section>';
+    if (grSetTab === 'templates') {
 
-    } else if (grSetTab === 'templates') {
       body = grTplPart() + grDiscPart() + grSigPart();
 
     } else {
@@ -98698,7 +98753,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
 
     $('grSettings').innerHTML =
-      grHead('Growth settings', 'Stages, templates, codes and who owns what', '') +
+      grHead('Growth settings', 'Templates, codes, your signature and who works in Growth', '') +
       '<div class="gr_seg gr_wide">' + tabs.map(function (t) {
         return '<button data-gr-settab="' + t[0] + '"' + (grSetTab === t[0] ? ' aria-pressed="true"' : '') + '>' + t[1] + '</button>';
       }).join('') + '</div>' + body;
@@ -100468,6 +100523,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grStageDel(key, to);
       return;
     }
+    const cset = e.target.closest('[data-gr-colset]');
+    if (cset) {
+      const k = cset.dataset.grColset;
+      grColEdit = (grColEdit && grColEdit.k === 'set' && grColEdit.key === k) ? null : { k: 'set', key: k };
+      grRender();
+      return;
+    }
     const cadd = e.target.closest('[data-gr-coladd]');
     if (cadd) {
       const act = cadd.dataset.grColadd;
@@ -100794,6 +100856,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         w2.moments = list;
         grWrite('growth_watch_calls', 'update', { moments: list }, d.grWatchMom);
       }
+      return;
+    }
+    if (d.grTestto !== undefined) {
+      const sig = Object.assign({}, grSettings.signature || {});
+      const v = String(e.target.value || '').trim();
+      if (v) sig.testTo = v; else delete sig.testTo;   // empty means "use the mailbox"
+      grSetting('signature', sig);
       return;
     }
     if (d.grStageLabel || d.grStageColour) {

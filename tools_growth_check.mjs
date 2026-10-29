@@ -1914,6 +1914,111 @@ await step('Clear answers is the design, with an edge per card', async () => {
 });
 
 
+await step('a stage is renamed and recoloured on the board it belongs to', async () => {
+  /* These lived on a Pipeline tab in Settings, so changing the board meant leaving it.
+     The tab is gone and they moved here. Nothing checked them before -- removing a whole
+     Settings tab left the suite at 260/260, which is why this exists. Read back off the
+     growth_settings ROW: a rename that paints and never saves looks identical. */
+  const pipe = () => page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'pipeline');
+    return r && r.value ? { stages: r.value.stages.map(s => s.key + ':' + s.label + ':' + s.color),
+                            staleDays: r.value.staleDays } : null;
+  });
+
+  await screen('gr_settings');
+  const tabs = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-gr-settab]')].map(b => b.dataset.grSettab));
+  check('Settings no longer carries a Pipeline tab', tabs.indexOf('stages') < 0, tabs.join(','));
+  check('and still has the two that are its own',
+    tabs.indexOf('templates') >= 0 && tabs.indexOf('team') >= 0, tabs.join(','));
+
+  await screen('gr_pipeline');
+  const closed = await page.evaluate(() => document.querySelectorAll('[data-gr-stage-label]').length);
+  check('the board does not show stage settings until you ask', closed === 0, String(closed));
+
+  await page.evaluate(() => document.querySelector('[data-gr-colset="call"]')?.click());
+  await page.waitForTimeout(800);
+  const open = await page.evaluate(() => ({
+    name: document.querySelectorAll('[data-gr-stage-label="call"]').length,
+    colour: document.querySelectorAll('[data-gr-stage-colour="call"]').length,
+    others: document.querySelectorAll('[data-gr-stage-label="booked"]').length
+  }));
+  check('the pencil opens a name and a colour for that stage',
+    open.name === 1 && open.colour === 1, JSON.stringify(open));
+  check('and only that one', open.others === 0, String(open.others));
+
+  await page.fill('[data-gr-stage-label="call"]', 'Had the call');
+  await page.evaluate(() => {
+    const i = document.querySelector('[data-gr-stage-label="call"]');
+    i.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForTimeout(1200);
+  const renamed = await pipe();
+  check('renaming writes to the row, not just the screen',
+    !!renamed && renamed.stages.some(x => /^call:Had the call:/.test(x)), JSON.stringify(renamed && renamed.stages));
+
+  /* "Gone quiet" came across with them: it decides when a deal ON THIS BOARD starts
+     asking to be chased, and it was two screens away from the thing it changes. */
+  await page.evaluate(() => {
+    const i = document.querySelector('[data-gr-stale]');
+    if (i) { i.value = '9'; i.dispatchEvent(new Event('change', { bubbles: true })); }
+  });
+  await page.waitForTimeout(1200);
+  const quiet = await pipe();
+  check('and the quiet-days setting is on the board and saves',
+    !!quiet && Number(quiet.staleDays) === 9, JSON.stringify(quiet && quiet.staleDays));
+});
+
+await step('a template shows what it will actually send', async () => {
+  /* You could write {name} and {discount} into a template and have no way of seeing the
+     result until it was in a client's inbox. The preview is built from the SAME fill and
+     signature the test email uses, so the two cannot say different things. */
+  await screen('gr_settings');
+  await page.evaluate(() => document.querySelector('[data-gr-settab="templates"]')?.click());
+  await page.waitForTimeout(900);
+  await page.evaluate(() => document.querySelector('[data-gr-tpl-open="gt-1"]')?.click());
+  await page.waitForTimeout(900);
+
+  const pv = await page.evaluate(() => {
+    const el = document.querySelector('#grTplPvgt-1');
+    if (!el) return null;
+    const body = el.querySelector('.gr_pvb');
+    return { text: (body ? body.textContent : ''),
+             lines: [...el.querySelectorAll('.gr_pvl b')].map(b => b.textContent.trim()) };
+  });
+  check('an open template previews one', !!pv, String(!!pv));
+  /* The point of a preview is that the placeholders are GONE. One that still showed
+     {name} would be a copy of the textarea above it. */
+  check('with the placeholders filled in, not shown',
+    !!pv && !/\{name\}|\{company\}/i.test(pv.text), pv && pv.text.slice(0, 80));
+  check('and the real words around them kept',
+    !!pv && /looking forward to working with/i.test(pv.text), pv && pv.text.slice(0, 80));
+  check('it says who it would go to and what the subject is',
+    !!pv && pv.lines.length === 2 && /@/.test(pv.lines[0]), JSON.stringify(pv && pv.lines));
+
+  /* The address was a field in the signature block, which is where you would look for it
+     last -- the button that sends the tests was in another card entirely. */
+  const addr = await page.evaluate(() => ({
+    fields: document.querySelectorAll('[data-gr-testto]').length,
+    inSignature: document.querySelectorAll('[data-gr-sig="testTo"]').length
+  }));
+  check('there is one place to set the test address', addr.fields === 1, JSON.stringify(addr));
+  check('and it is not hidden in the signature', addr.inSignature === 0, String(addr.inSignature));
+
+  await page.fill('[data-gr-testto]', 'annie@reachgiant.com');
+  await page.evaluate(() => {
+    const i = document.querySelector('[data-gr-testto]');
+    i.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForTimeout(1200);
+  const saved = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'signature');
+    return r && r.value ? r.value.testTo || '' : '';
+  });
+  check('setting it writes to the row', saved === 'annie@reachgiant.com', saved);
+});
+
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');
