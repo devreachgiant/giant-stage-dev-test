@@ -563,7 +563,14 @@
       // both real measurements rather than one row repeated.
       moments: [{ s: 162, theme: 'Price', q: 'What does it actually cost?' },
                 { s: 905, theme: 'Contract', q: 'Am I locked in for a year?' }],
-      added_by: ME, created_at: giso(40,0) }
+      added_by: ME, created_at: giso(40,0) },
+    /* A call with NO recording, which is what five of the six on the shelf actually look
+       like. Without one of these the screen can only be checked in the state where the
+       button is there, and the reported bug was the state where it is not. */
+    { id: 'gw-2', title: 'Michael Cash', call_date: giso(9,0).slice(0,10), url: '',
+      tags: ['Google Ads'], outcome: 'Proposal sent, $1,000/mo management',
+      note: 'Garage door installer, burned by past agencies.',
+      learned: '', position: 1, moments: [], added_by: ME, created_at: giso(9,0) }
   ];
   DB.growth_discounts = [
     { id: 'gd-1', code: 'RG250',  label: 'Get $250 off each month',   colour: '#D91F0F', position: 0, created_at: iso(30,0) },

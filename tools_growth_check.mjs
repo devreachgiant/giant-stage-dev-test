@@ -1677,6 +1677,76 @@ await step('Connectors: the Gmail card, and one row fewer', async () => {
 });
 
 
+await step('a call without a recording can be given one', async () => {
+  /* Reported by Annie: six calls on the shelf, one Watch button. The button was right --
+     five of them have no recording link. The bug was that nobody could fix it, including
+     Luke: the Link field existed only on the Add a call form, so attaching a recording to
+     a call already on the shelf meant deleting the card and re-adding it, losing the
+     write-up, outcome, tags and moments. Read back off the ROW, because a link that
+     paints a button and never saves looks identical until a reload. */
+  const rowOf = (id) => page.evaluate(i =>
+    (window.__mockDB.growth_watch_calls || []).find(w => w.id === i) || null, id);
+
+  await screen('gr_training');
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="lib"]')?.click());
+  await page.waitForTimeout(1300);
+
+  const before = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('.gr_bc3')];
+    const byName = {};
+    cards.forEach(c => {
+      const n = (c.querySelector('b') || {}).textContent || '?';
+      byName[n.trim()] = {
+        watch: c.querySelectorAll('.gr_wbtn').length,
+        field: c.querySelectorAll('[data-gr-watch-url]').length,
+        says: (c.textContent || '').replace(/\s+/g, ' ')
+      };
+    });
+    return byName;
+  });
+  const has = before['Amy Neighbors'], none = before['Michael Cash'];
+  check('the call that has a recording offers it', !!has && has.watch === 1, JSON.stringify(has && has.watch));
+  check('and the one that does not, does not', !!none && none.watch === 0, JSON.stringify(none && none.watch));
+  /* The silence was the whole complaint: a card with no button said nothing about why. */
+  check('but says why, instead of just missing a button',
+    !!none && /no Watch the call button/i.test(none.says), none && none.says.slice(0, 120));
+  check('and every card carries a link field to fill in',
+    !!has && has.field === 1 && !!none && none.field === 1,
+    JSON.stringify({ has: has && has.field, none: none && none.field }));
+
+  /* A link that is not a link must be refused, not stored: stored, it paints a Watch
+     button that goes nowhere, which is worse than the missing button this fixes. */
+  await page.evaluate(() => {
+    const i = document.querySelector('[data-gr-watch-url="gw-2"]');
+    i.value = 'ask luke for it';
+    i.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForTimeout(900);
+  const afterJunk = await rowOf('gw-2');
+  check('something that is not a link is refused', !afterJunk.url, JSON.stringify(afterJunk.url));
+
+  await page.evaluate(() => {
+    const i = document.querySelector('[data-gr-watch-url="gw-2"]');
+    i.value = 'https://zoom.us/rec/share/abc123';
+    i.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForTimeout(1200);
+  const saved = await rowOf('gw-2');
+  check('a real link is written to the row, not just painted',
+    saved.url === 'https://zoom.us/rec/share/abc123', JSON.stringify(saved.url));
+
+  const after = await page.evaluate(() => {
+    const c = [...document.querySelectorAll('.gr_bc3')]
+      .find(x => /Michael Cash/.test((x.querySelector('b') || {}).textContent || ''));
+    const a = c && c.querySelector('.gr_wbtn');
+    return { watch: c ? c.querySelectorAll('.gr_wbtn').length : -1,
+             href: a ? a.getAttribute('href') : '' };
+  });
+  check('and the Watch the call button appears, pointing at it',
+    after.watch === 1 && after.href === 'https://zoom.us/rec/share/abc123', JSON.stringify(after));
+});
+
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');
