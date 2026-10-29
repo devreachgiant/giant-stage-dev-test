@@ -95742,6 +95742,28 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   const me = () => (window.giantSession && window.giantSession.user && window.giantSession.user.id) || null;
   const myRole = () => (window.giantCurrentProfile && window.giantCurrentProfile.role) || '';
   const grIsStaff = () => ['owner', 'manager', 'inhouse_dev'].includes(myRole());
+  /* THE TOKEN, WITH THE FALLBACKS THE REST OF THE APP ALREADY USES. The connector calls
+     read it straight off getSession(), which comes back empty on a session restored from
+     storage rather than signed in in this tab -- currentToken() elsewhere in this file
+     exists precisely for that and falls back to the persisted session. Without it the
+     request went out carrying no Authorization header at all, and the function refused
+     it with "Sign in first." to somebody plainly signed in. */
+  async function grToken() {
+    try {
+      const s2 = sb();
+      if (s2 && s2.auth && s2.auth.getSession) {
+        const { data } = await s2.auth.getSession();
+        if (data && data.session && data.session.access_token) return data.session.access_token;
+      }
+    } catch (e) { /* fall through */ }
+    if (window.giantSession && window.giantSession.access_token) return window.giantSession.access_token;
+    try {
+      const ref = new URL(window.GIANT_SUPABASE_URL).hostname.split('.')[0];
+      const raw = localStorage.getItem('sb-' + ref + '-auth-token');
+      const p = raw ? JSON.parse(raw) : null;
+      return (p && (p.access_token || (p.currentSession && p.currentSession.access_token))) || null;
+    } catch (e) { return null; }
+  }
 
   let grLoaded = false, grLoading = false;
   let grClients = [], grMeetings = [], grMessages = [], grTemplates = [];
@@ -95765,6 +95787,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   })();
   // Editing the board's own columns, in place: {k:'add'|'del', ...}. Null the rest of the time.
   let grColEdit = null;
+  /* Held in state. The three boxes are rebuilt by every grRender, and the connect
+     handler renders once to show "Checking with Zoom..." -- so a refusal wiped all three
+     values and left you retyping a client secret to find out what went wrong. */
+  let grZoomDraft = { a: '', c: '', s: '' };
   let grTplDraft = { n: '', s: '', b: '' }, grDcEdit = null,
       grDcDraft = { code: '', label: '', colour: '' }, grTestBusy = '';
   let grCourseDone = [], grCourseWho = null, grLessonOpen = null, grEditT = null;
@@ -98036,9 +98062,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (!tok) { if (el) el.focus(); return; }
     grConnBusy = 'calendly'; grConnSay.calendly = ''; grRender();
     try {
-      const s2 = sb();
-      const { data: sess } = s2 ? await s2.auth.getSession() : { data: null };
-      const at = sess && sess.session && sess.session.access_token;
+      const at = await grToken();
       const r = await fetch('/.netlify/functions/growth-calendly?action=save', {
         method: 'POST',
         headers: Object.assign({ 'Content-Type': 'application/json' },
@@ -98066,9 +98090,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (!ok) return;
     grConnBusy = 'calendly'; grRender();
     try {
-      const s2 = sb();
-      const { data: sess } = s2 ? await s2.auth.getSession() : { data: null };
-      const at = sess && sess.session && sess.session.access_token;
+      const at = await grToken();
       const r = await fetch('/.netlify/functions/growth-calendly?action=disconnect', {
         method: 'POST', headers: at ? { Authorization: 'Bearer ' + at } : {} });
       const j = await r.json().catch(() => ({}));
@@ -98086,17 +98108,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      on the missing piece. The function proves them against Zoom before storing them. */
   async function grZoomConnect() {
     const a = $('grZoomAcct'), c = $('grZoomId'), sec = $('grZoomSecret');
-    const accountId = (a && a.value || '').trim();
-    const clientId = (c && c.value || '').trim();
-    const clientSecret = (sec && sec.value || '').trim();
+    const accountId = ((a && a.value) || grZoomDraft.a || '').trim();
+    const clientId = ((c && c.value) || grZoomDraft.c || '').trim();
+    const clientSecret = ((sec && sec.value) || grZoomDraft.s || '').trim();
+    grZoomDraft = { a: accountId, c: clientId, s: clientSecret };
     if (!accountId) { if (a) a.focus(); return; }
     if (!clientId) { if (c) c.focus(); return; }
     if (!clientSecret) { if (sec) sec.focus(); return; }
     grConnBusy = 'zoom'; grConnSay.zoom = ''; grRender();
     try {
-      const s2 = sb();
-      const { data: sess } = s2 ? await s2.auth.getSession() : { data: null };
-      const at = sess && sess.session && sess.session.access_token;
+      const at = await grToken();
       const r = await fetch('/.netlify/functions/growth-zoom?action=save', {
         method: 'POST',
         headers: Object.assign({ 'Content-Type': 'application/json' },
@@ -98105,6 +98126,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { grConnSay.zoom = j.error || 'That did not work.'; grConnBusy = ''; grRender(); return; }
+      grZoomDraft = { a: '', c: '', s: '' };   // accepted and stored; nothing left to keep
       grConn.zoom = true;
       grConn.zoomWho = j.who || '';
       grConn.zoomHow = 'app';
@@ -98123,9 +98145,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (!ok) return;
     grConnBusy = 'zoom'; grRender();
     try {
-      const s2 = sb();
-      const { data: sess } = s2 ? await s2.auth.getSession() : { data: null };
-      const at = sess && sess.session && sess.session.access_token;
+      const at = await grToken();
       const r = await fetch('/.netlify/functions/growth-zoom?action=disconnect', {
         method: 'POST', headers: at ? { Authorization: 'Bearer ' + at } : {} });
       const j = await r.json().catch(() => ({}));
@@ -98170,9 +98190,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (grConn.syncing) return;
     grConn.syncing = true; grRender();
     try {
-      const s2 = sb();
-      const { data: sess } = s2 ? await s2.auth.getSession() : { data: null };
-      const tok = sess && sess.session && sess.session.access_token;
+      const tok = await grToken();
       const r = await fetch('/.netlify/functions/growth-calendly?action=sync',
         { headers: tok ? { Authorization: 'Bearer ' + tok } : {} });
       const j = await r.json().catch(() => ({}));
@@ -98407,12 +98425,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         act = (grConn.zoomErr ? '<div class="gr_cstat bad">' + esc(grConn.zoomErr) + '</div>' : '') +
           '<div class="gr_field"><label for="grZoomAcct">Account ID</label>' +
             '<input class="gr_in" id="grZoomAcct" type="text" autocomplete="off" spellcheck="false" ' +
+              'data-gr-zoomd="a" value="' + esc(grZoomDraft.a) + '" ' +
               'placeholder="abc123XYZ..." aria-label="Zoom account ID"></div>' +
           '<div class="gr_field"><label for="grZoomId">Client ID</label>' +
             '<input class="gr_in" id="grZoomId" type="text" autocomplete="off" spellcheck="false" ' +
+              'data-gr-zoomd="c" value="' + esc(grZoomDraft.c) + '" ' +
               'placeholder="aBcDeF..." aria-label="Zoom client ID"></div>' +
           '<div class="gr_field"><label for="grZoomSecret">Client Secret</label>' +
             '<input class="gr_in" id="grZoomSecret" type="password" autocomplete="off" spellcheck="false" ' +
+              'data-gr-zoomd="s" value="' + esc(grZoomDraft.s) + '" ' +
               'placeholder="..." aria-label="Zoom client secret"></div>' +
           '<div class="gr_acts"><button class="btn-red" data-gr-zoom-save' + (busy ? ' disabled' : '') + '>' +
             (busy ? 'Checking with Zoom...' : 'Connect Zoom') + '</button>' +
@@ -101089,6 +101110,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
   });
   document.addEventListener('input', function (e) {
+    // On input, not change: change fires on blur, and a re-render while you are still
+    // typing would put back a draft that never saw the half-typed value.
+    if (e.target && e.target.dataset && e.target.dataset.grZoomd) {
+      grZoomDraft[e.target.dataset.grZoomd] = e.target.value; return;
+    }
     if (e.target && e.target.id === 'grColName') { if (grColEdit) grColEdit.name = e.target.value; return; }
     if (e.target && e.target.id === 'grColTo') { if (grColEdit) grColEdit.to = e.target.value; return; }
     if (e.target && e.target.id === 'grAsk') {
