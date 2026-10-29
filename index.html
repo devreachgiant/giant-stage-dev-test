@@ -6816,7 +6816,8 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_cbody:focus{outline:none;}
 .gr_sigb{border-top:1px solid var(--line);padding-top:12px;display:flex;flex-direction:column;gap:8px;}
 .gr_sigb>span{font-size:10px;text-transform:uppercase;letter-spacing:.11em;color:var(--text-3);font-weight:700;}
-.gr_sig{border-left:3px solid var(--red);padding:2px 0 2px 12px;font-size:12.5px;line-height:1.55;color:var(--text-2);}
+.gr_sig{display:flex;flex-direction:column;gap:2px;border-left:3px solid var(--red);padding:10px 0 10px 13px;font-size:13.5px;line-height:1.5;color:var(--text-2);}
+.gr_sig b{font-weight:700;color:var(--text);}
 .gr_sig b{display:block;font-size:13.5px;color:var(--text);}
 .gr_sig i{font-style:normal;color:var(--red);}
 .gr_cacts{border-top:1px solid var(--line);padding-top:14px;}
@@ -98563,8 +98564,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     };
     const now = new Date().toLocaleString(undefined,
       { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
-    return '<div class="gr_pvwrap" data-gr-tpl-pvclose>' +
-      '<div class="gr_pvmail" role="dialog" aria-label="Preview of ' + esc(t.name) + '" data-gr-stop>' +
+    return '<div class="gr_pvwrap" data-gr-pvback>' +
+      '<div class="gr_pvmail" role="dialog" aria-label="Preview of ' + esc(t.name) + '">' +
         '<div class="gr_pvtop">' +
           '<h3>' + esc(fill(t.subject) || 'No subject') + '</h3>' +
           '<button class="gr_ib" data-gr-tpl-pvclose aria-label="Close the preview">&#10005;</button>' +
@@ -98893,18 +98894,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const g = grSigLines();
     return [g.name, g.title, g.phone, g.email, g.site].filter(Boolean).join('\n');
   }
+  /* ONE SOURCE, SO THE TWO PREVIEWS CANNOT DISAGREE. This drew the signature its own
+     way -- email, site and phone on a single line joined by bars, in a different order
+     from the one that is sent, styled as links -- while the mail itself goes out as
+     text/plain, one item per line, name, title, phone, email, site. So the builder
+     showed a tidier signature than anybody receives, and the template preview showed
+     the real one. They are both grSigText() now; it is the thing that is actually
+     appended to the email, so neither can drift from it. */
   function grSigPreview() {
     const g = grSigLines();
-    if (!g.name && !g.title) return '<p class="gr_mute">No signature set yet. Add one in Growth settings and it goes on every email from here.</p>';
+    const text = grSigText();
+    if (!text) return '<p class="gr_mute">No signature set yet. Add one in Growth settings and it goes on every email from here.</p>';
     return '<div class="gr_sig">' +
-      /* A logo, if one is set. It is shown here and nowhere else on purpose: Gmail's
-         send path in this app builds a text/plain message, so a picture cannot travel
-         with it. The line under the box on Settings says so rather than letting somebody
-         believe their logo is going out on every email. */
+      /* The logo is shown here and nowhere else on purpose: the send path builds a
+         text/plain message, so a picture cannot travel with it. The line under the box
+         says so rather than letting somebody believe it goes out on every email. */
       (g.image ? '<img class="gr_sigimg" src="' + esc(g.image) + '" alt="">' : '') +
-      '<b>' + esc(g.name) + '</b>' +
-      (g.title ? esc(g.title) + '<br>' : '') +
-      [g.email, g.site, g.phone].filter(Boolean).map(function (x) { return '<i>' + esc(x) + '</i>'; }).join(' &nbsp;|&nbsp; ') +
+      text.split('\n').map(function (line, i) {
+        return i === 0 ? '<b>' + esc(line) + '</b>' : '<span>' + esc(line) + '</span>';
+      }).join('') +
       '</div>';
   }
 
@@ -100592,6 +100600,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const tpv = e.target.closest('[data-gr-tpl-pv]');
     if (tpv) { grTplPv = tpv.dataset.grTplPv; grRender(); return; }
     if (e.target.closest('[data-gr-tpl-pvclose]')) { grTplPv = null; grRender(); return; }
+    /* Clicking the dark area closes it; clicking the message does not. Tested by the
+       target being the backdrop itself rather than anything inside it -- closest() would
+       match every click in the dialog and shut it the moment you tried to select text. */
+    const pvback = e.target.closest('[data-gr-pvback]');
+    if (pvback && e.target === pvback) { grTplPv = null; grRender(); return; }
     const cset = e.target.closest('[data-gr-colset]');
     if (cset) {
       const k = cset.dataset.grColset;

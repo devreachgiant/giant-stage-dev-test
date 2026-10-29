@@ -2022,10 +2022,28 @@ await step('a template previews as the mail it becomes', async () => {
     !!pv && !pv.mono && pv.paras >= 2, JSON.stringify({ mono: pv && pv.mono, paras: pv && pv.paras }));
   check('with the signature set apart at the end', !!pv && pv.sig === 1, String(pv && pv.sig));
 
+  const byX = await page.evaluate(() => {
+    const b = document.querySelector('.gr_pvmail [data-gr-tpl-pvclose]');
+    if (!b) return 'no cross';
+    b.click();
+    return 'clicked';
+  });
+  await page.waitForTimeout(700);
+  const goneByX = await page.evaluate(() => document.querySelectorAll('.gr_pvmail').length);
+  check('the cross closes it', byX === 'clicked' && goneByX === 0, byX + ' / ' + goneByX);
+
+  // And clicking inside the message does NOT close it.
+  await page.evaluate(() => document.querySelector('[data-gr-tpl-pv="gt-1"]')?.click());
+  await page.waitForTimeout(800);
+  await page.evaluate(() => document.querySelector('.gr_pvbody')?.click());
+  await page.waitForTimeout(500);
+  const stillOpen = await page.evaluate(() => document.querySelectorAll('.gr_pvmail').length);
+  check('but clicking the message itself does not', stillOpen === 1, String(stillOpen));
+
   await page.keyboard.press('Escape');
   await page.waitForTimeout(700);
   const closed = await page.evaluate(() => document.querySelectorAll('.gr_pvmail').length);
-  check('Escape closes it', closed === 0, String(closed));
+  check('Escape closes it too', closed === 0, String(closed));
 
   const addr = await page.evaluate(() => ({
     fields: document.querySelectorAll('[data-gr-testto]').length,
@@ -2045,6 +2063,45 @@ await step('a template previews as the mail it becomes', async () => {
     return r && r.value ? r.value.testTo || '' : '';
   });
   check('setting it writes to the row', saved === 'annie@reachgiant.com', saved);
+});
+
+
+await step('the signature looks the same everywhere it is shown', async () => {
+  /* It did not. The builder drew its own version -- email, site and phone on one line
+     joined by bars, in a different order from the one that is sent, styled as links --
+     while the mail goes out text/plain, one item per line. So the settings screen showed
+     a tidier signature than anybody receives. Both read grSigText() now, which is the
+     string actually appended to the email, and this compares the two renderings line for
+     line rather than trusting that they call the same function. */
+  const lines = (sel) => page.evaluate((q) => {
+    const el = document.querySelector(q);
+    if (!el) return null;
+    return (el.innerText || '').split('\n').map(x => x.trim()).filter(Boolean);
+  }, sel);
+
+  await screen('gr_settings');
+  await page.evaluate(() => document.querySelector('[data-gr-settab="templates"]')?.click());
+  await page.waitForTimeout(900);
+  const builder = await lines('.gr_sigprev .gr_sig');
+  check('the builder shows a signature', !!builder && builder.length > 0, JSON.stringify(builder));
+
+  await page.evaluate(() => document.querySelector('[data-gr-settab="saved"]')?.click());
+  await page.waitForTimeout(900);
+  await page.evaluate(() => document.querySelector('[data-gr-tpl-pv="gt-1"]')?.click());
+  await page.waitForTimeout(900);
+  const inMail = await lines('.gr_pvsig');
+  check('and so does the preview of the mail', !!inMail && inMail.length > 0, JSON.stringify(inMail));
+  /* The actual complaint: the same signature read differently in the two places. */
+  check('and they are the same lines, in the same order',
+    JSON.stringify(builder) === JSON.stringify(inMail),
+    JSON.stringify({ builder: builder, mail: inMail }));
+  /* And it is the SENT one that both follow: plain text, one item per line. A line
+     holding two of them joined by a bar is the old, prettier, wrong rendering. */
+  check('with one item per line, not joined with bars',
+    !!inMail && inMail.every(l => l.indexOf('|') < 0), JSON.stringify(inMail));
+
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(600);
 });
 
 
