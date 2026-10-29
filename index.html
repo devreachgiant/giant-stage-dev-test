@@ -98009,6 +98009,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grConn.calendlyHow = (j && j.source) || '';
       grConn.calendlyErr = (j && j.error) || '';
     } catch (e) { grConn.calendly = false; }
+    /* ASKED LIKE EVERY OTHER ROW. This one was set only by its own Test button, and
+       nothing reset it -- so it read "Not tested" on every page load however many times
+       it had been tested, and "Check all again" could not re-ask the one row it was
+       pressed for. It looked like a connector that kept disconnecting; it was a row
+       that had never been asked. Sixteen tokens, the same question the button sends. */
+    try {
+      const r = await fetch('/.netlify/functions/claude-api', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ max_tokens: 16, system: 'Reply with the single word: ready.',
+                               messages: [{ role: 'user', content: 'Are you there?' }] })
+      });
+      const j = await r.json().catch(() => ({}));
+      grConn.claude = r.ok && !!String(j.text || '').trim();
+    } catch (e) { grConn.claude = false; }
     grRender();
   }
 
@@ -98017,7 +98031,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      the other side, and the one thing the screen must not do is keep saying the old answer. */
   async function grReprobe() {
     grConn.probed = false;
-    grConn.zoom = null; grConn.calendly = null;
+    grConn.zoom = null; grConn.calendly = null; grConn.claude = null;
     /* Gmail's answer is cached too, and clearing the flag is not the same as asking
        again: this used to reset `checked` and re-render, which painted the STALE answer
        and only re-asked the next time somebody navigated back into Growth. So "Check
@@ -98279,9 +98293,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           : 'Calendly still puts a join link on every booking. Giant cannot mint its own.'],
       ['claude', grConn.claude,
         grConn.claude === true ? 'Answering. Writing and the Home assistant both work.'
-          : grConn.claude === null ? 'Deployed. Press Test to find out whether it answers.'
+          : grConn.claude === null ? 'Checking...'
           : 'It did not answer when asked.',
-        grConn.claude === null ? 'Not tested' : null],
+        grConn.claude === null ? 'Checking' : null],
       /* Connected AI used to sit here. It belongs in Settings -> Connected AI, which is
          where the tokens are made and revoked; a second place to read the same thing is
          a second place for it to go stale. */

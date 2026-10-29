@@ -2105,6 +2105,55 @@ await step('the signature looks the same everywhere it is shown', async () => {
 });
 
 
+await step('every connector row is asked, not waiting to be asked', async () => {
+  /* Claude AI was the only row nothing probed: its state was set by its own Test button
+     and nothing reset it, so it read "Not tested" on every page load however many times
+     it had been tested, and "Check all again" could not re-ask it. Reported as a
+     connector that kept disconnecting; it was a row that had never been asked. */
+  let asked = 0;
+  await page.route('**/claude-api', r => {
+    asked++;
+    return r.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ text: 'ready' }) });
+  });
+  await page.route('**/growth-zoom*', r => r.fulfill({ status: 200, contentType: 'application/json',
+    body: JSON.stringify({ configured: true, who: 'zoom@reachgiant.com', source: 'app' }) }));
+  await page.route('**/growth-calendly*', r => r.fulfill({ status: 200, contentType: 'application/json',
+    body: JSON.stringify({ configured: true, who: 'growth@reachgiant.com', source: 'app' }) }));
+
+  await screen('gr_connectors');
+  await page.waitForTimeout(2200);
+  const rows = await page.evaluate(() => {
+    const out = {};
+    document.querySelectorAll('.gr_cnw').forEach(w => {
+      const n = (w.querySelector('.gr_cnrow b') || {}).textContent || '?';
+      const lamp = w.querySelector('.gr_lt');
+      out[n.trim()] = { on: !!(lamp && lamp.classList.contains('gr_on')),
+                        waiting: !!(lamp && lamp.classList.contains('gr_wait')) };
+    });
+    return out;
+  });
+  check('the Claude row was actually asked', asked >= 1, String(asked));
+  check('and reports an answer rather than "not tested"',
+    rows['Claude AI'] && rows['Claude AI'].on && !rows['Claude AI'].waiting,
+    JSON.stringify(rows['Claude AI']));
+  check('alongside the rows that were already asked',
+    rows['Zoom'] && rows['Zoom'].on && rows['Calendly'] && rows['Calendly'].on,
+    JSON.stringify({ zoom: rows['Zoom'], calendly: rows['Calendly'] }));
+
+  /* "Check all again" has to re-ask THIS row too -- it was the one row the button could
+     not refresh, which is the whole reason it looked stuck. */
+  const before = asked;
+  await page.evaluate(() => document.querySelector('[data-gr-conn-recheck]')?.click());
+  await page.waitForTimeout(2200);
+  check('and Check all again asks it once more', asked > before, before + ' then ' + asked);
+
+  await page.unroute('**/claude-api');
+  await page.unroute('**/growth-zoom*');
+  await page.unroute('**/growth-calendly*');
+});
+
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');
