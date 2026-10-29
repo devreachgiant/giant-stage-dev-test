@@ -1710,6 +1710,33 @@ await step('a call without a recording can be given one', async () => {
   /* The silence was the whole complaint: a card with no button said nothing about why. */
   check('but says why, instead of just missing a button',
     !!none && /no Watch the call button/i.test(none.says), none && none.says.slice(0, 120));
+  /* THE HEADER COLLIDED. The outcome here is a sentence, not the one-word status the
+     design has, and it sat on the name's row with flex:none and nowrap on it and nothing
+     letting the title shrink -- so at three columns it lay across the name and ran off
+     the card. Measured as overlap between the real boxes; "the badge exists" was true
+     the whole time it was unreadable. */
+  const box = await page.evaluate(() => [...document.querySelectorAll('.gr_bc3')].map(c => {
+    const r = e => (e ? e.getBoundingClientRect() : null);
+    const card = r(c), t = r(c.querySelector('.gr_bct b')),
+          b = r(c.querySelector('.gr_out3')), x = r(c.querySelector('.gr_ib'));
+    return {
+      name: ((c.querySelector('b') || {}).textContent || '').trim(),
+      overBadge: !!(t && b) && t.bottom > b.top + 1 && t.right > b.left + 1,
+      overCross: !!(t && x) && t.right > x.left + 1 && t.top < x.bottom - 1,
+      offCard: !!(b && card) && Math.round(b.right - card.right) > 0,
+      hasBadge: !!b
+    };
+  }));
+  check('the outcome never lies across the call name',
+    box.length > 0 && box.every(c => !c.overBadge), JSON.stringify(box));
+  check('nor the name across the remove button',
+    box.every(c => !c.overCross), JSON.stringify(box.map(c => c.overCross)));
+  check('and no outcome runs off the side of its card',
+    box.every(c => !c.offCard), JSON.stringify(box.map(c => c.offCard)));
+  // Guards the three above: all-false is also what "no badges rendered" looks like.
+  check('with the outcomes actually on the cards',
+    box.some(c => c.hasBadge), JSON.stringify(box.map(c => c.hasBadge)));
+
   check('and every card carries a link field to fill in',
     !!has && has.field === 1 && !!none && none.field === 1,
     JSON.stringify({ has: has && has.field, none: none && none.field }));

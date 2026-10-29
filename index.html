@@ -7162,10 +7162,12 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_bcg{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;}
 .gr_bc3{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0;}
 .gr_bch{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
-.gr_bch b{display:block;font-size:17px;font-weight:800;letter-spacing:-.02em;}
+.gr_bct{min-width:0;flex:1;}
+.gr_bch b{display:block;font-size:17px;font-weight:800;letter-spacing:-.02em;overflow-wrap:anywhere;}
 .gr_bch span{font-size:12.5px;color:var(--text-3);}
-.gr_bcb{display:flex;align-items:center;gap:7px;flex:none;}
-.gr_out3{font-style:normal;font-size:11.5px;font-weight:700;border-radius:99px;padding:3px 10px;background:var(--text);color:var(--bg);white-space:nowrap;}
+/* Wraps. It carries a whole outcome, so nowrap was a promise the card could not keep. */
+.gr_out3{display:inline-block;align-self:flex-start;max-width:100%;font-style:normal;font-size:11.5px;
+  font-weight:700;line-height:1.4;border-radius:12px;padding:4px 11px;background:var(--text);color:var(--bg);}
 .gr_bcs{margin:0;font-size:14px;line-height:1.5;color:var(--text-2);}
 .gr_bcw{background:var(--surface-2);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;}
 .gr_bcw span{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);}
@@ -97032,13 +97034,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             '<button class="gr_ghost" data-gr-watch-cancel>Cancel</button></div></div>' : '') +
         (shelf.length ? '<div class="gr_bcg">' + shelf.map(w =>
           '<article class="gr_bc3">' +
-            '<div class="gr_bch"><div><b>' + esc(w.title) + '</b>' +
+            /* The outcome is a SENTENCE here -- "Pitched $2.5k to $3k ad spend + $14k
+               branding" -- not the one-word status the design has, so it cannot share a
+               row with the name. It did, with flex:none and nowrap on it and nothing
+               letting the title shrink, so at three columns the badge sat across the
+               name and ran off the card. Its own row, free to wrap; the cross stays
+               where a cross belongs. */
+            '<div class="gr_bch"><div class="gr_bct"><b>' + esc(w.title) + '</b>' +
               (w.call_date ? '<span>' + esc(grLongDate(w.call_date)) + '</span>' : '') + '</div>' +
-              '<div class="gr_bcb">' +
-                (w.outcome ? '<em class="gr_out3">' + esc(w.outcome) + '</em>' : '') +
-                (can ? '<button class="gr_ib gr_rmb" data-gr-watch-del="' + w.id +
-                  '" title="Remove" aria-label="Remove ' + esc(w.title) + '">&#10005;</button>' : '') +
-              '</div></div>' +
+              (can ? '<button class="gr_ib gr_rmb" data-gr-watch-del="' + w.id +
+                '" title="Remove" aria-label="Remove ' + esc(w.title) + '">&#10005;</button>' : '') +
+            '</div>' +
+            (w.outcome ? '<em class="gr_out3">' + esc(w.outcome) + '</em>' : '') +
             (w.note ? '<p class="gr_bcs">' + esc(w.note) + '</p>' : '') +
             (can
               ? '<div class="gr_bcw"><span>Why it worked</span>' +
