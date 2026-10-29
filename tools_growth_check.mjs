@@ -1878,6 +1878,42 @@ await step('Training opens on the tab you left it on', async () => {
 });
 
 
+await step('Clear answers is the design, with an edge per card', async () => {
+  await screen('gr_training');
+  await page.evaluate(() => {
+    const b = [...document.querySelectorAll('[data-gr-traintab]')].find(x => x.dataset.grTraintab === 'clear');
+    if (b) b.click();
+  });
+  await page.waitForTimeout(1200);
+  const m = await page.evaluate(() => {
+    const cs = [...document.querySelectorAll('.gr_ca')];
+    const h = document.querySelector('.gr_subgrad h2');
+    return {
+      cards: cs.length,
+      edges: cs.map(c => getComputedStyle(c).borderLeftColor),
+      edgeW: cs[0] ? Math.round(parseFloat(getComputedStyle(cs[0]).borderLeftWidth)) : -1,
+      gradient: h ? getComputedStyle(h).backgroundImage : '',
+      editButtons: document.querySelectorAll('.gr_cax [data-gr-cl-edit]').length,
+      cornerPencils: document.querySelectorAll('.gr_ca .gr_edb').length,
+      // The pencil used to float over the corner, and every card reserved 54px of
+      // padding to keep a long question from running under it.
+      padRight: cs[0] ? Math.round(parseFloat(getComputedStyle(cs[0]).paddingRight)) : -1
+    };
+  });
+  check('every answer carries a coloured edge', m.cards > 0 && m.edgeW === 5, JSON.stringify({ n: m.cards, w: m.edgeW }));
+  /* Cycling, not one colour repeated -- the edge is the only thing making a wall of
+     answers scannable, and all-green would look deliberate while telling you nothing. */
+  check('and the colours cycle down the list',
+    new Set(m.edges).size >= Math.min(2, m.cards), JSON.stringify(m.edges));
+  check('the heading is the gradient the design uses',
+    /linear-gradient/.test(m.gradient), m.gradient.slice(0, 60));
+  check('Edit is a button under the answer, not a pencil over the corner',
+    m.editButtons === m.cards && m.cornerPencils === 0,
+    JSON.stringify({ buttons: m.editButtons, pencils: m.cornerPencils, cards: m.cards }));
+  check('so no card reserves a gutter for one', m.padRight <= 24, String(m.padRight));
+});
+
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');

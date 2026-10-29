@@ -7132,9 +7132,19 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
    a page-level note and keeps its own alignment. */
 .gr_field .gr_hint{display:block;text-align:left;margin-top:5px;}
 .gr_ct .gr_rm{margin-left:auto;}
-.gr_ca{position:relative;padding-right:54px;}
-.gr_ca b{font-size:16.5px;font-weight:700;letter-spacing:-.01em;}
-.gr_ca p{margin:6px 0 8px;font-size:14.5px;line-height:1.6;color:var(--text-2);}
+/* CLEAR ANSWERS, as the design draws them: a card per answer with a coloured edge,
+   cycling green, purple, pink down the list. The edge is the only ornament on the
+   screen and it is what makes a wall of six answers scannable. */
+.gr_ca{position:relative;border-left:5px solid #12B886;border-radius:18px;padding:16px 18px;}
+.gr_ca:nth-of-type(3n+2){border-left-color:#7048E8;}
+.gr_ca:nth-of-type(3n){border-left-color:#E64980;}
+.gr_ca b{display:block;font-size:17px;font-weight:700;line-height:1.3;letter-spacing:-.01em;}
+.gr_ca p{margin:6px 0 0;font-size:15px;line-height:1.55;color:var(--text-2);}
+/* Edit sits under the answer rather than floating over the corner: the pencil overlapped
+   a long question, and padding-right:54px was being reserved on every card to stop it. */
+.gr_cax{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+.gr_subgrad h2{background:linear-gradient(90deg,#7048E8,#E64980 60%,#F59F00);
+  -webkit-background-clip:text;background-clip:text;color:transparent;}
 .gr_edb{position:absolute;top:14px;right:14px;}
 .gr_edb2{vertical-align:middle;margin-left:6px;}
 .gr_search2{margin-bottom:12px;}
@@ -97539,8 +97549,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   /* --- the clear answers --- */
   function grClearHtml() {
     const items = grClears();
-    return grSub('Best clear answers',
-        'Simple, honest answers to the questions everyone asks. Say them in your own words.') +
+    return '<div class="gr_sech gr_subgrad"><h2>Best clear answers</h2>' +
+        '<p>Simple, honest answers to the questions everyone asks. ' +
+        'Say them in your own words.</p></div>' +
       (items.length ? items.map(x => grIsStaff() && grEditT === 'C' + x.id
         ? '<section class="gr_card">' +
             '<div class="gr_two">' +
@@ -97555,10 +97566,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               '<span class="gr_sp"></span>' +
               '<button class="gr_danger" data-gr-cl-del="' + x.id + '">Delete</button></div></section>'
         : '<section class="gr_card gr_ca">' +
-            (grIsStaff() ? '<button class="gr_ib gr_edb" data-gr-cl-edit="' + x.id +
-              '" title="Edit" aria-label="Edit">' + GR_PEN + '</button>' : '') +
             '<b>' + esc(x.q) + '</b><p>' + esc(x.a) + '</p>' +
             (x.theme ? '<span class="gr_tg">' + esc(x.theme) + '</span>' : '') +
+            (grIsStaff() ? '<div class="gr_cax"><button class="gr_ghost gr_sm" data-gr-cl-edit="' +
+              x.id + '" aria-label="Edit the answer to ' + esc(x.q) + '">Edit</button></div>' : '') +
           '</section>').join('')
         : grEmpty('&#9997;', 'No answers yet',
             grIsStaff() ? 'Add the first one below.' : 'Luke is still writing these.')) +
