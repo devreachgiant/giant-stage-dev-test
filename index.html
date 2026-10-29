@@ -95702,7 +95702,21 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   let grSettings = {}, grStages = [], grStaleDays = 5;
   let grTasks = [], grWatch = [], grDiscounts = [];
   let grPlanSeeding = false, grWatchAdd = false;
-  let grSetTab = 'templates', grTrainTab = 'course', grEdit = null;
+  let grSetTab = 'templates', grEdit = null;
+  /* THE TRAINING TAB SURVIVES A RELOAD. It was in memory only, so refreshing while
+     reading Best calls put you back on Course. Only the four on the strip are restored:
+     philosophy, the script, the task list and pricing are reached FROM a lesson, and
+     reopening on one of those would land you on a page with no way back in sight. A
+     saved tab that no longer exists -- Practice, until yesterday -- falls back rather
+     than rendering an empty screen. */
+  const GR_TRAIN_TABS = ['course', 'clear', 'lib', 'qa'];
+  let grTrainTab = (function () {
+    try {
+      const t = localStorage.getItem('giant.growthTrainTab');
+      if (t && GR_TRAIN_TABS.indexOf(t) >= 0) return t;
+    } catch (e) { /* private window or blocked storage */ }
+    return 'course';
+  })();
   // Editing the board's own columns, in place: {k:'add'|'del', ...}. Null the rest of the time.
   let grColEdit = null;
   let grTplDraft = { n: '', s: '', b: '' }, grDcEdit = null,
@@ -100120,7 +100134,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       setTimeout(() => { const t = $('grNewWatchTitle'); if (t) t.focus(); }, 30); return; }
     if (e.target.closest('[data-gr-watch-cancel]')) { grWatchAdd = false; grRender(); return; }
     const tt = e.target.closest('[data-gr-traintab]');
-    if (tt) { grTrainTab = tt.dataset.grTraintab; grRender(); return; }
+    if (tt) {
+      grTrainTab = tt.dataset.grTraintab;
+      // Only the strip's own tabs are remembered -- see GR_TRAIN_TABS.
+      try {
+        if (GR_TRAIN_TABS.indexOf(grTrainTab) >= 0) {
+          localStorage.setItem('giant.growthTrainTab', grTrainTab);
+        }
+      } catch (e) { /* blocked -- it just will not persist */ }
+      grRender(); return;
+    }
 
     if (e.target.closest('[data-gr-task-add]')) {
       const el = $('grNewTask'), due = $('grNewTaskDue');

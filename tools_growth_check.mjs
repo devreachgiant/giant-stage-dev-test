@@ -1839,6 +1839,45 @@ await step('a call without a recording can be given one', async () => {
 });
 
 
+await step('Training opens on the tab you left it on', async () => {
+  /* grTrainTab lived in memory, so a refresh while reading Best calls put you back on
+     Course. Reported after the card work -- you lose your place every time the page
+     reloads, which on a screen people read from is constant. Checked across a REAL
+     reload, not by setting the variable: what broke was that nothing outlived the page. */
+  await screen('gr_training');
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="lib"]')?.click());
+  await page.waitForTimeout(900);
+  const lit = () => page.evaluate(() => {
+    const b = [...document.querySelectorAll('[data-gr-traintab]')]
+      .find(x => x.getAttribute('aria-pressed') === 'true');
+    return { tab: b ? b.dataset.grTraintab : null,
+             heading: ((document.querySelector('#grTraining h2') || {}).textContent || '').trim() };
+  });
+  check('it lights the tab you picked', JSON.stringify(await lit()).includes('lib'),
+    JSON.stringify(await lit()));
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#view-app.on', { timeout: 30000 });
+  await page.waitForTimeout(3200);
+  await screen('gr_training');
+  const after = await lit();
+  check('and is still on it after a reload', after.tab === 'lib', JSON.stringify(after));
+  check('showing that tab, not just lighting it', /Best calls/i.test(after.heading), after.heading);
+
+  /* A tab that no longer exists must not leave the screen blank -- Practice was on this
+     strip yesterday, and anybody who had it saved would reopen on nothing. */
+  await page.evaluate(() => { try { localStorage.setItem('giant.growthTrainTab', 'practice'); } catch (e) {} });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#view-app.on', { timeout: 30000 });
+  await page.waitForTimeout(3200);
+  await screen('gr_training');
+  const gone = await lit();
+  check('a saved tab that no longer exists falls back to Course',
+    gone.tab === 'course' && /course/i.test(gone.heading), JSON.stringify(gone));
+  await page.evaluate(() => { try { localStorage.removeItem('giant.growthTrainTab'); } catch (e) {} });
+});
+
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');
