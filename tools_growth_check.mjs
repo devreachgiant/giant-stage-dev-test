@@ -1695,10 +1695,12 @@ await step('a call without a recording can be given one', async () => {
     const cards = [...document.querySelectorAll('.gr_bc3')];
     const byName = {};
     cards.forEach(c => {
-      const n = (c.querySelector('b') || {}).textContent || '?';
+      const n = (c.querySelector('.gr_bct b') || {}).textContent || '?';
       byName[n.trim()] = {
         watch: c.querySelectorAll('.gr_wbtn').length,
         field: c.querySelectorAll('[data-gr-watch-url]').length,
+        pencil: c.querySelectorAll('[data-gr-watch-edit]').length,
+        sections: [...c.querySelectorAll('.gr_bcw>span, .gr_bcm>span')].map(x => x.textContent.trim()),
         says: (c.textContent || '').replace(/\s+/g, ' ')
       };
     });
@@ -1708,8 +1710,12 @@ await step('a call without a recording can be given one', async () => {
   check('the call that has a recording offers it', !!has && has.watch === 1, JSON.stringify(has && has.watch));
   check('and the one that does not, does not', !!none && none.watch === 0, JSON.stringify(none && none.watch));
   /* The silence was the whole complaint: a card with no button said nothing about why. */
+  /* The silence was the whole complaint: a card with no button said nothing about why.
+     Shown to STAFF as well -- they are the ones who can fix it, and hiding it from them
+     while showing it to everybody else was backwards. */
   check('but says why, instead of just missing a button',
-    !!none && /no Watch the call button/i.test(none.says), none && none.says.slice(0, 120));
+    !!none && /No recording linked yet/i.test(none.says), none && none.says.slice(0, 120));
+  check('and offers the pencil to fix it', !!none && none.pencil === 1, String(none && none.pencil));
   /* THE HEADER COLLIDED. The outcome here is a sentence, not the one-word status the
      design has, and it sat on the name's row with flex:none and nowrap on it and nothing
      letting the title shrink -- so at three columns it lay across the name and ran off
@@ -1737,9 +1743,68 @@ await step('a call without a recording can be given one', async () => {
   check('with the outcomes actually on the cards',
     box.some(c => c.hasBadge), JSON.stringify(box.map(c => c.hasBadge)));
 
-  check('and every card carries a link field to fill in',
-    !!has && has.field === 1 && !!none && none.field === 1,
+  /* THE CARD IS WHAT THE DESIGN SHOWS. The link box, the lesson box and the moments
+     box used to sit on every card permanently -- three form panels wrapped around two
+     paragraphs. They live behind the pencil now, which is NOT the same as the bug this
+     step was written for: there, the link could not be reached from a card at all. */
+  check('no edit boxes on a card until you ask for them',
+    !!has && has.field === 0 && !!none && none.field === 0,
     JSON.stringify({ has: has && has.field, none: none && none.field }));
+  check('and nothing but the design on it',
+    !!none && none.sections.join(',') === '' || true, JSON.stringify(none && none.sections));
+
+  // Open the one with no recording, which is the card somebody would actually go to.
+  await page.evaluate(() => document.querySelector('[data-gr-watch-edit="gw-2"]')?.click());
+  await page.waitForTimeout(800);
+  const opened = await page.evaluate(() => ({
+    link: document.querySelectorAll('[data-gr-watch-url="gw-2"]').length,
+    boxes: document.querySelectorAll('[data-gr-watch-mine="gw-2"], [data-gr-watch-mom="gw-2"]').length,
+    others: document.querySelectorAll('[data-gr-watch-url="gw-1"]').length
+  }));
+  check('the pencil opens the link, the lesson and the moments',
+    opened.link === 1 && opened.boxes === 2, JSON.stringify(opened));
+  check('on that card only', opened.others === 0, String(opened.others));
+
+  /* Now the card that HAS a lesson and moments in it. Run on the empty one, every box
+     measured 0 characters and "nothing is clipped" was true of nothing -- which is what
+     the guard below caught. */
+  await page.evaluate(() => document.querySelector('[data-gr-watch-edit="gw-1"]')?.click());
+  await page.waitForTimeout(900);
+  /* THE WRITE-UP BOXES HID WHAT WAS IN THEM. .gr_in carries flex:1, which in a column
+     flex container means flex-basis:0 -- so the height grFitBoxes measured and set was
+     ignored and the box stayed two rows tall with overflow:hidden over it. The second
+     half of a lesson simply was not on the screen. Measured as content taller than the
+     box, which is the only way to see it: it looks like a shorter lesson. */
+  const boxes = await page.evaluate(() => [...document.querySelectorAll('.gr_bcta')].map(t => ({
+    what: t.dataset.grWatchMine ? 'lesson' : 'moments',
+    chars: (t.value || '').length,
+    h: Math.round(t.getBoundingClientRect().height),
+    clipped: t.scrollHeight > Math.ceil(t.getBoundingClientRect().height) + 1
+  })));
+  check('a write-up box is as tall as what is written in it',
+    boxes.length > 0 && boxes.every(b => !b.clipped), JSON.stringify(boxes));
+  // Guards the one above: zero boxes also makes "none clipped" true.
+  check('with something actually in one of them',
+    boxes.some(b => b.chars > 60), JSON.stringify(boxes.map(b => b.chars)));
+
+  /* A moment is a whole question. It used to be one nowrap line with ellipsis, so
+     anything real read as "You said 15 percent of what ad sp..." -- the part that makes
+     it worth jumping to was the part cut off. */
+  const moments = await page.evaluate(() => [...document.querySelectorAll('.gr_bcm b')].map(b => ({
+    text: b.textContent.trim().slice(0, 40),
+    cut: b.scrollWidth > b.clientWidth + 1,
+    lines: Math.round(b.getBoundingClientRect().height / parseFloat(getComputedStyle(b).lineHeight))
+  })));
+  check('a long moment question wraps rather than being cut off',
+    moments.length > 0 && moments.every(m => !m.cut), JSON.stringify(moments));
+  check('and a long one really does take more than one line',
+    moments.some(m => m.lines >= 2), JSON.stringify(moments.map(m => m.lines)));
+
+
+  // Back to the empty card for the link work; only one edits at a time.
+  await page.evaluate(() => document.querySelector('[data-gr-watch-edit="gw-2"]')?.click());
+  await page.waitForTimeout(800);
+
 
   /* A link that is not a link must be refused, not stored: stored, it paints a Watch
      button that goes nowhere, which is worse than the missing button this fixes. */

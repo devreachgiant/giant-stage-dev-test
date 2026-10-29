@@ -556,19 +556,23 @@
   DB.growth_tasks = [];
   DB.growth_watch_calls = [
     { id: 'gw-1', title: 'Amy Neighbors', call_date: giso(40,0).slice(0,10), url: 'https://fathom.video/share/example',
-      tags: ['Google Ads','SEO'], outcome: 'Pitched $2.5k ad spend plus branding',
+      tags: ['Google Ads','SEO'], outcome: 'Said yes',
       note: 'Meta ads wrecked by bots, moved to Google Ads and SEO.',
       learned: 'Watch how the budget worry gets named out loud before any price is said.', position: 0,
       // 20261022190000. Two of them, so "more than one row" and the per-row link are
       // both real measurements rather than one row repeated.
-      moments: [{ s: 162, theme: 'Price', q: 'What does it actually cost?' },
-                { s: 905, theme: 'Contract', q: 'Am I locked in for a year?' }],
+      // A real moment is a sentence. The four-word ones here could never show the row
+      // cutting a question off, which is exactly what it was doing.
+      moments: [{ s: 1462, theme: 'Tracking and ad spend',
+                  q: 'You said 15 percent of what ad spend, scaled each week?' },
+                { s: 905, theme: 'Contracts and commitment',
+                  q: 'Am I locked in for a year, or can I stop whenever I want?' }],
       added_by: ME, created_at: giso(40,0) },
     /* A call with NO recording, which is what five of the six on the shelf actually look
        like. Without one of these the screen can only be checked in the state where the
        button is there, and the reported bug was the state where it is not. */
     { id: 'gw-2', title: 'Michael Cash', call_date: giso(9,0).slice(0,10), url: '',
-      tags: ['Google Ads'], outcome: 'Proposal sent, $1,000/mo management',
+      tags: ['Google Ads'], outcome: 'Moved forward',
       note: 'Garage door installer, burned by past agencies.',
       learned: '', position: 1, moments: [], added_by: ME, created_at: giso(9,0) }
   ];

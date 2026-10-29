@@ -7162,25 +7162,50 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_bcg{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px;}
 .gr_bc3{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0;}
 .gr_bch{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
-.gr_bct{min-width:0;flex:1;}
-.gr_bch b{display:block;font-size:17px;font-weight:800;letter-spacing:-.02em;overflow-wrap:anywhere;}
+.gr_bct{min-width:0;flex:1 1 auto;}
+.gr_bch b{display:block;font-size:17px;font-weight:800;letter-spacing:-.02em;overflow-wrap:break-word;}
 .gr_bch span{font-size:12.5px;color:var(--text-3);}
-/* Wraps. It carries a whole outcome, so nowrap was a promise the card could not keep. */
-.gr_out3{display:inline-block;align-self:flex-start;max-width:100%;font-style:normal;font-size:11.5px;
-  font-weight:700;line-height:1.4;border-radius:12px;padding:4px 11px;background:var(--text);color:var(--bg);}
-.gr_bcs{margin:0;font-size:14px;line-height:1.5;color:var(--text-2);}
-.gr_bcw{background:var(--surface-2);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;}
-.gr_bcw span{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);}
-.gr_bcw p{margin:0;font-size:13.5px;line-height:1.5;}
+/* It can shrink and ellipsis. nowrap with flex:none was the collision: neither the
+   outcome nor the name would give, so the row simply overflowed the card. */
+.gr_bcb{display:flex;align-items:center;gap:8px;min-width:0;flex:0 1 auto;}
+/* Round, on this card only -- the design has them round here and nowhere else. */
+.gr_bcb .gr_ib{border-radius:50%;}
+.gr_out3{font-style:normal;font-size:11.5px;font-weight:700;line-height:1.5;border-radius:99px;
+  padding:4px 12px;background:var(--text);color:var(--bg);min-width:0;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap;}
+.gr_bcs{margin:0;font-size:14px;line-height:1.55;color:var(--text-2);}
+.gr_bcw{background:var(--surface-2);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:7px;}
+.gr_bcw>span{font-size:10.5px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);}
+.gr_bcw p{margin:0;font-size:13.5px;line-height:1.55;}
+/* Part of the card, not a form control dropped into it: no frame, no grip, and it grows
+   downwards to fit (grFitBoxes). The grip was the thing that made these look wrong. */
+.gr_bcw textarea.gr_bcta{flex:none;background:transparent;border:0;border-radius:0;padding:0;
+  resize:none;overflow:auto;font:inherit;font-size:13.5px;line-height:1.55;color:var(--text);
+  min-height:38px;width:100%;scrollbar-width:thin;}
+.gr_bcw textarea.gr_bcta:focus{outline:none;box-shadow:none;}
+.gr_bcta::placeholder{color:var(--text-3);}
 .gr_bc3 .gr_wbtn{align-self:flex-start;}
-/* Moments to watch: a row per point in the recording, each one a link into it. */
-.gr_bcm>span{display:block;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:6px;}
-.gr_bcm a,.gr_bcm>div{display:flex;align-items:center;gap:9px;padding:7px 9px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;text-decoration:none;color:var(--text);background:var(--surface-2);}
-.gr_bcm a:hover{border-color:var(--line-2);}
-.gr_bcm i{font-style:normal;color:var(--red);font-size:11px;flex:none;}
-.gr_bcm b{flex:1;min-width:0;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.gr_bcm em{font-style:normal;font-size:10.5px;font-weight:700;color:var(--text-3);background:var(--bg);border-radius:99px;padding:2px 8px;flex:none;}
-.gr_bcm u{text-decoration:none;font-size:11.5px;font-variant-numeric:tabular-nums;color:var(--text-3);flex:none;}
+
+/* MOMENTS TO WATCH. The question used to be one nowrap line with the theme and the time
+   as chips beside it, so anything real was cut to "You said 15 percent of what ad sp...".
+   The question is the row now and wraps; the theme sits under it. */
+.gr_bcm>span{display:block;text-align:center;font-size:10.5px;font-weight:800;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--text-3);margin:2px 0 9px;}
+.gr_bcm a,.gr_bcm>div{display:flex;align-items:flex-start;gap:11px;padding:11px 13px;border:1px solid var(--line);
+  border-radius:14px;margin-bottom:8px;text-decoration:none;color:var(--text);background:var(--surface-2);}
+.gr_bcm a:hover{border-color:var(--line-2);background:var(--surface-3);}
+.gr_bcm i{flex:none;width:26px;height:26px;border-radius:50%;background:#F0655A;color:#2A0A06;
+  display:grid;place-items:center;font-style:normal;font-size:10px;padding-left:2px;}
+.gr_mot{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1;}
+.gr_bcm b{font-size:13.5px;font-weight:700;line-height:1.4;overflow-wrap:anywhere;}
+.gr_bcm em{font-style:normal;font-size:12px;color:var(--text-3);overflow-wrap:anywhere;}
+/* Coral, like the play circles, rather than the brand red: on a dark card a saturated
+   red button next to five red circles reads as an alert. */
+.gr_bc3 .gr_wbtn{background:#F5A197;color:#2A0A06;border-radius:99px;padding:10px 18px;font-weight:700;}
+/* The editor, when the pencil is open: set apart from the card it edits. */
+.gr_bcedit{display:flex;flex-direction:column;gap:9px;margin-top:4px;padding-top:12px;border-top:1px dashed var(--line-2);}
+.gr_bcedit .gr_ghost{align-self:flex-start;}
+.gr_bc3 .gr_wbtn:hover{background:#FFB3AA;}
 .gr_tip.gr_key .gr_tn{background:var(--red);color:#fff;}
 .gr_tip b{font-size:15px;}
 .gr_tip p{margin:5px 0 0;font-size:13.5px;color:var(--text-2);line-height:1.6;}
@@ -97034,29 +97059,32 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             '<button class="gr_ghost" data-gr-watch-cancel>Cancel</button></div></div>' : '') +
         (shelf.length ? '<div class="gr_bcg">' + shelf.map(w =>
           '<article class="gr_bc3">' +
-            /* The outcome is a SENTENCE here -- "Pitched $2.5k to $3k ad spend + $14k
-               branding" -- not the one-word status the design has, so it cannot share a
-               row with the name. It did, with flex:none and nowrap on it and nothing
-               letting the title shrink, so at three columns the badge sat across the
-               name and ran off the card. Its own row, free to wrap; the cross stays
-               where a cross belongs. */
+            /* THE CARD IS WHAT THE DESIGN SHOWS, AND NOTHING ELSE: who, when, how it
+               went, what happened, why it worked, the moments, and the way in to the
+               recording. The link box, the moments box and their hints used to sit on
+               every card all the time -- three form panels of scaffolding around two
+               paragraphs of content. They are behind the pencil now.
+
+               NOT deleted, which is the mistake that caused the bug Annie reported: the
+               link could only be set when a call was first added, so a call already on
+               the shelf could never be given a recording. Everything editable here stays
+               editable, it is just not in the way of reading. */
             '<div class="gr_bch"><div class="gr_bct"><b>' + esc(w.title) + '</b>' +
               (w.call_date ? '<span>' + esc(grLongDate(w.call_date)) + '</span>' : '') + '</div>' +
-              (can ? '<button class="gr_ib gr_rmb" data-gr-watch-del="' + w.id +
-                '" title="Remove" aria-label="Remove ' + esc(w.title) + '">&#10005;</button>' : '') +
+              '<div class="gr_bcb">' +
+                (w.outcome ? '<em class="gr_out3" title="' + esc(w.outcome) + '">' + esc(w.outcome) + '</em>' : '') +
+                (can ? '<button class="gr_ib gr_edb2" data-gr-watch-edit="' + w.id + '" title="Edit this call"' +
+                  ' aria-label="Edit ' + esc(w.title) + '" aria-expanded="' + (grEditT === 'W' + w.id) + '">' +
+                  GR_PEN + '</button>' : '') +
+                (can ? '<button class="gr_ib gr_rmb" data-gr-watch-del="' + w.id +
+                  '" title="Remove" aria-label="Remove ' + esc(w.title) + '">&#10005;</button>' : '') +
+              '</div>' +
             '</div>' +
-            (w.outcome ? '<em class="gr_out3">' + esc(w.outcome) + '</em>' : '') +
             (w.note ? '<p class="gr_bcs">' + esc(w.note) + '</p>' : '') +
-            (can
-              ? '<div class="gr_bcw"><span>Why it worked</span>' +
-                '<textarea class="gr_in" rows="2" data-gr-watch-mine="' + w.id + '" ' +
-                'placeholder="What is the lesson? Why should they watch this?">' + esc(w.learned || '') + '</textarea></div>'
-              : w.learned ? '<div class="gr_bcw"><span>Why it worked</span><p>' + esc(w.learned) + '</p></div>' : '') +
+            (w.learned ? '<div class="gr_bcw"><span>Why it worked</span><p>' + esc(w.learned) + '</p></div>' : '') +
             /* Moments to watch. A card that says a call went well and offers 41 minutes
                of video gets watched by nobody; what people want is the ninety seconds
-               where the price came up, so each moment opens the recording AT its second
-               (20261022190000). Staff edit them as "mm:ss :: theme :: the question",
-               which is faster than three boxes per row for somebody typing six of them. */
+               where the price came up, so each moment opens the recording AT its second. */
             ((w.moments || []).length
               ? '<div class="gr_bcm"><span>Moments to watch</span>' +
                 (w.moments || []).map(mo =>
@@ -97064,36 +97092,35 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                     ? '<a href="' + esc(w.url) + '?timestamp=' + Math.round(Number(mo.s) || 0) +
                       '" target="_blank" rel="noopener" data-gr-stop>'
                     : '<div>') +
-                  '<i>&#9654;</i><b>' + esc(mo.q || '') + '</b>' +
-                  '<em>' + esc(mo.theme || '') + '</em>' +
-                  '<u>' + esc(grTs(mo.s)) + '</u>' +
+                  '<i>&#9654;</i><span class="gr_mot"><b>' + esc(mo.q || '') + '</b>' +
+                  (mo.theme ? '<em>' + esc(mo.theme) + '</em>' : '') + '</span>' +
                   (w.url ? '</a>' : '</div>')).join('') + '</div>'
               : '') +
-            /* THE LINK, EDITABLE. It was only on the Add a call form, so the five calls
-               already on the shelf had no way to get one: you would have had to delete
-               the card and re-add it, losing the write-up, outcome, tags and moments.
-               Reported by Annie, who could see six calls and only one Watch button. */
-            (can
-              ? '<div class="gr_bcw gr_field"><span>Recording link</span>' +
-                '<input class="gr_in" type="url" data-gr-watch-url="' + w.id + '" ' +
-                'value="' + esc(w.url || '') + '" placeholder="Paste the Zoom or Fathom link">' +
-                '<span class="gr_hint">' + (w.url
-                  ? 'Watch the call points here.'
-                  : 'Until this is filled in there is no Watch the call button on this card.') +
-                '</span></div>'
-              : (!w.url ? '<p class="gr_norec">No recording linked yet.</p>' : '')) +
-            (can
-              ? '<div class="gr_bcw gr_field"><span>' +
-                ((w.moments || []).length ? 'Edit the moments' : 'Moments to watch') + '</span>' +
-                '<textarea class="gr_in" rows="2" data-gr-watch-mom="' + w.id + '" ' +
-                'placeholder="2:42 :: Price :: What does it cost?">' +
-                esc((w.moments || []).map(mo => grTs(mo.s) + ' :: ' + (mo.theme || '') + ' :: ' + (mo.q || '')).join('\n')) +
-                '</textarea><span class="gr_hint">One per line: time :: theme :: the question.</span></div>'
+            (w.url
+              ? '<a class="btn-red gr_wbtn" href="' + esc(w.url) +
+                '" target="_blank" rel="noopener" data-gr-stop>&#9654; Watch the call</a>'
+              : '<p class="gr_norec">No recording linked yet.</p>') +
+            /* The pencil opens these. Each saves on its own as before. */
+            (can && grEditT === 'W' + w.id
+              ? '<div class="gr_bcedit">' +
+                '<div class="gr_bcw"><span>Recording link</span>' +
+                  '<input class="gr_in" type="url" data-gr-watch-url="' + w.id + '" ' +
+                  'value="' + esc(w.url || '') + '" placeholder="Paste the Zoom or Fathom link">' +
+                  '<span class="gr_hint">' + (w.url
+                    ? 'Watch the call points here.'
+                    : 'Until this is filled in there is no Watch the call button on this card.') +
+                  '</span></div>' +
+                '<div class="gr_bcw"><span>Why it worked</span>' +
+                  '<textarea class="gr_in gr_bcta" rows="2" data-gr-watch-mine="' + w.id + '" ' +
+                  'placeholder="What is the lesson? Why should they watch this?">' + esc(w.learned || '') + '</textarea></div>' +
+                '<div class="gr_bcw"><span>Moments to watch</span>' +
+                  '<textarea class="gr_in gr_bcta" rows="2" data-gr-watch-mom="' + w.id + '" ' +
+                  'placeholder="2:42 :: Price :: What does it cost?">' +
+                  esc((w.moments || []).map(mo => grTs(mo.s) + ' :: ' + (mo.theme || '') + ' :: ' + (mo.q || '')).join('\n')) +
+                  '</textarea><span class="gr_hint">One per line: time :: theme :: the question.</span></div>' +
+                '<button class="gr_ghost" data-gr-watch-edit="' + w.id + '">Done</button>' +
+              '</div>'
               : '') +
-            ((w.tags || []).length ? '<div class="gr_tags">' +
-              (w.tags || []).map(t => '<span class="gr_tg">' + esc(t) + '</span>').join('') + '</div>' : '') +
-            (w.url ? '<a class="btn-red gr_wbtn" href="' + esc(w.url) +
-              '" target="_blank" rel="noopener" data-gr-stop>&#9654; Watch the call</a>' : '') +
           '</article>').join('') + '</div>'
           : grEmpty('&#9654;', 'No calls on the shelf yet',
               can ? 'Add the first one above.' : 'Luke puts the calls worth watching here.')) +
@@ -97229,6 +97256,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           '<button data-gr-traintab="' + t[0] + '"' + (lit === t[0] ? ' aria-pressed="true"' : '') + '>' +
           t[1] + '</button>').join('') + '</div>') +
       body;
+    /* The write-up boxes grow DOWN to fit what is in them. A fixed two rows meant a
+       four line lesson scrolled inside a box the height of a sentence, which is what
+       made these read as form controls sitting in a card rather than part of it. */
+    grFitBoxes();
+  }
+
+  function grFitBoxes() {
+    const fit = function () {
+      document.querySelectorAll('.gr_bcta').forEach(function (t) {
+        t.style.height = 'auto';
+        t.style.height = Math.max(38, Math.min(260, t.scrollHeight)) + 'px';
+      });
+    };
+    fit();
+    requestAnimationFrame(fit);
+    setTimeout(fit, 80);
   }
 
   /* ---------- Training ----------
@@ -100111,6 +100154,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       })();
       return;
     }
+    const wedit = e.target.closest('[data-gr-watch-edit]');
+    if (wedit) {
+      const k = 'W' + wedit.dataset.grWatchEdit;
+      grEditT = grEditT === k ? null : k;
+      grRender();
+      return;
+    }
     const wdel = e.target.closest('[data-gr-watch-del]');
     if (wdel) {
       /* TAKEN OFF THE SHELF, NOT DELETED. This used to delete the row, which threw away
@@ -100678,6 +100728,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       Object.assign(t, patch);
       grWrite('growth_tasks', 'update', patch, id).then(function (r) { if (r) grRender(); });
       return;
+    }
+    // Grow with what is typed, so the box never scrolls inside itself.
+    if (e.target && e.target.classList && e.target.classList.contains('gr_bcta')) {
+      e.target.style.height = 'auto';
+      e.target.style.height = Math.max(38, Math.min(260, e.target.scrollHeight)) + 'px';
     }
     if (d.grWatchMine) {
       // The lesson on a shared call, written by whoever put it on the list. Kept in its own
