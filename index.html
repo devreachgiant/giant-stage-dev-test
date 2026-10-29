@@ -98221,6 +98221,34 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     grConn.syncing = false; grRender();
   }
 
+  /* Pull calls in from Zoom. Separate from the Calendly sync rather than folded into
+     it: they fail for different reasons and a single button that half-worked could not
+     say which half. The function does the de-duplicating, because only it can see every
+     row at once -- the page holds whatever the last load gave it. */
+  async function grZoomSync() {
+    if (grConn.zsync) return;
+    grConn.zsync = true; grConn.zsyncErr = ''; grRender();
+    try {
+      const tok = await grToken();
+      const r = await fetch('/.netlify/functions/growth-zoom?action=sync_meetings',
+        { method: 'POST', headers: tok ? { Authorization: 'Bearer ' + tok } : {} });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        /* A missing scope is not a wrong key, and the panel says so in place rather than
+           in a toast that is gone before anybody can act on it. */
+        if (j.scope) grConn.zsyncErr = j.error || 'Zoom is missing a scope.';
+        grToast(j.error || 'Zoom sync failed.');
+      } else {
+        grToast(j.added
+          ? j.added + ' new call' + (j.added === 1 ? '' : 's') + ' from Zoom' +
+            (j.duplicate ? ' \u00B7 ' + j.duplicate + ' already here' : '')
+          : (j.note || 'Nothing new.'));
+        await window.grReload();
+      }
+    } catch (e) { grToast('Zoom sync failed. ' + String(e.message || e).slice(0, 90)); }
+    grConn.zsync = false; grRender();
+  }
+
   /* --- Connectors ---
      Every row opens. "Not connected" with nothing behind it is a dead end: it tells you
      the bad news and leaves you to guess the fix. Each one now says what Growth does
@@ -98246,7 +98274,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     },
     zoom: {
       name: 'Zoom',
-      what: 'Puts a join link on every booking, and lets Giant mint its own for a call you add by hand.',
+      what: 'Puts a join link on every booking, pulls your Zoom calls into Meetings, and lets Giant mint its own link for a call you add by hand.',
       how: 'Build a Server to Server OAuth app in Zoom (Develop, then Build App), then paste its Account ID, Client ID and Client Secret below. Giant checks them with Zoom before keeping them. The old ZOOM_* variables in Netlify still work and are used if nothing is set here.',
       on: 'Zoom accepted the credentials when it was last asked.',
       off: 'Bookings made through Calendly still carry a Zoom link, because Calendly creates it. '
@@ -98267,6 +98295,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // found no mailbox goes stale so connecting one is noticed without a reload.
     if (!grGmail.checked || !grGmail.ready) grCheckGmail();
     const synced = grMeetings.filter(m => m.source === 'Calendly').length;
+    const zsynced = grMeetings.filter(m => m.source === 'Zoom').length;
     const rows = [
       ['gmail', grGmail.ready,
         grGmail.ready
@@ -98285,7 +98314,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           : 'Not connected, so bookings have to be typed in by hand.'],
       ['zoom', grConn.zoom,
         grConn.zoom ? 'Join links come with each booking, and Giant can mint its own' +
-            (grConn.zoomWho ? ' as ' + grConn.zoomWho : '') + '.'
+            (grConn.zoomWho ? ' as ' + grConn.zoomWho : '') + '.' +
+            (zsynced ? ' ' + zsynced + ' call' + (zsynced === 1 ? '' : 's') + ' pulled from Zoom.' : '')
           : grConn.zoom === null ? 'Checking...'
           : grConn.zoomErr ? 'Keys are set but Zoom rejected them.'
           /* Calendly puts a Zoom link on every booking it makes, and those work. Giant's
@@ -98429,7 +98459,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       }
     } else if (k === 'zoom') {
       if (state === true) {
-        act = '<div class="gr_acts">' +
+        act = (grConn.zsyncErr ? '<div class="gr_cstat bad">' + esc(grConn.zsyncErr) + '</div>' : '') +
+          '<div class="gr_acts">' +
+            '<button class="btn-red" data-gr-zoom-sync' + (grConn.zsync ? ' disabled' : '') + '>' +
+              (grConn.zsync ? 'Syncing...' : 'Sync meetings') + '</button>' +
             '<button class="gr_ghost" data-gr-conn-recheck' + (busy ? ' disabled' : '') + '>Check again</button>' +
             (grConn.zoomHow === 'app'
               ? '<button class="gr_ghost" data-gr-zoom-forget' + (busy ? ' disabled' : '') + '>Disconnect</button>'
@@ -100036,6 +100069,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (add) { grAddClient(); return; }
 
     if (e.target.closest('[data-gr-cal-sync]')) { grCalendlySync(); return; }
+    if (e.target.closest('[data-gr-zoom-sync]')) { grZoomSync(); return; }
     // The switch sits inside the row button, so without this a tap on it would also
     // open and shut the panel underneath it.
     if (e.target.closest('[data-gr-conn-use]')) return;
