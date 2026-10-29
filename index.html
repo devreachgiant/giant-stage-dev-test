@@ -6887,6 +6887,34 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_upl{cursor:pointer;}
 .gr_n2{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-left:auto;}
 .gr_testbar{align-items:center;margin-bottom:12px;}
+/* A template is a row with the three things you do to one, not an open form. */
+.gr_tplm{display:flex;flex-direction:column;min-width:0;flex:1;gap:2px;}
+.gr_tplm b{font-size:14.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gr_tplm>span{font-size:12.5px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gr_tplo{display:flex;gap:4px;flex:none;}
+.gr_tpla{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;}
+.gr_tpled{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
+/* THE PREVIEW IS A MESSAGE. Subject, who it is from, who it is to, when -- then the body
+   as prose. The old one was a <pre>, which proves the text is right and shows you
+   nothing about the email. */
+.gr_pvwrap{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.6);display:flex;
+  align-items:flex-start;justify-content:center;padding:40px 18px;overflow-y:auto;}
+.gr_pvmail{background:var(--surface);border:1px solid var(--line);border-radius:18px;
+  width:min(680px,100%);padding:22px 24px;display:flex;flex-direction:column;gap:14px;}
+.gr_pvtop{display:flex;align-items:flex-start;gap:12px;}
+.gr_pvtop h3{margin:0;flex:1;min-width:0;font-size:20px;font-weight:700;line-height:1.3;overflow-wrap:break-word;}
+.gr_pvfrom{display:flex;align-items:center;gap:11px;padding-bottom:14px;border-bottom:1px solid var(--line);}
+.gr_pvav{width:36px;height:36px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:#D7D7DC;color:#131313;font-size:15px;font-weight:800;}
+.gr_pvwho{display:flex;flex-direction:column;min-width:0;flex:1;}
+.gr_pvwho b{font-size:14px;font-weight:700;}
+.gr_pvwho>span{font-size:12.5px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gr_pvwhen{font-size:12px;color:var(--text-3);flex:none;white-space:nowrap;}
+.gr_pvbody{font-size:14.5px;line-height:1.65;color:var(--text);}
+.gr_pvbody p{margin:0 0 14px;}
+.gr_pvbody p:last-child{margin-bottom:0;}
+.gr_pvsig{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);color:var(--text-2);font-size:13.5px;}
+.gr_pvnote{margin:0;font-size:12px;line-height:1.5;color:var(--text-3);}
 .gr_tplr{border-top:1px solid var(--line);padding:10px 0;display:flex;flex-direction:column;gap:10px;}
 .gr_tplr:first-of-type{border-top:0;}
 .gr_tplh{display:flex;align-items:center;gap:8px;}
@@ -98508,31 +98536,56 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   const grDcColour = (d, i) => d.colour || GR_DC_COLOURS[(i || 0) % GR_DC_COLOURS.length];
   const grTestTo = () => (grSettings.signature || {}).testTo || grGmail.email || '';
 
-  /* WHAT THE TEMPLATE ACTUALLY SENDS. You could write one with {name} and {discount}
-     in it and have no way of seeing the result until it was in a client's inbox. This
-     is built from the SAME fill and the same signature grTplTest uses, so the preview
-     and the test email cannot say different things. */
-  function grTplPreview(t) {
+  /* WHAT THE TEMPLATE ACTUALLY SENDS, drawn as the mail it becomes rather than as a
+     monospace dump of the body. It was a <pre> with "To" and "Subject" jammed against
+     their values, which told you the text was right without showing you the email.
+
+     Built from the SAME fill and signature grTplTest uses, so the preview and the test
+     that lands in your inbox cannot say different things. */
+  let grTplPv = null;
+
+  function grTplPvHtml() {
+    if (!grTplPv) return '';
+    const t = grTemplates.find(function (x) { return x.id === grTplPv; });
+    if (!t) return '';
     const who = { first: 'Luke', company: 'Test Company' };
-    const sig = grSigText();
+    const sig = grSigText(), g = grSigLines();
     const d = grDiscounts[0];
-    const fill = (x) => String(x || '').replace(/\{name\}/gi, who.first)
-                                      .replace(/\{company\}/gi, who.company);
-    const to = grTestTo();
-    return '<div class="gr_tplpv" id="grTplPv' + t.id + '">' +
-      '<div class="gr_pvl"><span>To</span><b>' + esc(to || 'nobody yet \u2014 set an address below') + '</b></div>' +
-      '<div class="gr_pvl"><span>Subject</span><b>' +
-        esc(fill(t.subject) || 'No subject yet') + '</b></div>' +
-      '<pre class="gr_pvb">' + esc(grTplFill(t, who) + (sig ? '\n\n' + sig : '')) + '</pre>' +
-      '<p class="gr_hint">Shown with a sample name and company. ' +
-        (d ? 'A discount spot is shown with ' + esc(d.code) + '; you pick the code when you use the template. '
-           : 'No discount codes yet, so a discount spot shows as nothing. ') +
-        (sig ? 'Your signature is on the end.' : 'No signature set, so nothing is added on the end.') +
-      '</p></div>';
+    const from = grGmail.email || 'growth@reachgiant.com';
+    const fill = function (x) {
+      return String(x || '').replace(/\{name\}/gi, who.first).replace(/\{company\}/gi, who.company);
+    };
+    // Blank lines are paragraphs, single breaks are breaks -- the way mail reads.
+    const para = function (txt) {
+      return String(txt || '').split(/\n{2,}/).map(function (b) {
+        return '<p>' + esc(b).replace(/\n/g, '<br>') + '</p>';
+      }).join('');
+    };
+    const now = new Date().toLocaleString(undefined,
+      { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+    return '<div class="gr_pvwrap" data-gr-tpl-pvclose>' +
+      '<div class="gr_pvmail" role="dialog" aria-label="Preview of ' + esc(t.name) + '" data-gr-stop>' +
+        '<div class="gr_pvtop">' +
+          '<h3>' + esc(fill(t.subject) || 'No subject') + '</h3>' +
+          '<button class="gr_ib" data-gr-tpl-pvclose aria-label="Close the preview">&#10005;</button>' +
+        '</div>' +
+        '<div class="gr_pvfrom">' +
+          '<span class="gr_pvav">' + esc((from[0] || 'G').toUpperCase()) + '</span>' +
+          '<span class="gr_pvwho"><b>' + esc(g.name || 'ReachGiant') + '</b>' +
+            '<span>&lt;' + esc(from) + '&gt; to ' + esc(grTestTo() || 'you') + '</span></span>' +
+          '<span class="gr_pvwhen">' + esc(now) + '</span>' +
+        '</div>' +
+        '<div class="gr_pvbody">' + para(grTplFill(t, who)) +
+          (sig ? '<div class="gr_pvsig">' + para(sig) + '</div>' : '') + '</div>' +
+        '<p class="gr_pvnote">A sample name and company are filled in. ' +
+          (d ? 'A discount spot shows ' + esc(d.code) + '; you pick the code when you use the template. '
+             : 'No discount codes yet, so a discount spot shows as nothing. ') +
+          (sig ? 'Your signature is on the end.' : 'No signature set, so nothing is added on the end.') +
+        '</p>' +
+      '</div></div>';
   }
 
-  function grTplPart() {
-    const to = grTestTo();
+  function grTplAddPart() {
     return '<section class="gr_card gr_addtpl"><div class="gr_lab2">Add a template</div>' +
       '<div class="gr_field"><label for="grTplN">Name</label>' +
         '<input class="gr_in" id="grTplN" value="' + esc(grTplDraft.n) + '" placeholder="e.g. Google Ads Management"></div>' +
@@ -98550,14 +98603,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<button class="btn-red" data-gr-tpl-add>Save template</button></div>' +
       '<p class="gr_pnote">Text, Markdown or HTML files work. From Word, paste the text. Use {name} for their ' +
         'first name and {company} for their business. Insert a discount code spot and you pick the code when you use the template.</p>' +
-    '</section>' +
+    '</section>';
+  }
 
-    '<section class="gr_card"><div class="gr_ct"><h2>Your templates</h2>' +
+  /* The list. A row per template, and the three things you do with one: look at it, send
+     it to yourself, change it. Every template used to be an open form whether you were
+     editing it or not. */
+  function grTplSavedPart() {
+    const to = grTestTo();
+    return '<section class="gr_card"><div class="gr_ct"><h2>Saved templates</h2>' +
       '<span class="gr_n">' + grTemplates.length + '</span></div>' +
-      /* Beside the button that uses it. This was a field in the signature block, which
-         is where you would look for it last: a test address is not part of a signature,
-         and the button that sends the tests was in a different card. One field, here;
-         it still falls back to the mailbox Growth sends from. */
       (grTemplates.length
         ? '<div class="gr_field gr_testto"><label for="grTestTo">Send tests to</label>' +
             '<input class="gr_in" id="grTestTo" type="email" data-gr-testto value="' +
@@ -98569,9 +98624,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             '</span></div>'
         : '') +
       (grTemplates.length && grGmail.ready && to
-        ? '<div class="gr_acts gr_testbar"><button class="btn-red" data-gr-tpl-testall' +
+        ? '<div class="gr_acts gr_testbar"><button class="gr_ghost" data-gr-tpl-testall' +
             (grTestBusy ? ' disabled' : '') + '>' +
-            (grTestBusy === 'all' ? 'Sending...' : 'Send all ' + grTemplates.length + ' tests to ' + esc(to)) +
+            (grTestBusy === 'all' ? 'Sending...' : 'Send all ' + grTemplates.length + ' to ' + esc(to)) +
           '</button><span class="gr_mute">Check every link and the signature in your inbox.</span></div>'
         : grTemplates.length
           ? '<p class="gr_mute">Connect Gmail to send yourself a test of each one.</p>' : '') +
@@ -98579,29 +98634,37 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         const open = grEdit === t.id;
         return '<div class="gr_tplr' + (open ? ' gr_tplon' : '') + '">' +
           '<div class="gr_tplh">' +
-            '<button class="gr_ib" data-gr-tpl-open="' + t.id + '" aria-expanded="' + open + '" aria-label="Open ' + esc(t.name) + '">' +
-              (open ? '&#9650;' : '&#9660;') + '</button>' +
-            '<b>' + esc(t.name) + '</b>' +
-            '<button class="gr_ib" data-gr-tpl-move="' + t.id + '" data-d="-1"' + (i === 0 ? ' disabled' : '') + ' aria-label="Move up">&#9650;</button>' +
-            '<button class="gr_ib" data-gr-tpl-move="' + t.id + '" data-d="1"' + (i === grTemplates.length - 1 ? ' disabled' : '') + ' aria-label="Move down">&#9660;</button>' +
+            '<span class="gr_tplm"><b>' + esc(t.name) + '</b>' +
+              '<span>' + esc(t.subject || 'No subject') + '</span></span>' +
+            '<span class="gr_tplo">' +
+              '<button class="gr_ib" data-gr-tpl-move="' + t.id + '" data-d="-1"' + (i === 0 ? ' disabled' : '') + ' aria-label="Move up">&#9650;</button>' +
+              '<button class="gr_ib" data-gr-tpl-move="' + t.id + '" data-d="1"' + (i === grTemplates.length - 1 ? ' disabled' : '') + ' aria-label="Move down">&#9660;</button>' +
+            '</span>' +
+          '</div>' +
+          '<div class="gr_tpla">' +
+            '<button class="gr_ghost gr_sm" data-gr-tpl-pv="' + t.id + '">Preview</button>' +
+            (grGmail.ready && to
+              ? '<button class="gr_ghost gr_sm" data-gr-tpl-test="' + t.id + '"' + (grTestBusy ? ' disabled' : '') + '>' +
+                (grTestBusy === t.id ? 'Sending...' : 'Send a test') + '</button>'
+              : '') +
+            '<button class="gr_ghost gr_sm" data-gr-tpl-open="' + t.id + '" aria-expanded="' + open + '">' +
+              (open ? 'Close' : 'Edit') + '</button>' +
+            '<span class="gr_sp"></span>' +
+            (open ? '<button class="gr_danger gr_sm" data-gr-tpl-del="' + t.id + '">Delete</button>' : '') +
           '</div>' +
           (open
-            ? '<div class="gr_field"><label>Name</label><input class="gr_in" data-gr-tpl-name="' + t.id + '" value="' + esc(t.name) + '"></div>' +
+            ? '<div class="gr_tpled">' +
+              '<div class="gr_field"><label>Name</label><input class="gr_in" data-gr-tpl-name="' + t.id + '" value="' + esc(t.name) + '"></div>' +
               '<div class="gr_field"><label>Subject</label><input class="gr_in" data-gr-tpl-sub="' + t.id + '" value="' + esc(t.subject) + '"></div>' +
               '<div class="gr_field"><label>Message</label>' +
                 '<div class="gr_rtb"><select class="gr_ins" data-gr-ins="grTplBody' + t.id + '" aria-label="Insert a placeholder">' +
                   '<option value="">Insert...</option><option value="{name}">Their first name</option>' +
                   '<option value="{company}">Their company</option><option value="{discount}">Discount code spot</option></select></div>' +
                 '<textarea class="gr_in gr_tplb" id="grTplBody' + t.id + '" rows="10" data-gr-tpl-body="' + t.id + '">' + esc(t.body) + '</textarea></div>' +
-              '<div class="gr_field"><label>How it will look</label>' + grTplPreview(t) + '</div>' +
-              '<div class="gr_acts">' +
-                (grGmail.ready && to ? '<button class="gr_ghost" data-gr-tpl-test="' + t.id + '"' +
-                  (grTestBusy ? ' disabled' : '') + '>' + (grTestBusy === t.id ? 'Sending...' : 'Send a test') + '</button>' : '') +
-                '<span class="gr_sp"></span>' +
-                '<button class="gr_danger" data-gr-tpl-del="' + t.id + '">Delete template</button></div>'
+              '</div>'
             : '') +
         '</div>';
-      }).join('') : '<p class="gr_mute">No templates yet. Add your first one above.</p>') +
+      }).join('') : '<p class="gr_mute">No templates yet. Add one on the Email templates tab.</p>') +
     '</section>';
   }
 
@@ -98697,13 +98760,16 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     /* Pipeline is not here any more. Stages belong with the board they are the columns
        of -- renaming one in a settings screen meant leaving the thing you were looking
        at to change it. Everything it could do, the board can do now. */
-    const tabs = [['templates','Email templates'],['team','Team']];
-    if (grSetTab !== 'templates' && grSetTab !== 'team') grSetTab = 'templates';
+    const tabs = [['templates','Email templates'],['saved','Saved templates'],['team','Team']];
+    if (['templates', 'saved', 'team'].indexOf(grSetTab) < 0) grSetTab = 'templates';
     let body = '';
 
     if (grSetTab === 'templates') {
 
-      body = grTplPart() + grDiscPart() + grSigPart();
+      body = grTplAddPart() + grDiscPart() + grSigPart();
+
+    } else if (grSetTab === 'saved') {
+      body = grTplSavedPart();
 
     } else {
       const sig = grSettings.signature || {};
@@ -98756,7 +98822,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grHead('Growth settings', 'Templates, codes, your signature and who works in Growth', '') +
       '<div class="gr_seg gr_wide">' + tabs.map(function (t) {
         return '<button data-gr-settab="' + t[0] + '"' + (grSetTab === t[0] ? ' aria-pressed="true"' : '') + '>' + t[1] + '</button>';
-      }).join('') + '</div>' + body;
+      }).join('') + '</div>' + body + grTplPvHtml();
   }
 
   /* ---- the writes behind Settings ---- */
@@ -100523,6 +100589,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grStageDel(key, to);
       return;
     }
+    const tpv = e.target.closest('[data-gr-tpl-pv]');
+    if (tpv) { grTplPv = tpv.dataset.grTplPv; grRender(); return; }
+    if (e.target.closest('[data-gr-tpl-pvclose]')) { grTplPv = null; grRender(); return; }
     const cset = e.target.closest('[data-gr-colset]');
     if (cset) {
       const k = cset.dataset.grColset;
@@ -101022,6 +101091,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (grPickFor) { grClosePick(); return; }
     if (grLost) { grLost = null; grRender(); return; }
     if (grWon) { grWon = null; grRender(); return; }
+    if (grTplPv) { grTplPv = null; grRender(); return; }
     if (grComposer) { grComposer = null; grRender(); return; }
     if (grOpenId) { grOpenId = null; grRender(); return; }
     if (grTodayOpen) { grTodayOpen = false; grRender(); }

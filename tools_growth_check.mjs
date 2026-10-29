@@ -1969,35 +1969,64 @@ await step('a stage is renamed and recoloured on the board it belongs to', async
     !!quiet && Number(quiet.staleDays) === 9, JSON.stringify(quiet && quiet.staleDays));
 });
 
-await step('a template shows what it will actually send', async () => {
-  /* You could write {name} and {discount} into a template and have no way of seeing the
-     result until it was in a client's inbox. The preview is built from the SAME fill and
-     signature the test email uses, so the two cannot say different things. */
+await step('a template previews as the mail it becomes', async () => {
+  /* Writing one and keeping them are different jobs: the add form, every saved template
+     expanded, the codes and the signature were a single scroll, and the list was the
+     part you came for. The list is its own tab with the three things you do to a
+     template, and the preview is the message rather than a monospace dump of the body. */
   await screen('gr_settings');
-  await page.evaluate(() => document.querySelector('[data-gr-settab="templates"]')?.click());
-  await page.waitForTimeout(900);
-  await page.evaluate(() => document.querySelector('[data-gr-tpl-open="gt-1"]')?.click());
-  await page.waitForTimeout(900);
+  await page.evaluate(() => document.querySelector('[data-gr-settab="saved"]')?.click());
+  await page.waitForTimeout(1000);
 
+  const list = await page.evaluate(() => ({
+    tabs: [...document.querySelectorAll('[data-gr-settab]')].map(b => b.dataset.grSettab),
+    rows: document.querySelectorAll('.gr_tplr').length,
+    actions: [...document.querySelectorAll('.gr_tpla button')].map(b => b.textContent.trim()),
+    openForms: document.querySelectorAll('[data-gr-tpl-body]').length
+  }));
+  check('Saved templates is its own tab', list.tabs.indexOf('saved') >= 0, list.tabs.join(','));
+  check('a template is a row with Preview, a test, and Edit',
+    list.rows === 1 && ['Preview', 'Send a test', 'Edit'].every(a => list.actions.indexOf(a) >= 0),
+    JSON.stringify(list.actions));
+  check('and is not an open form until you press Edit', list.openForms === 0, String(list.openForms));
+
+  await page.evaluate(() => document.querySelector('[data-gr-tpl-pv="gt-1"]')?.click());
+  await page.waitForTimeout(900);
   const pv = await page.evaluate(() => {
-    const el = document.querySelector('#grTplPvgt-1');
-    if (!el) return null;
-    const body = el.querySelector('.gr_pvb');
-    return { text: (body ? body.textContent : ''),
-             lines: [...el.querySelectorAll('.gr_pvl b')].map(b => b.textContent.trim()) };
+    const m = document.querySelector('.gr_pvmail');
+    if (!m) return null;
+    const b = m.querySelector('.gr_pvbody');
+    return {
+      subject: m.querySelector('h3').textContent.trim(),
+      who: m.querySelector('.gr_pvwho').innerText.replace(/\n/g, ' '),
+      body: b.innerText,
+      paras: b.querySelectorAll('p').length,
+      mono: /mono|courier/i.test(getComputedStyle(b).fontFamily),
+      sig: m.querySelectorAll('.gr_pvsig').length
+    };
   });
-  check('an open template previews one', !!pv, String(!!pv));
-  /* The point of a preview is that the placeholders are GONE. One that still showed
-     {name} would be a copy of the textarea above it. */
-  check('with the placeholders filled in, not shown',
-    !!pv && !/\{name\}|\{company\}/i.test(pv.text), pv && pv.text.slice(0, 80));
-  check('and the real words around them kept',
-    !!pv && /looking forward to working with/i.test(pv.text), pv && pv.text.slice(0, 80));
-  check('it says who it would go to and what the subject is',
-    !!pv && pv.lines.length === 2 && /@/.test(pv.lines[0]), JSON.stringify(pv && pv.lines));
+  check('Preview opens the message', !!pv, String(!!pv));
+  check('with the subject as its heading',
+    !!pv && /Getting started/i.test(pv.subject), pv && pv.subject);
+  check('saying who it is from and who it is going to',
+    !!pv && /@/.test(pv.who) && / to /.test(pv.who), pv && pv.who);
+  /* The placeholders have to be GONE. A preview still showing {name} is a copy of the
+     textarea, which is what the old one amounted to. */
+  check('the placeholders filled, not shown',
+    !!pv && !/\{name\}|\{company\}/i.test(pv.body), pv && pv.body.slice(0, 70));
+  check('the real words around them kept',
+    !!pv && /looking forward to working with/i.test(pv.body), pv && pv.body.slice(0, 70));
+  /* It is prose in paragraphs, not a <pre>. That is the whole difference between
+     "the text is right" and "this is what the email looks like". */
+  check('and read as an email, not a monospace dump',
+    !!pv && !pv.mono && pv.paras >= 2, JSON.stringify({ mono: pv && pv.mono, paras: pv && pv.paras }));
+  check('with the signature set apart at the end', !!pv && pv.sig === 1, String(pv && pv.sig));
 
-  /* The address was a field in the signature block, which is where you would look for it
-     last -- the button that sends the tests was in another card entirely. */
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(700);
+  const closed = await page.evaluate(() => document.querySelectorAll('.gr_pvmail').length);
+  check('Escape closes it', closed === 0, String(closed));
+
   const addr = await page.evaluate(() => ({
     fields: document.querySelectorAll('[data-gr-testto]').length,
     inSignature: document.querySelectorAll('[data-gr-sig="testTo"]').length
