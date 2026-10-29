@@ -26,9 +26,10 @@
 // cannot call /users/me, and refusing a working credential over a missing scope would be
 // this screen lying in the other direction.
 //
-//   GET  ?action=status     -> { configured, who, source }   are they set, whose account
-//   POST ?action=save       -> { configured, who }           store them, staff only
-//   POST ?action=disconnect -> { configured:false }          forget them, staff only
+//   GET  ?action=status        -> { configured, who, source }   are they set, whose account
+//   POST ?action=save          -> { configured, who }           store them, staff only
+//   POST ?action=disconnect    -> { configured:false }          forget them, staff only
+//   POST ?action=sync_meetings -> { added, duplicate, seen }    pull calls in, staff only
 //
 // SET UP: Zoom -> Develop -> Build App -> Server-to-Server OAuth. Copy the Account ID,
 // Client ID and Client Secret into Growth -> Connectors -> Zoom.
@@ -130,11 +131,78 @@ async function accountName(accessToken) {
   } catch (e) { return ''; }
 }
 
+/* ------------------------------------------------------------------- meetings
+
+   WHY THIS DOES NOT JUST INSERT WHAT ZOOM RETURNS. Every Calendly booking in this
+   account already carries a Zoom join link -- all 21 of them on the day this was
+   written -- because the Calendly event type creates the Zoom meeting itself. So the
+   same call comes back twice: once from Calendly, whose external_id is the booking uri,
+   and once from Zoom, whose external_id is the meeting number. Inserting both would
+   double every row on Meetings, and a duplicate reads as a real second call with the
+   same client rather than as a bug.
+
+   The join between the two is the MEETING NUMBER, which both sides carry: Calendly puts
+   it in the join url as /j/<number>, and Zoom calls it `id`. A Zoom meeting whose number
+   is already on a row is counted and skipped, whatever put that row there. */
+
+// The number inside a Zoom join link, or '' -- which is the honest answer for the Google
+// Meet or Teams link that can sit in the same column.
+function meetingNumber(url) {
+  const m = String(url || '').match(/\/j\/(\d+)/);
+  return m ? m[1] : '';
+}
+
+/* Zoom refuses a scope the app was never granted with a 400 naming it. That is the one
+   failure worth translating: the fix is a few clicks in the Zoom marketplace and nobody
+   is going to guess it from "Zoom 400". */
+function scopeHint(message) {
+  const m = String(message || '').match(/scopes:\[([^\]]+)\]/);
+  if (!m) return '';
+  const names = m[1].split(',').map(x => x.trim()).filter(Boolean);
+  const want = names.find(x => /:admin$/.test(x)) || names[0];
+  return 'The Zoom app does not have the ' + want + ' scope. In the Zoom marketplace open ' +
+         'the app, add that scope, Activate it again, then press Sync meetings.';
+}
+
+async function zoomGet(path, token) {
+  const r = await fetch('https://api.zoom.us/v2' + path, {
+    headers: { Authorization: 'Bearer ' + token }
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const e = new Error(data.message || ('Zoom ' + r.status));
+    e.status = r.status;
+    e.hint = scopeHint(data.message);
+    throw e;
+  }
+  return data;
+}
+
+/* Both lists, because a screen that shows only what is still to come cannot show what
+   happened. Zoom pages these, and a next_page_token that goes unsent returns the first
+   page forever -- so the loop ends on the token, never on a count. */
+async function listZoomMeetings(token) {
+  const out = [];
+  for (const type of ['scheduled', 'previous_meetings']) {
+    let pageToken = '';
+    for (let guard = 0; guard < 20; guard++) {
+      const data = await zoomGet('/users/me/meetings?type=' + type + '&page_size=300' +
+        (pageToken ? '&next_page_token=' + encodeURIComponent(pageToken) : ''), token);
+      for (const m of (data.meetings || [])) out.push(m);
+      pageToken = data.next_page_token || '';
+      if (!pageToken) break;
+    }
+  }
+  return out;
+}
+
 const STAFF = ['owner', 'manager', 'inhouse_dev'];
 const isStaff = (p) => !!p && STAFF.includes(String(p.role));
 
 exports.zoomCreds = zoomCreds;
 exports.mintToken = mintToken;
+exports.meetingNumber = meetingNumber;
+exports.scopeHint = scopeHint;
 
 exports.handler = async (event) => {
   const action = (event.queryStringParameters || {}).action || 'status';
@@ -188,6 +256,69 @@ exports.handler = async (event) => {
       updated_by: profile.id
     }]);
     return json(200, { configured: true, who: who, source: 'app' });
+  }
+
+  // ------------------------------------------------------------------ sync
+  if (action === 'sync_meetings') {
+    const profile = await callerProfile(auth);
+    if (!profile) return json(401, { error: 'Sign in first.' });
+    if (!isStaff(profile)) return json(403, { error: 'Only an owner or manager can sync meetings.' });
+
+    const creds = await zoomCreds();
+    if (!creds) return json(400, { error: 'Zoom is not connected, so there is nothing to sync.' });
+
+    let meetings;
+    try {
+      meetings = await listZoomMeetings(await mintToken(creds));
+    } catch (e) {
+      // scope:true tells the screen this is a settings problem in Zoom, not a wrong key.
+      return json(400, { error: e.hint || String(e.message || e).slice(0, 200), scope: !!e.hint });
+    }
+
+    // Everything the screen already shows, by meeting number, whatever put it there.
+    const existing = await sb('growth_meetings?select=zoom_url,external_id');
+    const have = new Set();
+    for (const row of (existing || [])) {
+      const n = meetingNumber(row.zoom_url);
+      if (n) have.add(n);
+      const x = String(row.external_id || '').match(/^zoom:(\d+)$/);
+      if (x) have.add(x[1]);
+    }
+
+    const rows = [];
+    let duplicate = 0, undated = 0;
+    for (const m of meetings) {
+      const id = String(m.id || '');
+      if (!id) continue;
+      /* Type 3 is "recurring, no fixed time": it has no start, so it cannot sit on a
+         dated screen. Counting it is more honest than giving it today's date. */
+      if (!m.start_time) { undated++; continue; }
+      if (have.has(id)) { duplicate++; continue; }
+      have.add(id);              // the same number twice in one pull is still one call
+
+      /* client_id stays null on purpose. Calendly can attach a booking because it knows
+         the INVITEE's email; Zoom's meeting carries only the host, who is always us, so
+         matching on it would file every call under whichever deal shares Luke's address.
+         An unattached call is visible to staff and can be attached by hand, which beats
+         a confident wrong answer. */
+      rows.push({
+        external_id: 'zoom:' + id,
+        client_id: null,
+        title: m.topic || 'Zoom meeting',
+        starts_at: m.start_time,
+        minutes: Math.max(5, Number(m.duration) || 30),
+        zoom_url: /^https?:\/\//.test(m.join_url || '') ? m.join_url : '',
+        source: 'Zoom'
+      });
+    }
+
+    if (rows.length) await sb('growth_meetings?on_conflict=external_id', 'POST', rows);
+    return json(200, {
+      added: rows.length, duplicate: duplicate, undated: undated, seen: meetings.length,
+      note: rows.length ? ''
+        : duplicate ? 'Every Zoom meeting was already on the screen through Calendly.'
+        : 'Zoom returned no meetings.'
+    });
   }
 
   // ------------------------------------------------------------------ status

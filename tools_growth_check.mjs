@@ -2154,6 +2154,86 @@ await step('every connector row is asked, not waiting to be asked', async () => 
 });
 
 
+await step('Zoom can be told to pull the calls in', async () => {
+  /* Zoom was the one connector with no way to fetch anything: it could mint a link but
+     the screen could not ask it what calls exist. The button is the whole feature from
+     a user's side, so the check presses it rather than looking for it. */
+  let syncHits = 0, sentMethod = '';
+  await page.route('**/growth-zoom*', r => {
+    const u = r.request().url();
+    if (u.includes('action=sync_meetings')) {
+      syncHits++; sentMethod = r.request().method();
+      return r.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ added: 2, duplicate: 3, undated: 0, seen: 5, note: '' }) });
+    }
+    return r.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ configured: true, who: 'zoom@reachgiant.com', source: 'app' }) });
+  });
+  await page.route('**/growth-calendly*', r => r.fulfill({ status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ configured: true, who: 'growth@reachgiant.com', source: 'app' }) }));
+  await page.route('**/claude-api', r => r.fulfill({ status: 200,
+    contentType: 'application/json', body: JSON.stringify({ text: 'ready' }) }));
+
+  await screen('gr_connectors');
+  await page.waitForTimeout(2200);
+  /* Rows are collapsed until opened, so the panel does not exist yet. Opening it is
+     what a person does, and it is also the only way the button is reachable at all. */
+  await page.evaluate(() => document.querySelector('[data-gr-conn="zoom"]')?.click());
+  await page.waitForTimeout(900);
+
+  const btn = await page.evaluate(() => {
+    const b = document.querySelector('[data-gr-zoom-sync]');
+    if (!b) return null;
+    const r = b.getBoundingClientRect();
+    return { text: b.textContent.trim(), w: Math.round(r.width), h: Math.round(r.height) };
+  });
+  /* Measure it, do not just find it: a button the stylesheet collapsed to nothing is
+     present in the DOM and unclickable on the screen. */
+  check('the Zoom row offers a sync button', !!btn && btn.w > 40 && btn.h > 14,
+    JSON.stringify(btn));
+  check('and it says what it does', !!btn && /sync/i.test(btn.text), btn && btn.text);
+
+  await page.evaluate(() => document.querySelector('[data-gr-zoom-sync]')?.click());
+  await page.waitForTimeout(1800);
+  check('pressing it actually asks the function', syncHits >= 1, String(syncHits));
+  /* It writes rows, so it must not be reachable by a link somebody can prefetch. */
+  check('as a POST, not a GET', sentMethod === 'POST', sentMethod);
+
+  /* A missing Zoom scope is a settings problem in Zoom, and the fix is several clicks
+     away -- so it has to stay on the panel, not flash past in a toast. */
+  await page.unroute('**/growth-zoom*');
+  await page.route('**/growth-zoom*', r => {
+    const u = r.request().url();
+    if (u.includes('action=sync_meetings')) {
+      return r.fulfill({ status: 400, contentType: 'application/json',
+        body: JSON.stringify({ scope: true, error:
+          'The Zoom app does not have the meeting:read:list_meetings:admin scope. ' +
+          'In the Zoom marketplace open the app, add that scope, Activate it again, ' +
+          'then press Sync meetings.' }) });
+    }
+    return r.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ configured: true, who: 'zoom@reachgiant.com', source: 'app' }) });
+  });
+  await page.evaluate(() => document.querySelector('[data-gr-zoom-sync]')?.click());
+  await page.waitForTimeout(2000);
+  const shown = await page.evaluate(() => {
+    const el = document.querySelector('.gr_cnw.gr_cnon .gr_cstat.bad');
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { text: el.textContent.trim(), visible: r.width > 40 && r.height > 8 };
+  });
+  check('a missing scope stays on the panel instead of flashing past',
+    !!shown && shown.visible, JSON.stringify(shown && shown.visible));
+  check('and names the scope to add', !!shown && /list_meetings/.test(shown.text),
+    shown && shown.text.slice(0, 80));
+
+  await page.unroute('**/growth-zoom*');
+  await page.unroute('**/growth-calendly*');
+  await page.unroute('**/claude-api');
+});
+
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');

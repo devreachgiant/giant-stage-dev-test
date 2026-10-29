@@ -56,7 +56,7 @@ process.env.SUPABASE_URL = SUPA;
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key-not-real';
 
 const mod = await import('./netlify/functions/growth-zoom.js');
-const { zoomCreds, handler } = mod.default || mod;
+const { zoomCreds, handler, meetingNumber } = mod.default || mod;
 
 /* ---------------------------------------------------------------- which wins */
 process.env.ZOOM_ACCOUNT_ID = 'ENV-ACC';
@@ -179,6 +179,151 @@ calls = stubFetch([
 res = await save({ authorization: 'Bearer x' }, JSON.stringify({ account_id: 'A', client_id: 'C' }));
 check('two of the three is refused before Zoom is even asked',
   res.statusCode === 400 && !calls.some(c => c.url.includes('zoom.us')), String(res.statusCode));
+
+/* ------------------------------------------------- pulling calls in from Zoom
+
+   The duplicate is the whole problem here. Every Calendly booking in this account
+   already carries a Zoom join link, so the same call comes back from both sides with
+   two different external_ids. Nothing in the browser can see that: the page holds one
+   page of meetings and the unique index is on external_id, which differs. If these
+   checks are wrong, Meetings silently doubles. */
+
+const ZOOM_OK = { id: 'u-mgr', role: 'manager' };
+const sched = (list) => (u) => u.includes('type=scheduled')
+  ? { body: { meetings: list, next_page_token: '' } }
+  : { body: { meetings: [], next_page_token: '' } };
+
+// Build a plan for one sync. `rows` is what growth_meetings already holds.
+function syncPlan(meetings, rows, who) {
+  return [
+    ['/auth/v1/user', { body: { id: (who || ZOOM_OK).id } }],
+    ['profiles?id=eq.', { body: [who || ZOOM_OK] }],
+    ['growth_secrets', { body: secretRow({
+       account_id: 'A', client_id: 'C', client_secret: 'S' }) }],
+    ['zoom.us/oauth/token', MINTED],
+    // more specific than /users/me, so it must come first
+    ['/users/me/meetings', typeof meetings === 'function' ? meetings : sched(meetings)],
+    ['growth_meetings', (u, o) => o.method === 'POST'
+       ? { body: [{}] } : { body: rows || [] }]
+  ];
+}
+const doSync = (headers) => handler({
+  queryStringParameters: { action: 'sync_meetings' },
+  headers: headers === undefined ? { authorization: 'Bearer x' } : headers,
+  body: ''
+});
+const posted = (calls) => {
+  const w = calls.find(c => c.url.includes('growth_meetings') && c.opts.method === 'POST');
+  try { return w ? JSON.parse(w.opts.body) : []; } catch (e) { return []; }
+};
+
+/* The one that matters. A Calendly row whose join link carries meeting number 88123,
+   and Zoom handing back that same meeting. One call, so one row. */
+calls = stubFetch(syncPlan(
+  [{ id: 88123, topic: 'Strategy call', start_time: '2026-11-02T17:00:00Z',
+     duration: 45, join_url: 'https://us06web.zoom.us/j/88123?pwd=x' }],
+  [{ zoom_url: 'https://us06web.zoom.us/j/88123?pwd=x', external_id: 'https://api.calendly.com/scheduled_events/abc' }]));
+res = await doSync();
+let body = JSON.parse(res.body);
+check('a Zoom call already on the screen through Calendly is not added twice',
+  res.statusCode === 200 && body.added === 0 && body.duplicate === 1,
+  res.body);
+check('and nothing at all was written for it',
+  posted(calls).length === 0, JSON.stringify(posted(calls).map(r => r.external_id)));
+
+/* ...while a call that genuinely is not there yet does land. Without this the check
+   above passes just as well on code that inserts nothing, ever. */
+calls = stubFetch(syncPlan(
+  [{ id: 99999, topic: 'Discovery with Rob', start_time: '2026-11-03T14:00:00Z',
+     duration: 30, join_url: 'https://us06web.zoom.us/j/99999' }],
+  [{ zoom_url: 'https://us06web.zoom.us/j/88123?pwd=x', external_id: 'cal-abc' }]));
+res = await doSync();
+body = JSON.parse(res.body);
+let wrote2 = posted(calls);
+check('a Zoom call that is not on the screen yet is added',
+  res.statusCode === 200 && body.added === 1 && wrote2.length === 1,
+  res.body);
+check('stored under the meeting number, so the next sync recognises it',
+  wrote2[0] && wrote2[0].external_id === 'zoom:99999', wrote2[0] && wrote2[0].external_id);
+check('tagged Zoom, so the screen can tell the two sources apart',
+  wrote2[0] && wrote2[0].source === 'Zoom', wrote2[0] && wrote2[0].source);
+check('and left unattached rather than filed under the host’s own deal',
+  wrote2[0] && wrote2[0].client_id === null, JSON.stringify(wrote2[0] && wrote2[0].client_id));
+
+/* A row this function wrote last time is recognised by its external_id, not only by a
+   join link -- a meeting whose link was cleared would otherwise come back every sync. */
+calls = stubFetch(syncPlan(
+  [{ id: 77777, topic: 'Repeat', start_time: '2026-11-04T10:00:00Z', duration: 30, join_url: '' }],
+  [{ zoom_url: '', external_id: 'zoom:77777' }]));
+res = await doSync();
+check('a call synced earlier is not added again even with no link on the row',
+  JSON.parse(res.body).added === 0 && JSON.parse(res.body).duplicate === 1, res.body);
+
+/* Recurring-with-no-fixed-time has no start. Giving it today's date would park a phantom
+   call on today's list every single sync. */
+calls = stubFetch(syncPlan(
+  [{ id: 55555, topic: 'Recurring standup', duration: 30, join_url: 'https://us06web.zoom.us/j/55555' }],
+  []));
+res = await doSync();
+body = JSON.parse(res.body);
+check('a recurring meeting with no fixed time is counted, not dated',
+  body.added === 0 && body.undated === 1, res.body);
+
+/* Zoom pages. A next_page_token that goes unsent returns page one forever. */
+let pages = 0;
+calls = stubFetch(syncPlan((u) => {
+  if (!u.includes('type=scheduled')) return { body: { meetings: [] } };
+  pages++;
+  return u.includes('next_page_token=')
+    ? { body: { meetings: [{ id: 222, topic: 'p2', start_time: '2026-11-06T09:00:00Z',
+        duration: 30, join_url: 'https://us06web.zoom.us/j/222' }], next_page_token: '' } }
+    : { body: { meetings: [{ id: 111, topic: 'p1', start_time: '2026-11-05T09:00:00Z',
+        duration: 30, join_url: 'https://us06web.zoom.us/j/111' }], next_page_token: 'PAGE2' } };
+}, []));
+res = await doSync();
+check('the second page is fetched, so a long history is not silently cut off',
+  JSON.parse(res.body).added === 2 && pages === 2,
+  'added=' + JSON.parse(res.body).added + ' pages=' + pages);
+
+/* The scope Zoom is missing today. A raw "Zoom 400" would send somebody looking at the
+   keys, which are fine -- the fix is in the Zoom app's own settings. */
+calls = stubFetch([
+  ['/auth/v1/user', { body: { id: 'u-mgr' } }],
+  ['profiles?id=eq.', { body: [ZOOM_OK] }],
+  ['growth_secrets', { body: secretRow({ account_id: 'A', client_id: 'C', client_secret: 'S' }) }],
+  ['zoom.us/oauth/token', MINTED],
+  ['/users/me/meetings', { ok: false, status: 400, body: { message:
+    'Invalid access token, does not contain scopes:[meeting:read:list_meetings, meeting:read:list_meetings:admin].' } }]
+]);
+res = await doSync();
+body = JSON.parse(res.body);
+check('a missing scope names the scope instead of saying 400',
+  res.statusCode === 400 && /meeting:read:list_meetings:admin/.test(body.error) &&
+  /marketplace/i.test(body.error), body.error);
+check('and is flagged as a scope problem, so the panel can keep it on screen',
+  body.scope === true, JSON.stringify(body.scope));
+check('nothing was written when the list could not be read',
+  !calls.some(c => c.url.includes('growth_meetings') && c.opts.method === 'POST'), '');
+
+/* Same gate as save. These calls are account-wide. */
+calls = stubFetch(syncPlan([], [], { id: 'u-rep', role: 'rep' }));
+res = await doSync();
+check('a signed-in rep cannot pull the account’s calls in',
+  res.statusCode === 403, String(res.statusCode));
+check('and nothing was written on the way to refusing',
+  !calls.some(c => (c.opts.method || 'GET') !== 'GET'), '');
+
+calls = stubFetch(syncPlan([], []));
+res = await doSync({});
+check('no login cannot either', res.statusCode === 401, String(res.statusCode));
+
+/* The helper the de-duplicating rests on. */
+check('a join link gives up its meeting number',
+  meetingNumber('https://us06web.zoom.us/j/88123?pwd=abc') === '88123',
+  meetingNumber('https://us06web.zoom.us/j/88123?pwd=abc'));
+check('and a Google Meet link in the same column gives nothing rather than a wrong number',
+  meetingNumber('https://meet.google.com/abc-defg-hij') === '',
+  JSON.stringify(meetingNumber('https://meet.google.com/abc-defg-hij')));
 
 globalThis.fetch = realFetch;
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
