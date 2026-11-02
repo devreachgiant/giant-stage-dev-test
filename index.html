@@ -54342,21 +54342,149 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
     if (replyCancelBtn) replyCancelBtn.addEventListener('click', () => { replyBoxEl.style.display = 'none'; });
 
     // ── Build RFC 2822 email and send via Gmail API ──────────────
+    /* ───────── WHAT ACTUALLY GOES DOWN THE WIRE ─────────
+
+       Two faults lived here, and both reached real clients.
+
+       THE SUBJECT. `Subject: ${subject}` put raw UTF-8 bytes in a header. A header is
+       ASCII by definition, so a subject with an emoji in it arrived as
+       "Let's Get Started Ã°ÂŸÂšÂ€" -- the UTF-8 bytes of the rocket read back as
+       Latin-1. RFC 2047 encoded-words are the fix, and they are capped at 75 characters
+       each, so a long subject is split across several and folded. The split has to land
+       on a character boundary or the emoji breaks across two words and arrives worse.
+
+       THE BODY. It was sent as text/plain, and the templates are written in Markdown.
+       So "**Payment**" and "[Pay here via Stripe](https://buy.stripe.com/...)" went out
+       exactly like that, brackets and asterisks and all. This now sends
+       multipart/alternative: the Markdown rendered for anything that reads HTML, and a
+       readable plain-text flattening for anything that does not. Nobody gets the raw
+       source either way.
+
+       Rejected: rendering Markdown into the stored template instead. The body is what a
+       person edits, and Markdown is how they write a link; turning it into HTML on save
+       would make the editor a worse place to work and still leave every existing
+       template broken. The conversion belongs at the one point where text becomes mail. */
+
+    /* ───────── MARKDOWN, THE LITTLE OF IT THAT THESE EMAILS USE ─────────
+
+       Deliberately not a Markdown library. The templates use four things -- bold, a
+       link, a line break and a blank line between paragraphs -- and a full parser would
+       bring headings, code fences, tables and blockquotes that nobody writes here and
+       that would turn a stray asterisk in a price into formatting.
+
+       These two hang off window because Growth's preview has to show what the client
+       will actually get. Two renderers would drift, and a preview that disagrees with
+       the mail is worse than no preview: it is a check that reassures you while lying. */
+
+    // Escaped FIRST, always. These bodies are typed by people, and an unescaped "<" in a
+    // client's company name would be markup in the mail rather than text.
+    function giantEscHtml(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    /* Only http(s). A [click here](javascript:...) in a template is a link this app
+       would be putting its own From address behind. */
+    function giantSafeUrl(u) {
+      const v = String(u || '').trim();
+      return /^https?:\/\//i.test(v) ? v : '';
+    }
+
+    /* opts.fragment gives the paragraphs on their own, for drawing inside a page that
+       already has a <body>. The mail needs the whole document; the in-app preview of
+       that mail needs the same paragraphs without it, and must not get a second one. */
+    window.giantMdToHtml = function (md, opts) {
+      const blocks = String(md == null ? '' : md).replace(/\r\n/g, '\n').split(/\n{2,}/);
+      const inline = (t) => giantEscHtml(t)
+        // Links before bold, or the ** inside a link label is matched across the
+        // brackets and the link comes out as half a tag.
+        .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (m, label, url) {
+          const safe = giantSafeUrl(url.replace(/&amp;/g, '&'));
+          return safe ? '<a href="' + giantEscHtml(safe) + '">' + label + '</a>' : label;
+        })
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        // A bare URL that was never written as a link. Not inside an href already: the
+        // negative lookbehind for a quote is what stops it rewriting its own output.
+        .replace(/(^|[\s(])(https?:\/\/[^\s<>()]+)/g, '$1<a href="$2">$2</a>')
+        .replace(/\n/g, '<br>');
+      const body = blocks.filter(b => b.trim()).map(b => '<p>' + inline(b.trim()) + '</p>').join('\n');
+      if (opts && opts.fragment) return body;
+      /* An inline style, not a stylesheet: Gmail and Outlook strip <style> blocks, so a
+         class here would arrive unstyled. Times New Roman is the default otherwise. */
+      return '<!DOCTYPE html><html><body style="font-family:-apple-system,Segoe UI,Roboto,' +
+        'Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#1a1a1a;">' +
+        body + '</body></html>';
+    };
+
+    /* The same text with the Markdown taken off rather than rendered. A link keeps its
+       address -- "Pay here via Stripe" with the URL thrown away is a plain-text part
+       that cannot be acted on. */
+    window.giantMdToText = function (md) {
+      return String(md == null ? '' : md).replace(/\r\n/g, '\n')
+        .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '$1 ($2)')
+        .replace(/\*\*([^*]+)\*\*/g, '$1');
+    };
+
+    // Base64 of a UTF-8 string. btoa takes bytes, not characters, so the string has to
+    // be flattened to bytes first or anything outside Latin-1 throws.
+    function b64utf8(str) {
+      return btoa(unescape(encodeURIComponent(str)));
+    }
+
+    /* A header value safe for a header. ASCII goes through untouched -- an encoded-word
+       around "Re: our chat" would only make it unreadable in logs. */
+    function mimeHeaderWord(value) {
+      const v = String(value == null ? '' : value);
+      if (!/[^\x20-\x7E]/.test(v)) return v;
+      const bytes = unescape(encodeURIComponent(v));
+      // 75 is the cap for a whole encoded-word. "=?UTF-8?B?" + "?=" is 12 of it, and
+      // base64 is 4 chars per 3 bytes, so 45 bytes is the largest safe multiple of 3.
+      const out = [];
+      let i = 0;
+      while (i < bytes.length) {
+        let take = Math.min(45, bytes.length - i);
+        // Never cut a multi-byte character in half: 10xxxxxx is a continuation byte, so
+        // walk back off any that would start the next chunk.
+        while (take > 0 && i + take < bytes.length &&
+               (bytes.charCodeAt(i + take) & 0xC0) === 0x80) take--;
+        if (take <= 0) take = Math.min(45, bytes.length - i);
+        out.push('=?UTF-8?B?' + btoa(bytes.slice(i, i + take)) + '?=');
+        i += take;
+      }
+      // Folded, because a header line is capped too. A space after the CRLF is what
+      // makes the next line a continuation rather than a new header.
+      return out.join('\r\n ');
+    }
+
     function buildEmailRaw({ to, subject, body, inReplyTo, references, fromEmail }) {
+      const text = window.giantMdToText(body);
+      const html = window.giantMdToHtml(body);
+      // Anything but the boundary itself appearing in the body would end the part early.
+      const bound = 'giant_' + Date.now().toString(36) + '_' +
+        Math.random().toString(36).slice(2, 10);
       const lines = [];
       lines.push(`From: ${fromEmail}`);
       lines.push(`To: ${to}`);
-      lines.push(`Subject: ${subject}`);
+      lines.push(`Subject: ${mimeHeaderWord(subject)}`);
       if (inReplyTo) lines.push(`In-Reply-To: ${inReplyTo}`);
       if (references) lines.push(`References: ${references}`);
-      lines.push('Content-Type: text/plain; charset="UTF-8"');
       lines.push('MIME-Version: 1.0');
+      // alternative, not mixed: these are two renderings of one message, and the client
+      // picks. mixed would show the plain text as an attachment under the HTML.
+      lines.push(`Content-Type: multipart/alternative; boundary="${bound}"`);
       lines.push('');
-      lines.push(body);
+      lines.push(`--${bound}`);
+      lines.push('Content-Type: text/plain; charset="UTF-8"');
+      lines.push('');
+      lines.push(text);
+      lines.push(`--${bound}`);
+      lines.push('Content-Type: text/html; charset="UTF-8"');
+      lines.push('');
+      lines.push(html);
+      lines.push(`--${bound}--`);
       const message = lines.join('\r\n');
-      // Base64url encode
-      const utf8 = unescape(encodeURIComponent(message));
-      return btoa(utf8).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      return b64utf8(message).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     }
 
     async function sendGmailMessage({ to, subject, body, threadId, inReplyTo }) {
@@ -98766,7 +98894,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             '<span>&lt;' + esc(from) + '&gt; to ' + esc(grTestTo() || 'you') + '</span></span>' +
           '<span class="gr_pvwhen">' + esc(now) + '</span>' +
         '</div>' +
-        '<div class="gr_pvbody">' + para(grTplFill(t, who)) +
+        /* The same renderer the mail is built with, so this really is a preview of it.
+           para() only escaped and split on blank lines, so this modal showed the raw
+           **Payment** and [text](url) that used to be what actually arrived. */
+        '<div class="gr_pvbody">' + window.giantMdToHtml(grTplFill(t, who), { fragment: true }) +
           (sig ? '<div class="gr_pvsig">' + para(sig) + '</div>' : '') + '</div>' +
         '<p class="gr_pvnote">A sample name and company are filled in. ' +
           (d ? 'A discount spot shows ' + esc(d.code) + '; you pick the code when you use the template. '
@@ -98808,9 +98939,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   function grPkgPreview() {
     const b = grFromMaster(grPkgDraft.name.trim() || 'Package name',
                            grPkgDraft.link.trim() || 'https://buy.stripe.com/...');
-    const body = b.body.replace(/\{name\}/g, 'Michael')
-      .replace(/\{discount\}/g, '[Discount code, picked when you send]')
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)');
+    const body = window.giantMdToText(b.body.replace(/\{name\}/g, 'Michael')
+      .replace(/\{discount\}/g, '[Discount code, picked when you send]'));
     return '<b>' + esc(b.subject.replace(/\{name\}/g, 'Michael')) + '</b>' + esc(body);
   }
 
@@ -99028,9 +99158,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   function grTplPvText(t) {
     const body = String(t.body || '').replace(/\{name\}/g, 'Michael')
       .replace(/\{company\}/g, 'Northwind')
-      .replace(/\{discount\}/g, '[Discount code, picked when you send]')
-      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)');
-    return esc(body);
+      .replace(/\{discount\}/g, '[Discount code, picked when you send]');
+    /* The mail's own flattening, not a second copy of it. These two drifted once --
+       the preview dropped the Markdown and the mail shipped it -- and a preview that
+       disagrees with what is sent is worse than none, because it reassures you. */
+    return esc(window.giantMdToText(body));
   }
 
   function grTplRow(t) {

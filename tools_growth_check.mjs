@@ -2156,6 +2156,10 @@ await step('a template previews as the mail it becomes', async () => {
       body: b.innerText,
       paras: b.querySelectorAll('p').length,
       mono: /mono|courier/i.test(getComputedStyle(b).fontFamily),
+      // innerText hides the difference between a rendered link and the brackets
+      // around one, so the markup has to be read as markup.
+      html: b.innerHTML,
+      links: [...b.querySelectorAll('a[href]')].map(a => a.getAttribute('href')),
       sig: m.querySelectorAll('.gr_pvsig').length
     };
   });
@@ -2175,6 +2179,101 @@ await step('a template previews as the mail it becomes', async () => {
   check('and read as an email, not a monospace dump',
     !!pv && !pv.mono && pv.paras >= 2, JSON.stringify({ mono: pv && pv.mono, paras: pv && pv.paras }));
   check('with the signature set apart at the end', !!pv && pv.sig === 1, String(pv && pv.sig));
+  /* This modal says "Preview" and used to show the Markdown source, so it agreed with
+     the broken mail rather than with the mail anybody wanted. It is the same renderer
+     now, which is the only way the two cannot drift apart again. */
+  check('and the preview shows a link, not the brackets around one',
+    !!pv && pv.links.indexOf('https://buy.stripe.com/test123') >= 0 &&
+    !/\]\(/.test(pv.html), JSON.stringify(pv && pv.links));
+
+  /* ---- the Markdown has to stop being the email ----
+     A test send arrived reading "**Payment**" and
+     "[Pay here via Stripe](https://buy.stripe.com/...)" -- the templates are written in
+     Markdown and the mail went out as text/plain with the source untouched. The subject
+     was worse: an emoji arrived as "Ã°ÂŸÂšÂ€", UTF-8 bytes read back as Latin-1,
+     because a raw header is ASCII by definition. */
+  const mdOk = await page.evaluate(() => {
+    if (typeof window.giantMdToHtml !== 'function' || typeof window.giantMdToText !== 'function') return null;
+    const src = 'Hi Luke,\n\n**Payment**\n[Pay here via Stripe](https://buy.stripe.com/abc123)\n\nBest,';
+    const html = window.giantMdToHtml(src), text = window.giantMdToText(src);
+    return {
+      html: html, text: text,
+      frag: window.giantMdToHtml(src, { fragment: true }),
+      // The dangerous inputs, in the one place a template becomes markup.
+      esc: window.giantMdToHtml('a <img onerror=1> b'),
+      js: window.giantMdToHtml('[click](javascript:alert(1))')
+    };
+  });
+  check('the body is rendered, not shipped as its own source',
+    !!mdOk && /<strong>Payment<\/strong>/.test(mdOk.html) &&
+    /<a href="https:\/\/buy\.stripe\.com\/abc123">Pay here via Stripe<\/a>/.test(mdOk.html) &&
+    !/\*\*|\]\(/.test(mdOk.html), mdOk && mdOk.html.slice(-150));
+  /* Plain text keeps the address. "Pay here via Stripe" with the URL dropped is a part
+     nobody can act on, which is worse than the raw Markdown it replaced. */
+  check('and the plain-text half keeps the links it flattens',
+    !!mdOk && !/\*\*|\]\(/.test(mdOk.text) && /Pay here via Stripe \(https:\/\/buy\.stripe\.com\/abc123\)/.test(mdOk.text),
+    mdOk && JSON.stringify(mdOk.text));
+  check('the fragment carries the paragraphs and no second document',
+    !!mdOk && /^<p>/.test(mdOk.frag) && !/<html|<body|DOCTYPE/i.test(mdOk.frag), mdOk && mdOk.frag.slice(0, 60));
+  /* These bodies are typed by people and then become markup in somebody else's mail
+     client. Escaped first, and only http(s) ever reaches an href. */
+  check('a tag typed into a template arrives as text, not as markup',
+    !!mdOk && /&lt;img onerror=1&gt;/.test(mdOk.esc) && !/<img/.test(mdOk.esc), mdOk && mdOk.esc.slice(-80));
+  check('and a javascript: link keeps its words but loses its href',
+    !!mdOk && /click/.test(mdOk.js) && !/href="javascript/i.test(mdOk.js) && !/<a /.test(mdOk.js),
+    mdOk && mdOk.js.slice(-80));
+
+  /* THE MESSAGE ITSELF, not a helper. Gmail's send is intercepted and the base64url
+     body decoded, because every check above could pass on code that then builds the
+     MIME some other way -- which is exactly what was happening. */
+  const wire = await page.evaluate(async () => {
+    const of = window.fetch; let raw = null;
+    window.fetch = async (u, o) => {
+      if (String(u).includes('gmail.googleapis.com') && o && o.body) {
+        raw = JSON.parse(o.body).raw;
+        return new Response(JSON.stringify({ id: 'x' }), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return of(u, o);
+    };
+    try {
+      if (typeof window.giantGmailSend !== 'function') return { err: 'no giantGmailSend' };
+      await window.giantGmailSend({ to: 'me@example.com',
+        subject: "TEST: Let's Get Started \u{1F680} [Google Ads Management 1.5k (Discount)]",
+        body: 'Hi Luke,\n\n**Payment**\n[Pay here via Stripe](https://buy.stripe.com/abc123)\n\nBest,' });
+    } catch (e) { return { err: String((e && e.message) || e), raw: raw }; }
+    finally { window.fetch = of; }
+    return { raw: raw };
+  });
+  const msg = wire && wire.raw
+    ? new TextDecoder().decode(Uint8Array.from(
+        atob(wire.raw.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)))
+    : '';
+  const subLine = (msg.match(/^Subject: (.*(?:\r\n .*)*)/m) || [])[1] || '';
+  const words = subLine.split('\r\n ');
+  const decoded = words.map(w => {
+    const m = /^=\?UTF-8\?B\?(.*)\?=$/.exec(w);
+    return m ? Uint8Array.from(atob(m[1]), c => c.charCodeAt(0)) : null;
+  });
+  const subject = decoded.every(Boolean)
+    ? new TextDecoder().decode(Uint8Array.from(decoded.flatMap(a => [...a]))) : '(not encoded)';
+  check('the subject is an encoded-word that decodes back to what was typed',
+    subject === "TEST: Let's Get Started \u{1F680} [Google Ads Management 1.5k (Discount)]",
+    JSON.stringify(subject));
+  /* 75 is the cap on one encoded-word. Over it, the folding is what breaks rather than
+     the encoding, and the subject arrives with the raw =?UTF-8?B? showing. */
+  check('split into words no longer than a header allows',
+    words.length > 1 && Math.max(...words.map(w => w.length)) <= 75,
+    JSON.stringify({ words: words.length, longest: Math.max(...words.map(w => w.length)) }));
+  const parts = msg.split(/--giant_[^\r\n]+\r\n/);
+  check('and the mail carries both a plain and an HTML rendering',
+    /Content-Type: multipart\/alternative/.test(msg) &&
+    /Content-Type: text\/plain/.test(msg) && /Content-Type: text\/html/.test(msg),
+    (msg.match(/Content-Type: [^\r\n;]+/g) || []).join(' | '));
+  check('with no Markdown source left in either of them',
+    parts.length >= 3 && !/\*\*Payment\*\*/.test(msg) && !/\]\(https/.test(msg) &&
+    /<strong>Payment<\/strong>/.test(parts[2]) &&
+    /Pay here via Stripe \(https:\/\/buy\.stripe\.com\/abc123\)/.test(parts[1]),
+    JSON.stringify({ parts: parts.length, md: /\*\*|\]\(/.test(msg) }));
 
   const byX = await page.evaluate(() => {
     const b = document.querySelector('.gr_pvmail [data-gr-tpl-pvclose]');
