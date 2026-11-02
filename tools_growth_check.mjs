@@ -1365,43 +1365,75 @@ await step('every Training tab is still reachable at phone width', async () => {
   await ph.close();
 });
 
-await step('the Today button belongs to Growth and stays there', async () => {
-  /* It was floating over Chat. The guard existed -- it read grScreen, which is only ever
-     set by grInit, and grInit only runs for gr_ screens. So leaving Growth never told it
-     anything and the last Growth screen stuck forever. Measure the button, not the flag:
-     .gr_tdbtn is display:none until .on, so a hidden one is 0px wide. */
-  const widthOf = () => page.evaluate(() => {
-    const b = document.querySelector('.gr_tdbtn');
-    if (!b) return { exists: false, w: 0 };
-    return { exists: true, w: Math.round(b.getBoundingClientRect().width) };
+await step('the Today widget is gone, and took nothing with it', async () => {
+  /* Removed on request. It was a floating button over every Growth screen opening a
+     drawer of today's replies and calls; the screens themselves already say all of it.
+
+     The checks that used to live here drove that button. They are replaced rather than
+     deleted, because the risk in pulling a widget out is not that it lingers -- that is
+     obvious on sight -- but that a shared thing goes with it. */
+  await screen('gr_pipeline');
+  await page.waitForTimeout(900);
+  const gone = await page.evaluate(() => ({
+    btn: document.querySelectorAll('.gr_tdbtn, #grTodayBtn').length,
+    drawer: document.querySelectorAll('#grToday, .gr_tdd, .gr_tdscrim').length,
+    opener: document.querySelectorAll('[data-gr-today-open], [data-gr-today-close]').length
+  }));
+  check('no button, no drawer, no handle left to open one',
+    gone.btn === 0 && gone.drawer === 0 && gone.opener === 0, JSON.stringify(gone));
+
+  /* THE ONE THAT MATTERS. Three handlers closed the drawer before opening something
+     else, and one of them sat in the [data-gr-act] branch -- the Send email button. The
+     module is 'use strict', so the orphaned `grTodayOpen = false` left behind threw a
+     ReferenceError and the composer silently stopped opening. Nothing about a missing
+     widget would have shown that; only pressing the button does. */
+  // Not every Growth screen renders one, so find the screen that does rather than
+  // assuming -- a check that cannot find its button reports nothing, not a pass.
+  for (const scr of ['gr_inbox', 'gr_home', 'gr_pipeline']) {
+    await screen(scr);
+    await page.waitForTimeout(800);
+    const found = await page.evaluate(() => !!document.querySelector('[data-gr-act]'));
+    if (found) break;
+  }
+  const opened = await page.evaluate(async () => {
+    const b = document.querySelector('[data-gr-act]');
+    if (!b) return { pressed: false };
+    const errs = [];
+    const onErr = e => errs.push(String(e.message || e));
+    window.addEventListener('error', onErr);
+    b.click();
+    await new Promise(r => setTimeout(r, 700));
+    window.removeEventListener('error', onErr);
+    // The composer is drawn INSIDE the deal sheet, so measure the sheet's wrapper.
+    const c = document.querySelector('[data-gr-cwrap]');
+    return { pressed: true, errs,
+             composer: !!c && c.getBoundingClientRect().height > 40 };
   });
-  await screen('gr_pipeline');
-  const onGrowth = await widthOf();
-  check('it is there on a Growth screen', onGrowth.exists && onGrowth.w > 40, JSON.stringify(onGrowth));
+  check('the Send email button still opens the composer',
+    opened.pressed && opened.composer, JSON.stringify(opened));
+  check('and threw nothing on the way',
+    opened.pressed && (opened.errs || []).length === 0, JSON.stringify(opened.errs));
 
-  await screen('tasks');
-  const onTasks = await widthOf();
-  check('and gone the moment you leave for another screen', onTasks.w === 0, JSON.stringify(onTasks));
-
-  await screen('gr_pipeline');
-  const back = await widthOf();
-  check('and back when you return', back.w > 40, JSON.stringify(back));
-
-  // The drawer too: walking away with it open left a Growth panel sitting over Chat.
-  await page.evaluate(() => document.querySelector('.gr_tdbtn')?.click());
+  await page.keyboard.press('Escape');
   await page.waitForTimeout(500);
-  const opened = await page.evaluate(() => {
-    const d = document.querySelector('#grToday .gr_tdd');
-    return d ? Math.round(d.getBoundingClientRect().width) : 0;
-  });
-  check('the drawer opens from it', opened > 100, String(opened));
-  await screen('tasks');
-  const left = await page.evaluate(() => {
-    const d = document.querySelector('#grToday .gr_tdd');
-    return d ? Math.round(d.getBoundingClientRect().width) : 0;
-  });
-  check('and closes behind you when you leave Growth', left === 0, String(left));
+
+  /* The deal sheet's own to-do list shares a prefix with the drawer's markup -- gr_tdo,
+     gr_tdtick, gr_tdadd against the drawer's gr_tdd, gr_tdh, gr_tds -- and sits in a
+     different part of the stylesheet. A prefix-wide sweep would have taken it. */
   await screen('gr_pipeline');
+  await page.evaluate(() => document.querySelector('[data-gr-open]')?.click());
+  await page.waitForTimeout(900);
+  const todos = await page.evaluate(() => {
+    const box = document.querySelector('.gr_todos');
+    const tick = document.querySelector('.gr_tdtick');
+    return { box: !!box, tick: !!tick,
+             tickW: tick ? Math.round(tick.getBoundingClientRect().width) : 0,
+             add: !!document.querySelector('.gr_tdadd') };
+  });
+  check('a deal still has its to-do list, ticks and all',
+    todos.box && todos.tick && todos.tickW > 12 && todos.add, JSON.stringify(todos));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
 });
 
 
@@ -2231,6 +2263,110 @@ await step('Zoom can be told to pull the calls in', async () => {
   await page.unroute('**/growth-zoom*');
   await page.unroute('**/growth-calendly*');
   await page.unroute('**/claude-api');
+});
+
+
+await step('a call opens what the person said when they booked', async () => {
+  /* The row used to open the DEAL, and only when one was matched, so a booking from
+     somebody nobody tracked was the one row on the screen that did nothing when clicked.
+     It opens the call now, and the call carries the ten booking-form answers. */
+  await screen('gr_meetings');
+  await page.waitForTimeout(1500);
+
+  const clickable = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-gr-meet]')].map(e => e.dataset.grMeet));
+  /* gm-3 is the unattached Zoom call. Before this it had no data-gr-open at all. */
+  check('every call on the screen can be opened, attached to a deal or not',
+    clickable.includes('gm-1') && clickable.includes('gm-3'), JSON.stringify(clickable));
+
+  await page.evaluate(() => document.querySelector('[data-gr-meet="gm-1"]')?.click());
+  await page.waitForTimeout(900);
+
+  const p1 = await page.evaluate(() => {
+    const w = document.getElementById('grSheet');
+    const sh = w && w.querySelector('.gr_sheet');
+    const qs = [...document.querySelectorAll('.gr_mdq')];
+    const box = sh && sh.getBoundingClientRect();
+    return {
+      open: !!(w && w.classList.contains('on')),
+      mid: sh && sh.dataset.grMid,
+      wide: box ? Math.round(box.width) : 0,
+      pairs: qs.map(d => ({
+        q: (d.querySelector('b') || {}).textContent || '',
+        a: (d.querySelector('p') || {}).textContent || '',
+        h: Math.round((d.querySelector('p') || { getBoundingClientRect: () => ({ height: 0 }) })
+             .getBoundingClientRect().height)
+      })),
+      who: document.querySelector('.gr_mdwho') &&
+           document.querySelector('.gr_mdwho').textContent.replace(/\s+/g, ' ').trim()
+    };
+  });
+  check('clicking a call opens the panel for THAT call',
+    p1.open && p1.mid === 'gm-1' && p1.wide > 300,
+    JSON.stringify({ open: p1.open, mid: p1.mid, wide: p1.wide }));
+  /* Assert the WORDS. Four headings with nothing under them is still four headings, and
+     that is the exact shape the Changelog bug had. */
+  check('the booking questions are there, with the answers under them',
+    p1.pairs.length === 4 && p1.pairs.every(x => x.q.length > 8 && x.a.length > 2),
+    JSON.stringify(p1.pairs.map(x => x.q.slice(0, 24) + ' -> ' + x.a.slice(0, 18))));
+  check('including the money question, which is the one anybody opens this for',
+    p1.pairs.some(x => /budget/i.test(x.q) && /1,500/.test(x.a)),
+    JSON.stringify(p1.pairs.map(x => x.a).filter(a => /1,500/.test(a))));
+  /* Calendly returns a multi-select as ONE string with newlines in it. Without
+     white-space:pre-line those three choices run together into one line.
+
+     The fixture's answer is deliberately SHORT -- "Google Ads\nSEO\nMeta Ads". The real
+     answer is three long phrases that wrap to three lines whichever way it is rendered,
+     so measuring height against THAT proves nothing: it was tried, pre-line was taken
+     out, and the suite stayed green. Short enough to fit on one line, the only thing
+     that can make it three is the breaks being honoured. */
+  const multi = p1.pairs.find(x => /Google Ads/.test(x.a));
+  const single = p1.pairs.find(x => /Under 100k/.test(x.a));
+  check('a three-choice answer is drawn on three lines, not run into one',
+    !!multi && !!single && multi.h > single.h * 2.4,
+    JSON.stringify({ multi: multi && multi.h, single: single && single.h }));
+  check('their email, phone and timezone come with it',
+    /outlook\.com/.test(p1.who || '') && /\+447922116098/.test(p1.who || '') &&
+    /Europe\/Berlin/.test(p1.who || ''), p1.who);
+
+  /* Opening the deal from inside the call must REPLACE the panel. Two sheets in one host
+     with one Escape key is how people get stuck behind a thing they cannot close. */
+  await page.evaluate(() => document.querySelector('.gr_sheet [data-gr-open]')?.click());
+  await page.waitForTimeout(900);
+  const afterDeal = await page.evaluate(() => {
+    const sh = document.querySelector('#grSheet .gr_sheet');
+    return { sheets: document.querySelectorAll('#grSheet .gr_sheet').length,
+             mid: sh && sh.dataset.grMid, cid: sh && sh.dataset.grId };
+  });
+  check('Open the deal swaps the panel for the deal, it does not stack a second one',
+    afterDeal.sheets === 1 && !afterDeal.mid && !!afterDeal.cid,
+    JSON.stringify(afterDeal));
+
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(600);
+
+  /* A call with no answers has to say which KIND of nothing it is. A Calendly booking
+     synced before the answers were kept is not the same as a Zoom call that was never
+     asked, and blank space would read as "they answered nothing" for both. */
+  await page.evaluate(() => document.querySelector('[data-gr-meet="gm-3"]')?.click());
+  await page.waitForTimeout(900);
+  const zoomSaid = await page.evaluate(() => {
+    const sh = document.querySelector('#grSheet .gr_sheet');
+    return { mid: sh && sh.dataset.grMid, text: sh ? sh.textContent : '',
+             rows: document.querySelectorAll('.gr_mdq').length };
+  });
+  check('a call that never had a booking form says so rather than showing nothing',
+    zoomSaid.mid === 'gm-3' && zoomSaid.rows === 0 &&
+    /did not come from Calendly/i.test(zoomSaid.text),
+    JSON.stringify({ rows: zoomSaid.rows, mid: zoomSaid.mid }));
+  check('and an unattached call admits it has no deal instead of offering a dead button',
+    /Not attached to a deal/i.test(zoomSaid.text), '');
+
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(600);
+  const closed = await page.evaluate(() =>
+    document.getElementById('grSheet').classList.contains('on'));
+  check('Escape closes the call panel', !closed, String(closed));
 });
 
 

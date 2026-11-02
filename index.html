@@ -6535,6 +6535,22 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_mute{color:var(--text-3);font-size:13px;line-height:1.6;}
 .gr_mn{font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .gr_src{font-size:10px;text-transform:uppercase;letter-spacing:.05em;background:var(--surface-2);color:var(--text-3);border-radius:5px;padding:2px 6px;}
+/* The booking form, as answered. pre-line because a multi-select answer comes back from
+   Calendly as one string with newlines in it -- "Google Ads\nSEO\nMeta Ads" is three
+   choices, and run together on one line it reads as nonsense. */
+.gr_mdq{border-top:1px solid var(--line);padding:13px 0;}
+.gr_mdq:first-child{border-top:0;padding-top:2px;}
+.gr_mdq b{display:block;font-size:12.5px;font-weight:600;color:var(--text-3);line-height:1.5;margin-bottom:5px;}
+.gr_mdq p{margin:0;font-size:14px;line-height:1.6;color:var(--text);white-space:pre-line;}
+.gr_mdwho{display:flex;flex-wrap:wrap;gap:9px 20px;font-size:13px;color:var(--text-2);}
+.gr_mdwho span{display:inline-flex;align-items:center;gap:6px;min-width:0;}
+.gr_mdwho b{font-weight:600;color:var(--text);word-break:break-word;}
+/* gr_lnk had no rule at all, so a mailto fell through to the browser's default blue --
+   which on this background was all but unreadable. Styled like the text beside it, with
+   the underline carrying the fact that it is a link. */
+.gr_lnk{color:var(--text);font-weight:600;text-decoration:underline;text-underline-offset:2px;
+  text-decoration-color:var(--text-3);word-break:break-word;}
+.gr_lnk:hover{text-decoration-color:var(--text);}
 .gr_sheetwrap{position:fixed;inset:0;z-index:60;display:none;background:rgba(8,8,10,.45);}
 .gr_sheetwrap.on{display:block;}
 .gr_sheet{position:fixed;top:0;right:0;bottom:0;width:min(520px,100%);background:var(--bg);border:0;border-left:1px solid var(--line);border-radius:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:14px;padding:22px 22px 32px;box-shadow:-18px 0 44px rgba(0,0,0,.34);}
@@ -6840,7 +6856,7 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_erow{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--line);}
 .gr_erow:first-of-type{border-top:0;}
 .gr_erow.gr_col2{flex-direction:column;align-items:stretch;gap:10px;}
-.gr_erow.gr_add,.gr_tk.gr_add{border-top:1px dashed var(--line-2);padding-top:11px;margin-top:4px;}
+.gr_erow.gr_add{border-top:1px dashed var(--line-2);padding-top:11px;margin-top:4px;}
 .gr_in{background:var(--surface);border:1px solid var(--line);border-radius:9px;padding:9px 11px;color:var(--text);font:inherit;font-size:13.5px;flex:1;min-width:0;}
 .gr_in:focus{outline:none;border-color:var(--line-2);}
 .gr_in.gr_narrow{flex:0 0 130px;}
@@ -7297,31 +7313,6 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_jr .gr_jon{color:var(--text);}
 .gr_jr .gr_jon i{background:#1F7A45;border-color:#1F7A45;}
 .gr_jr u{flex:1;height:1px;background:var(--line);text-decoration:none;min-width:12px;}
-/* Today, in a drawer over whatever Growth screen you are on. */
-.gr_tdbtn{position:fixed;right:18px;bottom:18px;z-index:60;display:none;align-items:center;gap:8px;
-  background:var(--text);color:var(--bg);border:0;border-radius:99px;padding:11px 18px;font:inherit;
-  font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 10px 28px -10px rgba(0,0,0,.55);}
-.gr_tdbtn.on{display:flex;}
-.gr_tdbtn b{background:var(--red);color:#fff;border-radius:99px;padding:1px 8px;font-size:11px;}
-.gr_tdw{display:none;}
-.gr_tdw.on{display:block;}
-.gr_tdscrim{position:fixed;inset:0;background:rgba(8,8,10,.45);z-index:74;}
-.gr_tdd{position:fixed;top:0;right:0;bottom:0;width:min(400px,100%);z-index:75;background:var(--bg);
-  border-left:1px solid var(--line);padding:18px 18px 24px;overflow-y:auto;display:flex;flex-direction:column;gap:16px;
-  box-shadow:-30px 0 60px -30px rgba(0,0,0,.6);}
-.gr_tdh{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
-.gr_tdh b{display:block;font-size:19px;font-weight:800;letter-spacing:-.02em;}
-.gr_tdh span{font-size:12px;color:var(--text-3);}
-.gr_tdt{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
-.gr_tdt h3{margin:0;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);}
-.gr_tk{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line);cursor:pointer;}
-.gr_tk:hover{background:var(--surface-2);border-radius:10px;padding-left:7px;padding-right:7px;}
-.gr_tkm{flex:1;min-width:0;}
-.gr_tkm b{display:block;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.gr_tkm span{font-size:11.5px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;}
-.gr_tkb{flex:none;text-decoration:none;}
-.gr_tkdone{opacity:.55;}
-.gr_tds p.gr_mute{margin:6px 0 0;font-size:12.5px;}
 /* Recordings: the shelf, grouped by the day people remember the call by. */
 .gr_rcday{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin:16px 0 8px;}
 .gr_rc{display:flex;gap:13px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:10px;}
@@ -95779,7 +95770,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   let grLoaded = false, grLoading = false;
+  // When the tables were last read, so coming back to a Growth screen can tell stale
+  // data from fresh without re-reading on every repaint.
+  let grLoadedAt = 0;
   let grClients = [], grMeetings = [], grMessages = [], grTemplates = [];
+  // Which meeting the side panel is showing, if any. Separate from grOpenId: a call and
+  // the deal it belongs to are two different things to be looking at.
+  let grMeetId = null;
   let grSettings = {}, grStages = [], grStaleDays = 5;
   let grTasks = [], grWatch = [], grDiscounts = [];
   let grPlanSeeding = false, grWatchAdd = false;
@@ -95980,7 +95977,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const pipe = grSettings.pipeline || {};
       grStages = Array.isArray(pipe.stages) && pipe.stages.length ? pipe.stages : DEFAULT_STAGES.slice();
       grStaleDays = pipe.staleDays || 5;
-      grLoaded = true;
+      grLoaded = true; grLoadedAt = Date.now();
     } catch (e) {
       grToast('Growth could not load. ' + (e && e.message ? e.message : 'Check your connection.'));
     }
@@ -96484,8 +96481,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const c = grClients.find(x => x.id === m.client_id);
     const done = grDone(m), live = grLive(m);
     const t = new Date(m.starts_at);
+    /* The row opens the CALL, not the deal. It used to open the deal, and only when one
+       was matched -- so a booking from somebody nobody tracked was the one row on the
+       screen that did nothing at all when clicked. The person icon still goes to the
+       deal, so nothing was taken away. */
     return '<div class="gr_mx' + (done ? ' gr_done' : '') + (live ? ' gr_livem' : '') + '"' +
-        (c ? ' data-gr-open="' + c.id + '"' : '') + '>' +
+        ' data-gr-meet="' + esc(m.id) + '">' +
       /* The big chip drops the AM/PM to stay narrow, so the line under it carries it
          instead. On a 24 hour clock "18:23" needed nothing; at 12 hours "6:23" on its
          own is either breakfast or dinner. */
@@ -99011,13 +99012,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
      It is deliberately read-only apart from the buttons that take you somewhere: a drawer
      that quietly edits things behind the screen you were on is how people lose work. */
-  let grTodayOpen = false;
-  function grTodayCount() {
-    const vis = grVisible();
-    const replies = vis.filter(c => grActive(c) && grWaiting(c)).length;
-    const meets = grMeetings.filter(m => grSameDay(m.starts_at, Date.now()) && !grMeetDone(m)).length;
-    return replies + meets;
-  }
   /* Which screen is actually showing, read from the DOM. This used to read grScreen,
      which is only ever set by grInit, and grInit only runs for gr_ screens -- so walking
      from Growth to Chat left it holding the last Growth screen and the button stayed
@@ -99026,94 +99020,47 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const el = document.querySelector('.screen.on');
     return !!el && String(el.dataset.screen || '').indexOf('gr_') === 0;
   }
-  function grPaintTodayBtn() {
-    const b2 = $('grTodayBtn');
-    if (!b2) return;
-    // Only on Growth screens: a Today button floating over Chat would be somebody
-    // else's today.
-    const on = grOnGrowthScreen();
-    b2.classList.toggle('on', on && !grTodayOpen);
-    const n = grTodayCount();
-    b2.innerHTML = '<span>Today</span>' + (n ? '<b>' + n + '</b>' : '');
-  }
-
   /* And repaint when the screen changes. Watched with a MutationObserver on the screens'
      class rather than hung off the nav click handler, because a reload restores the last
      screen without anybody clicking. Screens carry .on, not .active. The drawer closes
      too -- leaving Growth with it open left a Growth panel over Chat. */
   let grScreenWatch = false;
+  /* NEW CALLS APPEAR WITHOUT ASKING. growth-sync.mjs pulls Calendly every half hour and
+     has done reliably -- the runs are in growth_runs -- so the database was already
+     current. The screen was not: grLoad ran once when Growth was first opened and the
+     page then held that copy for as long as the tab stayed up, so a booking that landed
+     at noon was invisible until somebody pressed Sync or reloaded.
+
+     Re-reading on ARRIVAL at a Growth screen, rather than on a timer, because that is
+     the moment somebody is about to look. GR_STALE_MS keeps flipping between two Growth
+     screens from firing a read each time.
+
+     This is a re-read of our own tables, not a Calendly call: it costs one round trip
+     and never touches the connector. The half hour is still the real floor on how new a
+     booking can be, which is fine -- the event type will not take a booking less than
+     two hours out. */
+  const GR_STALE_MS = 45000;
+  function grRefreshIfStale() {
+    if (!grLoaded || grLoading) return;
+    if (Date.now() - grLoadedAt < GR_STALE_MS) return;
+    if (!grOnGrowthScreen()) return;
+    window.grReload();
+  }
+
   function grWatchScreens() {
     if (grScreenWatch) return;
     const screens = document.querySelectorAll('.screen');
     if (!screens.length) return;
     const mo = new MutationObserver(function () {
-      if (!grOnGrowthScreen() && grTodayOpen) { grTodayOpen = false; grRenderToday(); }
-      grPaintTodayBtn();
+      grRefreshIfStale();
     });
     screens.forEach(s2 => mo.observe(s2, { attributes: true, attributeFilter: ['class'] }));
+    // Left open on a second monitor all afternoon is the other way the copy goes stale,
+    // and it raises no mutation at all -- the screen never changed.
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) grRefreshIfStale();
+    });
     grScreenWatch = true;
-  }
-
-  function grRenderToday() {
-    const host = $('grToday');
-    if (!host) return;
-    if (!grTodayOpen) { host.innerHTML = ''; host.classList.remove('on'); return; }
-    const vis = grVisible();
-    const replies = vis.filter(c => grActive(c) && grWaiting(c));
-    const meets = grMeetings.filter(m => grSameDay(m.starts_at, Date.now()))
-      .sort((a2, b2) => new Date(a2.starts_at) - new Date(b2.starts_at));
-    const todo = vis.filter(c => grActive(c) && grNextAction(c) && !grWaiting(c)).slice(0, 8);
-    const h = new Date().getHours();
-    const hello = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-
-    const person = (c, right) => '<div class="gr_tk" data-gr-open="' + c.id + '">' +
-      grAvatar(c.name, grStageColor(c.stage), 'gr_sm2') +
-      '<div class="gr_tkm"><b>' + esc(c.name) + '</b><span>' + esc(right) + '</span></div>';
-
-    const rRow = (c) => {
-      const li = grLastIn(c);
-      return person(c, li ? grFirst(c) + ' ' + grIntent(li.body) + ' \u00B7 ' + grAgo(grDaysAgo(li.sent_at))
-                          : 'Waiting on you') +
-        '<button class="btn-red gr_sm gr_tkb" data-gr-act="' + c.id + '" data-t="reply">Reply</button></div>';
-    };
-    const mRow = (m) => {
-      const c = grClients.find(x => x.id === m.client_id);
-      const done = grMeetDone(m), live = grLive(m);
-      return '<div class="gr_tk' + (done ? ' gr_tkdone' : '') + '"' +
-        (c ? ' data-gr-open="' + c.id + '"' : '') + '>' +
-        grAvatar(c ? c.name : m.title, c ? grStageColor(c.stage) : '#626262', 'gr_sm2') +
-        '<div class="gr_tkm"><b>' + esc(c ? c.name : m.title) + '</b>' +
-        '<span>' + esc(done ? 'Done' : live ? 'Happening now' : grHm(m.starts_at)) +
-          ' \u00B7 ' + (m.minutes || 45) + ' min</span></div>' +
-        (!done && m.zoom_url
-          ? '<a class="btn-red gr_sm gr_tkb" href="' + esc(m.zoom_url) + '" target="_blank" ' +
-            'rel="noopener" data-gr-stop>Join</a>'
-          : '') + '</div>';
-    };
-    const tRow = (c) => {
-      const na = grNextAction(c);
-      return person(c, na.label) +
-        '<button class="gr_ghost gr_sm gr_tkb" data-gr-act="' + c.id + '" data-t="' + na.t + '">' +
-        esc(na.label) + '</button></div>';
-    };
-    const sec = (title, n, rows, empty) =>
-      '<div class="gr_tds"><div class="gr_tdt"><h3>' + title + '</h3>' +
-        (n ? '<span class="gr_n' + (title === 'Reply to' ? ' hot' : '') + '">' + n + '</span>' : '') +
-      '</div>' + (rows || '<p class="gr_mute">' + empty + '</p>') + '</div>';
-
-    host.innerHTML =
-      '<div class="gr_tdscrim" data-gr-today-close></div>' +
-      '<aside class="gr_tdd" role="dialog" aria-label="Today">' +
-        '<div class="gr_tdh"><div><b>' + hello + '</b>' +
-          '<span>' + esc(new Date().toLocaleDateString(undefined,
-            { weekday: 'long', month: 'long', day: 'numeric', timeZone: grZone })) + '</span></div>' +
-          '<button class="gr_x" data-gr-today-close aria-label="Close">&#10005;</button></div>' +
-        sec('Reply to', replies.length, replies.map(rRow).join(''), 'Nobody is waiting on you.') +
-        sec('Meetings today', meets.filter(m => !grMeetDone(m)).length, meets.map(mRow).join(''),
-            'Your calendar is clear.') +
-        sec('To do', todo.length, todo.map(tRow).join(''), 'Nothing else needs you right now.') +
-      '</aside>';
-    host.classList.add('on');
   }
 
   /* Work owed on ONE deal. growth_tasks is a person's own list -- the training plan --
@@ -99140,8 +99087,88 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<button class="gr_ghost" data-gr-todo="add" data-cid="' + c.id + '">Add</button></div></div>';
   }
 
+  /* THE CALL, AS IT WAS BOOKED. Calendly asks ten questions on the booking form -- budget,
+     how ready they are, when they want to start, revenue -- and until the invitee was
+     stored, none of it was here: whoever took the call had a name and a time and opened
+     Calendly in another tab to find out who they were about to speak to.
+
+     A row with no answers says so. Blank space would read as "they answered nothing",
+     which is a different and wrong thing: a call added by hand, or pulled from Zoom, was
+     never asked. */
+  function grMeetPanel(m) {
+    const c = m.client_id && grClients.find(x => x.id === m.client_id);
+    const iv = m.invitee || null;
+    const col = c ? grStageColor(c.stage) : '#2563EB';
+    const who = (iv && iv.name) || (c && c.name) || m.title;
+    const done = grDone(m), live = grLive(m);
+
+    const field = (label, value, href) => !value ? '' :
+      '<span>' + esc(label) + ' ' + (href
+        ? '<a class="gr_lnk" href="' + esc(href) + '" data-gr-stop>' + esc(value) + '</a>'
+        : '<b>' + esc(value) + '</b>') + '</span>';
+
+    const whoBlock = '<div class="gr_mdwho">' +
+      field('Email', iv && iv.email || (c && c.email) || '', iv && iv.email ? 'mailto:' + (iv.email) : '') +
+      field('Phone', iv && iv.phone || '', iv && iv.phone ? 'tel:' + iv.phone : '') +
+      field('Their time', iv && iv.timezone || '') +
+      '</div>';
+
+    const qa = (iv && Array.isArray(iv.qa) ? iv.qa : []);
+    const qaBlock = qa.length
+      ? qa.map(x => '<div class="gr_mdq"><b>' + esc(x.q) + '</b><p>' + esc(x.a) + '</p></div>').join('')
+      : '<p class="gr_mute">' + (m.source === 'Calendly'
+          ? 'This booking was synced before Giant started keeping the answers. The next sync will fill them in.'
+          : 'No booking form \u2014 this call did not come from Calendly, so there was nothing to ask.') +
+        '</p>';
+
+    /* Booked and starts, in that order, because the gap between them is the thing worth
+       seeing: somebody who booked this morning for tomorrow is warmer than somebody who
+       booked three weeks ago. */
+    const when = '<div class="gr_tl">' +
+      (iv && iv.booked_at
+        ? '<div><i></i><time>' + esc(grFmt(iv.booked_at)) + '</time><span>Booked</span></div>' : '') +
+      '<div><i></i><time>' + esc(grFmt(m.starts_at)) + '</time><span>' +
+        (done ? 'Call happened' : live ? 'Happening now' : 'Call starts') +
+        ' \u00B7 ' + (m.minutes || 45) + ' min</span></div>' +
+      '</div>';
+
+    const sect = (title, inner) => '<section class="gr_card"><div class="gr_ct"><h2>' +
+      esc(title) + '</h2></div>' + inner + '</section>';
+
+    return '<div class="gr_sheet" data-gr-mid="' + esc(m.id) + '">' +
+      '<div class="gr_sh">' + grAvatar(who, col, 'gr_lg') +
+        '<div class="gr_si"><h2>' + esc(who) + '</h2><div class="gr_ss">' +
+          '<span class="gr_pill" style="background:' + grTint(col, .18) + ';color:' + col + '">' +
+            esc(done ? 'Done' : live ? 'Live now' : grRelIn(m.starts_at)) + '</span>' +
+          (m.source ? '<span>' + esc(m.source) + '</span>' : '') + '</div></div>' +
+        '<button class="gr_x" data-gr-close aria-label="Close">&#10005;</button></div>' +
+
+      '<div class="gr_acts">' +
+        (!done && m.zoom_url
+          ? '<a class="btn-red" href="' + esc(m.zoom_url) + '" target="_blank" rel="noopener" data-gr-stop>Join</a>'
+          : '') +
+        (c ? '<button class="gr_ghost" data-gr-open="' + esc(c.id) + '">Open the deal</button>'
+           /* Unattached is a real state: a call from somebody nobody is tracking. Saying
+              so beats a panel that quietly has no way through to a person. */
+           : '<span class="gr_mute">Not attached to a deal yet.</span>') +
+      '</div>' +
+
+      sect('Who', whoBlock) +
+      sect('What they told the booking form', qaBlock) +
+      sect('When', when) +
+      '</div>';
+  }
+
   function grRenderSheet() {
     const wrap = $('grSheet');
+    /* The meeting panel wins when one is open. Both live in the same host, so opening a
+       deal from inside a call replaces the panel rather than stacking a second one over
+       it -- two sheets deep with one Escape key is how people get stuck. */
+    if (grMeetId) {
+      const m = grMeetings.find(x => x.id === grMeetId);
+      if (m) { if (wrap) { wrap.innerHTML = grMeetPanel(m); wrap.classList.add('on'); } return; }
+      grMeetId = null;        // it was deleted or synced away underneath us
+    }
     const c = grOpenId && grClients.find(x => x.id === grOpenId);
     if (!c) { if (wrap) { wrap.classList.remove('on'); wrap.innerHTML = ''; } return; }
     const col = grStageColor(c.stage), na = grNextAction(c), th = grThread(c);
@@ -99834,6 +99861,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     };
     const r = S[t] || S.followup;
     grComposer = { id: c.id, t: t, subject: r[0], body: r[1] };
+    /* The composer is drawn inside the deal sheet, and the call panel shares that host
+       and wins when it is open -- so writing an email while a call was open would have
+       rendered the call again and the composer nowhere. */
+    grMeetId = null;
     grOpenId = c.id; grRender();
   }
 
@@ -100021,8 +100052,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       else if (grScreen === 'gr_automations' && grIsStaff()) grRenderAutomations();
       else if (grScreen === 'gr_settings' && grIsStaff()) grRenderSettings();
       grRenderSheet();
-      grRenderToday();
-      grPaintTodayBtn();
       grBadges();
     } catch (e) { /* one broken screen must not take the app with it */ }
   }
@@ -100139,8 +100168,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       return;
     }
 
-    if (e.target.closest('[data-gr-today-open]')) { grTodayOpen = true; grRender(); return; }
-    if (e.target.closest('[data-gr-today-close]')) { grTodayOpen = false; grRender(); return; }
 
 
     const won = e.target.closest('[data-gr-won]');
@@ -100868,8 +100895,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (act) {
       e.stopPropagation();
       const c = grClients.find(x => x.id === act.dataset.grAct);
-      // The composer opens over everything, so the drawer behind it is only in the way.
-      grTodayOpen = false;
       if (c) grStartComposer(c, act.dataset.t);
       return;
     }
@@ -100903,14 +100928,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
     const tab = e.target.closest('[data-gr-tab]');
     if (tab) { grTab = tab.dataset.grTab; grRender(); return; }
-    if (e.target.closest('[data-gr-close]')) { grOpenId = null; grComposer = null; grLost = null; grRender(); return; }
+    if (e.target.closest('[data-gr-close]')) { grOpenId = null; grMeetId = null; grComposer = null; grLost = null; grRender(); return; }
+
+    /* Checked before data-gr-open, because the panel's own "Open the deal" button is a
+       data-gr-open and has to win over the row it is drawn inside. */
+    const meet = e.target.closest('[data-gr-meet]');
+    if (meet && !e.target.closest('[data-gr-open]')) {
+      grMeetId = meet.dataset.grMeet; grRender(); return;
+    }
 
     const open = e.target.closest('[data-gr-open]');
     if (open) {
+      // Leaving the call panel up behind the deal would stack two sheets on one Escape.
+      grMeetId = null;
       grOpenId = open.dataset.grOpen; grTab = 'overview'; grComposer = null;
-      // Opening somebody from the drawer means you are done with the list, and leaving
-      // it up would put the sheet behind it.
-      grTodayOpen = false;
       grRender();
       return;
     }
@@ -101198,8 +101229,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (grWon) { grWon = null; grRender(); return; }
     if (grTplPv) { grTplPv = null; grRender(); return; }
     if (grComposer) { grComposer = null; grRender(); return; }
-    if (grOpenId) { grOpenId = null; grRender(); return; }
-    if (grTodayOpen) { grTodayOpen = false; grRender(); }
+    // The call panel sits in the same host as the deal sheet, so it closes at the same
+    // depth -- whichever of the two is up.
+    if (grMeetId) { grMeetId = null; grRender(); return; }
+    if (grOpenId) { grOpenId = null; grRender(); }
   });
 
   /* Throw everything in memory away and read it again. Used after a sync, so Meetings
@@ -101214,29 +101247,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const d = document.createElement('div');
       d.id = 'grSheet'; d.className = 'gr_sheetwrap';
       document.body.appendChild(d);
-    }
-    // One host for the Today drawer, made once and reused, the same as the sheet. It
-    // lives on <body> rather than inside a screen so leaving the screen cannot take the
-    // drawer down mid-read.
-    /* Both of these hang off <body> so leaving a screen cannot take them down mid-read,
-       which also puts them OUTSIDE the gated containers -- they carry the floor
-       themselves or a member would be left with a Growth button floating over an app
-       that has no Growth in it. */
-    if (!$('grToday')) {
-      const t = document.createElement('div');
-      t.id = 'grToday'; t.className = 'gr_tdw';
-      t.setAttribute('data-role-min', 'manager');
-      t.setAttribute('data-client-hidden', '');
-      document.body.appendChild(t);
-    }
-    if (!$('grTodayBtn')) {
-      const b2 = document.createElement('button');
-      b2.id = 'grTodayBtn'; b2.className = 'gr_tdbtn';
-      b2.setAttribute('data-gr-today-open', '');
-      b2.setAttribute('data-role-min', 'manager');
-      b2.setAttribute('data-client-hidden', '');
-      b2.setAttribute('aria-label', "Today's work");
-      document.body.appendChild(b2);
     }
     grWatchScreens();
     grCheckGmail();

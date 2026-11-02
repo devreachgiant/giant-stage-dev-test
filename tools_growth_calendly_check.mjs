@@ -65,7 +65,7 @@ function plan(bookings, deals, profiles) {
     ['/invitees', (u) => {
       const b = bookings.find(b => u.startsWith(b[0].uri));
       return { body: { collection: b && b[2] !== null
-        ? [{ name: b[1], email: b[2] }] : [] } };
+        ? [Object.assign({ name: b[1], email: b[2] }, b[3] || {})] : [] } };
     }],
     ['/scheduled_events', { body: { collection: bookings.map(b => b[0]), pagination: {} } }],
     ['growth_clients', (u, o) => o.method === 'POST'
@@ -177,6 +177,82 @@ fresh = madeDeals(calls);
 check('on the very first sync it falls back to the owner, preferring them over a manager',
   res.dealsCreated === 1 && fresh[0] && fresh[0].owner_id === 'p-own',
   JSON.stringify(fresh[0] && fresh[0].owner_id));
+
+/* ------------------------------------------- what they told the booking form
+
+   Ten questions are asked at booking -- budget, readiness, revenue -- and every answer
+   used to be dropped: the invitee was read only to find an email to match a deal by. The
+   panel can only show what the sync stored, and nothing on any screen can tell you the
+   sync stored it wrongly, so it is measured here. */
+
+const RICH = {
+  text_reminder_number: '+447922116098',
+  timezone: 'Europe/Berlin',
+  created_at: '2026-10-28T18:02:38.688540Z',
+  // Deliberately out of order, to prove `position` is what orders them and not the array.
+  questions_and_answers: [
+    { position: 2, question: 'What is your monthly budget?', answer: '$1,500 - $10,000' },
+    { position: 0, question: 'Tell us about your company', answer: 'Soul Sanctuary' },
+    { position: 1, question: 'Which strategies?', answer: 'Google Ads\nSEO' },
+    { position: 3, question: 'Skipped on the form', answer: '' }
+  ],
+  // None of this should be kept: it is noise that would age badly in a row kept forever.
+  payment: { amount: 100 },
+  tracking: { utm_source: 'fiverr' },
+  routing_form_submission: 'https://api.calendly.com/routing_form_submissions/x'
+};
+
+calls = stubFetch(plan(
+  [[ev('https://cal/e1', 'Strategy', '2026-11-02T17:00:00Z'), 'Umra Hayat', 'umra@outlook.com', RICH]],
+  HAVE));
+res = await runSync('tok');
+let row = wroteMeetings(calls)[0];
+let iv = row && row.invitee;
+
+check('the booking form answers are stored with the call',
+  !!iv && Array.isArray(iv.qa) && iv.qa.length === 3,
+  JSON.stringify(iv && iv.qa && iv.qa.length));
+check('in the order Calendly asked them, not the order it returned them',
+  !!iv && iv.qa.map(x => x.q).join(' | ') ===
+    'Tell us about your company | Which strategies? | What is your monthly budget?',
+  JSON.stringify(iv && iv.qa.map(x => x.q)));
+/* A question the person skipped is not an answer. Keeping it would put an empty line
+   under a heading on the panel, which reads as "they said nothing" rather than "we did
+   not get one". */
+check('a question left blank is dropped rather than shown empty',
+  !!iv && !iv.qa.some(x => x.q === 'Skipped on the form'),
+  JSON.stringify(iv && iv.qa.map(x => x.a)));
+check('a multi-select answer keeps its line breaks, so three choices stay three',
+  !!iv && iv.qa[1].a === 'Google Ads\nSEO', JSON.stringify(iv && iv.qa[1].a));
+check('the phone and the timezone come too',
+  !!iv && iv.phone === '+447922116098' && iv.timezone === 'Europe/Berlin',
+  JSON.stringify(iv && { p: iv.phone, t: iv.timezone }));
+check('and when they booked, which is how far ahead they planned',
+  !!iv && iv.booked_at === '2026-10-28T18:02:38.688540Z', iv && iv.booked_at);
+/* Storing the whole invitee would be easier and wrong: payment, routing form submissions
+   and utm parameters are nobody's business here and would sit in the row forever. */
+check('payment, tracking and routing data are NOT kept',
+  !!iv && !('payment' in iv) && !('tracking' in iv) && !('routing_form_submission' in iv),
+  JSON.stringify(iv && Object.keys(iv)));
+
+/* PostgREST refuses a batch whose objects do not all carry the same keys, so a run mixing
+   a readable invitee with an unreadable one would fail outright on the write. */
+calls = stubFetch(stubPlanMixed());
+res = await runSync('tok');
+const rowsOut = wroteMeetings(calls);
+check('every row carries the invitee key, even when there was nothing to read',
+  rowsOut.length === 2 && rowsOut.every(r => 'invitee' in r),
+  JSON.stringify(rowsOut.map(r => 'invitee' in r)));
+check('and the one that could not be read is null, not half an object',
+  rowsOut.some(r => r.invitee === null) && rowsOut.some(r => r.invitee && r.invitee.qa),
+  JSON.stringify(rowsOut.map(r => r.invitee === null ? 'null' : 'object')));
+
+function stubPlanMixed() {
+  return plan([
+    [ev('https://cal/e1', 'Strategy', '2026-11-02T17:00:00Z'), 'Umra', 'umra@outlook.com', RICH],
+    [ev('https://cal/e2', 'Strategy', '2026-11-03T17:00:00Z'), 'Nobody', null]
+  ], HAVE);
+}
 
 globalThis.fetch = realFetch;
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));

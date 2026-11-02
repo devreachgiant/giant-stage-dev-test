@@ -510,14 +510,42 @@
     team_notes: [], activity_log: [], giant_handoff: null,
     created_at: giso(20 - i, 0), updated_at: giso(i, 0)
   }));
+  /* THREE SHAPES, because the panel has to tell them apart: a booking with answers, a
+     Calendly booking synced before the answers were kept, and a call that never had a
+     booking form at all. A fixture where every row carried answers would pass just as
+     well on a panel that showed them unconditionally. The multi-line answer is real:
+     Calendly returns a multi-select as one string with newlines in it. */
   DB.growth_meetings = [
     { id: 'gm-1', client_id: 'gc-5', title: 'ReachGiant Growth Strategy Session',
       starts_at: new Date(Date.now() + 3 * 3600e3).toISOString(), minutes: 45, actual_min: null,
       zoom_url: 'https://us06web.zoom.us/j/000', source: 'Calendly', brief: '', brief_at: null,
-      external_id: 'ext-1', created_at: giso(3, 0) },
+      external_id: 'ext-1', created_at: giso(3, 0),
+      invitee: { name: 'Umra Hayat', email: 'umra-hayat@outlook.com',
+        phone: '+447922116098', timezone: 'Europe/Berlin', booked_at: giso(5, 0),
+        qa: [
+          { q: 'Please provide a brief overview of your company in a few sentences, so we can be prepared for our call.',
+            a: 'Soul Sanctuary is an established UK-based mental health consultancy.' },
+          /* SHORT on purpose. The real answer here is three long phrases, which wrap to
+             three lines in the panel whether or not the newlines are honoured -- so a
+             height measurement against it cannot tell a rendered line break from a
+             wrap, and passes with white-space:pre-line taken out. Short enough to fit
+             on one line, the only thing that can make it three is the breaks. */
+          { q: 'Which of these marketing strategies are you interested in discussing further?',
+            a: 'Google Ads\nSEO\nMeta Ads' },
+          { q: 'What\u2019s your monthly marketing budget range? Our minimum budget requirement is $1,500 per month.',
+            a: '$1,500 \u2013 $10,000' },
+          { q: 'To help us understand your business and where you\u2019re at, what is your current annual revenue?',
+            a: 'Under 100k' }
+        ] } },
+    // Synced before Giant kept the answers: Calendly, but nothing to show.
     { id: 'gm-2', client_id: 'gc-1', title: 'ReachGiant Growth Strategy Session',
       starts_at: giso(5, 0), minutes: 45, actual_min: 41, zoom_url: '', source: 'Calendly',
-      brief: '', brief_at: null, external_id: 'ext-2', created_at: giso(8, 0) }
+      brief: '', brief_at: null, external_id: 'ext-2', created_at: giso(8, 0), invitee: null },
+    // Pulled from Zoom, attached to nobody: there was never a booking form to answer.
+    { id: 'gm-3', client_id: null, title: 'Mango Vans Rebrand',
+      starts_at: new Date(Date.now() + 26 * 3600e3).toISOString(), minutes: 30, actual_min: null,
+      zoom_url: 'https://us06web.zoom.us/j/555', source: 'Zoom', brief: '', brief_at: null,
+      external_id: 'zoom:555', created_at: giso(1, 0), invitee: null }
   ];
   // gc-2's last message is INBOUND and unhandled, so exactly one deal needs a reply.
   DB.growth_messages = [

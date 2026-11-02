@@ -98,6 +98,33 @@ async function storedToken() {
   } catch (e) { return null; }      // table missing on an old deploy is not an outage
 }
 
+/* WHAT THE PERSON TOLD THE BOOKING FORM. Ten questions -- budget, how ready they are,
+   when they want to start, revenue, where they heard of us -- and every answer used to be
+   dropped on the floor: the invitee was read only to find an email to match a deal by.
+   Whoever took the call had a name and a time and had to open Calendly in another tab.
+
+   Kept in Calendly's own order (position), and only the fields the panel shows. The raw
+   invitee also carries payment, routing form submissions and utm tracking; none of it is
+   read here, and storing it would age badly in a row we keep forever.
+
+   A sync that cannot read the invitee writes null, exactly as it already leaves the email
+   blank -- it does not try to preserve what was there. The next run restores it, and the
+   job runs every half hour, so a transient Calendly hiccup heals itself. */
+function inviteeRecord(inv) {
+  const qa = (inv.questions_and_answers || []).slice()
+    .sort((a, b) => (a.position || 0) - (b.position || 0))
+    .map(x => ({ q: String(x.question || '').trim(), a: String(x.answer || '').trim() }))
+    .filter(x => x.q && x.a);
+  return {
+    name: inv.name || '',
+    email: String(inv.email || '').toLowerCase(),
+    phone: inv.text_reminder_number || '',
+    timezone: inv.timezone || '',
+    booked_at: inv.created_at || '',
+    qa: qa
+  };
+}
+
 /* WHO A NEW DEAL BELONGS TO. Calendly cannot say. Every booking here is hosted by the
    shared growth@ address -- event_memberships names that mailbox on every single event,
    never a person -- so there is nothing in the booking that identifies a rep. It goes to
@@ -162,11 +189,15 @@ async function runSync(token) {
   const needDeal = new Map();       // invitee email -> { name, at: [row indexes] }
   for (const ev of events) {
     if (ev.status === 'canceled') continue;
-    let inviteeEmail = '', inviteeName = '';
+    let inviteeEmail = '', inviteeName = '', invitee = null;
     try {
       const inv = await cal(ev.uri + '/invitees?count=1', token);
       const first = (inv.collection || [])[0];
-      if (first) { inviteeEmail = String(first.email || '').toLowerCase(); inviteeName = first.name || ''; }
+      if (first) {
+        inviteeEmail = String(first.email || '').toLowerCase();
+        inviteeName = first.name || '';
+        invitee = inviteeRecord(first);
+      }
     } catch (e) { /* a booking with no readable invitee is still a booking */ }
 
     const deal = inviteeEmail ? byEmail.get(inviteeEmail) : null;
@@ -183,7 +214,10 @@ async function runSync(token) {
       starts_at: ev.start_time,
       minutes: mins,
       zoom_url: /^https?:\/\//.test(joinUrl) ? joinUrl : '',
-      source: 'Calendly'
+      source: 'Calendly',
+      // Present on every row even when null: PostgREST refuses a batch whose objects do
+      // not all carry the same keys.
+      invitee: invitee
     });
     if (!deal && inviteeName) rows[rows.length - 1].title = ev.name + ' — ' + inviteeName;
 
