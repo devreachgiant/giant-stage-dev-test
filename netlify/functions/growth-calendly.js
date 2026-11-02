@@ -98,6 +98,32 @@ async function storedToken() {
   } catch (e) { return null; }      // table missing on an old deploy is not an outage
 }
 
+/* WHO A NEW DEAL BELONGS TO. Calendly cannot say. Every booking here is hosted by the
+   shared growth@ address -- event_memberships names that mailbox on every single event,
+   never a person -- so there is nothing in the booking that identifies a rep. It goes to
+   whoever runs Growth, read as the profile already holding the most deals. That is a fact
+   about the data rather than an id written in here, and it follows Growth if it changes
+   hands. */
+function busiestOwner(deals) {
+  const tally = new Map();
+  (deals || []).forEach(d => {
+    if (d.owner_id) tally.set(d.owner_id, (tally.get(d.owner_id) || 0) + 1);
+  });
+  let best = null, most = 0;
+  for (const [id, n] of tally) if (n > most) { most = n; best = id; }
+  return best;
+}
+
+// Only reached on a pipeline with no deals in it at all, which is the first sync ever.
+async function fallbackOwner() {
+  try {
+    const rows = await sb('profiles?role=in.(owner,manager,inhouse_dev)&select=id,role&limit=20');
+    const byRole = (r) => (rows || []).find(p => p.role === r);
+    const pick = byRole('owner') || byRole('manager') || byRole('inhouse_dev');
+    return pick ? pick.id : null;
+  } catch (e) { return null; }
+}
+
 /* The sync itself, with no HTTP around it. Two things call this: the Sync now button,
    and growth-sync.mjs on its half-hourly timer. One implementation, because two would
    drift and the one that drifted would be the one running at 3am unattended. */
@@ -105,6 +131,10 @@ async function runSync(token) {
   const me = await cal('/users/me', token);
   const userUri = me.resource.uri;
   const orgUri = me.resource.current_organization;
+  /* Our own domain, taken from the Calendly account instead of written in. Somebody here
+     booking the link to see what it looks like is a test, not a lead, and a deal named
+     "ReachGiant Test" sitting in the pipeline is worse than no deal at all. */
+  const ourDomain = String(me.resource.email || '').split('@')[1] || '';
 
   // Everything from a week ago forward: far enough back that this morning's call is
   // still picked up, not so far that a first sync pulls years of history.
@@ -129,6 +159,7 @@ async function runSync(token) {
   (deals || []).forEach(d => { if (d.email) byEmail.set(String(d.email).toLowerCase(), d); });
 
   const rows = [];
+  const needDeal = new Map();       // invitee email -> { name, at: [row indexes] }
   for (const ev of events) {
     if (ev.status === 'canceled') continue;
     let inviteeEmail = '', inviteeName = '';
@@ -139,6 +170,7 @@ async function runSync(token) {
     } catch (e) { /* a booking with no readable invitee is still a booking */ }
 
     const deal = inviteeEmail ? byEmail.get(inviteeEmail) : null;
+    const ours = ourDomain && inviteeEmail.endsWith('@' + ourDomain);
     const loc = ev.location || {};
     const joinUrl = loc.join_url || loc.location || '';
     const mins = Math.max(5, Math.round(
@@ -154,9 +186,48 @@ async function runSync(token) {
       source: 'Calendly'
     });
     if (!deal && inviteeName) rows[rows.length - 1].title = ev.name + ' — ' + inviteeName;
+
+    /* A booking nobody is tracking. One entry per EMAIL, not per booking: three bookings
+       from the same person are three calls with one lead, and three deals for them would
+       be the pipeline counting one person three times. */
+    if (!deal && inviteeEmail && !ours) {
+      if (!needDeal.has(inviteeEmail)) needDeal.set(inviteeEmail, { name: inviteeName, at: [] });
+      needDeal.get(inviteeEmail).at.push(rows.length - 1);
+    }
   }
 
-  if (!rows.length) return { added: 0, updated: 0, total: 0, note: 'No bookings in range.' };
+  if (!rows.length) return { added: 0, updated: 0, total: 0, dealsCreated: 0, note: 'No bookings in range.' };
+
+  /* CREATE THE MISSING DEALS. Until now a booking that matched nothing was kept with a
+     null client_id and nothing ever made one, so every booking since the pipeline was
+     last tidied by hand sat outside it -- twelve of twenty-one rows on the day this was
+     written. Somebody booked a call and never appeared in the pipeline at all.
+
+     THIS DOES NOT FIX THE GROWTH INBOX, whatever it looks like. That screen walks the
+     deal list, so a missing deal did hide these people from it -- but the half that
+     matters is still absent: nothing anywhere writes an inbound row into growth_messages
+     (see the note above grRenderInbox). A reply still has nothing to land in. What this
+     buys the Inbox is only that these people can now appear under Waiting on them once
+     they are emailed, because that half reads last_email_on off the deal. */
+  let dealsCreated = 0;
+  if (needDeal.size) {
+    const owner = busiestOwner(deals) || await fallbackOwner();
+    if (owner) {
+      const fresh = [...needDeal.entries()].map(([email, v]) => ({
+        owner_id: owner,
+        name: v.name || email.split('@')[0],
+        email: email,
+        stage: 'booked',          // the first stage: they have booked and not yet been met
+        source: 'Calendly'
+      }));
+      const made = await sb('growth_clients', 'POST', fresh);
+      (made || []).forEach(d => {
+        const v = needDeal.get(String(d.email || '').toLowerCase());
+        if (v) v.at.forEach(i => { rows[i].client_id = d.id; });
+      });
+      dealsCreated = (made || []).length;
+    }
+  }
 
   const before = await sb('growth_meetings?select=external_id&source=eq.Calendly');
   const seen = new Set((before || []).map(r => r.external_id));
@@ -166,10 +237,12 @@ async function runSync(token) {
   return {
     added, updated: rows.length - added, total: (written || rows).length,
     matched: rows.filter(r => r.client_id).length,
+    dealsCreated: dealsCreated,
     withZoom: rows.filter(r => r.zoom_url).length
   };
 }
 exports.runSync = runSync;
+exports.busiestOwner = busiestOwner;
 
 const STAFF = ['owner', 'manager', 'inhouse_dev'];
 const isStaff = (p) => !!p && STAFF.includes(String(p.role));

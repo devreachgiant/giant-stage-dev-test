@@ -77,9 +77,10 @@ assert s.count(old) == 1, s.count(old)
 python3 tools_newchat_parse.py          # syntax of all 14 script blocks     ~1s
 python3 tools_newchat_audit.py          # cross-screen id leaks             ~7s
 python3 tools_newchat_isolation.py      # old chat vs New Chat separation   <1s
-node tools_newchat_clickthrough.mjs     # ~355 checks, drives a real browser ~3m
-node tools_growth_check.mjs             # ~250 checks, Growth only          ~2m
-node tools_growth_zoom_check.mjs        # 18 checks, the Zoom connector     ~1s
+node tools_newchat_clickthrough.mjs     # ~360 checks, drives a real browser ~6m
+node tools_growth_check.mjs             # ~297 checks, Growth only          ~2m
+node tools_growth_zoom_check.mjs        # 35 checks, the Zoom connector     ~1s
+node tools_growth_calendly_check.mjs    # 16 checks, the Calendly sync      ~1s
 ```
 
 **The first three are eight seconds together. Never skip them.**
@@ -89,6 +90,16 @@ drives `netlify/functions/growth-zoom.js` directly, so it covers the two things 
 browser suite cannot see — that the stored credential beats the Netlify environment,
 and that only an owner/manager/inhouse_dev can write one. Run it whenever you touch
 that function or `bookings-api.js`.
+
+`tools_growth_calendly_check.mjs` is the same shape for `growth-calendly.js`, and covers
+what no screen can show: a booking from somebody nobody tracks now **opens a deal**, one
+per email rather than one per booking (the same person books more than once), skipping
+our own domain. Run it whenever you touch that function.
+
+**Put a new `await step(...)` in the clickthrough ABOVE `const fails = ...`.** Everything
+below that line runs after the results have been printed and after the pass/fail tally is
+taken, so a check added there cannot print and cannot fail the suite. One was added below
+it and sat there measuring nothing.
 
 **The clickthrough is the expensive one, and it is the only check that would notice you
 breaking a screen you were not working on.** Run it:

@@ -1,4 +1,4 @@
-/* Click-through test for GROWTH.  Run:  node tools_growth_clickthrough.mjs
+/* Growth with an EMPTY database.  Run:  node tools_growth_empty_check.mjs
    (needs playwright — a global install is found automatically.)
 
    `node --check` and tools_newchat_audit.py both pass on a build whose screen is

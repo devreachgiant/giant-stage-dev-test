@@ -554,6 +554,23 @@
   // Deliberately empty: a rep's plan is seeded from the template the first time they open
   // Training, and that is the path worth exercising.
   DB.growth_tasks = [];
+  /* Both shapes, because production holds both: 24 releases written through the New
+     entry form as { type, text }, and 15 written straight into the row as plain strings.
+     Only the second kind was broken, so a fixture with objects alone would have passed
+     against the bug the whole time. */
+  DB.changelog_entries = [
+    { id: 'cl-1', version: '0.0.39', released_at: '2026-10-29', created_by: 'u-me',
+      items: ['Connectors stopped telling somebody plainly signed in to sign in first.',
+              'Zoom keys no longer clear themselves when you press Save.'] },
+    { id: 'cl-2', version: '0.0.9', released_at: '2026-10-01', created_by: 'u-me',
+      items: [{ type: 'fix', text: 'Task delete reported success when the database had refused it.' },
+              { type: 'feature', text: 'Pods board shows capacity per person.' },
+              { type: 'improvement', text: 'Board columns remember their width.' }] },
+    /* A type nothing knows, which used to be printed raw beside the line. */
+    { id: 'cl-3', version: '0.0.8', released_at: '2026-09-30', created_by: 'u-me',
+      items: [{ type: 'wibble', text: 'An item whose type is not one of the three.' }] }
+  ];
+
   DB.growth_watch_calls = [
     { id: 'gw-1', title: 'Amy Neighbors', call_date: giso(40,0).slice(0,10), url: 'https://fathom.video/share/example',
       tags: ['Google Ads','SEO'], outcome: 'Said yes',

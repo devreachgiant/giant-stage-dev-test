@@ -9626,6 +9626,61 @@ const evidence = await page.evaluate(() => ({
   unsupported: window.__mock.log.unsupported, storage: window.__mock.log.storage.length
 }));
 
+await step('Changelog renders what each release says', async () => {
+  /* REPORTED: every line of the last fifteen releases read UNDEFINED. An item is either
+     { type, text } from the New entry form or a plain string written straight into the
+     row; the renderer only knew the first. On a string, `it.type` was undefined -- which
+     the badge printed through `|| it.type` -- and `it.text` was undefined, which cEsc
+     turned into nothing. So the badge said the one word on the line.
+
+     This asserts the TEXT, not the row count: six rows each saying UNDEFINED is still
+     six rows, and a check that counted them would have passed the whole time. */
+  await page.evaluate(() => document
+    .querySelector('#appSidebar .nav-item[data-screen="changelog"]')?.click());
+  await page.waitForTimeout(1500);
+
+  const r = await page.evaluate(() => {
+    const list = document.getElementById('changelogList');
+    if (!list) return { missing: true };
+    const entry = (v) => [...list.querySelectorAll('.changelog-entry')]
+      .find(e => (e.querySelector('.changelog-version') || {}).textContent === 'v' + v);
+    const lines = (v) => {
+      const e = entry(v);
+      return e ? [...e.querySelectorAll('.changelog-item-row')].map(row => ({
+        text: (row.querySelector('span:last-child') || {}).textContent || '',
+        badge: (row.querySelector('.changelog-item-badge') || {}).textContent || ''
+      })) : null;
+    };
+    return {
+      all: list.textContent,
+      strings: lines('0.0.39'),   // plain strings -- the broken kind
+      objects: lines('0.0.9'),    // { type, text } -- always worked
+      unknown: lines('0.0.8')     // an object whose type nothing knows
+    };
+  });
+
+  check('no release line says UNDEFINED',
+    !r.missing && !/undefined/i.test(r.all || ''),
+    (r.all || '').slice(0, 90));
+  /* The entry written as plain strings is the one that was blank. Assert it carries the
+     actual words, not merely that a row exists. */
+  check('a release written as plain strings shows its words',
+    !!r.strings && r.strings.length === 2 &&
+    r.strings.every(l => l.text.length > 20), JSON.stringify(r.strings));
+  check('and carries no badge, rather than a guessed one',
+    !!r.strings && r.strings.every(l => l.badge === ''),
+    JSON.stringify(r.strings && r.strings.map(l => l.badge)));
+  /* The shape that always worked must keep working -- the fix touches both paths. */
+  check('a release written through the form still shows its badges',
+    !!r.objects && r.objects.length === 3 &&
+    r.objects.map(l => l.badge).join(',') === 'Fix,Feature,Improvement' &&
+    r.objects.every(l => l.text.length > 20), JSON.stringify(r.objects));
+  check('and an unknown type prints no badge instead of printing itself',
+    !!r.unknown && r.unknown.length === 1 && r.unknown[0].badge === '' &&
+    r.unknown[0].text.length > 20, JSON.stringify(r.unknown));
+});
+
+
 const shot = path.join(process.env.TMPDIR || '/tmp', 'newchat-clickthrough.png');
 await page.screenshot({ path: shot, fullPage: false });
 clearInterval(confirmWatcher);

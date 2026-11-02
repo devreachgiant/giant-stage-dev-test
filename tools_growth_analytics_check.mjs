@@ -399,52 +399,11 @@ await step('Analytics is one view, with no Fathom tab left behind', async () => 
   check('the sales numbers are still drawn', m.stillHasNumbers > 0, String(m.stillHasNumbers));
 });
 
-await step('the search actually filters, and the caret stays put', async () => {
-  const before = await page.locator('#grAnalytics .gr_fc').count();
-  const who = await page.evaluate(() => {
-    const r = document.querySelector('#grAnalytics .gr_fc .gr_cll');
-    return r ? r.textContent.trim() : '';
-  });
-  await page.locator('#grFcQ').click();
-  await page.keyboard.type(who.slice(0, 5));
-  await page.waitForTimeout(600);
-  const after = await page.evaluate(() => ({
-    rows: document.querySelectorAll('#grAnalytics .gr_fc').length,
-    value: (document.getElementById('grFcQ') || {}).value,
-    caret: (document.getElementById('grFcQ') || {}).selectionStart,
-    focused: document.activeElement && document.activeElement.id,
-    // Every row left should be that person's.
-    allTheirs: [...document.querySelectorAll('#grAnalytics .gr_fc')]
-      .every(r => (r.textContent || '').toLowerCase().includes(document.getElementById('grFcQ').value.toLowerCase()))
-  }));
-  // Typing five letters into a box that re-renders every keystroke: without putting the
-  // caret back, the letters land in reverse and the value comes out scrambled.
-  check('the five letters typed arrive in the order they were typed',
-    after.value === who.slice(0, 5), after.value + ' vs ' + who.slice(0, 5));
-  check('the caret is still at the end', after.caret === 5, after.caret + '');
-  check('and the box still has focus', after.focused === 'grFcQ', after.focused);
-  check('the list is shorter than it was', after.rows < before, after.rows + ' of ' + before);
-  check('and every row left matches what was typed', after.allTheirs);
-  await page.locator('#grFcQ').fill('');
-  await page.waitForTimeout(400);
-});
-
-await step('Show 40 more adds to the list, and switching back resets it', async () => {
-  const first = await page.locator('#grAnalytics .gr_fc').count();
-  check('the list is capped to start with', first === 40, first + '');
-  await page.locator('#grAnalytics [data-gr-fcmore]').click();
-  await page.waitForTimeout(450);
-  const second = await page.locator('#grAnalytics .gr_fc').count();
-  check('and the button shows the rest', second > first, second + ' after ' + first);
-  await page.locator('#grAnalytics [data-gr-anview="sales"]').click();
-  await page.waitForTimeout(450);
-  const sales = await page.evaluate(() =>
-    [...document.querySelectorAll('#grAnalytics .gr_ct h2')].map(x => x.textContent.trim()));
-  check('switching back shows the sales screen again',
-    sales[0] === 'Sales funnel', JSON.stringify(sales));
-  check('and the range chips came with it',
-    await page.locator('#grAnalytics [data-gr-range]').count() === 3);
-});
+/* The full client list that used to sit on Analytics -- a search box, forty rows and a
+   "Show 40 more" -- was taken off the screen. The two steps that drove it (#grFcQ,
+   .gr_fc, [data-gr-fcmore]) were kept here for a while afterwards and failed on every
+   run: not a regression, a check outliving the thing it checked. Removed rather than
+   left failing, because a suite with a standing red in it stops being read. */
 
 await step('nothing raw reaches the screen', async () => {
   const raw = await page.evaluate(() => {
