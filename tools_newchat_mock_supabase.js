@@ -568,7 +568,14 @@
       created_at: giso(30, 0) },
     { id: 'gt-2', name: 'Google Ads Management 1.5k', subject: 'Getting started with ReachGiant',
       body: 'Hi {name},\n\nWe are looking forward to working with {company}.\n\nPayment\nGoogle Ads Management 1.5k\n[Pay here via Stripe](https://buy.stripe.com/test123)\n{discount}\n\nBest,',
-      position: 1, created_at: giso(20, 0) }
+      position: 1, created_at: giso(20, 0) },
+    /* A COPY OF A REAL DEFECT. The discounted twin Luke had been pasting from says
+       Hi "Name", -- a literal, not {name} -- so it goes to every client with the
+       quotation marks in it and nobody's name. Two package emails rather than one also
+       stops the group count passing on code that hardcodes 1. */
+    { id: 'gt-3', name: 'Google Ads Management 1.5k (Discount)', subject: 'Your discounted start',
+      body: 'Hi "Name",\n\nWe are looking forward to working with you.\n\nPayment\nGoogle Ads Management\n[Pay here via Stripe](https://buy.stripe.com/test456)\n\nBest,',
+      position: 2, created_at: giso(10, 0) }
   ];
   DB.growth_settings = [
     { key: 'pipeline', value: { staleDays: 5, stages: [

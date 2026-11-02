@@ -34,9 +34,16 @@ const TYPES = { '.html': 'text/html', '.js': 'application/javascript', '.json': 
 const server = http.createServer((req, res) => {
   let rel = decodeURIComponent(req.url.split('?')[0]);
   if (rel === '/' || !path.extname(rel)) rel = '/index.html';
-  try { res.writeHead(200, { 'content-type': TYPES[path.extname(rel)] || 'text/plain' });
-        res.end(readFileSync(path.join(HERE, rel))); }
-  catch { res.writeHead(404).end(); }
+  /* Read FIRST, then write the head. Writing 200 and then failing to read left the
+     catch trying to send a second set of headers, which throws out of the request
+     handler and kills the whole run -- no tally, no FAIL lines, just a stack trace.
+     A sabotage harness read that as "suite stayed green" and reported seven real
+     checks as not catching anything. */
+  let buf;
+  try { buf = readFileSync(path.join(HERE, rel)); }
+  catch { res.writeHead(404); res.end(); return; }
+  res.writeHead(200, { 'content-type': TYPES[path.extname(rel)] || 'text/plain' });
+  res.end(buf);
 });
 await new Promise(r => server.listen(0, '127.0.0.1', r));
 const BASE = 'http://127.0.0.1:' + server.address().port;
@@ -1417,6 +1424,89 @@ await step('the Today widget is gone, and took nothing with it', async () => {
   await page.keyboard.press('Escape');
   await page.waitForTimeout(500);
 
+  /* ---- replying from the Inbox with a template ----
+     Replying IS the job on that screen, and a template is how it is done quickly. The
+     way into the templates was four clicks away under Settings, and the reply composer
+     already had the picker -- so the two halves existed and never met. */
+  await screen('gr_inbox');
+  await page.waitForTimeout(800);
+  const head = await page.evaluate(() => {
+    const h = document.querySelector('#grInbox .gr_head');
+    return { btn: !!(h && h.querySelector('[data-gr-tplbtn]')),
+             label: h && h.querySelector('[data-gr-tplbtn]')
+               ? h.querySelector('[data-gr-tplbtn]').textContent.trim() : '',
+             reply: !!document.querySelector('#grInbox [data-gr-act][data-t="reply"]') };
+  });
+  check('the Inbox has its own way into the templates',
+    head.btn && /template/i.test(head.label), JSON.stringify(head));
+  check('and a reply to the person who wrote to you', head.reply, JSON.stringify(head.reply));
+
+  /* Opened on whatever tab the panel was last left on, the button lands somewhere other
+     than its own label -- so leave it on Team first and require Templates back. */
+  await page.evaluate(() =>
+    document.querySelector('#appSidebar .nav-item[data-screen="gr_settings"]')?.click());
+  await page.waitForTimeout(700);
+  await page.evaluate(() => [...document.querySelectorAll('.gr_setd [data-gr-settab]')]
+    .find(b => /Team/i.test(b.textContent))?.click());
+  await page.waitForTimeout(500);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  await screen('gr_inbox');
+  await page.waitForTimeout(700);
+  await page.evaluate(() => document.querySelector('[data-gr-tplbtn]')?.click());
+  await page.waitForTimeout(900);
+  const landed = await page.evaluate(() => ({
+    open: !!document.querySelector('#grSetPanel.on'),
+    tab: (document.querySelector('.gr_setd [data-gr-settab][aria-pressed="true"]') || {}).textContent,
+    groups: [...document.querySelectorAll('.gr_setd .gr_card .gr_ct h2')].map(x => x.textContent.trim())
+  }));
+  check('it opens the panel on Templates, not on the tab it was left on',
+    landed.open && landed.tab === 'Templates' &&
+    landed.groups.join(',') === 'Package emails,Other emails', JSON.stringify(landed));
+
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+  await screen('gr_inbox');
+  await page.waitForTimeout(700);
+  await page.evaluate(() => document.querySelector('#grInbox [data-gr-act][data-t="reply"]')?.click());
+  await page.waitForTimeout(1200);
+  const picker = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-gr-pick="template"]')].filter(b => b.offsetParent).length);
+  check('Reply opens a composer that offers the templates',
+    picker > 0, String(picker));
+  await page.evaluate(() =>
+    [...document.querySelectorAll('[data-gr-pick="template"]')].find(b => b.offsetParent)?.click());
+  await page.waitForTimeout(700);
+  const menu = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-gr-pk="tpl"]')].map(b => b.textContent.trim()));
+  /* Every saved template, by name. A menu holding only the built-in wordings would look
+     the same from outside and would not be the templates at all. */
+  check('and the menu lists the saved templates by name',
+    menu.indexOf('Google Ads Management 1.5k') >= 0 && menu.indexOf('Zoom reminder') >= 0,
+    JSON.stringify(menu));
+
+  await page.evaluate(() => [...document.querySelectorAll('[data-gr-pk="tpl"]')]
+    .find(b => b.textContent.trim() === 'Google Ads Management 1.5k')?.click());
+  await page.waitForTimeout(1000);
+  const filled = await page.evaluate(() => {
+    const g = sel => { const el = document.querySelector(sel); return el ? (el.value || el.textContent || '') : ''; };
+    const body = g('[data-gr-c="body"]') || g('#grCmpB');
+    return { subject: g('[data-gr-c="subject"]') || g('#grCmpS'), body: body,
+             leftover: /\{name\}|\{company\}|\{discount\}/i.test(body) };
+  });
+  check('picking one writes it into the reply, as that client',
+    filled.subject === 'Getting started with ReachGiant' &&
+    /^Hi Cesar,/.test(filled.body) && /buy\.stripe\.com\/test123/.test(filled.body),
+    JSON.stringify({ subject: filled.subject, body: filled.body.slice(0, 60) }));
+  /* The one that actually reaches a client. A template sent with {name} still in it is
+     the usual way a placeholder gets out, and {discount} is lifted out rather than left
+     for somebody to notice. */
+  check('with nothing left in it for the client to read as a placeholder',
+    filled.body !== '' && !filled.leftover, JSON.stringify(filled.leftover));
+
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
+
   /* The deal sheet's own to-do list shares a prefix with the drawer's markup -- gr_tdo,
      gr_tdtick, gr_tdadd against the drawer's gr_tdd, gr_tdh, gr_tds -- and sits in a
      different part of the stylesheet. A prefix-wide sweep would have taken it. */
@@ -2021,13 +2111,31 @@ await step('a template previews as the mail it becomes', async () => {
   check('the list and the new-template form are separate tabs',
     list.tabs.indexOf('templates') >= 0 && list.tabs.indexOf('new') >= 0,
     list.tabs.join(','));
-  check('two templates, each a closed row', list.rows === 2 && list.actions.length === 0,
+  check('three templates, each a closed row', list.rows === 3 && list.actions.length === 0,
     JSON.stringify({ rows: list.rows, actions: list.actions }));
   check('and is not an open form until you open one', list.openForms === 0, String(list.openForms));
   /* Preview, Send a test and Edit live inside the row now, so it has to be opened
      first. That IS the change: a closed row is a name, not three buttons. */
   await page.evaluate(() => document.querySelector('.gr_tplh[data-gr-tpl-open="gt-2"]')?.click());
   await page.waitForTimeout(700);
+  /* A row opens on Info. The editor is the second tab, so everything below has to ask
+     for it -- which is itself the thing the next check proves. */
+  const landed = await page.evaluate(() => ({
+    facts: [...document.querySelectorAll('.gr_fk')].map(x => x.textContent.trim()),
+    editor: document.querySelectorAll('[data-gr-tpl-body]').length,
+    del: document.querySelectorAll('[data-gr-tpl-del]').length,
+    tabs: [...document.querySelectorAll('[data-gr-tpltab]')].map(b => b.textContent.trim()),
+    on: (document.querySelector('[data-gr-tpltab][aria-pressed="true"]') || {}).textContent
+  }));
+  check('a row opens on Info, with the editor behind a second tab',
+    landed.tabs.join('|') === 'Info|Edit' && landed.on === 'Info' &&
+    landed.editor === 0 && landed.del === 0, JSON.stringify(landed));
+  /* Delete sits on Edit for the same reason. Landing on a tab that carries it means a
+     stray tap on a row you only wanted to read is one more tap from losing it. */
+  check('and Info carries no Delete to hit by accident', landed.del === 0, String(landed.del));
+  await page.evaluate(() =>
+    [...document.querySelectorAll('[data-gr-tpltab]')].find(b => b.textContent === 'Edit')?.click());
+  await page.waitForTimeout(600);
   const opened = await page.evaluate(() => ({
     actions: [...document.querySelectorAll('.gr_tpla button')].map(b => b.textContent.trim()),
     forms: document.querySelectorAll('[data-gr-tpl-body]').length
@@ -2142,6 +2250,9 @@ await step('the signature looks the same everywhere it is shown', async () => {
      first. That IS the change: a closed row is a name, not three buttons. */
   await page.evaluate(() => document.querySelector('.gr_tplh[data-gr-tpl-open="gt-2"]')?.click());
   await page.waitForTimeout(700);
+  await page.evaluate(() =>
+    [...document.querySelectorAll('[data-gr-tpltab]')].find(b => b.textContent === 'Edit')?.click());
+  await page.waitForTimeout(600);
   await page.evaluate(() => document.querySelector('[data-gr-tpl-pv="gt-2"]')?.click());
   await page.waitForTimeout(900);
   const inMail = await lines('.gr_pvsig');
@@ -2552,12 +2663,81 @@ await step('package emails are built from one master, not written six times', as
   /* The fixture is one of each kind on purpose: a list of one shape proves nothing about
      a split, and would pass just as well on code that never split anything. */
   check('the list splits package emails from the rest',
-    g.groups.join(',') === 'Package emails,Other emails' && g.counts.join(',') === '1,1',
+    g.groups.join(',') === 'Package emails,Other emails' && g.counts.join(',') === '2,1',
     JSON.stringify({ groups: g.groups, counts: g.counts }));
-  check('and the one carrying a Stripe link is the one marked Package',
-    g.kinds.join(',') === 'Package,Other', JSON.stringify(g.kinds));
+  check('and the ones carrying a Stripe link are the ones marked Package',
+    g.kinds.join(',') === 'Package,Package,Other', JSON.stringify(g.kinds));
   check('a row is a closed box, not a name over three buttons',
     g.openActions === 0 && g.boxed > 40, JSON.stringify({ actions: g.openActions, rowH: g.boxed }));
+
+  /* ---- the Info card ----
+     Every fact on it is read off the body rather than stored beside it, and that is the
+     whole point: there is no column to forget to update. So each check below changes the
+     BODY and requires the card to follow, rather than reading a value the card could be
+     printing from anywhere. */
+  const facts = async (id) => {
+    await page.evaluate(i => {
+      const r = document.querySelector('.gr_tplr .gr_tplh[data-gr-tpl-open="' + i + '"]');
+      if (r && r.getAttribute('aria-expanded') !== 'true') r.click();
+    }, id);
+    await page.waitForTimeout(600);
+    return page.evaluate(() => {
+      const out = {};
+      document.querySelectorAll('.gr_tplinf .gr_fct').forEach(f => {
+        const k = f.querySelector('.gr_fk'), v = f.querySelector('.gr_fv');
+        if (k) out[k.textContent.trim()] = v ? v.innerText.trim() : '';
+      });
+      out._preview = (document.querySelector('.gr_tplinf .gr_prevb') || {}).innerText || '';
+      out._warn = [...document.querySelectorAll('.gr_tplinf .gr_warn')].map(x => x.innerText.trim());
+      return out;
+    });
+  };
+
+  const pkgF = await facts('gt-2');
+  check('Info names what kind of email it is',
+    /Package email, built from the package master/.test(pkgF['Type'] || ''), pkgF['Type']);
+  /* The link in the card has to be the link in the letter. A card that showed a stored
+     column would pass a presence test and still send the wrong person's Stripe page. */
+  check('and lifts the Stripe link out of the body, character for character',
+    (pkgF['Stripe link'] || '') === 'https://buy.stripe.com/test123', pkgF['Stripe link']);
+  /* {discount} is left standing on purpose -- the code is chosen at send time. So the
+     card may say a spot EXISTS and must never name one, or it is telling you a template
+     carries a discount it does not carry. */
+  check('reports the discount as a spot, never as a code',
+    /spot/i.test(pkgF['Discount'] || '') && !/RG\d|[A-Z]{2,}\d{2,}/.test(pkgF['Discount'] || ''),
+    pkgF['Discount']);
+  check('lists the placeholders that are really in it, and leaves {discount} out',
+    (pkgF['Fills in automatically'] || '').replace(/\s+/g, ' ') === '{name} {company}',
+    pkgF['Fills in automatically']);
+  /* Two different templates must give two different numbers, or "21 words" is a constant
+     that happens to be right once. */
+  check('counts the words in that template\'s own body',
+    (pkgF['Length'] || '') === '21 words', pkgF['Length']);
+  check('and fills the preview with a stand-in, links flattened so they can be read',
+    /Hi Michael,/.test(pkgF._preview) &&
+    /Pay here via Stripe \(https:\/\/buy\.stripe\.com\/test123\)/.test(pkgF._preview) &&
+    /picked when you send/i.test(pkgF._preview), pkgF._preview.slice(0, 80));
+
+  /* THE DEFECT THIS CARD EXISTS TO SURFACE. The discounted twin says Hi "Name" -- a
+     literal, not a placeholder -- so it goes out with the quotation marks and nobody's
+     name in it. Nothing on a closed row says so; the card has to. */
+  const badF = await facts('gt-3');
+  check('a template that personalises nothing says so, rather than showing a blank',
+    (badF['Fills in automatically'] || '') !== '' &&
+    /nothing/i.test(badF['Fills in automatically'] || '') &&
+    badF._warn.some(w => /nothing/i.test(w)), JSON.stringify(badF['Fills in automatically']));
+  check('and that one is a different length, so the count is measured and not fixed',
+    (badF['Length'] || '') !== (pkgF['Length'] || '') && /^\d+ words$/.test(badF['Length'] || ''),
+    JSON.stringify({ pkg: pkgF['Length'], other: badF['Length'] }));
+
+  /* A hand-written email has no Stripe link and no discount, so those two facts are
+     absent rather than present-and-empty. An empty "Stripe link:" on a Zoom reminder
+     reads as one that is missing. */
+  const handF = await facts('gt-1');
+  check('a hand-written email shows no Stripe or Discount fact at all',
+    !('Stripe link' in handF) && !('Discount' in handF) &&
+    /Written by hand/.test(handF['Type'] || ''),
+    JSON.stringify(Object.keys(handF).filter(k => k[0] !== '_')));
 
   // ---- the master fills the preview as you type
   await open('New template');
@@ -2610,7 +2790,7 @@ await step('package emails are built from one master, not written six times', as
     await page.evaluate(() => {
       const c = document.querySelector('.gr_setd .gr_card .gr_ct .gr_n');
       return c ? c.textContent.trim() : '';
-    }) === '2', '');
+    }) === '3', '');
 
   // ---- the master itself
   await open('Package master');

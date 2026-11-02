@@ -6588,6 +6588,21 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 /* The insert bar used to be the lid of the body box. Now that the body carries its
    own border, the two flush edges draw a double line -- separate them instead. */
 .gr_setd .gr_rtb{border-radius:9px;border-bottom:1px solid var(--line);margin-bottom:7px;}
+/* ---- the open template card: Info | Edit ---- */
+.gr_seg2{margin:0 16px 14px;}
+.gr_tplinf{padding:0 16px 16px;display:flex;flex-direction:column;gap:14px;}
+.gr_fct{display:flex;flex-direction:column;gap:5px;min-width:0;}
+.gr_fk{font-size:10px;font-weight:800;letter-spacing:.11em;text-transform:uppercase;color:var(--text-3);}
+.gr_fv{font-size:13.5px;line-height:1.55;color:var(--text);overflow-wrap:anywhere;}
+.gr_fv code{background:var(--surface-2);border-radius:6px;padding:2px 7px;font-size:12.5px;
+  font-family:ui-monospace,Menlo,monospace;}
+/* gr_two is 11px, which is the right gap between two inputs and too tight between two
+   facts -- they have no boxes of their own to tell them apart. */
+.gr_tplinf .gr_two{gap:14px 18px;}
+.gr_warn{color:var(--amber);}
+/* The preview is the long part. It scrolls rather than making every closed row below it
+   a scroll away, and it is the one place in the card with a surface of its own. */
+.gr_tplinf .gr_prevb{max-height:280px;}
 /* The drawer is a fixed-height flex column, so every child shrinks to fit by default
    and the tab strip collapsed to a few pixels. The panel scrolls; the children keep
    their own height. */
@@ -95853,6 +95868,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   let grTasks = [], grWatch = [], grDiscounts = [];
   let grPlanSeeding = false, grWatchAdd = false;
   let grSetTab = 'templates', grEdit = null;
+  /* An open row opens on Info, not on the editor. Reading what a template is costs
+     nothing; editing one by accident costs a client email. */
+  let grTplTab = 'info';
   // Which kind of template the New tab is making, and the two drafts that need one.
   let grTplMode = 'package', grPkgDraft = { name: '', link: '' }, grBulkDraft = { text: '' };
   // Null until somebody types: the editor shows the saved master, not a stale copy.
@@ -97148,7 +97166,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
            : '<span class="gr_st ok">Waiting on them</span>') + '</div>';
 
     $('grInbox').innerHTML =
-      grHead('Growth Inbox', 'Replies from your clients, only what comes into this app', '') +
+      /* The way to the templates, from the screen where you use them. Replying is the
+         one job on this screen, a template is how you reply quickly, and the only door
+         to them was four clicks away under Settings. Staff only, because the panel is
+         -- grOpenSettings refuses a client outright, so a button here would otherwise
+         be one that does nothing. */
+      grHead('Growth Inbox', 'Replies from your clients, only what comes into this app',
+        grIsStaff()
+          ? '<div class="gr_hacts"><button class="btn-red" data-gr-tplbtn>&#9993; Email templates</button></div>'
+          : '') +
       '<section class="gr_card"><div class="gr_ct"><h2>Your turn</h2>' +
         (mine.length ? '<span class="gr_n hot">' + mine.length + '</span>' : '') + '</div>' +
         (mine.length
@@ -98945,6 +98971,68 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grp('Other emails', 'Written by hand, like Zoom links and reminders.', ot);
   }
 
+  /* WHAT A TEMPLATE IS, WITHOUT OPENING THE EDITOR. Every one of these is read off
+     the body rather than stored beside it, so none of them can be stale: the Stripe
+     link IS the link in the letter, and the placeholders ARE the ones still in it. A
+     stored column would have to be kept in step by whoever edits the text next. */
+  function grTplFacts(t) {
+    const body = String(t.body || ''), pkg = grIsPkg(t);
+    const link = (body.match(/https:\/\/buy\.stripe\.com\/[A-Za-z0-9]+/) || [])[0] || '';
+    /* {discount} is deliberately left standing in the body -- which code to send is
+       decided when the email goes out. So "has a discount spot" is what we can say,
+       never which code, and a template without one says None like the rest. */
+    const disc = /\{discount\}/i.test(body);
+    /* The spot is not something that fills itself in, so it is not listed here. */
+    const fills = [];
+    ['name', 'company'].forEach(function (k) {
+      if (new RegExp('\\{' + k + '\\}', 'i').test(body)) fills.push('{' + k + '}');
+    });
+    const words = body.trim() ? body.trim().split(/\s+/).length : 0;
+    return { pkg: pkg, link: link, disc: disc, fills: fills, words: words };
+  }
+
+  /* The read-only face of a template. Deliberately not an editor: the numbers below
+     are measurements, and a measurement you can type over is a number you stop
+     trusting. Edit is one tap away. */
+  function grTplInfo(t) {
+    const f = grTplFacts(t);
+    const fact = function (label, value) {
+      return '<div class="gr_fct"><span class="gr_fk">' + label + '</span>' +
+        '<span class="gr_fv">' + value + '</span></div>';
+    };
+    return '<div class="gr_tplinf">' +
+      fact('Type', f.pkg ? 'Package email, built from the package master' : 'Written by hand') +
+      fact('Subject', esc(t.subject || 'No subject')) +
+      (f.pkg
+        ? '<div class="gr_two">' +
+            fact('Stripe link', f.link
+              ? '<a class="gr_lnk" href="' + esc(f.link) + '" target="_blank" rel="noopener">' +
+                esc(f.link) + '</a>'
+              : '<span class="gr_warn">Missing &mdash; a package email needs one</span>') +
+            fact('Discount', f.disc ? 'A spot for one. You pick the code when you send.' : 'None') +
+          '</div>'
+        : '') +
+      '<div class="gr_two">' +
+        fact('Fills in automatically', f.fills.length
+          ? f.fills.map(function (x) { return '<code>' + x + '</code>'; }).join(' ')
+          : '<span class="gr_warn">Nothing &mdash; this one goes out exactly as written</span>') +
+        fact('Length', f.words + (f.words === 1 ? ' word' : ' words')) +
+      '</div>' +
+      '<div class="gr_fct"><span class="gr_fk">Preview</span></div>' +
+      '<div class="gr_prevb">' + grTplPvText(t) + '</div>' +
+    '</div>';
+  }
+
+  /* The same stand-in and the same link-flattening as the package preview, so the two
+     places a person reads a template before sending it cannot show different text. */
+  function grTplPvText(t) {
+    const body = String(t.body || '').replace(/\{name\}/g, 'Michael')
+      .replace(/\{company\}/g, 'Northwind')
+      .replace(/\{discount\}/g, '[Discount code, picked when you send]')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)');
+    return esc(body);
+  }
+
   function grTplRow(t) {
         const open = grEdit === t.id;
         // Position is global, so the arrows read the whole list, not the group.
@@ -98965,7 +99053,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               '<button class="gr_ib" data-gr-tpl-move="' + t.id + '" data-d="1"' + (i === grTemplates.length - 1 ? ' disabled' : '') + ' aria-label="Move down">&#9660;</button>' +
             '</span>' +
           '</div>' +
-          (open ? '<div class="gr_tpla">' +
+          (open
+            ? '<div class="gr_seg gr_seg2" role="tablist">' +
+                [['info', 'Info'], ['edit', 'Edit']].map(function (x) {
+                  return '<button data-gr-tpltab="' + x[0] + '" role="tab"' +
+                    (grTplTab === x[0] ? ' aria-pressed="true"' : '') + '>' + x[1] + '</button>';
+                }).join('') +
+              '</div>'
+            : '') +
+          (open && grTplTab === 'info' ? grTplInfo(t) : '') +
+          /* Send a test and Delete are on the editor, not on Info. Info is the tab you
+             land on, and a Delete you can hit without having meant to open the editor
+             is a template gone with one tap. */
+          (open && grTplTab === 'edit' ? '<div class="gr_tpla">' +
             '<button class="gr_ghost gr_sm" data-gr-tpl-pv="' + t.id + '">Preview</button>' +
             (grGmail.ready && to
               ? '<button class="gr_ghost gr_sm" data-gr-tpl-test="' + t.id + '"' + (grTestBusy ? ' disabled' : '') + '>' +
@@ -98974,7 +99074,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             '<span class="gr_sp"></span>' +
             '<button class="gr_danger gr_sm" data-gr-tpl-del="' + t.id + '">Delete</button>' +
           '</div>' : '') +
-          (open
+          (open && grTplTab === 'edit'
             ? '<div class="gr_tpled">' +
               '<div class="gr_field"><label>Name</label><input class="gr_in" data-gr-tpl-name="' + t.id + '" value="' + esc(t.name) + '"></div>' +
               '<div class="gr_field"><label>Subject</label><input class="gr_in" data-gr-tpl-sub="' + t.id + '" value="' + esc(t.subject) + '"></div>' +
@@ -100341,6 +100441,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
     const pkd = e.target.closest('[data-gr-pk]');
     if (pkd) { e.stopPropagation(); grPicked(pkd); return; }
+    /* Opens the panel on Templates rather than on whichever tab it was left on, so the
+       button always lands where its own label says. */
+    if (e.target.closest('[data-gr-tplbtn]')) { grOpenSettings('templates'); return; }
     const pick = e.target.closest('[data-gr-pick]');
     if (pick) {
       e.stopPropagation();
@@ -101085,8 +101188,18 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       return;
     }
 
+    /* Handled before the header, because the tabs sit inside the open row and a click
+       on one would otherwise also reach the header and close it. */
+    const tpt = e.target.closest('[data-gr-tpltab]');
+    if (tpt) { grTplTab = tpt.dataset.grTpltab; grRender(); return; }
     const to = e.target.closest('[data-gr-tpl-open]');
-    if (to) { grEdit = (grEdit === to.dataset.grTplOpen) ? null : to.dataset.grTplOpen; grRender(); return; }
+    if (to) {
+      grEdit = (grEdit === to.dataset.grTplOpen) ? null : to.dataset.grTplOpen;
+      /* Every row opens on Info. Without this, opening a second row inherits the first
+         one's Edit and drops you into a textarea for a template you only wanted to read. */
+      grTplTab = 'info';
+      grRender(); return;
+    }
     const td = e.target.closest('[data-gr-tpl-del]');
     if (td) {
       (async function () {
