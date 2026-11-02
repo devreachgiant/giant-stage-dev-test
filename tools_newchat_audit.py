@@ -3,6 +3,7 @@ error: calls (incl. inside ${...}), bare CONSTANT references, and methods called
 shim object. Scope-aware enough to spot names visible only inside the nested IIFE."""
 import re, sys
 import os
+import tools_newchat_regions as regions
 # The file next to this script, not a path on whoever wrote it: these ran on one
 # machine for months and would have failed on the second person's the moment they
 # cloned it.
@@ -219,8 +220,13 @@ def strip_comments(t):
     t = re.sub(r'//[^\n]*', '', t)
     return re.sub(r'/\*.*?\*/', '', t, flags=re.S)
 
-orig = '\n'.join('\n'.join(S.split('\n')[a - 1:b])
-                 for a, b in [(7198, 7707), (41674, 47173), (67519, 67870)])
+# Those three regions used to be written here as line numbers into THIS file, and this
+# file grows near the top: 402 lines of Growth CSS at line 6600 slid every one of them
+# down by 76 and this check began reading the wrong code, reporting a leak that was not
+# there. tools_newchat_regions finds them by the text of their first and last line
+# instead, and raises if a boundary stops being unique. (The same three numbers in
+# tools_newchat_isolation index into `main`, not into this file, so they are fine there.)
+orig = regions.text(S)
 reach = set()
 for m in re.finditer(r"document\.querySelectorAll\(\s*'([^']+)'", strip_comments(orig)):
     for part in m.group(1).split(','):

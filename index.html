@@ -6551,6 +6551,68 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_lnk{color:var(--text);font-weight:600;text-decoration:underline;text-underline-offset:2px;
   text-decoration-color:var(--text-3);word-break:break-word;}
 .gr_lnk:hover{text-decoration-color:var(--text);}
+/* SETTINGS OPENS OVER THE SCREEN YOU ARE ON, rather than being a screen of its own.
+   You change a template, a code or who sells BECAUSE of something you are looking at,
+   and walking to another screen to do it loses the thing that sent you. z-index sits
+   above the deal sheet (60) and below the template preview (70), so a preview opened
+   from in here still lands on top. */
+.gr_setw{position:fixed;inset:0;z-index:62;display:none;background:rgba(8,8,10,.45);}
+.gr_setw.on{display:block;}
+.gr_setd{position:fixed;top:0;right:0;bottom:0;width:min(680px,100%);background:var(--bg);
+  border-left:1px solid var(--line);overflow-y:auto;overscroll-behavior:contain;
+  display:flex;flex-direction:column;gap:18px;padding:24px 26px 40px;
+  box-shadow:-18px 0 44px rgba(0,0,0,.34);}
+/* The cards carry their own bottom margin, which doubles up with the column gap and
+   leaves one card drifting away from the next. The gap is the only spacing here. */
+.gr_setd .gr_card{margin-bottom:0;padding:18px 20px;}
+.gr_setd .gr_card .gr_ct{margin-bottom:6px;}
+/* A card's one-line explanation sits between the heading and the rows, so it needs
+   air under it or the first row reads as part of the sentence. */
+.gr_setd .gr_card > .gr_mute{margin:0 0 14px;}
+.gr_setd .gr_card > .gr_mute:last-child{margin-bottom:2px;}
+/* Two fields in a row read as one block otherwise -- the second label sits on the
+   first input. The gap inside a field stays smaller than the gap between fields,
+   so a label still belongs to the box under it. */
+.gr_setd .gr_field{gap:7px;}
+.gr_setd .gr_field + .gr_field{margin-top:15px;}
+.gr_setd .gr_acts{margin-top:16px;}
+.gr_setd .gr_modes{gap:12px;margin-bottom:2px;}
+.gr_setd .gr_lab2{margin-bottom:10px;}
+/* gr_tplb was drawn as the bottom half of a subject+body pair and still carries that
+   seam -- no top border, square top corners. In here every one of them sits in its own
+   labelled field, so it needs its own box back. */
+.gr_setd .gr_tplb{border-top:1px solid var(--line)!important;border-radius:10px!important;}
+.gr_setd #grMtB{min-height:330px;}
+.gr_setd .gr_toks{margin:0 0 16px;}
+.gr_setd .gr_pnote{margin:16px 0 0;}
+/* The insert bar used to be the lid of the body box. Now that the body carries its
+   own border, the two flush edges draw a double line -- separate them instead. */
+.gr_setd .gr_rtb{border-radius:9px;border-bottom:1px solid var(--line);margin-bottom:7px;}
+/* The drawer is a fixed-height flex column, so every child shrinks to fit by default
+   and the tab strip collapsed to a few pixels. The panel scrolls; the children keep
+   their own height. */
+.gr_setd > *{flex:none;}
+/* Making a template: pick what kind, then the two or three things that kind needs. */
+.gr_modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;}
+.gr_mode{text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:13px 14px;cursor:pointer;font:inherit;color:var(--text);display:flex;flex-direction:column;gap:5px;}
+.gr_mode b{font-size:14px;font-weight:700;}
+.gr_mode span{font-size:12.5px;color:var(--text-3);line-height:1.45;}
+.gr_mode[aria-pressed="true"]{border-color:var(--red);box-shadow:inset 0 0 0 1px var(--red);}
+@media(max-width:620px){.gr_modes{grid-template-columns:1fr;}}
+.gr_toks{display:flex;flex-wrap:wrap;gap:6px;}
+.gr_toks code{background:var(--surface-2);border-radius:7px;padding:4px 9px;font-size:12px;font-family:ui-monospace,Menlo,monospace;}
+.gr_prevb{background:var(--surface-2);border-radius:12px;padding:14px 16px;font-size:13.5px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;max-height:320px;overflow-y:auto;}
+.gr_prevb b{display:block;margin-bottom:9px;font-size:14.5px;}
+.gr_kind{font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;border-radius:99px;padding:3px 8px;background:var(--surface-2);color:var(--text-3);white-space:nowrap;}
+.gr_kind.gr_pkg{background:rgba(124,58,237,.16);color:#7C3AED;}
+.gr_bklist{display:flex;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;}
+.gr_bkrow{display:flex;gap:9px;align-items:flex-start;background:var(--surface-2);border-radius:10px;padding:9px 11px;font-size:13px;}
+.gr_bkrow i{font-style:normal;font-weight:800;color:#1F7A45;flex:none;}
+.gr_bkrow.gr_bad i{color:var(--red);}
+.gr_bkrow small{display:block;color:var(--text-3);font-size:12px;overflow-wrap:anywhere;}
+.gr_seth{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+.gr_seth h2{margin:0;font-size:20px;font-weight:800;letter-spacing:-.02em;}
+.gr_seth p{margin:3px 0 0;font-size:12.5px;color:var(--text-3);line-height:1.5;}
 .gr_sheetwrap{position:fixed;inset:0;z-index:60;display:none;background:rgba(8,8,10,.45);}
 .gr_sheetwrap.on{display:block;}
 .gr_sheet{position:fixed;top:0;right:0;bottom:0;width:min(520px,100%);background:var(--bg);border:0;border-left:1px solid var(--line);border-radius:0;overflow-y:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:14px;padding:22px 22px 32px;box-shadow:-18px 0 44px rgba(0,0,0,.34);}
@@ -6903,14 +6965,14 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_tplb{border-radius:0 0 9px 9px !important;border-top:0 !important;min-height:150px;resize:vertical;line-height:1.6;}
 .gr_upl{cursor:pointer;}
 .gr_n2{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-left:auto;}
-.gr_testbar{align-items:center;margin-bottom:12px;}
+.gr_testbar{align-items:center;margin:0 0 10px;}
 /* A template is a row with the three things you do to one, not an open form. */
-.gr_tplm{display:flex;flex-direction:column;min-width:0;flex:1;gap:2px;}
-.gr_tplm b{font-size:14.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.gr_tplm{display:flex;flex-direction:column;min-width:0;flex:1;gap:3px;}
+.gr_tplm b{font-size:14.5px;font-weight:700;line-height:1.3;overflow-wrap:break-word;}
 .gr_tplm>span{font-size:12.5px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.gr_tplo{display:flex;gap:4px;flex:none;}
-.gr_tpla{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;}
-.gr_tpled{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
+.gr_tplo{display:flex;align-items:center;gap:8px;flex:none;}
+.gr_tpla{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.gr_tpled{padding-top:12px;border-top:1px solid var(--line);}
 /* THE PREVIEW IS A MESSAGE. Subject, who it is from, who it is to, when -- then the body
    as prose. The old one was a <pre>, which proves the text is right and shows you
    nothing about the email. */
@@ -6932,10 +6994,20 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_pvbody p:last-child{margin-bottom:0;}
 .gr_pvsig{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);color:var(--text-2);font-size:13.5px;}
 .gr_pvnote{margin:0;font-size:12px;line-height:1.5;color:var(--text-3);}
-.gr_tplr{border-top:1px solid var(--line);padding:10px 0;display:flex;flex-direction:column;gap:10px;}
-.gr_tplr:first-of-type{border-top:0;}
-.gr_tplh{display:flex;align-items:center;gap:8px;}
+/* A ROW IS A BOX YOU OPEN. It used to be a flat line with Preview, Send a test and Edit
+   sitting under every one of them, so six templates meant eighteen buttons on the screen
+   and the names you came to read were the smallest thing on it. Collapsed, a row is the
+   name, what kind it is, and where it sits in the order. */
+.gr_tplr{border:1px solid var(--line);background:var(--bg);border-radius:14px;
+  display:flex;flex-direction:column;margin-bottom:10px;overflow:hidden;}
+.gr_tplr:last-child{margin-bottom:0;}
+.gr_tplr.gr_tplon{border-color:var(--line-2);}
+.gr_tplh{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;}
+.gr_tplh:hover{background:var(--surface-2);}
 .gr_tplh b{flex:1;min-width:0;font-size:14.5px;}
+.gr_tplgrip{flex:none;color:var(--text-3);font-size:12px;font-weight:800;letter-spacing:-2px;line-height:1;}
+.gr_tpla{padding:2px 16px 14px;}
+.gr_tpled{margin:0 16px 16px;}
 .gr_sigprev{background:var(--surface-2);border-radius:12px;padding:14px 16px;margin-top:4px;}
 /* the codes, as tickets */
 .gr_dgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;}
@@ -95781,6 +95853,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   let grTasks = [], grWatch = [], grDiscounts = [];
   let grPlanSeeding = false, grWatchAdd = false;
   let grSetTab = 'templates', grEdit = null;
+  // Which kind of template the New tab is making, and the two drafts that need one.
+  let grTplMode = 'package', grPkgDraft = { name: '', link: '' }, grBulkDraft = { text: '' };
+  // Null until somebody types: the editor shows the saved master, not a stale copy.
+  let grMtDraft = null;
+  // Whether the Settings panel is up. It is not a screen, so nothing in .screen.on says so.
+  let grSetOpen = false;
   /* THE TRAINING TAB SURVIVES A RELOAD. It was in memory only, so refreshing while
      reading Best calls put you back on Course. Only the four on the strip are restored:
      philosophy, the script, the task list and pricing are reached FROM a lesson, and
@@ -98672,6 +98750,130 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       '</div></div>';
   }
 
+  /* PACKAGE EMAILS ARE NOT WRITTEN, THEY ARE BUILT. Every one of them is the same
+     onboarding letter with a different package name and Stripe link in it, so writing
+     each by hand means the wording drifts: six emails that were meant to be identical
+     and are not, and nobody finds out until a client reads one. The master holds the
+     wording once. A package email is the master with two values filled in.
+
+     A template counts as a package email when its body carries a Stripe link. There is
+     no column on growth_templates saying so, and this needs none: the link IS what makes
+     it one. An email written by hand that happens to carry a Stripe link is a package
+     email too, which is the right answer. */
+  const GR_MASTER_DEFAULT = {
+    subject: 'Getting started with ReachGiant',
+    body: 'Hi {name},\n\nWe are looking forward to working with you.\n\nOnce your payment is received and we have your signed contract and onboarding form, we will get started right away. Matthew, our Head of Client Services, will reach out to set up a Zoom call and guide you through onboarding.\n\nOn that call, we will review your goals, confirm access, and go over the next steps.\n\nPayment\n{package}\n[Pay here via Stripe]({payment_link})\n{discount}\n\nOnboarding Form\nYou can complete the onboarding form here\n[Start onboarding](https://www.reachgiant.com/onboarding)\n\nAgreement page\nPlease review and sign your agreement here\n[Open agreement](https://www.reachgiant.com/agreement)\n\nOnce we receive everything, we will review your details and start preparing your campaigns. Most accounts go live in about a week.\n\nLet me know if you have any questions.\n\nBest,\nLuke'
+  };
+  function grMaster() {
+    const m = grSettings.tpl_master;
+    return (m && m.body) ? { subject: m.subject || '', body: m.body } : GR_MASTER_DEFAULT;
+  }
+  const grIsPkg = function (t) { return /buy\.stripe\.com/i.test(String((t && t.body) || '')); };
+  function grFromMaster(pkg, link) {
+    const m = grMaster();
+    const fill = function (x) {
+      return String(x || '').replace(/\{package\}/g, pkg).replace(/\{payment_link\}/g, link);
+    };
+    return { subject: fill(m.subject), body: fill(m.body) };
+  }
+  /* What the master makes, with a stand-in client. The placeholders a person still has
+     to fill are left visible rather than blanked, so the preview is not quietly shorter
+     than the email. */
+  function grPkgPreview() {
+    const b = grFromMaster(grPkgDraft.name.trim() || 'Package name',
+                           grPkgDraft.link.trim() || 'https://buy.stripe.com/...');
+    const body = b.body.replace(/\{name\}/g, 'Michael')
+      .replace(/\{discount\}/g, '[Discount code, picked when you send]')
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)');
+    return '<b>' + esc(b.subject.replace(/\{name\}/g, 'Michael')) + '</b>' + esc(body);
+  }
+
+  /* One package per line: a name, then its Stripe link. Checked before anything is
+     created, because six half-made templates are worse than none. */
+  function grBulkRows() {
+    return String(grBulkDraft.text || '').split(/\r?\n/).map(function (l) { return l.trim(); })
+      .filter(Boolean).map(function (line, i) {
+        const cells = (line.indexOf('\t') > -1 ? line.split('\t') : line.split(','))
+          .map(function (x) { return x.trim().replace(/^"|"$/g, ''); });
+        const name = cells[0] || '', link = cells[1] || '';
+        if (i === 0 && /^(name|package|title)$/i.test(name) && !/^https?:/i.test(link)) return null;
+        const bad = [];
+        if (!name) bad.push('Needs a name');
+        if (!/^https?:\/\//i.test(link)) bad.push('Needs a Stripe link');
+        if (name && grTemplates.some(function (t) {
+          return String(t.name).toLowerCase() === name.toLowerCase(); })) bad.push('Already a template');
+        return { name: name, link: link, bad: bad };
+      }).filter(Boolean);
+  }
+
+  function grTplNewPart() {
+    const card = function (k, t, d) {
+      return '<button class="gr_mode" data-gr-tplmode="' + k + '" aria-pressed="' +
+        (grTplMode === k) + '"><b>' + t + '</b><span>' + d + '</span></button>';
+    };
+    let form;
+    if (grTplMode === 'package') {
+      form = '<section class="gr_card">' +
+        '<div class="gr_field"><label for="grPkgName">1. Package name</label>' +
+          '<input class="gr_in" id="grPkgName" data-gr-pkgf="name" value="' + esc(grPkgDraft.name) +
+          '" placeholder="e.g. Google Ads Management 1.5k"></div>' +
+        '<div class="gr_field"><label for="grPkgLink">2. Stripe payment link</label>' +
+          '<input class="gr_in" id="grPkgLink" data-gr-pkgf="link" value="' + esc(grPkgDraft.link) +
+          '" placeholder="https://buy.stripe.com/..."></div>' +
+        '<div class="gr_acts"><button class="btn-red" data-gr-pkgmake>Create package email</button></div>' +
+        '</section>' +
+        '<section class="gr_card"><div class="gr_lab2">Preview</div>' +
+          '<div class="gr_prevb" id="grPkgPreviewBox">' + grPkgPreview() + '</div></section>';
+    } else if (grTplMode === 'bulk') {
+      const rows = grBulkRows(), ok = rows.filter(function (r) { return !r.bad.length; });
+      form = '<section class="gr_card">' +
+        '<div class="gr_field"><label for="grBulkBox">Paste your packages</label>' +
+          '<textarea class="gr_in gr_tplb" id="grBulkBox" data-gr-bulkbox rows="7" placeholder="One per line: ' +
+          'name, then Stripe link">' + esc(grBulkDraft.text) + '</textarea></div>' +
+        '<div class="gr_acts"><label class="gr_ghost gr_upl">Upload a CSV' +
+          '<input type="file" id="grBulkFile" accept=".csv,.txt,text/csv,text/plain" hidden></label>' +
+          '<span class="gr_mute">Two columns: name and Stripe link. A header row is fine.</span></div>' +
+        '</section>' +
+        '<section class="gr_card"><div class="gr_ct"><h2>Check before creating</h2>' +
+          '<span class="gr_n">' + ok.length + '</span></div>' +
+        (rows.length
+          ? '<div class="gr_bklist">' + rows.map(function (r) {
+              return '<div class="gr_bkrow' + (r.bad.length ? ' gr_bad' : '') + '"><i>' +
+                (r.bad.length ? '!' : '&#10003;') + '</i><div><b>' + esc(r.name || '(no name)') +
+                '</b><small>' + esc(r.bad.length ? r.bad.join('. ') : r.link) + '</small></div></div>';
+            }).join('') + '</div>'
+          : '<p class="gr_mute">Paste your list above. The check appears here before anything is created.</p>') +
+        '<div class="gr_acts"><button class="btn-red" data-gr-pkgbulk' + (ok.length ? '' : ' disabled') +
+          '>Create ' + (ok.length ? ok.length + ' ' : '') + 'package email' +
+          (ok.length === 1 ? '' : 's') + '</button></div></section>';
+    } else {
+      form = grTplAddPart();
+    }
+    return '<div class="gr_modes">' +
+      card('package', 'Package email', 'One package. The wording comes from the master, so every one matches.') +
+      card('bulk', 'Many packages', 'Paste or upload a list of names and Stripe links. Makes them all at once.') +
+      card('other', 'Other email', 'Anything else, like a Zoom link or a reminder. You write it.') +
+      '</div>' + form;
+  }
+
+  function grMasterPart() {
+    const m = grMtDraft || grMaster();
+    return '<section class="gr_card"><div class="gr_ct"><h2>Package master</h2></div>' +
+      '<p class="gr_mute">This is only for <b>package emails</b>. Every one is built from it, so ' +
+        'changing it here changes every package email you make next. Other emails, like a Zoom ' +
+        'link, are written by hand and do not use it.</p>' +
+      '<div class="gr_toks"><code>{name}</code><code>{package}</code><code>{payment_link}</code>' +
+        '<code>{discount}</code></div>' +
+      '<div class="gr_field"><label for="grMtS">Subject</label>' +
+        '<input class="gr_in" id="grMtS" data-gr-mt="subject" value="' + esc(m.subject) + '"></div>' +
+      '<div class="gr_field"><label for="grMtB">Message</label>' +
+        '<textarea class="gr_in gr_tplb" id="grMtB" data-gr-mt="body" rows="16">' + esc(m.body) + '</textarea></div>' +
+      '<div class="gr_acts"><button class="btn-red" data-gr-mt-save>Save master</button>' +
+        '<button class="gr_ghost" data-gr-mt-reset>Reset to default</button></div>' +
+      '<p class="gr_pnote">{name} is the client\u2019s first name. {discount} is where the discount ' +
+        'goes, and you pick which code when you send the email.</p></section>';
+  }
+
   function grTplAddPart() {
     return '<section class="gr_card gr_addtpl"><div class="gr_lab2">Add a template</div>' +
       '<div class="gr_field"><label for="grTplN">Name</label>' +
@@ -98698,47 +98900,80 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      editing it or not. */
   function grTplSavedPart() {
     const to = grTestTo();
-    return '<section class="gr_card"><div class="gr_ct"><h2>Saved templates</h2>' +
-      '<span class="gr_n">' + grTemplates.length + '</span></div>' +
-      (grTemplates.length
-        ? '<div class="gr_field gr_testto"><label for="grTestTo">Send tests to</label>' +
-            '<input class="gr_in" id="grTestTo" type="email" data-gr-testto value="' +
-            esc((grSettings.signature || {}).testTo || '') + '" placeholder="' +
-            esc(grGmail.email || 'you@reachgiant.com') + '">' +
-            '<span class="gr_hint">' + (grGmail.email
-              ? 'Leave it empty to use ' + esc(grGmail.email) + ', the mailbox Growth sends from.'
-              : 'Connect Gmail and this defaults to the mailbox Growth sends from.') +
-            '</span></div>'
-        : '') +
-      (grTemplates.length && grGmail.ready && to
-        ? '<div class="gr_acts gr_testbar"><button class="gr_ghost" data-gr-tpl-testall' +
+    /* No wrapper card and no "Saved templates" heading: the two groups below are the
+       cards, and each carries its own count. A card holding cards reads as one list
+       with stripes in it. The address these go to is an email setting, so it sits with
+       the signature rather than above the list. */
+    return (grTemplates.length && grGmail.ready && to
+        ? '<div class="gr_acts gr_testbar"><button class="btn-red" data-gr-tpl-testall' +
             (grTestBusy ? ' disabled' : '') + '>' +
             (grTestBusy === 'all' ? 'Sending...' : 'Send all ' + grTemplates.length + ' to ' + esc(to)) +
-          '</button><span class="gr_mute">Check every link and the signature in your inbox.</span></div>'
+          '</button></div>' +
+          '<p class="gr_mute">Check every link and the signature in your inbox.</p>'
         : grTemplates.length
           ? '<p class="gr_mute">Connect Gmail to send yourself a test of each one.</p>' : '') +
-      (grTemplates.length ? grTemplates.map(function (t, i) {
+      (grTemplates.length ? grTplGroups()
+        : '<section class="gr_card"><p class="gr_mute">No templates yet. Make one on the + New template tab.</p></section>');
+  }
+
+  /* Where the test copies go. An email setting, so it lives with the signature. */
+  function grTestToPart() {
+    return '<section class="gr_card"><div class="gr_ct"><h2>Test emails</h2></div>' +
+      '<div class="gr_field"><label for="grTestTo">Send tests to</label>' +
+        '<input class="gr_in" id="grTestTo" type="email" data-gr-testto value="' +
+        esc((grSettings.signature || {}).testTo || '') + '" placeholder="' +
+        esc(grGmail.email || 'you@reachgiant.com') + '">' +
+        '<span class="gr_hint">' + (grGmail.email
+          ? 'Leave it empty to use ' + esc(grGmail.email) + ', the mailbox Growth sends from.'
+          : 'Connect Gmail and this defaults to the mailbox Growth sends from.') +
+        '</span></div></section>';
+  }
+
+  /* PACKAGE EMAILS AND THE REST, APART. Six rows that are all "Google Ads Management
+     something" read as one undifferentiated list; split, the shape of the offer is
+     visible at a glance and a Zoom reminder stops hiding among the invoices. */
+  function grTplGroups() {
+    const pk = grTemplates.filter(grIsPkg), ot = grTemplates.filter(function (t) { return !grIsPkg(t); });
+    const grp = function (title, note, arr) {
+      return '<section class="gr_card"><div class="gr_ct"><h2>' + title + '</h2>' +
+        '<span class="gr_n">' + arr.length + '</span></div>' +
+        '<p class="gr_mute">' + note + '</p>' +
+        (arr.length ? arr.map(grTplRow).join('') : '<p class="gr_mute">None yet.</p>') +
+      '</section>';
+    };
+    return grp('Package emails', 'Built from the package master. Each one carries a Stripe link.', pk) +
+      grp('Other emails', 'Written by hand, like Zoom links and reminders.', ot);
+  }
+
+  function grTplRow(t) {
         const open = grEdit === t.id;
+        // Position is global, so the arrows read the whole list, not the group.
+        const i = grTemplates.indexOf(t);
+        const to = grTestTo();
         return '<div class="gr_tplr' + (open ? ' gr_tplon' : '') + '">' +
-          '<div class="gr_tplh">' +
+          /* The whole header opens the row. The move buttons live inside it and are
+             handled first, so pressing one reorders without also opening. */
+          '<div class="gr_tplh" data-gr-tpl-open="' + t.id + '" role="button" tabindex="0"' +
+            ' aria-expanded="' + open + '">' +
+            '<span class="gr_tplgrip" aria-hidden="true">&#8942;&#8942;</span>' +
             '<span class="gr_tplm"><b>' + esc(t.name) + '</b>' +
               '<span>' + esc(t.subject || 'No subject') + '</span></span>' +
             '<span class="gr_tplo">' +
+              '<span class="gr_kind' + (grIsPkg(t) ? ' gr_pkg' : '') + '">' +
+                (grIsPkg(t) ? 'Package' : 'Other') + '</span>' +
               '<button class="gr_ib" data-gr-tpl-move="' + t.id + '" data-d="-1"' + (i === 0 ? ' disabled' : '') + ' aria-label="Move up">&#9650;</button>' +
               '<button class="gr_ib" data-gr-tpl-move="' + t.id + '" data-d="1"' + (i === grTemplates.length - 1 ? ' disabled' : '') + ' aria-label="Move down">&#9660;</button>' +
             '</span>' +
           '</div>' +
-          '<div class="gr_tpla">' +
+          (open ? '<div class="gr_tpla">' +
             '<button class="gr_ghost gr_sm" data-gr-tpl-pv="' + t.id + '">Preview</button>' +
             (grGmail.ready && to
               ? '<button class="gr_ghost gr_sm" data-gr-tpl-test="' + t.id + '"' + (grTestBusy ? ' disabled' : '') + '>' +
                 (grTestBusy === t.id ? 'Sending...' : 'Send a test') + '</button>'
               : '') +
-            '<button class="gr_ghost gr_sm" data-gr-tpl-open="' + t.id + '" aria-expanded="' + open + '">' +
-              (open ? 'Close' : 'Edit') + '</button>' +
             '<span class="gr_sp"></span>' +
-            (open ? '<button class="gr_danger gr_sm" data-gr-tpl-del="' + t.id + '">Delete</button>' : '') +
-          '</div>' +
+            '<button class="gr_danger gr_sm" data-gr-tpl-del="' + t.id + '">Delete</button>' +
+          '</div>' : '') +
           (open
             ? '<div class="gr_tpled">' +
               '<div class="gr_field"><label>Name</label><input class="gr_in" data-gr-tpl-name="' + t.id + '" value="' + esc(t.name) + '"></div>' +
@@ -98751,8 +98986,6 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               '</div>'
             : '') +
         '</div>';
-      }).join('') : '<p class="gr_mute">No templates yet. Add one on the Email templates tab.</p>') +
-    '</section>';
   }
 
   function grDiscPart() {
@@ -98840,30 +99073,31 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                 : sent + ' test' + (sent === 1 ? '' : 's') + ' sent to ' + to);
   }
 
-  function grRenderSettings() {
+  function grSettingsBody() {
     // Three tabs, as the design has them. Discount codes and the signature are not
     // separate places: they are things you reach for WHILE writing a template, so they
     // live under it rather than behind another click.
     /* Pipeline is not here any more. Stages belong with the board they are the columns
        of -- renaming one in a settings screen meant leaving the thing you were looking
        at to change it. Everything it could do, the board can do now. */
-    const tabs = [['templates','Email templates'],['saved','Saved templates'],['team','Team']];
-    if (['templates', 'saved', 'team'].indexOf(grSetTab) < 0) grSetTab = 'templates';
+    const tabs = [['templates','Templates'],['new','+ New template'],['master','Package master'],
+                  ['email','Codes & signature'],['team','Team']];
+    if (tabs.map(function (t) { return t[0]; }).indexOf(grSetTab) < 0) grSetTab = 'templates';
     let body = '';
 
     if (grSetTab === 'templates') {
-
-      body = grTplAddPart() + grDiscPart() + grSigPart();
-
-    } else if (grSetTab === 'saved') {
       body = grTplSavedPart();
 
+    } else if (grSetTab === 'new') {
+      body = grTplNewPart();
+
+    } else if (grSetTab === 'master') {
+      body = grMasterPart();
+
+    } else if (grSetTab === 'email') {
+      body = grDiscPart() + grSigPart() + grTestToPart();
+
     } else {
-      const sig = grSettings.signature || {};
-      const f = function (k, label, ph) {
-        return '<div class="gr_field"><label for="grSig' + k + '">' + label + '</label>' +
-          '<input id="grSig' + k + '" class="gr_in" data-gr-sig="' + k + '" value="' + esc(sig[k] || '') + '" placeholder="' + ph + '"></div>';
-      };
       /* Who works in Growth, as a list you can tick rather than every profile in the
          company. The owner dropdown on a deal and the person chips on the course both
          read this, which is what turned 79 names into the handful who actually sell. */
@@ -98893,23 +99127,38 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             '<div class="gr_rm"><b>' + esc(p.full_name || 'Unnamed') + '</b><span>' +
               (staff ? 'Sees every deal, and can edit these settings' : 'Sees only their own deals') + '</span></div>' +
             '<span class="gr_st">' + mine.length + ' deal' + (mine.length === 1 ? '' : 's') + '</span></div>';
-        }).join('') + '</section>' +
-        '<section class="gr_card"><div class="gr_ct"><h2>Email signature</h2></div>' +
-          '<p class="gr_mute">Added to the bottom of every email Growth sends.</p>' +
-          '<div class="gr_two">' + f('name','Name','Luke Griffin') + f('title','Title or company','ReachGiant') + '</div>' +
-          '<div class="gr_two">' + f('phone','Phone','') + f('email','Email','big@reachgiant.com') + '</div>' +
-          f('site','Website','reachgiant.com') +
-          f('image','Logo or photo (link)','https://reachgiant.com/logo.png') +
-          '<p class="gr_mute">Emails from Growth send as plain text, so the picture shows ' +
-          'in the preview here and not in the sent email. The name, title and links do go.</p>' +
-          grSigPreview() + '</section>';
+        }).join('') + '</section>';
+      /* The signature used to be drawn again here, with a "Logo or photo (link)" field
+         on top. Two editors for one row of settings, and the extra field wrote
+         signature.image, which nothing has read since the logo came off the preview --
+         it could not be sent, because Growth sends text/plain. One editor now, under
+         Email templates, which is where you are when you care about it. */
     }
 
-    $('grSettings').innerHTML =
-      grHead('Growth settings', 'Templates, codes, your signature and who works in Growth', '') +
-      '<div class="gr_seg gr_wide">' + tabs.map(function (t) {
+    return '<div class="gr_seg gr_wide">' + tabs.map(function (t) {
         return '<button data-gr-settab="' + t[0] + '"' + (grSetTab === t[0] ? ' aria-pressed="true"' : '') + '>' + t[1] + '</button>';
       }).join('') + '</div>' + body + grTplPvHtml();
+  }
+
+  /* Built into <body> like the deal sheet, for the same reason: leaving a Growth screen
+     must not be able to take it down while somebody is halfway through a template. */
+  function grRenderSetPanel() {
+    const w = $('grSetPanel');
+    if (!w) return;
+    if (!grSetOpen || !grIsStaff()) { w.classList.remove('on'); w.innerHTML = ''; return; }
+    w.innerHTML = '<div class="gr_setd" role="dialog" aria-label="Growth settings">' +
+      '<div class="gr_seth"><div><h2>Growth settings</h2>' +
+        '<p>Templates, codes, your signature and who works in Growth.</p></div>' +
+        '<button class="gr_x" data-gr-setclose aria-label="Close">&#10005;</button></div>' +
+      grSettingsBody() + '</div>';
+    w.classList.add('on');
+  }
+
+  function grOpenSettings(tab) {
+    if (!grIsStaff()) return;
+    if (tab) grSetTab = tab;
+    grSetOpen = true;
+    grRender();
   }
 
   /* ---- the writes behind Settings ---- */
@@ -99926,9 +100175,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     grClosePick();
 
     if (kind === 'edit') {
-      grSetTab = v; grOpenId = null; grComposer = null;
-      const n = document.querySelector('.nav-item[data-screen="gr_settings"]');
-      if (n) n.click(); else grRender();
+      grOpenId = null; grComposer = null;
+      grOpenSettings(v);
       return;
     }
     if (!c) return;
@@ -100050,8 +100298,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       else if (grScreen === 'gr_analytics') grRenderAnalytics();
       else if (grScreen === 'gr_connectors' && grIsStaff()) grRenderConnectors();
       else if (grScreen === 'gr_automations' && grIsStaff()) grRenderAutomations();
-      else if (grScreen === 'gr_settings' && grIsStaff()) grRenderSettings();
       grRenderSheet();
+      grRenderSetPanel();
       grBadges();
     } catch (e) { /* one broken screen must not take the app with it */ }
   }
@@ -100849,6 +101097,69 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       })();
       return;
     }
+    const tm = e.target.closest('[data-gr-tplmode]');
+    if (tm) { grTplMode = tm.dataset.grTplmode; grRender(); return; }
+
+    if (e.target.closest('[data-gr-pkgmake]')) {
+      const nm = (grPkgDraft.name || '').trim(), lk = (grPkgDraft.link || '').trim();
+      if (!nm) { const el = $('grPkgName'); if (el) el.focus(); grToast('Add the package name first.'); return; }
+      /* The link is what makes it a package email, here and in the list, so a package
+         email without one is not a thing that can exist. */
+      if (!/^https?:\/\//i.test(lk)) { const el = $('grPkgLink'); if (el) el.focus(); grToast('Paste the Stripe link first.'); return; }
+      (async function () {
+        const b = grFromMaster(nm, lk);
+        const r = await grWrite('growth_templates', 'insert',
+          { name: nm, subject: b.subject, body: b.body, position: grTemplates.length });
+        if (r) {
+          grTemplates.push(r[0]);
+          grPkgDraft = { name: '', link: '' };
+          grSetTab = 'templates';
+          grRender();
+          grToast('Package email created: ' + nm);
+        }
+      })();
+      return;
+    }
+
+    if (e.target.closest('[data-gr-pkgbulk]')) {
+      const ok = grBulkRows().filter(function (r) { return !r.bad.length; });
+      if (!ok.length) { grToast('Nothing ready to create yet.'); return; }
+      (async function () {
+        const made = [];
+        for (let i = 0; i < ok.length; i++) {
+          const b = grFromMaster(ok[i].name, ok[i].link);
+          const r = await grWrite('growth_templates', 'insert',
+            { name: ok[i].name, subject: b.subject, body: b.body, position: grTemplates.length + i });
+          if (r) { grTemplates.push(r[0]); made.push(r[0]); }
+        }
+        grBulkDraft = { text: '' };
+        grSetTab = 'templates';
+        grRender();
+        grToast(made.length + ' package email' + (made.length === 1 ? '' : 's') + ' created');
+      })();
+      return;
+    }
+
+    /* grSetting says "Saved" and repaints on its own, so these only clear the draft and
+       speak up when the write did NOT land -- a toast saying saved over a write that
+       failed is the shape of bug this module keeps finding. */
+    if (e.target.closest('[data-gr-mt-save]')) {
+      const m = grMtDraft || grMaster();
+      grSetting('tpl_master', { subject: m.subject, body: m.body }).then(function (r) {
+        if (!r) { grToast('Could not save the master. Nothing was changed.'); return; }
+        grMtDraft = null; grRender();
+      });
+      return;
+    }
+    if (e.target.closest('[data-gr-mt-reset]')) {
+      grSetting('tpl_master', { subject: GR_MASTER_DEFAULT.subject, body: GR_MASTER_DEFAULT.body })
+        .then(function (r) {
+          if (!r) { grToast('Could not reset the master. Nothing was changed.'); return; }
+          grMtDraft = null; grRender();
+        });
+      return;
+    }
+
     if (e.target.closest('[data-gr-tpl-add]')) {
       const n = (grTplDraft.n || '').trim(), sub = (grTplDraft.s || '').trim(), bd = (grTplDraft.b || '').trim();
       if (!n && !sub && !bd) { const el = $('grTplN'); if (el) el.focus(); grToast('Give it a name or something to say first.'); return; }
@@ -100929,6 +101240,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const tab = e.target.closest('[data-gr-tab]');
     if (tab) { grTab = tab.dataset.grTab; grRender(); return; }
     if (e.target.closest('[data-gr-close]')) { grOpenId = null; grMeetId = null; grComposer = null; grLost = null; grRender(); return; }
+    /* The dimmed area counts as closing, which the deal sheet never did. A panel you
+       opened from a nav item has to be dismissable without hunting for the X. */
+    if (e.target.closest('[data-gr-setclose]') || e.target === $('grSetPanel')) {
+      grSetOpen = false; grRender(); return;
+    }
 
     /* Checked before data-gr-open, because the panel's own "Open the deal" button is a
        data-gr-open and has to win over the row it is drawn inside. */
@@ -100950,6 +101266,30 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   document.addEventListener('input', function (e) {
     const dft = { grTplN: 'n', grTplS: 's', grTplB: 'b' }[e.target.id];
     if (dft) { grTplDraft[dft] = e.target.value; return; }     // no re-render: it is a draft
+    /* The package fields repaint only the preview box. A full render would rebuild the
+       input under the typing hand and throw the caret to the end on every letter. */
+    const pk = e.target.dataset && e.target.dataset.grPkgf;
+    if (pk) {
+      grPkgDraft[pk] = e.target.value;
+      const pv = $('grPkgPreviewBox'); if (pv) pv.innerHTML = grPkgPreview();
+      return;
+    }
+    const mt = e.target.dataset && e.target.dataset.grMt;
+    if (mt) {
+      if (!grMtDraft) { const m = grMaster(); grMtDraft = { subject: m.subject, body: m.body }; }
+      grMtDraft[mt] = e.target.value;
+      return;                                                  // draft: saved by the button
+    }
+    if (e.target.id === 'grBulkBox') {
+      grBulkDraft.text = e.target.value;
+      // The check under it is the whole point, so it has to keep up as you paste.
+      const host = $('grSetPanel');
+      const box = host && host.querySelector('.gr_bklist');
+      if (box || true) grRenderSetPanel();
+      const back = $('grBulkBox');
+      if (back) { back.focus(); try { back.setSelectionRange(back.value.length, back.value.length); } catch (_) {} }
+      return;
+    }
     if (e.target.id === 'grDcCode')  { grDcDraft.code  = e.target.value; return; }
     if (e.target.id === 'grDcLabel') { grDcDraft.label = e.target.value; return; }
     if (e.target.id === 'grQaQ') {
@@ -101007,6 +101347,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         grToast('File loaded. Check it, then save.');
       };
       r.readAsText(f);
+      return;
+    }
+
+    if (e.target.id === 'grBulkFile') {
+      const f2 = e.target.files && e.target.files[0];
+      if (!f2) return;
+      const r2 = new FileReader();
+      r2.onload = function () {
+        grBulkDraft.text = String(r2.result || '');
+        grTplMode = 'bulk';
+        grRender();
+        grToast('Loaded ' + grBulkRows().length + ' row' + (grBulkRows().length === 1 ? '' : 's') + ' to check');
+      };
+      r2.readAsText(f2);
       return;
     }
 
@@ -101231,6 +101585,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (grComposer) { grComposer = null; grRender(); return; }
     // The call panel sits in the same host as the deal sheet, so it closes at the same
     // depth -- whichever of the two is up.
+    // Above the sheets: Settings is drawn over them, so it is what Escape should take.
+    if (grSetOpen) { grSetOpen = false; grRender(); return; }
     if (grMeetId) { grMeetId = null; grRender(); return; }
     if (grOpenId) { grOpenId = null; grRender(); }
   });
@@ -101240,6 +101596,36 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      Check all again on Connectors. */
   window.grReload = async function () { grLoaded = false; await grLoad(); };
 
+  /* SETTINGS IS A NAV ITEM THAT DOES NOT NAVIGATE. The app's own handler switches
+     screens on any .nav-item click, so this runs in the CAPTURE phase on document and
+     stops the event before that handler sees it -- otherwise the screen would change
+     underneath the panel and Growth would lose the place you opened it from.
+
+     Registered once at parse time rather than inside grInit, because the first thing
+     somebody does in Growth may well be to click Settings, and grInit has not run yet. */
+  document.addEventListener('click', function (e) {
+    const n = e.target.closest && e.target.closest('.nav-item[data-screen]');
+    if (!n) return;
+    if (n.dataset.screen !== 'gr_settings') {
+      /* Going somewhere else takes the panel with you. Left up, it would float over
+         Chat the way the Today button used to -- somebody else's screen wearing a
+         Growth panel, with no obvious way back to what it belongs to. */
+      if (grSetOpen) { grSetOpen = false; grRenderSetPanel(); }
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    if (!grIsStaff()) return;
+    /* Opened before any Growth screen was ever shown: there is nothing behind the panel
+       to go back to, so put Home there. */
+    const onScreen = document.querySelector('.screen.on');
+    if (!onScreen || String(onScreen.dataset.screen || '').indexOf('gr_') !== 0) {
+      const home = document.querySelector('.nav-item[data-screen="gr_home"]');
+      if (home) home.click();
+    }
+    grOpenSettings();
+  }, true);
+
   /* ---------- lazy init, one shared sheet host ---------- */
   window.grInit = function (scr) {
     grScreen = scr || 'gr_home';
@@ -101247,6 +101633,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const d = document.createElement('div');
       d.id = 'grSheet'; d.className = 'gr_sheetwrap';
       document.body.appendChild(d);
+    }
+    if (!$('grSetPanel')) {
+      const sp = document.createElement('div');
+      sp.id = 'grSetPanel'; sp.className = 'gr_setw';
+      sp.setAttribute('data-role-min', 'manager');
+      sp.setAttribute('data-client-hidden', '');
+      document.body.appendChild(sp);
+    }
+    /* A reload restores the last screen from localStorage, and somebody's last screen
+       may still be gr_settings from before it became a panel. That screen is empty now,
+       so send them somewhere real and open the panel they were asking for. */
+    if (scr === 'gr_settings') {
+      grScreen = 'gr_home';
+      grSetOpen = true;
+      const home = document.querySelector('.nav-item[data-screen="gr_home"]');
+      if (home) setTimeout(function () { home.click(); }, 0);
     }
     grWatchScreens();
     grCheckGmail();

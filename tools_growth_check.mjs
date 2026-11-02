@@ -2007,7 +2007,7 @@ await step('a template previews as the mail it becomes', async () => {
      part you came for. The list is its own tab with the three things you do to a
      template, and the preview is the message rather than a monospace dump of the body. */
   await screen('gr_settings');
-  await page.evaluate(() => document.querySelector('[data-gr-settab="saved"]')?.click());
+  await page.evaluate(() => document.querySelector('[data-gr-settab="templates"]')?.click());
   await page.waitForTimeout(1000);
 
   const list = await page.evaluate(() => ({
@@ -2016,13 +2016,27 @@ await step('a template previews as the mail it becomes', async () => {
     actions: [...document.querySelectorAll('.gr_tpla button')].map(b => b.textContent.trim()),
     openForms: document.querySelectorAll('[data-gr-tpl-body]').length
   }));
-  check('Saved templates is its own tab', list.tabs.indexOf('saved') >= 0, list.tabs.join(','));
-  check('a template is a row with Preview, a test, and Edit',
-    list.rows === 1 && ['Preview', 'Send a test', 'Edit'].every(a => list.actions.indexOf(a) >= 0),
-    JSON.stringify(list.actions));
-  check('and is not an open form until you press Edit', list.openForms === 0, String(list.openForms));
+  /* The list is its own tab, and making one is another. They used to share a screen,
+     which put a long empty form above the thing you came to look at. */
+  check('the list and the new-template form are separate tabs',
+    list.tabs.indexOf('templates') >= 0 && list.tabs.indexOf('new') >= 0,
+    list.tabs.join(','));
+  check('two templates, each a closed row', list.rows === 2 && list.actions.length === 0,
+    JSON.stringify({ rows: list.rows, actions: list.actions }));
+  check('and is not an open form until you open one', list.openForms === 0, String(list.openForms));
+  /* Preview, Send a test and Edit live inside the row now, so it has to be opened
+     first. That IS the change: a closed row is a name, not three buttons. */
+  await page.evaluate(() => document.querySelector('.gr_tplh[data-gr-tpl-open="gt-2"]')?.click());
+  await page.waitForTimeout(700);
+  const opened = await page.evaluate(() => ({
+    actions: [...document.querySelectorAll('.gr_tpla button')].map(b => b.textContent.trim()),
+    forms: document.querySelectorAll('[data-gr-tpl-body]').length
+  }));
+  check('opening one gives you Preview, a test, Edit and Delete',
+    ['Preview', 'Send a test', 'Delete'].every(a => opened.actions.indexOf(a) >= 0) &&
+    opened.forms === 1, JSON.stringify(opened));
 
-  await page.evaluate(() => document.querySelector('[data-gr-tpl-pv="gt-1"]')?.click());
+  await page.evaluate(() => document.querySelector('[data-gr-tpl-pv="gt-2"]')?.click());
   await page.waitForTimeout(900);
   const pv = await page.evaluate(() => {
     const m = document.querySelector('.gr_pvmail');
@@ -2064,8 +2078,9 @@ await step('a template previews as the mail it becomes', async () => {
   const goneByX = await page.evaluate(() => document.querySelectorAll('.gr_pvmail').length);
   check('the cross closes it', byX === 'clicked' && goneByX === 0, byX + ' / ' + goneByX);
 
-  // And clicking inside the message does NOT close it.
-  await page.evaluate(() => document.querySelector('[data-gr-tpl-pv="gt-1"]')?.click());
+  // And clicking inside the message does NOT close it. gt-2 again, because its row is
+  // the one standing open: gt-1's Preview button does not exist while its row is closed.
+  await page.evaluate(() => document.querySelector('[data-gr-tpl-pv="gt-2"]')?.click());
   await page.waitForTimeout(800);
   await page.evaluate(() => document.querySelector('.gr_pvbody')?.click());
   await page.waitForTimeout(500);
@@ -2077,6 +2092,10 @@ await step('a template previews as the mail it becomes', async () => {
   const closed = await page.evaluate(() => document.querySelectorAll('.gr_pvmail').length);
   check('Escape closes it too', closed === 0, String(closed));
 
+  /* The address test copies go to is an email setting, so it sits with the signature
+     rather than above the list of templates. */
+  await page.evaluate(() => document.querySelector('[data-gr-settab="email"]')?.click());
+  await page.waitForTimeout(800);
   const addr = await page.evaluate(() => ({
     fields: document.querySelectorAll('[data-gr-testto]').length,
     inSignature: document.querySelectorAll('[data-gr-sig="testTo"]').length
@@ -2112,14 +2131,18 @@ await step('the signature looks the same everywhere it is shown', async () => {
   }, sel);
 
   await screen('gr_settings');
-  await page.evaluate(() => document.querySelector('[data-gr-settab="templates"]')?.click());
+  await page.evaluate(() => document.querySelector('[data-gr-settab="email"]')?.click());
   await page.waitForTimeout(900);
   const builder = await lines('.gr_sigprev .gr_sig');
   check('the builder shows a signature', !!builder && builder.length > 0, JSON.stringify(builder));
 
-  await page.evaluate(() => document.querySelector('[data-gr-settab="saved"]')?.click());
+  await page.evaluate(() => document.querySelector('[data-gr-settab="templates"]')?.click());
   await page.waitForTimeout(900);
-  await page.evaluate(() => document.querySelector('[data-gr-tpl-pv="gt-1"]')?.click());
+  /* Preview, Send a test and Edit live inside the row now, so it has to be opened
+     first. That IS the change: a closed row is a name, not three buttons. */
+  await page.evaluate(() => document.querySelector('.gr_tplh[data-gr-tpl-open="gt-2"]')?.click());
+  await page.waitForTimeout(700);
+  await page.evaluate(() => document.querySelector('[data-gr-tpl-pv="gt-2"]')?.click());
   await page.waitForTimeout(900);
   const inMail = await lines('.gr_pvsig');
   check('and so does the preview of the mail', !!inMail && inMail.length > 0, JSON.stringify(inMail));
@@ -2367,6 +2390,254 @@ await step('a call opens what the person said when they booked', async () => {
   const closed = await page.evaluate(() =>
     document.getElementById('grSheet').classList.contains('on'));
   check('Escape closes the call panel', !closed, String(closed));
+});
+
+
+await step('Settings opens over the screen instead of becoming one', async () => {
+  /* It used to be a screen. Changing a template or a discount code meant leaving
+     whatever sent you there, and coming back to the top of it. It is a panel now, the
+     same shape as the templates drawer in Luke's CRM.
+
+     The nav item still looks like every other nav item, and the app switches screens on
+     ANY .nav-item click -- so the Growth module catches the event in the capture phase
+     and stops it. If that interception ever breaks, the panel still opens and everything
+     below still passes; the only thing that changes is the screen underneath. That is
+     what the first check measures. */
+  await screen('gr_pipeline');
+  await page.waitForTimeout(1200);
+  const before = await page.evaluate(() =>
+    (document.querySelector('.screen.on') || {}).dataset?.screen);
+
+  await page.evaluate(() =>
+    document.querySelector('#appSidebar .nav-item[data-screen="gr_settings"]')?.click());
+  await page.waitForTimeout(1100);
+
+  const o = await page.evaluate(() => {
+    const w = document.getElementById('grSetPanel');
+    const d = w && w.querySelector('.gr_setd');
+    const seg = d && d.querySelector('.gr_seg');
+    const sb = seg && seg.getBoundingClientRect();
+    const db = d && d.getBoundingClientRect();
+    return {
+      open: !!(w && w.classList.contains('on')),
+      wide: db ? Math.round(db.width) : 0,
+      behind: (document.querySelector('.screen.on') || {}).dataset?.screen,
+      tabs: [...(d ? d.querySelectorAll('[data-gr-settab]') : [])].map(b => b.textContent.trim()),
+      segH: sb ? Math.round(sb.height) : 0
+    };
+  });
+  check('clicking Settings opens the panel', o.open && o.wide > 400,
+    JSON.stringify({ open: o.open, wide: o.wide }));
+  /* THE ONE THAT MATTERS. A nav item that navigates would leave Pipeline behind and
+     put the empty gr_settings screen there instead. */
+  check('and leaves you on the screen you were already on',
+    o.behind === before && before === 'gr_pipeline',
+    JSON.stringify({ before: before, after: o.behind }));
+  check('with Templates, New, Package master, Codes and Team',
+    o.tabs.join(' | ') === 'Templates | + New template | Package master | Codes & signature | Team',
+    JSON.stringify(o.tabs));
+
+  // Team is the half that had to survive the move.
+  await page.evaluate(() => [...document.querySelectorAll('.gr_setd [data-gr-settab]')]
+    .find(b => /team/i.test(b.textContent))?.click());
+  await page.waitForTimeout(900);
+  const t = await page.evaluate(() => {
+    const d = document.querySelector('.gr_setd');
+    const tick = d && d.querySelector('.gr_tck');
+    const seg = d && d.querySelector('.gr_seg');
+    return {
+      segH: seg ? Math.round(seg.getBoundingClientRect().height) : 0,
+      scrolls: d ? d.scrollHeight > d.clientHeight : false,
+      heading: [...(d ? d.querySelectorAll('h2') : [])].map(x => x.textContent.trim()),
+      people: d ? d.querySelectorAll('.gr_trow').length : 0,
+      ticks: d ? d.querySelectorAll('.gr_tck').length : 0,
+      tickW: tick ? Math.round(tick.getBoundingClientRect().width) : 0,
+      sigFields: d ? d.querySelectorAll('[data-gr-sig]').length : 0
+    };
+  });
+  check('Team still lists who works in Growth, with working ticks',
+    t.heading.some(h => /Who works in Growth/i.test(h)) && t.people > 1 &&
+    t.ticks > 1 && t.tickW > 10, JSON.stringify(t));
+  /* Team used to draw a SECOND signature editor under the list, and that copy carried a
+     "Logo or photo (link)" field writing signature.image -- which nothing has read since
+     the logo came off the preview, because Growth sends text/plain. One editor now, and
+     it is not this tab. */
+  check('and no longer repeats the signature editor underneath it',
+    t.sigFields === 0, String(t.sigFields));
+  /* THE TAB STRIP, MEASURED ON A TAB THAT OVERFLOWS. The panel is a fixed-height flex
+     column, so its children shrink to fit -- but only once something makes it overflow.
+     Measured on a short tab the strip is a healthy 34px whether the rule is there or
+     not, so the check passed against the bug. On Team, with everyone listed, it drops to
+     6px without it: present in the DOM, unreadable and barely clickable. */
+  check('the tab strip keeps its height on a tab long enough to scroll',
+    t.scrolls && t.segH > 26, JSON.stringify({ scrolls: t.scrolls, segH: t.segH }));
+
+  // It must be dismissable both ways: a panel opened from a nav item has no Back.
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(700);
+  const esc = await page.evaluate(() =>
+    document.getElementById('grSetPanel').classList.contains('on'));
+  check('Escape closes it', !esc, String(esc));
+
+  await page.evaluate(() =>
+    document.querySelector('#appSidebar .nav-item[data-screen="gr_settings"]')?.click());
+  await page.waitForTimeout(900);
+  await page.evaluate(() => {
+    const w = document.getElementById('grSetPanel');
+    const r = w.getBoundingClientRect();
+    // the dimmed area, well clear of the drawer on the right
+    w.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: Math.round(r.left + 40),
+      clientY: Math.round(r.top + 300) }));
+  });
+  await page.waitForTimeout(700);
+  const back = await page.evaluate(() => ({
+    open: document.getElementById('grSetPanel').classList.contains('on'),
+    screen: (document.querySelector('.screen.on') || {}).dataset?.screen }));
+  check('and so does clicking the dimmed area beside it',
+    !back.open && back.screen === 'gr_pipeline', JSON.stringify(back));
+
+  /* Going somewhere else has to take it with you. Left up, it floats over another
+     module's screen the way the Today button used to -- and this is also how it leaks
+     into the rest of this suite: three earlier steps open Settings, and a panel still
+     up when they finish swallows the next Escape meant for something else. */
+  await page.evaluate(() =>
+    document.querySelector('#appSidebar .nav-item[data-screen="gr_settings"]')?.click());
+  await page.waitForTimeout(900);
+  const upBefore = await page.evaluate(() =>
+    document.getElementById('grSetPanel').classList.contains('on'));
+  await screen('gr_training');
+  await page.waitForTimeout(900);
+  const away = await page.evaluate(() => ({
+    open: document.getElementById('grSetPanel').classList.contains('on'),
+    screen: (document.querySelector('.screen.on') || {}).dataset?.screen }));
+  check('clicking another nav item takes the panel down with it',
+    upBefore && !away.open && away.screen === 'gr_training',
+    JSON.stringify({ wasUp: upBefore, after: away }));
+});
+
+
+await step('package emails are built from one master, not written six times', async () => {
+  /* Every package email is the same onboarding letter with a different name and Stripe
+     link in it. Written by hand, six of them drift apart and nobody finds out until a
+     client reads one. The master holds the wording; a package email is the master with
+     two values filled in.
+
+     Nothing in growth_templates says "package" -- there is no such column. The Stripe
+     link IS what makes one, here and in the list. */
+  const open = async (tab) => {
+    await page.evaluate(() =>
+      document.querySelector('#appSidebar .nav-item[data-screen="gr_settings"]')?.click());
+    await page.waitForTimeout(800);
+    await page.evaluate(t => [...document.querySelectorAll('.gr_setd [data-gr-settab]')]
+      .find(b => new RegExp(t, 'i').test(b.textContent))?.click(), tab);
+    await page.waitForTimeout(700);
+  };
+
+  await screen('gr_meetings');
+  await open('Templates');
+  const g = await page.evaluate(() => ({
+    tabs: [...document.querySelectorAll('.gr_setd [data-gr-settab]')].map(b => b.textContent.trim()),
+    groups: [...document.querySelectorAll('.gr_setd .gr_card .gr_ct h2')].map(x => x.textContent.trim()),
+    counts: [...document.querySelectorAll('.gr_setd .gr_card .gr_ct .gr_n')].map(x => x.textContent.trim()),
+    kinds: [...document.querySelectorAll('.gr_kind')].map(x => x.textContent.trim()),
+    // Collapsed, a row shows no actions at all. Eighteen buttons for six templates was
+    // the thing that made the list unreadable.
+    openActions: document.querySelectorAll('.gr_tpla').length,
+    boxed: (() => { const r = document.querySelector('.gr_tplr');
+      return r ? Math.round(r.getBoundingClientRect().height) : 0; })()
+  }));
+  check('the panel carries all five tabs',
+    g.tabs.join(' | ') === 'Templates | + New template | Package master | Codes & signature | Team',
+    JSON.stringify(g.tabs));
+  /* The fixture is one of each kind on purpose: a list of one shape proves nothing about
+     a split, and would pass just as well on code that never split anything. */
+  check('the list splits package emails from the rest',
+    g.groups.join(',') === 'Package emails,Other emails' && g.counts.join(',') === '1,1',
+    JSON.stringify({ groups: g.groups, counts: g.counts }));
+  check('and the one carrying a Stripe link is the one marked Package',
+    g.kinds.join(',') === 'Package,Other', JSON.stringify(g.kinds));
+  check('a row is a closed box, not a name over three buttons',
+    g.openActions === 0 && g.boxed > 40, JSON.stringify({ actions: g.openActions, rowH: g.boxed }));
+
+  // ---- the master fills the preview as you type
+  await open('New template');
+  const modes = await page.evaluate(() =>
+    [...document.querySelectorAll('.gr_mode b')].map(x => x.textContent.trim()));
+  check('New template offers one, many, or write your own',
+    modes.join(' | ') === 'Package email | Many packages | Other email', JSON.stringify(modes));
+
+  await page.evaluate(() => {
+    const n = document.getElementById('grPkgName');
+    n.value = 'Paid Ads Volt 3k'; n.dispatchEvent(new Event('input', { bubbles: true }));
+    const l = document.getElementById('grPkgLink');
+    l.value = 'https://buy.stripe.com/zzz'; l.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await page.waitForTimeout(500);
+  const pv = await page.evaluate(() =>
+    (document.getElementById('grPkgPreviewBox') || {}).textContent || '');
+  /* Both values, and the master's own wording around them. A preview that showed only
+     what you typed would look right and prove nothing about the master being used. */
+  check('the preview shows the master with your two values in it',
+    /Paid Ads Volt 3k/.test(pv) && /buy\.stripe\.com\/zzz/.test(pv) &&
+    /Head of Client Services/.test(pv), pv.slice(0, 70));
+
+  // ---- creating one writes a row built from the master
+  const before = await page.evaluate(() => (window.__mockDB.growth_templates || []).length);
+  /* data-gr-pk-add was ALREADY the Training pricing "add a package" button. Reusing it
+     meant that branch ran first, found no #grNewPack and returned -- the button looked
+     alive and saved nothing. Renamed; this is the name nothing else answers to. */
+  await page.evaluate(() => document.querySelector('[data-gr-pkgmake]')?.click());
+  await page.waitForTimeout(1200);
+  /* Read the ROW, not the screen. A template that paints and never saves looks identical
+     until the next reload, which is the bug shape this module keeps finding. */
+  const row = await page.evaluate(() => {
+    const t = (window.__mockDB.growth_templates || []).find(x => x.name === 'Paid Ads Volt 3k');
+    return t ? { name: t.name, subject: t.subject, hasLink: /buy\.stripe\.com\/zzz/.test(t.body),
+                 fromMaster: /Head of Client Services/.test(t.body),
+                 noLeftovers: !/\{package\}|\{payment_link\}/.test(t.body),
+                 keepsDiscount: /\{discount\}/.test(t.body) } : null;
+  });
+  const after = await page.evaluate(() => (window.__mockDB.growth_templates || []).length);
+  check('Create package email saves a row', after === before + 1 && !!row,
+    JSON.stringify({ before, after }));
+  check('built from the master, with both values filled in',
+    !!row && row.fromMaster && row.hasLink && row.noLeftovers, JSON.stringify(row));
+  /* {discount} is NOT filled in here: which code goes in is chosen when the email is
+     sent, not when the template is made. */
+  check('and {discount} left standing, because that is picked at send time',
+    !!row && row.keepsDiscount, JSON.stringify(row && row.keepsDiscount));
+  check('the new one files itself under Package emails',
+    await page.evaluate(() => {
+      const c = document.querySelector('.gr_setd .gr_card .gr_ct .gr_n');
+      return c ? c.textContent.trim() : '';
+    }) === '2', '');
+
+  // ---- the master itself
+  await open('Package master');
+  const m = await page.evaluate(() => ({
+    toks: [...document.querySelectorAll('.gr_toks code')].map(x => x.textContent),
+    sub: (document.getElementById('grMtS') || {}).value,
+    len: ((document.getElementById('grMtB') || {}).value || '').length
+  }));
+  check('the master names every placeholder it understands',
+    m.toks.join(',') === '{name},{package},{payment_link},{discount}', JSON.stringify(m.toks));
+  check('and opens with the real onboarding letter, not an empty box',
+    m.len > 600 && /ReachGiant/.test(m.sub), JSON.stringify({ sub: m.sub, len: m.len }));
+
+  await page.evaluate(() => {
+    const b = document.getElementById('grMtB');
+    b.value = b.value + '\nPS edited'; b.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await page.evaluate(() => document.querySelector('[data-gr-mt-save]')?.click());
+  await page.waitForTimeout(1200);
+  const saved = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'tpl_master');
+    return r && r.value ? /PS edited/.test(r.value.body) : false;
+  });
+  check('saving the master writes it to the settings row', saved, String(saved));
+
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(500);
 });
 
 

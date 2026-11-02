@@ -559,10 +559,16 @@
       body: 'This looks good. Can you send the agreement?', sent_at: giso(1, 0),
       thread_id: '', external_id: null, created_at: giso(1, 0) }
   ];
+  /* One of each KIND, because the list splits on it and a fixture of one shape proves
+     nothing about the split. A package email is one carrying a Stripe link -- there is
+     no column saying so -- and gt-2 is the one that has one. */
   DB.growth_templates = [
-    { id: 'gt-1', name: 'Google Ads Management', subject: 'Getting started with ReachGiant',
-      body: 'Hi {name},\n\nWe are looking forward to working with {company}.\n\nBest,', position: 0,
-      created_at: giso(30, 0) }
+    { id: 'gt-1', name: 'Zoom reminder', subject: 'Our call tomorrow',
+      body: 'Hi {name},\n\nQuick reminder about our call.\n\nBest,', position: 0,
+      created_at: giso(30, 0) },
+    { id: 'gt-2', name: 'Google Ads Management 1.5k', subject: 'Getting started with ReachGiant',
+      body: 'Hi {name},\n\nWe are looking forward to working with {company}.\n\nPayment\nGoogle Ads Management 1.5k\n[Pay here via Stripe](https://buy.stripe.com/test123)\n{discount}\n\nBest,',
+      position: 1, created_at: giso(20, 0) }
   ];
   DB.growth_settings = [
     { key: 'pipeline', value: { staleDays: 5, stages: [
