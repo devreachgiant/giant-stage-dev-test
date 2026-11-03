@@ -1258,10 +1258,21 @@
             return true;
           });
           rows.sort((x, y) => new Date(y.created_at) - new Date(x.created_at));
-          if (name === 'search_messages_count') { data = rows.length; }
+          // The real count stops at a ceiling rather than scanning the whole table, so a
+          // mock that counts for ever would hide the "500+" the tab has to print.
+          if (name === 'search_messages_count') { data = Math.min(rows.length, 500); }
           else {
+            // Keyset paging. The real function compares (rank, id) or (created_at, id);
+            // this orders by created_at, so "everything after that row" is the same
+            // contract -- forward progress, and no row served twice. Without it a mock
+            // returns page one to every request and a Load more check passes while the
+            // list never grows.
+            if (a.p_cursor_id) {
+              const at = rows.findIndex(m => m.id === a.p_cursor_id);
+              rows = at >= 0 ? rows.slice(at + 1) : [];
+            }
             const term = (arr(a.p_words)[0] || arr(a.p_phrases)[0] || arr(a.p_prefixes)[0] || '');
-            data = rows.slice(0, a.p_limit || 20).map(m => {
+            data = rows.slice(0, Math.min(a.p_limit || 20, 500)).map(m => {
               const body = String(m.body || '');
               let snippet = body.slice(0, 160);
               if (term) {

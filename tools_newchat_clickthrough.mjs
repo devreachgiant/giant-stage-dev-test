@@ -9681,6 +9681,158 @@ await step('Changelog renders what each release says', async () => {
 });
 
 
+// ── the search can be read to the end ────────────────────────────────────────
+// It found 225 messages, wrote "225" in the tab, and then showed eight of them with no
+// way to reach the 217 others -- the fetch asked for 20 rows and the render cut that to
+// 8. Every check here counts what is ON SCREEN, because the old code was perfectly
+// happy to hold rows it never rendered.
+await step('search: the whole of a long result list can be reached', async () => {
+  const r = await page.evaluate(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms));
+    const out = {};
+    try { localStorage.removeItem('giant_search_recent'); } catch (e) {}
+    window.__cmdkTab = null;                     // an earlier step may have left a tab on
+    const db = window.__mock.db;
+    // Not a hard-coded 225: earlier steps push messages of their own into this fixture.
+    out.inFixture = db.messages.filter(m => /landing/i.test(m.body || '')).length;
+    document.getElementById('globalSearchBox').click();
+    await wait(700);
+    const input = document.getElementById('cmdkInput');
+    if (!input) return out;
+    const type = async (v) => {
+      input.focus(); input.value = v;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await wait(2500);
+    };
+    // Rows as a PERSON sees them: the message rows, not the array behind them.
+    const rows = () => [...document.querySelectorAll('[data-cmdk-section="Messages"]')]
+      .map(e => e.innerText.split('\n')[0]);
+    const msgRows = () => rows().filter(t => !/^Load more|^Show all/.test(t));
+    const footer = (re) => [...document.querySelectorAll('[data-cmdk-section="Messages"]')]
+      .find(e => re.test(e.innerText));
+    const tabCount = (name) => {
+      const b = [...document.querySelectorAll('[data-cmdk-tab]')]
+        .find(x => new RegExp('^' + name).test(x.innerText));
+      return b ? b.innerText.replace(/\s+/g, ' ').trim().split(' ').pop() : null;
+    };
+
+    await type('landing');
+    out.tabSaysAll = tabCount('All');
+    out.tabSaysMessages = tabCount('Messages');
+    out.allTabRows = msgRows().length;
+    out.allTabOffersTheRest = !!footer(/Show all/);
+    out.showAllLabel = (footer(/Show all/) || {}).innerText || '';
+
+    // The way through to the rest, and it must not close the panel under you.
+    const showAll = footer(/Show all/);
+    if (showAll) { showAll.click(); await wait(2500); }
+    out.stillOpenAfterShowAll = document.getElementById('cmdkOverlay').style.display === 'flex';
+    out.firstPage = msgRows().length;
+
+    // Page to the end, remembering every id: a cursor that failed to advance would serve
+    // page one for ever, and a row count alone cannot tell that apart from real progress.
+    const seen = new Set(); let dupes = 0;
+    msgRows().forEach(t => seen.add(t));
+    out.growth = [out.firstPage]; out.scrolls = [];
+    for (let i = 0; i < 12; i++) {
+      const lm = footer(/Load more/);
+      if (!lm) break;
+      const R = document.getElementById('cmdkResults');
+      R.scrollTop = Math.floor(R.scrollHeight / 2);
+      const before = R.scrollTop, had = msgRows().length;
+      lm.click(); await wait(2500);
+      out.scrolls.push([before, R.scrollTop]);
+      const now = msgRows().length;
+      if (now <= had) { out.stalled = true; break; }
+      out.growth.push(now);
+    }
+    out.reached = msgRows().length;
+    out.noLoadMoreLeft = !footer(/Load more/);
+    out.stillOpenAtEnd = document.getElementById('cmdkOverlay').style.display === 'flex';
+    out.keptPlace = out.scrolls.every(p => p[0] === p[1]) && out.scrolls.length > 0;
+
+    // Tabs are pinned, or a long list scrolls the way back to All off the top.
+    const R = document.getElementById('cmdkResults');
+    R.scrollTop = R.scrollHeight;
+    await wait(120);
+    const tabs = document.getElementById('cmdkTabs');
+    out.tabsStillVisible = !!tabs
+      && tabs.getBoundingClientRect().bottom > R.getBoundingClientRect().top + 4;
+
+    // Switching tab must not throw away pages already pulled.
+    [...document.querySelectorAll('[data-cmdk-tab]')].find(b => /^All/.test(b.innerText)).click();
+    await wait(2000);
+    out.backOnAllRows = msgRows().length;
+    [...document.querySelectorAll('[data-cmdk-tab]')].find(b => /^Messages/.test(b.innerText)).click();
+    await wait(2000);
+    out.afterRoundTrip = msgRows().length;
+
+    // A different search is a different list, and must start from the first page.
+    await type('invoice');
+    window.__cmdkTab = 'Messages';
+    await type('invoice ');
+    out.newSearchRows = msgRows().length;   // one page: not 8 (the bug), not the 225 carried over
+
+    // Retyping the same words refetches page one, and every row it returns is a row the
+    // list already held. Counting those as repeats declared a 225-result search finished
+    // at 50 and took the way forward off the screen.
+    await type('landing');
+    window.__cmdkTab = 'Messages';
+    await type('landing ');                  // the same query once trimmed, so the same list
+    out.retypedRows = msgRows().length;
+    out.retypedOffersMore = !!footer(/Load more/);
+
+    // The count stops at a ceiling, so past it the tab has to say so rather than print a
+    // number the list would contradict.
+    window.__cmdkTab = null;
+    await type('the');
+    out.ceilingAll = tabCount('All');
+    out.ceilingMessages = tabCount('Messages');
+
+    // A real result still closes the panel -- only the two list rows keep it open.
+    await type('landing');
+    const real = [...document.querySelectorAll('[data-cmdk-section="Messages"]')]
+      .find(e => !/^Load more|^Show all/.test(e.innerText));
+    if (real) { real.click(); await wait(700); }
+    out.closedOnResult = document.getElementById('cmdkOverlay').style.display !== 'flex';
+    const ov = document.getElementById('cmdkOverlay'); if (ov) ov.style.display = 'none';
+    return out;
+  });
+
+  // The bug itself: eight rows for a result set of hundreds, and no way past them.
+  check('search: the All list previews messages and offers the rest',
+    r.allTabRows === 8 && r.allTabOffersTheRest
+      && new RegExp('Show all ' + r.inFixture + ' messages').test(r.showAllLabel),
+    JSON.stringify({ rows: r.allTabRows, label: r.showAllLabel, fixture: r.inFixture }));
+  check('search: the Messages tab pages to every row the tab counted',
+    r.reached === r.inFixture && r.noLoadMoreLeft && !r.stalled
+      && String(r.tabSaysMessages) === String(r.inFixture),
+    JSON.stringify({ reached: r.reached, fixture: r.inFixture, tab: r.tabSaysMessages,
+                     growth: r.growth, stalled: !!r.stalled }));
+  check('search: each page adds to the list instead of replacing it',
+    Array.isArray(r.growth) && r.growth.length >= 4
+      && r.growth.every((n, i) => i === 0 || n > r.growth[i - 1])
+      && r.firstPage === 50,
+    JSON.stringify(r.growth));
+  check('search: loading more keeps the panel open and your place in it',
+    r.stillOpenAfterShowAll && r.stillOpenAtEnd && r.keptPlace,
+    JSON.stringify({ open: r.stillOpenAtEnd, scrolls: r.scrolls }));
+  check('search: the tab strip stays reachable when the list is long',
+    r.tabsStillVisible, JSON.stringify({ visible: r.tabsStillVisible }));
+  check('search: changing tab keeps the pages, changing the search drops them',
+    r.afterRoundTrip === r.reached && r.backOnAllRows === 8 && r.newSearchRows === 50,
+    JSON.stringify({ roundTrip: r.afterRoundTrip, reached: r.reached,
+                     onAll: r.backOnAllRows, newSearch: r.newSearchRows }));
+  check('search: retyping the same search does not declare it finished',
+    r.retypedRows === 50 && r.retypedOffersMore,
+    JSON.stringify({ rows: r.retypedRows, offersMore: r.retypedOffersMore }));
+  check('search: a count it has stopped counting is marked, not stated',
+    /\+$/.test(String(r.ceilingMessages)) && /\+$/.test(String(r.ceilingAll)),
+    JSON.stringify({ all: r.ceilingAll, messages: r.ceilingMessages }));
+  check('search: a result still closes the panel',
+    r.closedOnResult, JSON.stringify({ closed: r.closedOnResult }));
+});
+
 const shot = path.join(process.env.TMPDIR || '/tmp', 'newchat-clickthrough.png');
 await page.screenshot({ path: shot, fullPage: false });
 clearInterval(confirmWatcher);

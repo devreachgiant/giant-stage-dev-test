@@ -63019,8 +63019,27 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       return (start > 0 ? '…' : '') + flat.slice(start, end) + (end < flat.length ? '…' : '');
     }
 
+    // ── how much of a search you can actually get to ────────────────────────────
+    // The search would find 225 messages, print "225" in the tab, and then show eight of
+    // them with no way to reach the rest: the fetch asked for 20 rows and the render cut
+    // that to 8. Messages now page, through the cursor search_messages has taken
+    // arguments for all along.
+    const CMDK_MSG_PAGE = 50;      // one page, and what "Load more" adds
+    const CMDK_MSG_PREVIEW = 8;    // messages in the mixed All list, which is four kinds of thing
+    const CMDK_MSG_MAX = 500;      // the ceiling search_messages_count counts to
+    let cmdkMsgKey = null, cmdkMsgRows = [], cmdkMsgCursor = null,
+        cmdkMsgDone = false, cmdkMsgTotal = 0;
+    const cmdkCountLabel = (n) => n >= CMDK_MSG_MAX ? CMDK_MSG_MAX + '+' : String(n);
+    const CMDK_MORE_ICON = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none">'
+      + '<path d="M4 6.5l4 4 4-4" stroke="currentColor" stroke-width="1.6" '
+      + 'stroke-linecap="round" stroke-linejoin="round"/></svg>';
     let cmdkSearchTimeout = null;
-    async function cmdkSearch(q) {
+    async function cmdkSearch(q, opts) {
+      // `more` appends the next page; `keep` re-renders what is already loaded, which is
+      // what a tab click wants -- refetching there would silently drop the pages you pulled.
+      const more = !!(opts && opts.more), keepPages = !!(opts && (opts.more || opts.keep));
+      const selBefore = cmdkItemSel;
+      const scrollBefore = (more && cmdkResults) ? cmdkResults.scrollTop : null;
       const query = q.trim();
       if (!query) {
         // An empty box is where you go back to something you searched before.
@@ -63030,7 +63049,9 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
         cmdkEmpty.style.display = 'block';
         return;
       }
-      cmdkResults.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-3);font-size:12px;">Searching…</div>';
+      // Wiping the list to "Searching…" would scroll a reader back to the top of
+      // nothing, so a "Load more" leaves what is on screen where it is.
+      if (!more) cmdkResults.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-3);font-size:12px;">Searching…</div>';
       const safe = async (p) => { try { const r = await p; return r.data || []; } catch(e){ return []; } };
       // Mid-chip: offer what can be filtered by, rather than running a search for a value
       // that is still half typed.
@@ -63131,24 +63152,50 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
           p_after: ast.filters.dateRange ? ast.filters.dateRange.start : null,
           p_before: ast.filters.dateRange ? ast.filters.dateRange.end : null,
           p_has: ast.filters.has, p_has_my: ast.filters.hasMy, p_is: ast.filters.is,
-          p_sort: (window.__cmdkSort || 'relevance'), p_limit: 20
+          p_sort: (window.__cmdkSort || 'relevance'), p_limit: CMDK_MSG_PAGE
         };
         const anythingToSearch = ast.text.words.length || ast.text.phrases.length
           || ast.text.prefixes.length || inIds.length || fromIds.length
           || ast.filters.has.length || ast.filters.is.length || ast.filters.dateRange;
-        if (!impossible && anythingToSearch) {
+        // The pages belong to a search, and the search is what was typed -- so typing
+        // drops them and clicking a tab does not.
+        const pageKey = JSON.stringify([query, args.p_sort]);
+        if (cmdkMsgKey !== pageKey) {
+          cmdkMsgKey = pageKey; cmdkMsgRows = []; cmdkMsgCursor = null;
+          cmdkMsgDone = false; cmdkMsgTotal = 0;
+        }
+        const reuse = keepPages && !more && cmdkMsgRows.length;
+        if (!impossible && anythingToSearch && !reuse) {
+          if (more && cmdkMsgCursor) {
+            args.p_cursor_rank = cmdkMsgCursor.rank;
+            args.p_cursor_at = cmdkMsgCursor.at;
+            args.p_cursor_id = cmdkMsgCursor.id;
+          }
           const [rows, count] = await Promise.all([
             (async () => { try { const r = await supabase.rpc('search_messages', args); return r.data || []; }
                            catch (e) { return []; } })(),
-            (async () => { try {
-              const { p_sort, p_limit, ...c } = args;
+            // The total belongs to the search, not to the page, so it is asked for once.
+            (more && cmdkMsgTotal) ? Promise.resolve(cmdkMsgTotal) : (async () => { try {
+              const { p_sort, p_limit, p_cursor_rank, p_cursor_at, p_cursor_id, ...c } = args;
               const r = await supabase.rpc('search_messages_count', c);
               return typeof r.data === 'number' ? r.data : 0;
             } catch (e) { return 0; } })()
           ]);
-          chipMsgs = rows;
-          msgCount = count;
+          // Keyset paging cannot repeat a row, but a cursor that failed to advance would
+          // append the same page for ever -- so ids decide what is new, not the cursor.
+          // Only when APPENDING, though: retyping the same query refetches page one, and
+          // measuring that against the rows already held would call every row a repeat
+          // and quietly declare a 225-result search finished at 50.
+          const seen = more ? new Set(cmdkMsgRows.map(m => m.id)) : new Set();
+          const fresh = rows.filter(m => !seen.has(m.id));
+          cmdkMsgRows = more ? cmdkMsgRows.concat(fresh) : rows;
+          cmdkMsgTotal = count;
+          cmdkMsgDone = rows.length < CMDK_MSG_PAGE || (more && !fresh.length);
+          const last = cmdkMsgRows[cmdkMsgRows.length - 1];
+          cmdkMsgCursor = last ? { rank: last.rank, at: last.created_at, id: last.id } : null;
         }
+        chipMsgs = cmdkMsgRows;
+        msgCount = cmdkMsgTotal;
       }
       const msgRows = chipMsgs;
       const authorIds = [...new Set(msgRows.map(m => m.author_id).filter(Boolean))];
@@ -63212,7 +63259,6 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
                  channelName: cmdkPlaceName(channel) };
       });
       let chat2Msgs = [];
-      chatMsgs = chatMsgs.slice(0, 8);
 
       const sections = [];
 
@@ -63261,7 +63307,13 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
 
       // ── then what was said in them ────────────────────────────────────────────
       if (chatMsgs.length) {
-        sections.push({ title: 'Messages', items: chatMsgs.map(m => ({
+        // All is a mix of four kinds of thing, so messages are previewed there. The
+        // Messages tab is where the list is read, and it is no longer eight rows long.
+        const onMessages = window.__cmdkTab === 'Messages';
+        // Never promise fewer than are already on screen: without the migration that
+        // lifts it, search_messages_count stops at 100 while the rows keep coming.
+        const msgTotal = Math.max(msgCount, chatMsgs.length);
+        const msgItems = (onMessages ? chatMsgs : chatMsgs.slice(0, CMDK_MSG_PREVIEW)).map(m => ({
           icon: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none"><rect x="1.8" y="3" width="12.4" height="9" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M4.5 15v-2.7h-1a1 1 0 01-1-1V3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>',
           // ts_headline already centred the snippet on the match and marked the terms;
           // re-cutting it client-side would throw that away.
@@ -63276,7 +63328,21 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
             const t = typeof toast === 'function' ? toast({ type:'info', message:'Jumping to message…', duration:20000 }) : null;
             window.jumpToChatMessage(m.channelId, m.id).then(() => { if (t) t.dismiss(); });
           }
-        })) });
+        }));
+        // The way to the rest of what the count is claiming. Both rows stay in the list
+        // rather than floating above it, so the keyboard reaches them like anything else.
+        if (!onMessages && msgTotal > msgItems.length) {
+          msgItems.push({ icon: CMDK_MORE_ICON, keepOpen: true,
+            label: 'Show all ' + cmdkCountLabel(msgTotal) + ' messages',
+            sub: 'Opens the Messages tab',
+            action: () => { window.__cmdkTab = 'Messages'; cmdkSearch(cmdkInput.value, { keep: true }); } });
+        } else if (onMessages && !cmdkMsgDone) {
+          msgItems.push({ icon: CMDK_MORE_ICON, keepOpen: true,
+            label: 'Load more messages',
+            sub: msgItems.length + ' of ' + cmdkCountLabel(msgTotal) + ' so far',
+            action: () => cmdkSearch(cmdkInput.value, { more: true }) });
+        }
+        sections.push({ title: 'Messages', items: msgItems });
       }
 
       // ── then tasks, then clients ──────────────────────────────────────────────
@@ -63319,23 +63385,30 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       // badge. Messages counts to 100 in the database; the others are what is on screen.
       const counts = {};
       sections.forEach(s => { counts[s.title] = s.items.length; });
-      if (counts.Messages != null && msgCount) counts.Messages = msgCount;
+      // s.items now carries the "Load more" row, which is not a result.
+      if (counts.Messages != null) counts.Messages = Math.max(msgCount, chatMsgs.length);
+      const atCeiling = (counts.Messages || 0) >= CMDK_MSG_MAX;
       const active = window.__cmdkTab && counts[window.__cmdkTab] ? window.__cmdkTab : 'All';
       const tabNames = ['All', ...sections.map(s => s.title)];
       const shown = active === 'All' ? sections : sections.filter(s => s.title === active);
+      // Sticky, because the list under it is now long enough to scroll the way back to
+      // All off the top of the panel.
       const tabsHtml = '<div id="cmdkTabs" style="display:flex;gap:6px;padding:8px 12px 6px;'
-        + 'border-bottom:1px solid var(--line);margin-bottom:4px;flex-wrap:wrap;">'
+        + 'border-bottom:1px solid var(--line);margin-bottom:4px;flex-wrap:wrap;'
+        + 'position:sticky;top:-8px;background:var(--pane);z-index:2;">'
         + tabNames.map(name => {
             const n = name === 'All'
               ? Object.values(counts).reduce((a, b) => a + b, 0)
               : counts[name];
             const on = name === active;
+            const label = (atCeiling && (name === 'All' || name === 'Messages'))
+              ? n + '+' : String(n);
             return '<button type="button" data-cmdk-tab="' + raiEscLocal(name) + '"'
               + ' style="background:' + (on ? 'var(--surface-2)' : 'transparent') + ';'
               + 'border:1px solid ' + (on ? 'var(--line-2)' : 'transparent') + ';border-radius:7px;'
               + 'padding:4px 10px;font-size:11.5px;font-weight:700;cursor:pointer;font-family:inherit;'
               + 'color:' + (on ? 'var(--text)' : 'var(--text-3)') + ';">'
-              + raiEscLocal(name) + ' <span style="opacity:.6;margin-left:4px;">' + n + '</span></button>';
+              + raiEscLocal(name) + ' <span style="opacity:.6;margin-left:4px;">' + label + '</span></button>';
           }).join('') + '</div>';
       cmdkResults.innerHTML = tabsHtml + shown.map(s => `
         <div style="padding:6px 12px 4px;font-size:10px;font-weight:700;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;">${raiEscLocal(s.title)}</div>
@@ -63354,16 +63427,19 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
           window.__cmdkTab = btn.dataset.cmdkTab === 'All' ? null : btn.dataset.cmdkTab;
-          cmdkSearch(cmdkInput.value);
+          cmdkSearch(cmdkInput.value, { keep: true });
         });
       });
       const allItems = [];
-      shown.forEach(s => s.items.forEach((it, idx) => allItems.push({ section: s.title, idx, action: it.action })));
+      shown.forEach(s => s.items.forEach((it, idx) =>
+        allItems.push({ section: s.title, idx, action: it.action, keepOpen: !!it.keepOpen })));
       // Enter opens the highlighted result. The panel had no keyboard model at all: you
       // could type a search and then had to reach for the mouse to use it.
       cmdkItems = allItems;
-      cmdkItemSel = 0;
-      cmdkHighlightItem(0);
+      // Appending a page must not throw you back to the top of a list you were reading.
+      cmdkItemSel = more ? Math.max(0, Math.min(selBefore, allItems.length - 1)) : 0;
+      cmdkHighlightItem(cmdkItemSel);
+      if (scrollBefore != null) cmdkResults.scrollTop = scrollBefore;
       cmdkResults.querySelectorAll('[data-cmdk-section]').forEach((el, n) => {
         el.addEventListener('mouseenter', () => cmdkHighlightItem(n));
         el.addEventListener('click', () => {
@@ -63371,7 +63447,9 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
           const idx = parseInt(el.dataset.cmdkIdx, 10);
           const found = allItems.find(x => x.section === sec && x.idx === idx);
           if (found && found.action) found.action();
-          cmdkClose();
+          // "Load more" and "Show all" act on the list you are reading. Closing the panel
+          // under them would throw away the search in order to show you more of it.
+          if (!(found && found.keepOpen)) cmdkClose();
         });
       });
     }
@@ -63662,7 +63740,7 @@ $5,000+" style="width:100%;background:var(--bg);border:1px solid var(--line-2);b
       const it = cmdkItems[i];
       if (!it || !it.action) return;
       it.action();
-      cmdkClose();
+      if (!it.keepOpen) cmdkClose();
     }
 
     function cmdkSafeHeadline(text){
