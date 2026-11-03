@@ -115,6 +115,9 @@ body{font-family:'Archivo',-apple-system,sans-serif;background:var(--bg);color:v
 body.role-manager [data-role-min="owner"]{display:none!important;}
 body.role-member [data-role-min="owner"],
 body.role-member [data-role-min="manager"]{display:none!important;}
+/* The growth role sees what a manager sees, plus the whole Growth module -- it is
+   deliberately given no hiding rule here. Only data-role-only="inhouse_dev" stays out of
+   reach, because that is matched by :not(.role-inhouse_dev) below rather than by a floor. */
 /* Clients had no rule here at all — they were hidden from things only by the separate
    data-client-hidden pass in initApp(), so anything manager-only that was missed by
    that attribute stayed visible to a client account. A client is below member, so
@@ -18595,7 +18598,7 @@ window.addEventListener('popstate', (e) => {
     const team = teamSize || 0;
     const myUid = myId();
     const myNm = (window.giantCurrentProfile && window.giantCurrentProfile.full_name) || '';
-    const reviewer = ['owner','manager','inhouse_dev'].includes((window.giantCurrentProfile && window.giantCurrentProfile.role) || '');
+    const reviewer = ['owner','manager','inhouse_dev','growth'].includes((window.giantCurrentProfile && window.giantCurrentProfile.role) || '');
 
     const activeSopsCount = sops.filter(s => s.status !== 'archived').length;
     const activeWfCount = wfs.filter(w => ['active','blocked','paused'].includes(w.status)).length;
@@ -22328,7 +22331,7 @@ window.addEventListener('popstate', (e) => {
   }
   function findFolder(id){ return folders.find(f => f.id === id); }
   function clientName(id){ const c = clientsCache.find(c => c.id === id); return c ? c.name : null; }
-  function isOwnerOrCreator(f){ const p = window.giantCurrentProfile; return (p && ['owner','manager','inhouse_dev'].includes(p.role)) || (f && f.created_by === myId()); }
+  function isOwnerOrCreator(f){ const p = window.giantCurrentProfile; return (p && ['owner','manager','inhouse_dev','growth'].includes(p.role)) || (f && f.created_by === myId()); }
 
   async function getAccessToken(){
     const { data } = await sb().auth.getSession();
@@ -41647,7 +41650,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
   // ── APP (the dashboard) ────────────────────────────────────────────
   function initApp(session, profile) {
     // Apply role to body for RBAC CSS
-    document.body.classList.remove('role-owner','role-manager','role-member','role-client','role-inhouse_dev');
+    document.body.classList.remove('role-owner','role-manager','role-member','role-client','role-inhouse_dev','role-growth');
     document.body.classList.add('role-' + profile.role);
     // Restore whichever Team Pulse tab (Team/Manager/Schedule) the user had open last,
     // now that role-based visibility above is in effect.
@@ -41688,7 +41691,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
        Automations configure the module for everybody, which is a different thing from
        using it. The database agrees separately -- growth_is_staff() gates the writes --
        so this is the sidebar matching what the rows already allow. */
-    if (!['owner', 'manager', 'inhouse_dev'].includes(profile.role) && window.giantSupabase) {
+    if (!['owner', 'manager', 'inhouse_dev', 'growth'].includes(profile.role) && window.giantSupabase) {
       const GR_ADMIN_ONLY = ['gr_settings', 'gr_connectors', 'gr_automations'];
       window.giantSupabase.from('growth_settings').select('value').eq('key', 'access').maybeSingle()
         .then(({ data }) => {
@@ -78915,7 +78918,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         ? window.giantConfirmWarn(title, message, label || 'Confirm', 'danger')
         : Promise.resolve(window.confirm(message));
 
-    const ncIsStaff = () => ['owner','manager','inhouse_dev'].includes(
+    const ncIsStaff = () => ['owner','manager','inhouse_dev','growth'].includes(
       String((window.giantCurrentProfile && window.giantCurrentProfile.role) || '').toLowerCase());
     const initialsOf = (n) => String(n || '?').trim().split(/\s+/).slice(0,2).map(w => w.charAt(0).toUpperCase()).join('') || '?';
     // Colour only, and only two parameters -- which is what it always was. The bug was at
@@ -82988,7 +82991,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // workspace. Exactly the set channels_delete_owner_mgr already enforces server-side,
       // so hiding these items matches what the database would allow rather than guessing.
       const myRole = String((window.giantCurrentProfile && window.giantCurrentProfile.role) || '').toLowerCase();
-      const canManage = ['owner', 'manager', 'inhouse_dev', 'admin'].includes(myRole)
+      const canManage = ['owner', 'manager', 'inhouse_dev', 'admin', 'growth'].includes(myRole)
         || !!(channel && channel.created_by && channel.created_by === ncMyId());
       // A one-to-one has nothing to rename, nobody to invite, and leaving it is deleting
       // it -- so those three are simply not offered there.
@@ -85393,7 +85396,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // Only offered to the people the database will actually let create a client:
       // clients_insert_mgr is is_manager_or_owner(). Shown to anybody else it is a dead
       // end -- they type a name and get a policy error they can do nothing about.
-      const mayAddClient = ['owner', 'manager', 'inhouse_dev']
+      const mayAddClient = ['owner', 'manager', 'inhouse_dev', 'growth']
         .includes((window.giantCurrentProfile || {}).role);
       sel.innerHTML = '<option value="">Choose a client…</option>'
         + (mayAddClient ? '<option value="__new__">＋ New client — not in this list</option>' : '')
@@ -89517,7 +89520,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   // it follows the same floor as the rest of Projects 2.0.
   // Read off giantCurrentProfile, the same source canDeleteTask uses -- window.giantRole
   // is not a thing this app sets, and a permission that reads undefined refuses everybody.
-  const canEditColumns = () => ['owner', 'manager', 'inhouse_dev']
+  const canEditColumns = () => ['owner', 'manager', 'inhouse_dev', 'growth']
     .includes(String((window.giantCurrentProfile || {}).role || '').toLowerCase());
   try { const raw = JSON.parse(localStorage.getItem('giant_p2_colw') || '{}');
         Object.keys(P2_COLW).forEach(k => { if (+raw[k] > 0) p2.colw[k] = +raw[k]; }); } catch (_) {}
@@ -90825,7 +90828,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   // this only decides whether to draw the control.
   function canDelete(p){
     const role = String((window.giantCurrentProfile && window.giantCurrentProfile.role) || '').toLowerCase();
-    return p.created_by === me() || ['owner', 'manager', 'inhouse_dev'].includes(role);
+    return p.created_by === me() || ['owner', 'manager', 'inhouse_dev', 'growth'].includes(role);
   }
 
   async function deleteProject(id){
@@ -91820,7 +91823,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   //
   // This only decides whether the control is drawn. The database decides whether the row
   // goes, and it is not obliged to agree with a profile this tab loaded at sign-in.
-  const P2_DELETE_ROLES = ['owner', 'manager', 'inhouse_dev'];
+  const P2_DELETE_ROLES = ['owner', 'manager', 'inhouse_dev', 'growth'];
   const canDeleteTask = (t) => {
     if (!t) return false;
     const who = me();
@@ -92955,7 +92958,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   // else sees the accounts they hold, what those accounts pay them, and nothing about
   // anyone else. The difference is enforced in the database -- what follows only decides
   // what to ask for and what to draw.
-  const isMgr = () => ['owner', 'manager', 'inhouse_dev']
+  const isMgr = () => ['owner', 'manager', 'inhouse_dev', 'growth']
     .includes((window.giantCurrentProfile || {}).role);
   window.podState = P;   // so a check can read the state rather than guess at the DOM
 
@@ -96038,7 +96041,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   const sb = () => window.giantSupabase;
   const me = () => (window.giantSession && window.giantSession.user && window.giantSession.user.id) || null;
   const myRole = () => (window.giantCurrentProfile && window.giantCurrentProfile.role) || '';
-  const grIsStaff = () => ['owner', 'manager', 'inhouse_dev'].includes(myRole());
+  const grIsStaff = () => ['owner', 'manager', 'inhouse_dev', 'growth'].includes(myRole());
   /* THE TOKEN, WITH THE FALLBACKS THE REST OF THE APP ALREADY USES. The connector calls
      read it straight off getSession(), which comes back empty on a session restored from
      storage rather than signed in in this tab -- currentToken() elsewhere in this file
@@ -96256,7 +96259,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // and it shows three of them. It loads when that screen opens, not here.
         s.from('growth_settings').select('*').neq('key', 'qa_examples'),
         s.from('profiles').select('id, full_name, avatar_url, role')
-         .in('role', ['owner', 'manager', 'inhouse_dev', 'member']),
+         .in('role', ['owner', 'manager', 'inhouse_dev', 'member', 'growth']),
         s.from('growth_tasks').select('*').order('position', { ascending: true }),
         s.from('growth_watch_calls').select('*').order('position', { ascending: true }),
         s.from('growth_discounts').select('*').order('position', { ascending: true }),
@@ -99426,7 +99429,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           : 'The people working in Growth. A manager keeps this list.') + '</p>' +
         shown.map(function (p) {
           const mine = grClients.filter(function (c) { return c.owner_id === p.id; });
-          const staff = ['owner','manager','inhouse_dev'].indexOf(p.role) >= 0;
+          const staff = ['owner','manager','inhouse_dev','growth'].indexOf(p.role) >= 0;
           const on = !!inTeam[p.id];
           return '<div class="gr_row gr_trow' + (on ? '' : ' gr_toff') + '" style="cursor:default">' +
             (grIsStaff()
