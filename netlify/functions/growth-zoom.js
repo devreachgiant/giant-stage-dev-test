@@ -313,10 +313,137 @@ async function zoomSummary(uuid, token) {
   return { text: parts.join('\n\n').trim(), hint: '' };
 }
 
+/* THE SYNC ITSELF, with no HTTP around it. Two things call this: the Sync recordings
+   button, and growth-sync.mjs on its half-hourly timer. One implementation, because two
+   would drift and the one that drifted would be the one running at 3am unattended --
+   the same reason growth-calendly.js shares its runSync.
+
+   DAYS IS THE WHOLE DIFFERENCE between the two callers. The button asks for 120 and is
+   a backfill somebody is watching; the timer asks for 2 and is a cheap look at what was
+   recorded since it last ran. At 120 days every run costs five listing requests plus a
+   summary lookup per recording; at 2 it costs one and whatever is new. Run every half
+   hour, that is the difference between a few hundred Zoom calls a day and a few
+   thousand, against endpoints Zoom rate-limits heavily. */
+async function runRecordingSync(creds, days) {
+  const token = await mintToken(creds);
+  const found = await listRecordings(token, days);
+
+  /* Everything already on the screen, by MEETING NUMBER -- the one key Calendly and
+     Zoom both carry. Without it a recorded Calendly booking arrives a second time as
+     a Zoom row and reads as a real second call with the same client. */
+  const existing = await sb('growth_meetings?select=id,zoom_url,external_id,transcript,summary,summary_checked_at');
+  const byNumber = new Map();
+  for (const row of (existing || [])) {
+    const n = meetingNumber(row.zoom_url);
+    if (n && !byNumber.has(n)) byNumber.set(n, row);
+    const x = String(row.external_id || '').match(/^zoom:(\d+)$/);
+    if (x && !byNumber.has(x[1])) byNumber.set(x[1], row);
+  }
+
+  let updated = 0, added = 0, transcripts = 0, summaries = 0, noTranscript = 0;
+  const hints = [];
+
+  for (const rec of found.recordings) {
+    const id = String(rec.id || '');
+    if (!id || !rec.start_time) continue;
+    const row = byNumber.get(id) || null;
+    const files = rec.recording_files || [];
+
+    const patch = {
+      recording_url: rec.share_url || '',
+      /* Stored because the link alone is not enough to watch it. A passcode that
+         lives only in Zoom's notification email is a recording nobody can open. */
+      recording_passcode: rec.recording_play_passcode || rec.password || '',
+      recording_at: (files[0] && files[0].recording_start) || rec.start_time,
+      recording_minutes: Math.max(1, Number(rec.duration) || 0),
+      recording_files: files.map(f => ({
+        type: f.file_type || '',
+        kind: f.recording_type || '',
+        mb: Math.round((Number(f.file_size) || 0) / 1e5) / 10
+      }))
+    };
+
+    // The transcript is the slow call, so it is made once and never again.
+    if (!(row && row.transcript)) {
+      /* TRANSCRIPT FIRST, and the order matters. Zoom can produce two text files for
+         one call and they are not the same thing: TRANSCRIPT is the audio transcript
+         and carries WHO SAID WHAT, CC is the live closed captions and carries no
+         speaker at all. find() returns whichever sits earlier in Zoom's array, so a
+         single test for either would take the captions on a call that had both and
+         quietly lose the attribution. */
+      const cc = files.find(f => f.file_type === 'TRANSCRIPT')
+              || files.find(f => f.file_type === 'CC');
+      if (cc) {
+        const text = await fetchTranscript(cc, token, found.downloadToken);
+        if (text) { patch.transcript = text; transcripts++; } else { noTranscript++; }
+      }
+    }
+
+    /* Zoom's own summary wins when there is one: it is free, and it is the host's
+       words rather than ours. A summary already on the row is never replaced -- a
+       later sync finding nothing would otherwise wipe one Claude had written.
+
+       AND A CALL ALREADY ASKED IS NOT ASKED AGAIN FOR SIX HOURS. Zoom answers 404 for a
+       call it has no summary for, which is the honest answer and costs a request to
+       hear; without this, every settled call was re-asked on every run, and that was 6
+       of the 8 Zoom requests a run. Not never, though -- AI Companion writes its summary
+       some unknown time AFTER the call, so a call asked once and dropped would miss one
+       that appeared forty minutes later and nothing would go back for it. */
+    const askedAt = row && row.summary_checked_at ? Date.parse(row.summary_checked_at) : 0;
+    const settled = askedAt && (Date.now() - askedAt) < 6 * 3600 * 1000;
+    if (!(row && row.summary) && !settled) {
+      const sm = await zoomSummary(rec.uuid, token);
+      if (sm.hint && hints.indexOf(sm.hint) === -1) hints.push(sm.hint);
+      patch.summary_checked_at = new Date().toISOString();
+      if (sm.text) {
+        patch.summary = sm.text;
+        patch.summary_at = new Date().toISOString();
+        patch.summary_source = 'zoom';
+        summaries++;
+      }
+    }
+
+    if (row) {
+      await sb('growth_meetings?id=eq.' + row.id, 'PATCH', patch);
+      updated++;
+    } else {
+      /* A recording with no booking behind it is still a call that happened: an
+         instant meeting, or one started outside Calendly. A row is the only place it
+         can carry notes. Same external_id shape sync_meetings uses, on the same
+         unique key, so the two actions cannot produce the call twice. */
+      await sb('growth_meetings?on_conflict=external_id', 'POST', [Object.assign({
+        external_id: 'zoom:' + id,
+        client_id: null,
+        title: rec.topic || 'Zoom call',
+        starts_at: rec.start_time,
+        minutes: Math.max(5, Number(rec.duration) || 30),
+        zoom_url: '',
+        source: 'Zoom'
+      }, patch)]);
+      added++;
+    }
+  }
+
+  if (noTranscript) {
+    hints.unshift('The Zoom app cannot download recording files, so ' + noTranscript +
+      (noTranscript === 1 ? ' call has no transcript' : ' calls have no transcript') +
+      '. In the Zoom marketplace open the app, add cloud_recording:read:list_recording_files:admin, ' +
+      'Activate it again, then sync once more.');
+  }
+
+  return {
+    updated: updated, added: added, transcripts: transcripts, summaries: summaries,
+    seen: found.recordings.length, days: days, hint: hints.join(' '),
+    note: found.recordings.length ? ''
+      : 'Zoom has no cloud recordings in the last ' + days + ' days.'
+  };
+}
+
 const STAFF = ['owner', 'manager', 'inhouse_dev'];
 const isStaff = (p) => !!p && STAFF.includes(String(p.role));
 
 exports.zoomCreds = zoomCreds;
+exports.runRecordingSync = runRecordingSync;
 exports.mintToken = mintToken;
 exports.meetingNumber = meetingNumber;
 exports.scopeHint = scopeHint;
@@ -454,116 +581,12 @@ exports.handler = async (event) => {
     try { body = JSON.parse(event.body || '{}'); } catch (e) { /* the default below */ }
     const days = Math.min(365, Math.max(1, Number(body.days) || 120));
 
-    let token, found;
     try {
-      token = await mintToken(creds);
-      found = await listRecordings(token, days);
+      return json(200, await runRecordingSync(creds, days));
     } catch (e) {
+      // scope:true tells the screen this is a settings problem in Zoom, not a wrong key.
       return json(400, { error: e.hint || String(e.message || e).slice(0, 200), scope: !!e.hint });
     }
-
-    /* Everything already on the screen, by MEETING NUMBER -- the one key Calendly and
-       Zoom both carry. Without it a recorded Calendly booking arrives a second time as
-       a Zoom row and reads as a real second call with the same client. */
-    const existing = await sb('growth_meetings?select=id,zoom_url,external_id,transcript,summary');
-    const byNumber = new Map();
-    for (const row of (existing || [])) {
-      const n = meetingNumber(row.zoom_url);
-      if (n && !byNumber.has(n)) byNumber.set(n, row);
-      const x = String(row.external_id || '').match(/^zoom:(\d+)$/);
-      if (x && !byNumber.has(x[1])) byNumber.set(x[1], row);
-    }
-
-    let updated = 0, added = 0, transcripts = 0, summaries = 0, noTranscript = 0;
-    const hints = [];
-
-    for (const rec of found.recordings) {
-      const id = String(rec.id || '');
-      if (!id || !rec.start_time) continue;
-      const row = byNumber.get(id) || null;
-      const files = rec.recording_files || [];
-
-      const patch = {
-        recording_url: rec.share_url || '',
-        /* Stored because the link alone is not enough to watch it. A passcode that
-           lives only in Zoom's notification email is a recording nobody can open. */
-        recording_passcode: rec.recording_play_passcode || rec.password || '',
-        recording_at: (files[0] && files[0].recording_start) || rec.start_time,
-        recording_minutes: Math.max(1, Number(rec.duration) || 0),
-        recording_files: files.map(f => ({
-          type: f.file_type || '',
-          kind: f.recording_type || '',
-          mb: Math.round((Number(f.file_size) || 0) / 1e5) / 10
-        }))
-      };
-
-      // The transcript is the slow call, so it is made once and never again.
-      if (!(row && row.transcript)) {
-        /* TRANSCRIPT FIRST, and the order matters. Zoom can produce two text files for
-           one call and they are not the same thing: TRANSCRIPT is the audio transcript
-           and carries WHO SAID WHAT, CC is the live closed captions and carries no
-           speaker at all. find() returns whichever sits earlier in Zoom's array, so a
-           single test for either would take the captions on a call that had both and
-           quietly lose the attribution. Nothing on this account has a TRANSCRIPT file
-           today -- "Create audio transcript" is off in Zoom's recording settings -- so
-           this is the branch that starts working the day somebody turns it on. */
-        const cc = files.find(f => f.file_type === 'TRANSCRIPT')
-                || files.find(f => f.file_type === 'CC');
-        if (cc) {
-          const text = await fetchTranscript(cc, token, found.downloadToken);
-          if (text) { patch.transcript = text; transcripts++; } else { noTranscript++; }
-        }
-      }
-
-      /* Zoom's own summary wins when there is one: it is free, and it is the host's
-         words rather than ours. A summary already on the row is never replaced -- a
-         later sync finding nothing would otherwise wipe one Claude had written. */
-      if (!(row && row.summary)) {
-        const s = await zoomSummary(rec.uuid, token);
-        if (s.hint && hints.indexOf(s.hint) === -1) hints.push(s.hint);
-        if (s.text) {
-          patch.summary = s.text;
-          patch.summary_at = new Date().toISOString();
-          patch.summary_source = 'zoom';
-          summaries++;
-        }
-      }
-
-      if (row) {
-        await sb('growth_meetings?id=eq.' + row.id, 'PATCH', patch);
-        updated++;
-      } else {
-        /* A recording with no booking behind it is still a call that happened: an
-           instant meeting, or one started outside Calendly. A row is the only place it
-           can carry notes. Same external_id shape sync_meetings uses, on the same
-           unique key, so the two actions cannot produce the call twice. */
-        await sb('growth_meetings?on_conflict=external_id', 'POST', [Object.assign({
-          external_id: 'zoom:' + id,
-          client_id: null,
-          title: rec.topic || 'Zoom call',
-          starts_at: rec.start_time,
-          minutes: Math.max(5, Number(rec.duration) || 30),
-          zoom_url: '',
-          source: 'Zoom'
-        }, patch)]);
-        added++;
-      }
-    }
-
-    if (noTranscript) {
-      hints.unshift('The Zoom app cannot download recording files, so ' + noTranscript +
-        (noTranscript === 1 ? ' call has no transcript' : ' calls have no transcript') +
-        '. In the Zoom marketplace open the app, add cloud_recording:read:list_recording_files:admin, ' +
-        'Activate it again, then sync once more.');
-    }
-
-    return json(200, {
-      updated: updated, added: added, transcripts: transcripts, summaries: summaries,
-      seen: found.recordings.length, days: days,
-      hint: hints.join(' '),
-      note: found.recordings.length ? ''
-        : 'Zoom has no cloud recordings in the last ' + days + ' days.'
-    });
   }
 
   // ------------------------------------------------------------------ status

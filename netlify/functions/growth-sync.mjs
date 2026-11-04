@@ -19,6 +19,10 @@
 //                       mailbox itself is synced by gmail-sync (every ten minutes);
 //                       what is still missing is the Growth-specific part -- matching
 //                       replies back to deals -- not the ability to read mail.
+//   Zoom recordings     pulled in, with the transcript and Zoom's own summary where
+//                       there is one, attached to the call they belong to by Zoom
+//                       meeting number. Shares runRecordingSync() with the Sync
+//                       recordings button, same reason as Calendly.
 //   Fathom             removed 20261028. Zoom and Calendly record calls themselves,
 //                      so a third recorder was a connector nobody was going to set up.
 //
@@ -26,6 +30,7 @@
 // you nothing about the thing you are actually wondering about.
 
 import cal from './growth-calendly.js';
+import zoom from './growth-zoom.js';
 
 const SUPA = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -79,13 +84,51 @@ export default async () => {
     }
   }
 
+  // -------------------------------------------------------- Zoom cloud recordings
+  /* TWO DAYS, not the button's 120. This runs every half hour and only ever needs to
+     notice what was recorded since it last ran; the long window belongs to a backfill
+     somebody is watching. At 120 days each run costs five listing requests plus a
+     summary lookup per recording, and half-hourly that is thousands of calls a day
+     against endpoints Zoom rate-limits heavily, to find nothing almost every time.
+
+     Why not every minute, which is what was asked for: a Zoom cloud recording is not
+     there the moment a call ends. Zoom processes the video and generates the transcript
+     afterwards, minutes to hours later. Polling faster than Zoom produces does not make
+     a recording arrive sooner, it only asks more often while the answer is still no. */
+  try {
+    const creds = await zoom.zoomCreds();
+    if (!creds) {
+      steps.push({ k: 'zoomrec', label: 'Zoom recordings', ok: null,
+                   said: 'Zoom is not connected, so there is nothing to pull' });
+    } else {
+      const r = await zoom.runRecordingSync(creds, 2);
+      const n = (r.updated || 0) + (r.added || 0);
+      steps.push({
+        k: 'zoomrec', label: 'Zoom recordings', ok: true,
+        said: (n
+          ? n + ' call' + (n === 1 ? '' : 's') + ' now carry their recording' +
+            (r.transcripts ? ', ' + r.transcripts + ' transcript' + (r.transcripts === 1 ? '' : 's') : '') +
+            (r.summaries ? ', ' + r.summaries + ' summary' : '')
+          : 'No new recordings') +
+          (r.hint ? ' \u2014 ' + r.hint : '')
+      });
+    }
+  } catch (e) {
+    ok = false;
+    steps.push({ k: 'zoomrec', label: 'Zoom recordings', ok: false,
+                 said: String((e && e.hint) || (e && e.message) || e).slice(0, 180) });
+  }
+
   // ---------------------------------------------------------------- the rest, honestly
   steps.push({ k: 'gmail', label: 'Gmail replies', ok: null,
                said: 'Not set up. The stored Google token lasts an hour and cannot be renewed from a server.' });
 
+  /* The note quoted Calendly alone, which was right while Calendly was the only step
+     that did anything. With recordings in here, a run that pulled a call in and said
+     "No new bookings" would be reporting the half that did nothing. */
   const note = steps.filter(x => x.ok === false).length
     ? steps.filter(x => x.ok === false).map(x => x.label + ': ' + x.said).join(' ')
-    : (steps.find(x => x.k === 'calendly') || {}).said || '';
+    : steps.filter(x => x.ok === true).map(x => x.said).filter(Boolean).join(' \u00B7 ');
 
   try {
     await sb('growth_runs', 'POST', [{
@@ -101,4 +144,13 @@ export default async () => {
   });
 };
 
-export const config = { schedule: '*/30 * * * *' };
+/* TEN MINUTES, not thirty and not one. Counted on 2026-11-04, a run makes 33 outbound
+   requests and takes 11.5s, so the interval is a real bill and not a free dial: at ten
+   minutes that is ~1,580 Calendly and ~290 Zoom requests a day and ~28 minutes of
+   function time; at one minute it would be ~15,800 and ~2,900 and over four hours.
+
+   Ten rather than five because the run is not yet cheap enough to deserve five. Nine of
+   its eleven Calendly requests are invitee lookups for bookings ALREADY held -- the
+   same answer fetched again every run. Fix that and five is easy; until then five would
+   mostly buy more of the same waste. */
+export const config = { schedule: '*/10 * * * *' };
