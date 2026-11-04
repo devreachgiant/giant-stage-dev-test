@@ -60,7 +60,8 @@ process.env.SUPABASE_URL = SUPA;
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key-not-real';
 
 const mod = await import('./netlify/functions/growth-zoom.js');
-const { zoomCreds, handler, meetingNumber, uuidPath, vttToText, monthWindows } = mod.default || mod;
+const mod2 = mod.default || mod;
+const { zoomCreds, handler, meetingNumber, uuidPath, vttToText, monthWindows } = mod2;
 
 /* ---------------------------------------------------------------- which wins */
 process.env.ZOOM_ACCOUNT_ID = 'ENV-ACC';
@@ -463,6 +464,36 @@ check('and carrying its recording, which is the reason the row exists',
   wroteR[0] && wroteR[0].recording_url === 'https://us06web.zoom.us/rec/share/abc' &&
   /Rob: Happy to/.test(wroteR[0].transcript || ''), wroteR[0] && wroteR[0].recording_url);
 
+/* THE TIMER AND THE BUTTON MUST BE ONE IMPLEMENTATION. growth-sync.mjs runs this every
+   half hour unattended; the button runs it with somebody watching. Two copies would
+   drift, and the one that drifted would be the one running at 3am with nobody to notice
+   -- which is exactly why growth-calendly.js shares its runSync the same way.
+
+   And the WINDOW is the whole difference between the two callers. At the button's 120
+   days every run costs five listing requests plus a summary lookup per recording; the
+   timer asks for 2 and costs one request and whatever is new. Half-hourly, that is the
+   difference between hundreds of Zoom calls a day and thousands, against endpoints Zoom
+   rate-limits heavily -- to find nothing almost every time, because a cloud recording
+   is not there the moment a call ends. */
+let windows = [];
+calls = stubFetch(recPlan((u) => {
+  windows.push([(u.match(/from=([\d-]+)/) || [])[1], (u.match(/to=([\d-]+)/) || [])[1]]);
+  return { body: { meetings: [] } };
+}, []));
+const viaTimer = await mod2.runRecordingSync({ accountId: 'A', clientId: 'C', clientSecret: 'S' }, 2);
+check('the timer reaches the same sync the button does, not a second copy of it',
+  typeof mod2.runRecordingSync === 'function' && viaTimer && viaTimer.days === 2,
+  JSON.stringify(viaTimer));
+check('and asks for a short window, so half-hourly is cheap',
+  windows.length === 1 &&
+  (new Date(windows[0][1]) - new Date(windows[0][0])) / 86400000 <= 3,
+  JSON.stringify(windows));
+/* No login and no role check reach this function, because the TIMER has neither. The
+   gate belongs at the handler, which is where the 403 check above proves it is. */
+check('the timer needed no login, while the button still refuses one without',
+  !calls.some(c => c.url.includes('/auth/v1/user')), 'auth calls: ' +
+  calls.filter(c => c.url.includes('/auth/v1/user')).length);
+
 /* TWO TEXT FILES, ONE CALL, and they are not the same thing. Zoom's TRANSCRIPT is the
    audio transcript and names who said each line; CC is the live closed captions and
    names nobody. A single find() for either takes whichever Zoom listed first, so on a
@@ -498,6 +529,37 @@ check('and a summary already written is never replaced by a sync',
   patched(calls) && patched(calls).summary === undefined &&
   patched(calls).summary_source === undefined,
   JSON.stringify((patched(calls) || {}).summary));
+
+/* ASKED ONCE, NOT ON EVERY RUN. Zoom answers 404 for a call it has no summary for,
+   which costs a request to hear, and the skip used to depend on a summary being stored
+   -- so a call that had none was re-asked forever. Measured before this: 6 of the 8
+   Zoom requests a run. It matters because the job went to every ten minutes. */
+calls = stubFetch(recPlan([REC()], [{ id: 'row-1', zoom_url: 'https://us06web.zoom.us/j/88123',
+  summary_checked_at: new Date(Date.now() - 60 * 60 * 1000).toISOString() }]));
+res = await doRec();
+check('a call asked an hour ago is not asked for a summary again',
+  !calls.some(c => c.url.includes('meeting_summary')),
+  'summary calls: ' + calls.filter(c => c.url.includes('meeting_summary')).length);
+
+/* ...but NOT never. AI Companion writes its summary some unknown time after the call,
+   so one asked at 10:02 and dropped would miss a summary that appeared at 10:40 and
+   nothing would ever go back for it. Without this pair the check above passes just as
+   well on code that asks once and never again. */
+calls = stubFetch(recPlan([REC()], [{ id: 'row-1', zoom_url: 'https://us06web.zoom.us/j/88123',
+  summary_checked_at: new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString() }],
+  { summary: { body: { summary_overview: 'Zoom got round to it eventually.' } } }));
+res = await doRec();
+check('a call last asked seven hours ago is asked again, so a late summary is found',
+  calls.some(c => c.url.includes('meeting_summary')) &&
+  /got round to it/.test((patched(calls) || {}).summary || ''),
+  JSON.stringify((patched(calls) || {}).summary || '').slice(0, 60));
+
+/* And the stamp has to be written, or nothing above can ever be true on the next run. */
+calls = stubFetch(recPlan([REC()], [{ id: 'row-1', zoom_url: 'https://us06web.zoom.us/j/88123' }]));
+res = await doRec();
+check('asking stamps the call, so the next run knows it already did',
+  !!(patched(calls) || {}).summary_checked_at,
+  JSON.stringify((patched(calls) || {}).summary_checked_at));
 
 /* Zoom returns 404 for a meeting that exists and simply has no AI summary. */
 calls = stubFetch(recPlan([REC()], [{ id: 'row-1', zoom_url: 'https://us06web.zoom.us/j/88123' }]));

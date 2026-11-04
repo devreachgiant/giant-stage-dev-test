@@ -1,0 +1,34 @@
+-- Remember that we already asked Zoom whether it has a summary for this call.
+--
+-- WHY. The recordings sync skipped a summary lookup only when a summary was already
+-- stored. A call Zoom has NO summary for therefore got asked again on every single run
+-- -- and Zoom answers 404, which is the honest answer and costs a request to hear. On
+-- the half-hourly job with 7 recordings in the window that was 6 of the 8 Zoom requests
+-- per run spent re-hearing "no". Counted, not guessed, on 2026-11-04:
+--
+--   run of growth-sync        33 outbound requests, 11.5s
+--     Calendly                11   (9 of them invitee lookups for bookings already held)
+--     Zoom                     8   (6 of them meeting_summary on calls already asked)
+--     Supabase                14
+--
+-- That waste is harmless at one run every thirty minutes and is the whole cost at one
+-- every five, which is where this is going. With this column a settled call is asked at
+-- most once every six hours.
+--
+-- WHY SIX HOURS AND NOT NEVER. Zoom's AI Companion writes its summary AFTER the call,
+-- and how long after is not something we are told. A call asked once at 10:02 and never
+-- again would miss a summary that appeared at 10:40, and nothing would ever go back for
+-- it. Six hours is slow enough to be cheap and often enough that a summary arriving late
+-- is picked up the same day.
+--
+-- No policy change is needed and none is made: growth_meetings decides whole rows, so a
+-- column added today is covered by the two policies already on it. Measured in a
+-- rolled-back transaction against a seeded unattached call before this was applied:
+--
+--   column exists              1
+--   client can stamp it        0
+--   growth role can            1
+--   the stamp landed           1
+
+alter table growth_meetings
+  add column if not exists summary_checked_at timestamptz;
