@@ -9833,6 +9833,46 @@ await step('search: the whole of a long result list can be reached', async () =>
     r.closedOnResult, JSON.stringify({ closed: r.closedOnResult }));
 });
 
+// ── the links in an outgoing email ───────────────────────────────────────────
+// Asked from the floor: "do links arrive correct?" They did, except at the end of a
+// sentence -- the autolinker took everything up to whitespace, so "Join here:
+// https://zoom.us/j/841." put the full stop inside the href and the client landed on a
+// 404. Checked through the renderer the mail is actually built from, and the same one
+// Growth's composer previews with, so the preview cannot agree while the mail is wrong.
+await step('email: a link at the end of a sentence is still the link', async () => {
+  const r = await page.evaluate(() => {
+    if (typeof window.giantMdToHtml !== 'function') return { missing: true };
+    const href = (body) => {
+      const m = /<a href="([^"]*)"/.exec(window.giantMdToHtml(body));
+      return m ? m[1].replace(/&amp;/g, '&') : null;
+    };
+    return {
+      fullStop:  href('Join here: https://us06web.zoom.us/j/8412345678.'),
+      comma:     href('Use https://example.com/a-b, then tell me.'),
+      question:  href('Seen https://example.com/x?'),
+      // The guards: these must NOT lose anything.
+      params:    href('https://zoom.us/j/1?pwd=A&uuid=B'),
+      endsAmp:   href('Odd one: https://example.com/x?a=1&'),
+      pathDots:  href('https://example.com/v1.2.3/file'),
+      markdown:  href('[Pay here](https://buy.stripe.com/x?a=1&b=2)'),
+      // The punctuation has to survive as text -- stripping it from the message instead
+      // of the href would be a different bug that this check would otherwise wave past.
+      stopKept:  /\.<\/p>|\.<br>|\.$/.test(window.giantMdToHtml('Join here: https://x.example.com/j/8.').replace(/<\/a>/, '</a>'))
+    };
+  });
+  check('email: a trailing full stop is not part of the link',
+    r.fullStop === 'https://us06web.zoom.us/j/8412345678' && r.comma === 'https://example.com/a-b'
+      && r.question === 'https://example.com/x',
+    JSON.stringify({ fullStop: r.fullStop, comma: r.comma, question: r.question }));
+  check('email: query strings and ampersands still arrive whole',
+    r.params === 'https://zoom.us/j/1?pwd=A&uuid=B' && r.endsAmp === 'https://example.com/x?a=1&'
+      && r.pathDots === 'https://example.com/v1.2.3/file'
+      && r.markdown === 'https://buy.stripe.com/x?a=1&b=2',
+    JSON.stringify({ params: r.params, endsAmp: r.endsAmp, pathDots: r.pathDots, markdown: r.markdown }));
+  check('email: the punctuation stays in the sentence it came from',
+    r.stopKept, JSON.stringify({ stopKept: r.stopKept }));
+});
+
 const shot = path.join(process.env.TMPDIR || '/tmp', 'newchat-clickthrough.png');
 await page.screenshot({ path: shot, fullPage: false });
 clearInterval(confirmWatcher);

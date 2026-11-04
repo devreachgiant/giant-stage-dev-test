@@ -54409,7 +54409,17 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
         .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
         // A bare URL that was never written as a link. Not inside an href already: the
         // negative lookbehind for a quote is what stops it rewriting its own output.
-        .replace(/(^|[\s(])(https?:\/\/[^\s<>()]+)/g, '$1<a href="$2">$2</a>')
+        .replace(/(^|[\s(])(https?:\/\/[^\s<>()]+)/g, function (m, pre, url) {
+          // The full stop at the end of "Join here: https://zoom.us/j/841." is the end of
+          // the sentence, not part of the address, and swallowing it sends the client to
+          // a 404. Trailing punctuation comes out of the link and goes back as text.
+          // Guarded against &amp; -- stripping that ';' would leave a broken entity, and
+          // the URL ends in an escaped ampersand often enough to matter.
+          let tail = '';
+          const cut = /^(.*?)([.,;:!?]+)$/.exec(url);
+          if (cut && !/&[a-z]+$/i.test(cut[1])) { url = cut[1]; tail = cut[2]; }
+          return pre + '<a href="' + url + '">' + url + '</a>' + tail;
+        })
         .replace(/\n/g, '<br>');
       const body = blocks.filter(b => b.trim()).map(b => '<p>' + inline(b.trim()) + '</p>').join('\n');
       if (opts && opts.fragment) return body;
