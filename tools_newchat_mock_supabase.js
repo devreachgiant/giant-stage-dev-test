@@ -545,7 +545,34 @@
     { id: 'gm-3', client_id: null, title: 'Mango Vans Rebrand',
       starts_at: new Date(Date.now() + 26 * 3600e3).toISOString(), minutes: 30, actual_min: null,
       zoom_url: 'https://us06web.zoom.us/j/555', source: 'Zoom', brief: '', brief_at: null,
-      external_id: 'zoom:555', created_at: giso(1, 0), invitee: null }
+      external_id: 'zoom:555', created_at: giso(1, 0), invitee: null },
+    /* TWO FINISHED CALLS, because the block has to tell them apart and a fixture where
+       every past call carried a recording would pass just as well on code that drew the
+       Watch link unconditionally.
+
+       gm-4 is recorded WITH a transcript: a watch link, and a summary that can be made.
+       Its passcode is Zoom's 98 character play token, which belongs in the url as ?pwd=
+       and nowhere on the screen -- shown as text it was a wall of base64 beside a copy
+       button, and left off the link entirely Zoom asks for a passcode nobody here has.
+       gm-5 is recorded by nobody: notes, and an honest line about why. */
+    { id: 'gm-4', client_id: 'gc-5', title: 'ReachGiant Growth Strategy Session',
+      starts_at: new Date(Date.now() - 30 * 3600e3).toISOString(), minutes: 45, actual_min: null,
+      zoom_url: 'https://us06web.zoom.us/j/444', source: 'Calendly', brief: '', brief_at: null,
+      external_id: 'ext-4', created_at: giso(2, 0), invitee: null,
+      recording_url: 'https://us06web.zoom.us/rec/share/aaa',
+      recording_passcode: 'DFhmiswHzdjokje0nAAAIAAAANDW23POVUe920aca', recording_minutes: 37,
+      recording_at: new Date(Date.now() - 30 * 3600e3).toISOString(),
+      recording_files: [{ type: 'MP4', kind: 'shared_screen', mb: 338.9 },
+                        { type: 'CC', kind: 'closed_caption', mb: 0.1 }],
+      transcript: 'Luke: How are the sites doing?\nRob: Traffic is down forty percent.',
+      summary: null, summary_at: null, summary_source: null, notes: null, notes_at: null },
+    { id: 'gm-5', client_id: null, title: 'Instant call, nobody booked it',
+      starts_at: new Date(Date.now() - 52 * 3600e3).toISOString(), minutes: 20, actual_min: null,
+      zoom_url: '', source: 'Zoom', brief: '', brief_at: null,
+      external_id: 'zoom:666', created_at: giso(2, 0), invitee: null,
+      recording_url: null, recording_passcode: null, recording_minutes: null,
+      recording_at: null, recording_files: null, transcript: null,
+      summary: null, summary_at: null, summary_source: null, notes: null, notes_at: null }
   ];
   // gc-2's last message is INBOUND and unhandled, so exactly one deal needs a reply.
   DB.growth_messages = [

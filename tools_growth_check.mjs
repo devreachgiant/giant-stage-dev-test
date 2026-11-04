@@ -2920,6 +2920,112 @@ await step('package emails are built from one master, not written six times', as
 });
 
 
+await step('a finished call carries its recording, and an unfinished one does not', async () => {
+  /* Zoom records every call on this account and none of it used to reach the app: the
+     recording sat in Zoom and the only way to find one was to go and look.
+
+     The two fixtures are deliberately different. gm-4 was recorded and has a transcript;
+     gm-5 happened and nobody recorded it. A screen that drew the block unconditionally
+     would pass every presence test here and tell somebody there is a recording of a call
+     nobody recorded. */
+  await screen('gr_meetings');
+  await page.waitForTimeout(1200);
+
+  /* Upcoming first. A recording block above a call that has not happened yet promises
+     something that does not exist, and the notes box under it is somewhere to write up
+     a meeting nobody has had. */
+  const onUpcoming = await page.evaluate(() =>
+    [...document.querySelectorAll('[data-gr-meet]')]
+      .filter(r => r.querySelector('details.gr_rec')).map(r => r.dataset.grMeet));
+  check('no after-the-call block on a meeting that has not happened yet',
+    onUpcoming.length === 0, JSON.stringify(onUpcoming));
+
+  await page.evaluate(() => document.querySelector('[data-gr-mview="past"]')?.click());
+  await page.waitForTimeout(1000);
+  await page.evaluate(() => [...document.querySelectorAll('details.gr_rec')].forEach(d => { d.open = true; }));
+  await page.waitForTimeout(500);
+
+  const read = (id) => page.evaluate((mid) => {
+    const row = document.querySelector('[data-gr-meet="' + mid + '"]');
+    const d = row && row.querySelector('details.gr_rec');
+    if (!d) return { block: false };
+    const a = d.querySelector('a.gr_joinbig');
+    const ta = d.querySelector('[data-gr-note]');
+    const sum = d.querySelector('[data-gr-sum]');
+    const box = (el) => { const r = el.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) }; };
+    return {
+      block: true,
+      href: a ? a.getAttribute('href') : null,
+      watchBox: a ? box(a) : null,
+      noteBox: ta ? box(ta) : null,
+      summariseOffered: !!sum,
+      text: d.innerText.replace(/\s+/g, ' ').trim()
+    };
+  }, id);
+
+  const rec = await read('gm-4');
+  const bare = await read('gm-5');
+
+  check('the recorded call has an after-the-call block',
+    rec.block === true, JSON.stringify(rec.block));
+  /* MEASURED, not merely present. A Watch link that exists at 0px wide is the shape of
+     bug this repo has shipped before. */
+  check('with a Watch link somebody can actually click',
+    !!rec.watchBox && rec.watchBox.w > 80 && rec.watchBox.h > 14, JSON.stringify(rec.watchBox));
+  /* The one that was wrong until it was looked at. recording_play_passcode is a 98
+     character encrypted token whose only documented use is ?pwd= on the share url.
+     Without it the link lands on Zoom asking for a passcode nobody here was ever sent. */
+  check('and the passcode travels in the link rather than sitting on the screen',
+    /[?&]pwd=DFhmiswHzdjokje0nAAAIAAAANDW23POVUe920aca/.test(rec.href || '') &&
+    !/DFhmiswHzdjokje0/.test(rec.text || ''),
+    JSON.stringify((rec.href || '').slice(-60)));
+  check('the summary line says how long it ran and what Zoom kept',
+    /37 min/.test(rec.text) && /video/.test(rec.text) && /captions/.test(rec.text),
+    rec.text.slice(0, 70));
+  check('a transcript means a summary can be asked for',
+    rec.summariseOffered === true, String(rec.summariseOffered));
+
+  check('the call nobody recorded still gets a block, so it can carry notes',
+    bare.block === true && !!bare.noteBox && bare.noteBox.w > 150, JSON.stringify(bare.noteBox));
+  check('and says there is no recording rather than showing a dead button',
+    /No recording in Zoom/.test(bare.text || '') && !bare.href, bare.text.slice(0, 60));
+  /* Two different absences. No summary is fixed by pressing a button; no transcript is
+     fixed in the Zoom marketplace, and a screen that said "no summary" for both would
+     send somebody looking in the wrong place. */
+  check('no transcript is said plainly, not offered as a button that cannot work',
+    bare.summariseOffered === false && /nothing to summarise/.test(bare.text || ''),
+    bare.text.slice(0, 80));
+
+  /* The list turns a click on a row into "open this call". A <summary> is a click like
+     any other, so without stopPropagation opening the block opens the sheet over it. */
+  await page.evaluate(() => {
+    const d = document.querySelector('[data-gr-meet="gm-4"] details.gr_rec');
+    d.open = false; d.querySelector('summary').click();
+  });
+  await page.waitForTimeout(700);
+  const sheetOpen = await page.evaluate(() => {
+    const w = document.getElementById('grSheet');
+    return !!(w && w.classList.contains('on'));
+  });
+  check('opening the block does not open the call over the top of it',
+    sheetOpen === false, String(sheetOpen));
+
+  // A note typed and left behind has to reach the row, not just the textarea.
+  await page.evaluate(() => {
+    const d = document.querySelector('[data-gr-meet="gm-5"] details.gr_rec');
+    d.open = true;
+    const ta = d.querySelector('[data-gr-note]');
+    ta.value = 'Partner sign-off needed. Chase Friday.';
+    ta.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForTimeout(1200);
+  const stored = await page.evaluate(() =>
+    (window.__mockDB.growth_meetings.find(m => m.id === 'gm-5') || {}).notes);
+  check('a note typed and left behind is written to the call',
+    stored === 'Partner sign-off needed. Chase Friday.', JSON.stringify(stored));
+});
+
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');
