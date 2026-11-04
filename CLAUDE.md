@@ -77,9 +77,9 @@ assert s.count(old) == 1, s.count(old)
 python3 tools_newchat_parse.py          # syntax of all 14 script blocks     ~1s
 python3 tools_newchat_audit.py          # cross-screen id leaks             ~7s
 python3 tools_newchat_isolation.py      # old chat vs New Chat separation   <1s
-node tools_newchat_clickthrough.mjs     # ~360 checks, drives a real browser ~6m
-node tools_growth_check.mjs             # ~297 checks, Growth only          ~2m
-node tools_growth_zoom_check.mjs        # 35 checks, the Zoom connector     ~1s
+node tools_newchat_clickthrough.mjs     # ~372 checks, drives a real browser ~6m
+node tools_growth_check.mjs             # ~368 checks, Growth only          ~2m
+node tools_growth_zoom_check.mjs        # 63 checks, the Zoom connector     ~1s
 node tools_growth_calendly_check.mjs    # 16 checks, the Calendly sync      ~1s
 ```
 
@@ -89,7 +89,11 @@ node tools_growth_calendly_check.mjs    # 16 checks, the Calendly sync      ~1s
 drives `netlify/functions/growth-zoom.js` directly, so it covers the two things the
 browser suite cannot see — that the stored credential beats the Netlify environment,
 and that only an owner/manager/inhouse_dev can write one. Run it whenever you touch
-that function or `bookings-api.js`.
+that function or `bookings-api.js`. It also covers the recordings sync, whose two worst
+failures are invisible from a screen: Zoom **silently truncates** a date range longer than
+a month rather than erroring, and the recording host answers a refused download with
+**HTTP 200 and its own sign-in page**, so a status check files 21kB of HTML as the
+transcript of the call.
 
 `tools_growth_calendly_check.mjs` is the same shape for `growth-calendly.js`, and covers
 what no screen can show: a booking from somebody nobody tracks now **opens a deal**, one
@@ -118,7 +122,7 @@ The clickthrough serves the repo, replaces supabase-js with
 page.
 
 One clickthrough check fails on `main` and has for some time —
-`a Needs you row lands on the message that put it there`. 354/355 is the clean result; a
+`a Needs you row lands on the message that put it there`. 371/372 is the clean result; a
 different number is yours.
 
 **The first three can all be clean on a visibly broken screen.** None of them renders anything.

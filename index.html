@@ -7155,11 +7155,23 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_mnone{margin-left:auto;font-size:12.5px;color:var(--text-3);}
 .gr_mx{display:flex;align-items:center;gap:16px;padding:14px 0;border-top:1px solid var(--line);cursor:pointer;flex-wrap:wrap;}
 .gr_mx:first-of-type{border-top:0;}
-.gr_mx.gr_done{opacity:.6;}
+/* The DONE look belongs to the row's own line, not to everything inside it. This was
+   one rule on .gr_mx.gr_done, and opacity on a parent cannot be undone by a child -- it
+   makes a stacking context and nothing inside can be more opaque than it. So the whole
+   after-the-call block, summary and all, rendered at 60% and was barely readable.
+   Dimming the four parts of the line keeps the look and lets the block alone. */
+.gr_mx.gr_done>.gr_rm,.gr_mx.gr_done>.gr_rel,.gr_mx.gr_done>.gr_mact{opacity:.6;}
 .gr_mt{width:74px;flex:none;background:var(--dc);border-radius:16px;padding:11px 4px;text-align:center;color:#fff;}
 .gr_mt b{display:block;font-size:21px;font-weight:800;letter-spacing:-.02em;}
 .gr_mt span{font-size:10.5px;opacity:.85;}
-.gr_mx.gr_done .gr_mt{background:#C7C7CC;}
+/* The chip gets a muted palette of its own rather than a dimmed light grey. #C7C7CC is
+   an iOS LIGHT-theme grey: on a dark page it was the brightest thing in the row, which
+   put the loudest colour on the least interesting call. The border keeps it reading as
+   a chip once the fill stops doing that job, and the padding drops a pixel to pay for
+   it so the box is the same size as every other day's. */
+.gr_mx.gr_done .gr_mt{background:var(--surface-2);border:1px solid var(--line);
+  color:var(--text-2);padding:10px 3px;}
+.gr_mx.gr_done .gr_mt span{color:var(--text-3);opacity:1;}
 .gr_mx.gr_livem .gr_mt{box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--dc);}
 .gr_mn{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .gr_rel{font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border:1.5px solid var(--line-2);color:var(--text-3);border-radius:99px;padding:4px 10px;white-space:nowrap;flex:none;}
@@ -7167,12 +7179,41 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_mact{display:flex;align-items:center;gap:7px;flex:none;}
 .gr_joinbig{display:inline-flex;align-items:center;gap:7px;background:var(--dc);color:#fff;border-radius:99px;padding:9px 17px;font-size:13px;font-weight:700;text-decoration:none;}
 .gr_joinbig:hover{filter:brightness(1.08);}
+/* Watch does NOT take the day colour. gr_joinbig paints itself var(--dc), the colour of
+   the day it sits on, and a past day is grey -- so the one thing worth clicking in the
+   whole block rendered grey on grey and read as disabled. It is the primary action here
+   and it gets the brand colour, like every other primary action in the app. */
+.gr_joinbig.gr_watch{background:var(--red);}
 .gr_ico{width:34px;height:34px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);color:var(--text-2);cursor:pointer;font-size:13px;display:grid;place-items:center;}
 .gr_ico:hover{border-color:var(--text);color:var(--text);}
 .gr_brief{flex-basis:100%;background:var(--surface-2);border-radius:12px;padding:10px 14px;font-size:13.5px;}
 .gr_brief summary{cursor:pointer;font-weight:700;}
 .gr_brief p{margin:8px 0 0;white-space:pre-wrap;line-height:1.6;color:var(--text-2);}
 .gr_brief.gr_wait{color:var(--text-3);}
+/* What came out of the call, under the call. Same box as the brief, because it is the
+   same kind of thing -- one written before, one after. */
+.gr_rec{flex-basis:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;font-size:13.5px;margin:2px 0 4px;}
+/* An outlined box with its own chevron, because a flat grey band on a dark page reads
+   as part of the row rather than as something you can open. */
+.gr_rec>summary{cursor:pointer;font-weight:700;display:flex;align-items:center;gap:9px;padding:10px 14px;border-radius:13px;list-style:none;}
+.gr_rec>summary::-webkit-details-marker{display:none;}
+.gr_rec>summary::after{content:'';margin-left:auto;width:6px;height:6px;border-right:2px solid var(--text-3);border-bottom:2px solid var(--text-3);transform:rotate(45deg);transition:transform .15s;}
+.gr_rec[open]>summary::after{transform:rotate(-135deg);}
+.gr_rec>summary:hover{background:var(--surface);}
+.gr_rec>summary em{font-style:normal;font-weight:600;color:var(--text-3);font-size:11.5px;}
+.gr_recb{padding:2px 14px 14px;display:flex;flex-direction:column;gap:14px;}
+.gr_recl{display:flex;flex-wrap:wrap;gap:7px;align-items:center;}
+.gr_rech{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--text-3);display:flex;align-items:center;gap:9px;margin-bottom:7px;}
+.gr_rech button{margin-left:auto;}
+.gr_recs{white-space:pre-wrap;line-height:1.6;color:var(--text-2);margin:0;}
+/* The summary is the longest thing on this screen and arrives as four headed sections.
+   Flat pre-wrap text made it a wall nobody reads; the headings are what make it
+   scannable, and they are at full strength while the prose sits one step back. */
+.gr_sumh{font-size:12px;font-weight:800;color:var(--text);margin:15px 0 5px;letter-spacing:-.01em;}
+.gr_sumh:first-child{margin-top:0;}
+.gr_sump{margin:0;white-space:pre-wrap;line-height:1.65;color:var(--text);font-size:13px;}
+.gr_rec textarea{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--text);font:inherit;font-size:13px;width:100%;min-height:64px;resize:vertical;display:block;}
+.gr_rec textarea:focus{outline:none;border-color:var(--text-3);}
 .gr_mnav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
 .gr_mnav b{font-size:17px;font-weight:800;letter-spacing:-.02em;}
 .gr_mnav span{display:flex;gap:6px;}
@@ -96780,7 +96821,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   /* --- Meetings: Upcoming / Week / Month / Past ---
      A day gets a colour by how far away it is, so the eye finds today without reading
      dates: today green, tomorrow orange, this week blue, later purple, past grey. */
-  let grMView = 'up', grWeekOff = 0, grMonthOff = 0, grSelDay = null;
+  /* WHICH TAB, REMEMBERED. Past is where the recordings are, so it is where somebody
+     doing call follow-up lives all morning -- and every reload threw them back to
+     Upcoming. Kept per browser rather than on the profile: it is a view preference, not
+     a fact about the person, and it should not follow them onto somebody else's screen.
+
+     Read through a whitelist, because a stale or hand-edited value would select a branch
+     grRenderMeetings has no arm for and paint an empty screen. localStorage throws
+     outright in a private window, so both sides are wrapped. */
+  const GR_MVIEWS = ['up', 'week', 'month', 'past'];
+  let grMView = (function () {
+    try {
+      const v = localStorage.getItem('giant.grMView');
+      return GR_MVIEWS.indexOf(v) === -1 ? 'up' : v;
+    } catch (e) { return 'up'; }
+  })();
+  let grWeekOff = 0, grMonthOff = 0, grSelDay = null;
 
   const grDayColour = d => {
     const a = new Date(d); a.setHours(0, 0, 0, 0);
@@ -96838,7 +96894,163 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       '</span>' +
       (m._busy ? '<div class="gr_brief gr_wait">Reading what we know about them...</div>'
        : m.brief ? '<details class="gr_brief"><summary>Brief</summary><p>' + esc(m.brief) + '</p></details>' : '') +
+      (done ? grRecHtml(m) : '') +
       '</div>';
+  }
+
+  /* WHAT CAME OUT OF THE CALL. Zoom records every call on this account; until now the
+     recording stayed in Zoom and the only way to find one was to go and look for it.
+
+     Drawn on a call that has FINISHED and on no other. A recording block above a call
+     that has not happened yet promises something that does not exist, and the notes box
+     under it would be a place to write up a meeting nobody has had.
+
+     Shut by default. A past call is mostly something you scroll past; the day a row
+     matters you open it, and the ones either side of it stay one line tall. */
+  function grRecHtml(m) {
+    const files = Array.isArray(m.recording_files) ? m.recording_files : [];
+    const NAMES = { MP4: 'video', M4A: 'audio', CC: 'captions', CHAT: 'chat' };
+    const kinds = [];
+    files.forEach(f => { const n = NAMES[f.type]; if (n && kinds.indexOf(n) === -1) kinds.push(n); });
+    const mins = m.recording_minutes || 0;
+    const sub = [mins ? mins + ' min' : '', kinds.join(', ')].filter(Boolean).join(' · ');
+
+    /* The passcode goes IN THE LINK, not on the screen. Zoom's recording_play_passcode
+       is a 98 character encrypted token, not something anybody types: its one documented
+       use is ?pwd= on the share url, and shown as text it is a wall of base64 beside a
+       copy button that helps nobody. Without it the link lands on Zoom asking for a
+       passcode that exists in no email anybody here received. */
+    const watchUrl = m.recording_url +
+      (m.recording_passcode && !/[?&]pwd=/.test(m.recording_url)
+        ? (m.recording_url.indexOf('?') === -1 ? '?' : '&') + 'pwd=' + encodeURIComponent(m.recording_passcode)
+        : '');
+    const watch = m.recording_url
+      ? '<a class="gr_joinbig gr_watch" href="' + esc(watchUrl) + '" target="_blank" rel="noopener" data-gr-stop>' +
+          '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">' +
+          '<path d="M1.8 4.4h7.4v7.2H1.8zM9.2 7l5-2.4v6.8L9.2 9" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>' +
+          'Watch the recording</a>'
+      : '<span class="gr_mute">No recording in Zoom for this call.</span>';
+
+    const summary = m._sum
+      ? '<p class="gr_recs gr_mute">Reading the transcript...</p>'
+      : m.summary
+        ? grSumHtml(m.summary) +
+          '<span class="gr_rech" style="margin:12px 0 0">' +
+            esc(m.summary_source === 'zoom' ? 'Written by Zoom' : 'Written by Claude from the transcript') +
+          '</span>'
+        : m.transcript
+          ? '<button class="gr_ghost gr_sm" data-gr-sum="' + esc(m.id) + '">Summarise this call</button>'
+          /* Said plainly, because "no summary" and "no transcript to make one from" are
+             fixed in different places and look identical on the screen. */
+          : '<span class="gr_mute">No transcript, so there is nothing to summarise yet.</span>';
+
+    return '<details class="gr_rec"><summary>After the call' +
+        (sub ? '<em>' + esc(sub) + '</em>' : '') + '</summary>' +
+      '<div class="gr_recb">' +
+        '<div class="gr_recl">' + watch + '</div>' +
+        /* Copy, because what happens to a call summary next is that somebody pastes it
+           into an email or a CRM. Only offered when there is something to copy. */
+        '<div><span class="gr_rech">Summary' +
+          (m.summary ? '<button class="gr_ghost gr_sm" data-gr-sumcopy="' + esc(m.id) + '">Copy</button>' : '') +
+        '</span>' + summary + '</div>' +
+        '<div><span class="gr_rech">Notes</span>' +
+          '<textarea data-gr-note="' + esc(m.id) + '" rows="2" ' +
+            'placeholder="What you want to remember about this call.">' + esc(m.notes || '') + '</textarea>' +
+        '</div>' +
+      '</div></details>';
+  }
+
+  /* A summary arrives as headed sections -- "What they want", "Objections", "Do next"
+     from Claude, a label and its text from Zoom -- separated by blank lines. Rendered as
+     one pre-wrap paragraph it is a wall of prose nobody reads to the end, which is the
+     same as not having it. A heading is a block that is ONE short line and does not end
+     in sentence punctuation; everything else is prose. Anything that does not fit that
+     shape still renders, as a paragraph, so an unexpected summary degrades to what it
+     looked like before rather than to nothing. */
+  function grSumHtml(text) {
+    const isHead = (line) => line.length <= 44 && !/[.!?]$/.test(line);
+    return String(text || '').split(/\n{2,}/).map(b => b.trim()).filter(Boolean).map(b => {
+      const lines = b.split('\n');
+      if (lines.length === 1) {
+        return isHead(b) ? '<h4 class="gr_sumh">' + esc(b) + '</h4>'
+                         : '<p class="gr_sump">' + esc(b) + '</p>';
+      }
+      return isHead(lines[0])
+        ? '<h4 class="gr_sumh">' + esc(lines[0]) + '</h4>' +
+          '<p class="gr_sump">' + esc(lines.slice(1).join('\n')) + '</p>'
+        : '<p class="gr_sump">' + esc(b) + '</p>';
+    }).join('') || '<p class="gr_sump">' + esc(text || '') + '</p>';
+  }
+
+  /* Zoom's AI Companion writes a summary only when it is switched on and only on some
+     plans, so this is the path that always works: the transcript is already on the row,
+     and Claude reads it. grBrief does the same thing from the other end of the call. */
+  async function grSummarise(id) {
+    const m = grMeetings.find(x => x.id === id);
+    if (!m || m._sum) return;
+    if (!m.transcript) { grToast('There is no transcript for this call yet.'); return; }
+    const c = grClients.find(x => x.id === m.client_id);
+    /* WHO SAID WHAT, OR NOBODY DID. Zoom's audio transcript names the speaker on each
+       line; its live closed captions name nobody, and the captions are what this
+       account produces until "Create audio transcript" is switched on in Zoom. Asked to
+       summarise an unattributed wall of talk, a model will hand back "the client said
+       their budget is 1.5k" with no way of knowing it was us who said it -- a confident
+       wrong answer in the one place it costs money. So the prompt is told which it has,
+       and told to stop attributing when it cannot tell. */
+    const attributed = (String(m.transcript).match(/^[^\n:]{2,30}:\s/gm) || []).length >= 5;
+    m._sum = true; grRender();
+    try {
+      const res = await fetch('/.netlify/functions/claude-api', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          max_tokens: 900,
+          system: 'You summarise a sales call from its transcript, for the person who was ' +
+            'on it. Use ONLY what is in the transcript. If something was not said, leave it ' +
+            'out rather than filling it in. Four headings on their own lines: What they want ' +
+            '/ What we said / Objections / Do next. Under Do next put only what somebody ' +
+            'actually committed to, and nothing you think they should do. Plain text, no ' +
+            'markdown, no dashes.' +
+            (attributed
+              ? ' Each line names its speaker; you may say who said what.'
+              : ' THIS TRANSCRIPT HAS NO SPEAKER NAMES. It is a stream of captions and you ' +
+                'cannot tell who is talking. Never say who said something, and never guess ' +
+                'which side is the client. Write what was DISCUSSED and what was AGREED, ' +
+                'without attributing any of it. If a point only makes sense knowing who ' +
+                'said it, leave it out.'),
+          messages: [{ role: 'user', content: JSON.stringify({
+            client: c ? c.name : m.title, company: c ? c.company : '',
+            when: m.starts_at, minutes: m.recording_minutes || m.minutes,
+            // An hour of talk is well inside this; the cap is here so a runaway
+            // transcript cannot turn one button into a very expensive one.
+            transcript: String(m.transcript).slice(0, 60000) }) }]
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'AI error');
+      const text = String(data.text || '').trim();
+      if (!text) throw new Error('nothing came back');
+      const r = await grWrite('growth_meetings', 'update',
+        { summary: text, summary_at: new Date().toISOString(), summary_source: 'claude' }, m.id);
+      if (r) { m.summary = text; m.summary_at = r[0].summary_at; m.summary_source = 'claude'; }
+    } catch (e) {
+      grToast('Could not summarise. ' + String((e && e.message) || e).slice(0, 80));
+    }
+    m._sum = false; grRender();
+  }
+
+  /* Saved on blur rather than behind a Save button: a note somebody typed and walked
+     away from is the one worth keeping, and it does NOT re-render afterwards -- redrawing
+     the list under the cursor would take the caret away from whoever is still reading. */
+  async function grMeetNote(id, value) {
+    const m = grMeetings.find(x => x.id === id);
+    if (!m) return;
+    const text = String(value == null ? '' : value);
+    if (text === String(m.notes || '')) return;
+    const r = await grWrite('growth_meetings', 'update',
+      { notes: text, notes_at: new Date().toISOString() }, id);
+    if (!r) return;
+    m.notes = text; m.notes_at = r[0].notes_at;
+    grToast(text ? 'Note saved' : 'Note cleared');
   }
 
   function grDayCard(d, list, quiet) {
@@ -98590,6 +98802,39 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     grConn.zsync = false; grRender();
   }
 
+  /* Recordings, separately from the calls, for the same reason the calls are separate
+     from Calendly: they fail differently. Pulling calls in needs one Zoom scope and
+     reading their recordings needs three more, so a single button that half-worked
+     could not say which half -- and the half that fails is fixed in Zoom, not here. */
+  async function grZoomRecSync() {
+    if (grConn.rsync) return;
+    grConn.rsync = true; grConn.rsyncErr = ''; grRender();
+    try {
+      const tok = await grToken();
+      const r = await fetch('/.netlify/functions/growth-zoom?action=sync_recordings',
+        { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' },
+            tok ? { Authorization: 'Bearer ' + tok } : {}),
+          body: JSON.stringify({ days: 120 }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        if (j.scope) grConn.rsyncErr = j.error || 'Zoom is missing a scope.';
+        grToast(j.error || 'Could not read the recordings.');
+      } else {
+        /* The hint stays ON THE PANEL rather than in a toast. It names a scope to add in
+           another website, which is not something anybody can act on in four seconds. */
+        if (j.hint) grConn.rsyncErr = j.hint;
+        const n = (j.updated || 0) + (j.added || 0);
+        grToast(n
+          ? n + ' call' + (n === 1 ? '' : 's') + ' now carry their recording' +
+            (j.transcripts ? ' · ' + j.transcripts + ' transcript' + (j.transcripts === 1 ? '' : 's') : '') +
+            (j.summaries ? ' · ' + j.summaries + ' summary' : '')
+          : (j.note || 'No recordings found.'));
+        await window.grReload();
+      }
+    } catch (e) { grToast('Could not read the recordings. ' + String(e.message || e).slice(0, 90)); }
+    grConn.rsync = false; grRender();
+  }
+
   /* --- Connectors ---
      Every row opens. "Not connected" with nothing behind it is a dead end: it tells you
      the bad news and leaves you to guess the fix. Each one now says what Growth does
@@ -98615,7 +98860,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     },
     zoom: {
       name: 'Zoom',
-      what: 'Puts a join link on every booking, pulls your Zoom calls into Meetings, and lets Giant mint its own link for a call you add by hand.',
+      what: 'Puts a join link on every booking, pulls your Zoom calls into Meetings with their recording, transcript and summary, and lets Giant mint its own link for a call you add by hand.',
       how: 'Build a Server to Server OAuth app in Zoom (Develop, then Build App), then paste its Account ID, Client ID and Client Secret below. Giant checks them with Zoom before keeping them. The old ZOOM_* variables in Netlify still work and are used if nothing is set here.',
       on: 'Zoom accepted the credentials when it was last asked.',
       off: 'Bookings made through Calendly still carry a Zoom link, because Calendly creates it. '
@@ -98801,9 +99046,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     } else if (k === 'zoom') {
       if (state === true) {
         act = (grConn.zsyncErr ? '<div class="gr_cstat bad">' + esc(grConn.zsyncErr) + '</div>' : '') +
+          (grConn.rsyncErr ? '<div class="gr_cstat bad">' + esc(grConn.rsyncErr) + '</div>' : '') +
           '<div class="gr_acts">' +
             '<button class="btn-red" data-gr-zoom-sync' + (grConn.zsync ? ' disabled' : '') + '>' +
               (grConn.zsync ? 'Syncing...' : 'Sync meetings') + '</button>' +
+            '<button class="gr_ghost" data-gr-zoom-recsync' + (grConn.rsync ? ' disabled' : '') + '>' +
+              (grConn.rsync ? 'Reading recordings...' : 'Sync recordings') + '</button>' +
             '<button class="gr_ghost" data-gr-conn-recheck' + (busy ? ' disabled' : '') + '>Check again</button>' +
             (grConn.zoomHow === 'app'
               ? '<button class="gr_ghost" data-gr-zoom-forget' + (busy ? ' disabled' : '') + '>Disconnect</button>'
@@ -100639,6 +100887,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   /* ---------- events ----------
      One delegated listener. The sheet and composer are rebuilt on every render, so
      anything bound directly to them would be lost. */
+  /* change, not input: it fires when the box is left, so one note is one write rather
+     than one per keystroke. Its own listener because the click delegation below never
+     sees a textarea being left. */
+  document.addEventListener('change', function (e) {
+    const nt = e.target.closest && e.target.closest('[data-gr-note]');
+    if (nt) grMeetNote(nt.dataset.grNote, nt.value);
+  });
+
   document.addEventListener('click', function (e) {
     if (e.target.closest('[data-gr-stop]')) return;      // let real links through
 
@@ -100691,6 +100947,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
     if (e.target.closest('[data-gr-cal-sync]')) { grCalendlySync(); return; }
     if (e.target.closest('[data-gr-zoom-sync]')) { grZoomSync(); return; }
+    if (e.target.closest('[data-gr-zoom-recsync]')) { grZoomRecSync(); return; }
     // The switch sits inside the row button, so without this a tap on it would also
     // open and shut the panel underneath it.
     if (e.target.closest('[data-gr-conn-use]')) return;
@@ -100921,7 +101178,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (grMenuFor && !e.target.closest('#grMenu')) grCloseMenu();
 
     const mv = e.target.closest('[data-gr-mview]');
-    if (mv) { grMView = mv.dataset.grMview; grSelDay = null; grRender(); return; }
+    if (mv) {
+      grMView = mv.dataset.grMview; grSelDay = null;
+      try { localStorage.setItem('giant.grMView', grMView); } catch (e) { /* private window */ }
+      grRender(); return;
+    }
     const mn = e.target.closest('[data-gr-mnav]');
     if (mn) {
       const d = +mn.dataset.grMnav;
@@ -100935,6 +101196,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (o2) { e.stopPropagation(); grOpenId = o2.dataset.grOpen2; grTab = 'overview'; grRender(); return; }
     const br = e.target.closest('[data-gr-brief]');
     if (br) { e.stopPropagation(); grBrief(br.dataset.grBrief); return; }
+
+    const sry = e.target.closest('[data-gr-sum]');
+    if (sry) { e.stopPropagation(); grSummarise(sry.dataset.grSum); return; }
+    const cp2 = e.target.closest('[data-gr-sumcopy]');
+    if (cp2) {
+      e.stopPropagation();
+      const mm = grMeetings.find(x => x.id === cp2.dataset.grSumcopy);
+      const txt = mm ? String(mm.summary || '') : '';
+      /* Falls back to the app's own prompt: clipboard writes are refused outright in
+         some desktop and embedded contexts, and a Copy that quietly does nothing is
+         worse than one that hands you the text to select. */
+      if (txt) navigator.clipboard.writeText(txt)
+        .then(() => grToast('Summary copied'))
+        .catch(() => window.giantPrompt('Copy the summary', txt));
+      return;
+    }
+    /* Opening the block must not open the call underneath it. A <summary> is a click
+       like any other and this list turns a click on a row into "open this meeting". */
+    if (e.target.closest('.gr_rec')) { e.stopPropagation(); return; }
 
     const lk = e.target.closest('[data-gr-link]');
     if (lk) { e.stopPropagation(); grMeetLink(lk.dataset.grLink); return; }

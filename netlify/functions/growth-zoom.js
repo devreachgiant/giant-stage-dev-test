@@ -30,6 +30,8 @@
 //   POST ?action=save          -> { configured, who }           store them, staff only
 //   POST ?action=disconnect    -> { configured:false }          forget them, staff only
 //   POST ?action=sync_meetings -> { added, duplicate, seen }    pull calls in, staff only
+//   POST ?action=sync_recordings -> { updated, added, transcripts, summaries }
+//                                                           pull recordings in, staff only
 //
 // SET UP: Zoom -> Develop -> Build App -> Server-to-Server OAuth. Copy the Account ID,
 // Client ID and Client Secret into Growth -> Connectors -> Zoom.
@@ -196,6 +198,121 @@ async function listZoomMeetings(token) {
   return out;
 }
 
+/* ---------------------------------------------------------------- recordings
+
+   Zoom records every call on this account and none of it reached the app: a recording
+   lived in Zoom and the only way to find one was to go and look. This pulls the link,
+   what was said and what Zoom made of it onto the call itself.
+
+   THE DATE WINDOW IS NOT OPTIONAL AND NOT A DETAIL. /accounts/{id}/recordings accepts
+   at most one month between from and to, and when you ask for more it TRUNCATES rather
+   than erroring -- six months in, one month back, nothing saying five are missing. So
+   the range is walked a window at a time and the pages inside each are followed to the
+   end, same as listZoomMeetings: a next_page_token that goes unsent returns page one
+   forever, so the loop ends on the token and never on a count. */
+
+function monthWindows(days) {
+  const out = [];
+  const end = Date.now();
+  let cursor = end - Math.max(1, days) * 86400000;
+  // 27 days, not "a month": February and July are not the same length and the cap is.
+  while (cursor < end) {
+    const stop = Math.min(end, cursor + 27 * 86400000);
+    out.push([new Date(cursor).toISOString().slice(0, 10), new Date(stop).toISOString().slice(0, 10)]);
+    cursor = stop + 86400000;
+  }
+  return out;
+}
+
+async function listRecordings(token, days) {
+  const out = [];
+  let downloadToken = '';
+  for (const win of monthWindows(days)) {
+    let pageToken = '';
+    for (let guard = 0; guard < 20; guard++) {
+      const data = await zoomGet('/accounts/me/recordings?from=' + win[0] + '&to=' + win[1] +
+        '&page_size=300&include_fields=download_access_token' +
+        (pageToken ? '&next_page_token=' + encodeURIComponent(pageToken) : ''), token);
+      for (const m of (data.meetings || [])) out.push(m);
+      // Only some responses carry it, and it is good for the whole account, so the last
+      // one seen is kept rather than looked for again per recording.
+      if (data.download_access_token) downloadToken = data.download_access_token;
+      pageToken = data.next_page_token || '';
+      if (!pageToken) break;
+    }
+  }
+  return { recordings: out, downloadToken: downloadToken };
+}
+
+/* Zoom's own rule, and getting it wrong fails in the direction that looks like a
+   deleted meeting rather than like a bug: a uuid that STARTS WITH / or CONTAINS //
+   must be encoded twice. Anything else is encoded once. */
+function uuidPath(uuid) {
+  const u = String(uuid || '');
+  return (u.charAt(0) === '/' || u.indexOf('//') !== -1)
+    ? encodeURIComponent(encodeURIComponent(u))
+    : encodeURIComponent(u);
+}
+
+/* WEBVTT in, what was actually said out. Cue numbers and timings are noise to anything
+   reading this later; the speaker name is not, and Zoom puts it in the line itself. */
+function vttToText(vtt) {
+  const out = [];
+  for (const raw of String(vtt || '').split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line === 'WEBVTT') continue;
+    if (/^\d+$/.test(line)) continue;                       // cue number
+    if (line.indexOf('-->') !== -1) continue;               // timing
+    if (out.length && out[out.length - 1] === line) continue; // Zoom repeats a caption
+    out.push(line);
+  }
+  return out.join('\n');
+}
+
+/* The recording host is not the API host and will not take the ordinary bearer token.
+   It answers 401 -- or, worse, 200 WITH ZOOM'S SIGN-IN PAGE. That is why this checks
+   the body begins WEBVTT rather than checking the status: a download that "succeeded"
+   and handed back 21kB of HTML would otherwise be stored as the transcript of the call,
+   and nothing downstream would ever notice. */
+async function fetchTranscript(file, token, downloadToken) {
+  const url = String(file.download_url || '');
+  if (!url) return '';
+  const tries = [];
+  if (downloadToken) tries.push([url + (url.indexOf('?') === -1 ? '?' : '&') + 'access_token=' + downloadToken, {}]);
+  tries.push([url, { Authorization: 'Bearer ' + token }]);
+  for (const t of tries) {
+    try {
+      const r = await fetch(t[0], { headers: t[1] });
+      const body = await r.text();
+      if (r.ok && /^\uFEFF?WEBVTT/.test(body)) return vttToText(body);
+    } catch (e) { /* try the other way in */ }
+  }
+  return '';
+}
+
+/* Zoom answers 404 "Meeting does not exist" for a meeting that exists perfectly well
+   and simply has no AI Companion summary. A 404 here is an absence, not a fault, and
+   the hint is carried back separately so a MISSING SCOPE does not read as an absence
+   too -- those two look identical from the call site and are fixed in different places. */
+async function zoomSummary(uuid, token) {
+  let d;
+  try {
+    d = await zoomGet('/meetings/' + uuidPath(uuid) + '/meeting_summary', token);
+  } catch (e) {
+    return { text: '', hint: e.hint || '' };
+  }
+  const parts = [];
+  if (d.summary_overview) parts.push(String(d.summary_overview).trim());
+  for (const s of (d.summary_details || [])) {
+    const label = String(s.label || '').trim();
+    const text = String(s.summary || '').trim();
+    if (text) parts.push((label ? label + '\n' : '') + text);
+  }
+  const next = (d.next_steps || []).map(x => String(x || '').trim()).filter(Boolean);
+  if (next.length) parts.push('Do next\n' + next.join('\n'));
+  return { text: parts.join('\n\n').trim(), hint: '' };
+}
+
 const STAFF = ['owner', 'manager', 'inhouse_dev'];
 const isStaff = (p) => !!p && STAFF.includes(String(p.role));
 
@@ -203,6 +320,9 @@ exports.zoomCreds = zoomCreds;
 exports.mintToken = mintToken;
 exports.meetingNumber = meetingNumber;
 exports.scopeHint = scopeHint;
+exports.uuidPath = uuidPath;
+exports.vttToText = vttToText;
+exports.monthWindows = monthWindows;
 
 exports.handler = async (event) => {
   const action = (event.queryStringParameters || {}).action || 'status';
@@ -318,6 +438,131 @@ exports.handler = async (event) => {
       note: rows.length ? ''
         : duplicate ? 'Every Zoom meeting was already on the screen through Calendly.'
         : 'Zoom returned no meetings.'
+    });
+  }
+
+  // ------------------------------------------------------------- recordings
+  if (action === 'sync_recordings') {
+    const profile = await callerProfile(auth);
+    if (!profile) return json(401, { error: 'Sign in first.' });
+    if (!isStaff(profile)) return json(403, { error: 'Only an owner or manager can sync recordings.' });
+
+    const creds = await zoomCreds();
+    if (!creds) return json(400, { error: 'Zoom is not connected, so there is nothing to sync.' });
+
+    let body = {};
+    try { body = JSON.parse(event.body || '{}'); } catch (e) { /* the default below */ }
+    const days = Math.min(365, Math.max(1, Number(body.days) || 120));
+
+    let token, found;
+    try {
+      token = await mintToken(creds);
+      found = await listRecordings(token, days);
+    } catch (e) {
+      return json(400, { error: e.hint || String(e.message || e).slice(0, 200), scope: !!e.hint });
+    }
+
+    /* Everything already on the screen, by MEETING NUMBER -- the one key Calendly and
+       Zoom both carry. Without it a recorded Calendly booking arrives a second time as
+       a Zoom row and reads as a real second call with the same client. */
+    const existing = await sb('growth_meetings?select=id,zoom_url,external_id,transcript,summary');
+    const byNumber = new Map();
+    for (const row of (existing || [])) {
+      const n = meetingNumber(row.zoom_url);
+      if (n && !byNumber.has(n)) byNumber.set(n, row);
+      const x = String(row.external_id || '').match(/^zoom:(\d+)$/);
+      if (x && !byNumber.has(x[1])) byNumber.set(x[1], row);
+    }
+
+    let updated = 0, added = 0, transcripts = 0, summaries = 0, noTranscript = 0;
+    const hints = [];
+
+    for (const rec of found.recordings) {
+      const id = String(rec.id || '');
+      if (!id || !rec.start_time) continue;
+      const row = byNumber.get(id) || null;
+      const files = rec.recording_files || [];
+
+      const patch = {
+        recording_url: rec.share_url || '',
+        /* Stored because the link alone is not enough to watch it. A passcode that
+           lives only in Zoom's notification email is a recording nobody can open. */
+        recording_passcode: rec.recording_play_passcode || rec.password || '',
+        recording_at: (files[0] && files[0].recording_start) || rec.start_time,
+        recording_minutes: Math.max(1, Number(rec.duration) || 0),
+        recording_files: files.map(f => ({
+          type: f.file_type || '',
+          kind: f.recording_type || '',
+          mb: Math.round((Number(f.file_size) || 0) / 1e5) / 10
+        }))
+      };
+
+      // The transcript is the slow call, so it is made once and never again.
+      if (!(row && row.transcript)) {
+        /* TRANSCRIPT FIRST, and the order matters. Zoom can produce two text files for
+           one call and they are not the same thing: TRANSCRIPT is the audio transcript
+           and carries WHO SAID WHAT, CC is the live closed captions and carries no
+           speaker at all. find() returns whichever sits earlier in Zoom's array, so a
+           single test for either would take the captions on a call that had both and
+           quietly lose the attribution. Nothing on this account has a TRANSCRIPT file
+           today -- "Create audio transcript" is off in Zoom's recording settings -- so
+           this is the branch that starts working the day somebody turns it on. */
+        const cc = files.find(f => f.file_type === 'TRANSCRIPT')
+                || files.find(f => f.file_type === 'CC');
+        if (cc) {
+          const text = await fetchTranscript(cc, token, found.downloadToken);
+          if (text) { patch.transcript = text; transcripts++; } else { noTranscript++; }
+        }
+      }
+
+      /* Zoom's own summary wins when there is one: it is free, and it is the host's
+         words rather than ours. A summary already on the row is never replaced -- a
+         later sync finding nothing would otherwise wipe one Claude had written. */
+      if (!(row && row.summary)) {
+        const s = await zoomSummary(rec.uuid, token);
+        if (s.hint && hints.indexOf(s.hint) === -1) hints.push(s.hint);
+        if (s.text) {
+          patch.summary = s.text;
+          patch.summary_at = new Date().toISOString();
+          patch.summary_source = 'zoom';
+          summaries++;
+        }
+      }
+
+      if (row) {
+        await sb('growth_meetings?id=eq.' + row.id, 'PATCH', patch);
+        updated++;
+      } else {
+        /* A recording with no booking behind it is still a call that happened: an
+           instant meeting, or one started outside Calendly. A row is the only place it
+           can carry notes. Same external_id shape sync_meetings uses, on the same
+           unique key, so the two actions cannot produce the call twice. */
+        await sb('growth_meetings?on_conflict=external_id', 'POST', [Object.assign({
+          external_id: 'zoom:' + id,
+          client_id: null,
+          title: rec.topic || 'Zoom call',
+          starts_at: rec.start_time,
+          minutes: Math.max(5, Number(rec.duration) || 30),
+          zoom_url: '',
+          source: 'Zoom'
+        }, patch)]);
+        added++;
+      }
+    }
+
+    if (noTranscript) {
+      hints.unshift('The Zoom app cannot download recording files, so ' + noTranscript +
+        (noTranscript === 1 ? ' call has no transcript' : ' calls have no transcript') +
+        '. In the Zoom marketplace open the app, add cloud_recording:read:list_recording_files:admin, ' +
+        'Activate it again, then sync once more.');
+    }
+
+    return json(200, {
+      updated: updated, added: added, transcripts: transcripts, summaries: summaries,
+      seen: found.recordings.length, days: days,
+      hint: hints.join(' '),
+      note: found.recordings.length ? ''
+        : 'Zoom has no cloud recordings in the last ' + days + ' days.'
     });
   }
 
