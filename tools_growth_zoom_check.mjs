@@ -463,6 +463,24 @@ check('and carrying its recording, which is the reason the row exists',
   wroteR[0] && wroteR[0].recording_url === 'https://us06web.zoom.us/rec/share/abc' &&
   /Rob: Happy to/.test(wroteR[0].transcript || ''), wroteR[0] && wroteR[0].recording_url);
 
+/* TWO TEXT FILES, ONE CALL, and they are not the same thing. Zoom's TRANSCRIPT is the
+   audio transcript and names who said each line; CC is the live closed captions and
+   names nobody. A single find() for either takes whichever Zoom listed first, so on a
+   call that has both -- which is every call once "Create audio transcript" is switched
+   on -- the attribution is quietly lost. The fixture lists CC FIRST on purpose: put the
+   transcript first and this check passes against the bug. */
+const BOTH = REC({ recording_files: [
+  { file_type: 'CC', recording_type: 'closed_caption', file_size: 1024,
+    download_url: 'https://us06web.zoom.us/rec/download/the-captions?type=cc' },
+  { file_type: 'TRANSCRIPT', recording_type: 'audio_transcript', file_size: 2048,
+    download_url: 'https://us06web.zoom.us/rec/download/the-transcript' }
+] });
+calls = stubFetch(recPlan([BOTH], [{ id: 'row-1', zoom_url: 'https://us06web.zoom.us/j/88123' }]));
+res = await doRec();
+const got = calls.filter(c => c.url.includes('/rec/download/')).map(c => c.url.split('/rec/download/')[1].split('?')[0]);
+check('a call with both files is read from the transcript, which names the speakers',
+  got.length === 1 && got[0] === 'the-transcript', JSON.stringify(got));
+
 /* Already fetched once. Re-reading a 50 minute transcript on every sync is slow, and
    overwriting a summary somebody wrote is worse than slow. */
 /* Zoom is made to OFFER a summary here, and the row already has one. With Zoom

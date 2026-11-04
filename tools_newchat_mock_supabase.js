@@ -564,7 +564,9 @@
       recording_at: new Date(Date.now() - 30 * 3600e3).toISOString(),
       recording_files: [{ type: 'MP4', kind: 'shared_screen', mb: 338.9 },
                         { type: 'CC', kind: 'closed_caption', mb: 0.1 }],
-      transcript: 'Luke: How are the sites doing?\nRob: Traffic is down forty percent.',
+      transcript: 'Luke: How are the sites doing?\nRob: Traffic is down forty percent.\n' +
+        'Luke: The service pages are thin.\nRob: We tried an agency last year.\n' +
+        'Luke: What went wrong?\nRob: They never spoke to us.',
       summary: null, summary_at: null, summary_source: null, notes: null, notes_at: null },
     { id: 'gm-5', client_id: null, title: 'Instant call, nobody booked it',
       starts_at: new Date(Date.now() - 52 * 3600e3).toISOString(), minutes: 20, actual_min: null,
@@ -572,6 +574,20 @@
       external_id: 'zoom:666', created_at: giso(2, 0), invitee: null,
       recording_url: null, recording_passcode: null, recording_minutes: null,
       recording_at: null, recording_files: null, transcript: null,
+      summary: null, summary_at: null, summary_source: null, notes: null, notes_at: null },
+    /* The ordinary case on this account: Zoom's live captions, which name nobody. Kept
+       separate from gm-4 so the two prompts can be compared -- one fixture could not
+       show that the wording changes with what it is given. */
+    { id: 'gm-6', client_id: 'gc-5', title: 'Growth call, captions only',
+      starts_at: new Date(Date.now() - 76 * 3600e3).toISOString(), minutes: 40, actual_min: null,
+      zoom_url: 'https://us06web.zoom.us/j/777', source: 'Calendly', brief: '', brief_at: null,
+      external_id: 'ext-6', created_at: giso(4, 0), invitee: null,
+      recording_url: 'https://us06web.zoom.us/rec/share/ccc',
+      recording_passcode: null, recording_minutes: 40,
+      recording_at: new Date(Date.now() - 76 * 3600e3).toISOString(),
+      recording_files: [{ type: 'MP4', kind: 'shared_screen', mb: 210.4 }],
+      transcript: 'What is that?\nNo, that is just the note taker.\nSo if you can find this.\n' +
+        'Yeah, and then it jumped out.\nI do not think we need that.\nIt is recording on Zoom now.',
       summary: null, summary_at: null, summary_source: null, notes: null, notes_at: null }
   ];
   // gc-2's last message is INBOUND and unhandled, so exactly one deal needs a reply.

@@ -499,7 +499,16 @@ exports.handler = async (event) => {
 
       // The transcript is the slow call, so it is made once and never again.
       if (!(row && row.transcript)) {
-        const cc = files.find(f => f.file_type === 'CC' || f.file_type === 'TRANSCRIPT');
+        /* TRANSCRIPT FIRST, and the order matters. Zoom can produce two text files for
+           one call and they are not the same thing: TRANSCRIPT is the audio transcript
+           and carries WHO SAID WHAT, CC is the live closed captions and carries no
+           speaker at all. find() returns whichever sits earlier in Zoom's array, so a
+           single test for either would take the captions on a call that had both and
+           quietly lose the attribution. Nothing on this account has a TRANSCRIPT file
+           today -- "Create audio transcript" is off in Zoom's recording settings -- so
+           this is the branch that starts working the day somebody turns it on. */
+        const cc = files.find(f => f.file_type === 'TRANSCRIPT')
+                || files.find(f => f.file_type === 'CC');
         if (cc) {
           const text = await fetchTranscript(cc, token, found.downloadToken);
           if (text) { patch.transcript = text; transcripts++; } else { noTranscript++; }

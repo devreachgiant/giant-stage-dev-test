@@ -2940,6 +2940,15 @@ await step('a finished call carries its recording, and an unfinished one does no
   check('no after-the-call block on a meeting that has not happened yet',
     onUpcoming.length === 0, JSON.stringify(onUpcoming));
 
+  /* Measured HERE and kept. Past holds nothing but finished calls, so by the time the
+     chip is compared there is no live one left on the screen to compare it against. */
+  const liveChip = await page.evaluate(() => {
+    const el = document.querySelector('.gr_mx:not(.gr_done) .gr_mt');
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { w: Math.round(r.width), h: Math.round(r.height) };
+  });
+
   await page.evaluate(() => document.querySelector('[data-gr-mview="past"]')?.click());
   await page.waitForTimeout(1000);
   await page.evaluate(() => [...document.querySelectorAll('details.gr_rec')].forEach(d => { d.open = true; }));
@@ -2996,6 +3005,112 @@ await step('a finished call carries its recording, and an unfinished one does no
     bare.summariseOffered === false && /nothing to summarise/.test(bare.text || ''),
     bare.text.slice(0, 80));
 
+  /* READABLE, MEASURED UP THE WHOLE TREE. .gr_mx.gr_done carried one opacity:.6 for the
+     finished look, and opacity on a parent cannot be undone by a child -- it makes a
+     stacking context and nothing inside it can be more opaque. So the summary, the one
+     thing anybody opens this block to read, rendered at 60% on a dark page and was very
+     nearly invisible. Every presence check passed throughout: the text was there, the
+     right colour, the right size, and unreadable.
+
+     So this multiplies the opacity of every ancestor rather than reading the element's
+     own, which is 1 either way and proves nothing. */
+  const dim = await page.evaluate(() => {
+    const d = document.querySelector('[data-gr-meet="gm-4"] details.gr_rec');
+    const row = d.closest('.gr_mx');
+    const eff = (el) => { let o = 1, n = el;
+      while (n && n !== document.body) { o *= parseFloat(getComputedStyle(n).opacity || '1'); n = n.parentElement; }
+      return Math.round(o * 100) / 100; };
+    const watch = d.querySelector('a.gr_joinbig');
+    return {
+      rowIsDone: row.classList.contains('gr_done'),
+      nameLine: eff(row.querySelector('.gr_rm')),
+      block: eff(d),
+      summaryText: eff(d.querySelector('.gr_recs, .gr_sump, .gr_mute')),
+      watchBg: getComputedStyle(watch).backgroundColor,
+      dayColour: getComputedStyle(row.closest('.gr_dayc')).getPropertyValue('--dc').trim()
+    };
+  });
+  check('the after-the-call block is at full strength even though the call is done',
+    dim.rowIsDone === true && dim.block === 1 && dim.summaryText === 1, JSON.stringify(dim));
+  /* ...and the row still LOOKS done. Without this the check above passes just as well on
+     code that simply stopped dimming anything. */
+  check('while the row above it is still dimmed, so finished still reads as finished',
+    dim.nameLine < 0.8, String(dim.nameLine));
+  /* gr_joinbig paints itself var(--dc), the colour of the day it sits on, and a past day
+     is grey. The one thing worth clicking rendered grey on grey and read as disabled. */
+  /* THE CHIP ON A FINISHED CALL. #C7C7CC is an iOS LIGHT-theme grey: on a dark page it
+     was the brightest thing in the row, so the loudest colour on the screen sat on the
+     least interesting call. It now takes a muted fill with a border, and the border is
+     paid for out of the padding -- measured against a live chip, because a box that
+     grew a pixel would push every row in the list out of line with the others. */
+  const chip = await page.evaluate(() => {
+    const done = document.querySelector('.gr_mx.gr_done .gr_mt');
+    const cs = getComputedStyle(done);
+    const box = (el) => { const r = el.getBoundingClientRect();
+      return { w: Math.round(r.width), h: Math.round(r.height) }; };
+    return { bg: cs.backgroundColor, border: parseFloat(cs.borderTopWidth),
+             done: box(done) };
+  });
+  chip.live = liveChip;
+  check('a finished call’s time chip is not the light-theme grey block it was',
+    chip.bg !== 'rgb(199, 199, 204)', chip.bg);
+  check('and keeps an edge, so it still reads as a chip once the fill stops shouting',
+    chip.border >= 1, String(chip.border));
+  check('the same size as a live one, so the rows stay in line',
+    !!chip.live && chip.done.w === chip.live.w && Math.abs(chip.done.h - chip.live.h) <= 1,
+    JSON.stringify(chip));
+
+  check('Watch does not take the grey of the past day it sits on',
+    dim.watchBg !== 'rgb(142, 142, 147)' && dim.dayColour === '#8E8E93',
+    JSON.stringify({ watch: dim.watchBg, day: dim.dayColour }));
+
+  /* A summary is four headed sections and arrives as one string. Rendered flat it is a
+     wall of prose, which on the longest thing on this screen is the same as not having
+     it. The fixture summary is written with headings so a renderer that ignored them
+     would fail here rather than look plausible. */
+  await page.evaluate(async () => {
+    await window.giantSupabase.from('growth_meetings').update({
+      summary: 'What they want\n\nMore traffic to the three service pages.\n\n' +
+               'Objections\n\nBurned by an agency last year.\n\n' +
+               'Do next\n\nProposal by Friday.',
+      summary_source: 'claude' }).eq('id', 'gm-4').select('id');
+    window.grReload && await window.grReload();
+  });
+  await page.waitForTimeout(1500);
+  await page.evaluate(() => { document.querySelector('[data-gr-meet="gm-4"] details.gr_rec').open = true; });
+  await page.waitForTimeout(400);
+  const sum = await page.evaluate(() => {
+    const d = document.querySelector('[data-gr-meet="gm-4"] details.gr_rec');
+    const h = [...d.querySelectorAll('.gr_sumh')];
+    const p = [...d.querySelectorAll('.gr_sump')];
+    return { heads: h.map(x => x.textContent), paras: p.length,
+             headWeight: h[0] ? getComputedStyle(h[0]).fontWeight : '',
+             copy: !!d.querySelector('[data-gr-sumcopy]') };
+  });
+  check('the summary is split into its headings rather than one wall of prose',
+    sum.heads.join('|') === 'What they want|Objections|Do next' && sum.paras === 3,
+    JSON.stringify(sum.heads));
+  check('and the headings are heavier than the prose under them',
+    Number(sum.headWeight) >= 700, sum.headWeight);
+  /* What happens to a call summary next is that somebody pastes it into an email. */
+  check('a summary that exists can be copied out',
+    sum.copy === true, String(sum.copy));
+
+  /* Put it back. A row that HAS a summary offers no Summarise button, and the two checks
+     below press exactly that button -- leaving this set would make them fail on a null,
+     which reads like a broken screen rather than like a test that tidied up after
+     itself badly. */
+  await page.evaluate(async () => {
+    await window.giantSupabase.from('growth_meetings')
+      .update({ summary: null, summary_source: null }).eq('id', 'gm-4').select('id');
+    window.grReload && await window.grReload();
+  });
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => {
+    document.querySelectorAll('details.gr_rec').forEach(d => { d.open = true; });
+  });
+  await page.waitForTimeout(400);
+
   /* The list turns a click on a row into "open this call". A <summary> is a click like
      any other, so without stopPropagation opening the block opens the sheet over it. */
   await page.evaluate(() => {
@@ -3009,6 +3124,40 @@ await step('a finished call carries its recording, and an unfinished one does no
   });
   check('opening the block does not open the call over the top of it',
     sheetOpen === false, String(sheetOpen));
+
+  /* WHAT THE SUMMARISER IS TOLD ABOUT WHO WAS TALKING. Zoom's captions carry no
+     speaker, and this account produces captions and not transcripts, so most calls
+     arrive as an unattributed stream of talk. Asked to split that into "what they want"
+     and "what we said", a model will hand back "the client said their budget is 1.5k"
+     with no way of knowing it was us who said it -- a confident wrong answer in the one
+     place on this screen that costs money. The prompt has to say which kind it has.
+
+     Both fixtures run through the same button, so a prompt that said the same thing
+     either way would fail here rather than read plausibly in production. */
+  const promptFor = async (mid) => {
+    let sent = null;
+    await page.route('**/claude-api', r => {
+      sent = JSON.parse(r.request().postData() || '{}');
+      return r.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ text: 'What they want\nSomething\n\nDo next\nNothing' }) });
+    });
+    await page.evaluate((id) => {
+      const d = document.querySelector('[data-gr-meet="' + id + '"] details.gr_rec');
+      d.open = true; d.querySelector('[data-gr-sum]').click();
+    }, mid);
+    await page.waitForTimeout(1500);
+    await page.unroute('**/claude-api');
+    return (sent && sent.system) || '';
+  };
+
+  const namedP = await promptFor('gm-4');
+  check('a transcript that names its speakers lets the summary say who said what',
+    /may say who said what/i.test(namedP) && !/NO SPEAKER NAMES/.test(namedP),
+    namedP.slice(-90));
+  const blindP = await promptFor('gm-6');
+  check('captions with no speaker forbid attributing anything to either side',
+    /NO SPEAKER NAMES/.test(blindP) && /[Nn]ever say who said something/.test(blindP) &&
+    /never guess\s+which side is the client/.test(blindP), blindP.slice(-110));
 
   // A note typed and left behind has to reach the row, not just the textarea.
   await page.evaluate(() => {
@@ -3025,6 +3174,44 @@ await step('a finished call carries its recording, and an unfinished one does no
     stored === 'Partner sign-off needed. Chase Friday.', JSON.stringify(stored));
 });
 
+
+await step('the tab you chose survives a reload', async () => {
+  /* Past is where the recordings are, so somebody doing call follow-up lives there all
+     morning -- and every reload threw them back to Upcoming. Proved with a REAL reload
+     rather than by reading the stored value: the value was never the problem, honouring
+     it on the way back up is. */
+  await screen('gr_meetings');
+  await page.waitForTimeout(900);
+  const tab = () => page.evaluate(() => {
+    const b = document.querySelector('[data-gr-mview][aria-pressed="true"]');
+    return b ? b.dataset.grMview : null;
+  });
+  await page.evaluate(() => document.querySelector('[data-gr-mview="past"]').click());
+  await page.waitForTimeout(700);
+  check('clicking Past selects Past', (await tab()) === 'past', await tab());
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(3500);
+  await screen('gr_meetings');
+  await page.waitForTimeout(900);
+  check('and a full reload comes back to Past, not to Upcoming',
+    (await tab()) === 'past', await tab());
+
+  /* A stale or hand-edited value selects a branch grRenderMeetings has no arm for, and
+     the screen paints nothing at all -- worse than the bug being fixed. */
+  await page.evaluate(() => { try { localStorage.setItem('giant.grMView', 'nonsense'); } catch (e) {} });
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(3500);
+  await screen('gr_meetings');
+  await page.waitForTimeout(900);
+  const after = await page.evaluate(() => ({
+    tab: (document.querySelector('[data-gr-mview][aria-pressed="true"]') || {}).dataset?.grMview || null,
+    rows: document.querySelectorAll('[data-gr-meet]').length
+  }));
+  check('a value that is not a tab falls back to Upcoming rather than painting nothing',
+    after.tab === 'up' && after.rows > 0, JSON.stringify(after));
+  await page.evaluate(() => { try { localStorage.removeItem('giant.grMView'); } catch (e) {} });
+});
 
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
