@@ -3514,6 +3514,103 @@ await step('Meetings splits sales calls from onboarding calls', async () => {
   await page.waitForTimeout(800);
 });
 
+await step('Sales SOPs: three processes, and a manager can change them', async () => {
+  /* Luke asked for this twice in the same breath: "we can edit the SOPs as well.
+     That's really important because I want to be able to change them." So the checks
+     that matter are not that the screen draws -- they are that an edit reaches the
+     database row, and that adding and removing a step works on content nobody wrote
+     into this file. */
+  await screen('gr_sops');
+  await page.waitForTimeout(1300);
+
+  const index = await page.evaluate(() => {
+    const tiles = [...document.querySelectorAll('.gr_soptile')];
+    return {
+      n: tiles.length,
+      titles: tiles.map(t => (t.querySelector('b') || {}).textContent),
+      /* Each process has its own colour, carried from the tile into the full screen.
+         Three tiles the same colour would read as one thing in three parts. */
+      colours: [...new Set(tiles.map(t => getComputedStyle(t).borderTopColor))].length,
+      arrows: document.querySelectorAll('.gr_sopar').length
+    };
+  });
+  check('the index is three processes in order',
+    index.n === 3 && index.titles.join(' > ') === 'Before the call > During the call > After the call',
+    index.titles.join(' > '));
+  check('each with its own colour, and read as a flow',
+    index.colours === 3 && index.arrows === 2,
+    JSON.stringify({ colours: index.colours, arrows: index.arrows }));
+
+  await page.evaluate(() => document.querySelector('[data-gr-sop="during"]')?.click());
+  await page.waitForTimeout(1200);
+  const full = await page.evaluate(() => ({
+    hero: (document.querySelector('.gr_sophero h2') || {}).textContent,
+    heroSize: Math.round(parseFloat(getComputedStyle(document.querySelector('.gr_sophero h2')).fontSize)),
+    steps: [...document.querySelectorAll('.gr_sopcard b')].map(b => b.textContent),
+    arrows: document.querySelectorAll('.gr_soparw').length,
+    questions: document.querySelectorAll('.gr_sopq li').length
+  }));
+  check('opening one shows its steps in order, with arrows between',
+    full.steps.length === 5 && full.arrows === 4 && full.steps[0] === 'Say hello and build rapport',
+    JSON.stringify({ steps: full.steps.length, arrows: full.arrows }));
+  check('and the ten questions to ask', full.questions === 10, String(full.questions));
+  /* MEASURED, because twelve rules in this screen were written with a font shorthand
+     naming a variable Giant does not define, and an invalid shorthand is dropped
+     whole -- silently, and the screen still looked plausible. */
+  check('the hero heading is the size the design asks for, not a dropped rule',
+    full.heroSize >= 30, full.heroSize + 'px');
+
+  await page.evaluate(() => document.querySelector('[data-gr-sopedit]')?.click());
+  await page.waitForTimeout(1100);
+  const before = await page.evaluate(() => document.querySelectorAll('[data-gr-sopf]').length);
+  check('a manager can turn on editing', before > 10, String(before));
+
+  await page.fill('[data-gr-sopf="during.steps.0.t"]', 'Say hello and mean it');
+  await page.evaluate(() => document.querySelector('[data-gr-sopf="during.steps.0.t"]')
+    ?.dispatchEvent(new Event('change', { bubbles: true })));
+  await page.waitForTimeout(1300);
+  const saved = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'sops');
+    return r && r.value && r.value.during ? r.value.during.steps[0].t : null;
+  });
+  /* The ROW, not the screen. A screen that paints the edit and never saves looks
+     identical until somebody reloads. */
+  check('changing a step writes it to the row',
+    saved === 'Say hello and mean it', String(saved));
+  /* And the rest of the process survived being rewritten around it. */
+  const intact = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'sops');
+    return r && r.value && r.value.during
+      ? { steps: r.value.during.steps.length, qs: r.value.during.questions.length,
+          other: (r.value.before && r.value.before.steps || []).length }
+      : null;
+  });
+  check('and nothing else in the SOP was lost on the way',
+    intact && intact.steps === 5 && intact.qs === 10 && intact.other === 4,
+    JSON.stringify(intact));
+
+  await page.evaluate(() => document.querySelector('[data-gr-sopadd="during"]')?.click());
+  await page.waitForTimeout(1300);
+  const added = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'sops');
+    return r && r.value && r.value.during ? r.value.during.steps.length : -1;
+  });
+  check('adding a step adds one, to the row', added === 6, String(added));
+
+  await page.evaluate(() => document.querySelector('[data-gr-sopdel="during.steps.5"]')?.click());
+  await page.waitForTimeout(1300);
+  const removed = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'sops');
+    return r && r.value && r.value.during ? r.value.during.steps.length : -1;
+  });
+  check('and removing one takes it away again', removed === 5, String(removed));
+  /* A step somebody spent ten minutes writing is one click from gone, and the only
+     other copy is in their head. */
+  const undo = await page.evaluate(() => !!document.querySelector('#grToast [data-gr-undo]'));
+  check('with an undo, because the only other copy is in somebody’s head',
+    undo, String(undo));
+});
+
 await step('Growth is a named list, and the list can take it away', async () => {
   /* Luke asked for Growth to be "you, me, Matthew and Annie". The two people that takes
      it from are an owner and an in-house dev, both ABOVE the module's manager floor --

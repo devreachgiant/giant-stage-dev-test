@@ -6776,6 +6776,82 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_mn .gr_ktonboard{background:#2563EB;color:#fff;}
 @media(max-width:620px){.gr_mkr{flex-direction:column;align-items:stretch;}
   .gr_mk{justify-content:space-between;height:48px;padding:0 16px;}}
+/* Sales SOPs. Three processes, read as a flow rather than a list, because the order is
+   the point: before, during, after. The colour follows you from the tile into the full
+   screen, so you can tell which one you are in without reading the heading. */
+.gr_sopix{display:grid;grid-template-columns:1fr 34px 1fr 34px 1fr;align-items:stretch;margin-top:20px;}
+.gr_sopar{display:grid;place-items:center;color:var(--text-3);}
+.gr_soptile{text-align:left;border:1px solid var(--line);border-top:5px solid var(--sc);
+  background:var(--surface);border-radius:22px;padding:24px;cursor:pointer;font:inherit;
+  display:flex;flex-direction:column;gap:11px;min-height:210px;color:var(--text);
+  transition:transform .18s,box-shadow .18s,border-color .18s;}
+.gr_soptile:hover{transform:translateY(-3px);border-color:var(--sc);
+  box-shadow:0 18px 38px -24px var(--sc);}
+.gr_sopn{width:36px;height:36px;border-radius:12px;background:var(--sc);color:#fff;
+  display:inline-grid;place-items:center;font-size:15px;font-weight:800;line-height:1;flex:none;}
+.gr_soptile b{font-size:23px;font-weight:800;line-height:1.15;letter-spacing:-.02em;}
+.gr_soptile p{margin:0;color:var(--text-2);font-size:14.5px;line-height:1.45;}
+.gr_sopgo{margin-top:auto;font-weight:700;font-size:13.5px;color:var(--sc);}
+.gr_sopfull{display:flex;flex-direction:column;gap:18px;}
+.gr_soptop{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+.gr_soppills{display:flex;gap:4px;background:var(--surface);padding:4px;border-radius:14px;
+  border:1px solid var(--line);flex-wrap:wrap;}
+.gr_soppills button{border:0;background:transparent;padding:9px 14px;border-radius:10px;
+  font-size:13px;font-weight:700;color:var(--text-3);cursor:pointer;}
+.gr_soppills button:hover{color:var(--text);}
+.gr_soppills button[aria-pressed="true"]{background:var(--sc);color:#fff;}
+.gr_sophero{background:var(--sc);color:#fff;border-radius:26px;padding:28px 32px;
+  display:flex;flex-direction:column;gap:9px;}
+.gr_sophero .gr_sopn{background:rgba(255,255,255,.22);}
+.gr_sophero h2{margin:0;font-size:34px;font-weight:800;line-height:1.05;letter-spacing:-.03em;}
+.gr_sophero p{margin:0;font-size:16.5px;opacity:.92;}
+.gr_sopflow{list-style:none;margin:0;padding:4px 0;display:flex;align-items:stretch;gap:0;}
+.gr_sopstep{display:flex;align-items:center;flex:1 1 0;min-width:0;}
+.gr_sopcard{flex:1;background:var(--surface);border:1px solid var(--line);
+  border-top:4px solid var(--sc);border-radius:20px;padding:20px;display:flex;
+  flex-direction:column;gap:8px;height:100%;min-width:0;position:relative;}
+.gr_sopnum{width:30px;height:30px;border-radius:11px;background:var(--sc);color:#fff;
+  display:grid;place-items:center;font-size:13px;font-weight:800;line-height:1;}
+.gr_sopwhen{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--sc);}
+.gr_sopcard b{font-size:17px;font-weight:800;line-height:1.2;letter-spacing:-.01em;}
+.gr_sopcard p{margin:0;font-size:13.5px;line-height:1.5;color:var(--text-2);}
+.gr_soparw{flex:0 0 30px;display:grid;place-items:center;color:var(--sc);}
+.gr_sopadd{align-self:flex-start;border:1.5px dashed var(--line-2);background:transparent;
+  color:var(--text-3);border-radius:14px;padding:12px 18px;font-size:14px;font-weight:700;cursor:pointer;}
+.gr_sopadd:hover{color:var(--text);border-color:var(--text-3);}
+.gr_sopdel{position:absolute;top:10px;right:10px;border:0;background:transparent;
+  color:var(--text-3);cursor:pointer;font-size:13px;line-height:1;padding:4px;}
+.gr_sopdel:hover{color:var(--red);}
+.gr_sopq{display:grid;grid-template-columns:1fr 1fr;gap:10px;list-style:none;margin:0;padding:0;}
+.gr_sopq li{background:color-mix(in srgb,var(--sc) 10%,var(--surface));border-radius:14px;
+  padding:14px 16px;font-size:14.5px;font-weight:600;line-height:1.4;}
+.gr_sopqs{min-height:200px;}
+.gr_sopmail{border:1px solid var(--line);border-radius:16px;padding:14px 18px;
+  margin-bottom:10px;background:var(--surface-2);}
+.gr_sopmail summary{cursor:pointer;display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+  font-size:14.5px;font-weight:700;}
+.gr_soptag{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--sc);background:color-mix(in srgb,var(--sc) 14%,transparent);
+  border-radius:99px;padding:4px 10px;}
+.gr_sopcc{font-size:12px;color:var(--text-3);margin-top:10px;}
+.gr_sopmail pre{white-space:pre-wrap;font-size:14px;font-weight:400;line-height:1.6;color:var(--text);
+  margin:10px 0 0;font-family:inherit;}
+.gr_sopmail.gr_soped{display:flex;flex-direction:column;gap:9px;align-items:flex-start;}
+.gr_sopstep.gr_soped{flex:1 1 320px;}
+/* Room to read what you are editing. At the card's natural height the note box showed
+   about a line and a half of a three-line note, so editing meant scrolling inside a
+   textarea to see the sentence you were changing. */
+.gr_sopstep.gr_soped .gr_sopcard textarea{min-height:110px;resize:vertical;}
+.gr_sopstep.gr_soped .gr_sopcard{gap:7px;}
+@media(max-width:980px){
+  .gr_sopix{grid-template-columns:1fr;gap:12px;}
+  .gr_sopar{transform:rotate(90deg);height:30px;}
+  .gr_sopflow{flex-direction:column;}
+  .gr_sopstep{flex-direction:column;align-items:stretch;}
+  .gr_soparw{transform:rotate(90deg);height:30px;width:100%;}
+  .gr_sopq{grid-template-columns:1fr;}
+  .gr_sophero h2{font-size:27px;}
+}
 .gr_note{background:var(--surface);border-radius:14px;padding:14px 16px;}
 .gr_note>span{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--text-3);font-weight:700;}
 .gr_note p{margin:6px 0 0;font-size:14px;line-height:1.6;}
@@ -8965,6 +9041,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         <div class="nav-item" data-screen="gr_connectors" data-label="Connectors" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M6 2.6v2.6M10 2.6v2.6M4.6 5.2h6.8v2.6a3.4 3.4 0 01-6.8 0zM8 11.2v2.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Connectors</div>
         <div class="nav-item" data-screen="gr_settings" data-label="Settings" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 5.8a2.2 2.2 0 100 4.4 2.2 2.2 0 000-4.4ZM8 1.6v1.8M8 12.6v1.8M1.6 8h1.8M12.6 8h1.8M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M3.5 12.5l1.3-1.3M11.2 4.8l1.3-1.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Settings</div>
         <div class="nav-item" data-screen="gr_automations" data-label="Automations" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8.6 1.6L3.4 8.9h4l-.6 5.5 5.2-7.4h-4z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>Automations</div>
+        <div class="nav-item" data-screen="gr_sops" data-label="Sales SOPs" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M6 4h8M6 8h8M6 12h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="3" cy="4" r="1.1" fill="currentColor"/><circle cx="3" cy="8" r="1.1" fill="currentColor"/><circle cx="3" cy="12" r="1.1" fill="currentColor"/></svg></span>Sales SOPs</div>
       </div>
       <div class="nav-group-label nav-group-toggle" data-navgroup="intelligence"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.6 4.3 4.4 1.7-4.4 1.7L8 13.5 6.4 9.2 2 7.5l4.4-1.7L8 1.5Z" fill="currentColor"/></svg></span><span class="group-label-text">Intelligence</span><svg class="nav-group-chev" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div class="nav-rail" id="railTools" data-navgroup-body="intelligence">
@@ -13203,6 +13280,9 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       </div>
       <div class="screen" data-screen="gr_automations" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grAutomations"></div>
+      </div>
+      <div class="screen" data-screen="gr_sops" data-role-min="manager" data-client-hidden>
+        <div class="gr_wrap" id="grSops"></div>
       </div>
       <div class="screen" data-screen="gr_settings" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grSettings"></div>
@@ -99341,6 +99421,210 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const d = Math.round(h / 24);
     return d + (d === 1 ? ' day ago' : ' days ago');
   }
+  /* --- Sales SOPs: how a call is run, before, during and after -------------------
+     Asked for by Luke, who said twice in the walkthrough that the point is being able
+     to change them himself: "we can edit the SOPs as well. That's really important
+     because I want to be able to change them."
+
+     So the content lives in growth_settings under 'sops' and the defaults below are
+     only a seed. Nothing here is special-cased by key -- a step is a step, an email is
+     an email -- which is what lets a manager add a fourth step to During the call
+     without anybody touching this file.
+
+     NOT GATED TO STAFF for reading, unlike Settings and Connectors. An SOP is how the
+     job is done; the people who most need it are the ones still learning it. Editing
+     is staff-only, which is the same split Training already uses. */
+  const GR_SOP_DEF = {
+    cc: 'big@reachgiant.com',
+    before: {
+      title: 'Before the call', sub: 'Get them ready. Show up ready.',
+      steps: [
+        { when: '1 hour before', t: 'Email the client', d: 'Tell them the call is coming up and you are excited to talk.' },
+        { when: '5 minutes before', t: 'Join 5 minutes early', d: 'Be in the room before the start time.' },
+        { when: 'Before you join', t: 'Look sharp', d: 'Dress well. Sit close to the screen with good light. Bring great energy.' },
+        { when: 'On the call', t: 'Be yourself', d: 'Relax, be curious, and enjoy the conversation. Making friends makes sales.' }
+      ],
+      questions: [],
+      emails: [{ label: 'Before the call', subject: 'Looking forward to our call',
+        body: 'Hi {name},\n\nJust a quick note. Our call is coming up at {time}, and I am excited to talk with you.\n\nSpeak soon,\nLuke' }]
+    },
+    during: {
+      title: 'During the call', sub: 'Relax, ask, listen. Build the friendship first.',
+      steps: [
+        { when: 'Start', t: 'Say hello and build rapport', d: 'Be natural. Introduce yourself. Make them feel at ease.' },
+        { when: 'Main part', t: 'Ask and probe', d: 'Relax into the conversation. Learn about their business and what they have done before. Listen and validate what they want.' },
+        { when: 'Check in', t: 'Ask if they have questions for you', d: 'Do you have any questions for me? This is how the conversation opens up.' },
+        { when: 'When it fits', t: 'Sell the team a little', d: 'We have an incredible team. Share it when it helps, and answer any questions as best you can.' },
+        { when: 'Close', t: 'Walk them through the sale', d: 'Sales page, payment page, onboarding form, then the agreement. Ask if they have questions after each. Then thank them: we are excited to work with you, and everything will be sent within 30 to 60 minutes.' }
+      ],
+      questions: [
+        'What are you doing for marketing right now?',
+        'What is your ad spend?',
+        'What is working?',
+        'What is not working?',
+        'What have you tried before?',
+        'What does a great month look like for you?',
+        'Who is your best customer?',
+        'What is holding you back right now?',
+        'What made you reach out to us?',
+        'Where do you want the business to be in a year?'
+      ],
+      emails: []
+    },
+    after: {
+      title: 'After the call', sub: 'Follow up fast. Keep the record right.',
+      steps: [
+        { when: 'Within the hour', t: 'Follow up by email', d: 'Send the email with the next steps.' },
+        { when: 'Within the hour', t: 'Update the CRM', d: 'Log the call and move the client to the right stage.' },
+        { when: 'The next day', t: 'Check up on them', d: 'Send a quick check-in. This matters.' }
+      ],
+      questions: [],
+      emails: [
+        { label: 'Send pricing', subject: 'Your pricing from ReachGiant',
+          body: 'Hi {name},\n\nThanks for your time today. As promised, here is our pricing for {company}:\n\n{pricing}\n\nLet me know if you have any questions.\n\nBest,\nLuke' },
+        { label: 'Send payment link', subject: 'Getting started with ReachGiant',
+          body: 'Hi {name},\n\nThanks for your time today. Here is your payment link to get started:\n\n{payment_link}\n\nLet me know if you have any questions.\n\nBest,\nLuke' }
+      ]
+    }
+  };
+  /* The order and the colour of each one. Red, blue, green is Luke's -- and the colour
+     is carried onto the full screen so you can tell which process you are in without
+     reading the heading. */
+  const GR_SOP_ORDER = [['before', '#D91F0F'], ['during', '#2B7BB9'], ['after', '#1A9E62']];
+
+  let grSopOpen = null, grSopEdit = false;
+
+  /* Merged over the defaults rather than replacing them, so a row saved before a new
+     field existed does not blank that field out on the screen. */
+  function grSops() {
+    const saved = grSettings.sops || {};
+    const out = { cc: saved.cc !== undefined ? saved.cc : GR_SOP_DEF.cc };
+    GR_SOP_ORDER.forEach(function (o) {
+      const k = o[0], d = GR_SOP_DEF[k], v = saved[k] || {};
+      out[k] = {
+        title: v.title !== undefined ? v.title : d.title,
+        sub: v.sub !== undefined ? v.sub : d.sub,
+        steps: Array.isArray(v.steps) ? v.steps : d.steps,
+        questions: Array.isArray(v.questions) ? v.questions : d.questions,
+        emails: Array.isArray(v.emails) ? v.emails : d.emails
+      };
+    });
+    return out;
+  }
+  const grSopSave = (next) => grSetting('sops', next);
+
+  const GR_ARROW = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" ' +
+    'stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" ' +
+    'aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
+
+  function grSopIndex(S) {
+    return '<div class="gr_sopix">' + GR_SOP_ORDER.map(function (o, i) {
+      const k = o[0], c = o[1], s = S[k];
+      return (i ? '<span class="gr_sopar">' + GR_ARROW + '</span>' : '') +
+        '<button class="gr_soptile" style="--sc:' + c + '" data-gr-sop="' + k + '">' +
+          '<span class="gr_sopn">' + (i + 1) + '</span>' +
+          '<b>' + esc(s.title) + '</b>' +
+          '<p>' + esc(s.sub) + '</p>' +
+          '<span class="gr_sopgo">Open process &rarr;</span></button>';
+    }).join('') + '</div>';
+  }
+
+  function grSopFull(S, k) {
+    const c = (GR_SOP_ORDER.find(o => o[0] === k) || [])[1] || '#D91F0F';
+    const n = GR_SOP_ORDER.findIndex(o => o[0] === k) + 1;
+    const s = S[k], ed = grSopEdit && grIsStaff();
+
+    const pills = GR_SOP_ORDER.map(function (o, i) {
+      return '<button data-gr-sop="' + o[0] + '"' + (o[0] === k ? ' aria-pressed="true"' : '') +
+        '>' + (i + 1) + '. ' + esc(S[o[0]].title) + '</button>';
+    }).join('');
+
+    const steps = s.steps.map(function (st, i) {
+      if (!ed) {
+        return '<li class="gr_sopstep">' +
+          '<div class="gr_sopcard"><span class="gr_sopnum">' + (i + 1) + '</span>' +
+            '<span class="gr_sopwhen">' + esc(st.when || '') + '</span>' +
+            '<b>' + esc(st.t || '') + '</b><p>' + esc(st.d || '') + '</p></div>' +
+          (i < s.steps.length - 1 ? '<span class="gr_soparw">' + GR_ARROW + '</span>' : '') +
+          '</li>';
+      }
+      return '<li class="gr_sopstep gr_soped">' +
+        '<div class="gr_sopcard"><span class="gr_sopnum">' + (i + 1) + '</span>' +
+          '<input class="gr_in" data-gr-sopf="' + k + '.steps.' + i + '.when" value="' +
+            esc(st.when || '') + '" placeholder="When" aria-label="When">' +
+          '<input class="gr_in" data-gr-sopf="' + k + '.steps.' + i + '.t" value="' +
+            esc(st.t || '') + '" placeholder="What to do" aria-label="What to do">' +
+          '<textarea class="gr_in" rows="3" data-gr-sopf="' + k + '.steps.' + i + '.d" ' +
+            'placeholder="A short note" aria-label="Note">' + esc(st.d || '') + '</textarea>' +
+          '<button class="gr_sopdel" data-gr-sopdel="' + k + '.steps.' + i + '" ' +
+            'aria-label="Remove this step">&#10005;</button>' +
+        '</div></li>';
+    }).join('');
+
+    const qs = (s.questions || []).length || ed
+      ? '<section class="gr_card"><div class="gr_ct"><h2>Questions to ask</h2>' +
+        '<span class="gr_n">' + (s.questions || []).length + '</span></div>' +
+        (ed
+          ? '<textarea class="gr_in gr_sopqs" rows="10" data-gr-sopq="' + k + '" ' +
+            'aria-label="Questions, one per line">' + esc((s.questions || []).join('\n')) +
+            '</textarea><p class="gr_mute">One per line.</p>'
+          : '<ul class="gr_sopq">' + (s.questions || []).map(q =>
+              '<li>' + esc(q) + '</li>').join('') + '</ul>') +
+        '</section>'
+      : '';
+
+    const mails = (s.emails || []).length
+      ? '<section class="gr_card"><div class="gr_ct"><h2>' +
+        ((s.emails || []).length > 1 ? 'Emails to send' : 'Email to send') + '</h2>' +
+        '<span class="gr_n">' + (s.emails || []).length + '</span></div>' +
+        (s.emails || []).map(function (m, i) {
+          if (!ed) {
+            return '<details class="gr_sopmail"><summary><span class="gr_soptag">' +
+              esc(m.label || 'Email') + '</span><b>' + esc(m.subject || '') + '</b></summary>' +
+              '<div class="gr_sopcc">CC ' + esc(S.cc || '') + '</div>' +
+              '<pre>' + esc(m.body || '') + '</pre></details>';
+          }
+          return '<div class="gr_sopmail gr_soped"><span class="gr_soptag">' +
+            esc(m.label || 'Email') + '</span>' +
+            '<input class="gr_in" data-gr-sopf="' + k + '.emails.' + i + '.subject" value="' +
+              esc(m.subject || '') + '" placeholder="Subject" aria-label="Subject">' +
+            '<textarea class="gr_in" rows="9" data-gr-sopf="' + k + '.emails.' + i + '.body" ' +
+              'aria-label="Email body">' + esc(m.body || '') + '</textarea></div>';
+        }).join('') + '</section>'
+      : '';
+
+    return '<div class="gr_sopfull" style="--sc:' + c + '">' +
+      '<div class="gr_soptop"><button class="gr_ghost" data-gr-sop="">&larr; All SOPs</button>' +
+        '<div class="gr_soppills">' + pills + '</div>' +
+        (grIsStaff()
+          ? '<button class="' + (ed ? 'gr_ghost' : 'btn-red') + '" data-gr-sopedit>' +
+            (ed ? 'Done' : 'Edit this SOP') + '</button>'
+          : '') + '</div>' +
+      '<div class="gr_sophero"><span class="gr_sopn">' + n + '</span>' +
+        '<h2>' + esc(s.title) + '</h2><p>' + esc(s.sub) + '</p></div>' +
+      '<ol class="gr_sopflow">' + steps + '</ol>' +
+      (ed ? '<button class="gr_sopadd" data-gr-sopadd="' + k + '">+ Add a step</button>' : '') +
+      qs + mails +
+      (ed
+        ? '<div class="gr_field" style="max-width:420px"><label for="grSopCc">CC on every follow up</label>' +
+          '<input id="grSopCc" class="gr_in" data-gr-sopf="cc" value="' + esc(S.cc || '') + '"></div>'
+        : '') +
+      '</div>';
+  }
+
+  function grRenderSops() {
+    const S = grSops();
+    const k = grSopOpen && S[grSopOpen] ? grSopOpen : null;
+    $('grSops').innerHTML =
+      grHead('Sales SOPs',
+        k ? esc(S[k].sub) : 'Pick a process to see it full screen.',
+        (!k && grIsStaff())
+          ? '<div class="gr_hacts"><button class="btn-red" data-gr-sop="before" ' +
+            'data-gr-sopedit-on>Edit</button></div>'
+          : '') +
+      (k ? grSopFull(S, k) : grSopIndex(S));
+  }
+
   function grRenderAutomations() {
     const last = grRuns.find(r => r.job === 'growth_sync') || null;
     const mins = last ? (Date.now() - new Date(last.ran_at).getTime()) / 60000 : null;
@@ -101289,6 +101573,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       else if (grScreen === 'gr_analytics') grRenderAnalytics();
       else if (grScreen === 'gr_connectors' && grIsStaff()) grRenderConnectors();
       else if (grScreen === 'gr_automations' && grIsStaff()) grRenderAutomations();
+      /* Not gated to staff, unlike the three admin screens beside it. An SOP is how the
+         job is done -- the people who most need to read it are the ones learning, and a
+         rep who cannot open it is a rep guessing. Editing is still staff-only. */
+      else if (grScreen === 'gr_sops') grRenderSops();
       grRenderSheet();
       grRenderSetPanel();
       grBadges();
@@ -101367,6 +101655,51 @@ User (no attachment): "create a post for our new alpaca pillow launch"
        somebody open Settings and then find the tab is three clicks to fix a tone. */
     const sto = e.target.closest('[data-gr-settab-open]');
     if (sto) { grSetTab = sto.dataset.grSettabOpen; grOpenSettings(); return; }
+
+    /* --- Sales SOPs --- */
+    const sop = e.target.closest('[data-gr-sop]');
+    if (sop) {
+      grSopOpen = sop.dataset.grSop || null;
+      // Opening a different process always starts in read mode, whoever you are.
+      if (!sop.hasAttribute('data-gr-sopedit-on')) grSopEdit = false;
+      else grSopEdit = true;
+      grRender();
+      try { window.scrollTo(0, 0); } catch (e2) { /* nothing to scroll */ }
+      return;
+    }
+    if (e.target.closest('[data-gr-sopedit]')) {
+      if (!grIsStaff()) return;
+      grSopEdit = !grSopEdit; grRender(); return;
+    }
+    const sadd = e.target.closest('[data-gr-sopadd]');
+    if (sadd) {
+      if (!grIsStaff()) return;
+      const k = sadd.dataset.grSopadd, next = grSops();
+      next[k].steps = next[k].steps.concat([{ when: '', t: '', d: '' }]);
+      grSopSave(next); return;
+    }
+    const sdel = e.target.closest('[data-gr-sopdel]');
+    if (sdel) {
+      if (!grIsStaff()) return;
+      const parts = sdel.dataset.grSopdel.split('.');   // key.steps.index
+      const next = grSops(), list = next[parts[0]][parts[1]].slice();
+      const gone = list.splice(Number(parts[2]), 1)[0];
+      next[parts[0]][parts[1]] = list;
+      /* AFTER the save, not beside it. grSetting raises its own "Saved" toast when the
+         write lands, so an undo toast shown first was replaced a moment later by one
+         with no Undo on it -- the step was still gone and the way back had vanished.
+         Undoable because a step somebody spent ten minutes writing is one click from
+         gone, and the only other copy is in their head. */
+      grSopSave(next).then(function () {
+        grToast('Step removed', function () {
+          const back = grSops(), l2 = back[parts[0]][parts[1]].slice();
+          l2.splice(Number(parts[2]), 0, gone);
+          back[parts[0]][parts[1]] = l2;
+          grSopSave(back);
+        });
+      });
+      return;
+    }
 
     const add = e.target.closest('#grAddClient') || e.target.closest('#grAddClient2');
     if (add) { grAddClient(); return; }
@@ -102555,6 +102888,28 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const cfg = Object.assign({}, grReplyCfg());
       cfg[d.grReply] = e.target.value;
       grSetting('reply_style', cfg).then(function (r) { if (!r) window.grReload(); });
+      return;
+    }
+    /* An SOP field, addressed by its path -- "during.steps.2.t" or just "cc". Walking a
+       path rather than naming each field is what lets a manager add a fourth step and
+       have it save without anybody editing this. */
+    if (d.grSopf) {
+      if (!grIsStaff()) return;
+      const next = grSops(), path = d.grSopf.split('.');
+      let node = next;
+      for (let i = 0; i < path.length - 1; i++) node = node[path[i]];
+      node[path[path.length - 1]] = e.target.value;
+      grSetting('sops', next).then(function (r) { if (!r) window.grReload(); });
+      return;
+    }
+    if (d.grSopq) {
+      if (!grIsStaff()) return;
+      const next = grSops();
+      /* Blank lines dropped, because a stray return in a textarea would otherwise
+         become an empty bullet nobody can see to delete. */
+      next[d.grSopq].questions = e.target.value.split('\n')
+        .map(function (x) { return x.trim(); }).filter(Boolean);
+      grSetting('sops', next).then(function (r) { if (!r) window.grReload(); });
       return;
     }
     if (d.grSig) {
