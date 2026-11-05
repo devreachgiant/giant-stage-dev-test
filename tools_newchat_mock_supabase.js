@@ -616,6 +616,27 @@
       body: 'This looks good. Can you send the agreement?', sent_at: giso(1, 0),
       thread_id: '', external_id: null, created_at: giso(1, 0) }
   ];
+  /* ONE OF EACH PAYMENT STATE, because the bonus screen splits on it and tells three
+     different stories: unpaid, part paid, paid in full. Three unpaid sales would pass
+     just as well against code that never worked out what was still owed. The amounts
+     are picked so the arithmetic is checkable by hand: 10% of 3,000 is 300 with nothing
+     paid, 10% of 5,000 is 500 with 200 paid leaving 300, and 10% of 1,500 is 150 paid
+     in full -- so 600 is owed and 350 has gone out. */
+  DB.growth_bonus = [
+    { id: 'gb-1', rep_id: ME, client_id: 'gc-1', client_name: 'Michael Cash',
+      deal: 'Google Ads 1.5k', amount: 3000, pct: 10, sold_on: giso(9, 0).slice(0, 10),
+      payments: [], created_at: giso(9, 0), created_by: ME },
+    { id: 'gb-2', rep_id: ME, client_id: 'gc-2', client_name: 'Cesar Diaz',
+      deal: 'Paid Ads Volt 3k', amount: 5000, pct: 10, sold_on: giso(20, 0).slice(0, 10),
+      payments: [{ id: 'p-1', amount: 200, date: giso(5, 0).slice(0, 10) }],
+      created_at: giso(20, 0), created_by: ME },
+    { id: 'gb-3', rep_id: ME, client_id: 'gc-5', client_name: 'Umra Hayat',
+      deal: 'SEO Management', amount: 1500, pct: 10, sold_on: giso(40, 0).slice(0, 10),
+      payments: [{ id: 'p-2', amount: 100, date: giso(30, 0).slice(0, 10) },
+                 { id: 'p-3', amount: 50, date: giso(25, 0).slice(0, 10) }],
+      created_at: giso(40, 0), created_by: ME }
+  ];
+
   /* One of each KIND, because the list splits on it and a fixture of one shape proves
      nothing about the split. A package email is one carrying a Stripe link -- there is
      no column saying so -- and gt-2 is the one that has one. */

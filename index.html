@@ -6843,6 +6843,82 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
    textarea to see the sentence you were changing. */
 .gr_sopstep.gr_soped .gr_sopcard textarea{min-height:110px;resize:vertical;}
 .gr_sopstep.gr_soped .gr_sopcard{gap:7px;}
+/* Sales bonus. Amber for what is still owed and green for what has gone out, so the
+   one number somebody actually came to see is the one that is loudest. */
+.gr_bnrate{display:flex;flex-direction:column;gap:5px;align-items:flex-end;}
+.gr_bnrate>span{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);}
+.gr_bnrate i,.gr_bnmoney{display:flex;align-items:center;gap:4px;background:var(--surface-2);
+  border:1px solid var(--line);border-radius:12px;padding:0 13px;font-style:normal;}
+.gr_bnrate input,.gr_bnmoney input{border:0;background:transparent;color:var(--text);
+  font-size:16px;font-weight:700;padding:10px 0;width:66px;text-align:right;outline:0;}
+.gr_bnmoney{flex:1;}
+.gr_bnmoney input{text-align:left;width:100%;}
+.gr_bnmoney i,.gr_bnmoney em,.gr_bnrate em{font-style:normal;font-size:14px;font-weight:700;color:var(--text-3);}
+.gr_bnratechip{font-size:13.5px;font-weight:600;color:var(--text-2);background:var(--surface-2);
+  border-radius:99px;padding:9px 15px;}
+.gr_bnpick{max-width:300px;}
+.gr_bnme{font-size:17px;font-weight:800;letter-spacing:-.02em;}
+.gr_bnstats{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:12px;margin:16px 0 18px;}
+.gr_bnstat{background:var(--surface);border:1px solid var(--line);border-radius:20px;
+  padding:17px 19px;display:flex;flex-direction:column;gap:3px;}
+.gr_bnstat span{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);}
+.gr_bnstat b{font-size:28px;font-weight:800;letter-spacing:-.02em;}
+.gr_bnstat em{font-style:normal;font-size:12.5px;color:var(--text-3);}
+.gr_bnstat.warm{background:linear-gradient(135deg,#E08A1E,#F5B53A);border-color:transparent;}
+.gr_bnstat.warm span,.gr_bnstat.warm em{color:rgba(255,255,255,.9);}
+.gr_bnstat.warm b{color:#fff;font-size:33px;}
+.gr_bnstat.ok b{color:#1A9E62;}
+.gr_bnform{margin-bottom:18px;}
+.gr_bngrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+.gr_bnprev{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;
+  background:color-mix(in srgb,#1A9E62 12%,var(--surface));border-radius:16px;padding:14px 17px;margin-top:4px;}
+.gr_bnprev span{display:block;font-size:12px;color:var(--text-3);}
+.gr_bnprev b{font-size:26px;font-weight:800;color:#4ADE80;letter-spacing:-.02em;}
+.gr_bnlog{display:flex;flex-direction:column;gap:13px;}
+.gr_bnlh{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;}
+.gr_bnlh>b{font-size:17px;font-weight:800;letter-spacing:-.02em;}
+.gr_bnlh .gr_seg b{font-size:11px;font-weight:700;opacity:.7;margin-left:6px;}
+.gr_bnmonth{background:var(--surface);border:1px solid var(--line);border-radius:20px;overflow:hidden;}
+.gr_bnmonth>header{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:15px 19px;background:var(--surface-2);}
+.gr_bnmonth header b{display:block;font-size:15px;font-weight:800;}
+.gr_bnmonth header span{font-size:12.5px;color:var(--text-3);}
+.gr_bnmonth header strong{font-size:19px;font-weight:800;color:#E0A64A;}
+.gr_bncard{border-top:1px solid var(--line);}
+.gr_bncard summary{display:grid;grid-template-columns:minmax(0,1.5fr) auto auto auto;gap:14px;
+  align-items:center;padding:14px 19px;cursor:pointer;list-style:none;}
+.gr_bncard summary::-webkit-details-marker{display:none;}
+.gr_bnc{min-width:0;display:flex;flex-direction:column;gap:2px;}
+.gr_bnc b{font-size:15px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gr_bnc span,.gr_bnamt span{font-size:12.5px;color:var(--text-3);white-space:nowrap;}
+.gr_bnamt{display:flex;flex-direction:column;align-items:flex-end;gap:2px;}
+.gr_bnamt b{font-size:14px;font-weight:700;}
+.gr_bnamt b.gr_bnb{font-size:16px;font-weight:800;color:#4ADE80;}
+.gr_bnpill{font-size:11.5px;font-weight:700;border-radius:99px;padding:5px 11px;white-space:nowrap;}
+.gr_bnpill.paid{background:color-mix(in srgb,#1A9E62 18%,var(--surface));color:#4ADE80;}
+.gr_bnpill.part{background:color-mix(in srgb,#2B7BB9 18%,var(--surface));color:#60A5FA;}
+.gr_bnpill.unpaid{background:color-mix(in srgb,#E08A1E 18%,var(--surface));color:#F0B35A;}
+.gr_bndet{padding:4px 19px 17px;display:flex;flex-direction:column;gap:10px;}
+.gr_bnph{display:flex;justify-content:space-between;font-size:11px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);padding-top:10px;}
+.gr_bnpay{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;
+  padding:8px 0;border-bottom:1px dashed var(--line);font-size:14px;}
+.gr_bnpay b{font-weight:700;}
+.gr_bnx{border:0;background:transparent;color:var(--text-3);cursor:pointer;font-size:12px;padding:4px;}
+.gr_bnx:hover{color:var(--red);}
+.gr_bnleft{font-size:13px;font-weight:700;color:#F0B35A;}
+.gr_bnadd{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;gap:9px;
+  align-items:center;background:var(--surface-2);border-radius:14px;padding:11px;}
+.gr_bnadd input[type=date]{border:1px solid var(--line);background:var(--bg);color:var(--text);
+  border-radius:12px;padding:10px 12px;font:inherit;font-size:14px;min-width:0;}
+.gr_bnfoot{display:flex;justify-content:flex-end;}
+.gr_bndel{border:0;background:transparent;color:var(--red);font-size:12.5px;font-weight:700;cursor:pointer;padding:4px 0;}
+@media(max-width:820px){.gr_bnstats{grid-template-columns:1fr 1fr;}.gr_bnstat.warm{grid-column:1/-1;}
+  .gr_bngrid{grid-template-columns:1fr 1fr;}}
+@media(max-width:560px){.gr_bngrid{grid-template-columns:1fr;}
+  .gr_bncard summary{grid-template-columns:minmax(0,1fr) auto;}
+  .gr_bnamt:first-of-type{display:none;}
+  .gr_bnadd{grid-template-columns:1fr 1fr;}.gr_bnadd .btn-red{grid-column:1/-1;}}
 @media(max-width:980px){
   .gr_sopix{grid-template-columns:1fr;gap:12px;}
   .gr_sopar{transform:rotate(90deg);height:30px;}
@@ -9042,6 +9118,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         <div class="nav-item" data-screen="gr_settings" data-label="Settings" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 5.8a2.2 2.2 0 100 4.4 2.2 2.2 0 000-4.4ZM8 1.6v1.8M8 12.6v1.8M1.6 8h1.8M12.6 8h1.8M3.5 3.5l1.3 1.3M11.2 11.2l1.3 1.3M3.5 12.5l1.3-1.3M11.2 4.8l1.3-1.3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Settings</div>
         <div class="nav-item" data-screen="gr_automations" data-label="Automations" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8.6 1.6L3.4 8.9h4l-.6 5.5 5.2-7.4h-4z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg></span>Automations</div>
         <div class="nav-item" data-screen="gr_sops" data-label="Sales SOPs" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M6 4h8M6 8h8M6 12h8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="3" cy="4" r="1.1" fill="currentColor"/><circle cx="3" cy="8" r="1.1" fill="currentColor"/><circle cx="3" cy="12" r="1.1" fill="currentColor"/></svg></span>Sales SOPs</div>
+        <div class="nav-item" data-screen="gr_bonus" data-label="Sales bonus" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="1.4"/><path d="M9.8 6.2c-.3-.6-1-1-1.8-1-1 0-1.8.5-1.8 1.3 0 1.8 3.7.9 3.7 2.7 0 .8-.8 1.3-1.9 1.3-.9 0-1.6-.4-1.9-1.1M8 4.2v1M8 10.8v1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>Sales bonus</div>
       </div>
       <div class="nav-group-label nav-group-toggle" data-navgroup="intelligence"><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.5l1.6 4.3 4.4 1.7-4.4 1.7L8 13.5 6.4 9.2 2 7.5l4.4-1.7L8 1.5Z" fill="currentColor"/></svg></span><span class="group-label-text">Intelligence</span><svg class="nav-group-chev" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div class="nav-rail" id="railTools" data-navgroup-body="intelligence">
@@ -13283,6 +13360,9 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       </div>
       <div class="screen" data-screen="gr_sops" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grSops"></div>
+      </div>
+      <div class="screen" data-screen="gr_bonus" data-role-min="manager" data-client-hidden>
+        <div class="gr_wrap" id="grBonus"></div>
       </div>
       <div class="screen" data-screen="gr_settings" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grSettings"></div>
@@ -41907,41 +41987,6 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
        Automations configure the module for everybody, which is a different thing from
        using it. The database agrees separately -- growth_is_staff() gates the writes --
        so this is the sidebar matching what the rows already allow. */
-    /* AND CLOSED FOR ANYBODY NOT ON IT, whatever their role. The block below lets named
-       people IN below the floor; this is the other half, and without it the list could
-       only ever grow. Luke asked for Growth to be "you, me, Matthew and Annie" -- and
-       the two people that takes it away from are an owner and an in-house dev, both of
-       whom outrank the floor, so a role gate cannot express it at all.
-
-       THIS IS THE SIDEBAR, NOT THE DATA. growth_is_staff() still decides who the
-       database answers, and it is role-based, so somebody hidden here could still read
-       the tables if they went looking. That is the right size of fix for what was
-       asked -- tidying whose sidebar carries a module they do not use -- and it is
-       worth not mistaking it for a lock.
-
-       FAILS OPEN. No row, an empty row, or a read that errors leaves the role gate
-       exactly as it was. The opposite would mean one bad row locking the whole sales
-       team out of Growth, which is a worse day than Kristina seeing a tab. */
-    if (['owner', 'manager', 'inhouse_dev', 'growth'].includes(profile.role) && window.giantSupabase) {
-      window.giantSupabase.from('growth_settings').select('value').eq('key', 'access').maybeSingle()
-        .then(({ data }) => {
-          const ids = Array.isArray(data && data.value) ? data.value : null;
-          if (!ids || !ids.length || ids.includes(profile.id)) return;
-          document.querySelectorAll(
-            '[data-navgroup="growth"], [data-navgroup-body="growth"], [data-screen^="gr_"]'
-          ).forEach(el => { el.style.display = 'none'; });
-          /* Somebody whose last screen was a Growth one would otherwise land on a blank
-             page: the screen is hidden but still the active one. Send them home. */
-          const onGrowth = document.querySelector('.screen.on[data-screen^="gr_"]');
-          if (onGrowth) {
-            const first = document.querySelector('#appSidebar .nav-item:not([style*="display: none"])');
-            if (first) first.click();
-          }
-          window._grClosed = true;
-        })
-        .catch(() => { /* unreadable: leave the role gate alone rather than lock people out */ });
-    }
-
     if (!['owner', 'manager', 'inhouse_dev', 'growth'].includes(profile.role) && window.giantSupabase) {
       const GR_ADMIN_ONLY = ['gr_settings', 'gr_connectors', 'gr_automations'];
       window.giantSupabase.from('growth_settings').select('value').eq('key', 'access').maybeSingle()
@@ -96517,7 +96562,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const s = sb();
     if (!s) { grLoading = false; return; }
     try {
-      const [cl, mt, ms, tp, st, pf, tk, wc, dc, cd, rn, pr] = await Promise.all([
+      /* `pr` used to sit between rn and the end with no query behind it -- a leftover
+         from one that was removed. Harmless while nothing read it, and not harmless the
+         moment something was added after it: the new name landed one slot past the end,
+         came back undefined, and reading .error off it threw inside grLoad. That left
+         grLoaded false, so EVERY Growth screen rendered nothing, which looked like the
+         new screen being broken rather than the load. */
+      const [cl, mt, ms, tp, st, pf, tk, wc, dc, cd, rn, bn] = await Promise.all([
         s.from('growth_clients').select('*').order('updated_at', { ascending: false }),
         s.from('growth_meetings').select('*').order('starts_at', { ascending: true }),
         s.from('growth_messages').select('*').order('sent_at', { ascending: true }),
@@ -96531,7 +96582,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         s.from('growth_watch_calls').select('*').order('position', { ascending: true }),
         s.from('growth_discounts').select('*').order('position', { ascending: true }),
         s.from('growth_course_done').select('*'),
-        s.from('growth_runs').select('*').order('ran_at', { ascending: false }).limit(20)
+        s.from('growth_runs').select('*').order('ran_at', { ascending: false }).limit(20),
+        /* Newest sale first, which is the order the screen reads them in. The
+           whole table, because a bonus list is tens of rows and paging it would
+           cost more than it saves. */
+        s.from('growth_bonus').select('*').order('sold_on', { ascending: false })
       ]);
       if (cl.error) throw cl.error;
       grClients   = cl.data || [];
@@ -96544,6 +96599,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grDiscounts = dc.data || [];
       grCourseDone = cd.data || [];
       grRuns       = rn.data || [];
+      /* Missing rather than empty when the table is not there yet: the migration is
+         applied by hand, so a deploy can land before it does, and a screen that
+         says "no sales yet" when it actually cannot see the table is a screen
+         telling somebody their bonus is zero. */
+      grBonus      = bn.error ? null : (bn.data || []);
       grSettings  = {};
       (st.data || []).forEach(r => { grSettings[r.key] = r.value || {}; });
       const pipe = grSettings.pipeline || {};
@@ -99493,6 +99553,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   const GR_SOP_ORDER = [['before', '#D91F0F'], ['during', '#2B7BB9'], ['after', '#1A9E62']];
 
   let grSopOpen = null, grSopEdit = false;
+  /* null, not [], until the table has been read: see the note where it is loaded. */
+  let grBonus = null;
 
   /* Merged over the defaults rather than replacing them, so a row saved before a new
      field existed does not blank that field out on the screen. */
@@ -99623,6 +99685,223 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             'data-gr-sopedit-on>Edit</button></div>'
           : '') +
       (k ? grSopFull(S, k) : grSopIndex(S));
+  }
+
+  /* --- Sales bonus: what a rep is owed, and what has been paid against it ----------
+     Luke, twice in one breath: "This is only for a manager to add, that's really
+     important. I can be able to see it, but Annie can only view. Nobody can change
+     this except me."
+
+     SO THE LOCK IS IN TWO PLACES, and the database one is the real one. The form below
+     is hidden from anybody who is not a manager, which is what his artifact does and
+     where it stops. These numbers are what somebody gets paid, and a gate that lives
+     only in the page holds until somebody opens a console -- so growth_bonus refuses
+     the write as well, through growth_is_manager(). grIsStaff() is deliberately NOT
+     used here: it includes role 'growth', which is Annie, and this is the first thing
+     in the module where "can see it" and "can change it" are different lists.
+
+     The two must agree. If the policy is tightened and this is not, a rep gets a form
+     that always fails; if this is tightened and the policy is not, the lock is theatre.
+     grMayPayroll mirrors growth_is_manager() exactly, and says so. */
+  const GR_PAYROLL_ROLES = ['owner', 'manager', 'inhouse_dev'];
+  const grMayPayroll = () => GR_PAYROLL_ROLES.indexOf(myRole()) >= 0;
+
+  let grBonusRep = null, grBonusFilter = 'open', grBonusOpen = null;
+  let grBonusForm = { client: '', deal: '', amount: '', date: '', pct: '' };
+
+  const grBonusRate = () => {
+    const v = Number((grSettings.bonus_rate || {}).pct);
+    return isNaN(v) || v <= 0 ? 10 : v;
+  };
+  const grBonusOf = (e) => Math.round((Number(e.amount) || 0) * (Number(e.pct) || 0)) / 100;
+  const grPaidOf = (e) => (e.payments || []).reduce((n, p) => n + (Number(p.amount) || 0), 0);
+  const grLeftOf = (e) => Math.max(0, Math.round((grBonusOf(e) - grPaidOf(e)) * 100) / 100);
+  const grBonusDone = (e) => grBonusOf(e) > 0 && grPaidOf(e) >= grBonusOf(e) - 0.005;
+  /* Rounded to the penny before printing. A bonus of 10% on 1,333.33 is 133.333, and a
+     list of those does not add up to the total printed above it. */
+  const grCash = (n) => '$' + (Math.round((n || 0) * 100) / 100)
+    .toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
+  function grBonusWho() {
+    const team = grTeam();
+    if (grBonusRep && team.some(p => p.id === grBonusRep)) return grBonusRep;
+    /* Your own first. A rep opening this wants their own number, and a manager landing
+       on whoever happens to sort first is a manager one click from the wrong total. */
+    if (team.some(p => p.id === me())) return me();
+    return team.length ? team[0].id : me();
+  }
+  const grBonusRows = (who) => (grBonus || [])
+    .filter(e => e.rep_id === who)
+    .slice().sort((a, b) => String(b.sold_on).localeCompare(String(a.sold_on)));
+
+  function grBonusStats(rows) {
+    const month = grToday().slice(0, 7);
+    const mine = rows.filter(e => String(e.sold_on).slice(0, 7) === month);
+    return {
+      owed: rows.reduce((n, e) => n + grLeftOf(e), 0),
+      open: rows.filter(e => !grBonusDone(e)).length,
+      paid: rows.reduce((n, e) => n + grPaidOf(e), 0),
+      done: rows.filter(grBonusDone).length,
+      sold: mine.reduce((n, e) => n + (Number(e.amount) || 0), 0),
+      soldBonus: mine.reduce((n, e) => n + grBonusOf(e), 0)
+    };
+  }
+
+  function grBonusCard(e) {
+    const open = grBonusOpen === e.id, done = grBonusDone(e), part = !done && grPaidOf(e) > 0;
+    const pays = (e.payments || []).slice()
+      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    return '<details class="gr_bncard"' + (open ? ' open' : '') + ' data-gr-bnid="' + esc(e.id) + '">' +
+      '<summary><span class="gr_bnc"><b>' + esc(e.client_name || 'Client') + '</b>' +
+        '<span>' + esc(e.deal || 'Sale') + ' · ' + esc(grFmt(e.sold_on)) + '</span></span>' +
+        '<span class="gr_bnamt"><span>Sale</span><b>' + grMoney(e.amount) + '</b></span>' +
+        '<span class="gr_bnamt"><span>Bonus ' + esc(String(e.pct)) + '%</span>' +
+          '<b class="gr_bnb">' + grCash(grBonusOf(e)) + '</b></span>' +
+        '<span class="gr_bnpill ' + (done ? 'paid' : part ? 'part' : 'unpaid') + '">' +
+          (done ? 'Paid' : part ? 'Part paid' : 'Unpaid') + '</span></summary>' +
+      '<div class="gr_bndet">' +
+        (pays.length
+          ? '<div class="gr_bnph"><span>Payments</span><span>' + grCash(grPaidOf(e)) +
+            ' of ' + grCash(grBonusOf(e)) + '</span></div>' +
+            pays.map(p => '<div class="gr_bnpay"><span>' + esc(grFmt(p.date)) + '</span>' +
+              '<b>' + grCash(p.amount) + '</b>' +
+              (grMayPayroll()
+                ? '<button class="gr_bnx" data-gr-bnpaydel="' + esc(e.id) + '" data-pid="' +
+                  esc(p.id) + '" aria-label="Remove this payment">&#10005;</button>'
+                : '<span></span>') + '</div>').join('')
+          : '<p class="gr_mute">No payments yet.' +
+            (grMayPayroll() ? '' : ' Only a manager can add one.') + '</p>') +
+        (done ? '' : '<div class="gr_bnleft">' + grCash(grLeftOf(e)) + ' still to pay</div>') +
+        (grMayPayroll() && !done
+          ? '<div class="gr_bnadd"><div class="gr_bnmoney"><i>$</i>' +
+            '<input inputmode="decimal" data-gr-bnpay="amt" data-id="' + esc(e.id) +
+            '" value="' + grLeftOf(e) + '" aria-label="Payment amount"></div>' +
+            '<input type="date" data-gr-bnpay="date" data-id="' + esc(e.id) +
+            '" value="' + esc(grToday()) + '" aria-label="Payment date">' +
+            '<button class="btn-red gr_sm" data-gr-bnpayadd="' + esc(e.id) + '">Add payment</button></div>'
+          : '') +
+        (grMayPayroll()
+          ? '<div class="gr_bnfoot"><button class="gr_bndel" data-gr-bndel="' + esc(e.id) +
+            '">Remove sale</button></div>'
+          : '') +
+      '</div></details>';
+  }
+
+  function grRenderBonus() {
+    /* The table is applied by hand, so a deploy can land before the migration does.
+       Saying "no sales yet" when we actually cannot see the table would be telling
+       somebody their bonus is zero. */
+    if (grBonus === null) {
+      $('grBonus').innerHTML = grHead('Sales bonus', 'Not set up yet', '') +
+        '<section class="gr_card">' + grEmpty('&#9888;', 'The bonus table is not there yet',
+          'The screen is ready and waiting on one migration being applied to the database. '
+          + 'Nothing is lost; this fills in as soon as it is.') + '</section>';
+      return;
+    }
+    const who = grBonusWho(), team = grTeam(), rows = grBonusRows(who);
+    const S = grBonusStats(rows), may = grMayPayroll(), p = grPerson(who);
+    const f = grBonusForm;
+    const shown = rows.filter(e => grBonusFilter === 'all' ? true
+      : grBonusFilter === 'paid' ? grBonusDone(e) : !grBonusDone(e));
+
+    const monthName = new Date(grToday() + 'T12:00:00Z')
+      .toLocaleDateString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+    const amt = Number(String(f.amount).replace(/[^0-9.]/g, '')) || 0;
+    const pct = Math.max(0, Math.min(100, Number(f.pct) || grBonusRate()));
+
+    const groups = {};
+    shown.forEach(e => {
+      const k = String(e.sold_on).slice(0, 7);
+      (groups[k] = groups[k] || []).push(e);
+    });
+    const months = Object.keys(groups).sort().reverse().map(k => {
+      const g = groups[k];
+      const label = new Date(k + '-15T12:00:00Z')
+        .toLocaleDateString(undefined, { month: 'long', year: 'numeric', timeZone: 'UTC' });
+      return '<section class="gr_bnmonth"><header><div><b>' + esc(label) + '</b>' +
+        '<span>' + g.length + ' sale' + (g.length === 1 ? '' : 's') + ' · ' +
+          grMoney(g.reduce((n, e) => n + (Number(e.amount) || 0), 0)) + ' sold</span></div>' +
+        '<strong>' + grCash(g.reduce((n, e) => n + grLeftOf(e), 0)) + ' to pay</strong>' +
+        '</header>' + g.map(grBonusCard).join('') + '</section>';
+    }).join('');
+
+    const seg = (k, l, n) => '<button data-gr-bnfilter="' + k + '"' +
+      (grBonusFilter === k ? ' aria-pressed="true"' : '') + '>' + l + '<b>' + n + '</b></button>';
+
+    $('grBonus').innerHTML =
+      grHead('Sales bonus',
+        may ? 'Log a sale, then add payments as you pay them.'
+            : 'Your sales and what has been paid.',
+        may
+          ? '<label class="gr_bnrate"><span>Bonus rate</span>' +
+            '<i><input data-gr-bnrate value="' + esc(String(grBonusRate())) +
+            '" inputmode="decimal" aria-label="Bonus rate"><em>%</em></i></label>'
+          : '<div class="gr_bnratechip">' + grBonusRate() + '% of every sale</div>') +
+      (team.length > 1
+        ? '<div class="gr_field gr_bnpick"><label for="grBnRep">Sales rep</label>' +
+          (may
+            ? '<select id="grBnRep" class="gr_in" data-gr-bnrep>' + team.map(x =>
+                '<option value="' + esc(x.id) + '"' + (x.id === who ? ' selected' : '') + '>' +
+                esc(x.full_name || 'Unnamed') + '</option>').join('') + '</select>'
+            /* A rep sees their own and is not offered the dropdown: whose bonus you are
+               looking at is not a thing somebody should browse. */
+            : '<b class="gr_bnme">' + esc(grPerson(who).full_name || 'You') + '</b>') +
+          '</div>'
+        : '') +
+      '<div class="gr_bnstats">' +
+        '<div class="gr_bnstat warm"><span>Still to pay</span><b>' + grCash(S.owed) + '</b>' +
+          '<em>' + S.open + ' sale' + (S.open === 1 ? '' : 's') + ' open</em></div>' +
+        '<div class="gr_bnstat ok"><span>Paid out</span><b>' + grCash(S.paid) + '</b>' +
+          '<em>' + S.done + ' paid in full</em></div>' +
+        '<div class="gr_bnstat"><span>Sold in ' + esc(monthName) + '</span><b>' +
+          grMoney(S.sold) + '</b><em>Bonus ' + grCash(S.soldBonus) + '</em></div>' +
+      '</div>' +
+      (may
+        ? '<section class="gr_card gr_bnform"><div class="gr_ct"><h2>Log a sale</h2>' +
+          '<span class="gr_n2">Choose the client, then what they bought</span></div>' +
+          '<div class="gr_field"><label for="grBnClient">Client</label>' +
+            '<select id="grBnClient" class="gr_in" data-gr-bnf="client">' +
+            '<option value="">Choose a client</option>' +
+            grClients.filter(c => c.stage !== 'lost').slice()
+              .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+              .map(c => '<option value="' + esc(c.id) + '"' +
+                (f.client === c.id ? ' selected' : '') + '>' + esc(c.name) +
+                (c.company ? ' · ' + esc(c.company) : '') + '</option>').join('') +
+            '</select></div>' +
+          '<div class="gr_field"><label for="grBnDeal">What they bought</label>' +
+            '<input id="grBnDeal" class="gr_in" data-gr-bnf="deal" value="' + esc(f.deal) +
+            '" placeholder="e.g. Google Ads 1.5k"></div>' +
+          '<div class="gr_bngrid">' +
+            '<div class="gr_field"><label for="grBnAmt">Sale amount</label>' +
+              '<div class="gr_bnmoney"><i>$</i><input id="grBnAmt" data-gr-bnf="amount" ' +
+              'inputmode="decimal" value="' + esc(f.amount) + '" placeholder="0"></div></div>' +
+            '<div class="gr_field"><label for="grBnDate">Date</label>' +
+              '<input id="grBnDate" class="gr_in" type="date" data-gr-bnf="date" value="' +
+              esc(f.date || grToday()) + '"></div>' +
+            '<div class="gr_field"><label for="grBnPct">Their rate</label>' +
+              '<div class="gr_bnmoney"><input id="grBnPct" data-gr-bnf="pct" ' +
+              'inputmode="decimal" value="' + esc(f.pct || String(grBonusRate())) +
+              '"><em>%</em></div></div>' +
+          '</div>' +
+          '<div class="gr_bnprev"><div><span>Bonus for this sale</span>' +
+            '<b id="grBnBonus">' + grCash(amt * pct / 100) + '</b></div>' +
+            '<button class="btn-red" data-gr-bnadd>Add sale</button></div></section>'
+        : '') +
+      '<div class="gr_bnlog"><div class="gr_bnlh"><b>Sales for ' +
+        esc(grFirstOf(p) || 'you') + '</b><div class="gr_seg">' +
+        seg('open', 'To pay', rows.filter(e => !grBonusDone(e)).length) +
+        seg('paid', 'Paid', rows.filter(grBonusDone).length) +
+        seg('all', 'All', rows.length) + '</div></div>' +
+        (shown.length ? months
+          : '<section class="gr_card">' + grEmpty(
+              grBonusFilter === 'paid' ? '&#9675;' : '&#10003;',
+              grBonusFilter === 'paid' ? 'Nothing paid yet'
+                : grBonusFilter === 'open' ? 'Nothing to pay' : 'No sales yet',
+              grBonusFilter === 'open' ? 'Every sale is paid in full.'
+                : may ? 'Log the first sale above.' : 'Sales show here once a manager logs one.')
+            + '</section>') +
+      '</div>';
   }
 
   function grRenderAutomations() {
@@ -101577,6 +101856,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
          job is done -- the people who most need to read it are the ones learning, and a
          rep who cannot open it is a rep guessing. Editing is still staff-only. */
       else if (grScreen === 'gr_sops') grRenderSops();
+      else if (grScreen === 'gr_bonus') grRenderBonus();
       grRenderSheet();
       grRenderSetPanel();
       grBadges();
@@ -101655,6 +101935,111 @@ User (no attachment): "create a post for our new alpaca pillow launch"
        somebody open Settings and then find the tab is three clicks to fix a tone. */
     const sto = e.target.closest('[data-gr-settab-open]');
     if (sto) { grSetTab = sto.dataset.grSettabOpen; grOpenSettings(); return; }
+
+    /* --- Sales bonus ---
+       Every write here checks grMayPayroll() first. The database refuses it anyway
+       through growth_is_manager(), so this is not the lock -- it is what stops a rep
+       being handed a button that always fails. */
+    const bf = e.target.closest('[data-gr-bnfilter]');
+    if (bf) { grBonusFilter = bf.dataset.grBnfilter; grRender(); return; }
+
+    const bAdd = e.target.closest('[data-gr-bnadd]');
+    if (bAdd) {
+      if (!grMayPayroll()) return;
+      const f = grBonusForm, c = grClients.find(x => x.id === f.client);
+      const amount = Number(String(f.amount).replace(/[^0-9.]/g, '')) || 0;
+      const pct = Math.max(0, Math.min(100, Number(f.pct) || grBonusRate()));
+      if (!c) { grToast('Choose the client first'); return; }
+      if (!amount) { grToast('Add the sale amount'); return; }
+      grWrite('growth_bonus', 'insert', {
+        rep_id: grBonusWho(), client_id: c.id, client_name: c.name || '',
+        deal: (f.deal || '').trim(), amount: amount, pct: pct,
+        sold_on: f.date || grToday(), payments: [], created_by: me()
+      }).then(function (r) {
+        if (!r) return;                         // grWrite has already said why
+        grBonus = (grBonus || []).concat(r);
+        grBonusForm = { client: '', deal: '', amount: '', date: '', pct: '' };
+        grBonusFilter = 'open';
+        grRender();
+        grToast('Sale added. ' + grCash(amount * pct / 100) + ' bonus to pay');
+      });
+      return;
+    }
+
+    const bPay = e.target.closest('[data-gr-bnpayadd]');
+    if (bPay) {
+      if (!grMayPayroll()) return;
+      const id = bPay.dataset.grBnpayadd;
+      const row = (grBonus || []).find(x => x.id === id);
+      if (!row) return;
+      const host = bPay.closest('.gr_bnadd');
+      const amount = Math.round((Number(String(
+        (host.querySelector('[data-gr-bnpay="amt"]') || {}).value || '')
+        .replace(/[^0-9.]/g, '')) || 0) * 100) / 100;
+      const date = (host.querySelector('[data-gr-bnpay="date"]') || {}).value || grToday();
+      if (amount <= 0) { grToast('Add the payment amount'); return; }
+      /* Refused rather than clamped. Paying more than is owed is somebody mistyping,
+         and silently trimming it to the balance hides the typo in the record. */
+      if (amount > grLeftOf(row) + 0.005) {
+        grToast('That is more than the ' + grCash(grLeftOf(row)) + ' still to pay');
+        return;
+      }
+      const next = (row.payments || []).concat([{
+        id: 'p' + Date.now().toString(36), amount: amount, date: date }]);
+      grWrite('growth_bonus', 'update', { payments: next }, id).then(function (r) {
+        if (!r) return;
+        row.payments = next;
+        grRender();
+        const left = grLeftOf(row);
+        grToast(left > 0 ? 'Payment added. ' + grCash(left) + ' still to pay' : 'Paid in full');
+      });
+      return;
+    }
+
+    const bPd = e.target.closest('[data-gr-bnpaydel]');
+    if (bPd) {
+      if (!grMayPayroll()) return;
+      const row = (grBonus || []).find(x => x.id === bPd.dataset.grBnpaydel);
+      if (!row) return;
+      const gone = (row.payments || []).find(x => x.id === bPd.dataset.pid);
+      const next = (row.payments || []).filter(x => x.id !== bPd.dataset.pid);
+      grWrite('growth_bonus', 'update', { payments: next }, row.id).then(function (r) {
+        if (!r) return;
+        row.payments = next; grRender();
+        grToast('Payment removed', function () {
+          const back = (row.payments || []).concat([gone]);
+          grWrite('growth_bonus', 'update', { payments: back }, row.id).then(function (r2) {
+            if (r2) { row.payments = back; grRender(); }
+          });
+        });
+      });
+      return;
+    }
+
+    const bDel = e.target.closest('[data-gr-bndel]');
+    if (bDel) {
+      if (!grMayPayroll()) return;
+      const id = bDel.dataset.grBndel;
+      const gone = (grBonus || []).find(x => x.id === id);
+      if (!gone) return;
+      grWrite('growth_bonus', 'delete', null, id).then(function (r) {
+        if (!r) return;
+        grBonus = (grBonus || []).filter(x => x.id !== id);
+        grRender();
+        /* A removed sale is somebody's pay disappearing, so it says whose and offers
+           the way back rather than just vanishing. */
+        grToast('Removed the sale for ' + (gone.client_name || 'a client'), function () {
+          grWrite('growth_bonus', 'insert', {
+            rep_id: gone.rep_id, client_id: gone.client_id, client_name: gone.client_name,
+            deal: gone.deal, amount: gone.amount, pct: gone.pct, sold_on: gone.sold_on,
+            payments: gone.payments || [], created_by: me()
+          }).then(function (r2) {
+            if (r2) { grBonus = (grBonus || []).concat(r2); grRender(); }
+          });
+        });
+      });
+      return;
+    }
 
     /* --- Sales SOPs --- */
     const sop = e.target.closest('[data-gr-sop]');
@@ -102901,6 +103286,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       node[path[path.length - 1]] = e.target.value;
       grSetting('sops', next).then(function (r) { if (!r) window.grReload(); });
       return;
+    }
+    if (d.grBnf) {
+      /* Form state only -- nothing is written until Add sale. Kept on change rather
+         than input so the bonus preview does not recompute on every keystroke. */
+      grBonusForm[d.grBnf] = e.target.value;
+      if (d.grBnf === 'client' || d.grBnf === 'amount' || d.grBnf === 'pct') grRender();
+      return;
+    }
+    if (d.grBnrate !== undefined || e.target.hasAttribute('data-gr-bnrate')) {
+      if (!grMayPayroll()) return;
+      const v = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+      grSetting('bonus_rate', { pct: v });
+      return;
+    }
+    if (d.grBnrep !== undefined || e.target.hasAttribute('data-gr-bnrep')) {
+      grBonusRep = e.target.value; grBonusOpen = null; grRender(); return;
     }
     if (d.grSopq) {
       if (!grIsStaff()) return;

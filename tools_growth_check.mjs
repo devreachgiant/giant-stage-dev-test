@@ -3514,6 +3514,36 @@ await step('Meetings splits sales calls from onboarding calls', async () => {
   await page.waitForTimeout(800);
 });
 
+await step('every Growth screen actually paints something', async () => {
+  /* THE CHEAPEST CHECK HERE AND THE ONE THAT WOULD HAVE SAVED THE MOST TIME.
+     grLoad destructures its results positionally. A name with no query behind it --
+     there was one, `pr`, left over from a query somebody removed -- is harmless until
+     anything is added after it, at which point the new name lands past the end, comes
+     back undefined, and reading .error off it throws inside grLoad. grLoaded stays
+     false and EVERY Growth screen renders nothing.
+
+     Both catches are silent by design: grLoad toasts rather than throwing, grRender
+     swallows so one broken screen cannot take the app down. So the whole module goes
+     blank with nothing in the console, and it presents as whichever screen you happened
+     to be building. Measuring that each screen put SOMETHING in its host is three lines
+     and catches the entire class. */
+  const SCREENS = [
+    ['gr_home', 'grHome'], ['gr_inbox', 'grInbox'], ['gr_meetings', 'grMeetings'],
+    ['gr_pipeline', 'grPipeline'], ['gr_training', 'grTraining'],
+    ['gr_analytics', 'grAnalytics'], ['gr_connectors', 'grConnectors'],
+    ['gr_automations', 'grAutomations'], ['gr_sops', 'grSops'], ['gr_bonus', 'grBonus']
+  ];
+  const empty = [];
+  for (const [scr, host] of SCREENS) {
+    await screen(scr);
+    await page.waitForTimeout(900);
+    const n = await page.evaluate(i => (document.getElementById(i) || {}).innerHTML?.length || 0, host);
+    if (n < 50) empty.push(scr + ':' + n);
+  }
+  check('all ten Growth screens render, so the shared load is intact',
+    empty.length === 0, empty.join(', ') || 'all painted');
+});
+
 await step('Sales SOPs: three processes, and a manager can change them', async () => {
   /* Luke asked for this twice in the same breath: "we can edit the SOPs as well.
      That's really important because I want to be able to change them." So the checks
@@ -3611,16 +3641,115 @@ await step('Sales SOPs: three processes, and a manager can change them', async (
     undo, String(undo));
 });
 
-await step('Growth is a named list, and the list can take it away', async () => {
-  /* Luke asked for Growth to be "you, me, Matthew and Annie". The two people that takes
-     it from are an owner and an in-house dev, both ABOVE the module's manager floor --
-     so no role gate can express it, and the half of this that already existed could
-     only ever add people.
+await step('Sales bonus adds up, and only a manager can change it', async () => {
+  /* The fixtures are picked so the arithmetic is checkable by hand: 10% of 3,000 is
+     300 with nothing paid; 10% of 5,000 is 500 with 200 paid, leaving 300; 10% of 1,500
+     is 150 paid in full. So 600 is owed and 350 has gone out, and a screen that adds up
+     to anything else is wrong in a way somebody would eventually notice in their pay. */
+  await screen('gr_bonus');
+  await page.waitForTimeout(1300);
+  const m = await page.evaluate(() => ({
+    stats: [...document.querySelectorAll('.gr_bnstat b')].map(b => b.textContent.trim()),
+    pills: [...document.querySelectorAll('.gr_bnpill')].map(p => p.textContent.trim()),
+    cards: document.querySelectorAll('.gr_bncard').length,
+    form: !!document.querySelector('[data-gr-bnadd]'),
+    segs: [...document.querySelectorAll('[data-gr-bnfilter] b')].map(b => b.textContent.trim())
+  }));
+  check('what is still owed and what has been paid are both right',
+    m.stats[0] === '$600' && m.stats[1] === '$350',
+    JSON.stringify(m.stats));
+  /* One of each state, because three unpaid sales would pass against code that never
+     worked out what was left. */
+  check('a part-paid sale is told apart from an unpaid one',
+    m.pills.indexOf('Unpaid') >= 0 && m.pills.indexOf('Part paid') >= 0,
+    m.pills.join(','));
+  check('and the paid-in-full one is not in the to-pay list',
+    m.cards === 2 && m.segs.join(',') === '2,1,3',
+    JSON.stringify({ cards: m.cards, segs: m.segs }));
 
-     Driven by serving a doctored mock, because the gate runs once at sign-in off a row
-     read before the first paint; setting the row afterwards proves nothing. */
-  const withAccess = (list) => MOCK.replace('DB.growth_settings = [',
-    'DB.growth_settings = [{ key: "access", value: ' + JSON.stringify(list) + ' },');
+  await page.evaluate(() => document.querySelector('[data-gr-bnfilter="paid"]')?.click());
+  await page.waitForTimeout(1000);
+  const paid = await page.evaluate(() => ({
+    cards: document.querySelectorAll('.gr_bncard').length,
+    pills: [...document.querySelectorAll('.gr_bnpill')].map(p => p.textContent.trim())
+  }));
+  check('switching to Paid shows only the one that is settled',
+    paid.cards === 1 && paid.pills.join(',') === 'Paid', JSON.stringify(paid));
+  await page.evaluate(() => document.querySelector('[data-gr-bnfilter="open"]')?.click());
+  await page.waitForTimeout(800);
+
+  /* A payment bigger than the balance is somebody mistyping. Refused rather than
+     silently trimmed, because trimming hides the typo in a record about money. */
+  await page.evaluate(() => document.querySelector('.gr_bncard')?.setAttribute('open', ''));
+  await page.waitForTimeout(600);
+  const over = await page.evaluate(() => {
+    const host = document.querySelector('.gr_bnadd');
+    if (!host) return null;
+    const amt = host.querySelector('[data-gr-bnpay="amt"]');
+    amt.value = '999999';
+    host.querySelector('[data-gr-bnpayadd]').click();
+    return true;
+  });
+  await page.waitForTimeout(1100);
+  const after = await page.evaluate(() => ({
+    toast: (document.querySelector('#grToast span') || {}).textContent || '',
+    paid: (window.__mockDB.growth_bonus || []).reduce(
+      (n, e) => n + (e.payments || []).reduce((k, p) => k + Number(p.amount || 0), 0), 0)
+  }));
+  check('a payment larger than the balance is refused, not trimmed',
+    !!over && /more than/i.test(after.toast) && after.paid === 350,
+    JSON.stringify(after));
+
+  /* The form is hidden from anybody who is not a manager. The database refuses the
+     write as well -- that half is measured in a rolled-back transaction, in the
+     migration -- so this is only the half that stops a rep being handed a button that
+     always fails. Driven by a doctored mock, since the role is read at sign-in. */
+  const asRole = (role) => MOCK.replace(
+    "role: 'owner', title: 'Founder'", "role: '" + role + "', title: 'Founder'");
+  const reloadAs = async (body) => {
+    await page.unroute('**/@supabase/supabase-js@2*');
+    await page.route('**/@supabase/supabase-js@2*', r =>
+      r.fulfill({ status: 200, contentType: 'application/javascript', body: body }));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#view-app.on', { timeout: 30000 });
+    await page.waitForTimeout(3600);
+    await screen('gr_bonus');
+    await page.waitForTimeout(1200);
+  };
+
+  await reloadAs(asRole('growth'));
+  const rep = await page.evaluate(() => ({
+    form: !!document.querySelector('[data-gr-bnadd]'),
+    rate: !!document.querySelector('[data-gr-bnrate]'),
+    del: document.querySelectorAll('[data-gr-bndel]').length,
+    /* They still SEE it -- Luke's rule is that Annie can view. A screen that hid the
+       numbers as well would be the wrong fix. */
+    stats: [...document.querySelectorAll('.gr_bnstat b')].map(b => b.textContent.trim())
+  }));
+  check('a growth rep cannot log a sale or change the rate',
+    !rep.form && !rep.rate && rep.del === 0, JSON.stringify(rep));
+  check('but still sees what they are owed',
+    rep.stats[0] === '$600', JSON.stringify(rep.stats));
+
+  await reloadAs(MOCK);
+  const back = await page.evaluate(() => !!document.querySelector('[data-gr-bnadd]'));
+  check('and a manager gets the form back', back, String(back));
+});
+
+await step('Growth is visible to the four roles that work in it', async () => {
+  /* Who sees Growth is decided by ROLE: owner, manager, inhouse_dev and growth.
+
+     A named-list gate was written here on 20261105 and taken out the same day. It
+     hid Growth from anybody not in growth_settings.access, which read correctly until
+     you notice that row already meant something else -- it is the list that lets people
+     BELOW the manager floor in, and it contained one person. So it hid the module from
+     everybody else, including the two owners and the in-house devs. That is the whole
+     reason this check exists: the gate is a role, and a row that means one thing must
+     not be read as if it means another.
+
+     Driven by serving a doctored mock, because the role is read once at sign-in. */
+  const asRole = (role) => MOCK.replace(
+    "role: 'owner', title: 'Founder'", "role: '" + role + "', title: 'Founder'");
 
   const growthVisible = async () => page.evaluate(() => {
     const items = [...document.querySelectorAll('#appSidebar .nav-item[data-screen^="gr_"]')];
@@ -3628,40 +3757,31 @@ await step('Growth is a named list, and the list can take it away', async () => 
     const shown = (el) => !!el && getComputedStyle(el).display !== 'none';
     return { items: items.filter(shown).length, group: shown(group) };
   });
-
-  const reloadAs = async (mockBody) => {
+  const reloadAs = async (body) => {
     await page.unroute('**/@supabase/supabase-js@2*');
     await page.route('**/@supabase/supabase-js@2*', r =>
-      r.fulfill({ status: 200, contentType: 'application/javascript', body: mockBody }));
+      r.fulfill({ status: 200, contentType: 'application/javascript', body: body }));
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#view-app.on', { timeout: 30000 });
     await page.waitForTimeout(3600);
   };
 
-  /* The signed-in account in the mock is u-me, an OWNER -- the case a role floor cannot
-     catch, and exactly Kristina's. */
-  await reloadAs(withAccess(['someone-else', 'another-person']));
-  const off = await growthVisible();
-  check('an owner who is not on the list loses the whole Growth group',
-    off.items === 0 && !off.group, JSON.stringify(off));
+  for (const role of ['owner', 'manager', 'inhouse_dev', 'growth']) {
+    await reloadAs(asRole(role));
+    const v = await growthVisible();
+    check('a ' + role + ' sees Growth', v.items > 5 && v.group, role + ': ' + JSON.stringify(v));
+  }
 
-  await reloadAs(withAccess(['u-me', 'someone-else']));
-  const on = await growthVisible();
-  check('and keeps it when they are on the list',
-    on.items > 5 && on.group, JSON.stringify(on));
+  /* And a member does not -- which is what the manager floor is for, and what the
+     named-access row exists to open on purpose, one person at a time. */
+  await reloadAs(asRole('member'));
+  const member = await growthVisible();
+  check('a member does not, unless they are named in the access row',
+    member.items === 0 && !member.group, JSON.stringify(member));
 
-  /* FAILS OPEN on purpose. One bad row locking the sales team out of Growth is a worse
-     day than one person seeing a tab they do not use. */
-  await reloadAs(withAccess([]));
-  const empty = await growthVisible();
-  check('an empty list changes nothing, rather than hiding it from everybody',
-    empty.items > 5 && empty.group, JSON.stringify(empty));
-
-  // Back to the untouched mock so nothing after this inherits a doctored database.
   await reloadAs(MOCK);
   const back = await growthVisible();
-  check('and with no list at all it behaves exactly as before',
-    back.items > 5 && back.group, JSON.stringify(back));
+  check('and the default account still has it', back.items > 5 && back.group, JSON.stringify(back));
 });
 
 await step('the course opens on the lesson you are up to', async () => {
