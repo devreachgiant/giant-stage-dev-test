@@ -1132,8 +1132,15 @@ await step('the open row is the two answers, the bullets and the video', async (
   // And nothing fetches them any more, since nothing draws them.
   const q = await page.evaluate(() =>
     (window.__mock.log.queries || []).filter(x => /^growth_settings\.select/.test(x)));
-  check('the boot read still leaves the 364KB out', /key neq qa_examples/.test(q[0] || ''),
-    JSON.stringify(q));
+  /* By CONTENT, not by position. This read q[0] and assumed the boot read came first;
+     the Growth access gate now asks growth_settings a targeted question before it --
+     one row, by key -- so position 0 stopped being the boot read while the thing this
+     protects was still perfectly true. */
+  check('the boot read still leaves the 364KB out',
+    q.some(x => /key neq qa_examples/.test(x)), JSON.stringify(q));
+  /* And the gate's own read stays narrow: one key, not the whole table again. */
+  check('the access gate asks for one row, not everything',
+    !q.some(x => /^growth_settings\.select\[\]$/.test(x)), JSON.stringify(q));
   check('and nothing fetches them any more', !q.some(x => /key eq qa_examples/.test(x)),
     JSON.stringify(q));
 });
@@ -1571,6 +1578,12 @@ await step('Home is the dashboard Luke drew', async () => {
       cardW: zs[0] ? Math.round(zs[0].getBoundingClientRect().width) : -1,
       timeSize: bigTime ? Math.round(parseFloat(getComputedStyle(bigTime).fontSize)) : -1,
       trackW: track ? Math.round(track.getBoundingClientRect().width) : -1,
+      clockH: track ? Math.round(track.getBoundingClientRect().height) : -1,
+      /* The STRIP against its column, not the first button against its column. The
+         strip now opens with a "Times in" caption, so the first zone button sits 83px
+         in by design and measuring from it says the strip is stranded when it is not. */
+      trackSlackL: (track && wb) ? Math.round(track.getBoundingClientRect().left - wb.left) : -1,
+      trackSlackR: (track && wb) ? Math.round(wb.right - track.getBoundingClientRect().right) : -1,
       activeFilled: onCard ? getComputedStyle(onCard).backgroundColor : '',
       restFilled: offCard ? getComputedStyle(offCard).backgroundColor : '',
       showingRows: document.querySelectorAll('#grHome .gr_vasrow').length,
@@ -1605,11 +1618,13 @@ await step('Home is the dashboard Luke drew', async () => {
     m.btnsOnReplyRows === 0, String(m.btnsOnReplyRows));
   check('See all clients is the way through to the board',
     /See all clients/.test(m.more), m.more);
-  /* The clocks are built from the zones the deals are in, so there can be two of them.
-     On a five-column grid two sat in the left fifth with a hole beside them. */
-  check('the clocks sit centred rather than stranded at one end',
-    m.clockSlackL >= 0 && Math.abs(m.clockSlackL - m.clockSlackR) <= 2,
-    JSON.stringify({ left: m.clockSlackL, right: m.clockSlackR }));
+  /* Was: the four cards sit centred rather than stranded at one end, which mattered
+     while the track was narrower than the space. The strip fills the column, so there
+     is no end to be stranded at -- what has to be true now is that it uses the width it
+     is given, because at a fixed 760 inside 1124 it clipped two of the four cities. */
+  check('the clock strip uses the full width of the column',
+    m.trackW > 0 && m.trackSlackL <= 2 && m.trackSlackR <= 2,
+    JSON.stringify({ left: m.trackSlackL, right: m.trackSlackR, w: m.trackW }));
 
   /* The four places the team works from, by name and in order -- not a count, which a
      list of the wrong four cities would also satisfy. They were briefly derived from the
@@ -1625,13 +1640,16 @@ await step('Home is the dashboard Luke drew', async () => {
   check('showing four genuinely different times',
     m.times.every(t => /\d/.test(t)) && new Set(m.times).size >= 3,
     JSON.stringify(m.times));
-  /* The artifact's measurements, kept because "a bit smaller" compounds: the card was
-     270 wide with a 19px time, against its 197.5 and 30. */
-  check('at the size the design draws them, not shrunk to fit',
-    m.cardW >= 193 && m.cardW <= 203 && m.timeSize === 30,
-    JSON.stringify({ card: m.cardW, time: m.timeSize }));
-  check('in a fixed track rather than stretched across the window',
-    m.trackW > 0 && m.trackW <= 830, String(m.trackW));
+  /* These two asserted the artifact's CARD measurements -- 197.5 wide, 30px time, in a
+     track no wider than 830. Luke replaced the cards with a strip between artifact
+     versions (his file still carries the card CSS, but nothing renders it any more),
+     and Giant followed on 20261105. The reason the old numbers were pinned still
+     applies, so it is pinned to the new shape: a strip that creeps back up in height is
+     a strip turning back into cards, and the time has to stay big enough to read. */
+  check('the clock is one strip, not a row of cards',
+    m.clockH > 0 && m.clockH < 70, String(m.clockH) + 'px');
+  check('and the time on it is still legible at a glance',
+    m.timeSize >= 13, String(m.timeSize) + 'px');
   /* The zone you are reading times in is FILLED, so the strip answers "whose 3pm"
      before you have read a word. Outlined, it was one border colour among five.
      Compared against a SIBLING card, not against transparent: the first version of this
@@ -3324,6 +3342,298 @@ await step('Reply style decides how every draft is written', async () => {
     !!sysSeen && sysSeen.indexOf('(not set)') < 0 && sysSeen.indexOf('Always cover:\n\n') < 0,
     sysSeen ? 'clean' : 'no request captured');
   await page.unroute('**/claude-api');
+});
+
+await step('the reply is already written when you open the email', async () => {
+  /* Luke's screen has the draft waiting; ours had a button you press and then watch.
+     Three of these are about cost and staleness rather than about the card, because the
+     card is the easy part:
+
+       - asked ONCE, not per render. A draft regenerated on every repaint is a model
+         call per keystroke somewhere else on the screen, and nothing on screen would
+         look wrong while it happened.
+       - never for a deal that is NOT waiting on us. Drafting a reply to a conversation
+         where we spoke last is a paid-for answer to nothing.
+       - gone when it goes stale. A draft answering Tuesday's question is wrong the
+         moment Thursday's arrives, and a confident reply to a settled question is worse
+         than no reply at all. */
+  let asked = 0, sysSeen = null;
+  await page.route('**/claude-api', r => {
+    asked++;
+    try { sysSeen = (r.request().postDataJSON() || {}).system || ''; } catch (e) {}
+    return r.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ text: 'Hi Cesar,\n\nSending the agreement now.\n\nBest,' }) });
+  });
+
+  // gc-1 spoke last from our side; gc-2 is the one waiting on a reply.
+  await screen('gr_pipeline');
+  await page.evaluate(() => document.querySelector('[data-gr-open="gc-1"]')?.click());
+  await page.waitForTimeout(1800);
+  check('a deal that is not waiting on us is never drafted for',
+    asked === 0, String(asked));
+  await page.evaluate(() => document.querySelector('[data-gr-close]')?.click());
+  await page.waitForTimeout(600);
+
+  await page.evaluate(() => document.querySelector('[data-gr-open="gc-2"]')?.click());
+  await page.waitForTimeout(2600);
+  const made = await page.evaluate(() => {
+    const d = (window.__mockDB.growth_clients || []).find(c => c.id === 'gc-2');
+    const card = document.querySelector('.gr_draft');
+    return {
+      saved: d && d.reply_draft ? { msg: d.reply_draft.msg_id, sub: d.reply_draft.subject,
+                                    body: String(d.reply_draft.body || '').slice(0, 20) } : null,
+      on: !!(card && card.classList.contains('on')),
+      says: card ? card.innerText.replace(/\s+/g, ' ').trim() : null,
+      buttons: [...document.querySelectorAll('[data-gr-draft]')].map(b => b.textContent.trim())
+    };
+  });
+  check('opening the deal writes a draft onto the ROW, not just the screen',
+    !!made.saved && made.saved.msg === 'gx-3' && made.saved.body.length > 5,
+    JSON.stringify(made.saved));
+  check('and it answers their latest message, by id',
+    made.saved && made.saved.msg === 'gx-3', made.saved && made.saved.msg);
+  check('the card offers edit, regenerate and copy',
+    made.buttons.join(',') === 'Edit and send,Regenerate,Copy', made.buttons.join(','));
+  /* The whole risk of a ready-written reply is somebody assuming it already went. */
+  check('and says on its face that nothing has been sent',
+    !!made.says && /not sent/i.test(made.says), made.says ? made.says.slice(0, 60) : null);
+  check('the house rules reach the drafted reply too, not only the composer',
+    !!sysSeen && sysSeen.indexOf('HOUSE STYLE') >= 0, sysSeen ? 'yes' : 'no request');
+
+  const askedAfterFirst = asked;
+  /* Re-render the panel without changing anything. A draft regenerated per paint is
+     the expensive bug that looks completely fine. */
+  await page.evaluate(() => { if (typeof grRender === 'function') grRender(); });
+  await page.waitForTimeout(400);
+  await page.evaluate(() => { if (typeof grRender === 'function') grRender(); });
+  await page.waitForTimeout(900);
+  check('re-rendering does not write it again',
+    asked === askedAfterFirst, asked + ' vs ' + askedAfterFirst);
+
+  // Closing and reopening reads the stored draft rather than paying for a new one.
+  await page.evaluate(() => document.querySelector('[data-gr-close]')?.click());
+  await page.waitForTimeout(600);
+  await page.evaluate(() => document.querySelector('[data-gr-open="gc-2"]')?.click());
+  await page.waitForTimeout(1800);
+  check('reopening reuses the stored draft instead of asking again',
+    asked === askedAfterFirst, asked + ' vs ' + askedAfterFirst);
+
+  /* THE ONE NO SCREEN SHOWS. A newer message from them makes the stored draft an
+     answer to the wrong question. It has to stop being shown. */
+  await page.evaluate(() => {
+    window.__mockDB.growth_messages.push({
+      id: 'gx-9', client_id: 'gc-2', direction: 'in', subject: 'One more thing',
+      body: 'Actually, can we push the start date to January?',
+      sent_at: new Date().toISOString(), thread_id: '', external_id: null,
+      created_at: new Date().toISOString() });
+    if (typeof window.grReload === 'function') window.grReload();
+  });
+  await page.waitForTimeout(2600);
+  const stale = await page.evaluate(() => {
+    const card = document.querySelector('.gr_draft');
+    const d = (window.__mockDB.growth_clients || []).find(c => c.id === 'gc-2');
+    return { shows: card ? card.innerText.replace(/\s+/g, ' ').trim() : null,
+             storedMsg: d && d.reply_draft ? d.reply_draft.msg_id : null };
+  });
+  check('a newer message from them retires the old draft rather than showing it',
+    !!stale.shows && !/Sending the agreement now/.test(stale.shows),
+    stale.shows ? stale.shows.slice(0, 70) : 'no card');
+
+  await page.unroute('**/claude-api');
+});
+
+await step('Meetings splits sales calls from onboarding calls', async () => {
+  /* Calendly carries two event types now -- Growth Strategy Session and Kickoff Call --
+     and they are two different jobs: a stranger you are selling to, and a client you
+     have already won and are starting. Luke's screen splits on it.
+
+     Derived from the title rather than stored, so it works on the 32 bookings already
+     in the database instead of only on ones that arrive after a migration. */
+  await screen('gr_meetings');
+  await page.evaluate(() => { try { localStorage.removeItem('giant.grMKind'); } catch (e) {} });
+  await page.evaluate(() => document.querySelector('[data-gr-mkind="all"]')?.click());
+  await page.waitForTimeout(1200);
+
+  const pills = await page.evaluate(() => [...document.querySelectorAll('[data-gr-mkind]')]
+    .map(b => ({ k: b.dataset.grMkind, n: (b.querySelector('b') || {}).textContent,
+                 on: b.getAttribute('aria-pressed') === 'true',
+                 w: Math.round(b.getBoundingClientRect().width) })));
+  check('there are three choices: all, sales and onboarding',
+    pills.map(p => p.k).join(',') === 'all,sales,onboard', pills.map(p => p.k).join(','));
+  check('each carries a count and is big enough to press',
+    pills.every(p => /^\d+$/.test(String(p.n).trim()) && p.w > 90),
+    JSON.stringify(pills.map(p => p.n + '/' + p.w)));
+  /* One of each kind is in the fixtures, so a split that did nothing would show the
+     same number three times. */
+  const n = (k) => Number((pills.find(p => p.k === k) || {}).n);
+  check('the counts actually differ, so the split is doing something',
+    n('all') === n('sales') + n('onboard') && n('sales') > 0 && n('onboard') > 0,
+    JSON.stringify({ all: n('all'), sales: n('sales'), onboard: n('onboard') }));
+
+  const kinds = await page.evaluate(() => [...document.querySelectorAll('.gr_kt')]
+    .map(x => x.textContent.trim()));
+  check('every row says which kind of call it is',
+    kinds.length > 0 && kinds.indexOf('Sales call') >= 0 && kinds.indexOf('Onboarding call') >= 0,
+    kinds.join(','));
+  /* The chip has to be readable, not merely present: a bare .gr_kt loses to
+     `.gr_rm span`, which paints every span in a row grey. That shipped once. */
+  const chip = await page.evaluate(() => {
+    const el = document.querySelector('.gr_ktsales'); if (!el) return null;
+    const s = getComputedStyle(el);
+    return { bg: s.backgroundColor, fg: s.color };
+  });
+  check('and the chip is not the same grey as everything else on the row',
+    !!chip && chip.fg === 'rgb(255, 255, 255)' && chip.bg !== 'rgba(0, 0, 0, 0)',
+    JSON.stringify(chip));
+
+  await page.evaluate(() => document.querySelector('[data-gr-mkind="sales"]')?.click());
+  await page.waitForTimeout(1200);
+  const filtered = await page.evaluate(() => ({
+    shown: [...document.querySelectorAll('.gr_kt')].map(x => x.textContent.trim()),
+    counts: [...document.querySelectorAll('[data-gr-mkind] b')].map(b => b.textContent.trim())
+  }));
+  check('choosing Sales calls hides the onboarding ones',
+    filtered.shown.length > 0 && filtered.shown.every(t => t === 'Sales call'),
+    filtered.shown.join(','));
+  /* A filter that hides its own count is one you cannot tell is on. */
+  check('and the counts keep counting everything, not just what is shown',
+    filtered.counts.join(',') === pills.map(p => String(p.n).trim()).join(','),
+    filtered.counts.join(',') + ' vs ' + pills.map(p => p.n).join(','));
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(3500);
+  await screen('gr_meetings');
+  await page.waitForTimeout(1100);
+  const kept = await page.evaluate(() => (document.querySelector('[data-gr-mkind][aria-pressed="true"]')
+    || {}).dataset?.grMkind || null);
+  check('the choice survives a reload, like the view tabs do', kept === 'sales', String(kept));
+
+  /* Back to all, so nothing after this inherits a filtered screen. */
+  await page.evaluate(() => { try { localStorage.removeItem('giant.grMKind'); } catch (e) {} });
+  await page.evaluate(() => document.querySelector('[data-gr-mkind="all"]')?.click());
+  await page.waitForTimeout(800);
+});
+
+await step('Growth is a named list, and the list can take it away', async () => {
+  /* Luke asked for Growth to be "you, me, Matthew and Annie". The two people that takes
+     it from are an owner and an in-house dev, both ABOVE the module's manager floor --
+     so no role gate can express it, and the half of this that already existed could
+     only ever add people.
+
+     Driven by serving a doctored mock, because the gate runs once at sign-in off a row
+     read before the first paint; setting the row afterwards proves nothing. */
+  const withAccess = (list) => MOCK.replace('DB.growth_settings = [',
+    'DB.growth_settings = [{ key: "access", value: ' + JSON.stringify(list) + ' },');
+
+  const growthVisible = async () => page.evaluate(() => {
+    const items = [...document.querySelectorAll('#appSidebar .nav-item[data-screen^="gr_"]')];
+    const group = document.querySelector('[data-navgroup="growth"]');
+    const shown = (el) => !!el && getComputedStyle(el).display !== 'none';
+    return { items: items.filter(shown).length, group: shown(group) };
+  });
+
+  const reloadAs = async (mockBody) => {
+    await page.unroute('**/@supabase/supabase-js@2*');
+    await page.route('**/@supabase/supabase-js@2*', r =>
+      r.fulfill({ status: 200, contentType: 'application/javascript', body: mockBody }));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#view-app.on', { timeout: 30000 });
+    await page.waitForTimeout(3600);
+  };
+
+  /* The signed-in account in the mock is u-me, an OWNER -- the case a role floor cannot
+     catch, and exactly Kristina's. */
+  await reloadAs(withAccess(['someone-else', 'another-person']));
+  const off = await growthVisible();
+  check('an owner who is not on the list loses the whole Growth group',
+    off.items === 0 && !off.group, JSON.stringify(off));
+
+  await reloadAs(withAccess(['u-me', 'someone-else']));
+  const on = await growthVisible();
+  check('and keeps it when they are on the list',
+    on.items > 5 && on.group, JSON.stringify(on));
+
+  /* FAILS OPEN on purpose. One bad row locking the sales team out of Growth is a worse
+     day than one person seeing a tab they do not use. */
+  await reloadAs(withAccess([]));
+  const empty = await growthVisible();
+  check('an empty list changes nothing, rather than hiding it from everybody',
+    empty.items > 5 && empty.group, JSON.stringify(empty));
+
+  // Back to the untouched mock so nothing after this inherits a doctored database.
+  await reloadAs(MOCK);
+  const back = await growthVisible();
+  check('and with no list at all it behaves exactly as before',
+    back.items > 5 && back.group, JSON.stringify(back));
+});
+
+await step('the course opens on the lesson you are up to', async () => {
+  /* Every lesson used to start collapsed, so the first thing the screen asked of
+     somebody starting the course was to work out where they were and click. Luke's
+     opens the next unfinished one. */
+  await screen('gr_training');
+  /* Training remembers its sub-tab, and an earlier step leaves it on Q&A -- so without
+     this the step measured a screen with no lessons on it at all and reported
+     "0 lessons, none open", which is true and says nothing. */
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="course"]')?.click());
+  await page.waitForTimeout(1400);
+  const first = await page.evaluate(() => {
+    const all = [...document.querySelectorAll('.gr_cs')];
+    const open = all.filter(l => l.classList.contains('gr_cson'));
+    return { openCount: open.length, total: all.length,
+             /* The body is really there, not just a class saying it is. */
+             hasBody: !!(open[0] && open[0].querySelector('.gr_csb')),
+             openIsFirst: !!(open[0] && all[0] && open[0] === all[0]) };
+  });
+  check('one lesson is open to begin with, not none',
+    first.openCount === 1 && first.total > 1 && first.hasBody, JSON.stringify(first));
+  check('and it is the one they have not done yet', first.openIsFirst, String(first.openIsFirst));
+
+  /* THE TRAP. Defaulting the open lesson and clearing it to the same value on close
+     makes it impossible to shut: the next paint reopens it. Closed has to be a
+     different state from never-opened. */
+  await page.evaluate(() => document.querySelector('.gr_cson [data-gr-lesson]')?.click());
+  await page.waitForTimeout(700);
+  await page.evaluate(() => { if (typeof grRender === 'function') grRender(); });
+  await page.waitForTimeout(700);
+  const after = await page.evaluate(() => document.querySelectorAll('.gr_cson').length);
+  /* first.openCount in the condition on purpose: with no lessons on screen this read
+     0 === 0 and passed while measuring nothing, which is the exact shape of hollow
+     pass the rest of this file exists to avoid. */
+  check('closing it actually closes it, and it stays closed on the next paint',
+    first.openCount === 1 && after === 0, first.openCount + ' -> ' + after);
+});
+
+await step('the world clock is a strip, and still says everything', async () => {
+  /* Four 110px cards cost most of the first screenful on a screen whose job is the
+     list underneath them. The risk in compacting it is losing what it was for, so
+     this measures the two things that would quietly go: a clipped city name, and the
+     offset that stops somebody booking a call at 3am their time. */
+  await screen('gr_meetings');
+  await page.waitForTimeout(900);
+  const clk = await page.evaluate(() => {
+    const strip = document.querySelector('.gr_wclkin');
+    if (!strip) return null;
+    const r = strip.getBoundingClientRect();
+    const cities = [...document.querySelectorAll('.gr_wzc')];
+    return {
+      h: Math.round(r.height),
+      zones: cities.length,
+      clipped: cities.filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.textContent),
+      titles: [...document.querySelectorAll('.gr_wz')].map(b => b.getAttribute('title') || ''),
+      on: document.querySelectorAll('.gr_wzon').length
+    };
+  });
+  check('all four zones are on one strip', !!clk && clk.zones === 4, clk && String(clk.zones));
+  check('and it is a strip, not a row of cards', !!clk && clk.h < 70, clk && clk.h + 'px');
+  check('no city name is cut off', !!clk && clk.clipped.length === 0,
+    clk ? clk.clipped.join(',') || 'none' : 'no strip');
+  /* The line Luke's strip drops. It moved to the hover rather than disappearing. */
+  check('how far ahead or behind each zone is survives, on hover',
+    !!clk && clk.titles.length === 4 && clk.titles.every(t => /ahead|behind|shown here|Same time/i.test(t)),
+    clk ? JSON.stringify(clk.titles[1]) : 'none');
+  check('exactly one zone is marked as the one times are shown in',
+    !!clk && clk.on === 1, clk && String(clk.on));
 });
 
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));

@@ -137,6 +137,42 @@ check('though the booking itself is still kept',
   wroteMeetings(calls).length === 1 && wroteMeetings(calls)[0].client_id === null,
   JSON.stringify(wroteMeetings(calls).map(r => r.client_id)));
 
+/* ------------------------------------------------- the second event type
+   Luke turned on a Kickoff Call in Calendly in November. It is not a lead: it is a
+   client who has already paid, being started. Opening a deal from one would put
+   somebody we have already won back at the top of the pipeline as a fresh prospect,
+   and the only thing stopping that is the booking happening to match an existing deal
+   by email -- which is exactly what fails when they book with a different address.
+
+   Zero kickoffs have ever been booked, so nothing on any screen can show this. */
+calls = stubFetch(plan(
+  [[ev('https://cal/k1', 'ReachGiant Kickoff Call', '2026-11-09T15:00:00Z'),
+    'Jordan Lee', 'jordan@leedental.com']], HAVE));
+res = await runSync('tok');
+check('a kickoff call never opens a deal, because they are already a client',
+  res.dealsCreated === 0 && madeDeals(calls).length === 0, JSON.stringify(res));
+check('and the booking is still kept, so it shows on Meetings',
+  wroteMeetings(calls).length === 1 && wroteMeetings(calls)[0].client_id === null,
+  JSON.stringify(wroteMeetings(calls).map(r => r.client_id)));
+/* It still has to attach when it CAN. Refusing to open a deal is not the same as
+   refusing to join the call to one that already exists. */
+calls = stubFetch(plan(
+  [[ev('https://cal/k2', 'ReachGiant Kickoff Call', '2026-11-09T15:00:00Z'),
+    'Pete Patrino', 'pete@finzanza.com']], HAVE));
+res = await runSync('tok');
+check('but a kickoff from somebody we DO hold still attaches to their deal',
+  res.dealsCreated === 0 && wroteMeetings(calls)[0] &&
+  wroteMeetings(calls)[0].client_id === 'd-pete',
+  JSON.stringify(wroteMeetings(calls).map(r => r.client_id)));
+/* The sales call it sits beside must be unaffected -- a rule that refused both would
+   pass the two checks above and quietly stop the pipeline filling at all. */
+calls = stubFetch(plan(
+  [[ev('https://cal/s9', 'ReachGiant Growth Strategy Session', '2026-11-09T16:00:00Z'),
+    'Dana Brooks', 'dana@brooksplumbing.com']], HAVE));
+res = await runSync('tok');
+check('and a sales call from a stranger still opens one, as it always did',
+  res.dealsCreated === 1 && madeDeals(calls).length === 1, JSON.stringify(res));
+
 /* ------------------------------------------------- somebody already in the pipeline */
 calls = stubFetch(plan(
   [[ev('https://cal/e1', 'Strategy', '2026-11-02T17:00:00Z'), 'Pete Patrino', 'pete@finzanza.com']], HAVE));

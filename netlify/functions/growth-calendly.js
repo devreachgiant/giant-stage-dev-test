@@ -221,10 +221,25 @@ async function runSync(token) {
     });
     if (!deal && inviteeName) rows[rows.length - 1].title = ev.name + ' — ' + inviteeName;
 
+    /* AN ONBOARDING CALL IS NOT A LEAD. Calendly carries two event types now: the Growth
+       Strategy Session, which is a stranger, and the Kickoff Call, which is somebody who
+       has already paid and is being started. Both arrive here the same way.
+
+       Opening a deal from a kickoff would put a client we have already won back at the
+       top of the pipeline as a fresh prospect, and the only way it does NOT happen is
+       the booking matching an existing deal by email -- which is exactly the thing that
+       fails when somebody books with a different address from the one we hold. So it is
+       refused outright rather than left to a coincidence.
+
+       The booking itself is still kept, with a null client_id, the same as a colleague
+       testing the link: it shows on Meetings and can be attached to its deal by hand.
+       Nothing is lost, and nothing is invented. */
+    const onboarding = /kick ?off|onboard/i.test(String(ev.name || ''));
+
     /* A booking nobody is tracking. One entry per EMAIL, not per booking: three bookings
        from the same person are three calls with one lead, and three deals for them would
        be the pipeline counting one person three times. */
-    if (!deal && inviteeEmail && !ours) {
+    if (!deal && inviteeEmail && !ours && !onboarding) {
       if (!needDeal.has(inviteeEmail)) needDeal.set(inviteeEmail, { name: inviteeName, at: [] });
       needDeal.get(inviteeEmail).at.push(rows.length - 1);
     }
@@ -237,12 +252,12 @@ async function runSync(token) {
      last tidied by hand sat outside it -- twelve of twenty-one rows on the day this was
      written. Somebody booked a call and never appeared in the pipeline at all.
 
-     THIS DOES NOT FIX THE GROWTH INBOX, whatever it looks like. That screen walks the
-     deal list, so a missing deal did hide these people from it -- but the half that
-     matters is still absent: nothing anywhere writes an inbound row into growth_messages
-     (see the note above grRenderInbox). A reply still has nothing to land in. What this
-     buys the Inbox is only that these people can now appear under Waiting on them once
-     they are emailed, because that half reads last_email_on off the deal. */
+     THIS USED TO SAY it did not fix the Growth Inbox, because nothing anywhere wrote an
+     inbound row into growth_messages and a reply had nothing to land in. That stopped
+     being true on 20261105: growth-gmail.js matches the mail already in `emails` back to
+     the deal it belongs to, on the same ten-minute timer. So a deal created here now
+     does carry its replies -- which makes the deal matter more, not less, and is why
+     the kickoff rule above is worth being careful about. */
   let dealsCreated = 0;
   if (needDeal.size) {
     const owner = busiestOwner(deals) || await fallbackOwner();

@@ -6440,7 +6440,9 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 @media(max-width:1180px){
   .gr_board{grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(230px,82%);overflow-x:auto;padding-bottom:10px;}
 }
-/* Growth Inbox is the longest label in the sidebar and wrapped onto two lines. */
+/* Growth's labels never wrap. Written for "Growth Inbox", which was the longest and
+   broke onto two lines; it is "Inbox" now, as Luke names it, but Automations and
+   Connectors are still long enough to want this. */
 #appSidebar .nav-item[data-screen^="gr_"]{white-space:nowrap;}
 .gr_col{border:1px solid var(--line);border-radius:22px;padding:12px;position:relative;min-width:0;box-shadow:inset 0 3px 0 var(--sc);overflow:hidden;}
 /* One line, always. "Proposal sent" and "Following up" wrapped and pushed the count
@@ -6697,6 +6699,83 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
    rather than a tint, because a tint in dark mode is the difference this missed. */
 .gr_chip[aria-pressed="true"]{background:var(--text);color:var(--bg);}
 .gr_chip[aria-pressed="true"]:hover{background:var(--text);}
+/* The reply already written, waiting above the thread. Red-edged only when there IS
+   one: an empty or failed state outlined in red reads as an alarm about a draft that
+   does not exist. */
+.gr_draft{border:1px solid var(--line);border-radius:12px;padding:13px 15px;margin-bottom:12px;
+  display:flex;flex-direction:column;gap:9px;background:var(--surface-2);}
+.gr_draft.on{border-color:var(--red);}
+.gr_drt{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;}
+.gr_drk{font-size:10px;text-transform:uppercase;letter-spacing:.1em;font-weight:700;color:var(--red);
+  display:flex;align-items:center;gap:7px;}
+/* Says it has not gone anywhere, beside the button that would send it. The one real
+   risk of a ready-written reply is somebody assuming it already went. */
+.gr_drn{font-size:11.5px;color:var(--text-3);}
+.gr_drb{font-size:13.5px;line-height:1.6;color:var(--text);background:var(--bg);
+  border-radius:9px;padding:11px 13px;max-height:260px;overflow-y:auto;}
+.gr_dra{display:flex;gap:7px;flex-wrap:wrap;}
+.gr_drsp{width:9px;height:9px;border-radius:50%;border:2px solid var(--red);
+  border-right-color:transparent;animation:grDrSp .8s linear infinite;}
+@keyframes grDrSp{to{transform:rotate(360deg);}}
+.gr_drsk{display:flex;flex-direction:column;gap:8px;}
+.gr_drsk i{height:11px;border-radius:99px;background:var(--surface-3);}
+.gr_drsk i:nth-child(1){width:88%;}
+.gr_drsk i:nth-child(2){width:72%;}
+.gr_drsk i:nth-child(3){width:40%;}
+@media (prefers-reduced-motion: reduce){.gr_drsp{animation:none;}}
+/* Inbox, to Luke's layout. The two panels are told apart by colour rather than by
+   reading their headings: green for the ones on you, amber for everything else. Tinted
+   with colour-mix off the surface rather than a flat wash, so it stays a dark panel in
+   a dark app instead of a light card someone pasted in. */
+.gr_acct{display:flex;align-items:center;gap:8px;margin:-6px 0 14px;font-size:12.5px;
+  color:var(--text-3);}
+.gr_acct b{color:var(--text);font-weight:600;}
+.gr_acctg{width:26px;height:26px;border-radius:8px;border:1px solid var(--line);
+  background:var(--surface-2);color:var(--text-3);cursor:pointer;line-height:1;}
+.gr_acctg:hover{color:var(--text);border-color:var(--text-3);}
+.gr_pneed{background:color-mix(in srgb,#22C55E 7%,var(--surface));
+  border-color:color-mix(in srgb,#22C55E 26%,var(--line));}
+.gr_pearl{background:color-mix(in srgb,#F97316 6%,var(--surface));
+  border-color:color-mix(in srgb,#F97316 22%,var(--line));}
+.gr_pdot{width:9px;height:9px;border-radius:50%;flex:none;}
+.gr_pdot.g{background:#22C55E;box-shadow:0 0 0 3px color-mix(in srgb,#22C55E 22%,transparent);}
+.gr_pdot.o{background:#F97316;box-shadow:0 0 0 3px color-mix(in srgb,#F97316 22%,transparent);}
+.gr_n.g{background:#16A34A;color:#fff;}
+.gr_n.o{background:#EA580C;color:#fff;}
+.gr_ics{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px;}
+.gr_ic{font-size:10.5px;font-weight:700;border-radius:99px;padding:2px 8px;white-space:nowrap;}
+.gr_ic.new{background:var(--red);color:#fff;}
+.gr_ic.wait{background:color-mix(in srgb,#F97316 18%,var(--surface));color:#F59E5B;}
+.gr_ic.ready{background:color-mix(in srgb,#22C55E 18%,var(--surface));color:#5CD98A;}
+.gr_ic.busy{background:var(--surface-3);color:var(--text-3);}
+/* Which calls you are looking at. Green for selling, blue for starting a client, the
+   way Luke colours them -- and the same two colours on the row chips, so the filter and
+   the rows are obviously the same idea rather than two palettes. */
+.gr_mkr{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin:0 0 20px;}
+.gr_mk{display:inline-flex;align-items:center;gap:11px;height:54px;padding:0 24px;
+  border-radius:18px;border:1px solid var(--line);background:var(--surface);cursor:pointer;
+  font:inherit;font-size:15px;font-weight:700;color:var(--text);
+  transition:background .2s,color .2s,border-color .2s,transform .14s;}
+.gr_mk:hover{transform:translateY(-1px);}
+.gr_mk b{font-size:17px;font-weight:800;min-width:30px;height:30px;padding:0 9px;border-radius:10px;
+  display:inline-grid;place-items:center;background:color-mix(in srgb,currentColor 12%,transparent);}
+.gr_mksales{color:#4ADE80;border-color:color-mix(in srgb,#22C55E 32%,var(--line));}
+.gr_mkonboard{color:#60A5FA;border-color:color-mix(in srgb,#3B82F6 32%,var(--line));}
+.gr_mk.on{border-color:transparent;color:#fff;}
+.gr_mkall.on{background:var(--text);color:var(--bg);}
+.gr_mksales.on{background:#16A34A;}
+.gr_mkonboard.on{background:#2563EB;}
+.gr_mk.on b{background:rgba(255,255,255,.22);}
+.gr_mkall.on b{background:color-mix(in srgb,var(--bg) 20%,transparent);}
+/* Scoped under .gr_mn on purpose. A bare .gr_kt loses to `.gr_rm span` three thousand
+   lines above, which paints every span in a row grey -- .gr_src beside it only looks
+   right because the grey it asks for is the grey it would have been given anyway. */
+.gr_mn .gr_kt{font-size:10.5px;font-weight:700;border-radius:99px;padding:2px 9px;
+  white-space:nowrap;letter-spacing:0;text-transform:none;overflow:visible;}
+.gr_mn .gr_ktsales{background:#16A34A;color:#fff;}
+.gr_mn .gr_ktonboard{background:#2563EB;color:#fff;}
+@media(max-width:620px){.gr_mkr{flex-direction:column;align-items:stretch;}
+  .gr_mk{justify-content:space-between;height:48px;padding:0 16px;}}
 .gr_note{background:var(--surface);border-radius:14px;padding:14px 16px;}
 .gr_note>span{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--text-3);font-weight:700;}
 .gr_note p{margin:6px 0 0;font-size:14px;line-height:1.6;}
@@ -6810,28 +6889,32 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_norec{margin:8px 0 0;font-size:12.5px;color:var(--text-3);}
 .gr_gmnote{margin:0;border-left:5px solid #F59F00;background:var(--surface-2);border-radius:10px;
   padding:10px 12px;font-size:12.5px;line-height:1.5;color:var(--text-2);}
-.gr_wclk{display:flex;justify-content:center;margin:2px 0 40px;}
-.gr_wclkin{display:grid;grid-template-columns:repeat(var(--zn,4),minmax(0,1fr));gap:10px;width:min(calc(207.5px * var(--zn,4) - 10px),100%);}
-.gr_wz{border:1px solid var(--line);border-top:4px solid var(--zc);background:var(--surface);border-radius:20px;
-  padding:14px 16px 13px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:3px;color:var(--text);
-  min-width:0;transition:transform .14s,background .14s,box-shadow .14s;font:inherit;}
-.gr_wz:hover:not(.gr_wzon){transform:translateY(-2px);}
-.gr_wz:active{transform:scale(.98);}
-.gr_wzt{display:flex;align-items:center;gap:7px;min-width:0;}
-.gr_wzf{font-size:17px;line-height:1;flex:none;}
-.gr_wzc{font-size:13px;font-weight:700;letter-spacing:-.005em;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.gr_wzn{font-size:13px;color:var(--text-3);flex:none;}
-.gr_wz b{font-size:30px;line-height:1.1;font-weight:800;letter-spacing:-.035em;
-  font-variant-numeric:tabular-nums;white-space:nowrap;margin-top:4px;}
-.gr_wz b small{font-size:12px;font-weight:700;letter-spacing:.04em;margin-left:5px;color:var(--text-2);}
-.gr_wzs{font-size:12.5px;font-weight:500;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.gr_wzs u{text-decoration:none;font-size:10.5px;font-weight:700;background:var(--surface-3);color:var(--text);
-  border-radius:99px;padding:1px 7px;margin-right:2px;}
-.gr_wzon{background:var(--zc);color:#fff;border-color:var(--zc);box-shadow:0 12px 26px -14px var(--zc);}
-.gr_wzon .gr_wzn,.gr_wzon b small,.gr_wzon .gr_wzs{color:rgba(255,255,255,.88);}
-.gr_wzon .gr_wzs{font-weight:700;}
-.gr_wzon .gr_wzs u{background:rgba(255,255,255,.22);color:#fff;}
-@media(max-width:760px){.gr_wclkin{grid-template-columns:repeat(2,minmax(0,1fr));width:100%;}.gr_wz b{font-size:26px;}}
+/* The world clock, as one strip. Was four 110px cards above a screen whose job is the
+   list underneath them. Same four zones, same click to switch, a third of the height. */
+.gr_wclk{display:flex;justify-content:center;margin:2px 0 22px;}
+/* Full width of the column. At a fixed 760 the last two cities were clipped to
+   "Johan..." and "Los An...", which is the one thing the strip exists to tell you. */
+.gr_wclkin{display:flex;align-items:center;gap:3px;padding:5px;border:1px solid var(--line);
+  background:var(--surface);border-radius:16px;width:100%;}
+.gr_wcap{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--text-3);padding:0 10px 0 8px;white-space:nowrap;flex:none;}
+.gr_wz{flex:1 1 0;min-width:0;border:0;background:transparent;cursor:pointer;display:flex;
+  align-items:center;gap:7px;padding:8px 11px;border-radius:11px;color:var(--text);
+  font:inherit;transition:background .18s,color .18s;}
+.gr_wz:hover:not(.gr_wzon){background:var(--surface-2);}
+.gr_wzf{font-size:14px;line-height:1;flex:none;}
+.gr_wzc{font-size:12.5px;font-weight:600;color:var(--text-2);flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;}
+.gr_wz b{font-size:14.5px;font-weight:700;letter-spacing:-.01em;
+  font-variant-numeric:tabular-nums;white-space:nowrap;flex:none;}
+.gr_wz b small{font-size:10px;font-weight:700;letter-spacing:.03em;margin-left:3px;color:var(--text-3);}
+.gr_wz u{text-decoration:none;font-size:9.5px;font-weight:700;background:var(--surface-3);
+  color:var(--text-3);border-radius:99px;padding:1px 6px;flex:none;}
+.gr_wzon{background:var(--text);color:var(--bg);}
+.gr_wzon .gr_wzc,.gr_wzon b small{color:color-mix(in srgb,var(--bg) 72%,transparent);}
+.gr_wzon u{background:color-mix(in srgb,var(--bg) 22%,transparent);color:var(--bg);}
+@media(max-width:860px){.gr_wclkin{flex-wrap:wrap;width:100%;}.gr_wcap{width:100%;padding:4px 8px 2px;}
+  .gr_wz{flex:1 1 42%;}.gr_wzc{display:none;}}
 /* HOME, AS LUKE'S ARTIFACT HAS IT: a dashboard you read, not a screen you type into.
    His design hides the ask box outright -- .as-badge,.as-dock,#as-chips{display:none}
    -- so the first thing on the screen is the numbers, not a prompt. The three tiles
@@ -8874,9 +8957,9 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       <div class="nav-rail" id="railGrowth" data-navgroup-body="growth" data-role-min="manager" data-client-hidden>
         <div class="nav-pill" id="pillGrowth" style="opacity:0;"></div>
         <div class="nav-item" data-screen="gr_home" data-label="Home" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 7.2 8 2.5l5.5 4.7M4 6.6v7h8v-7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Home <span class="badge" id="grHomeBadge" style="display:none;">0</span></div>
+        <div class="nav-item" data-screen="gr_inbox" data-label="Inbox" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.2h12v7.6H2zM2.3 4.6 8 8.6l5.7-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Inbox <span class="badge" id="grInboxBadge" style="display:none;">0</span></div>
         <div class="nav-item" data-screen="gr_meetings" data-label="Meetings" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 3.8h11v10h-11zM2.5 6.6h11M5.5 2v2.6M10.5 2v2.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Meetings</div>
         <div class="nav-item" data-screen="gr_pipeline" data-label="Pipeline" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M6 5.2a2.2 2.2 0 100 4.4 2.2 2.2 0 000-4.4ZM1.8 13.4c.5-2.2 2.1-3.4 4.2-3.4s3.7 1.2 4.2 3.4M11 5.5a2.2 2.2 0 010 4M12.6 10.2c1.2.5 2 1.5 2.2 3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Pipeline</div>
-        <div class="nav-item" data-screen="gr_inbox" data-label="Growth Inbox" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.2h12v7.6H2zM2.3 4.6 8 8.6l5.7-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Growth Inbox <span class="badge" id="grInboxBadge" style="display:none;">0</span></div>
         <div class="nav-item" data-screen="gr_training" data-label="Training" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M3 3.6A1.6 1.6 0 014.6 2H13v11H4.6A1.6 1.6 0 003 14.6zM3 3.6v11M6 5.4h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Training</div>
         <div class="nav-item" data-screen="gr_analytics" data-label="Analytics" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M3 13V6.5M8 13V3M13 13V8.6M1.5 14.5h13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Analytics</div>
         <div class="nav-item" data-screen="gr_connectors" data-label="Connectors" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M6 2.6v2.6M10 2.6v2.6M4.6 5.2h6.8v2.6a3.4 3.4 0 01-6.8 0zM8 11.2v2.4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Connectors</div>
@@ -41744,6 +41827,41 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
        Automations configure the module for everybody, which is a different thing from
        using it. The database agrees separately -- growth_is_staff() gates the writes --
        so this is the sidebar matching what the rows already allow. */
+    /* AND CLOSED FOR ANYBODY NOT ON IT, whatever their role. The block below lets named
+       people IN below the floor; this is the other half, and without it the list could
+       only ever grow. Luke asked for Growth to be "you, me, Matthew and Annie" -- and
+       the two people that takes it away from are an owner and an in-house dev, both of
+       whom outrank the floor, so a role gate cannot express it at all.
+
+       THIS IS THE SIDEBAR, NOT THE DATA. growth_is_staff() still decides who the
+       database answers, and it is role-based, so somebody hidden here could still read
+       the tables if they went looking. That is the right size of fix for what was
+       asked -- tidying whose sidebar carries a module they do not use -- and it is
+       worth not mistaking it for a lock.
+
+       FAILS OPEN. No row, an empty row, or a read that errors leaves the role gate
+       exactly as it was. The opposite would mean one bad row locking the whole sales
+       team out of Growth, which is a worse day than Kristina seeing a tab. */
+    if (['owner', 'manager', 'inhouse_dev', 'growth'].includes(profile.role) && window.giantSupabase) {
+      window.giantSupabase.from('growth_settings').select('value').eq('key', 'access').maybeSingle()
+        .then(({ data }) => {
+          const ids = Array.isArray(data && data.value) ? data.value : null;
+          if (!ids || !ids.length || ids.includes(profile.id)) return;
+          document.querySelectorAll(
+            '[data-navgroup="growth"], [data-navgroup-body="growth"], [data-screen^="gr_"]'
+          ).forEach(el => { el.style.display = 'none'; });
+          /* Somebody whose last screen was a Growth one would otherwise land on a blank
+             page: the screen is hidden but still the active one. Send them home. */
+          const onGrowth = document.querySelector('.screen.on[data-screen^="gr_"]');
+          if (onGrowth) {
+            const first = document.querySelector('#appSidebar .nav-item:not([style*="display: none"])');
+            if (first) first.click();
+          }
+          window._grClosed = true;
+        })
+        .catch(() => { /* unreadable: leave the role gate alone rather than lock people out */ });
+    }
+
     if (!['owner', 'manager', 'inhouse_dev', 'growth'].includes(profile.role) && window.giantSupabase) {
       const GR_ADMIN_ONLY = ['gr_settings', 'gr_connectors', 'gr_automations'];
       window.giantSupabase.from('growth_settings').select('value').eq('key', 'access').maybeSingle()
@@ -96155,6 +96273,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      reopening on one of those would land you on a page with no way back in sight. A
      saved tab that no longer exists -- Practice, until yesterday -- falls back rather
      than rendering an empty screen. */
+  /* The mailbox the Growth Inbox is fed from, for the line on the screen that says so.
+     It must match MAILBOX in netlify/functions/growth-gmail.js, which is what actually
+     reads the mail; this copy only names it. An inbox that does not say which account
+     it is pointed at is one nobody can tell is pointed at the wrong one. */
+  const GR_MAILBOX = 'growth@reachgiant.com';
+
   const GR_TRAIN_TABS = ['course', 'clear', 'lib', 'qa'];
   let grTrainTab = (function () {
     try {
@@ -96639,10 +96763,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     };
     const base = off(grZone);
     const list = GR_ZONES;
-    /* An inner track, so the four cards are a fixed 820 wide block centred in whatever
-       space there is, rather than four cards stretched across the window. */
+    /* ONE STRIP, NOT FOUR CARDS, which is how Luke's has it. Four tiles 20px tall each
+       cost about 110px of the first screenful on a page whose job is the meetings
+       underneath them; the strip is 48px and says the same thing. The "5 hrs behind"
+       line is the one thing his strip drops, so it moves to the hover title rather than
+       disappearing -- it is what stops somebody booking a call at 3am their time. */
     return '<div class="gr_wclk" role="group" aria-label="Show times in">' +
       '<div class="gr_wclkin" style="--zn:' + list.length + '">' +
+      '<span class="gr_wcap">Times in</span>' +
       list.map(function (z) {
         const on = z[0] === grZone;
         let hour = 12, time = '';
@@ -96660,14 +96788,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
              : Math.abs(df) + (Math.abs(df) === 1 ? ' hr ' : ' hrs ') + (df > 0 ? 'ahead' : 'behind'));
         const tp = String(time).split(' ');
         return '<button type="button" class="gr_wz' + (on ? ' gr_wzon' : '') + '" style="--zc:' + z[3] +
-          '" data-gr-tz="' + esc(z[0]) + '" aria-pressed="' + on + '">' +
-          '<span class="gr_wzt">' + (z[2] ? '<span class="gr_wzf">' + z[2] + '</span>' : '') +
+          '" data-gr-tz="' + esc(z[0]) + '" aria-pressed="' + on + '"' +
+          ' title="' + esc(z[1] + ' \u00B7 ' + sub + (day ? ' \u00B7 ' + day : '')) + '">' +
+          (z[2] ? '<span class="gr_wzf">' + z[2] + '</span>' : '') +
           '<span class="gr_wzc">' + esc(z[1]) + '</span>' +
-          '<span class="gr_wzn">' + (hour >= 6 && hour < 19 ? '&#9728;' : '&#9790;') + '</span></span>' +
           // The am/pm goes in a <small> so the number itself reads big, the way the
           // design has it. A 24-hour locale simply has no second part.
           '<b>' + esc(tp[0]) + (tp[1] ? '<small>' + esc(tp[1]) + '</small>' : '') + '</b>' +
-          '<span class="gr_wzs">' + (day ? '<u>' + esc(day) + '</u> ' : '') + esc(sub) + '</span></button>';
+          (day ? '<u>' + esc(day) + '</u>' : '') + '</button>';
       }).join('') + '</div></div>';
   }
 
@@ -96850,6 +96978,31 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   })();
   let grWeekOff = 0, grMonthOff = 0, grSelDay = null;
 
+  /* SALES CALL OR ONBOARDING CALL, which Luke's Meetings screen splits on. Calendly now
+     carries two event types -- ReachGiant Growth Strategy Session and ReachGiant Kickoff
+     Call -- and they are two different jobs: one is a stranger you are selling to, the
+     other is a client you have already won and are starting.
+
+     DERIVED FROM THE TITLE, not stored. A column would have to be backfilled across 32
+     existing rows and then kept right by the sync, and it would still be guessing from
+     the same title on the way in. Reading it here means it works on every booking
+     already in the database, including the ones that arrived before anybody thought of
+     the split. m.kind is honoured first so a column can take over later without this
+     having to change. */
+  const GR_MKINDS = ['all', 'sales', 'onboard'];
+  const grKindOf = (m) => {
+    if (m.kind === 'onboarding' || m.kind === 'onboard') return 'onboard';
+    if (m.kind === 'sales') return 'sales';
+    return /kick ?off|onboard/i.test(String(m.title || '')) ? 'onboard' : 'sales';
+  };
+  const GR_KIND_SAY = { sales: 'Sales call', onboard: 'Onboarding call' };
+  let grMKind = (function () {
+    try {
+      const v = localStorage.getItem('giant.grMKind');
+      return GR_MKINDS.indexOf(v) === -1 ? 'all' : v;
+    } catch (e) { return 'all'; }
+  })();
+
   const grDayColour = d => {
     const a = new Date(d); a.setHours(0, 0, 0, 0);
     const n = new Date(); n.setHours(0, 0, 0, 0);
@@ -96877,6 +97030,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<span>' + esc((String(grHm(m.starts_at)).match(/[AP]M/i) || [''])[0]) +
         ' \u00B7 ' + (m.minutes || 45) + ' min</span></div>' +
       '<div class="gr_rm"><div class="gr_mn">' + esc(c ? c.name : m.title) +
+        /* Which kind of call, on the row itself. With the filter on All -- which is
+           where it starts -- the two kinds sit next to each other and nothing else on
+           the row tells them apart. */
+        '<span class="gr_kt gr_kt' + grKindOf(m) + '">' + esc(GR_KIND_SAY[grKindOf(m)]) + '</span>' +
         (m.source ? '<span class="gr_src">' + esc(m.source) + '</span>' : '') + '</div>' +
         '<span>' + esc(c && c.company ? c.company : m.title) +
           (c && c.email ? ' &middot; ' + esc(c.email) : '') + '</span></div>' +
@@ -97135,7 +97292,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   }
 
   function grRenderMeetings() {
-    const all = grMeetings.slice().sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+    /* Counted before the filter, because a filter that hides its own count is one you
+       cannot tell is on: "Sales calls 3" has to keep saying 3 while you are looking at
+       the three. */
+    const everything = grMeetings.slice().sort((a, b) => new Date(a.starts_at) - new Date(b.starts_at));
+    const liveOnes = everything.filter(m => !grDone(m));
+    const kindN = (k) => k === 'all' ? liveOnes.length
+      : liveOnes.filter(m => grKindOf(m) === k).length;
+    const all = grMKind === 'all' ? everything
+      : everything.filter(m => grKindOf(m) === grMKind);
     const up = all.filter(m => !grDone(m));
     const past = all.filter(grDone).reverse();
     const wkStart = (off) => {
@@ -97205,9 +97370,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             'Bookings land here once Calendly is connected.') + '</section>';
     }
 
+    /* Three buttons rather than a segmented strip, and centred, which is how Luke has
+       them. They are a bigger decision than the view tabs beside the title -- which
+       KIND of call you are looking at changes what the screen is for -- so they get the
+       weight rather than sharing a row with everything else. */
+    const kinds = '<div class="gr_mkr" role="group" aria-label="Which calls">' +
+      [['all', 'All meetings'], ['sales', 'Sales calls'], ['onboard', 'Onboarding']]
+        .map(k => '<button class="gr_mk gr_mk' + k[0] + (grMKind === k[0] ? ' on' : '') +
+          '" data-gr-mkind="' + k[0] + '" aria-pressed="' + (grMKind === k[0]) + '">' +
+          esc(k[1]) + '<b>' + kindN(k[0]) + '</b></button>').join('') + '</div>';
+
+    /* Clock first, then the title: Luke puts the strip above everything because it is
+       context for the times underneath, not a thing you act on. */
     $('grMeetings').innerHTML =
-      grHead('Meetings', up.length + ' upcoming \u00b7 ' + thisWeek + ' this week \u00b7 ' + past.length + ' done', seg) +
       grClockHtml() +
+      grHead('Meetings', up.length + ' upcoming \u00b7 ' + thisWeek + ' this week \u00b7 ' + past.length + ' done', seg) +
+      kinds +
       body;
   }
 
@@ -97594,7 +97772,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       .concat(emailedOnly)
       .sort((a, b) => new Date(b.at) - new Date(a.at));
 
-    const row = (x, act) => '<div class="gr_row" data-gr-open="' + x.c.id + '">' +
+    /* A chip per thing that is true about the row, in Luke's order: how new it is,
+       whether it is on us, and whether a draft is already waiting. Three small words
+       beat one long sentence here -- this is a list you scan, not read. */
+    const chip = (t, k) => '<span class="gr_ic ' + k + '">' + t + '</span>';
+    const rowChips = (x) => {
+      if (!x.last || x.last.direction !== 'in' || !grActive(x.c)) return '';
+      const fresh = (Date.now() - new Date(x.last.sent_at)) < 864e5;
+      const d = grDraftOf(x.c);
+      return '<span class="gr_ics">' +
+        chip(fresh ? 'New' : 'Needs reply', fresh ? 'new' : 'wait') +
+        (d ? chip('Draft ready', 'ready')
+           : (grDraftBusy[x.c.id] ? chip('Writing', 'busy') : '')) + '</span>';
+    };
+
+    const row = (x, act) => '<div class="gr_row' + (act ? ' gr_rneed' : '') +
+      '" data-gr-open="' + x.c.id + '">' +
       grAvatar(x.c.name, grStageColor(x.c.stage)) +
       '<div class="gr_rm"><div class="gr_rt"><b>' + esc(x.c.name) + '</b><time>' +
         esc(grAgo(grDaysAgo(x.at))) + '</time></div>' +
@@ -97603,35 +97796,45 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         /* No body to show, because the email was sent from somewhere this app cannot
            read. Say what IS known rather than printing an empty line. */
         : 'You emailed ' + esc(grFirst(x.c)) + (x.c.emails_sent > 1
-            ? ' \u00B7 ' + x.c.emails_sent + ' emails so far' : '')) +
-      '</div></div>' +
+            ? ' · ' + x.c.emails_sent + ' emails so far' : '')) +
+      '</div>' + rowChips(x) + '</div>' +
       (act ? '<button class="btn-red gr_sm" data-gr-act="' + x.c.id + '" data-t="reply">Reply</button>'
            : '<span class="gr_st ok">Waiting on them</span>') + '</div>';
 
     $('grInbox').innerHTML =
-      /* The way to the templates, from the screen where you use them. Replying is the
-         one job on this screen, a template is how you reply quickly, and the only door
-         to them was four clicks away under Settings. Staff only, because the panel is
-         -- grOpenSettings refuses a client outright, so a button here would otherwise
-         be one that does nothing. */
-      grHead('Growth Inbox', 'Replies from your clients, only what comes into this app',
-        grIsStaff()
-          ? '<div class="gr_hacts"><button class="btn-red" data-gr-tplbtn>&#9993; Email templates</button></div>'
-          : '') +
-      '<section class="gr_card"><div class="gr_ct"><h2>Your turn</h2>' +
-        (mine.length ? '<span class="gr_n hot">' + mine.length + '</span>' : '') + '</div>' +
+      /* Luke's header, which says three things ours did not: which mailbox this is,
+         how many are on you, and the way to the rules the drafts follow. The mailbox
+         line matters most -- an inbox that does not name its account is one nobody can
+         tell is pointed at the wrong place. */
+      grHead('Inbox',
+        mine.length
+          ? mine.length + ' waiting for your reply'
+          : 'Nothing is waiting on you',
+        (grIsStaff()
+          ? '<div class="gr_hacts">' +
+            '<button class="gr_ghost" data-gr-settab-open="reply">Reply settings</button>' +
+            '<button class="btn-red" data-gr-tplbtn>&#9993; Email templates</button></div>'
+          : '')) +
+      '<div class="gr_acct">Attached to <b>' + esc(GR_MAILBOX) + '</b>' +
+        (grIsStaff() ? '<button class="gr_acctg" data-gr-go="gr_connectors" ' +
+          'aria-label="Change the attached mailbox" title="Change the attached mailbox">' +
+          '&#9881;</button>' : '') + '</div>' +
+      '<section class="gr_card gr_pneed"><div class="gr_ct"><i class="gr_pdot g"></i>' +
+        '<h2>Needs your reply</h2>' +
+        '<span class="gr_n g">' + mine.length + '</span></div>' +
         (mine.length
           ? mine.map(x => row(x, true)).join('')
-          /* NOT a tick. A tick says you are on top of it; this screen cannot know that
-             yet, because replies are not matched back to deals. Saying so is the honest
-             empty state, and it stops being shown the moment one arrives. */
-          : grEmpty('&#9993;', 'No replies have reached this app yet',
-              'Replies are not matched to deals yet, so this stays empty even when somebody '
-              + 'has written back. Waiting on them below is built from the deals themselves.')) +
+          /* This used to say replies were not matched to deals yet, which stopped being
+             true on 20261105 when growth-gmail started filing them. An empty state that
+             explains a limit that no longer exists is worse than none: it tells somebody
+             not to expect the thing that now works. */
+          : grEmpty('&#10003;', 'Nothing waiting on you',
+              'Replies from ' + GR_MAILBOX + ' land here within ten minutes of arriving.')) +
       '</section>' +
       (wait.length
-        ? '<section class="gr_card"><div class="gr_ct"><h2>Waiting on them</h2>' +
-          '<span class="gr_n">' + wait.length + '</span></div>' +
+        ? '<section class="gr_card gr_pearl"><div class="gr_ct"><i class="gr_pdot o"></i>' +
+          '<h2>Earlier</h2>' +
+          '<span class="gr_n o">' + wait.length + '</span></div>' +
           wait.map(x => row(x, false)).join('') + '</section>'
         : '');
   }
@@ -98121,6 +98324,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const L = grLessons(), who = grWho(), done = grDoneSet(who), own = who === me();
     const n = L.filter(l => done[l.id]).length;
     const next = L.find(l => !done[l.id]);
+    /* THE NEXT LESSON IS ALREADY OPEN, as Luke's is. The screen opened with every
+       lesson collapsed, so the first thing it asked of somebody starting the course was
+       to work out where they were and click.
+
+       null and '' mean different things here on purpose: null is "nobody has chosen
+       yet", and '' is "they closed it". Collapsing them -- which the toggle used to do
+       -- makes the open lesson impossible to shut, because the next render reopens it. */
+    if (grLessonOpen === null && next) grLessonOpen = next.id;
     const p = grPerson(who);
     return grSub('Sales course', 'Learn to sell from your own calls. ' + L.length +
         ' short lesson' + (L.length === 1 ? '' : 's') + '.') +
@@ -100102,7 +100313,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       '<section class="gr_spanel"><h3>' + title + '</h3>' + inner + '</section>';
     const emailsHtml = (function () {
       let body;
-      body = th.length
+      /* Above the thread, because it is the thing to act on and the thread is the
+         context for it. Below, it would sit under however many messages there are. */
+      body = grDraftCard(c);
+      body += th.length
         ? th.map(m => '<div class="gr_bub ' + m.direction + '"><div class="gr_bh2"><b>' + (m.direction === 'in' ? esc(grFirst(c)) : 'You') + '</b><time>' + esc(grFmt(m.sent_at)) + '</time></div><p>' + esc(m.body) + '</p></div>').join('')
         : '<p class="gr_mute">No emails yet.</p>';
       body += '<div class="gr_acts"><button class="btn-red" data-gr-act="' + c.id + '" data-t="' + (na ? na.t : 'followup') + '">Write an email</button></div>';
@@ -100568,6 +100782,112 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   /* Write it, or rewrite what is there. Same endpoint Home already uses for the batch of
      follow ups. It never sends -- it fills the box and says to read it first. */
+  /* --- The reply that is already written when you open the email -------------------
+     Luke's version of this screen has the draft waiting: "Draft reply, ready. Not sent.
+     Read it, then send." Ours had a button you press and then watch. The difference is
+     not the model, it is WHEN and WHERE the writing happens.
+
+     WHEN: on opening a deal whose last message is theirs and unanswered. Not on every
+     render, not on a timer, and never for a deal nobody is looking at -- a background
+     pass over the pipeline would be a model call per deal for drafts most of which
+     nobody will read.
+
+     WHERE: on the deal row, not in the page. In memory it would cost a call every time
+     anybody opens the deal, and Annie would never see the one Luke's session already
+     paid for. On the row it is written once per incoming message and whoever opens it
+     next reads it.
+
+     AND IT CAN GO STALE, which is the part worth being careful about. A draft answering
+     Tuesday's question is wrong the moment Thursday's arrives, and a confident reply to
+     a settled question is worse than no reply at all. The draft carries the id of the
+     message it answers; when that stops being the latest inbound one the card
+     disappears and the next open writes a new one. */
+  let grDraftBusy = {}, grDraftErr = {};
+
+  const grDraftOf = (c) => {
+    const li = grLastIn(c), d = c && c.reply_draft;
+    return (li && d && d.body && d.msg_id === li.id) ? d : null;
+  };
+
+  async function grMakeDraft(c, force) {
+    const li = grLastIn(c);
+    if (!li || grDraftBusy[c.id]) return;
+    if (!force && grDraftOf(c)) return;
+    grDraftBusy[c.id] = true; delete grDraftErr[c.id]; grRender();
+
+    const th = grThread(c).slice(-6).map(m =>
+      (m.direction === 'in' ? grFirst(c) : 'Luke') + ': ' + grSnip(m.body, 800)).join('\n\n');
+    const sub = String(li.subject || 'our chat').replace(/^(re:\s*)+/i, '');
+    try {
+      const res = await fetch('/.netlify/functions/claude-api', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          max_tokens: 700,
+          /* The same house rules the composer uses. Two prompts would mean a drafted
+             reply and a written one sounding like different people, which is the thing
+             Reply style exists to stop. */
+          system: 'You write short sales emails for a marketing agency.\n\n' +
+            'HOUSE STYLE. Follow these exactly.\n' + grReplyRules() + '\n\n' +
+            'ALWAYS, whatever the style above says: start "Hi ' + grFirst(c) + '," on its ' +
+            'own line. Do not add a signature, one is added for you. Never invent a price, ' +
+            'a date or a result that is not given to you; if something is missing, say it ' +
+            'is coming shortly. Answer what they actually asked, first. Return ONLY the ' +
+            'email body.',
+          messages: [{ role: 'user', content:
+            'Reply to ' + grFirst(c) + (c.company ? ' at ' + c.company : '') + '.\n' +
+            'Where it stands: ' + grStageLabel(c.stage) + '\n' +
+            (c.summary ? 'What we know: ' + grSnip(c.summary, 300) + '\n' : '') +
+            '\nThe conversation, newest last:\n' + th }]
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'AI error');
+      const body = String(data.text || '').trim().replace(/[–—]/g, ',');
+      if (!body) throw new Error('nothing came back');
+      await grSave(c, { reply_draft: { msg_id: li.id, subject: 'Re: ' + sub,
+                                       body: body, at: new Date().toISOString() } });
+    } catch (e) {
+      /* Said on the card, not swallowed. A draft that silently never appears is
+         indistinguishable from a deal that needs no reply. */
+      grDraftErr[c.id] = String((e && e.message) || e).slice(0, 110);
+    }
+    delete grDraftBusy[c.id]; grRender();
+  }
+
+  function grDraftCard(c) {
+    const li = grLastIn(c);
+    if (!li) return '';
+    const f = esc(grFirst(c));
+    if (grDraftBusy[c.id]) {
+      return '<div class="gr_draft"><div class="gr_drk"><i class="gr_drsp"></i>Writing a reply to '
+        + f + '...</div><div class="gr_drsk"><i></i><i></i><i></i></div></div>';
+    }
+    if (grDraftErr[c.id]) {
+      return '<div class="gr_draft"><div class="gr_drk">Draft reply</div>' +
+        '<p class="gr_mute">Could not write it. ' + esc(grDraftErr[c.id]) + '</p>' +
+        '<div class="gr_dra"><button class="btn-red gr_sm" data-gr-draft="again" data-id="' + c.id +
+        '">Try again</button><button class="gr_ghost gr_sm" data-gr-draft="mine" data-id="' + c.id +
+        '">Write it myself</button></div></div>';
+    }
+    const d = grDraftOf(c);
+    if (!d) {
+      return '<div class="gr_draft"><div class="gr_drk">Draft reply</div>' +
+        '<p class="gr_mute">Nothing drafted for ' + f + '’s latest message yet.</p>' +
+        '<div class="gr_dra"><button class="btn-red gr_sm" data-gr-draft="again" data-id="' + c.id +
+        '">Write a draft</button></div></div>';
+    }
+    /* "Not sent" on the card itself, where the Send button is, rather than in a tooltip
+       or a line of help nobody reads. The whole risk of a ready-written reply is
+       somebody assuming it already went. */
+    return '<div class="gr_draft on"><div class="gr_drt"><span class="gr_drk">Draft reply, ready</span>' +
+      '<span class="gr_drn">Not sent. Read it, then send.</span></div>' +
+      '<div class="gr_drb">' + esc(d.body).replace(/\n/g, '<br>') + '</div>' +
+      '<div class="gr_dra"><button class="btn-red gr_sm" data-gr-draft="edit" data-id="' + c.id +
+      '">Edit and send</button>' +
+      '<button class="gr_ghost gr_sm" data-gr-draft="again" data-id="' + c.id + '">Regenerate</button>' +
+      '<button class="gr_ghost gr_sm" data-gr-draft="copy" data-id="' + c.id + '">Copy</button></div></div>';
+  }
+
   async function grAiWrite(mode) {
     const k = grComposer;
     if (!k || k.ai) return;
@@ -101042,6 +101362,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const go = e.target.closest('[data-gr-go]');
     if (go) { const n = document.querySelector('.nav-item[data-screen="' + go.dataset.grGo + '"]'); if (n) n.click(); return; }
 
+    /* Straight to one tab of the settings panel. Reply settings is reached from the
+       Inbox because that is where you notice the drafts need changing, and making
+       somebody open Settings and then find the tab is three clicks to fix a tone. */
+    const sto = e.target.closest('[data-gr-settab-open]');
+    if (sto) { grSetTab = sto.dataset.grSettabOpen; grOpenSettings(); return; }
+
     const add = e.target.closest('#grAddClient') || e.target.closest('#grAddClient2');
     if (add) { grAddClient(); return; }
 
@@ -101283,6 +101609,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       try { localStorage.setItem('giant.grMView', grMView); } catch (e) { /* private window */ }
       grRender(); return;
     }
+    /* Remembered the same way the view is, and for the same reason: somebody who only
+       ever runs onboarding calls should not have to pick Onboarding every time they
+       open the screen. */
+    const mk = e.target.closest('[data-gr-mkind]');
+    if (mk) {
+      grMKind = mk.dataset.grMkind;
+      try { localStorage.setItem('giant.grMKind', grMKind); } catch (e) { /* private window */ }
+      grRender(); return;
+    }
     const mn = e.target.closest('[data-gr-mnav]');
     if (mn) {
       const d = +mn.dataset.grMnav;
@@ -101493,7 +101828,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
     const les = e.target.closest('[data-gr-lesson]');
     if (les) {
-      grLessonOpen = grLessonOpen === les.dataset.grLesson ? null : les.dataset.grLesson;
+      // '' rather than null: see grCourseHtml. null would be reopened on the next paint.
+      grLessonOpen = grLessonOpen === les.dataset.grLesson ? '' : les.dataset.grLesson;
       grEditT = null; grRender(); return;
     }
     const ld = e.target.closest('[data-gr-lesson-done]');
@@ -101642,6 +101978,35 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // absorbed it rather than a blank screen.
       grSetTab = st.dataset.grSettab === 'discounts' ? 'templates' : st.dataset.grSettab;
       grEdit = null; grDcEdit = null; grRender(); return;
+    }
+
+    const dft = e.target.closest('[data-gr-draft]');
+    if (dft) {
+      const dc = grClients.find(x => x.id === dft.dataset.id);
+      if (!dc) return;
+      const act = dft.dataset.grDraft, d = grDraftOf(dc);
+      if (act === 'again') { grMakeDraft(dc, true); return; }
+      if (act === 'copy') {
+        if (!d) return;
+        /* Fails quietly on an insecure origin and in a few browsers, so say which
+           happened rather than leaving a button that looks ignored. */
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(d.body)
+            .then(() => grToast('Draft copied'), () => grToast('Could not copy. Select the text instead.'));
+        } else grToast('Could not copy. Select the text instead.');
+        return;
+      }
+      if (act === 'edit' || act === 'mine') {
+        grStartComposer(dc, 'reply');
+        if (act === 'edit' && d && grComposer) {
+          grComposer.subject = d.subject || grComposer.subject;
+          grComposer.body = d.body;
+          grComposer.status = 'Written from your reply style. Read it, change anything, then send.';
+        }
+        grRender();
+        return;
+      }
+      return;
     }
 
     /* Tone and length are buttons rather than a dropdown, because there are four of one
@@ -101986,6 +102351,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grMeetId = null;
       grOpenId = open.dataset.grOpen; grTab = 'overview'; grComposer = null;
       grRender();
+      /* AFTER the render, not before: opening the deal has to be instant, and the
+         draft fills itself in behind. Only when they are actually waiting on us and
+         there is no usable draft already -- grMakeDraft decides both, so no caller
+         has to remember the rule. */
+      const oc = grClients.find(x => x.id === grOpenId);
+      if (oc) grMakeDraft(oc, false);
       return;
     }
   });

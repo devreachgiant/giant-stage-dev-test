@@ -78,9 +78,9 @@ python3 tools_newchat_parse.py          # syntax of all 14 script blocks     ~1s
 python3 tools_newchat_audit.py          # cross-screen id leaks             ~7s
 python3 tools_newchat_isolation.py      # old chat vs New Chat separation   <1s
 node tools_newchat_clickthrough.mjs     # ~372 checks, drives a real browser ~6m
-node tools_growth_check.mjs             # ~368 checks, Growth only          ~2m
+node tools_growth_check.mjs             # 421 checks, Growth only          ~3m
 node tools_growth_zoom_check.mjs        # 70 checks, the Zoom connector     ~1s
-node tools_growth_calendly_check.mjs    # 25 checks, the Calendly sync      ~1s
+node tools_growth_calendly_check.mjs    # 29 checks, the Calendly sync      ~1s
 node tools_growth_gmail_check.mjs       # 24 checks, mail -> deal matching   ~1s
 ```
 
@@ -100,6 +100,15 @@ transcript of the call.
 what no screen can show: a booking from somebody nobody tracks now **opens a deal**, one
 per email rather than one per booking (the same person books more than once), skipping
 our own domain. Run it whenever you touch that function.
+
+Since 20261105 it also covers the **second Calendly event type**. Luke turned on a
+ReachGiant Kickoff Call beside the Growth Strategy Session, and a kickoff is not a lead
+— it is somebody who has already paid, being started. Opening a deal from one puts a
+client you have already won back at the top of the pipeline as a fresh prospect, and the
+only thing that was stopping it was the booking happening to match an existing deal by
+email, which is exactly what fails when they book from a different address. **Zero
+kickoffs have ever been booked**, so no screen can show you any of this; the checks are
+the only place it exists.
 
 `tools_growth_gmail_check.mjs` is the same shape again, for `growth-gmail.js`, which is
 what finally puts rows in the Growth Inbox. It covers three things a screen cannot show:

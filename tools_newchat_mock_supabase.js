@@ -546,6 +546,20 @@
       starts_at: new Date(Date.now() + 26 * 3600e3).toISOString(), minutes: 30, actual_min: null,
       zoom_url: 'https://us06web.zoom.us/j/555', source: 'Zoom', brief: '', brief_at: null,
       external_id: 'zoom:555', created_at: giso(1, 0), invitee: null },
+    /* The second Calendly event type, which Luke turned on in November: an onboarding
+       call for somebody already won, not a sales call with a stranger. There is one of
+       each kind here on purpose -- Meetings splits on it, and a fixture of one shape
+       would pass just as well against code that never split anything. Production has
+       never had one of these, so this is the only place the split can be exercised at
+       all until the first kickoff is booked. */
+    /* On gc-5, which already has an earlier meeting booked, so adding this one does not
+       change what any deal CARD says. Hung on gc-1 it quietly broke a Pipeline check:
+       a card shows its next meeting ahead of its next action, so Michael Cash stopped
+       saying "Send proposal" -- the card was right and the fixture was wrong. */
+    { id: 'gm-7', client_id: 'gc-5', title: 'ReachGiant Kickoff Call',
+      starts_at: new Date(Date.now() + 30 * 3600e3).toISOString(), minutes: 55, actual_min: null,
+      zoom_url: 'https://us06web.zoom.us/j/777', source: 'Calendly', brief: '', brief_at: null,
+      external_id: 'ext-7', created_at: giso(1, 0), invitee: null },
     /* TWO FINISHED CALLS, because the block has to tell them apart and a fixture where
        every past call carried a recording would pass just as well on code that drew the
        Watch link unconditionally.
