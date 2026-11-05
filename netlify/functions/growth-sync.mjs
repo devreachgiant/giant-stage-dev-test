@@ -10,15 +10,15 @@
 //   Calendly bookings   pulled in, attached to the matching deal by email address.
 //                       Shares runSync() with the Sync now button, so there is one
 //                       implementation rather than two that drift.
-//   Gmail replies       NOT done here -- but no longer for the reason this comment
-//                       used to give. It said a server cannot renew a Gmail token on
-//                       its own, which was true while the browser got tokens through
-//                       Google's implicit flow: an hour of access and nothing to renew
-//                       it with. Gmail uses the authorization code flow now and
-//                       gmail_tokens holds a refresh token, so a server CAN. The
-//                       mailbox itself is synced by gmail-sync (every ten minutes);
-//                       what is still missing is the Growth-specific part -- matching
-//                       replies back to deals -- not the ability to read mail.
+//   Gmail replies       matched back to the deal they belong to. The mailbox itself is
+//                       pulled in by gmail-sync on its own ten-minute schedule; this
+//                       step is only the Growth-specific half -- deciding which of
+//                       those messages belong to which deal and copying those into
+//                       growth_messages, where the whole sales team can read them.
+//                       Two earlier versions of this comment explained why it could
+//                       not be done: first that a server cannot renew a Google token
+//                       (untrue since Gmail moved to the authorization code flow), then
+//                       that the matching was missing (true until 20261105).
 //   Zoom recordings     pulled in, with the transcript and Zoom's own summary where
 //                       there is one, attached to the call they belong to by Zoom
 //                       meeting number. Shares runRecordingSync() with the Sync
@@ -31,6 +31,7 @@
 
 import cal from './growth-calendly.js';
 import zoom from './growth-zoom.js';
+import gmail from './growth-gmail.js';
 
 const SUPA = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -119,9 +120,27 @@ export default async () => {
                  said: String((e && e.hint) || (e && e.message) || e).slice(0, 180) });
   }
 
-  // ---------------------------------------------------------------- the rest, honestly
-  steps.push({ k: 'gmail', label: 'Gmail replies', ok: null,
-               said: 'Not set up. The stored Google token lasts an hour and cannot be renewed from a server.' });
+  // ---------------------------------------------------------------- Gmail replies
+  /* No date window, unlike the two steps above. This one filters by deal address
+     rather than by date, so a full pass returns only what matched -- see the long
+     note at the top of growth-gmail.js. */
+  try {
+    const r = await gmail.runMessageSync();
+    steps.push({
+      k: 'gmail', label: 'Gmail replies', ok: r.ok ? true : null,
+      said: r.ok
+        ? (r.matched
+            ? r.matched + ' message' + (r.matched === 1 ? '' : 's') + ' on ' + r.deals
+              + ' deal' + (r.deals === 1 ? '' : 's')
+              + ' (' + r.inbound + ' in, ' + r.outbound + ' out)'
+            : r.note)
+        : r.note
+    });
+  } catch (e) {
+    ok = false;
+    steps.push({ k: 'gmail', label: 'Gmail replies', ok: false,
+                 said: String((e && e.message) || e).slice(0, 180) });
+  }
 
   /* The note quoted Calendly alone, which was right while Calendly was the only step
      that did anything. With recordings in here, a run that pulled a call in and said
