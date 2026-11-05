@@ -6690,6 +6690,13 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_fu>span{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-weight:700;}
 .gr_chip{background:var(--surface-3);border:0;border-radius:99px;padding:8px 15px;font:inherit;font-size:12.5px;font-weight:600;color:var(--text);cursor:pointer;}
 .gr_chip:hover{background:var(--line-2);}
+/* THE CHOSEN ONE HAS TO LOOK CHOSEN. gr_chip had no selected rule at all, so Reply
+   style shipped its first screenshot with Warm and Under 60 words carrying
+   aria-pressed="true" and looking identical to the three beside them -- correct to a
+   checker reading attributes, unreadable to a person. Inverted the way .gr_rcf does it
+   rather than a tint, because a tint in dark mode is the difference this missed. */
+.gr_chip[aria-pressed="true"]{background:var(--text);color:var(--bg);}
+.gr_chip[aria-pressed="true"]:hover{background:var(--text);}
 .gr_note{background:var(--surface);border-radius:14px;padding:14px 16px;}
 .gr_note>span{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--text-3);font-weight:700;}
 .gr_note p{margin:6px 0 0;font-size:14px;line-height:1.6;}
@@ -6749,6 +6756,11 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 @media(max-width:560px){.gr_two{grid-template-columns:1fr;}}
 .gr_field{display:flex;flex-direction:column;gap:5px;}
 .gr_field label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--text-3);font-weight:700;}
+/* A hint inside a field label. Without this it inherits the label's uppercasing and
+   letter-spacing while keeping gr_mute's 13px, so the aside came out LARGER and louder
+   than the word it explains: "TONE HOW IT SOUNDS", with the hint shouting. */
+.gr_field label .gr_mute{font-size:10.5px;text-transform:none;letter-spacing:0;
+  font-weight:500;opacity:.72;}
 .gr_field input,.gr_field select,.gr_field textarea{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--text);font:inherit;font-size:13.5px;width:100%;}
 .gr_field textarea{min-height:90px;resize:vertical;}
 .gr_acts{display:flex;gap:9px;flex-wrap:wrap;align-items:center;}
@@ -99595,6 +99607,85 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       '</div></div>';
   }
 
+  /* --- Reply style: one voice for every drafted email ---------------------------
+     Asked for by Luke, who built the same panel in his own CRM and called it Reply
+     settings. The point is not that the model can write; it already could. The point is
+     that whoever presses the button gets the SAME email a different person on the team
+     would have got, because the rules live in one row rather than in whoever is typing.
+
+     Stored under growth_settings.reply_style, so a manager changes the house voice
+     without a deploy and everybody's next draft follows it. Kept deliberately small:
+     these are the seven things Luke actually asked for, and a settings screen with
+     twenty knobs is one nobody sets. */
+  const GR_REPLY_DEF = {
+    tone: 'warm', length: 'short', signoff: 'Best, Luke',
+    voice: '', always: '', steps: '',
+    /* Seeded rather than blank, because the dashes are the giveaway this repo keeps
+       fighting and an empty box teaches nobody that. */
+    never: 'Never use dashes. No bullet points. No emojis.'
+  };
+  const GR_TONES = [['warm','Warm'],['direct','Direct'],['casual','Casual'],['formal','Formal']];
+  const GR_LENS = [['short','Under 60 words'],['medium','Under 100 words'],['long','Under 160 words']];
+  const GR_TONE_SAY = { warm: 'warm and friendly', direct: 'direct and to the point',
+                        casual: 'relaxed and casual', formal: 'polite and formal' };
+  const GR_LEN_SAY = { short: 'under 60 words', medium: 'under 100 words', long: 'under 160 words' };
+
+  const grReplyCfg = () => Object.assign({}, GR_REPLY_DEF, grSettings.reply_style || {});
+
+  /* The settings as a prompt fragment. Only the boxes somebody filled in are sent: an
+     empty rule written out as "Always cover: (not set)" is still an instruction, and
+     the model does something with it. */
+  function grReplyRules() {
+    const r = grReplyCfg(), out = [];
+    out.push('Tone: ' + (GR_TONE_SAY[r.tone] || GR_TONE_SAY.warm) + '.');
+    out.push('Length: ' + (GR_LEN_SAY[r.length] || GR_LEN_SAY.short) + '.');
+    if (String(r.signoff || '').trim()) out.push('Sign off with: ' + r.signoff.trim());
+    const block = (label, v) => {
+      const t = String(v || '').trim();
+      if (t) out.push(label + '\n' + t);
+    };
+    block('Language he uses, copy this style:', r.voice);
+    block('Always cover:', r.always);
+    block('Never:', r.never);
+    block('Steps for each reply:', r.steps);
+    return out.join('\n');
+  }
+
+  function grReplyPart() {
+    const r = grReplyCfg();
+    const chips = (key, opts) => '<div class="gr_chips">' + opts.map(o =>
+      '<button class="gr_chip' + (r[key] === o[0] ? ' on' : '') + '" data-gr-reply-set="' + key +
+      '" data-v="' + o[0] + '" aria-pressed="' + (r[key] === o[0]) + '">' + esc(o[1]) +
+      '</button>').join('') + '</div>';
+    const area = (key, label, hint, ph, rows) =>
+      '<div class="gr_field"><label for="grRep' + key + '">' + esc(label) +
+      (hint ? ' <span class="gr_mute">' + esc(hint) + '</span>' : '') + '</label>' +
+      '<textarea id="grRep' + key + '" class="gr_in" rows="' + (rows || 3) +
+      '" data-gr-reply="' + key + '" placeholder="' + esc(ph) + '">' + esc(r[key] || '') +
+      '</textarea></div>';
+    return '<section class="gr_card"><div class="gr_ct"><h2>Reply style</h2>' +
+      '<span class="gr_n2">Every drafted email follows these</span></div>' +
+      '<p class="gr_mute">Nothing sends by itself. This only decides how a draft is ' +
+      'written, so you still read it before it goes.</p>' +
+      '<div class="gr_field"><label>Tone <span class="gr_mute">how it sounds</span></label>' +
+        chips('tone', GR_TONES) + '</div>' +
+      '<div class="gr_field"><label>Length <span class="gr_mute">how long each reply is</span></label>' +
+        chips('length', GR_LENS) + '</div>' +
+      '<div class="gr_field"><label for="grRepsignoff">Sign off ' +
+        '<span class="gr_mute">last line of every reply</span></label>' +
+        '<input id="grRepsignoff" class="gr_in" data-gr-reply="signoff" value="' +
+        esc(r.signoff || '') + '" placeholder="Best, Luke"></div>' +
+      area('voice', 'Your language', 'paste replies you like, drafts copy this style',
+           'Hey Michael, great chat today. Here is what I would do next...', 4) +
+      area('always', 'Always cover', 'points every reply should hit',
+           'Their goal. One clear next step.', 3) +
+      area('never', 'Never', 'things a draft must not do',
+           'Never use dashes. No bullet points. No emojis.', 2) +
+      area('steps', 'Steps', 'how to write each reply, in order',
+           '1. Answer their question first. 2. Keep it short. 3. End with one next step.', 3) +
+      '</section>';
+  }
+
   function grSigPart() {
     const sig = grSettings.signature || {};
     const f = function (k, label, ph) {
@@ -99652,7 +99743,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
        of -- renaming one in a settings screen meant leaving the thing you were looking
        at to change it. Everything it could do, the board can do now. */
     const tabs = [['templates','Templates'],['new','+ New template'],['master','Package master'],
-                  ['email','Codes & signature'],['team','Team']];
+                  ['reply','Reply style'],['email','Codes & signature'],['team','Team']];
     if (tabs.map(function (t) { return t[0]; }).indexOf(grSetTab) < 0) grSetTab = 'templates';
     let body = '';
 
@@ -99664,6 +99755,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
     } else if (grSetTab === 'master') {
       body = grMasterPart();
+
+    } else if (grSetTab === 'reply') {
+      body = grReplyPart();
 
     } else if (grSetTab === 'email') {
       body = grDiscPart() + grSigPart() + grTestToPart();
@@ -100494,11 +100588,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           max_tokens: 700,
-          system: 'You write short sales emails for a marketing agency. Plain words, relaxed, ' +
-            'human. No dashes of any kind. No salesy phrases. 4 to 7 short lines. Start ' +
-            '"Hi ' + grFirst(c) + '," and end with "Best," on its own line. Do not add a ' +
-            'signature, one is added for you. Never invent a price, a date or a result that ' +
-            'is not given to you. Return ONLY the email body.',
+          /* THE HOUSE RULES COME FROM THE DATABASE, not from this string. They used to be
+           written here, which meant the voice of every drafted email was a deploy away
+           and the person who wanted it changed could not change it. grReplyRules() is
+           the Reply style tab under Settings. What stays hardcoded is only what is true
+           whatever the style says: no invented facts, no signature, body only. */
+        system: 'You write short sales emails for a marketing agency.\n\n' +
+            'HOUSE STYLE. Follow these exactly.\n' + grReplyRules() + '\n\n' +
+            'ALWAYS, whatever the style above says: start "Hi ' + grFirst(c) + '," on its ' +
+            'own line. Do not add a signature, one is added for you. Never invent a price, ' +
+            'a date or a result that is not given to you; if something is missing, say it ' +
+            'is coming shortly. Return ONLY the email body.',
           messages: [{ role: 'user', content: rewrite
             ? ADJ[mode] + '\n\nHere is the email:\n' + k.body
             : 'Write a ' + (k.t || 'follow up') + ' email.\n' +
@@ -101544,6 +101644,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grEdit = null; grDcEdit = null; grRender(); return;
     }
 
+    /* Tone and length are buttons rather than a dropdown, because there are four of one
+       and three of the other and you choose once. They save on the press -- the text
+       boxes beside them save on blur, which a button never has. */
+    const rset = e.target.closest('[data-gr-reply-set]');
+    if (rset) {
+      const cfg = Object.assign({}, grReplyCfg());
+      cfg[rset.dataset.grReplySet] = rset.dataset.v;
+      grSetting('reply_style', cfg).then(function (r) { if (!r) window.grReload(); });
+      return;
+    }
+
     /* The same three stage edits, reached from the board instead of Settings. They call
        the same grSaveStages and grStageDel, so there is one rule about what a stage is
        and where its deals go, wherever you happen to be standing. */
@@ -102067,6 +102178,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       const patch = d.grDiscCode ? { code: e.target.value.trim() || x.code } : { label: e.target.value };
       Object.assign(x, patch);
       grWrite('growth_discounts', 'update', patch, did);
+      return;
+    }
+    if (d.grReply) {
+      const cfg = Object.assign({}, grReplyCfg());
+      cfg[d.grReply] = e.target.value;
+      grSetting('reply_style', cfg).then(function (r) { if (!r) window.grReload(); });
       return;
     }
     if (d.grSig) {

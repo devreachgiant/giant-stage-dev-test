@@ -2643,8 +2643,8 @@ await step('Settings opens over the screen instead of becoming one', async () =>
   check('and leaves you on the screen you were already on',
     o.behind === before && before === 'gr_pipeline',
     JSON.stringify({ before: before, after: o.behind }));
-  check('with Templates, New, Package master, Codes and Team',
-    o.tabs.join(' | ') === 'Templates | + New template | Package master | Codes & signature | Team',
+  check('with Templates, New, Package master, Reply style, Codes and Team',
+    o.tabs.join(' | ') === 'Templates | + New template | Package master | Reply style | Codes & signature | Team',
     JSON.stringify(o.tabs));
 
   // Team is the half that had to survive the move.
@@ -2756,8 +2756,8 @@ await step('package emails are built from one master, not written six times', as
     boxed: (() => { const r = document.querySelector('.gr_tplr');
       return r ? Math.round(r.getBoundingClientRect().height) : 0; })()
   }));
-  check('the panel carries all five tabs',
-    g.tabs.join(' | ') === 'Templates | + New template | Package master | Codes & signature | Team',
+  check('the panel carries all six tabs',
+    g.tabs.join(' | ') === 'Templates | + New template | Package master | Reply style | Codes & signature | Team',
     JSON.stringify(g.tabs));
   /* The fixture is one of each kind on purpose: a list of one shape proves nothing about
      a split, and would pass just as well on code that never split anything. */
@@ -3211,6 +3211,119 @@ await step('the tab you chose survives a reload', async () => {
   check('a value that is not a tab falls back to Upcoming rather than painting nothing',
     after.tab === 'up' && after.rows > 0, JSON.stringify(after));
   await page.evaluate(() => { try { localStorage.removeItem('giant.grMView'); } catch (e) {} });
+});
+
+await step('Reply style decides how every draft is written', async () => {
+  /* Asked for by Luke, who built the same panel in his own CRM. The voice of a drafted
+     email used to be a string inside grAiWrite, which meant the person who wanted it
+     changed could not change it and nobody could tell what the rules even were.
+
+     The trap this check exists to avoid: saving the row and never reading it. A settings
+     screen that stores a tone the writer ignores looks completely correct from the
+     outside -- the chip lights up, the row is in the database -- and changes nothing
+     about a single email. So the last two checks read the prompt that actually leaves
+     the browser, not the row that was saved. */
+  await screen('gr_settings');
+  await page.evaluate(() => document.querySelector('[data-gr-settab="reply"]')?.click());
+  await page.waitForTimeout(900);
+
+  const panel = await page.evaluate(() => {
+    const chips = [...document.querySelectorAll('[data-gr-reply-set]')];
+    const box = (k) => document.querySelector('[data-gr-reply="' + k + '"]');
+    const size = (el) => { const r = el.getBoundingClientRect();
+      return { w: Math.round(r.width), h: Math.round(r.height) }; };
+    return {
+      tones: chips.filter(c => c.dataset.grReplySet === 'tone').map(c => c.textContent.trim()),
+      lens: chips.filter(c => c.dataset.grReplySet === 'length').length,
+      /* Measured, not counted. A chip the stylesheet collapsed is in the DOM and
+         unpressable, which is the shape of bug this repo keeps shipping. */
+      smallest: chips.length ? Math.min(...chips.map(c => size(c).w)) : 0,
+      shortest: chips.length ? Math.min(...chips.map(c => size(c).h)) : 0,
+      boxes: ['voice', 'always', 'never', 'steps', 'signoff'].filter(k => !!box(k)),
+      pressed: chips.filter(c => c.getAttribute('aria-pressed') === 'true')
+                    .map(c => c.dataset.grReplySet + '=' + c.dataset.v)
+    };
+  });
+  check('the panel offers four tones and three lengths',
+    panel.tones.length === 4 && panel.lens === 3, JSON.stringify(panel.tones));
+  check('every chip is big enough to press',
+    panel.smallest > 40 && panel.shortest > 14,
+    JSON.stringify({ w: panel.smallest, h: panel.shortest }));
+  check('and all five written rules have a box',
+    panel.boxes.length === 5, panel.boxes.join(','));
+  check('one tone and one length start chosen, so a draft is never styleless',
+    panel.pressed.length === 2, panel.pressed.join(','));
+
+  /* AND IT LOOKS CHOSEN. The check above reads aria-pressed, which is exactly what let
+     the first version through: gr_chip had no selected rule at all, so Warm and Under
+     60 words were marked chosen in the DOM and painted identically to the three beside
+     them. Correct to anything reading attributes, unreadable to a person. Compare the
+     colours actually computed, the way an eye would. */
+  const look = await page.evaluate(() => {
+    const chips = [...document.querySelectorAll('[data-gr-reply-set="tone"]')];
+    const on = chips.find(c => c.getAttribute('aria-pressed') === 'true');
+    const off = chips.find(c => c.getAttribute('aria-pressed') !== 'true');
+    if (!on || !off) return null;
+    const g = (el) => { const s = getComputedStyle(el);
+      return { bg: s.backgroundColor, fg: s.color }; };
+    return { on: g(on), off: g(off) };
+  });
+  check('and the chosen chip is visibly different from the others',
+    !!look && (look.on.bg !== look.off.bg || look.on.fg !== look.off.fg),
+    JSON.stringify(look));
+
+  await page.evaluate(() =>
+    document.querySelector('[data-gr-reply-set="tone"][data-v="direct"]')?.click());
+  await page.waitForTimeout(1200);
+  const picked = await page.evaluate(() => ({
+    row: ((window.__mockDB.growth_settings || []).find(x => x.key === 'reply_style') || {}).value || null,
+    on: [...document.querySelectorAll('[data-gr-reply-set="tone"]')]
+          .filter(c => c.getAttribute('aria-pressed') === 'true').map(c => c.dataset.v)
+  }));
+  /* Both sides. The row alone would pass with a screen that never repainted, and the
+     screen alone would pass with nothing saved. */
+  check('choosing a tone saves it and lights only that one',
+    picked.row && picked.row.tone === 'direct' && picked.on.join(',') === 'direct',
+    JSON.stringify({ saved: picked.row && picked.row.tone, on: picked.on }));
+
+  const NEVER = 'Never mention the weather.';
+  await page.fill('[data-gr-reply="never"]', NEVER);
+  await page.evaluate(() => document.querySelector('[data-gr-reply="never"]')
+    ?.dispatchEvent(new Event('change', { bubbles: true })));
+  await page.waitForTimeout(1200);
+  const typed = await page.evaluate(() =>
+    ((window.__mockDB.growth_settings || []).find(x => x.key === 'reply_style') || {}).value || null);
+  check('typing a rule saves it without losing the tone beside it',
+    typed && typed.never === 'Never mention the weather.' && typed.tone === 'direct',
+    JSON.stringify(typed && { never: typed.never, tone: typed.tone }));
+
+  /* THE ONE THAT MATTERS. Everything above proves the panel works. This proves the
+     panel is connected to anything. */
+  let sysSeen = null;
+  await page.route('**/claude-api', r => {
+    try { sysSeen = (r.request().postDataJSON() || {}).system || ''; } catch (e) { sysSeen = ''; }
+    return r.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ text: 'Hi there,\n\nDrafted.\n\nBest,' }) });
+  });
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  await screen('gr_inbox');
+  await page.waitForTimeout(900);
+  await page.evaluate(() => document.querySelector('#grInbox [data-gr-act]')?.click());
+  await page.waitForTimeout(1100);
+  await page.evaluate(() => document.querySelector('[data-gr-ai="write"]')?.click());
+  await page.waitForTimeout(1800);
+
+  check('the house rules reach the model, not just the database',
+    !!sysSeen && sysSeen.indexOf('direct and to the point') >= 0
+             && sysSeen.indexOf(NEVER) >= 0,
+    sysSeen ? JSON.stringify(sysSeen.slice(0, 120)) : 'no request captured');
+  /* An empty rule written out as "Always cover: (not set)" is still an instruction, and
+     the model does something with it. Boxes nobody filled in are left out entirely. */
+  check('and a rule nobody filled in is left out rather than sent as empty',
+    !!sysSeen && sysSeen.indexOf('(not set)') < 0 && sysSeen.indexOf('Always cover:\n\n') < 0,
+    sysSeen ? 'clean' : 'no request captured');
+  await page.unroute('**/claude-api');
 });
 
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
