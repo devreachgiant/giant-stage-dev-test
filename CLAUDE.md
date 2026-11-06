@@ -80,7 +80,7 @@ python3 tools_newchat_isolation.py      # old chat vs New Chat separation   <1s
 node tools_newchat_clickthrough.mjs     # ~372 checks, drives a real browser ~6m
 node tools_growth_check.mjs             # 449 checks, Growth only          ~3m
 node tools_growth_zoom_check.mjs        # 70 checks, the Zoom connector     ~1s
-node tools_growth_calendly_check.mjs    # 38 checks, the Calendly sync      ~1s
+node tools_growth_calendly_check.mjs    # 52 checks, the Calendly sync      ~1s
 node tools_growth_gmail_check.mjs       # 24 checks, mail -> deal matching   ~1s
 ```
 
@@ -100,6 +100,14 @@ transcript of the call.
 what no screen can show: a booking from somebody nobody tracks now **opens a deal**, one
 per email rather than one per booking (the same person books more than once), skipping
 our own domain. Run it whenever you touch that function.
+
+Since 20261106 it also covers the **invitee cache**, and that one is pure
+request-count: the rows come out identical whether the cache works or not, so the
+request log is the only place the saving exists. The checks count the requests the
+function actually made. Note the trap it is built around — reading
+`select=external_id` without `invitee` leaves every cached record undefined and
+quietly restores the old cost while every other check still passes. One check
+catches that and nothing else does.
 
 Since 20261105 it also covers the **second Calendly event type**. Luke turned on a
 ReachGiant Kickoff Call beside the Growth Strategy Session, and a kickoff is not a lead

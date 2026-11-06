@@ -1,6 +1,8 @@
 // Netlify Scheduled Function: growth-sync
 //
-// Runs every 30 minutes and keeps Growth current without anybody pressing anything.
+// Runs every five minutes and keeps Growth current without anybody pressing anything.
+// It said thirty for a long time after the schedule below said ten, which is the sort of
+// thing that gets believed. The number that counts is the cron at the bottom of the file.
 // Each run writes one row to growth_runs saying what it did, because the Automations
 // screen answers exactly one question -- is the thing that is supposed to be happening
 // actually happening -- and it can only answer that from evidence.
@@ -172,4 +174,14 @@ export default async () => {
    its eleven Calendly requests are invitee lookups for bookings ALREADY held -- the
    same answer fetched again every run. Fix that and five is easy; until then five would
    mostly buy more of the same waste. */
-export const config = { schedule: '*/10 * * * *' };
+/* FIVE MINUTES, up from ten. The reason to care is the booking notification: somebody
+   booked at 15:12 for a 16:00 call and Giant knew at 15:20, which is a warning arriving
+   with most of its value spent. Half that gap is worth having.
+
+   What made it affordable is the invitee cache in growth-calendly.js -- a run used to
+   cost one Calendly request per booking in the window and now costs two in total, so
+   doubling the frequency is cheaper than the old schedule was. The other two steps do
+   not get more expensive either: Zoom counts recordings already on a row and skips them,
+   and Gmail reads the mailbox out of Supabase rather than from Google. A run measured
+   7.8 seconds across all three on the day this changed. */
+export const config = { schedule: '*/5 * * * *' };
