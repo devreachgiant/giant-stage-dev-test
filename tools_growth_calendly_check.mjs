@@ -72,9 +72,18 @@ function plan(bookings, deals, profiles) {
       ? { body: JSON.parse(o.body).map((d, i) => ({ ...d, id: 'new-' + i })) }
       : { body: deals }],
     ['profiles', { body: profiles || [{ id: LUKE, role: 'owner' }] }],
-    ['growth_meetings', (u, o) => o.method === 'POST' ? { body: JSON.parse(o.body) } : { body: [] }]
+    ['growth_meetings', (u, o) => o.method === 'POST' ? { body: JSON.parse(o.body) } : { body: [] }],
+    /* The two the notifier reads and writes. They were missing, and because the
+       notifier catches its own errors so a failed notification cannot lose a booking,
+       the whole thing silently did nothing and the suite stayed green. */
+    ['growth_settings', { body: [{ value: [LUKE, NISH] }] }],
+    ['notifications', (u, o) => o.method === 'POST' ? { body: JSON.parse(o.body) } : { body: [] }]
   ];
 }
+const wroteNotes = (calls) => {
+  const w = calls.find(c => c.url.includes('notifications') && c.opts.method === 'POST');
+  try { return w ? JSON.parse(w.opts.body) : []; } catch (e) { return []; }
+};
 const madeDeals = (calls) => {
   const w = calls.find(c => c.url.includes('growth_clients') && c.opts.method === 'POST');
   try { return w ? JSON.parse(w.opts.body) : []; } catch (e) { return []; }
@@ -136,6 +145,124 @@ check('somebody here booking the link to try it does not become a lead',
 check('though the booking itself is still kept',
   wroteMeetings(calls).length === 1 && wroteMeetings(calls)[0].client_id === null,
   JSON.stringify(wroteMeetings(calls).map(r => r.client_id)));
+
+/* ------------------------------------------------- somebody is told
+   On 2026-11-05 Erica Morgan booked at 15:12 for a call at 16:00. The sync was
+   blameless: the booking was in the database at 15:20, 39 minutes before the call,
+   with its Zoom link, attached to a deal. Nothing said so, and the team missed it.
+
+   None of this is visible on a screen -- the screen was right the whole time -- so
+   these are the only place the behaviour exists. */
+const soonEv = (uri, name, mins) => ev(uri, name,
+  new Date(Date.now() + mins * 60000).toISOString());
+
+calls = stubFetch(plan(
+  [[soonEv('https://cal/n1', 'Strategy', 48), 'Erica Morgan', 'pete@finzanza.com']], HAVE));
+res = await runSync('tok');
+let notes = wroteNotes(calls);
+check('a new booking tells the owner of the deal it belongs to',
+  notes.length === 1 && notes[0].recipient_id === LUKE,
+  JSON.stringify(notes.map(n => n.recipient_id)));
+/* The urgency belongs in the title: a notification list is read as a column of titles,
+   and "New booking" reads the same whether the call is in nine days or nine minutes. */
+check('and says in the title that it is soon',
+  notes[0] && /^Call soon/.test(notes[0].title), notes[0] && notes[0].title);
+check('with how long there is, in the body',
+  notes[0] && /starts in 4[5-9] minutes/.test(notes[0].body), notes[0] && notes[0].body);
+/* The ten-minute timer would otherwise say the same thing 144 times a day. */
+check('keyed on the booking, so a re-run rewrites rather than saying it again',
+  notes[0] && notes[0].dedupe_key === 'growth_booking:https://cal/n1',
+  notes[0] && notes[0].dedupe_key);
+
+/* A booking already held is not new, however many times the sync runs. */
+calls = stubFetch(plan(
+  [[soonEv('https://cal/n1', 'Strategy', 48), 'Erica Morgan', 'pete@finzanza.com']], HAVE));
+await (async () => {
+  const p2 = plan([[soonEv('https://cal/n1', 'Strategy', 48), 'Erica Morgan', 'pete@finzanza.com']], HAVE);
+  p2[p2.findIndex(x => x[0] === 'growth_meetings')] =
+    ['growth_meetings', (u, o) => o.method === 'POST'
+      ? { body: JSON.parse(o.body) } : { body: [{ external_id: 'https://cal/n1' }] }];
+  calls = stubFetch(p2);
+  res = await runSync('tok');
+})();
+check('a booking we already had tells nobody, however often the timer runs',
+  wroteNotes(calls).length === 0, String(wroteNotes(calls).length));
+
+/* The first sync after a quiet weekend would otherwise announce every call that has
+   already happened. */
+calls = stubFetch(plan(
+  [[ev('https://cal/n2', 'Strategy', '2026-11-02T17:00:00Z'), 'Old Booking', 'pete@finzanza.com']], HAVE));
+res = await runSync('tok');
+check('a booking whose call has already been and gone tells nobody',
+  wroteNotes(calls).length === 0, String(wroteNotes(calls).length));
+
+/* An unmatched booking is the one MOST likely to be missed -- nobody owns it -- so it
+   goes to the whole team rather than to nobody. */
+calls = stubFetch(plan(
+  [[soonEv('https://cal/n3', 'Strategy', 30), 'Nobody Tracked', 'stranger@nowhere.com']], HAVE));
+res = await runSync('tok');
+notes = wroteNotes(calls);
+check('a booking with no deal goes to the whole Growth team, not nowhere',
+  notes.length === 2 && notes.map(n => n.recipient_id).sort().join(',') === [LUKE, NISH].sort().join(','),
+  JSON.stringify(notes.map(n => n.recipient_id)));
+
+/* Further out, a relative phrase stops being useful: "in 9 days" is not something you
+   can act on, and the title should not shout. */
+calls = stubFetch(plan(
+  [[soonEv('https://cal/n4', 'Strategy', 60 * 24 * 9), 'Far Future', 'pete@finzanza.com']], HAVE));
+res = await runSync('tok');
+notes = wroteNotes(calls);
+check('a call next week is announced quietly, with a date rather than a countdown',
+  notes[0] && /^New booking/.test(notes[0].title) && /It is on /.test(notes[0].body),
+  notes[0] && JSON.stringify([notes[0].title, notes[0].body]));
+
+/* A notification that fails must not take the booking with it. The booking is the
+   thing that matters; being told about it is the improvement. */
+await (async () => {
+  const p3 = plan([[soonEv('https://cal/n5', 'Strategy', 20), 'Erica Morgan', 'pete@finzanza.com']], HAVE);
+  p3[p3.findIndex(x => x[0] === 'notifications')] =
+    ['notifications', { ok: false, status: 500, body: { message: 'nope' } }];
+  calls = stubFetch(p3);
+  res = await runSync('tok');
+})();
+check('and if telling somebody fails, the booking is still saved',
+  res && res.total === 1 && wroteMeetings(calls).length === 1, JSON.stringify(res));
+
+/* ------------------------------------------------- the second event type
+   Luke turned on a Kickoff Call in Calendly in November. It is not a lead: it is a
+   client who has already paid, being started. Opening a deal from one would put
+   somebody we have already won back at the top of the pipeline as a fresh prospect,
+   and the only thing stopping that is the booking happening to match an existing deal
+   by email -- which is exactly what fails when they book with a different address.
+
+   Zero kickoffs have ever been booked, so nothing on any screen can show this. */
+calls = stubFetch(plan(
+  [[ev('https://cal/k1', 'ReachGiant Kickoff Call', '2026-11-09T15:00:00Z'),
+    'Jordan Lee', 'jordan@leedental.com']], HAVE));
+res = await runSync('tok');
+check('a kickoff call never opens a deal, because they are already a client',
+  res.dealsCreated === 0 && madeDeals(calls).length === 0, JSON.stringify(res));
+check('and the booking is still kept, so it shows on Meetings',
+  wroteMeetings(calls).length === 1 && wroteMeetings(calls)[0].client_id === null,
+  JSON.stringify(wroteMeetings(calls).map(r => r.client_id)));
+/* It still has to attach when it CAN. Refusing to open a deal is not the same as
+   refusing to join the call to one that already exists. */
+calls = stubFetch(plan(
+  [[ev('https://cal/k2', 'ReachGiant Kickoff Call', '2026-11-09T15:00:00Z'),
+    'Pete Patrino', 'pete@finzanza.com']], HAVE));
+res = await runSync('tok');
+check('but a kickoff from somebody we DO hold still attaches to their deal',
+  res.dealsCreated === 0 && wroteMeetings(calls)[0] &&
+  wroteMeetings(calls)[0].client_id === 'd-pete',
+  JSON.stringify(wroteMeetings(calls).map(r => r.client_id)));
+/* The sales call it sits beside must be unaffected -- a rule that refused both would
+   pass the two checks above and quietly stop the pipeline filling at all. */
+calls = stubFetch(plan(
+  [[ev('https://cal/s9', 'ReachGiant Growth Strategy Session', '2026-11-09T16:00:00Z'),
+    'Dana Brooks', 'dana@brooksplumbing.com']], HAVE));
+res = await runSync('tok');
+check('and a sales call from a stranger still opens one, as it always did',
+  res.dealsCreated === 1 && madeDeals(calls).length === 1, JSON.stringify(res));
 
 /* ------------------------------------------------- somebody already in the pipeline */
 calls = stubFetch(plan(

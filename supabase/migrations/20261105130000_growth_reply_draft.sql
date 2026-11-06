@@ -1,0 +1,39 @@
+-- A drafted reply, waiting on the deal rather than in one person's browser.
+--
+-- WHY. Luke's version of this screen has the reply already written when you open the
+-- email: "Draft reply, ready. Not sent. Read it, then send." Ours has a button you
+-- press and then wait. The difference is not the model, it is where the draft lives.
+--
+-- WHY A COLUMN AND NOT MEMORY. Held in the page, a draft costs one model call every
+-- time anybody opens the deal, and Annie opening it never sees the one Luke's session
+-- already paid for. Held here, it is written once per incoming message and whoever
+-- opens the deal next reads it. growth_messages is read by the whole sales team, and so
+-- is this.
+--
+-- WHY NOT A ROW IN growth_messages WITH direction='draft'. That table is read as in or
+-- out in a dozen places -- the thread, the reply-waiting test, the emails-sent tally --
+-- and a third value would have quietly joined all of them. A draft is not a message;
+-- it has not been sent to anybody.
+--
+-- WHAT IS IN IT:
+--   { msg_id, subject, body, at }
+-- msg_id is the growth_messages row the draft answers, and it is the whole point of
+-- storing one. A draft written for Tuesday's question is wrong the moment Thursday's
+-- question arrives, and without the id there is no way to tell: the screen would show a
+-- confident, stale reply to something already settled. The app shows the draft only
+-- while msg_id still matches the latest inbound message, so going stale makes it
+-- disappear rather than mislead.
+--
+-- No policy change is needed and none is made: growth_clients decides whole rows, so a
+-- column added today is covered by the two policies already on it, growth_clients_rw and
+-- growth_clients_no_clients. Measured in a rolled-back transaction against a seeded deal
+-- before this was applied, both sides rather than one -- "0 rows" from a client proves
+-- nothing unless a rep writing the same column returns 1:
+--
+--   Annie (role growth) writes a draft and reads it back    1
+--   a client account writing the same column                0
+--   the column left behind after the rollbacks              0
+--   probe deals left behind after the rollbacks             0
+
+alter table growth_clients
+  add column if not exists reply_draft jsonb;

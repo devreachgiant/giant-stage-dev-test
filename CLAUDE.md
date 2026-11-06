@@ -78,9 +78,10 @@ python3 tools_newchat_parse.py          # syntax of all 14 script blocks     ~1s
 python3 tools_newchat_audit.py          # cross-screen id leaks             ~7s
 python3 tools_newchat_isolation.py      # old chat vs New Chat separation   <1s
 node tools_newchat_clickthrough.mjs     # ~372 checks, drives a real browser ~6m
-node tools_growth_check.mjs             # ~368 checks, Growth only          ~2m
-node tools_growth_zoom_check.mjs        # 63 checks, the Zoom connector     ~1s
-node tools_growth_calendly_check.mjs    # 16 checks, the Calendly sync      ~1s
+node tools_growth_check.mjs             # 449 checks, Growth only          ~3m
+node tools_growth_zoom_check.mjs        # 70 checks, the Zoom connector     ~1s
+node tools_growth_calendly_check.mjs    # 38 checks, the Calendly sync      ~1s
+node tools_growth_gmail_check.mjs       # 24 checks, mail -> deal matching   ~1s
 ```
 
 **The first three are eight seconds together. Never skip them.**
@@ -99,6 +100,33 @@ transcript of the call.
 what no screen can show: a booking from somebody nobody tracks now **opens a deal**, one
 per email rather than one per booking (the same person books more than once), skipping
 our own domain. Run it whenever you touch that function.
+
+Since 20261105 it also covers the **second Calendly event type**. Luke turned on a
+ReachGiant Kickoff Call beside the Growth Strategy Session, and a kickoff is not a lead
+— it is somebody who has already paid, being started. Opening a deal from one puts a
+client you have already won back at the top of the pipeline as a fresh prospect, and the
+only thing that was stopping it was the booking happening to match an existing deal by
+email, which is exactly what fails when they book from a different address. **Zero
+kickoffs have ever been booked**, so no screen can show you any of this; the checks are
+the only place it exists.
+
+`tools_growth_gmail_check.mjs` is the same shape again, for `growth-gmail.js`, which is
+what finally puts rows in the Growth Inbox. It covers three things a screen cannot show:
+that a message held under BOTH accounts connected to growth@ is filed once rather than
+twice, that direction is decided by the deal and not by the mailbox (decide it by
+mailbox and a colleague's forward becomes the client replying), and that the quoted
+thread under a reply is trimmed off the body that gets stored.
+
+Two warnings from building it, both of which cost a pass that measured nothing:
+
+- Three of those checks asserted the trimming HELPER and stayed green when the call to
+  it was removed from the path the Inbox actually runs. Assert the row that would be
+  written, not the function that writes it.
+- The stubs were written from a reading of `information_schema`, which returned the
+  rows with no column name in them; `to_emails` was taken for the array and `labels`
+  for the text, when it is the other way round. 24 stubbed checks passed against a
+  filter the real database refuses outright. **Dry-run a new sync against production
+  reads with the writes captured and dropped** before trusting a stub suite.
 
 **Put a new `await step(...)` in the clickthrough ABOVE `const fails = ...`.** Everything
 below that line runs after the results have been printed and after the pass/fail tally is

@@ -1132,8 +1132,15 @@ await step('the open row is the two answers, the bullets and the video', async (
   // And nothing fetches them any more, since nothing draws them.
   const q = await page.evaluate(() =>
     (window.__mock.log.queries || []).filter(x => /^growth_settings\.select/.test(x)));
-  check('the boot read still leaves the 364KB out', /key neq qa_examples/.test(q[0] || ''),
-    JSON.stringify(q));
+  /* By CONTENT, not by position. This read q[0] and assumed the boot read came first;
+     the Growth access gate now asks growth_settings a targeted question before it --
+     one row, by key -- so position 0 stopped being the boot read while the thing this
+     protects was still perfectly true. */
+  check('the boot read still leaves the 364KB out',
+    q.some(x => /key neq qa_examples/.test(x)), JSON.stringify(q));
+  /* And the gate's own read stays narrow: one key, not the whole table again. */
+  check('the access gate asks for one row, not everything',
+    !q.some(x => /^growth_settings\.select\[\]$/.test(x)), JSON.stringify(q));
   check('and nothing fetches them any more', !q.some(x => /key eq qa_examples/.test(x)),
     JSON.stringify(q));
 });
@@ -1571,6 +1578,12 @@ await step('Home is the dashboard Luke drew', async () => {
       cardW: zs[0] ? Math.round(zs[0].getBoundingClientRect().width) : -1,
       timeSize: bigTime ? Math.round(parseFloat(getComputedStyle(bigTime).fontSize)) : -1,
       trackW: track ? Math.round(track.getBoundingClientRect().width) : -1,
+      clockH: track ? Math.round(track.getBoundingClientRect().height) : -1,
+      /* The STRIP against its column, not the first button against its column. The
+         strip now opens with a "Times in" caption, so the first zone button sits 83px
+         in by design and measuring from it says the strip is stranded when it is not. */
+      trackSlackL: (track && wb) ? Math.round(track.getBoundingClientRect().left - wb.left) : -1,
+      trackSlackR: (track && wb) ? Math.round(wb.right - track.getBoundingClientRect().right) : -1,
       activeFilled: onCard ? getComputedStyle(onCard).backgroundColor : '',
       restFilled: offCard ? getComputedStyle(offCard).backgroundColor : '',
       showingRows: document.querySelectorAll('#grHome .gr_vasrow').length,
@@ -1605,11 +1618,13 @@ await step('Home is the dashboard Luke drew', async () => {
     m.btnsOnReplyRows === 0, String(m.btnsOnReplyRows));
   check('See all clients is the way through to the board',
     /See all clients/.test(m.more), m.more);
-  /* The clocks are built from the zones the deals are in, so there can be two of them.
-     On a five-column grid two sat in the left fifth with a hole beside them. */
-  check('the clocks sit centred rather than stranded at one end',
-    m.clockSlackL >= 0 && Math.abs(m.clockSlackL - m.clockSlackR) <= 2,
-    JSON.stringify({ left: m.clockSlackL, right: m.clockSlackR }));
+  /* Was: the four cards sit centred rather than stranded at one end, which mattered
+     while the track was narrower than the space. The strip fills the column, so there
+     is no end to be stranded at -- what has to be true now is that it uses the width it
+     is given, because at a fixed 760 inside 1124 it clipped two of the four cities. */
+  check('the clock strip uses the full width of the column',
+    m.trackW > 0 && m.trackSlackL <= 2 && m.trackSlackR <= 2,
+    JSON.stringify({ left: m.trackSlackL, right: m.trackSlackR, w: m.trackW }));
 
   /* The four places the team works from, by name and in order -- not a count, which a
      list of the wrong four cities would also satisfy. They were briefly derived from the
@@ -1625,13 +1640,16 @@ await step('Home is the dashboard Luke drew', async () => {
   check('showing four genuinely different times',
     m.times.every(t => /\d/.test(t)) && new Set(m.times).size >= 3,
     JSON.stringify(m.times));
-  /* The artifact's measurements, kept because "a bit smaller" compounds: the card was
-     270 wide with a 19px time, against its 197.5 and 30. */
-  check('at the size the design draws them, not shrunk to fit',
-    m.cardW >= 193 && m.cardW <= 203 && m.timeSize === 30,
-    JSON.stringify({ card: m.cardW, time: m.timeSize }));
-  check('in a fixed track rather than stretched across the window',
-    m.trackW > 0 && m.trackW <= 830, String(m.trackW));
+  /* These two asserted the artifact's CARD measurements -- 197.5 wide, 30px time, in a
+     track no wider than 830. Luke replaced the cards with a strip between artifact
+     versions (his file still carries the card CSS, but nothing renders it any more),
+     and Giant followed on 20261105. The reason the old numbers were pinned still
+     applies, so it is pinned to the new shape: a strip that creeps back up in height is
+     a strip turning back into cards, and the time has to stay big enough to read. */
+  check('the clock is one strip, not a row of cards',
+    m.clockH > 0 && m.clockH < 70, String(m.clockH) + 'px');
+  check('and the time on it is still legible at a glance',
+    m.timeSize >= 13, String(m.timeSize) + 'px');
   /* The zone you are reading times in is FILLED, so the strip answers "whose 3pm"
      before you have read a word. Outlined, it was one border colour among five.
      Compared against a SIBLING card, not against transparent: the first version of this
@@ -2643,8 +2661,8 @@ await step('Settings opens over the screen instead of becoming one', async () =>
   check('and leaves you on the screen you were already on',
     o.behind === before && before === 'gr_pipeline',
     JSON.stringify({ before: before, after: o.behind }));
-  check('with Templates, New, Package master, Codes and Team',
-    o.tabs.join(' | ') === 'Templates | + New template | Package master | Codes & signature | Team',
+  check('with Templates, New, Package master, Reply style, Codes and Team',
+    o.tabs.join(' | ') === 'Templates | + New template | Package master | Reply style | Codes & signature | Team',
     JSON.stringify(o.tabs));
 
   // Team is the half that had to survive the move.
@@ -2756,8 +2774,8 @@ await step('package emails are built from one master, not written six times', as
     boxed: (() => { const r = document.querySelector('.gr_tplr');
       return r ? Math.round(r.getBoundingClientRect().height) : 0; })()
   }));
-  check('the panel carries all five tabs',
-    g.tabs.join(' | ') === 'Templates | + New template | Package master | Codes & signature | Team',
+  check('the panel carries all six tabs',
+    g.tabs.join(' | ') === 'Templates | + New template | Package master | Reply style | Codes & signature | Team',
     JSON.stringify(g.tabs));
   /* The fixture is one of each kind on purpose: a list of one shape proves nothing about
      a split, and would pass just as well on code that never split anything. */
@@ -3211,6 +3229,678 @@ await step('the tab you chose survives a reload', async () => {
   check('a value that is not a tab falls back to Upcoming rather than painting nothing',
     after.tab === 'up' && after.rows > 0, JSON.stringify(after));
   await page.evaluate(() => { try { localStorage.removeItem('giant.grMView'); } catch (e) {} });
+});
+
+await step('Reply style decides how every draft is written', async () => {
+  /* Asked for by Luke, who built the same panel in his own CRM. The voice of a drafted
+     email used to be a string inside grAiWrite, which meant the person who wanted it
+     changed could not change it and nobody could tell what the rules even were.
+
+     The trap this check exists to avoid: saving the row and never reading it. A settings
+     screen that stores a tone the writer ignores looks completely correct from the
+     outside -- the chip lights up, the row is in the database -- and changes nothing
+     about a single email. So the last two checks read the prompt that actually leaves
+     the browser, not the row that was saved. */
+  await screen('gr_settings');
+  await page.evaluate(() => document.querySelector('[data-gr-settab="reply"]')?.click());
+  await page.waitForTimeout(900);
+
+  const panel = await page.evaluate(() => {
+    const chips = [...document.querySelectorAll('[data-gr-reply-set]')];
+    const box = (k) => document.querySelector('[data-gr-reply="' + k + '"]');
+    const size = (el) => { const r = el.getBoundingClientRect();
+      return { w: Math.round(r.width), h: Math.round(r.height) }; };
+    return {
+      tones: chips.filter(c => c.dataset.grReplySet === 'tone').map(c => c.textContent.trim()),
+      lens: chips.filter(c => c.dataset.grReplySet === 'length').length,
+      /* Measured, not counted. A chip the stylesheet collapsed is in the DOM and
+         unpressable, which is the shape of bug this repo keeps shipping. */
+      smallest: chips.length ? Math.min(...chips.map(c => size(c).w)) : 0,
+      shortest: chips.length ? Math.min(...chips.map(c => size(c).h)) : 0,
+      boxes: ['voice', 'always', 'never', 'steps', 'signoff'].filter(k => !!box(k)),
+      pressed: chips.filter(c => c.getAttribute('aria-pressed') === 'true')
+                    .map(c => c.dataset.grReplySet + '=' + c.dataset.v)
+    };
+  });
+  check('the panel offers four tones and three lengths',
+    panel.tones.length === 4 && panel.lens === 3, JSON.stringify(panel.tones));
+  check('every chip is big enough to press',
+    panel.smallest > 40 && panel.shortest > 14,
+    JSON.stringify({ w: panel.smallest, h: panel.shortest }));
+  check('and all five written rules have a box',
+    panel.boxes.length === 5, panel.boxes.join(','));
+  check('one tone and one length start chosen, so a draft is never styleless',
+    panel.pressed.length === 2, panel.pressed.join(','));
+
+  /* AND IT LOOKS CHOSEN. The check above reads aria-pressed, which is exactly what let
+     the first version through: gr_chip had no selected rule at all, so Warm and Under
+     60 words were marked chosen in the DOM and painted identically to the three beside
+     them. Correct to anything reading attributes, unreadable to a person. Compare the
+     colours actually computed, the way an eye would. */
+  const look = await page.evaluate(() => {
+    const chips = [...document.querySelectorAll('[data-gr-reply-set="tone"]')];
+    const on = chips.find(c => c.getAttribute('aria-pressed') === 'true');
+    const off = chips.find(c => c.getAttribute('aria-pressed') !== 'true');
+    if (!on || !off) return null;
+    const g = (el) => { const s = getComputedStyle(el);
+      return { bg: s.backgroundColor, fg: s.color }; };
+    return { on: g(on), off: g(off) };
+  });
+  check('and the chosen chip is visibly different from the others',
+    !!look && (look.on.bg !== look.off.bg || look.on.fg !== look.off.fg),
+    JSON.stringify(look));
+
+  await page.evaluate(() =>
+    document.querySelector('[data-gr-reply-set="tone"][data-v="direct"]')?.click());
+  await page.waitForTimeout(1200);
+  const picked = await page.evaluate(() => ({
+    row: ((window.__mockDB.growth_settings || []).find(x => x.key === 'reply_style') || {}).value || null,
+    on: [...document.querySelectorAll('[data-gr-reply-set="tone"]')]
+          .filter(c => c.getAttribute('aria-pressed') === 'true').map(c => c.dataset.v)
+  }));
+  /* Both sides. The row alone would pass with a screen that never repainted, and the
+     screen alone would pass with nothing saved. */
+  check('choosing a tone saves it and lights only that one',
+    picked.row && picked.row.tone === 'direct' && picked.on.join(',') === 'direct',
+    JSON.stringify({ saved: picked.row && picked.row.tone, on: picked.on }));
+
+  const NEVER = 'Never mention the weather.';
+  await page.fill('[data-gr-reply="never"]', NEVER);
+  await page.evaluate(() => document.querySelector('[data-gr-reply="never"]')
+    ?.dispatchEvent(new Event('change', { bubbles: true })));
+  await page.waitForTimeout(1200);
+  const typed = await page.evaluate(() =>
+    ((window.__mockDB.growth_settings || []).find(x => x.key === 'reply_style') || {}).value || null);
+  check('typing a rule saves it without losing the tone beside it',
+    typed && typed.never === 'Never mention the weather.' && typed.tone === 'direct',
+    JSON.stringify(typed && { never: typed.never, tone: typed.tone }));
+
+  /* THE ONE THAT MATTERS. Everything above proves the panel works. This proves the
+     panel is connected to anything. */
+  let sysSeen = null;
+  await page.route('**/claude-api', r => {
+    try { sysSeen = (r.request().postDataJSON() || {}).system || ''; } catch (e) { sysSeen = ''; }
+    return r.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ text: 'Hi there,\n\nDrafted.\n\nBest,' }) });
+  });
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  await screen('gr_inbox');
+  await page.waitForTimeout(900);
+  await page.evaluate(() => document.querySelector('#grInbox [data-gr-act]')?.click());
+  await page.waitForTimeout(1100);
+  await page.evaluate(() => document.querySelector('[data-gr-ai="write"]')?.click());
+  await page.waitForTimeout(1800);
+
+  check('the house rules reach the model, not just the database',
+    !!sysSeen && sysSeen.indexOf('direct and to the point') >= 0
+             && sysSeen.indexOf(NEVER) >= 0,
+    sysSeen ? JSON.stringify(sysSeen.slice(0, 120)) : 'no request captured');
+  /* An empty rule written out as "Always cover: (not set)" is still an instruction, and
+     the model does something with it. Boxes nobody filled in are left out entirely. */
+  check('and a rule nobody filled in is left out rather than sent as empty',
+    !!sysSeen && sysSeen.indexOf('(not set)') < 0 && sysSeen.indexOf('Always cover:\n\n') < 0,
+    sysSeen ? 'clean' : 'no request captured');
+  await page.unroute('**/claude-api');
+});
+
+await step('the reply is already written when you open the email', async () => {
+  /* Luke's screen has the draft waiting; ours had a button you press and then watch.
+     Three of these are about cost and staleness rather than about the card, because the
+     card is the easy part:
+
+       - asked ONCE, not per render. A draft regenerated on every repaint is a model
+         call per keystroke somewhere else on the screen, and nothing on screen would
+         look wrong while it happened.
+       - never for a deal that is NOT waiting on us. Drafting a reply to a conversation
+         where we spoke last is a paid-for answer to nothing.
+       - gone when it goes stale. A draft answering Tuesday's question is wrong the
+         moment Thursday's arrives, and a confident reply to a settled question is worse
+         than no reply at all. */
+  let asked = 0, sysSeen = null;
+  await page.route('**/claude-api', r => {
+    asked++;
+    try { sysSeen = (r.request().postDataJSON() || {}).system || ''; } catch (e) {}
+    return r.fulfill({ status: 200, contentType: 'application/json',
+      body: JSON.stringify({ text: 'Hi Cesar,\n\nSending the agreement now.\n\nBest,' }) });
+  });
+
+  // gc-1 spoke last from our side; gc-2 is the one waiting on a reply.
+  await screen('gr_pipeline');
+  await page.evaluate(() => document.querySelector('[data-gr-open="gc-1"]')?.click());
+  await page.waitForTimeout(1800);
+  check('a deal that is not waiting on us is never drafted for',
+    asked === 0, String(asked));
+  await page.evaluate(() => document.querySelector('[data-gr-close]')?.click());
+  await page.waitForTimeout(600);
+
+  await page.evaluate(() => document.querySelector('[data-gr-open="gc-2"]')?.click());
+  await page.waitForTimeout(2600);
+  const made = await page.evaluate(() => {
+    const d = (window.__mockDB.growth_clients || []).find(c => c.id === 'gc-2');
+    const card = document.querySelector('.gr_draft');
+    return {
+      saved: d && d.reply_draft ? { msg: d.reply_draft.msg_id, sub: d.reply_draft.subject,
+                                    body: String(d.reply_draft.body || '').slice(0, 20) } : null,
+      on: !!(card && card.classList.contains('on')),
+      says: card ? card.innerText.replace(/\s+/g, ' ').trim() : null,
+      buttons: [...document.querySelectorAll('[data-gr-draft]')].map(b => b.textContent.trim())
+    };
+  });
+  check('opening the deal writes a draft onto the ROW, not just the screen',
+    !!made.saved && made.saved.msg === 'gx-3' && made.saved.body.length > 5,
+    JSON.stringify(made.saved));
+  check('and it answers their latest message, by id',
+    made.saved && made.saved.msg === 'gx-3', made.saved && made.saved.msg);
+  check('the card offers edit, regenerate and copy',
+    made.buttons.join(',') === 'Edit and send,Regenerate,Copy', made.buttons.join(','));
+  /* The whole risk of a ready-written reply is somebody assuming it already went. */
+  check('and says on its face that nothing has been sent',
+    !!made.says && /not sent/i.test(made.says), made.says ? made.says.slice(0, 60) : null);
+  check('the house rules reach the drafted reply too, not only the composer',
+    !!sysSeen && sysSeen.indexOf('HOUSE STYLE') >= 0, sysSeen ? 'yes' : 'no request');
+
+  const askedAfterFirst = asked;
+  /* Re-render the panel without changing anything. A draft regenerated per paint is
+     the expensive bug that looks completely fine. */
+  await page.evaluate(() => { if (typeof grRender === 'function') grRender(); });
+  await page.waitForTimeout(400);
+  await page.evaluate(() => { if (typeof grRender === 'function') grRender(); });
+  await page.waitForTimeout(900);
+  check('re-rendering does not write it again',
+    asked === askedAfterFirst, asked + ' vs ' + askedAfterFirst);
+
+  // Closing and reopening reads the stored draft rather than paying for a new one.
+  await page.evaluate(() => document.querySelector('[data-gr-close]')?.click());
+  await page.waitForTimeout(600);
+  await page.evaluate(() => document.querySelector('[data-gr-open="gc-2"]')?.click());
+  await page.waitForTimeout(1800);
+  check('reopening reuses the stored draft instead of asking again',
+    asked === askedAfterFirst, asked + ' vs ' + askedAfterFirst);
+
+  /* THE ONE NO SCREEN SHOWS. A newer message from them makes the stored draft an
+     answer to the wrong question. It has to stop being shown. */
+  await page.evaluate(() => {
+    window.__mockDB.growth_messages.push({
+      id: 'gx-9', client_id: 'gc-2', direction: 'in', subject: 'One more thing',
+      body: 'Actually, can we push the start date to January?',
+      sent_at: new Date().toISOString(), thread_id: '', external_id: null,
+      created_at: new Date().toISOString() });
+    if (typeof window.grReload === 'function') window.grReload();
+  });
+  await page.waitForTimeout(2600);
+  const stale = await page.evaluate(() => {
+    const card = document.querySelector('.gr_draft');
+    const d = (window.__mockDB.growth_clients || []).find(c => c.id === 'gc-2');
+    return { shows: card ? card.innerText.replace(/\s+/g, ' ').trim() : null,
+             storedMsg: d && d.reply_draft ? d.reply_draft.msg_id : null };
+  });
+  check('a newer message from them retires the old draft rather than showing it',
+    !!stale.shows && !/Sending the agreement now/.test(stale.shows),
+    stale.shows ? stale.shows.slice(0, 70) : 'no card');
+
+  await page.unroute('**/claude-api');
+});
+
+await step('Meetings splits sales calls from onboarding calls', async () => {
+  /* Calendly carries two event types now -- Growth Strategy Session and Kickoff Call --
+     and they are two different jobs: a stranger you are selling to, and a client you
+     have already won and are starting. Luke's screen splits on it.
+
+     Derived from the title rather than stored, so it works on the 32 bookings already
+     in the database instead of only on ones that arrive after a migration. */
+  await screen('gr_meetings');
+  await page.evaluate(() => { try { localStorage.removeItem('giant.grMKind'); } catch (e) {} });
+  await page.evaluate(() => document.querySelector('[data-gr-mkind="all"]')?.click());
+  await page.waitForTimeout(1200);
+
+  const pills = await page.evaluate(() => [...document.querySelectorAll('[data-gr-mkind]')]
+    .map(b => ({ k: b.dataset.grMkind, n: (b.querySelector('b') || {}).textContent,
+                 on: b.getAttribute('aria-pressed') === 'true',
+                 w: Math.round(b.getBoundingClientRect().width) })));
+  check('there are three choices: all, sales and onboarding',
+    pills.map(p => p.k).join(',') === 'all,sales,onboard', pills.map(p => p.k).join(','));
+  check('each carries a count and is big enough to press',
+    pills.every(p => /^\d+$/.test(String(p.n).trim()) && p.w > 90),
+    JSON.stringify(pills.map(p => p.n + '/' + p.w)));
+  /* One of each kind is in the fixtures, so a split that did nothing would show the
+     same number three times. */
+  const n = (k) => Number((pills.find(p => p.k === k) || {}).n);
+  check('the counts actually differ, so the split is doing something',
+    n('all') === n('sales') + n('onboard') && n('sales') > 0 && n('onboard') > 0,
+    JSON.stringify({ all: n('all'), sales: n('sales'), onboard: n('onboard') }));
+
+  const kinds = await page.evaluate(() => [...document.querySelectorAll('.gr_kt')]
+    .map(x => x.textContent.trim()));
+  check('every row says which kind of call it is',
+    kinds.length > 0 && kinds.indexOf('Sales call') >= 0 && kinds.indexOf('Onboarding call') >= 0,
+    kinds.join(','));
+  /* The chip has to be readable, not merely present: a bare .gr_kt loses to
+     `.gr_rm span`, which paints every span in a row grey. That shipped once. */
+  const chip = await page.evaluate(() => {
+    const el = document.querySelector('.gr_ktsales'); if (!el) return null;
+    const s = getComputedStyle(el);
+    return { bg: s.backgroundColor, fg: s.color };
+  });
+  check('and the chip is not the same grey as everything else on the row',
+    !!chip && chip.fg === 'rgb(255, 255, 255)' && chip.bg !== 'rgba(0, 0, 0, 0)',
+    JSON.stringify(chip));
+
+  await page.evaluate(() => document.querySelector('[data-gr-mkind="sales"]')?.click());
+  await page.waitForTimeout(1200);
+  const filtered = await page.evaluate(() => ({
+    shown: [...document.querySelectorAll('.gr_kt')].map(x => x.textContent.trim()),
+    counts: [...document.querySelectorAll('[data-gr-mkind] b')].map(b => b.textContent.trim())
+  }));
+  check('choosing Sales calls hides the onboarding ones',
+    filtered.shown.length > 0 && filtered.shown.every(t => t === 'Sales call'),
+    filtered.shown.join(','));
+  /* A filter that hides its own count is one you cannot tell is on. */
+  check('and the counts keep counting everything, not just what is shown',
+    filtered.counts.join(',') === pills.map(p => String(p.n).trim()).join(','),
+    filtered.counts.join(',') + ' vs ' + pills.map(p => p.n).join(','));
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(3500);
+  await screen('gr_meetings');
+  await page.waitForTimeout(1100);
+  const kept = await page.evaluate(() => (document.querySelector('[data-gr-mkind][aria-pressed="true"]')
+    || {}).dataset?.grMkind || null);
+  check('the choice survives a reload, like the view tabs do', kept === 'sales', String(kept));
+
+  /* Back to all, so nothing after this inherits a filtered screen. */
+  await page.evaluate(() => { try { localStorage.removeItem('giant.grMKind'); } catch (e) {} });
+  await page.evaluate(() => document.querySelector('[data-gr-mkind="all"]')?.click());
+  await page.waitForTimeout(800);
+});
+
+await step('every Growth screen actually paints something', async () => {
+  /* THE CHEAPEST CHECK HERE AND THE ONE THAT WOULD HAVE SAVED THE MOST TIME.
+     grLoad destructures its results positionally. A name with no query behind it --
+     there was one, `pr`, left over from a query somebody removed -- is harmless until
+     anything is added after it, at which point the new name lands past the end, comes
+     back undefined, and reading .error off it throws inside grLoad. grLoaded stays
+     false and EVERY Growth screen renders nothing.
+
+     Both catches are silent by design: grLoad toasts rather than throwing, grRender
+     swallows so one broken screen cannot take the app down. So the whole module goes
+     blank with nothing in the console, and it presents as whichever screen you happened
+     to be building. Measuring that each screen put SOMETHING in its host is three lines
+     and catches the entire class. */
+  const SCREENS = [
+    ['gr_home', 'grHome'], ['gr_inbox', 'grInbox'], ['gr_meetings', 'grMeetings'],
+    ['gr_pipeline', 'grPipeline'], ['gr_training', 'grTraining'],
+    ['gr_analytics', 'grAnalytics'], ['gr_connectors', 'grConnectors'],
+    ['gr_automations', 'grAutomations'], ['gr_sops', 'grSops'], ['gr_bonus', 'grBonus']
+  ];
+  const empty = [];
+  for (const [scr, host] of SCREENS) {
+    await screen(scr);
+    await page.waitForTimeout(900);
+    const n = await page.evaluate(i => (document.getElementById(i) || {}).innerHTML?.length || 0, host);
+    if (n < 50) empty.push(scr + ':' + n);
+  }
+  check('all ten Growth screens render, so the shared load is intact',
+    empty.length === 0, empty.join(', ') || 'all painted');
+});
+
+await step('Links: the three you send, in the order you send them', async () => {
+  /* The order is the content. Sending somebody the kickoff link before they have paid
+     is the mistake this screen exists to prevent, which is why they are numbered and
+     why the order is asserted rather than just the count. */
+  await screen('gr_links');
+  await page.waitForTimeout(1200);
+  const m = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('.gr_lkcard')];
+    return {
+      titles: cards.map(c => (c.querySelector('h2') || {}).textContent),
+      nums: cards.map(c => (c.querySelector('.gr_lkn') || {}).textContent),
+      colours: [...new Set(cards.map(c => getComputedStyle(c).borderTopColor))].length,
+      urls: [...document.querySelectorAll('[data-gr-linkurl]')].map(i => i.value),
+      copies: document.querySelectorAll('[data-gr-linkcopy]').length,
+      opens: [...document.querySelectorAll('.gr_lkopen')].map(a => a.getAttribute('href'))
+    };
+  });
+  check('three cards, in the order they are used',
+    m.titles.join(' > ') === 'Sales call > Onboarding form > Onboarding call',
+    m.titles.join(' > '));
+  check('numbered 1 to 3, and told apart by colour',
+    m.nums.join('') === '123' && m.colours === 3,
+    JSON.stringify({ nums: m.nums, colours: m.colours }));
+  /* Open has to go to the same place Copy copies. They were built from one list, and
+     this is what stops them drifting apart later. */
+  check('Open goes where Copy copies, for all three',
+    m.opens.length === 3 && m.urls.length === 3 &&
+    m.opens.every((h, i) => h === m.urls[i]),
+    JSON.stringify({ opens: m.opens.length, urls: m.urls.length }));
+  check('and each one is a real link',
+    m.urls.every(u => /^https:\/\/\S+\.\S+/.test(u)), JSON.stringify(m.urls));
+
+  /* Editable, because these move. A Calendly path that changes should not need a
+     deploy to fix -- that is a link that stays broken for a week. */
+  await page.fill('[data-gr-linkurl="kickoff"]', 'https://calendly.com/reach-giant/new-path');
+  await page.evaluate(() => document.querySelector('[data-gr-linkurl="kickoff"]')
+    ?.dispatchEvent(new Event('change', { bubbles: true })));
+  await page.waitForTimeout(1200);
+  const saved = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'links');
+    return r && r.value && r.value.kickoff ? r.value.kickoff.url : null;
+  });
+  check('changing a link saves it to the row, not just the box',
+    saved === 'https://calendly.com/reach-giant/new-path', String(saved));
+  const reflected = await page.evaluate(() =>
+    (document.querySelector('.gr_lkcard:nth-child(3) .gr_lkopen') || {}).getAttribute('href'));
+  check('and Open follows it immediately',
+    reflected === 'https://calendly.com/reach-giant/new-path', String(reflected));
+});
+
+await step('Sales SOPs: three processes, and a manager can change them', async () => {
+  /* Luke asked for this twice in the same breath: "we can edit the SOPs as well.
+     That's really important because I want to be able to change them." So the checks
+     that matter are not that the screen draws -- they are that an edit reaches the
+     database row, and that adding and removing a step works on content nobody wrote
+     into this file. */
+  await screen('gr_sops');
+  await page.waitForTimeout(1300);
+
+  const index = await page.evaluate(() => {
+    const tiles = [...document.querySelectorAll('.gr_soptile')];
+    return {
+      n: tiles.length,
+      titles: tiles.map(t => (t.querySelector('b') || {}).textContent),
+      /* Each process has its own colour, carried from the tile into the full screen.
+         Three tiles the same colour would read as one thing in three parts. */
+      colours: [...new Set(tiles.map(t => getComputedStyle(t).borderTopColor))].length,
+      arrows: document.querySelectorAll('.gr_sopar').length
+    };
+  });
+  check('the index is three processes in order',
+    index.n === 3 && index.titles.join(' > ') === 'Before the call > During the call > After the call',
+    index.titles.join(' > '));
+  check('each with its own colour, and read as a flow',
+    index.colours === 3 && index.arrows === 2,
+    JSON.stringify({ colours: index.colours, arrows: index.arrows }));
+
+  await page.evaluate(() => document.querySelector('[data-gr-sop="during"]')?.click());
+  await page.waitForTimeout(1200);
+  const full = await page.evaluate(() => ({
+    hero: (document.querySelector('.gr_sophero h2') || {}).textContent,
+    heroSize: Math.round(parseFloat(getComputedStyle(document.querySelector('.gr_sophero h2')).fontSize)),
+    steps: [...document.querySelectorAll('.gr_sopcard b')].map(b => b.textContent),
+    arrows: document.querySelectorAll('.gr_soparw').length,
+    questions: document.querySelectorAll('.gr_sopq li').length
+  }));
+  check('opening one shows its steps in order, with arrows between',
+    full.steps.length === 5 && full.arrows === 4 && full.steps[0] === 'Say hello and build rapport',
+    JSON.stringify({ steps: full.steps.length, arrows: full.arrows }));
+  check('and the ten questions to ask', full.questions === 10, String(full.questions));
+  /* MEASURED, because twelve rules in this screen were written with a font shorthand
+     naming a variable Giant does not define, and an invalid shorthand is dropped
+     whole -- silently, and the screen still looked plausible. */
+  check('the hero heading is the size the design asks for, not a dropped rule',
+    full.heroSize >= 30, full.heroSize + 'px');
+
+  await page.evaluate(() => document.querySelector('[data-gr-sopedit]')?.click());
+  await page.waitForTimeout(1100);
+  const before = await page.evaluate(() => document.querySelectorAll('[data-gr-sopf]').length);
+  check('a manager can turn on editing', before > 10, String(before));
+
+  await page.fill('[data-gr-sopf="during.steps.0.t"]', 'Say hello and mean it');
+  await page.evaluate(() => document.querySelector('[data-gr-sopf="during.steps.0.t"]')
+    ?.dispatchEvent(new Event('change', { bubbles: true })));
+  await page.waitForTimeout(1300);
+  const saved = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'sops');
+    return r && r.value && r.value.during ? r.value.during.steps[0].t : null;
+  });
+  /* The ROW, not the screen. A screen that paints the edit and never saves looks
+     identical until somebody reloads. */
+  check('changing a step writes it to the row',
+    saved === 'Say hello and mean it', String(saved));
+  /* And the rest of the process survived being rewritten around it. */
+  const intact = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'sops');
+    return r && r.value && r.value.during
+      ? { steps: r.value.during.steps.length, qs: r.value.during.questions.length,
+          other: (r.value.before && r.value.before.steps || []).length }
+      : null;
+  });
+  check('and nothing else in the SOP was lost on the way',
+    intact && intact.steps === 5 && intact.qs === 10 && intact.other === 4,
+    JSON.stringify(intact));
+
+  await page.evaluate(() => document.querySelector('[data-gr-sopadd="during"]')?.click());
+  await page.waitForTimeout(1300);
+  const added = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'sops');
+    return r && r.value && r.value.during ? r.value.during.steps.length : -1;
+  });
+  check('adding a step adds one, to the row', added === 6, String(added));
+
+  await page.evaluate(() => document.querySelector('[data-gr-sopdel="during.steps.5"]')?.click());
+  await page.waitForTimeout(1300);
+  const removed = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'sops');
+    return r && r.value && r.value.during ? r.value.during.steps.length : -1;
+  });
+  check('and removing one takes it away again', removed === 5, String(removed));
+  /* A step somebody spent ten minutes writing is one click from gone, and the only
+     other copy is in their head. */
+  const undo = await page.evaluate(() => !!document.querySelector('#grToast [data-gr-undo]'));
+  check('with an undo, because the only other copy is in somebody’s head',
+    undo, String(undo));
+});
+
+await step('Sales bonus adds up, and only a manager can change it', async () => {
+  /* The fixtures are picked so the arithmetic is checkable by hand: 10% of 3,000 is
+     300 with nothing paid; 10% of 5,000 is 500 with 200 paid, leaving 300; 10% of 1,500
+     is 150 paid in full. So 600 is owed and 350 has gone out, and a screen that adds up
+     to anything else is wrong in a way somebody would eventually notice in their pay. */
+  await screen('gr_bonus');
+  await page.waitForTimeout(1300);
+  const m = await page.evaluate(() => ({
+    stats: [...document.querySelectorAll('.gr_bnstat b')].map(b => b.textContent.trim()),
+    pills: [...document.querySelectorAll('.gr_bnpill')].map(p => p.textContent.trim()),
+    cards: document.querySelectorAll('.gr_bncard').length,
+    form: !!document.querySelector('[data-gr-bnadd]'),
+    segs: [...document.querySelectorAll('[data-gr-bnfilter] b')].map(b => b.textContent.trim())
+  }));
+  check('what is still owed and what has been paid are both right',
+    m.stats[0] === '$600' && m.stats[1] === '$350',
+    JSON.stringify(m.stats));
+  /* One of each state, because three unpaid sales would pass against code that never
+     worked out what was left. */
+  check('a part-paid sale is told apart from an unpaid one',
+    m.pills.indexOf('Unpaid') >= 0 && m.pills.indexOf('Part paid') >= 0,
+    m.pills.join(','));
+  check('and the paid-in-full one is not in the to-pay list',
+    m.cards === 2 && m.segs.join(',') === '2,1,3',
+    JSON.stringify({ cards: m.cards, segs: m.segs }));
+
+  await page.evaluate(() => document.querySelector('[data-gr-bnfilter="paid"]')?.click());
+  await page.waitForTimeout(1000);
+  const paid = await page.evaluate(() => ({
+    cards: document.querySelectorAll('.gr_bncard').length,
+    pills: [...document.querySelectorAll('.gr_bnpill')].map(p => p.textContent.trim())
+  }));
+  check('switching to Paid shows only the one that is settled',
+    paid.cards === 1 && paid.pills.join(',') === 'Paid', JSON.stringify(paid));
+  await page.evaluate(() => document.querySelector('[data-gr-bnfilter="open"]')?.click());
+  await page.waitForTimeout(800);
+
+  /* A payment bigger than the balance is somebody mistyping. Refused rather than
+     silently trimmed, because trimming hides the typo in a record about money. */
+  await page.evaluate(() => document.querySelector('.gr_bncard')?.setAttribute('open', ''));
+  await page.waitForTimeout(600);
+  const over = await page.evaluate(() => {
+    const host = document.querySelector('.gr_bnadd');
+    if (!host) return null;
+    const amt = host.querySelector('[data-gr-bnpay="amt"]');
+    amt.value = '999999';
+    host.querySelector('[data-gr-bnpayadd]').click();
+    return true;
+  });
+  await page.waitForTimeout(1100);
+  const after = await page.evaluate(() => ({
+    toast: (document.querySelector('#grToast span') || {}).textContent || '',
+    paid: (window.__mockDB.growth_bonus || []).reduce(
+      (n, e) => n + (e.payments || []).reduce((k, p) => k + Number(p.amount || 0), 0), 0)
+  }));
+  check('a payment larger than the balance is refused, not trimmed',
+    !!over && /more than/i.test(after.toast) && after.paid === 350,
+    JSON.stringify(after));
+
+  /* The form is hidden from anybody who is not a manager. The database refuses the
+     write as well -- that half is measured in a rolled-back transaction, in the
+     migration -- so this is only the half that stops a rep being handed a button that
+     always fails. Driven by a doctored mock, since the role is read at sign-in. */
+  const asRole = (role) => MOCK.replace(
+    "role: 'owner', title: 'Founder'", "role: '" + role + "', title: 'Founder'");
+  const reloadAs = async (body) => {
+    await page.unroute('**/@supabase/supabase-js@2*');
+    await page.route('**/@supabase/supabase-js@2*', r =>
+      r.fulfill({ status: 200, contentType: 'application/javascript', body: body }));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#view-app.on', { timeout: 30000 });
+    await page.waitForTimeout(3600);
+    await screen('gr_bonus');
+    await page.waitForTimeout(1200);
+  };
+
+  await reloadAs(asRole('growth'));
+  const rep = await page.evaluate(() => ({
+    form: !!document.querySelector('[data-gr-bnadd]'),
+    rate: !!document.querySelector('[data-gr-bnrate]'),
+    del: document.querySelectorAll('[data-gr-bndel]').length,
+    /* They still SEE it -- Luke's rule is that Annie can view. A screen that hid the
+       numbers as well would be the wrong fix. */
+    stats: [...document.querySelectorAll('.gr_bnstat b')].map(b => b.textContent.trim())
+  }));
+  check('a growth rep cannot log a sale or change the rate',
+    !rep.form && !rep.rate && rep.del === 0, JSON.stringify(rep));
+  check('but still sees what they are owed',
+    rep.stats[0] === '$600', JSON.stringify(rep.stats));
+
+  await reloadAs(MOCK);
+  const back = await page.evaluate(() => !!document.querySelector('[data-gr-bnadd]'));
+  check('and a manager gets the form back', back, String(back));
+});
+
+await step('Growth is visible to the four roles that work in it', async () => {
+  /* Who sees Growth is decided by ROLE: owner, manager, inhouse_dev and growth.
+
+     A named-list gate was written here on 20261105 and taken out the same day. It
+     hid Growth from anybody not in growth_settings.access, which read correctly until
+     you notice that row already meant something else -- it is the list that lets people
+     BELOW the manager floor in, and it contained one person. So it hid the module from
+     everybody else, including the two owners and the in-house devs. That is the whole
+     reason this check exists: the gate is a role, and a row that means one thing must
+     not be read as if it means another.
+
+     Driven by serving a doctored mock, because the role is read once at sign-in. */
+  const asRole = (role) => MOCK.replace(
+    "role: 'owner', title: 'Founder'", "role: '" + role + "', title: 'Founder'");
+
+  const growthVisible = async () => page.evaluate(() => {
+    const items = [...document.querySelectorAll('#appSidebar .nav-item[data-screen^="gr_"]')];
+    const group = document.querySelector('[data-navgroup="growth"]');
+    const shown = (el) => !!el && getComputedStyle(el).display !== 'none';
+    return { items: items.filter(shown).length, group: shown(group) };
+  });
+  const reloadAs = async (body) => {
+    await page.unroute('**/@supabase/supabase-js@2*');
+    await page.route('**/@supabase/supabase-js@2*', r =>
+      r.fulfill({ status: 200, contentType: 'application/javascript', body: body }));
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#view-app.on', { timeout: 30000 });
+    await page.waitForTimeout(3600);
+  };
+
+  for (const role of ['owner', 'manager', 'inhouse_dev', 'growth']) {
+    await reloadAs(asRole(role));
+    const v = await growthVisible();
+    check('a ' + role + ' sees Growth', v.items > 5 && v.group, role + ': ' + JSON.stringify(v));
+  }
+
+  /* And a member does not -- which is what the manager floor is for, and what the
+     named-access row exists to open on purpose, one person at a time. */
+  await reloadAs(asRole('member'));
+  const member = await growthVisible();
+  check('a member does not, unless they are named in the access row',
+    member.items === 0 && !member.group, JSON.stringify(member));
+
+  await reloadAs(MOCK);
+  const back = await growthVisible();
+  check('and the default account still has it', back.items > 5 && back.group, JSON.stringify(back));
+});
+
+await step('the course opens on the lesson you are up to', async () => {
+  /* Every lesson used to start collapsed, so the first thing the screen asked of
+     somebody starting the course was to work out where they were and click. Luke's
+     opens the next unfinished one. */
+  await screen('gr_training');
+  /* Training remembers its sub-tab, and an earlier step leaves it on Q&A -- so without
+     this the step measured a screen with no lessons on it at all and reported
+     "0 lessons, none open", which is true and says nothing. */
+  await page.evaluate(() => document.querySelector('[data-gr-traintab="course"]')?.click());
+  await page.waitForTimeout(1400);
+  const first = await page.evaluate(() => {
+    const all = [...document.querySelectorAll('.gr_cs')];
+    const open = all.filter(l => l.classList.contains('gr_cson'));
+    return { openCount: open.length, total: all.length,
+             /* The body is really there, not just a class saying it is. */
+             hasBody: !!(open[0] && open[0].querySelector('.gr_csb')),
+             openIsFirst: !!(open[0] && all[0] && open[0] === all[0]) };
+  });
+  check('one lesson is open to begin with, not none',
+    first.openCount === 1 && first.total > 1 && first.hasBody, JSON.stringify(first));
+  check('and it is the one they have not done yet', first.openIsFirst, String(first.openIsFirst));
+
+  /* THE TRAP. Defaulting the open lesson and clearing it to the same value on close
+     makes it impossible to shut: the next paint reopens it. Closed has to be a
+     different state from never-opened. */
+  await page.evaluate(() => document.querySelector('.gr_cson [data-gr-lesson]')?.click());
+  await page.waitForTimeout(700);
+  await page.evaluate(() => { if (typeof grRender === 'function') grRender(); });
+  await page.waitForTimeout(700);
+  const after = await page.evaluate(() => document.querySelectorAll('.gr_cson').length);
+  /* first.openCount in the condition on purpose: with no lessons on screen this read
+     0 === 0 and passed while measuring nothing, which is the exact shape of hollow
+     pass the rest of this file exists to avoid. */
+  check('closing it actually closes it, and it stays closed on the next paint',
+    first.openCount === 1 && after === 0, first.openCount + ' -> ' + after);
+});
+
+await step('the world clock is a strip, and still says everything', async () => {
+  /* Four 110px cards cost most of the first screenful on a screen whose job is the
+     list underneath them. The risk in compacting it is losing what it was for, so
+     this measures the two things that would quietly go: a clipped city name, and the
+     offset that stops somebody booking a call at 3am their time. */
+  await screen('gr_meetings');
+  await page.waitForTimeout(900);
+  const clk = await page.evaluate(() => {
+    const strip = document.querySelector('.gr_wclkin');
+    if (!strip) return null;
+    const r = strip.getBoundingClientRect();
+    const cities = [...document.querySelectorAll('.gr_wzc')];
+    return {
+      h: Math.round(r.height),
+      zones: cities.length,
+      clipped: cities.filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.textContent),
+      titles: [...document.querySelectorAll('.gr_wz')].map(b => b.getAttribute('title') || ''),
+      on: document.querySelectorAll('.gr_wzon').length
+    };
+  });
+  check('all four zones are on one strip', !!clk && clk.zones === 4, clk && String(clk.zones));
+  check('and it is a strip, not a row of cards', !!clk && clk.h < 70, clk && clk.h + 'px');
+  check('no city name is cut off', !!clk && clk.clipped.length === 0,
+    clk ? clk.clipped.join(',') || 'none' : 'no strip');
+  /* The line Luke's strip drops. It moved to the hover rather than disappearing. */
+  check('how far ahead or behind each zone is survives, on hover',
+    !!clk && clk.titles.length === 4 && clk.titles.every(t => /ahead|behind|shown here|Same time/i.test(t)),
+    clk ? JSON.stringify(clk.titles[1]) : 'none');
+  check('exactly one zone is marked as the one times are shown in',
+    !!clk && clk.on === 1, clk && String(clk.on));
 });
 
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
