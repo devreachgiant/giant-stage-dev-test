@@ -3963,11 +3963,17 @@ await step('the Log a sale subtitle reads as a subtitle', async () => {
     t && (t.transform + ' ' + t.size + 'px'));
 });
 
-/* ADDING A REP. The button does not write anything here -- who sells is one list, in
-   Settings under Team, read by the deal owner dropdown and the course as well. So what
-   is asserted is that it LANDS there, on the right tab, with the ticker actually on
-   screen. Asserting the click did not throw would pass with a button wired to nothing. */
-await step('+ Add sales rep goes to the list that decides who a rep is', async () => {
+/* ADDING A REP. This step used to assert that the button navigated to Settings -> Team,
+   which is what it did until the picker was built. Those assertions are gone rather than
+   loosened -- a check kept for behaviour that was deliberately replaced fails forever and
+   teaches people to ignore the suite. What it still owns is the button itself; the picker
+   it opens has its own step further down.
+
+   It no longer CLICKS, either. It used to, and once the button started opening a picker
+   in place that click left grBnAddRep true for every step after it -- the picker step
+   then opened with the picker already up, and its own click shut it. A check that leaves
+   state behind breaks the next one. */
+await step('+ Add sales rep is on the Sales bonus screen', async () => {
   await screen('gr_bonus');
   await page.waitForTimeout(1200);
   const b = await page.evaluate(() => {
@@ -3979,40 +3985,6 @@ await step('+ Add sales rep goes to the list that decides who a rep is', async (
   });
   check('the button is on the screen and has a size',
     !!b && b.onScreen, b ? b.w + 'x' + b.h + ' "' + b.text + '"' : 'not found');
-
-  await page.evaluate(() => document.querySelector('.gr_bnaddrep')?.click());
-  await page.waitForTimeout(1400);
-  /* Growth settings is an OVERLAY PANEL (#grSetPanel, .on when open), not the
-     #grSettings screen in the sidebar -- an easy thing to assert wrongly, and asserting
-     it wrongly here failed against working code. The panel is measured, not just found:
-     grRenderSetPanel empties innerHTML and drops .on to close, so an element that
-     exists tells you nothing about whether anything is on screen. */
-  const landed = await page.evaluate(() => {
-    const w = document.querySelector('#grSetPanel');
-    const r = w ? w.getBoundingClientRect() : null;
-    const tab = document.querySelector('#grSetPanel [data-gr-settab="team"][aria-pressed="true"]');
-    return { open: !!w && w.classList.contains('on'),
-             painted: !!r && r.width > 200 && r.height > 200,
-             teamTab: !!tab,
-             ticks: document.querySelectorAll('#grSetPanel [data-gr-team]').length };
-  });
-  check('clicking it opens the Growth settings panel',
-    !!landed && landed.open && landed.painted, JSON.stringify(landed));
-  check('on the Team tab, not whichever tab was last open',
-    !!landed && landed.teamTab, JSON.stringify(landed));
-  /* The tab could be selected and the body still be the templates list. Count the
-     checkboxes that actually decide the thing. */
-  check('with the people you tick to make somebody a rep actually listed',
-    !!landed && landed.ticks > 0, landed && (landed.ticks + ' tick boxes'));
-  /* Closing it must get you back, or the button is a one-way trip off the screen. */
-  await page.evaluate(() => document.querySelector('[data-gr-setclose]')?.click());
-  await page.waitForTimeout(900);
-  const back = await page.evaluate(() => ({
-    closed: !document.querySelector('#grSetPanel.on'),
-    stillOnBonus: !!document.querySelector('.gr_bnaddrep')
-  }));
-  check('and closing it leaves you back on Sales bonus',
-    !!back && back.closed && back.stillOnBonus, JSON.stringify(back));
 });
 
 /* THE ONE-REP CASE, which is the one that mattered. The whole rep picker was wrapped in
@@ -4235,6 +4207,88 @@ await step('the Growth settings tabs do not stretch one pill over two rows', asy
   check('the selected tab is actually painted differently from the rest',
     !!t && t.selBg !== t.offBg && t.selFg !== t.offFg,
     JSON.stringify(t && { on: [t.selBg, t.selFg], off: [t.offBg, t.offFg] }));
+});
+
+/* -------------------------------------------- adding a rep without leaving the screen
+   + Add sales rep used to send you to Settings -> Team. Right that there is one list of
+   who sells; wrong that you had to go and find it. This opens the same list in place and
+   writes it through the same grSetting('team', ...) call.
+
+   EVERY ASSERTION BELOW READS THE SAVED ROW, not the dropdown. A rep painted into the
+   select and never saved looks identical to one that worked until you reload, and that
+   is the bug shape this file keeps shipping. */
+await step('a manager can add a sales rep from the Sales bonus screen', async () => {
+  await screen('gr_bonus');
+  await page.waitForTimeout(1300);
+
+  /* Start shut whatever an earlier step did. grBnAddRep is module state that outlives a
+     render, so inheriting it open turns the click below into a click that CLOSES. */
+  await page.evaluate(() => {
+    if (document.querySelector('.gr_bnpick2')) document.querySelector('[data-gr-bnaddrep]')?.click();
+  });
+  await page.waitForTimeout(700);
+  const before = await page.evaluate(() => ({
+    reps: [...document.querySelectorAll('[data-gr-bnrep] option')].length,
+    picker: !!document.querySelector('.gr_bnpick2'),
+    goesToSettings: !!document.querySelector('[data-gr-bnaddrep][data-gr-settab-open]')
+  }));
+  check('the button no longer sends you off to Settings',
+    !!before && before.goesToSettings === false && before.picker === false,
+    JSON.stringify(before));
+
+  await page.evaluate(() => document.querySelector('[data-gr-bnaddrep]')?.click());
+  await page.waitForTimeout(900);
+  const open = await page.evaluate(() => {
+    const pk = document.querySelector('.gr_bnpick2');
+    const r = pk ? pk.getBoundingClientRect() : null;
+    const onTeam = [...document.querySelectorAll('[data-gr-bnrep] option')].map(o => o.textContent.trim());
+    const offered = [...document.querySelectorAll('[data-gr-bnrepadd]')]
+      .map(b => (b.querySelector('b') || {}).textContent);
+    return { painted: !!r && r.height > 80, offered: offered.length,
+             /* Somebody already a rep must not be offered again -- adding them twice is
+                the list counting one person twice. */
+             overlap: offered.filter(n => onTeam.indexOf(n) >= 0).length,
+             label: (document.querySelector('[data-gr-bnaddrep]') || {}).textContent };
+  });
+  check('it opens a picker with people in it, in place',
+    !!open && open.painted && open.offered > 0, JSON.stringify(open));
+  check('and nobody who is already a rep is offered again',
+    !!open && open.overlap === 0, JSON.stringify(open && open.overlap));
+  check('the button turns into a way back out',
+    !!open && /close/i.test(open.label || ''), open && open.label);
+
+  const picked = await page.evaluate(() => {
+    const r = document.querySelector('[data-gr-bnrepadd]');
+    return r ? { id: r.dataset.grBnrepadd, name: r.querySelector('b').textContent } : null;
+  });
+  await page.evaluate(() => document.querySelector('[data-gr-bnrepadd]')?.click());
+  await page.waitForTimeout(1800);
+
+  const after = await page.evaluate(() => {
+    /* THE ROW, not the screen. growth_settings is where who-sells actually lives. */
+    const row = (window.__mockDB.growth_settings || []).filter(r => r.key === 'team').pop();
+    const sel = document.querySelector('[data-gr-bnrep]');
+    return {
+      savedTeam: row ? row.value : null,
+      selected: sel && sel.selectedOptions[0] ? sel.selectedOptions[0].textContent.trim() : null,
+      reps: [...document.querySelectorAll('[data-gr-bnrep] option')].length,
+      pickerClosed: !document.querySelector('.gr_bnpick2')
+    };
+  });
+  check('the new rep is written to the team list the whole module reads',
+    !!after && Array.isArray(after.savedTeam) && !!picked
+      && after.savedTeam.indexOf(picked.id) >= 0,
+    JSON.stringify(after && after.savedTeam));
+  check('they appear in the dropdown',
+    !!after && !!picked && after.reps === (before.reps + 1),
+    JSON.stringify({ was: before && before.reps, now: after && after.reps }));
+  /* You opened this to log THEIR sale, so landing on somebody else would be a click
+     you then have to undo. */
+  check('and the screen lands on the person just added',
+    !!after && !!picked && after.selected === picked.name,
+    JSON.stringify({ selected: after && after.selected, added: picked && picked.name }));
+  check('the picker shuts once somebody is added',
+    !!after && after.pickerClosed, JSON.stringify(after && after.pickerClosed));
 });
 
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));

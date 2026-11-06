@@ -6893,6 +6893,25 @@ input.gr_lkurl:focus{outline:0;border-color:var(--sc);}
   border-radius:10px;padding:10px 16px;color:var(--text-3);font:inherit;font-size:13px;
   font-weight:700;cursor:pointer;white-space:nowrap;}
 .gr_bnaddrep:hover{border-style:solid;border-color:var(--text-3);color:var(--text-2);}
+/* The picker that opens under it. A list you look somebody up in, so the rows are
+   plain and the only loud thing on each is the word that does something. */
+.gr_bnaddrep[aria-expanded="true"]{border-style:solid;border-color:var(--text-3);color:var(--text-2);}
+.gr_bnpick2{margin-top:10px;background:var(--surface);border:1px solid var(--line);
+  border-radius:14px;padding:13px 15px;}
+.gr_bnpick2 .gr_mute{margin:0 0 9px;font-size:12.5px;}
+.gr_bnpick2 .gr_mute:last-child{margin:9px 0 0;}
+.gr_bnpl{display:flex;flex-direction:column;max-height:300px;overflow-y:auto;}
+.gr_bnprow{display:flex;align-items:center;gap:11px;width:100%;text-align:left;
+  padding:9px 6px;background:none;border:0;border-top:1px solid var(--line);
+  color:var(--text);font:inherit;cursor:pointer;border-radius:9px;}
+.gr_bnprow:first-child{border-top:0;}
+.gr_bnprow:hover{background:var(--surface-2);}
+.gr_bnprow span{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;}
+.gr_bnprow b{font-size:13.5px;font-weight:700;}
+.gr_bnprow em{font-style:normal;font-size:11.5px;color:var(--text-3);}
+.gr_bnprow i{flex:none;font-style:normal;font-size:12px;font-weight:700;color:var(--text-3);
+  border:1px solid var(--line);border-radius:99px;padding:5px 13px;}
+.gr_bnprow:hover i{border-color:var(--red,#D00400);color:var(--red,#D00400);}
 .gr_bnme{font-size:17px;font-weight:800;letter-spacing:-.02em;}
 .gr_bnstats{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:12px;margin:16px 0 18px;}
 .gr_bnstat{background:var(--surface);border:1px solid var(--line);border-radius:20px;
@@ -99932,6 +99951,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   const grMayPayroll = () => GR_PAYROLL_ROLES.indexOf(myRole()) >= 0;
 
   let grBonusRep = null, grBonusFilter = 'open', grBonusOpen = null;
+  let grBnAddRep = false;   // the add-a-rep picker, open or shut
   let grBonusForm = { client: '', deal: '', amount: '', date: '', pct: '' };
 
   const grBonusRate = () => {
@@ -100012,6 +100032,67 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       '</div></details>';
   }
 
+  /* ADDING A REP WITHOUT LEAVING THE SCREEN.
+
+     This used to send you to Settings -> Team, which was right about one thing and
+     wrong about another. Right that there is ONE list of who sells, read by the deal
+     owner dropdown and the course as well as by this screen, and that a second writer
+     for it would be two editors for one setting. Wrong that you had to go and find it:
+     you are on Sales bonus because you want to log a sale for somebody, and being sent
+     to a different screen to tick a box is two clicks and a loss of what you were doing.
+
+     So this writes THE SAME list through the same grSetting('team', ...) call. It is
+     not a second editor, it is a second door onto the one editor.
+
+     WHY IT PICKS RATHER THAN TYPES. Luke's own design has a box you type a name into,
+     which works there because his reps are names in a browser. Here a rep is a person
+     with a login: the bonus row points at their profile, and the policy that stops a
+     rep editing their own bonus is written against that id. A typed-in name could not
+     own a sale, could not sign in to see one, and could not be refused one either. */
+  function grBnRepPicker() {
+    if (!grBnAddRep) return '';
+    const inTeam = {}; grTeam().forEach(p => { inTeam[p.id] = 1; });
+    /* Everybody who could sell and is not already on the list. Ordered by name, because
+       this is a list you look somebody up in rather than one you read. */
+    const free = grPeople.filter(p => !inTeam[p.id])
+      .slice().sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || '')));
+    if (!free.length) {
+      return '<div class="gr_bnpick2"><p class="gr_mute">' +
+        'Everybody in the workspace is already a sales rep. Somebody new has to be ' +
+        'invited to Giant first \u2014 a rep is a person with a login, not a name.</p></div>';
+    }
+    return '<div class="gr_bnpick2">' +
+      '<p class="gr_mute">Pick who sells. They are added to Growth, so they also appear ' +
+      'as the owner of a deal and on the course \u2014 it is the same list Settings keeps.</p>' +
+      '<div class="gr_bnpl">' + free.slice(0, 40).map(p => {
+        const staff = ['owner','manager','inhouse_dev','growth'].indexOf(p.role) >= 0;
+        return '<button class="gr_bnprow" data-gr-bnrepadd="' + esc(p.id) + '">' +
+          grFace(p, staff ? '#1D5FA8' : '#7C3AED') +
+          '<span><b>' + esc(p.full_name || 'Unnamed') + '</b>' +
+          '<em>' + esc(staff ? 'Sees every deal' : 'Sees only their own deals') + '</em></span>' +
+          '<i>Add</i></button>';
+      }).join('') + '</div>' +
+      (free.length > 40 ? '<p class="gr_mute">Showing the first 40 of ' + free.length +
+        '. Settings \u2192 Team lists everybody.</p>' : '') + '</div>';
+  }
+
+  /* One list, one write. grSetting carries the zero-rows branch, so a refusal says so
+     rather than painting a rep who is not saved. */
+  async function grBnAddRepTo(id) {
+    const p = grPeople.find(x => x.id === id); if (!p) return;
+    const now = grTeamIds();
+    if (now.indexOf(id) >= 0) { grBnAddRep = false; grRender(); return; }
+    const next = now.concat([id]);
+    grSettings.team = next;
+    const ok = await grSetting('team', next);
+    if (!ok) { grToast('Adding them was refused.'); window.grReload(); return; }
+    /* Land on the person you just added -- you opened this to log THEIR sale. */
+    grBonusRep = id;
+    grBnAddRep = false;
+    grToast('Added ' + (p.full_name || 'them') + ' as a sales rep');
+    grRender();
+  }
+
   function grRenderBonus() {
     /* The table is applied by hand, so a deploy can land before the migration does.
        Saying "no sales yet" when we actually cannot see the table would be telling
@@ -100078,8 +100159,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
               '<select id="grBnRep" class="gr_in" data-gr-bnrep>' + team.map(x =>
                 '<option value="' + esc(x.id) + '"' + (x.id === who ? ' selected' : '') + '>' +
                 esc(x.full_name || 'Unnamed') + '</option>').join('') + '</select>' +
-              '<button class="gr_bnaddrep" data-gr-settab-open="team">+ Add sales rep</button>' +
-              '</div>'
+              '<button class="gr_bnaddrep"' + (grBnAddRep ? ' aria-expanded="true"' : '') +
+                ' data-gr-bnaddrep>' + (grBnAddRep ? 'Close' : '+ Add sales rep') + '</button>' +
+              '</div>' + grBnRepPicker()
             /* A rep sees their own and is not offered the dropdown: whose bonus you are
                looking at is not a thing somebody should browse. */
             : '<b class="gr_bnme">' + esc(grPerson(who).full_name || 'You') + '</b>') +
@@ -102647,6 +102729,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (lk) { e.stopPropagation(); grMeetLink(lk.dataset.grLink); return; }
 
     /* Both stop the click, or the row underneath opens the call you just took off. */
+    const ar = e.target.closest('[data-gr-bnaddrep]');
+    if (ar) { grBnAddRep = !grBnAddRep; grRender(); return; }
+    const ara = e.target.closest('[data-gr-bnrepadd]');
+    if (ara) { grBnAddRepTo(ara.dataset.grBnrepadd); return; }
+
     const mh = e.target.closest('[data-gr-mhide]');
     if (mh) { e.stopPropagation(); grMeetHide(mh.dataset.grMhide); return; }
     const mc = e.target.closest('[data-gr-mcancel]');
