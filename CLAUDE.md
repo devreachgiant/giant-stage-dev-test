@@ -78,9 +78,9 @@ python3 tools_newchat_parse.py          # syntax of all 14 script blocks     ~1s
 python3 tools_newchat_audit.py          # cross-screen id leaks             ~7s
 python3 tools_newchat_isolation.py      # old chat vs New Chat separation   <1s
 node tools_newchat_clickthrough.mjs     # ~372 checks, drives a real browser ~6m
-node tools_growth_check.mjs             # 443 checks, Growth only          ~3m
+node tools_growth_check.mjs             # 449 checks, Growth only          ~3m
 node tools_growth_zoom_check.mjs        # 70 checks, the Zoom connector     ~1s
-node tools_growth_calendly_check.mjs    # 29 checks, the Calendly sync      ~1s
+node tools_growth_calendly_check.mjs    # 38 checks, the Calendly sync      ~1s
 node tools_growth_gmail_check.mjs       # 24 checks, mail -> deal matching   ~1s
 ```
 

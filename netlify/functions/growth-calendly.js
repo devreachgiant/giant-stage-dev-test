@@ -151,6 +151,87 @@ async function fallbackOwner() {
   } catch (e) { return null; }
 }
 
+/* SOMEBODY HAS TO BE TOLD. On 2026-11-05 Erica Morgan booked at 15:12 for a call at
+   16:00 and the team missed it. The sync was blameless -- the booking was in the
+   database at 15:20, 39 minutes before the call, with its Zoom link and attached to a
+   deal. Nothing anywhere said so. It sat on a screen waiting to be looked at, and for a
+   call booked 47 minutes ahead "go and look" is not a plan. Two of the nineteen
+   bookings on record came in under four hours' notice, so this was not a freak.
+
+   Giant already has notifications -- 4,140 of them, for mentions and task assignments
+   -- and Growth wrote to none of it. This is that gap, and nothing more: an in-app
+   notification, which is seen when somebody has Giant open. Whether a call booked
+   inside the hour should also reach Slack is Luke's call, not this file's.
+
+   WHO. The owner of the deal, because that is whose call it is. A booking with no deal
+   goes to everybody on the Growth team rather than nobody -- an unmatched booking is
+   exactly the one most likely to be missed.
+
+   ONCE. notifications has a unique index on (recipient_id, dedupe_key), so the key is
+   the Calendly event uri and a re-run rewrites rather than adding a second. Without it
+   the ten-minute timer would say the same thing 144 times a day. */
+function whenPhrase(startsAt) {
+  const mins = Math.round((new Date(startsAt) - Date.now()) / 60000);
+  if (mins < 0) return 'It has already started';
+  if (mins < 60) return 'It starts in ' + mins + ' minute' + (mins === 1 ? '' : 's');
+  if (mins < 60 * 20) {
+    const h = Math.round(mins / 60);
+    return 'It starts in about ' + h + ' hour' + (h === 1 ? '' : 's');
+  }
+  /* Beyond a day, a relative phrase stops helping -- "in 3 days" is not something you
+     can put in a calendar. */
+  return 'It is on ' + new Date(startsAt).toUTCString().slice(0, 16) + ' UTC';
+}
+
+async function tellSomebody(fresh) {
+  const soon = (fresh || []).filter(r => new Date(r.starts_at) > Date.now());
+  if (!soon.length) return 0;
+
+  let team = [];
+  try {
+    const row = await sb('growth_settings?key=eq.team&select=value');
+    if (row && row[0] && Array.isArray(row[0].value)) team = row[0].value;
+  } catch (e) { /* no team row: fall back to the deal owner alone */ }
+
+  const owners = new Map();
+  try {
+    const deals = await sb('growth_clients?select=id,owner_id');
+    (deals || []).forEach(d => { if (d.owner_id) owners.set(d.id, d.owner_id); });
+  } catch (e) { /* unmatched bookings still reach the team below */ }
+
+  const notes = [];
+  for (const r of soon) {
+    const owner = r.client_id ? owners.get(r.client_id) : null;
+    const to = owner ? [owner] : team;
+    if (!to.length) continue;
+    const who = (r.invitee && r.invitee.name) || 'Somebody';
+    const mins = Math.round((new Date(r.starts_at) - Date.now()) / 60000);
+    to.forEach(id => notes.push({
+      recipient_id: id,
+      actor_id: null,                       // the sync is nobody, and the policy allows null
+      type: 'growth_booking',
+      /* The urgency is in the TITLE, because a notification list is read as a column of
+         titles and "New booking" reads the same whether the call is in nine days or
+         nine minutes. */
+      title: mins < 240 ? 'Call soon: ' + who : 'New booking: ' + who,
+      body: who + ' booked ' + (r.title || 'a call') + '. ' + whenPhrase(r.starts_at),
+      dedupe_key: 'growth_booking:' + r.external_id
+    }));
+  }
+  if (!notes.length) return 0;
+  try {
+    /* sb() already sends resolution=merge-duplicates on every POST, so the unique
+       index on (recipient_id, dedupe_key) turns a re-run into a rewrite. */
+    await sb('notifications?on_conflict=recipient_id,dedupe_key', 'POST', notes);
+    return notes.length;
+  } catch (e) {
+    /* A booking that arrived and a notification that did not is still better than
+       failing the sync and losing the booking too. */
+    console.error('[growth-calendly] could not notify', e.message);
+    return 0;
+  }
+}
+
 /* The sync itself, with no HTTP around it. Two things call this: the Sync now button,
    and growth-sync.mjs on its half-hourly timer. One implementation, because two would
    drift and the one that drifted would be the one running at 3am unattended. */
@@ -283,6 +364,7 @@ async function runSync(token) {
   const written = await sb('growth_meetings?on_conflict=external_id', 'POST', rows);
 
   const added = rows.filter(r => !seen.has(r.external_id)).length;
+  const told = await tellSomebody(rows.filter(r => !seen.has(r.external_id)));
   return {
     added, updated: rows.length - added, total: (written || rows).length,
     matched: rows.filter(r => r.client_id).length,

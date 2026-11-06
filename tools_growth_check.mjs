@@ -3544,6 +3544,56 @@ await step('every Growth screen actually paints something', async () => {
     empty.length === 0, empty.join(', ') || 'all painted');
 });
 
+await step('Links: the three you send, in the order you send them', async () => {
+  /* The order is the content. Sending somebody the kickoff link before they have paid
+     is the mistake this screen exists to prevent, which is why they are numbered and
+     why the order is asserted rather than just the count. */
+  await screen('gr_links');
+  await page.waitForTimeout(1200);
+  const m = await page.evaluate(() => {
+    const cards = [...document.querySelectorAll('.gr_lkcard')];
+    return {
+      titles: cards.map(c => (c.querySelector('h2') || {}).textContent),
+      nums: cards.map(c => (c.querySelector('.gr_lkn') || {}).textContent),
+      colours: [...new Set(cards.map(c => getComputedStyle(c).borderTopColor))].length,
+      urls: [...document.querySelectorAll('[data-gr-linkurl]')].map(i => i.value),
+      copies: document.querySelectorAll('[data-gr-linkcopy]').length,
+      opens: [...document.querySelectorAll('.gr_lkopen')].map(a => a.getAttribute('href'))
+    };
+  });
+  check('three cards, in the order they are used',
+    m.titles.join(' > ') === 'Sales call > Onboarding form > Onboarding call',
+    m.titles.join(' > '));
+  check('numbered 1 to 3, and told apart by colour',
+    m.nums.join('') === '123' && m.colours === 3,
+    JSON.stringify({ nums: m.nums, colours: m.colours }));
+  /* Open has to go to the same place Copy copies. They were built from one list, and
+     this is what stops them drifting apart later. */
+  check('Open goes where Copy copies, for all three',
+    m.opens.length === 3 && m.urls.length === 3 &&
+    m.opens.every((h, i) => h === m.urls[i]),
+    JSON.stringify({ opens: m.opens.length, urls: m.urls.length }));
+  check('and each one is a real link',
+    m.urls.every(u => /^https:\/\/\S+\.\S+/.test(u)), JSON.stringify(m.urls));
+
+  /* Editable, because these move. A Calendly path that changes should not need a
+     deploy to fix -- that is a link that stays broken for a week. */
+  await page.fill('[data-gr-linkurl="kickoff"]', 'https://calendly.com/reach-giant/new-path');
+  await page.evaluate(() => document.querySelector('[data-gr-linkurl="kickoff"]')
+    ?.dispatchEvent(new Event('change', { bubbles: true })));
+  await page.waitForTimeout(1200);
+  const saved = await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'links');
+    return r && r.value && r.value.kickoff ? r.value.kickoff.url : null;
+  });
+  check('changing a link saves it to the row, not just the box',
+    saved === 'https://calendly.com/reach-giant/new-path', String(saved));
+  const reflected = await page.evaluate(() =>
+    (document.querySelector('.gr_lkcard:nth-child(3) .gr_lkopen') || {}).getAttribute('href'));
+  check('and Open follows it immediately',
+    reflected === 'https://calendly.com/reach-giant/new-path', String(reflected));
+});
+
 await step('Sales SOPs: three processes, and a manager can change them', async () => {
   /* Luke asked for this twice in the same breath: "we can edit the SOPs as well.
      That's really important because I want to be able to change them." So the checks

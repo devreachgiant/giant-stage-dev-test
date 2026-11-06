@@ -6843,6 +6843,33 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
    textarea to see the sentence you were changing. */
 .gr_sopstep.gr_soped .gr_sopcard textarea{min-height:110px;resize:vertical;}
 .gr_sopstep.gr_soped .gr_sopcard{gap:7px;}
+/* Links. Three cards, numbered, in the order you send them -- the order IS the content,
+   because sending somebody a kickoff link before they have paid is the mistake this
+   screen exists to stop. */
+.gr_lkflow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px;}
+.gr_lkcard{background:var(--surface);border:1px solid var(--line);border-top:5px solid var(--sc);
+  border-radius:22px;padding:20px;display:flex;flex-direction:column;gap:10px;min-width:0;}
+.gr_lktop{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.gr_lkn{width:32px;height:32px;border-radius:50%;background:var(--sc);color:#fff;
+  display:grid;place-items:center;font-size:14px;font-weight:800;flex:none;}
+.gr_lktag{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);}
+.gr_lkcard h2{margin:4px 0 0;font-size:21px;font-weight:800;letter-spacing:-.02em;}
+.gr_lkwhen{margin:0;font-size:14px;line-height:1.5;color:var(--text-2);min-height:42px;}
+.gr_lkurl{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;
+  padding:11px 13px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;}
+input.gr_lkurl:focus{outline:0;border-color:var(--sc);}
+.gr_lkacts{display:flex;gap:9px;margin-top:auto;}
+.gr_lkcopy{flex:1;border:0;background:var(--sc);color:#fff;border-radius:99px;padding:11px 14px;
+  font:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:filter .15s,background .15s;}
+.gr_lkcopy:hover{filter:brightness(1.08);}
+/* Says so on the button rather than in a toast across the screen: the eye is already
+   here, and the next thing you do is paste. */
+.gr_lkcopy.gr_lkok{background:#1A9E62;}
+.gr_lkopen{padding:11px 17px;border-radius:99px;border:1px solid var(--line);color:var(--text);
+  text-decoration:none;font-size:14px;font-weight:700;}
+.gr_lkopen:hover{border-color:var(--text-3);}
+@media(max-width:980px){.gr_lkflow{grid-template-columns:1fr;}.gr_lkwhen{min-height:0;}}
 /* Sales bonus. Amber for what is still owed and green for what has gone out, so the
    one number somebody actually came to see is the one that is loudest. */
 .gr_bnrate{display:flex;flex-direction:column;gap:5px;align-items:flex-end;}
@@ -9111,6 +9138,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
         <div class="nav-item" data-screen="gr_home" data-label="Home" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 7.2 8 2.5l5.5 4.7M4 6.6v7h8v-7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Home <span class="badge" id="grHomeBadge" style="display:none;">0</span></div>
         <div class="nav-item" data-screen="gr_inbox" data-label="Inbox" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2 4.2h12v7.6H2zM2.3 4.6 8 8.6l5.7-4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Inbox <span class="badge" id="grInboxBadge" style="display:none;">0</span></div>
         <div class="nav-item" data-screen="gr_meetings" data-label="Meetings" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 3.8h11v10h-11zM2.5 6.6h11M5.5 2v2.6M10.5 2v2.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Meetings</div>
+        <div class="nav-item" data-screen="gr_links" data-label="Links" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M6.6 9.4a2.8 2.8 0 004 0l2-2a2.8 2.8 0 00-4-4l-.6.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M9.4 6.6a2.8 2.8 0 00-4 0l-2 2a2.8 2.8 0 004 4l.6-.6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></span>Links</div>
         <div class="nav-item" data-screen="gr_pipeline" data-label="Pipeline" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M6 5.2a2.2 2.2 0 100 4.4 2.2 2.2 0 000-4.4ZM1.8 13.4c.5-2.2 2.1-3.4 4.2-3.4s3.7 1.2 4.2 3.4M11 5.5a2.2 2.2 0 010 4M12.6 10.2c1.2.5 2 1.5 2.2 3.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Pipeline</div>
         <div class="nav-item" data-screen="gr_training" data-label="Training" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M3 3.6A1.6 1.6 0 014.6 2H13v11H4.6A1.6 1.6 0 003 14.6zM3 3.6v11M6 5.4h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Training</div>
         <div class="nav-item" data-screen="gr_analytics" data-label="Analytics" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M3 13V6.5M8 13V3M13 13V8.6M1.5 14.5h13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Analytics</div>
@@ -13339,6 +13367,9 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       </div>
       <div class="screen" data-screen="gr_meetings" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grMeetings"></div>
+      </div>
+      <div class="screen" data-screen="gr_links" data-role-min="manager" data-client-hidden>
+        <div class="gr_wrap" id="grLinks"></div>
       </div>
       <div class="screen" data-screen="gr_pipeline" data-role-min="manager" data-client-hidden>
         <div class="gr_wrap" id="grPipeline"></div>
@@ -99481,6 +99512,62 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const d = Math.round(h / 24);
     return d + (d === 1 ? ' day ago' : ' days ago');
   }
+  /* --- Links: the three you send, in the order you send them ----------------------
+     Luke's screen, and the order is the content: a sales call link, then the onboarding
+     form with the payment, then the kickoff call once both are in. Numbered 1 to 3
+     because getting them out of order is the mistake -- sending somebody a kickoff link
+     before they have paid is the one this prevents.
+
+     THE URLS LIVE IN growth_settings, not in this file. They are the kind of thing that
+     changes without warning: Calendly paths move, the onboarding page gets rebuilt. A
+     link nobody can fix without a deploy is a link that stays broken for a week. The
+     defaults here are a seed, the same way the SOPs are. */
+  const GR_LINK_DEF = [
+    { k: 'sales', tag: 'Discovery call', t: 'Sales call', c: '#2B7BB9',
+      when: 'Send after a new lead replies to your first email.',
+      url: 'https://www.reachgiant.com/book-meeting' },
+    { k: 'form', tag: 'Form to fill in', t: 'Onboarding form', c: '#E08A1E',
+      when: 'Send with the payment link once they say yes.',
+      url: 'https://www.reachgiant.com/onboarding' },
+    { k: 'kickoff', tag: 'Kickoff call', t: 'Onboarding call', c: '#1A9E62',
+      when: 'Book once payment and the form are in.',
+      url: 'https://calendly.com/reach-giant/reachgiant-kickoff-call' }
+  ];
+  const grLinks = () => {
+    const saved = grSettings.links || {};
+    return GR_LINK_DEF.map(function (d) {
+      const v = saved[d.k] || {};
+      return Object.assign({}, d, {
+        url: typeof v.url === 'string' && v.url ? v.url : d.url,
+        when: typeof v.when === 'string' && v.when ? v.when : d.when
+      });
+    });
+  };
+
+  function grRenderLinks() {
+    const L = grLinks(), may = grIsStaff();
+    $('grLinks').innerHTML =
+      grHead('Links', 'Copy the right link for each step. Go in order, 1 to 3.', '') +
+      '<div class="gr_lkflow">' + L.map(function (l, i) {
+        /* Shown without the scheme. The whole card is about recognising the right link
+           at a glance, and every one of them starts with the same eight characters. */
+        const shown = String(l.url).replace(/^https?:\/\//, '');
+        return '<article class="gr_lkcard" style="--sc:' + l.c + '">' +
+          '<div class="gr_lktop"><span class="gr_lkn">' + (i + 1) + '</span>' +
+            '<span class="gr_lktag">' + esc(l.tag) + '</span></div>' +
+          '<h2>' + esc(l.t) + '</h2>' +
+          '<p class="gr_lkwhen">' + esc(l.when) + '</p>' +
+          (may
+            ? '<input class="gr_in gr_lkurl" data-gr-linkurl="' + l.k + '" value="' +
+              esc(l.url) + '" aria-label="' + esc(l.t) + ' link" spellcheck="false">'
+            : '<div class="gr_lkurl" title="' + esc(l.url) + '">' + esc(shown) + '</div>') +
+          '<div class="gr_lkacts">' +
+            '<button class="gr_lkcopy" data-gr-linkcopy="' + l.k + '">Copy link</button>' +
+            '<a class="gr_lkopen" href="' + esc(l.url) + '" target="_blank" rel="noopener">Open</a>' +
+          '</div></article>';
+      }).join('') + '</div>';
+  }
+
   /* --- Sales SOPs: how a call is run, before, during and after -------------------
      Asked for by Luke, who said twice in the walkthrough that the point is being able
      to change them himself: "we can edit the SOPs as well. That's really important
@@ -100748,6 +100835,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     document.addEventListener('visibilitychange', function () {
       if (!document.hidden) grRefreshIfStale();
     });
+    /* AND WHILE SOMEBODY IS JUST SITTING THERE. Both triggers above need something to
+       happen: a screen change, or the tab coming back. Neither fires for the person who
+       leaves Meetings open on a second monitor, which is how Growth is actually used --
+       so a booking that arrived at 15:12 was still missing from their screen at 16:00
+       even though the database had it the whole time. That is what happened to the
+       Erica Morgan call on 2026-11-05.
+
+       Ninety seconds, and only while a Growth screen is the one showing and the tab is
+       visible: an interval that polls a hidden tab is a background job nobody asked
+       for. grRefreshIfStale already refuses anything newer than GR_STALE_MS, so the
+       real cost here is one query a minute and a half, per open tab, while somebody is
+       looking at it. */
+    setInterval(function () {
+      if (document.hidden) return;
+      grRefreshIfStale();
+    }, 90000);
     grScreenWatch = true;
   }
 
@@ -101855,6 +101958,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       /* Not gated to staff, unlike the three admin screens beside it. An SOP is how the
          job is done -- the people who most need to read it are the ones learning, and a
          rep who cannot open it is a rep guessing. Editing is still staff-only. */
+      else if (grScreen === 'gr_links') grRenderLinks();
       else if (grScreen === 'gr_sops') grRenderSops();
       else if (grScreen === 'gr_bonus') grRenderBonus();
       grRenderSheet();
@@ -102038,6 +102142,27 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           });
         });
       });
+      return;
+    }
+
+    const lcp = e.target.closest('[data-gr-linkcopy]');
+    if (lcp) {
+      const l = grLinks().find(x => x.k === lcp.dataset.grLinkcopy);
+      if (!l) return;
+      const done = function (ok) {
+        if (!ok) { grToast('Could not copy. Select the link and copy it.'); return; }
+        /* On the button, not in a toast across the screen. The eye is already here,
+           and the next thing you do is paste. */
+        lcp.textContent = 'Copied';
+        lcp.classList.add('gr_lkok');
+        setTimeout(function () {
+          lcp.textContent = 'Copy link'; lcp.classList.remove('gr_lkok');
+        }, 1600);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(l.url).then(function () { done(true); },
+                                                  function () { done(false); });
+      } else done(false);
       return;
     }
 
@@ -103285,6 +103410,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       for (let i = 0; i < path.length - 1; i++) node = node[path[i]];
       node[path[path.length - 1]] = e.target.value;
       grSetting('sops', next).then(function (r) { if (!r) window.grReload(); });
+      return;
+    }
+    if (d.grLinkurl) {
+      if (!grIsStaff()) return;
+      const v = String(e.target.value || '').trim();
+      /* Refused rather than stored. A saved non-link paints a Copy button that hands
+         somebody a broken address, and they will not find out until the client does. */
+      if (v && !/^https?:\/\/\S+\.\S+/.test(v)) {
+        grToast('That does not look like a link. It needs to start with http.');
+        const was = grLinks().find(x => x.k === d.grLinkurl);
+        e.target.value = was ? was.url : '';
+        return;
+      }
+      const next = Object.assign({}, grSettings.links || {});
+      next[d.grLinkurl] = Object.assign({}, next[d.grLinkurl] || {}, { url: v });
+      grSetting('links', next).then(function (r) { if (!r) window.grReload(); });
       return;
     }
     if (d.grBnf) {
