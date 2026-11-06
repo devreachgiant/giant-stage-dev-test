@@ -3903,6 +3903,340 @@ await step('the world clock is a strip, and still says everything', async () => 
     !!clk && clk.on === 1, clk && String(clk.on));
 });
 
+/* ------------------------------------------- Sales bonus: room, and adding a rep
+   Luke compared the screen against the design he built it from. Two things were off,
+   and neither is the kind a passing suite would have noticed: the form had no space in
+   it, and there was no way to add a rep.
+
+   MEASURED, NOT COUNTED. "The button exists" is the check this repo has been burnt by
+   twice -- a colour dot existed the whole time at 0px wide. So the button is measured,
+   and the spacing is measured as the actual pixel gap between one field and the next,
+   which was ZERO: .gr_field gives 5px between its own label and input and nothing
+   between siblings, so every box sat hard against the one above it. */
+await step('the Log a sale form has space between its fields', async () => {
+  await screen('gr_bonus');
+  await page.waitForTimeout(1200);
+  const g = await page.evaluate(() => {
+    const f = [...document.querySelectorAll('.gr_bnform > .gr_field')];
+    const gaps = [];
+    for (let i = 1; i < f.length; i++)
+      gaps.push(Math.round(f[i].getBoundingClientRect().top - f[i - 1].getBoundingClientRect().bottom));
+    const card = document.querySelector('.gr_bnform');
+    const grid = document.querySelector('.gr_bngrid');
+    return { gaps, pad: card ? getComputedStyle(card).paddingTop : null,
+             gridGap: grid ? getComputedStyle(grid).columnGap : null,
+             fields: f.length };
+  });
+  check('consecutive fields in Log a sale are not touching',
+    !!g && g.fields >= 2 && g.gaps.every(x => x >= 12),
+    JSON.stringify(g && g.gaps) + ' px between ' + (g && g.fields) + ' fields');
+  check('and the card itself has padding to breathe in',
+    !!g && parseFloat(g.pad) >= 20, g && g.pad);
+  check('the three-column row is spaced too, not just the stack',
+    !!g && parseFloat(g.gridGap) >= 14, g && g.gridGap);
+});
+
+/* The subtitle used to be .gr_n2, which is margin-left:auto -- so "Choose the client,
+   then what they bought" was thrown against the far right edge of the card in uppercase
+   grey, reading as a column header for something rather than a line about the form
+   underneath it. Position is the assertion: a rule that says "display:block" can be
+   true while the element still sits beside the heading for some other reason. */
+await step('the Log a sale subtitle reads as a subtitle', async () => {
+  await screen('gr_bonus');
+  await page.waitForTimeout(1200);
+  const t = await page.evaluate(() => {
+    const h = document.querySelector('.gr_bnform .gr_ct h2');
+    const s = document.querySelector('.gr_bnform .gr_ct .gr_n2');
+    if (!h || !s) return null;
+    const a = h.getBoundingClientRect(), b = s.getBoundingClientRect();
+    return { below: b.top >= a.bottom - 2, leftAligned: Math.abs(b.left - a.left) < 3,
+             transform: getComputedStyle(s).textTransform,
+             size: parseFloat(getComputedStyle(s).fontSize),
+             hLeft: Math.round(a.left), sLeft: Math.round(b.left) };
+  });
+  check('it sits UNDER the heading rather than across the card',
+    !!t && t.below, t ? 'heading left ' + t.hLeft + ', subtitle left ' + t.sLeft : 'missing');
+  check('and starts at the same edge as the heading',
+    !!t && t.leftAligned, t && (t.hLeft + ' vs ' + t.sLeft));
+  check('it is a sentence, not a tiny uppercase label',
+    !!t && t.transform === 'none' && t.size >= 12,
+    t && (t.transform + ' ' + t.size + 'px'));
+});
+
+/* ADDING A REP. The button does not write anything here -- who sells is one list, in
+   Settings under Team, read by the deal owner dropdown and the course as well. So what
+   is asserted is that it LANDS there, on the right tab, with the ticker actually on
+   screen. Asserting the click did not throw would pass with a button wired to nothing. */
+await step('+ Add sales rep goes to the list that decides who a rep is', async () => {
+  await screen('gr_bonus');
+  await page.waitForTimeout(1200);
+  const b = await page.evaluate(() => {
+    const el = document.querySelector('.gr_bnaddrep');
+    if (!el) return null;
+    const r = el.getBoundingClientRect();
+    return { text: el.textContent.trim(), w: Math.round(r.width), h: Math.round(r.height),
+             onScreen: r.width > 40 && r.height > 20 };
+  });
+  check('the button is on the screen and has a size',
+    !!b && b.onScreen, b ? b.w + 'x' + b.h + ' "' + b.text + '"' : 'not found');
+
+  await page.evaluate(() => document.querySelector('.gr_bnaddrep')?.click());
+  await page.waitForTimeout(1400);
+  /* Growth settings is an OVERLAY PANEL (#grSetPanel, .on when open), not the
+     #grSettings screen in the sidebar -- an easy thing to assert wrongly, and asserting
+     it wrongly here failed against working code. The panel is measured, not just found:
+     grRenderSetPanel empties innerHTML and drops .on to close, so an element that
+     exists tells you nothing about whether anything is on screen. */
+  const landed = await page.evaluate(() => {
+    const w = document.querySelector('#grSetPanel');
+    const r = w ? w.getBoundingClientRect() : null;
+    const tab = document.querySelector('#grSetPanel [data-gr-settab="team"][aria-pressed="true"]');
+    return { open: !!w && w.classList.contains('on'),
+             painted: !!r && r.width > 200 && r.height > 200,
+             teamTab: !!tab,
+             ticks: document.querySelectorAll('#grSetPanel [data-gr-team]').length };
+  });
+  check('clicking it opens the Growth settings panel',
+    !!landed && landed.open && landed.painted, JSON.stringify(landed));
+  check('on the Team tab, not whichever tab was last open',
+    !!landed && landed.teamTab, JSON.stringify(landed));
+  /* The tab could be selected and the body still be the templates list. Count the
+     checkboxes that actually decide the thing. */
+  check('with the people you tick to make somebody a rep actually listed',
+    !!landed && landed.ticks > 0, landed && (landed.ticks + ' tick boxes'));
+  /* Closing it must get you back, or the button is a one-way trip off the screen. */
+  await page.evaluate(() => document.querySelector('[data-gr-setclose]')?.click());
+  await page.waitForTimeout(900);
+  const back = await page.evaluate(() => ({
+    closed: !document.querySelector('#grSetPanel.on'),
+    stillOnBonus: !!document.querySelector('.gr_bnaddrep')
+  }));
+  check('and closing it leaves you back on Sales bonus',
+    !!back && back.closed && back.stillOnBonus, JSON.stringify(back));
+});
+
+/* THE ONE-REP CASE, which is the one that mattered. The whole rep picker was wrapped in
+   `team.length > 1`, so a manager whose Growth team is just themselves saw no dropdown
+   and therefore no way to add anybody -- the screen hid the button exactly when it was
+   the only thing on it worth pressing. The mock team has two people, so nothing here
+   could see this: a sabotage putting the old condition back passed 460 of 460. The team
+   has to be forced down to one for the check to mean anything. */
+await step('a manager whose team is only themselves can still add a rep', async () => {
+  await screen('gr_bonus');
+  await page.waitForTimeout(1100);
+  const forced = await page.evaluate(async () => {
+    const sel = document.querySelector('[data-gr-bnrep]');
+    const mine = sel ? sel.value : null;
+    if (!mine) return { error: 'no rep dropdown to read an id from' };
+    const rows = window.__mockDB.growth_settings = window.__mockDB.growth_settings || [];
+    const was = rows.filter(r => r.key === 'team').map(r => JSON.stringify(r.value));
+    rows.push({ key: 'team', value: [mine] });
+    if (typeof window.grReload === 'function') await window.grReload();
+    return { mine, was };
+  });
+  await page.waitForTimeout(1600);
+  const one = await page.evaluate(() => {
+    const btn = document.querySelector('.gr_bnaddrep');
+    const r = btn ? btn.getBoundingClientRect() : null;
+    return {
+      reps: [...document.querySelectorAll('[data-gr-bnrep] option')].length,
+      button: !!btn && !!r && r.width > 40 && r.height > 20,
+      onBonus: !!document.querySelector('[data-gr-bnadd]')
+    };
+  });
+  /* If the team did not actually shrink the check proves nothing -- it would be the
+     two-person case again wearing a different name. */
+  check('the team really is down to one person for this check',
+    !!one && one.onBonus && one.reps === 1,
+    JSON.stringify(forced && forced.error ? forced : one));
+  check('and the + Add sales rep button is still there',
+    !!one && one.button, JSON.stringify(one));
+
+  // put the mock back, so nothing after this reads a one-person team
+  await page.evaluate(() => {
+    const rows = window.__mockDB.growth_settings || [];
+    const i = rows.map(r => r.key).lastIndexOf('team');
+    if (i >= 0) rows.splice(i, 1);
+    if (typeof window.grReload === 'function') return window.grReload();
+  });
+  await page.waitForTimeout(1200);
+});
+
+/* ------------------------------------------------- calling a call off, on the screen
+   Luke cancelled a booking in Calendly, it stayed on the Meetings list, and he was told
+   it would clear on the next sync. It would not have: the sync skipped cancelled
+   bookings, which kept them out of the write and never touched the row already there.
+
+   Two different ways a call comes off, filtered by two different columns, so both are
+   fixtured -- a filter checking only one hides one and leaves the other on the list,
+   which is half the feature passing as all of it. */
+await step('a call that is off is off every screen that counts meetings', async () => {
+  await screen('gr_meetings');
+  await page.waitForTimeout(1500);
+  const m = await page.evaluate(() => {
+    /* BY ROW ID, NOT BY TITLE. The first version of this looked for the fixtures'
+       titles -- and a row with a client on it renders the CLIENT'S NAME, never the
+       meeting title, so both fixtures painted as "Kelsey Rowe" and the search found
+       nothing whether the filter worked or not. It passed against the bug: removing the
+       filter entirely put five rows on a three-row screen and these two checks stayed
+       green. The id is on the row itself and cannot be confused with anything. */
+    const ids = [...document.querySelectorAll('.gr_mx')].map(e => e.dataset.grMeet);
+    const titles = [...document.querySelectorAll('.gr_mx .gr_mn')].map(e => e.textContent);
+    return {
+      shown: ids,
+      cancelledShown: ids.indexOf('gm-c1') >= 0,
+      hiddenShown:    ids.indexOf('gm-c2') >= 0,
+      /* The list is a closure variable, not a global -- `window.grMeetings` is the DIV
+         with that id, which is why reading it as an array threw. What can be measured
+         from outside is the HEADING count, and that is the better assertion anyway: it
+         comes from the same array the rows do, so if the filter sat in the row painter
+         instead of upstream the count would say five upcoming over three rows. */
+      head: ((document.querySelector('#grMeetings') || {}).textContent || '')
+              .slice(0, 400),
+      rowCount: document.querySelectorAll('.gr_mx').length
+    };
+  });
+  check('a booking cancelled in Calendly is not on the Meetings list',
+    !!m && !m.cancelledShown, JSON.stringify(m && m.shown));
+  check('and one removed in Giant is not either',
+    !!m && !m.hiddenShown, JSON.stringify(m && m.shown));
+  /* If they were merely dropped by the row painter they would still be COUNTED. */
+  const upcoming = m && (String(m.head).match(/(\d+)\s+upcoming/) || [])[1];
+  check('and the heading counts what is on the list, not what was filtered out',
+    upcoming != null && Number(upcoming) === m.rowCount,
+    JSON.stringify({ head: m && m.head, rows: m && m.rowCount }));
+});
+
+/* Cancel really cancels -- Calendly emails the invitee. So where it is OFFERED is a
+   safety question, not a cosmetic one: only a future booking Calendly actually made,
+   and only to somebody senior. Remove tells nobody and is offered more widely. */
+await step('Cancel is offered only where it can mean anything', async () => {
+  await screen('gr_meetings');
+  await page.waitForTimeout(1500);
+  const b = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('.gr_mx')];
+    const read = (r) => {
+      const nm = r.querySelector('.gr_mn');
+      const cx = r.querySelector('[data-gr-mcancel]');
+      const hx = r.querySelector('[data-gr-mhide]');
+      return {
+        name: nm ? nm.textContent.replace(/\s+/g, ' ').trim().slice(0, 30) : '?',
+        src: /CALENDLY/i.test(nm ? nm.textContent : '') ? 'Calendly' : 'other',
+        cancel: !!cx && cx.getBoundingClientRect().width > 20,
+        remove: !!hx && hx.getBoundingClientRect().width > 10
+      };
+    };
+    return rows.map(read);
+  });
+  const zoomRow = (b || []).find(r => r.src === 'other');
+  const calRow  = (b || []).find(r => r.src === 'Calendly' && r.cancel);
+  check('a Calendly booking that has not happened offers Cancel',
+    !!calRow, JSON.stringify(b));
+  /* A call typed in by hand, or pulled from Zoom, has no Calendly booking to cancel --
+     offering the button there would be a button that can only ever fail. */
+  check('a call that did not come from Calendly does NOT offer Cancel',
+    !!zoomRow && zoomRow.cancel === false, JSON.stringify(zoomRow));
+  check('every row offers Remove, which tells nobody',
+    (b || []).length > 0 && b.every(r => r.remove), JSON.stringify(b.map(r => r.remove)));
+  /* Measured, not counted: a button at 0px is the mistake this repo has made twice. */
+  check('and the buttons have a size rather than merely existing',
+    !!calRow && calRow.cancel && calRow.remove, JSON.stringify(calRow));
+});
+
+/* A rep cancelling a colleague's call by mis-clicking is not a thing to leave to the
+   screen. The Netlify function refuses anybody who is not owner/manager/inhouse_dev; the
+   screen must agree, or it offers a button that always errors. */
+await step('a rep is not offered either button', async () => {
+  await page.evaluate(() => {
+    /* THE GATE READS A CACHE, NOT THE ROW. myRole() is
+       `window.giantCurrentProfile.role`, so setting the role on the profiles row and
+       reloading changes nothing the screen looks at -- the first two goes at this check
+       did exactly that and reported an owner's buttons as a rep's. Both are set: the
+       cache because it is what decides, the row so a reload does not undo it. */
+    const me = (window.__mockDB.profiles || []).find(p => p.id === 'u-me');
+    window.__roleWas = window.giantCurrentProfile ? window.giantCurrentProfile.role : null;
+    if (me) me.role = 'growth';
+    if (window.giantCurrentProfile) window.giantCurrentProfile.role = 'growth';
+  });
+  await page.evaluate(() => window.grReload && window.grReload());
+  await page.waitForTimeout(1700);
+  await screen('gr_meetings');
+  await page.waitForTimeout(1400);
+  const r = await page.evaluate(() => ({
+    role: (window.giantCurrentProfile || {}).role,
+    rows: document.querySelectorAll('.gr_mx').length,
+    cancels: document.querySelectorAll('[data-gr-mcancel]').length,
+    removes: document.querySelectorAll('[data-gr-mhide]').length
+  }));
+  /* Rows still there is what makes the zero mean something: zero buttons on zero rows
+     would pass while proving nothing at all. */
+  /* The first run of this check looked up the profile by a global that does not exist,
+     so the role never changed and it was quietly measuring an owner. Assert the role
+     actually IS 'growth' before reading anything into the button counts. */
+  check('the signed-in user really is a rep for this check',
+    !!r && r.role === 'growth', JSON.stringify(r));
+  check('a rep still sees their meetings',
+    !!r && r.rows > 0, JSON.stringify(r));
+  check('but is offered no Cancel button',
+    !!r && r.cancels === 0, JSON.stringify(r));
+  check('and no Remove button either',
+    !!r && r.removes === 0, JSON.stringify(r));
+
+  await page.evaluate(() => {
+    const me = (window.__mockDB.profiles || []).find(p => p.id === 'u-me');
+    if (me && window.__roleWas) me.role = window.__roleWas;
+    if (window.giantCurrentProfile && window.__roleWas) window.giantCurrentProfile.role = window.__roleWas;
+    return window.grReload && window.grReload();
+  });
+  await page.waitForTimeout(1600);
+});
+
+/* ------------------------------------------------- the settings tabs, six in a pill
+   .gr_seg is a scrolling pill; this variant overrode it with flex-wrap, so six tabs
+   wrapped and the rounded background stretched across both rows with "Team" alone
+   beside a stretch of empty pill. Measured rather than eyeballed: the giveaway is a
+   container that still paints a background while its children sit on two rows. */
+await step('the Growth settings tabs do not stretch one pill over two rows', async () => {
+  await screen('gr_settings');
+  await page.waitForTimeout(900);
+  await page.evaluate(() => {
+    const el = document.querySelector('[data-gr-settab-open]') || document.querySelector('[data-gr-tplbtn]');
+    if (el) el.click();
+  });
+  await page.waitForTimeout(1400);
+  const t = await page.evaluate(() => {
+    const strip = document.querySelector('#grSetPanel .gr_seg.gr_wide');
+    if (!strip) return null;
+    const btns = [...strip.querySelectorAll('button')];
+    const rows = {};
+    btns.forEach(b => { const y = Math.round(b.getBoundingClientRect().top); rows[y] = (rows[y] || 0) + 1; });
+    const cs = getComputedStyle(strip);
+    const sel = btns.find(b => b.getAttribute('aria-pressed') === 'true');
+    const off = btns.find(b => b.getAttribute('aria-pressed') !== 'true');
+    return {
+      tabs: btns.length, rows: Object.keys(rows).length,
+      bg: cs.backgroundColor, pad: cs.paddingTop, gap: cs.rowGap,
+      selBg: sel ? getComputedStyle(sel).backgroundColor : null,
+      selFg: sel ? getComputedStyle(sel).color : null,
+      offBg: off ? getComputedStyle(off).backgroundColor : null,
+      offFg: off ? getComputedStyle(off).color : null
+    };
+  });
+  check('the tab strip is there with every tab on it',
+    !!t && t.tabs === 6, JSON.stringify(t && t.tabs));
+  /* The old look was a painted container wrapping its children. Transparent is what
+     makes a second row read as chips rather than as a broken control. */
+  check('the container paints no pill behind the wrapped rows',
+    !!t && /rgba\(0, 0, 0, 0\)|transparent/.test(t.bg), t && t.bg);
+  check('and wrapped rows are separated rather than touching',
+    !!t && parseFloat(t.gap) >= 4, t && t.gap);
+  /* A selected tab that looks like the others is the colour-dot bug again: present,
+     and telling you nothing. Compare the two computed colours. */
+  check('the selected tab is actually painted differently from the rest',
+    !!t && t.selBg !== t.offBg && t.selFg !== t.offFg,
+    JSON.stringify(t && { on: [t.selBg, t.selFg], off: [t.offBg, t.offFg] }));
+});
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');

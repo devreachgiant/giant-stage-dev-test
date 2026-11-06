@@ -519,7 +519,12 @@
     { id: 'gm-1', client_id: 'gc-5', title: 'ReachGiant Growth Strategy Session',
       starts_at: new Date(Date.now() + 3 * 3600e3).toISOString(), minutes: 45, actual_min: null,
       zoom_url: 'https://us06web.zoom.us/j/000', source: 'Calendly', brief: '', brief_at: null,
-      external_id: 'ext-1', created_at: giso(3, 0),
+      /* A REAL CALENDLY URI, not 'ext-1'. Cancel is offered only on a booking Calendly
+         actually made -- tested by the uri, because `source` is a label anybody could
+         type -- so with a made-up id here the button could not appear and a check for
+         it would have been asserting against a screen that never had one. */
+      external_id: 'https://api.calendly.com/scheduled_events/aaaaaaaa-1111-2222-3333-444444444444',
+      created_at: giso(3, 0),
       invitee: { name: 'Umra Hayat', email: 'umra-hayat@outlook.com',
         phone: '+447922116098', timezone: 'Europe/Berlin', booked_at: giso(5, 0),
         qa: [
@@ -541,6 +546,28 @@
     { id: 'gm-2', client_id: 'gc-1', title: 'ReachGiant Growth Strategy Session',
       starts_at: giso(5, 0), minutes: 45, actual_min: 41, zoom_url: '', source: 'Calendly',
       brief: '', brief_at: null, external_id: 'ext-2', created_at: giso(8, 0), invitee: null },
+    /* TWO CALLS THAT ARE OFF, and off in the two different ways.
+
+       gm-c1 was cancelled in Calendly; gm-c2 was removed by somebody in Giant. Neither
+       belongs on any screen, and BOTH are here because the two are filtered by different
+       columns -- a filter that checked only one would hide one of them and leave the
+       other sitting on the list, which is a pass on half the feature.
+
+       They are dated in the FUTURE on purpose. A past call falls out of the Upcoming
+       list on its own, so a cancelled one dated yesterday would be invisible for the
+       wrong reason and the check would prove nothing. */
+    { id: 'gm-c1', client_id: 'gc-1', title: 'Cancelled in Calendly',
+      starts_at: new Date(Date.now() + 30 * 3600e3).toISOString(), minutes: 45, actual_min: null,
+      zoom_url: '', source: 'Calendly', brief: '', brief_at: null,
+      external_id: 'https://api.calendly.com/scheduled_events/cccccccc-1111-2222-3333-444444444444',
+      created_at: giso(2, 0), invitee: null,
+      cancelled_at: giso(0, 1), hidden_at: null, hidden_by: null },
+    { id: 'gm-c2', client_id: 'gc-1', title: 'Removed from Giant',
+      starts_at: new Date(Date.now() + 31 * 3600e3).toISOString(), minutes: 45, actual_min: null,
+      zoom_url: '', source: 'Calendly', brief: '', brief_at: null,
+      external_id: 'https://api.calendly.com/scheduled_events/dddddddd-1111-2222-3333-444444444444',
+      created_at: giso(2, 0), invitee: null,
+      cancelled_at: null, hidden_at: giso(0, 1), hidden_by: 'p-nish' },
     // Pulled from Zoom, attached to nobody: there was never a booking form to answer.
     { id: 'gm-3', client_id: null, title: 'Mango Vans Rebrand',
       starts_at: new Date(Date.now() + 26 * 3600e3).toISOString(), minutes: 30, actual_min: null,

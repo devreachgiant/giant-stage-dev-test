@@ -401,8 +401,22 @@ const inviteeCalls = (calls) => calls.filter(c => c.url.includes('/invitees')).l
 function planWithStored(bookings, deals, stored) {
   const p = plan(bookings, deals);
   p[p.findIndex(x => x[0] === 'growth_meetings')] =
-    ['growth_meetings', (u, o) => o.method === 'POST'
-      ? { body: JSON.parse(o.body) } : { body: stored }];
+    ['growth_meetings', (u, o) => {
+      const m = (o.method || 'GET').toUpperCase();
+      if (m === 'POST') return { body: JSON.parse(o.body) };
+      /* A PATCH ANSWERS WITH THE ROWS IT CHANGED, not with the whole table. Returning
+         `stored` for anything that was not a POST made the run report two bookings
+         cancelled when it had asked for one, and the count came from THE STUB rather
+         than from the code -- the same shape of mistake as reading the Gmail columns
+         backwards and passing 24 checks against a filter the database refuses. */
+      if (m === 'PATCH') {
+        const want = decodeURIComponent(u).match(/external_id=in\.\(([^)]*)\)/);
+        if (!want) return { body: [] };
+        const ids = want[1].split(',').map(x => x.replace(/^"|"$/g, ''));
+        return { body: stored.filter(r => ids.indexOf(r.external_id) >= 0) };
+      }
+      return { body: stored };
+    }];
   return p;
 }
 
@@ -519,6 +533,61 @@ check('the stored-booking read asks for the invitee column, not just the id',
   reads.length + ' reads: ' + reads.map(r => r.url.split('?')[1]).join(' | '));
 check('and it is read ONCE a run, not once for the cache and again for the tally',
   reads.length === 1, reads.length + ' reads of growth_meetings');
+
+/* ---------------------------------------------------- a call that is off comes off
+   The sync SKIPPED a cancelled booking for its whole life. Skipping keeps it out of the
+   write and does nothing whatsoever to the row already on the screen, so a booking
+   cancelled in Calendly stayed in Giant for good -- Luke cancelled one, was told it
+   would clear on the next sync, and it never would have.
+
+   Assert the REQUEST, not a helper: the rows written come out identical either way, and
+   the only evidence the cancelled one was dealt with is the PATCH that went out. */
+const patches = (calls) => calls.filter(c =>
+  c.url.includes('growth_meetings') && (c.opts.method || '').toUpperCase() === 'PATCH');
+
+const CANX = Object.assign({}, ev('https://cal/x1', 'Growth Strategy Session', '2026-11-08T17:00:00Z'),
+  { status: 'canceled' });
+
+calls = stubFetch(planWithStored([
+  [CANX, 'Umra', 'umra@outlook.com'],
+  [E2,   'Kai',  'k@example.com']
+], HAVE, [
+  { external_id: 'https://cal/x1', invitee: storedInvitee('umra@outlook.com', 'Umra') },
+  { external_id: 'https://cal/s2', invitee: storedInvitee('k@example.com', 'Kai') }
+]));
+res = await runSync('tok');
+
+const px = patches(calls);
+check('a booking cancelled in Calendly is PATCHED, not silently skipped',
+  px.length === 1, px.length + ' PATCH requests');
+check('and what it sets is cancelled_at',
+  px.length === 1 && /"cancelled_at"\s*:/.test(px[0].opts.body || ''),
+  px.length ? String(px[0].opts.body).slice(0, 80) : 'no patch');
+check('aimed at the cancelled booking and nothing else',
+  px.length === 1 && px[0].url.includes('cal/x1') && !px[0].url.includes('cal/s2'),
+  px.length ? decodeURIComponent(px[0].url.split('growth_meetings')[1] || '') : 'no patch');
+/* Re-stamping rows that were already off would make the count meaningless -- a run would
+   report "1 cancelled" every five minutes forever for the same dead booking. */
+check('only rows still shown as live are touched, so the count means something',
+  px.length === 1 && /cancelled_at=is\.null/.test(px[0].url),
+  px.length ? px[0].url.split('&').slice(1).join('&') : 'no patch');
+check('the run says how many it took off',
+  res && res.cancelled === 1, JSON.stringify(res && res.cancelled));
+/* The cancelled one must not ALSO be written back as a live meeting. */
+const wroteAfterCancel = wroteMeetings(calls);
+check('and the cancelled booking is not written back as a live meeting',
+  wroteAfterCancel.every(r => r.external_id !== 'https://cal/x1'),
+  JSON.stringify(wroteAfterCancel.map(r => r.external_id)));
+
+/* No cancellations, no PATCH. A run that fires a write every time it happens to run is
+   how a quiet table turns into a busy one. */
+calls = stubFetch(planWithStored([[E2, 'Kai', 'k@example.com']], HAVE,
+  [{ external_id: 'https://cal/s2', invitee: storedInvitee('k@example.com', 'Kai') }]));
+res = await runSync('tok');
+check('a run with nothing cancelled sends no PATCH at all',
+  patches(calls).length === 0, patches(calls).length + ' PATCH requests');
+check('and reports none cancelled',
+  res && res.cancelled === 0, JSON.stringify(res && res.cancelled));
 
 globalThis.fetch = realFetch;
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
