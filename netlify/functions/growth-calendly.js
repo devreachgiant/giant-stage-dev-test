@@ -295,9 +295,15 @@ async function runSync(token) {
   });
 
   const rows = [];
+  const gone = [];                  // uris Calendly now reports as cancelled
   const needDeal = new Map();       // invitee email -> { name, at: [row indexes] }
   for (const ev of events) {
-    if (ev.status === 'canceled') continue;
+    /* A cancelled booking is COLLECTED, not just skipped. Skipping is what this did for
+       its whole life, and skipping only keeps it out of the write -- the row already on
+       the screen was never touched again, so a call cancelled in Calendly stayed in
+       Giant for good. Luke cancelled one and was told it would clear on the next sync;
+       it would not have cleared ever. */
+    if (ev.status === 'canceled') { gone.push(ev.uri); continue; }
     let inviteeEmail = '', inviteeName = '', invitee = null;
     const cached = haveInvitee.get(ev.uri);
     if (cached) {
@@ -396,12 +402,29 @@ async function runSync(token) {
 
   const written = await sb('growth_meetings?on_conflict=external_id', 'POST', rows);
 
+  /* TAKE THE CANCELLED ONES OFF. Marked rather than deleted: the row carries the deal it
+     belonged to, and may carry a recording and a transcript if it was cancelled after
+     being rescheduled over. Deleting would also invite the row straight back, because
+     anything Calendly still returns gets written again on the next run.
+
+     `cancelled_at=is.null` makes this cheap AND makes the count mean something -- it
+     only ever touches rows that were still shown as live, so a run that reports 1 really
+     did take one off the screen rather than re-stamping nineteen that were already off. */
+  let cancelled = 0;
+  if (gone.length) {
+    const list = '(' + gone.map(u => '"' + String(u).replace(/"/g, '') + '"').join(',') + ')';
+    const marked = await sb('growth_meetings?external_id=in.' + list + '&cancelled_at=is.null',
+      'PATCH', { cancelled_at: new Date().toISOString() });
+    cancelled = (marked || []).length;
+  }
+
   const added = rows.filter(r => !seen.has(r.external_id)).length;
   const told = await tellSomebody(rows.filter(r => !seen.has(r.external_id)));
   return {
     added, updated: rows.length - added, total: (written || rows).length,
     matched: rows.filter(r => r.client_id).length,
     dealsCreated: dealsCreated,
+    cancelled: cancelled,
     withZoom: rows.filter(r => r.zoom_url).length
   };
 }
@@ -475,6 +498,79 @@ exports.handler = async (event) => {
       return json(200, { configured: false, who: '', source: source,
                          error: String(e.message).slice(0, 160) });
     }
+  }
+
+  /* ---------------------------------------------------------------- cancel a call
+     THIS ONE EMAILS A CLIENT. Calendly tells the invitee the call is off the moment it
+     accepts, so there is no taking it back and nothing here may guess. Three rules fall
+     out of that:
+
+       - Calendly goes FIRST. The row is only marked once Calendly has accepted. If the
+         call goes the other way round, a refused cancellation leaves Giant showing a
+         call as cancelled that is still in the client's diary -- the one failure that
+         loses somebody a meeting rather than just annoying them.
+       - An owner, manager or in-house dev only. A rep cancelling a colleague's call by
+         mis-clicking is not a thing to leave to the screen.
+       - The row is looked up by its OWN id and the Calendly uri read off that row, never
+         taken from the request. A uri in the body would let any signed-in member of
+         staff cancel any booking in the Calendly account, including ones Giant has never
+         heard of. */
+  if (action === 'cancel') {
+    if (!token) return json(503, { error: 'Calendly is not connected yet.' });
+    const profile = await callerProfile(auth);
+    if (!profile) return json(401, { error: 'Sign in first.' });
+    if (!isStaff(profile)) {
+      return json(403, { error: 'Only an owner or manager can cancel a call.' });
+    }
+
+    let body = {};
+    try { body = JSON.parse(event.body || '{}'); } catch (e) { /* caught below */ }
+    const id = String(body.id || '').trim();
+    const reason = String(body.reason || '').trim().slice(0, 500);
+    if (!id) return json(400, { error: 'Which call?' });
+
+    const found = await sb('growth_meetings?id=eq.' + encodeURIComponent(id) +
+                           '&select=id,external_id,title,starts_at,cancelled_at');
+    const mtg = (found || [])[0];
+    if (!mtg) return json(404, { error: 'That call is not in Giant any more.' });
+    if (mtg.cancelled_at) return json(200, { already: true, cancelled_at: mtg.cancelled_at });
+    if (!mtg.external_id || !/^https:\/\/api\.calendly\.com\//.test(mtg.external_id)) {
+      return json(400, {
+        error: 'That call did not come from Calendly, so there is nothing to cancel there. Remove it instead.'
+      });
+    }
+
+    const r = await fetch(mtg.external_id + '/cancellation', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'content-type': 'application/json' },
+      body: JSON.stringify({ reason: reason || 'Cancelled from Giant' })
+    });
+    const text = await r.text();
+    if (!r.ok) {
+      /* Calendly answers an already-cancelled booking with 403 "Event is already
+         canceled", which is not a permission problem and must not be reported as one --
+         it means the job is done, and the row should catch up. */
+      let why = '';
+      try { why = (JSON.parse(text) || {}).message || ''; } catch (e) { why = text.slice(0, 200); }
+      if (/already canceled|already cancelled/i.test(why)) {
+        const caught = await sb('growth_meetings?id=eq.' + encodeURIComponent(id), 'PATCH',
+          { cancelled_at: new Date().toISOString() });
+        return json(200, { already: true, rows: (caught || []).length });
+      }
+      return json(r.status === 403 ? 403 : 502, { error: why || ('Calendly said ' + r.status) });
+    }
+
+    // Calendly has accepted and the client has been told. NOW the row.
+    const marked = await sb('growth_meetings?id=eq.' + encodeURIComponent(id), 'PATCH',
+      { cancelled_at: new Date().toISOString() });
+    if (!marked || !marked.length) {
+      /* The call IS cancelled -- saying "it failed" here would be a lie that has somebody
+         cancel it twice. The next sync marks the row anyway, because Calendly now reports
+         it as cancelled. */
+      return json(200, { cancelled: true, rowMarked: false,
+                         note: 'Cancelled in Calendly. The screen catches up on the next sync.' });
+    }
+    return json(200, { cancelled: true, rowMarked: true, title: mtg.title });
   }
 
   if (action !== 'sync') return json(400, { error: 'unknown action' });

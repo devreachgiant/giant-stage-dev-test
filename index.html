@@ -6883,7 +6883,35 @@ input.gr_lkurl:focus{outline:0;border-color:var(--sc);}
 .gr_bnmoney i,.gr_bnmoney em,.gr_bnrate em{font-style:normal;font-size:14px;font-weight:700;color:var(--text-3);}
 .gr_bnratechip{font-size:13.5px;font-weight:600;color:var(--text-2);background:var(--surface-2);
   border-radius:99px;padding:9px 15px;}
-.gr_bnpick{max-width:300px;}
+/* The rep dropdown and the button that adds one sit on a line together. Wider than the
+   300px it was, because "Sales rep" alone did not need the room and a button beside it
+   does. */
+.gr_bnpick{max-width:560px;}
+.gr_bnrep{display:flex;align-items:center;gap:10px;}
+.gr_bnrep select{flex:1;min-width:0;}
+.gr_bnaddrep{flex-shrink:0;background:transparent;border:1px dashed var(--line);
+  border-radius:10px;padding:10px 16px;color:var(--text-3);font:inherit;font-size:13px;
+  font-weight:700;cursor:pointer;white-space:nowrap;}
+.gr_bnaddrep:hover{border-style:solid;border-color:var(--text-3);color:var(--text-2);}
+/* The picker that opens under it. A list you look somebody up in, so the rows are
+   plain and the only loud thing on each is the word that does something. */
+.gr_bnaddrep[aria-expanded="true"]{border-style:solid;border-color:var(--text-3);color:var(--text-2);}
+.gr_bnpick2{margin-top:10px;background:var(--surface);border:1px solid var(--line);
+  border-radius:14px;padding:13px 15px;}
+.gr_bnpick2 .gr_mute{margin:0 0 9px;font-size:12.5px;}
+.gr_bnpick2 .gr_mute:last-child{margin:9px 0 0;}
+.gr_bnpl{display:flex;flex-direction:column;max-height:300px;overflow-y:auto;}
+.gr_bnprow{display:flex;align-items:center;gap:11px;width:100%;text-align:left;
+  padding:9px 6px;background:none;border:0;border-top:1px solid var(--line);
+  color:var(--text);font:inherit;cursor:pointer;border-radius:9px;}
+.gr_bnprow:first-child{border-top:0;}
+.gr_bnprow:hover{background:var(--surface-2);}
+.gr_bnprow span{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;}
+.gr_bnprow b{font-size:13.5px;font-weight:700;}
+.gr_bnprow em{font-style:normal;font-size:11.5px;color:var(--text-3);}
+.gr_bnprow i{flex:none;font-style:normal;font-size:12px;font-weight:700;color:var(--text-3);
+  border:1px solid var(--line);border-radius:99px;padding:5px 13px;}
+.gr_bnprow:hover i{border-color:var(--red,#D00400);color:var(--red,#D00400);}
 .gr_bnme{font-size:17px;font-weight:800;letter-spacing:-.02em;}
 .gr_bnstats{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:12px;margin:16px 0 18px;}
 .gr_bnstat{background:var(--surface);border:1px solid var(--line);border-radius:20px;
@@ -6895,10 +6923,23 @@ input.gr_lkurl:focus{outline:0;border-color:var(--sc);}
 .gr_bnstat.warm span,.gr_bnstat.warm em{color:rgba(255,255,255,.9);}
 .gr_bnstat.warm b{color:#fff;font-size:33px;}
 .gr_bnstat.ok b{color:#1A9E62;}
-.gr_bnform{margin-bottom:18px;}
-.gr_bngrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+/* LOG A SALE NEEDED ROOM. Every field in here was a .gr_field with its own 5px gap
+   between label and input and NOTHING between one field and the next, so "What they
+   bought" sat hard against the box above it and the card read as one dense block. The
+   gap belongs between the fields, which is what a column flex gives it -- the .gr_ct
+   margin is dropped at the same time so the heading is not spaced twice. */
+.gr_bnform{margin-bottom:18px;padding:21px 23px;display:flex;flex-direction:column;gap:17px;}
+/* The subtitle goes UNDER the heading rather than pushed to the far right, which is
+   where margin-left:auto on .gr_n2 was putting it: a line of uppercase grey against the
+   opposite edge of the card reads as a column header for something, not as a sentence
+   about the form below it. */
+.gr_bnform .gr_ct{display:block;margin-bottom:0;}
+.gr_bnform .gr_ct h2{margin:0 0 3px;}
+.gr_bnform .gr_ct .gr_n2{margin-left:0;font-size:13px;font-weight:500;
+  text-transform:none;letter-spacing:0;color:var(--text-3);}
+.gr_bngrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
 .gr_bnprev{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;
-  background:color-mix(in srgb,#1A9E62 12%,var(--surface));border-radius:16px;padding:14px 17px;margin-top:4px;}
+  background:color-mix(in srgb,#1A9E62 12%,var(--surface));border-radius:16px;padding:17px 19px;margin-top:2px;}
 .gr_bnprev span{display:block;font-size:12px;color:var(--text-3);}
 .gr_bnprev b{font-size:26px;font-weight:800;color:#4ADE80;letter-spacing:-.02em;}
 .gr_bnlog{display:flex;flex-direction:column;gap:13px;}
@@ -7206,7 +7247,20 @@ input.gr_lkurl:focus{outline:0;border-color:var(--sc);}
 .gr_dlg .gr_dark{width:100%;justify-content:center;padding:13px;font-size:14px;margin-top:6px;}
 .gr_dlgx{background:none;border:0;color:var(--text-3);font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:12px;}
 /* editable rows: Settings, Training plan, watch list */
-.gr_seg.gr_wide{display:flex;margin-bottom:14px;flex-wrap:wrap;}
+/* SIX TABS DO NOT FIT IN ONE PILL. .gr_seg is a scrolling pill -- inline-flex, nowrap
+   buttons, overflow-x:auto -- and this variant overrode it with flex-wrap:wrap. So the
+   tabs wrapped instead of scrolling and the rounded background stretched over both rows,
+   leaving "Team" alone on the second line beside a stretch of empty pill.
+
+   Not fixed by taking the wrap off: that restores the scroll and puts Team out of sight,
+   and a tab nobody can see is worse than an ugly one. The container stops pretending to
+   be a single control instead, and the tabs become chips that wrap as a group. */
+.gr_seg.gr_wide{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;
+  background:transparent;padding:0;overflow:visible;border-radius:0;}
+.gr_seg.gr_wide button{border:1px solid var(--line);background:var(--surface);}
+.gr_seg.gr_wide button:hover{border-color:var(--text-3);color:var(--text-2);}
+.gr_seg.gr_wide button[aria-pressed="true"]{background:var(--surface-2);color:var(--text);
+  border-color:var(--text-3);}
 .gr_erow{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--line);}
 .gr_erow:first-of-type{border-top:0;}
 .gr_erow.gr_col2{flex-direction:column;align-items:stretch;gap:10px;}
@@ -7447,6 +7501,13 @@ input.gr_lkurl:focus{outline:0;border-color:var(--sc);}
   color:var(--text-2);padding:10px 3px;}
 .gr_mx.gr_done .gr_mt span{color:var(--text-3);opacity:1;}
 .gr_mx.gr_livem .gr_mt{box-shadow:0 0 0 3px var(--bg),0 0 0 5px var(--dc);}
+/* Calling a call off. Quiet until you are actually pointing at it -- these sit on every
+   row, and two red buttons per row would make a list of ordinary meetings look like a
+   list of problems. Red on hover, because by then you mean it. */
+.gr_mkill:hover{border-color:var(--red,#D00400)!important;color:var(--red,#D00400)!important;}
+.gr_mhide{opacity:.45;font-size:16px;line-height:1;}
+.gr_mx:hover .gr_mhide{opacity:1;}
+.gr_mhide:hover{color:var(--red,#D00400);border-color:var(--red,#D00400);}
 .gr_mn{font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .gr_rel{font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border:1.5px solid var(--line-2);color:var(--text-3);border-radius:99px;padding:4px 10px;white-space:nowrap;flex:none;}
 .gr_rel.gr_on{border-color:var(--dc);color:var(--dc);}
@@ -96621,7 +96682,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       ]);
       if (cl.error) throw cl.error;
       grClients   = cl.data || [];
-      grMeetings  = mt.data || [];
+      /* Filtered HERE rather than on the Meetings screen, because Home, Analytics and
+         the "next call" line all read grMeetings too -- filtering on one screen would
+         have taken a cancelled call off Meetings and left it counted everywhere else. */
+      grMeetings  = (mt.data || []).filter(function (m) { return !m.cancelled_at && !m.hidden_at; });
       grMessages  = ms.data || [];
       grTemplates = tp.data || [];
       grPeople    = pf.data || [];
@@ -97231,6 +97295,26 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         (!done ? '<button class="gr_ico" data-gr-brief="' + m.id + '" title="Write a brief for this call" aria-label="Write a brief">&#10022;</button>' : '') +
         (c ? '<button class="gr_ico" data-gr-open2="' + c.id + '" title="Open the client" aria-label="Open the client">' +
           '<svg viewBox="0 0 16 16" width="13" height="13" fill="none"><circle cx="8" cy="5.6" r="2.6" stroke="currentColor" stroke-width="1.4"/><path d="M3 13c.6-2.6 2.6-4 5-4s4.4 1.4 5 4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>' : '') +
+        /* CALLING OFF A CALL, which is two different things wearing one word.
+
+           Cancel really cancels: Calendly emails the invitee to say it is off. So it is
+           offered only where it can mean anything -- a call that has not happened, that
+           came from Calendly, to somebody senior enough to be doing it. A past call
+           cannot be cancelled, and a call typed in by hand has no Calendly booking.
+
+           Remove is Giant-only and tells nobody. It is the one for a call that is over,
+           a duplicate, or something that should never have been on the list. It has to
+           be remembered rather than deleted, because the sync re-writes these rows every
+           five minutes and would put a deleted one straight back. */
+        (grMayPayroll() && !done && grIsCalendly(m)
+          ? '<button class="gr_ghost gr_sm gr_mkill" data-gr-mcancel="' + esc(m.id) + '"' +
+            ' title="Cancel this call and tell the client">Cancel</button>'
+          : '') +
+        (grMayPayroll()
+          ? '<button class="gr_ico gr_mhide" data-gr-mhide="' + esc(m.id) + '"' +
+            ' title="Remove this call from Giant. The client is not told." ' +
+            'aria-label="Remove from Giant">&times;</button>'
+          : '') +
       '</span>' +
       (m._busy ? '<div class="gr_brief gr_wait">Reading what we know about them...</div>'
        : m.brief ? '<details class="gr_brief"><summary>Brief</summary><p>' + esc(m.brief) + '</p></details>' : '') +
@@ -97424,6 +97508,72 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     m.zoom_url = url;
     grToast(url ? 'Link saved' : 'Link removed');
     grRender();
+  }
+
+  /* Only a booking Calendly actually made can be cancelled there. The uri is the test,
+     not the `source` column -- source is a label somebody could have typed. */
+  const grIsCalendly = (m) => /^https:\/\/api\.calendly\.com\//.test(String(m && m.external_id || ''));
+
+  /* REMOVE: Giant only, nobody is told. Marked rather than deleted -- see the column
+     comment in the migration; a deleted row comes back on the next sync. */
+  async function grMeetHide(id) {
+    const m = grMeetings.find(x => x.id === id);
+    if (!m) return;
+    const ok = await window.giantConfirmWarn(
+      'Remove this call from Giant?',
+      (m.title || 'This call') + ' comes off the Meetings list. The client is NOT told, and '
+      + (grIsCalendly(m) ? 'the booking stays in Calendly.' : 'nothing else changes.'),
+      'Remove', 'warning');
+    if (!ok) return;
+    const s2 = sb(); if (!s2) return;
+    const { data, error } = await s2.from('growth_meetings')
+      .update({ hidden_at: new Date().toISOString(), hidden_by: me() })
+      .eq('id', id).select('id');
+    if (error) { grToast('Could not remove it. ' + error.message); return; }
+    // RLS refuses by returning no rows rather than by erroring.
+    if (!data || !data.length) { grToast('Removing that call was refused.'); return; }
+    grMeetings = grMeetings.filter(x => x.id !== id);
+    grToast('Removed from Giant');
+    grRender();
+  }
+
+  /* CANCEL: this one reaches a real person. Calendly emails the invitee the moment it
+     accepts, so the confirm says so in those words rather than "are you sure", and the
+     row is only taken off once the server says Calendly agreed. */
+  async function grMeetCancel(id) {
+    const m = grMeetings.find(x => x.id === id);
+    if (!m) return;
+    const c = grClients.find(x => x.id === m.client_id);
+    const who = (c && (c.name || c.email)) || (m.invitee && m.invitee.name) || 'the client';
+    const ok = await window.giantConfirmWarn(
+      'Cancel this call?',
+      'Calendly will email ' + who + ' to say the call on ' + grHm(m.starts_at)
+      + ' is off. This cannot be undone from here.',
+      'Cancel the call', 'warning');
+    if (!ok) return;
+    /* Asked for, not required: Calendly puts the reason in the email it sends. An empty
+       one is fine, and backing out of this box is NOT backing out of the cancellation --
+       that decision was made above. */
+    const why = await window.giantPrompt('Reason for the client (optional)', '');
+    grToast('Cancelling...');
+    try {
+      const tok = await grToken();
+      const r = await fetch('/.netlify/functions/growth-calendly?action=cancel', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' },
+                               tok ? { Authorization: 'Bearer ' + tok } : {}),
+        body: JSON.stringify({ id: id, reason: String(why == null ? '' : why) })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { grToast(j.error || 'Calendly would not cancel that call.'); return; }
+      grMeetings = grMeetings.filter(x => x.id !== id);
+      grToast(j.already ? 'That call was already cancelled.'
+            : j.rowMarked === false ? (j.note || 'Cancelled in Calendly.')
+            : 'Call cancelled. ' + who + ' has been told.');
+      grRender();
+    } catch (e) {
+      grToast('Could not cancel. ' + String(e.message || e).slice(0, 90));
+    }
   }
 
   /* A short brief before a call, written from what we already know about them. Stored on
@@ -97912,18 +98062,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   });
 
   /* --- Growth Inbox --- */
-  /* WAITING ON THEM CAME FROM A TABLE THAT WAS EMPTY.
+  /* WHERE THE TWO LISTS COME FROM.
 
-     Both halves of this screen read growth_messages, and nothing has ever written an
-     inbound row into it -- so "All caught up" meant "no rows exist", not "nobody is
-     waiting on you", and the Waiting on them section could not draw at all. It was the
-     only empty screen in Growth that looked finished.
+     Needs your reply   threads whose LAST message came from the client, on a live deal.
+     Waiting on them    everything else, and from two different places: threads where we
+                        spoke last, plus deals with no thread at all, rebuilt from
+                        last_email_on on the client row. That second kind is why the list
+                        can be longer than the number of deals carrying mail.
 
-     A deal that has been emailed and has not replied is a fact we already hold:
-     last_email_on is set on the client. That is what fills Waiting on them now, so it
-     works with no mail plumbing at all. Your turn still needs a reply to match, which is
-     the half that is not built -- see the note under the list rather than a tick saying
-     everything is fine. */
+     THIS COMMENT USED TO SAY the inbound half was not built, and that nothing had ever
+     written an inbound row into growth_messages. True when it was written, and stale
+     since growth-gmail.js shipped on 20261105: it matches the mail already sitting in
+     `emails` back to the deal it belongs to and copies it here, so "Needs your reply"
+     fills on its own. Twenty messages on six deals on the day this was corrected, four
+     of them inbound.
+
+     The copy is not laziness. `emails` is own-profile-only under RLS, so a join from the
+     browser would show Luke and Nishchay their own mail and hand Annie and Matthew an
+     empty screen with no error on it. Copying it server-side is what makes this one
+     inbox rather than four private ones. */
   function grRenderInbox() {
     const threaded = grClients.map(c => {
       const t = grThread(c); if (!t.length) return null;
@@ -99794,6 +99951,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   const grMayPayroll = () => GR_PAYROLL_ROLES.indexOf(myRole()) >= 0;
 
   let grBonusRep = null, grBonusFilter = 'open', grBonusOpen = null;
+  let grBnAddRep = false;   // the add-a-rep picker, open or shut
   let grBonusForm = { client: '', deal: '', amount: '', date: '', pct: '' };
 
   const grBonusRate = () => {
@@ -99874,6 +100032,67 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       '</div></details>';
   }
 
+  /* ADDING A REP WITHOUT LEAVING THE SCREEN.
+
+     This used to send you to Settings -> Team, which was right about one thing and
+     wrong about another. Right that there is ONE list of who sells, read by the deal
+     owner dropdown and the course as well as by this screen, and that a second writer
+     for it would be two editors for one setting. Wrong that you had to go and find it:
+     you are on Sales bonus because you want to log a sale for somebody, and being sent
+     to a different screen to tick a box is two clicks and a loss of what you were doing.
+
+     So this writes THE SAME list through the same grSetting('team', ...) call. It is
+     not a second editor, it is a second door onto the one editor.
+
+     WHY IT PICKS RATHER THAN TYPES. Luke's own design has a box you type a name into,
+     which works there because his reps are names in a browser. Here a rep is a person
+     with a login: the bonus row points at their profile, and the policy that stops a
+     rep editing their own bonus is written against that id. A typed-in name could not
+     own a sale, could not sign in to see one, and could not be refused one either. */
+  function grBnRepPicker() {
+    if (!grBnAddRep) return '';
+    const inTeam = {}; grTeam().forEach(p => { inTeam[p.id] = 1; });
+    /* Everybody who could sell and is not already on the list. Ordered by name, because
+       this is a list you look somebody up in rather than one you read. */
+    const free = grPeople.filter(p => !inTeam[p.id])
+      .slice().sort((a, b) => String(a.full_name || '').localeCompare(String(b.full_name || '')));
+    if (!free.length) {
+      return '<div class="gr_bnpick2"><p class="gr_mute">' +
+        'Everybody in the workspace is already a sales rep. Somebody new has to be ' +
+        'invited to Giant first \u2014 a rep is a person with a login, not a name.</p></div>';
+    }
+    return '<div class="gr_bnpick2">' +
+      '<p class="gr_mute">Pick who sells. They are added to Growth, so they also appear ' +
+      'as the owner of a deal and on the course \u2014 it is the same list Settings keeps.</p>' +
+      '<div class="gr_bnpl">' + free.slice(0, 40).map(p => {
+        const staff = ['owner','manager','inhouse_dev','growth'].indexOf(p.role) >= 0;
+        return '<button class="gr_bnprow" data-gr-bnrepadd="' + esc(p.id) + '">' +
+          grFace(p, staff ? '#1D5FA8' : '#7C3AED') +
+          '<span><b>' + esc(p.full_name || 'Unnamed') + '</b>' +
+          '<em>' + esc(staff ? 'Sees every deal' : 'Sees only their own deals') + '</em></span>' +
+          '<i>Add</i></button>';
+      }).join('') + '</div>' +
+      (free.length > 40 ? '<p class="gr_mute">Showing the first 40 of ' + free.length +
+        '. Settings \u2192 Team lists everybody.</p>' : '') + '</div>';
+  }
+
+  /* One list, one write. grSetting carries the zero-rows branch, so a refusal says so
+     rather than painting a rep who is not saved. */
+  async function grBnAddRepTo(id) {
+    const p = grPeople.find(x => x.id === id); if (!p) return;
+    const now = grTeamIds();
+    if (now.indexOf(id) >= 0) { grBnAddRep = false; grRender(); return; }
+    const next = now.concat([id]);
+    grSettings.team = next;
+    const ok = await grSetting('team', next);
+    if (!ok) { grToast('Adding them was refused.'); window.grReload(); return; }
+    /* Land on the person you just added -- you opened this to log THEIR sale. */
+    grBonusRep = id;
+    grBnAddRep = false;
+    grToast('Added ' + (p.full_name || 'them') + ' as a sales rep');
+    grRender();
+  }
+
   function grRenderBonus() {
     /* The table is applied by hand, so a deploy can land before the migration does.
        Saying "no sales yet" when we actually cannot see the table would be telling
@@ -99925,12 +100144,24 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             '<i><input data-gr-bnrate value="' + esc(String(grBonusRate())) +
             '" inputmode="decimal" aria-label="Bonus rate"><em>%</em></i></label>'
           : '<div class="gr_bnratechip">' + grBonusRate() + '% of every sale</div>') +
-      (team.length > 1
+      /* Shown to a manager even when the team is one person, because that is exactly
+         when "+ Add sales rep" is the thing they came for. A rep with nobody to switch
+         between still sees nothing to switch. */
+      (team.length > 1 || may
         ? '<div class="gr_field gr_bnpick"><label for="grBnRep">Sales rep</label>' +
           (may
-            ? '<select id="grBnRep" class="gr_in" data-gr-bnrep>' + team.map(x =>
+            /* The button does not add a rep here. Who sells is one list, kept in
+               Settings under Team, and the deal owner dropdown and the course both read
+               it -- a second writer on this screen would be two editors for one setting,
+               which this file has been bitten by before. So it goes to the editor that
+               already exists, on the right tab. */
+            ? '<div class="gr_bnrep">' +
+              '<select id="grBnRep" class="gr_in" data-gr-bnrep>' + team.map(x =>
                 '<option value="' + esc(x.id) + '"' + (x.id === who ? ' selected' : '') + '>' +
-                esc(x.full_name || 'Unnamed') + '</option>').join('') + '</select>'
+                esc(x.full_name || 'Unnamed') + '</option>').join('') + '</select>' +
+              '<button class="gr_bnaddrep"' + (grBnAddRep ? ' aria-expanded="true"' : '') +
+                ' data-gr-bnaddrep>' + (grBnAddRep ? 'Close' : '+ Add sales rep') + '</button>' +
+              '</div>' + grBnRepPicker()
             /* A rep sees their own and is not offered the dropdown: whose bonus you are
                looking at is not a thing somebody should browse. */
             : '<b class="gr_bnme">' + esc(grPerson(who).full_name || 'You') + '</b>') +
@@ -102496,6 +102727,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
     const lk = e.target.closest('[data-gr-link]');
     if (lk) { e.stopPropagation(); grMeetLink(lk.dataset.grLink); return; }
+
+    /* Both stop the click, or the row underneath opens the call you just took off. */
+    const ar = e.target.closest('[data-gr-bnaddrep]');
+    if (ar) { grBnAddRep = !grBnAddRep; grRender(); return; }
+    const ara = e.target.closest('[data-gr-bnrepadd]');
+    if (ara) { grBnAddRepTo(ara.dataset.grBnrepadd); return; }
+
+    const mh = e.target.closest('[data-gr-mhide]');
+    if (mh) { e.stopPropagation(); grMeetHide(mh.dataset.grMhide); return; }
+    const mc = e.target.closest('[data-gr-mcancel]');
+    if (mc) { e.stopPropagation(); grMeetCancel(mc.dataset.grMcancel); return; }
 
     const pv = e.target.closest('[data-gr-pview]');
     if (pv) { grPView = pv.dataset.grPview; grRender(); return; }
