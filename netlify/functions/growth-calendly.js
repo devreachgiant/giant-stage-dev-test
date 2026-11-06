@@ -108,8 +108,9 @@ async function storedToken() {
    read here, and storing it would age badly in a row we keep forever.
 
    A sync that cannot read the invitee writes null, exactly as it already leaves the email
-   blank -- it does not try to preserve what was there. The next run restores it, and the
-   job runs every half hour, so a transient Calendly hiccup heals itself. */
+   blank -- it does not try to preserve what was there. The next run restores it, which is
+   why the reuse added below deliberately refuses to trust a stored record with no email:
+   caching that null would make one bad minute permanent for the life of the booking. */
 function inviteeRecord(inv) {
   const qa = (inv.questions_and_answers || []).slice()
     .sort((a, b) => (a.position || 0) - (b.position || 0))
@@ -266,20 +267,54 @@ async function runSync(token) {
   const byEmail = new Map();
   (deals || []).forEach(d => { if (d.email) byEmail.set(String(d.email).toLowerCase(), d); });
 
+  /* WHAT WE ALREADY KNOW. Every booking used to cost a second Calendly request for its
+     invitee, on every run, forever -- eleven of the thirteen requests a run made were
+     re-reading answers we had already stored. Worse, that cost GREW with the pipeline:
+     the window is seven days back and open-ended forward, so a month of bookings on the
+     calendar meant a month of requests, every ten minutes, to learn nothing. The run is
+     now flat at two requests regardless of how full the calendar is, which is what makes
+     it safe to run oftener -- and running it oftener is now worth something, because a
+     booking notifies somebody and a warning that arrives late is most of a warning gone.
+
+     The invitee is safe to reuse because everything inviteeRecord() keeps -- name,
+     email, phone, timezone, the ten form answers -- is fixed when the booking is made
+     and there is no way for the invitee to change any of it afterwards. The two things
+     they CAN do both miss this cache by construction: a cancellation is dropped above
+     on status, and a reschedule is a cancellation plus a NEW event with a new uri, so
+     it has nothing stored and is fetched like anything else.
+
+     Read with the row's own external_id so this same read still answers "which of these
+     did we already have" further down, rather than costing a second one. */
+  const known = await sb('growth_meetings?select=external_id,invitee&source=eq.Calendly');
+  const seen = new Set((known || []).map(r => r.external_id));
+  const haveInvitee = new Map();
+  (known || []).forEach(r => {
+    // A row whose invitee is null or has no email is one a previous run FAILED to read.
+    // Those must still be fetched, or a transient Calendly hiccup becomes permanent.
+    if (r.invitee && r.invitee.email) haveInvitee.set(r.external_id, r.invitee);
+  });
+
   const rows = [];
   const needDeal = new Map();       // invitee email -> { name, at: [row indexes] }
   for (const ev of events) {
     if (ev.status === 'canceled') continue;
     let inviteeEmail = '', inviteeName = '', invitee = null;
-    try {
-      const inv = await cal(ev.uri + '/invitees?count=1', token);
-      const first = (inv.collection || [])[0];
-      if (first) {
-        inviteeEmail = String(first.email || '').toLowerCase();
-        inviteeName = first.name || '';
-        invitee = inviteeRecord(first);
-      }
-    } catch (e) { /* a booking with no readable invitee is still a booking */ }
+    const cached = haveInvitee.get(ev.uri);
+    if (cached) {
+      invitee = cached;
+      inviteeEmail = String(cached.email || '').toLowerCase();
+      inviteeName = cached.name || '';
+    } else {
+      try {
+        const inv = await cal(ev.uri + '/invitees?count=1', token);
+        const first = (inv.collection || [])[0];
+        if (first) {
+          inviteeEmail = String(first.email || '').toLowerCase();
+          inviteeName = first.name || '';
+          invitee = inviteeRecord(first);
+        }
+      } catch (e) { /* a booking with no readable invitee is still a booking */ }
+    }
 
     const deal = inviteeEmail ? byEmail.get(inviteeEmail) : null;
     const ours = ourDomain && inviteeEmail.endsWith('@' + ourDomain);
@@ -359,8 +394,6 @@ async function runSync(token) {
     }
   }
 
-  const before = await sb('growth_meetings?select=external_id&source=eq.Calendly');
-  const seen = new Set((before || []).map(r => r.external_id));
   const written = await sb('growth_meetings?on_conflict=external_id', 'POST', rows);
 
   const added = rows.filter(r => !seen.has(r.external_id)).length;

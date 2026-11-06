@@ -381,6 +381,145 @@ function stubPlanMixed() {
   ], HAVE);
 }
 
+/* ------------------------------------------------------------------ the re-fetch
+   Every booking used to cost a Calendly request for its invitee on EVERY run, so a
+   window holding eleven bookings spent eleven of its thirteen requests re-reading
+   answers already in the database. Nothing on a screen can show this -- the rows come
+   out identical either way -- so the request log is the only place it exists.
+
+   These count the requests the function actually made. Asserting the cache helper
+   instead would stay green if the call to it were dropped from the path, which is the
+   mistake that cost a pass in the Gmail suite. */
+const storedInvitee = (email, name) => ({
+  name: name, email: email, phone: '+447922116098',
+  timezone: 'Europe/Berlin', booked_at: '2026-10-28T18:02:38.688540Z',
+  qa: [{ q: 'Monthly budget', a: '5000' }]
+});
+const inviteeCalls = (calls) => calls.filter(c => c.url.includes('/invitees')).length;
+
+/* `stored` is what growth_meetings already holds, which is what the old code ignored. */
+function planWithStored(bookings, deals, stored) {
+  const p = plan(bookings, deals);
+  p[p.findIndex(x => x[0] === 'growth_meetings')] =
+    ['growth_meetings', (u, o) => o.method === 'POST'
+      ? { body: JSON.parse(o.body) } : { body: stored }];
+  return p;
+}
+
+const E1 = ev('https://cal/s1', 'Growth Strategy Session', '2026-11-02T17:00:00Z');
+const E2 = ev('https://cal/s2', 'Growth Strategy Session', '2026-11-09T17:00:00Z');
+
+// --- both already stored, with readable invitees: nothing to ask Calendly for.
+calls = stubFetch(planWithStored([
+  [E1, 'Umra', 'umra@outlook.com'],
+  [E2, 'Kai', 'k@example.com']
+], HAVE, [
+  { external_id: 'https://cal/s1', invitee: storedInvitee('umra@outlook.com', 'Umra') },
+  { external_id: 'https://cal/s2', invitee: storedInvitee('k@example.com', 'Kai') }
+]));
+res = await runSync('tok');
+check('a booking already stored costs NO second Calendly request for its invitee',
+  inviteeCalls(calls) === 0, inviteeCalls(calls) + ' invitee requests, expected 0');
+/* Cheap and wrong would be writing null over what we had. */
+let reused = wroteMeetings(calls);
+check('and the answers it already had are written back, not blanked',
+  reused.length === 2 && reused.every(r => r.invitee && r.invitee.qa.length === 1
+    && r.invitee.phone === '+447922116098'),
+  JSON.stringify(reused.map(r => r.invitee && r.invitee.email)));
+/* The email the deal is matched by now comes from the cache, so if the cache were read
+   wrongly a known client would quietly turn into a new lead. k@example.com is Nishchay's
+   deal in HAVE. */
+check('a deal is still matched by the cached email, so a client stays a client',
+  reused.length === 2 && reused.some(r => r.client_id === 'd-k'),
+  JSON.stringify(reused.map(r => r.client_id)));
+/* Kai is a deal we hold, Umra is not. One deal is opened, for Umra -- and the fact that
+   it happens off a CACHED email is the point: read the cache wrongly and the known
+   client becomes a second deal, or the stranger never gets one at all. */
+check('one deal is opened, for the stranger, and none for the client we hold',
+  madeDeals(calls).length === 1 && madeDeals(calls)[0].email === 'umra@outlook.com',
+  JSON.stringify(madeDeals(calls).map(d => d.email)));
+/* Both were already there, so both are updates. This is the tally that would break if
+   moving the read above the loop had lost the "which did we have" set. */
+check('both count as updated rather than added, so the read above the loop still works',
+  res.added === 0 && res.updated === 2, JSON.stringify({ a: res.added, u: res.updated }));
+
+// --- a booking we have never seen is still fetched.
+calls = stubFetch(planWithStored([
+  [E1, 'Umra', 'umra@outlook.com'],
+  [E2, 'Kai', 'k@example.com']
+], HAVE, [
+  { external_id: 'https://cal/s1', invitee: storedInvitee('umra@outlook.com', 'Umra') }
+]));
+res = await runSync('tok');
+check('a booking we have never seen IS fetched -- exactly one, for the new one',
+  inviteeCalls(calls) === 1 && calls.some(c => c.url.startsWith('https://cal/s2/invitees')),
+  inviteeCalls(calls) + ' invitee requests');
+check('and it is the new booking that counts as added',
+  res.added === 1 && res.updated === 1, JSON.stringify({ a: res.added, u: res.updated }));
+
+/* THE HEAL PATH. A run that could not read an invitee writes null and says so, and the
+   next run is what puts it right. Caching on external_id alone would make that null
+   permanent: the row exists, so it would never be asked for again, and ten form answers
+   would be lost for the life of the booking because Calendly hiccuped once. */
+calls = stubFetch(planWithStored([
+  [E1, 'Umra', 'umra@outlook.com'],
+  [E2, 'Kai', 'k@example.com']
+], HAVE, [
+  { external_id: 'https://cal/s1', invitee: null },
+  { external_id: 'https://cal/s2', invitee: storedInvitee('k@example.com', 'Kai') }
+]));
+res = await runSync('tok');
+check('a stored row whose invitee is null is fetched again, so a hiccup still heals',
+  inviteeCalls(calls) === 1 && calls.some(c => c.url.startsWith('https://cal/s1/invitees')),
+  inviteeCalls(calls) + ' invitee requests');
+const healed = wroteMeetings(calls).find(r => r.external_id === 'https://cal/s1');
+check('and the second run is what actually fills the answers in',
+  !!healed && !!healed.invitee && healed.invitee.email === 'umra@outlook.com',
+  JSON.stringify(healed && healed.invitee));
+
+/* Half a record is the same failure wearing a different hat: an invitee object with no
+   email matches nothing and opens no deal, so it has to be re-read like a null. */
+calls = stubFetch(planWithStored([
+  [E1, 'Umra', 'umra@outlook.com']
+], HAVE, [
+  { external_id: 'https://cal/s1', invitee: { name: 'Umra', email: '', qa: [] } }
+]));
+res = await runSync('tok');
+check('a stored invitee with no email is re-read rather than trusted',
+  inviteeCalls(calls) === 1, inviteeCalls(calls) + ' invitee requests');
+check('and reading it again is what finally opens the deal nobody was tracking',
+  madeDeals(calls).length === 1 && madeDeals(calls)[0].email === 'umra@outlook.com',
+  JSON.stringify(madeDeals(calls).map(d => d.email)));
+
+/* A cancellation is dropped on status before any of this, and a reschedule arrives as a
+   new uri with nothing stored -- which is the whole reason reusing the record is safe,
+   and worth measuring rather than asserting in a comment. */
+const CANCELLED = Object.assign({}, ev('https://cal/s1', 'Strategy', '2026-11-02T17:00:00Z'),
+  { status: 'canceled' });
+calls = stubFetch(planWithStored([
+  [CANCELLED, 'Umra', 'umra@outlook.com'],
+  [E2, 'Kai', 'k@example.com']
+], HAVE, [
+  { external_id: 'https://cal/s2', invitee: storedInvitee('k@example.com', 'Kai') }
+]));
+res = await runSync('tok');
+check('a cancelled booking is dropped before the cache is ever consulted',
+  wroteMeetings(calls).every(r => r.external_id !== 'https://cal/s1'),
+  JSON.stringify(wroteMeetings(calls).map(r => r.external_id)));
+
+/* The read that feeds the cache must ask for the invitee column. Selecting external_id
+   alone would leave every record undefined, every booking would be fetched, and every
+   check above except the heal ones would still pass -- the sync would simply be as slow
+   as it was before while looking fixed. */
+calls = stubFetch(planWithStored([[E1, 'Umra', 'umra@outlook.com']], HAVE, []));
+res = await runSync('tok');
+const reads = calls.filter(c => c.url.includes('growth_meetings') && c.opts.method !== 'POST');
+check('the stored-booking read asks for the invitee column, not just the id',
+  reads.length === 1 && /select=external_id,invitee/.test(reads[0].url),
+  reads.length + ' reads: ' + reads.map(r => r.url.split('?')[1]).join(' | '));
+check('and it is read ONCE a run, not once for the cache and again for the tally',
+  reads.length === 1, reads.length + ' reads of growth_meetings');
+
 globalThis.fetch = realFetch;
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
