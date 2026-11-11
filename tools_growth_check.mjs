@@ -4746,6 +4746,64 @@ await step('a deal handed to the team can be brought back', async () => {
     JSON.stringify({ was: clientsBefore, now: after && after.clients }));
 });
 
+/* ------------------------------------------------------ the signature, as it is SENT
+   Growth could not send a picture. The comment in the file said that was because Growth
+   sends text/plain, which was true of the editor and never true of the send path --
+   buildEmailRaw has always built multipart/alternative with an HTML part beside the
+   plain one. What was missing was image support in the markdown converter.
+
+   The assertion that matters is on BOTH HALVES. A signature that renders in the preview
+   and arrives as a line of markdown is the shape of bug a preview cannot catch, and so
+   is one that puts a raw url under the sign-off for every client whose mail app blocks
+   images -- which most do on a first email from an address they do not know. */
+await step('a signature image reaches the html and never the plain text', async () => {
+  const r = await page.evaluate(() => {
+    const url = 'https://example.test/sig.gif';
+    const body = 'Hi there,\n\nThanks.\n\nAnnie Manci\n\n![Annie Manci](' + url + ')';
+    const html = window.giantMdToHtml(body);
+    return {
+      html: (html.match(/<body[^>]*>([\s\S]*)<\/body>/) || [, html])[1],
+      text: window.giantMdToText(body)
+    };
+  });
+  check('the html part carries an img tag pointing at the file',
+    /<img [^>]*src="https:\/\/example\.test\/sig\.gif"/.test(r.html),
+    JSON.stringify((r.html.match(/<img [^>]*>/) || ['none'])[0].slice(0, 90)));
+  check('the plain part keeps the name and drops the picture entirely',
+    /Annie Manci/.test(r.text) && !/sig\.gif/.test(r.text) && !/!\[/.test(r.text),
+    JSON.stringify(r.text.replace(/\s+/g, ' ')));
+  /* An image src is a url somebody can type into a settings box, and it goes out in
+     mail we send. Same guard as a link. */
+  const bad = await page.evaluate(() =>
+    window.giantMdToHtml('![x](javascript:alert(1))'));
+  check('and a javascript src is refused rather than written into an email',
+    !/<img/.test(bad) && !/javascript:/.test(bad), JSON.stringify(bad.slice(-60)));
+});
+
+/* A FIELD YOU CLEAR HAS TO STAY CLEARED. name and email fell back to the profile and to
+   the connected mailbox with `||`, so emptying either box made it come straight back --
+   helpful the first time the screen is opened and impossible to get past afterwards.
+   There was no way to send a signature that is just a name and a logo. */
+await step('a signature line that was deliberately emptied stays empty', async () => {
+  const r = await page.evaluate(() => {
+    const read = (g) => {
+      const set = (k) => Object.prototype.hasOwnProperty.call(g, k);
+      return {
+        name: set('name') ? String(g.name || '') : 'FELL-BACK',
+        email: set('email') ? String(g.email || '') : 'FELL-BACK'
+      };
+    };
+    return {
+      cleared: read({ name: 'Annie Manci', email: '' }),
+      neverSet: read({ name: 'Annie Manci' })
+    };
+  });
+  check('an email set to empty is honoured rather than refilled',
+    r.cleared.email === '', JSON.stringify(r.cleared));
+  check('while a field never set still gets its default',
+    r.neverSet.email === 'FELL-BACK', JSON.stringify(r.neverSet));
+});
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');
