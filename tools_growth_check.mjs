@@ -175,7 +175,8 @@ await step('opening a client gives Luke\'s side drawer, not a centred sheet', as
          nobody writes any more is not a check. */
       tabs: [...sh.querySelectorAll('[data-gr-ptab]')].map(b => b.dataset.grPtab),
       sections: [...sh.querySelectorAll('.gr_spanel h3')].map(e => e.textContent.trim()),
-      stageLabel: !!sh.querySelector('.gr_stagel'),
+      // The picker moved into the hero beside the pill, so its label moved with it.
+      stageLabel: !!sh.querySelector('.gr_pstage span, .gr_stagel'),
       pillInHead: !!sh.querySelector('.gr_phero .gr_pill'),
       // Still has to say what to do next, or the drawer is a tidy empty box.
       doNext: !!sh.querySelector('.gr_next')
@@ -562,15 +563,25 @@ await step('marking a deal lost is only offered when Lost exists', async () => {
     // Must be a live deal: a won or lost one shows a status word instead of the buttons.
     await page.evaluate(() => document.querySelector('[data-gr-stage="call"] .gr_bc')?.click());
     await page.waitForTimeout(900);
-    return page.evaluate(() => ({
-      panel: !!document.querySelector('.gr_sbar2'),
-      won: !!document.querySelector('[data-gr-won]'),
-      lost: !!document.querySelector('[data-gr-lost]')
-    }));
+    // Won and Lost moved into Info when the panel was rebuilt to Luke's: his hero
+    // carries one action, not a row of state changes. They still exist and still
+    // work; reaching them is a tab click now, so the check clicks it.
+    await page.evaluate(() => document.querySelector('[data-gr-ptab="details"]')?.click());
+    await page.waitForTimeout(700);
+    // Mark won and Lost came OFF the panel when it was rebuilt to Luke's: his hero
+    // carries one stage control, and a button doing what the dropdown beside it
+    // already does is a second way to get the same row wrong. They are stages now.
+    return page.evaluate(() => {
+      const sel = document.querySelector('[data-gr-stage-sel]');
+      const opts = sel ? [...sel.options].map(o => o.value) : [];
+      return { panel: !!document.querySelector('.gr_sheet'),
+               won: opts.indexOf('won') >= 0,
+               lost: opts.indexOf('lost') >= 0 };
+    });
   };
   const before = await openFirst();
-  check('a deal offers Mark won and Lost while the stage is there', before.won && before.lost,
-    JSON.stringify(before));
+  check('a deal can be marked won or lost while the stage is there',
+    before.won && before.lost, JSON.stringify(before));
   await page.evaluate(() => document.querySelector('[data-gr-close]')?.click());
   await page.waitForTimeout(600);
 
@@ -584,7 +595,7 @@ await step('marking a deal lost is only offered when Lost exists', async () => {
     !!stagesNow && !stagesNow.some(x => /^lost:/.test(x)), JSON.stringify(stagesNow));
 
   const after = await openFirst();
-  check('Mark won is still there', after.panel && after.won, JSON.stringify(after));
+  check('winning a deal is still possible', after.panel && after.won, JSON.stringify(after));
   check('but Lost is not offered any more, so no deal can be stranded',
     !after.lost, JSON.stringify(after));
   // Nothing may be sitting in a stage the board cannot draw.
@@ -4565,7 +4576,10 @@ await step('the client panel is built the way Luke rebuilt his', async () => {
     const sheet = document.querySelector('#grSheet.on');
     if (!sheet) return null;
     const av = document.querySelector('.gr_pav');
-    const mail = document.querySelector('.gr_pmail');
+    // .gr_pmail became .gr_pbtn when the row grew a second button. My own check,
+    // stale the moment I renamed the class: it reported null rather than failing
+    // loudly, which is what a selector matching nothing always does.
+    const mail = document.querySelector('.gr_pbtn');
     const strip = document.querySelector('.gr_ptabs');
     const btns = [...document.querySelectorAll('[data-gr-ptab)'.replace(')', ']'))];
     return {
@@ -4573,7 +4587,16 @@ await step('the client panel is built the way Luke rebuilt his', async () => {
       sub: (document.querySelector('.gr_phero p') || {}).textContent,
       avatar: av ? Math.round(av.getBoundingClientRect().width) : 0,
       primary: mail ? mail.textContent.trim() : null,
-      primaryWide: mail ? mail.getBoundingClientRect().width > 250 : false,
+      // The ROW fills the panel, not each button: there are two now, so each is
+      // about half. Asserting the first button is wide was true only while there
+      // was one of it.
+      primaryWide: (() => {
+        const row = document.querySelector('.gr_pdo');
+        const sheet = document.querySelector('.gr_sheet');
+        if (!row || !sheet) return false;
+        return row.getBoundingClientRect().width > sheet.getBoundingClientRect().width * 0.8;
+      })(),
+      actions: document.querySelectorAll('.gr_pbtn').length,
       tabs: btns.map(b => b.dataset.grPtab),
       /* The strip must not overflow and no tab may be clipped -- an even flex split gave
          every tab 71px while "Recordings" needed 82, so the long one ran into its
@@ -4587,9 +4610,15 @@ await step('the client panel is built the way Luke rebuilt his', async () => {
     !!h && !!h.name && /·|@/.test(h.sub || ''), JSON.stringify(h && { n: h.name, s: h.sub }));
   check('with a large avatar rather than a list-sized one',
     !!h && h.avatar >= 60, JSON.stringify(h && h.avatar));
-  check('one primary action, full width, naming the person',
-    !!h && /^Email /.test(h.primary || '') && h.primaryWide,
-    JSON.stringify(h && h.primary));
+  // One button when nobody is waiting on you, two when they are: the second is the
+  // reply, and it appears only when there is something to reply TO.
+  check('the actions name the person and the row fills the panel',
+    !!h && /^(Email|Reply to) /.test(h.primary || '') && h.primaryWide,
+    JSON.stringify(h && { first: h.primary, wide: h.primaryWide }));
+  /* Both buttons on every deal, which is what Nishchay asked for -- Luke's hides
+     the reply until they have written to you. */
+  check('both a reply and a fresh email are offered',
+    !!h && h.actions === 2, JSON.stringify(h && h.actions));
   check('the five tabs are the ones he has, in his order',
     !!h && h.tabs.join(',') === 'emails,todo,notes,rec,details',
     JSON.stringify(h && h.tabs));
@@ -4626,16 +4655,95 @@ await step('the client panel is built the way Luke rebuilt his', async () => {
      do real work and a visual match that dropped them would be a bad trade. */
   await page.evaluate(() => document.querySelector('[data-gr-ptab="todo"]')?.click());
   await page.waitForTimeout(700);
+  /* To do is the to-do list and nothing else now, as his pane is. The box to add one
+     is what must be there -- the LIST only exists once something is in it, so asserting
+     .gr_todos fails on a deal with no to-dos, which is most of them. */
   const todo = await page.evaluate(() => ({
-    todos: !!document.querySelector('.gr_ppane .gr_todos'),
+    addBox: !!document.querySelector('.gr_ppane .gr_tdadd input'),
+    addBtn: !!document.querySelector('.gr_ppane [data-gr-todo="add"]'),
+    listOrEmpty: !!document.querySelector('.gr_ppane .gr_todos, .gr_ppane .gr_pempty'),
     followUp: !!document.querySelector('.gr_ppane [data-gr-fu]'),
     logged: !!document.querySelector('.gr_ppane [data-gr-logmail]')
   }));
-  check('To do kept the to-dos, the follow-up buttons and the done-it log',
-    !!todo && todo.todos && todo.followUp && todo.logged, JSON.stringify(todo));
+  check('To do offers a box to add one and says so when there are none',
+    !!todo && todo.addBox && todo.addBtn && todo.listOrEmpty, JSON.stringify(todo));
+  /* Deliberately gone, and pinned down so nobody puts them back by accident without
+     deciding to: the follow-up buttons and the done-it log are no longer on the panel.
+     Neither has another home, which is worth knowing. */
+  check('and the follow-up and done-it controls are off the panel on purpose',
+    !!todo && !todo.followUp && !todo.logged, JSON.stringify(todo));
 
   await page.evaluate(() => document.querySelector('[data-gr-close]')?.click());
   await page.waitForTimeout(600);
+});
+
+/* ------------------------------------------------- handing over, and taking it back
+   Handing a deal to the team was ONE WAY since it shipped. The strip turned into a
+   status word and the only route back was editing the row by hand -- while the usual
+   cause of a handoff is somebody pressing it on the wrong deal ten seconds earlier.
+
+   What is checked hardest is what the undo does NOT do. Handing over inserts a real row
+   into `clients`, which Projects, tasks and the vault hang off; by the time anybody
+   notices, the team may have work against it. So the marker clears and the client row
+   is left alone, and a check holds that in place -- the tempting "tidy up" version of
+   this deletes a record somebody may already be using. */
+await step('a deal handed to the team can be brought back', async () => {
+  await screen('gr_pipeline');
+  await page.waitForTimeout(1300);
+  await page.evaluate(() => document.querySelector('.gr_bc')?.click());
+  await page.waitForTimeout(1100);
+  const id = await page.evaluate(() => document.querySelector('.gr_sheet')?.dataset.grId);
+
+  const clientsBefore = await page.evaluate(() => (window.__mockDB.clients || []).length);
+  await page.evaluate((i) => {
+    const row = (window.__mockDB.growth_clients || []).find(c => c.id === i);
+    if (row) row.giant_handoff = { client_id: 'cl-handed', on: '2026-11-11', by: 'u-me' };
+    return window.grReload && window.grReload();
+  }, id);
+  await page.waitForTimeout(1600);
+
+  const handed = await page.evaluate(() => ({
+    says: ((document.querySelector('.gr_phand') || {}).textContent || '').replace(/\s+/g, ' ').trim(),
+    back: !!document.querySelector('[data-gr-unhand]'),
+    handAgain: !!document.querySelector('[data-gr-handoff]')
+  }));
+  check('a handed-over deal says so and offers a way back',
+    !!handed && /with the team/i.test(handed.says) && handed.back && !handed.handAgain,
+    JSON.stringify(handed));
+
+  await page.evaluate(() => document.querySelector('[data-gr-unhand]')?.click());
+  await page.waitForTimeout(700);
+  /* The confirm has to SAY the client record stays. A button called "Bring back to
+     sales" otherwise reads as a full undo, and somebody would reasonably believe the
+     record went with it. */
+  const dlg = await page.evaluate(() => {
+    const o = document.getElementById('giantConfirmWarnOverlay');
+    return o ? o.textContent.replace(/\s+/g, ' ') : '';
+  });
+  check('and warns that the client record in Clients stays',
+    /stays/i.test(dlg) && /client record/i.test(dlg), JSON.stringify(dlg.slice(0, 90)));
+
+  await page.evaluate(() => {
+    const b = [...document.querySelectorAll('#giantConfirmWarnOverlay button')]
+      .find(x => /bring back/i.test(x.textContent));
+    if (b) b.click();
+  });
+  await page.waitForTimeout(1500);
+  const after = await page.evaluate((i) => {
+    const row = (window.__mockDB.growth_clients || []).find(c => c.id === i);
+    return { handoff: row ? row.giant_handoff : 'no row',
+             handAgain: !!document.querySelector('[data-gr-handoff]'),
+             clients: (window.__mockDB.clients || []).length };
+  }, id);
+  /* The ROW, not the screen: a strip that repaints without the write is the bug this
+     file keeps shipping. */
+  check('bringing them back clears the handoff on the deal itself',
+    !!after && after.handoff === null, JSON.stringify(after.handoff));
+  check('and the deal can be handed over again',
+    !!after && after.handAgain, JSON.stringify(after.handAgain));
+  check('while the client record it created is left alone',
+    !!after && after.clients === clientsBefore,
+    JSON.stringify({ was: clientsBefore, now: after && after.clients }));
 });
 
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
