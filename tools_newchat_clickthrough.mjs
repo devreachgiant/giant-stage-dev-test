@@ -121,9 +121,19 @@ await page.route('**/@supabase/supabase-js@2*', r =>
 await page.route('**://*.supabase.co/**', r => { blocked.push(r.url().slice(0, 120)); r.abort(); });
 await page.route('**://*.supabase.in/**', r => { blocked.push(r.url().slice(0, 120)); r.abort(); });
 
+// WHERE THE TIME GOES. This suite is the slowest thing in the repo, and the reflex when
+// cutting it is to delete the sleeps that look biggest -- which is how a fast suite
+// becomes a flaky one. Timing every step costs two Date.now() calls and turns the
+// question into a measurement. Off unless asked for, so an ordinary run is unchanged:
+//    TIME_STEPS=1 node tools_newchat_clickthrough.mjs
+const TIME_STEPS = !!process.env.TIME_STEPS;
+const timings = [];
+const RUN_T0 = Date.now();
 const step = async (label, fn) => {
+  const t0 = Date.now();
   try { return await fn(); }
   catch (e) { check(label, false, 'threw: ' + String(e.message || e).slice(0, 200)); return null; }
+  finally { if (TIME_STEPS) timings.push({ label, ms: Date.now() - t0 }); }
 };
 
 await page.goto(BASE + '/', { waitUntil: 'domcontentloaded', timeout: 60000 });
@@ -1226,6 +1236,111 @@ await step('a member sees only mute, mark-unread and leave', async () => {
     r.acts.includes('mute') && r.acts.includes('leave')
       && !r.acts.includes('delete') && !r.acts.includes('rename') && !r.acts.includes('invite'),
     JSON.stringify(r));
+});
+
+// Adding people to a GROUP is not an administrative act -- the people in it are the ones
+// who know who else belongs in it. Until now the menu item was gated on canManage, so a
+// member could see a group, read it and write to it but not bring anyone into it; the
+// item was simply absent for them. A CHANNEL is still a manager's call, and a one-to-one
+// is never offered one. All three asserted together, because the bug is the boundary.
+await step('a member of a group can add people to it', async () => {
+  const r = await page.evaluate(async () => {
+    const was = window.giantCurrentProfile.role;
+    window.giantCurrentProfile.role = 'member';
+    const open = async (sel) => {
+      document.querySelectorAll('.nc_channel-ctx-menu').forEach(m => m.remove());
+      const row = document.querySelector(sel);
+      if (!row) return null;
+      row.querySelector('.nc_row-menu').click();
+      await new Promise(r => setTimeout(r, 300));
+      const menu = document.querySelector('.nc_channel-ctx-menu');
+      const acts = menu ? [...menu.querySelectorAll('[data-action]')].map(e => e.dataset.action) : [];
+      if (menu) menu.remove();
+      return acts;
+    };
+    const grp  = await open('#nc_cardGroupsBody .nc_ch-item');
+    const dm   = await open('#nc_cardDirectBody .nc_ch-item');
+    const team = await open('#nc_cardTeamsBody .nc_ch-item');
+    window.giantCurrentProfile.role = was;
+    return { grp, dm, team };
+  });
+  const has = (a, k) => Array.isArray(a) && a.includes(k);
+  check('a member of a group can add people to it',
+    has(r.grp, 'invite') && !has(r.dm, 'invite') && !has(r.team, 'invite'),
+    JSON.stringify(r));
+});
+
+// The form behind that item shipped with a search field nothing listened to and a button
+// whose only behaviour was data-close, so it opened, accepted a name and closed as though
+// it had done something. Asserted on the MEMBERSHIP ROW rather than on the modal closing,
+// because closing is exactly what the broken version did.
+await step('adding somebody to a group writes a membership row', async () => {
+  const r = await page.evaluate(async () => {
+    const db = window.__mock.db, me = window.__mock.me;
+    document.querySelectorAll('.nc_channel-ctx-menu').forEach(m => m.remove());
+    const row = document.querySelector('#nc_cardGroupsBody .nc_ch-item');
+    if (!row) return { noRow: true };
+    const id = row.dataset.ncDmChannelId;
+    const before = db.channel_members.filter(m => m.channel_id === id).length;
+    row.querySelector('.nc_row-menu').click();
+    await new Promise(r => setTimeout(r, 300));
+    const menu = document.querySelector('.nc_channel-ctx-menu');
+    const item = menu && [...menu.querySelectorAll('[data-action]')]
+      .find(e => e.dataset.action === 'invite');
+    if (!item) return { noItem: true };
+    item.click();
+    await new Promise(r => setTimeout(r, 700));
+    const modalOpen = !!document.querySelector('#nc_inviteToChannelModal.on');
+    const shownMembers = document.querySelectorAll('#nc_invMembers > div').length;
+    const inIt = new Set(db.channel_members.filter(m => m.channel_id === id).map(m => m.profile_id));
+    const outsider = db.profiles.find(p => !inIt.has(p.id) && p.id !== me
+      && !p.deactivated_at && p.is_active !== false && (p.full_name || '').length > 3);
+    if (!outsider) return { noOutsider: true };
+    const input = document.getElementById('nc_invInput');
+    input.value = outsider.full_name;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 250));
+    // Nobody already in the conversation may be offered: picking one turns the add into a
+    // duplicate-key error, which reads to the user as the feature being broken.
+    const offeredSomeoneInIt = [...document.querySelectorAll('#nc_invSuggest [data-inv-id]')]
+      .some(e => inIt.has(e.dataset.invId));
+    const hit = document.querySelector('#nc_invSuggest .nc_invite-suggest-item');
+    if (!hit) return { noHit: true, typed: input.value, modalOpen, shownMembers };
+    const pickedId = hit.dataset.invId;
+    hit.click();
+    await new Promise(r => setTimeout(r, 200));
+    const btn = document.getElementById('nc_invSubmit');
+    const enabled = !btn.disabled;
+    btn.click();
+    await new Promise(r => setTimeout(r, 1200));
+    const after = db.channel_members.filter(m => m.channel_id === id).length;
+    const added = db.channel_members.some(m => m.channel_id === id && m.profile_id === pickedId);
+    const closed = !document.querySelector('#nc_inviteToChannelModal.on');
+    const note = db.messages.filter(m => m.channel_id === id
+      && /added .+ to the group\./.test(m.body || '')).length;
+    return { before, after, added, closed, enabled, modalOpen, offeredSomeoneInIt, note, shownMembers };
+  });
+  check('adding somebody to a group writes a membership row',
+    !!r.modalOpen && r.enabled === true && r.added === true
+      && r.after === r.before + 1 && r.closed === true,
+    JSON.stringify(r));
+  // Measured on what is OFFERED, not on what the filter function returns: the first
+  // version of this picker filtered correctly in a helper nothing on the path called.
+  check('the picker never offers somebody already in the conversation',
+    r.offeredSomeoneInIt === false, JSON.stringify(r));
+  // Counts the rows DRAWN, not the ids fetched. "Already in" rendering empty while the
+  // list behind it was full is the shape this would otherwise miss. Tied to the
+  // membership count rather than to a number: written as ">= 3" first, on the assumption
+  // that anything filed under Groups has at least three people in it, and the fixture's
+  // first group row has two -- is_group is set on it without the extra members. The
+  // threshold was wrong and the screen was right, which is the less obvious way round
+  // and the reason this asserts the relationship instead of a constant. An empty list
+  // draws one "Nobody yet" row, so it cannot pass by accident at before === 1 either.
+  check('the form shows who is in the conversation already',
+    r.shownMembers === r.before && r.before > 0, JSON.stringify(r));
+  // Nobody gains sight of a private group in silence. There is no system-message type in
+  // this schema, so it is an ordinary message from whoever did the adding.
+  check('the group is told who was added', r.note === 1, JSON.stringify(r));
 });
 
 await step('leaving a channel removes only my membership', async () => {
@@ -9896,5 +10011,18 @@ console.log('realtime topics: ' + JSON.stringify(evidence.realtime));
 console.log('rpc: ' + JSON.stringify(evidence.rpc));
 console.log('mock gaps: ' + JSON.stringify(evidence.unsupported));
 console.log('screenshot: ' + shot);
+if (TIME_STEPS) {
+  const inSteps = timings.reduce((a, t) => a + t.ms, 0);
+  const wall = Date.now() - RUN_T0;
+  console.log('\n=== where the time went ===');
+  console.log('  wall clock      ' + (wall / 1000).toFixed(1) + 's');
+  console.log('  inside step()   ' + (inSteps / 1000).toFixed(1) + 's  ('
+    + Math.round(inSteps / wall * 100) + '% of it, over ' + timings.length + ' steps)');
+  // The rest is boot, the bare check() calls that sit outside a step, and the teardown.
+  console.log('  everywhere else ' + ((wall - inSteps) / 1000).toFixed(1) + 's');
+  console.log('\n  slowest 25 steps:');
+  [...timings].sort((a, b) => b.ms - a.ms).slice(0, 25)
+    .forEach(t => console.log('    ' + String(t.ms).padStart(6) + 'ms  ' + t.label.slice(0, 86)));
+}
 console.log('\n' + results.filter(r => r.pass).length + '/' + results.length + ' checks passed');
 process.exit(fails.length ? 1 : 0);

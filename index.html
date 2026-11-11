@@ -11737,22 +11737,23 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
           <div class="nc_modal-overlay" id="nc_inviteToChannelModal">
             <div class="nc_modal">
               <div class="nc_modal-head">
-                <div><h3>Invite people to <span id="nc_invChName" style="color:var(--red);">#channel</span></h3><div class="nc_m-sub">Add teammates to this conversation</div></div>
+                <div><h3>Add people to <span id="nc_invChName" style="color:var(--red);">#channel</span></h3><div class="nc_m-sub" id="nc_invSub">Add teammates to this conversation</div></div>
                 <div class="nc_m-close" data-close="nc_inviteToChannelModal"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
               </div>
               <div class="nc_modal-body">
                 <div class="nc_m-field">
                   <label>Add members</label>
-                  <div class="nc_invite-chips">
-                    <input type="text" class="nc_invite-chips-input" placeholder="Search by name or email…">
+                  <div class="nc_invite-chips" id="nc_invChips">
+                    <input type="text" class="nc_invite-chips-input" id="nc_invInput" placeholder="Search by name or email…" autocomplete="off">
                   </div>
-                  <div class="nc_invite-suggest">
-                  </div>
+                  <div class="nc_invite-suggest" id="nc_invSuggest"></div>
                 </div>
+                <div style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-3);margin:16px 0 8px;">Already in <span id="nc_invCount">·</span></div>
+                <div id="nc_invMembers" class="nc_ch-members-list" style="max-height:200px;"></div>
               </div>
               <div class="nc_modal-foot">
                 <button class="nc_m-cancel" data-close="nc_inviteToChannelModal">Cancel</button>
-                <button class="nc_m-submit" data-close="nc_inviteToChannelModal">Send invitations</button>
+                <button class="nc_m-submit" id="nc_invSubmit" disabled>Add</button>
               </div>
             </div>
           </div>
@@ -83703,7 +83704,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       // A one-to-one has nothing to rename, nobody to invite, and leaving it is deleting
       // it -- so those three are simply not offered there.
       const showRename = canManage && (!isDm || isGroup);
-      const showInvite = canManage && (!isDm || isGroup);
+      // Adding somebody to a GROUP is now anyone already in it, not only a role that
+      // administers the workspace: channel_members_group_dm_invite lets a member write a
+      // membership row for a group DM they belong to. The menu matches what the database
+      // will accept rather than offering an item whose insert gets refused. A channel is
+      // unchanged -- that is still canManage -- and a one-to-one is never offered, since
+      // there is no third seat in one.
+      const showInvite = isDm ? isGroup : canManage;
       const showLeave  = !isDm || isGroup;
       const menu = document.createElement('div');
       menu.className = 'nc_channel-ctx-menu';
@@ -83743,9 +83750,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           } else if (act === 'leave') {
             await leaveChannel(channelId, channelName, isDm);
           } else if (act === 'invite') {
-            const nameEl = document.getElementById('nc_invChName');
-            if (nameEl) nameEl.textContent = '#' + channelName;
-            if (typeof openModal === 'function') openModal('nc_inviteToChannelModal');
+            await ncOpenInviteModal(channelId, channelName, isDm && isGroup);
           } else if (act === 'rename') {
             // Same label the sidebar shows, from the same helper -- channelName here comes
             // from the row's text and can carry a badge or the department with it.
@@ -85974,6 +85979,287 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         // (row is flex; avatar fixed, text flexes, role pinned at its natural width)
       }).join('');
     }
+
+    /* ── ADDING PEOPLE TO A CONVERSATION ─────────────────────────────────────────
+       The markup for this modal shipped with a search field nothing listened to and a
+       "Send invitations" button whose only behaviour was data-close, so the menu item
+       opened a form that could not add anybody and closed as though it had. What it
+       actually takes is a channel_members row. On a channel that is a manager's job and
+       always was; on a group DM it is now anyone already in it, which is what the new
+       channel_members_group_dm_invite policy permits.
+
+       Its own state and its own containers, deliberately. The New channel modal has a
+       near-identical picker twenty lines below this one, and sharing the Set between the
+       two means opening one of them while the other has chips in it adds those people. */
+    let ncInvTarget = null;            // { id, label, isGroup } — what is being added to
+    let ncInvMemberIds = [];           // who is in it already
+    let ncInvMemberProfiles = [];
+    const ncInvPicked = new Set();     // ids chosen but not yet written
+
+    const ncInvName = (p) => (p && (p.full_name || p.email)) || 'Member';
+
+    // "Ann", "Ann and Bo", "Ann, Bo and Cal" — the toast and the note in the group both
+    // read as a sentence, so neither can just join on a comma.
+    function ncInvList(names) {
+      if (!names.length) return '';
+      if (names.length === 1) return names[0];
+      return names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1];
+    }
+
+    function ncInvAvatar(p) {
+      const AVA = 'width:26px;height:26px;min-width:26px;flex-shrink:0;border-radius:50%;'
+        + 'overflow:hidden;display:inline-flex;align-items:center;justify-content:center;'
+        + 'font-size:10px;font-weight:700;';
+      // An <img>, not background-image in a style attribute: a storage URL carries an
+      // encoded filename and putting one inside url(...) there loses it, which paints an
+      // empty circle that reads as "no photo" rather than as a broken image.
+      if (p && p.avatar_url) {
+        return '<span style="' + AVA + '"><img loading="lazy" decoding="async" src="'
+          + chatEsc(p.avatar_url) + '" alt="" style="width:26px;height:26px;object-fit:cover;display:block;"></span>';
+      }
+      const initial = ncInvName(p).charAt(0).toUpperCase();
+      return '<span style="' + AVA + 'background:' + chatEsc((p && p.avatar_bg) || '#4A2424')
+        + ';color:' + chatEsc((p && p.avatar_fg) || '#F0A0A0') + ';">' + chatEsc(initial) + '</span>';
+    }
+
+    function ncRenderInvChips() {
+      const chips = document.getElementById('nc_invChips');
+      const input = document.getElementById('nc_invInput');
+      const btn = document.getElementById('nc_invSubmit');
+      if (!chips || !input) return;
+      chips.querySelectorAll('.nc_invite-chip').forEach(c => c.remove());
+      [...ncInvPicked].forEach(id => {
+        const p = dmTeammatesCache.find(x => x.id === id);
+        if (!p) return;
+        const chip = document.createElement('span');
+        chip.className = 'nc_invite-chip';
+        chip.dataset.inviteId = id;
+        chip.textContent = ncInvName(p);
+        const x = document.createElement('span');
+        x.className = 'nc_invite-chip-x';
+        x.textContent = '×';
+        x.style.cursor = 'pointer';
+        x.addEventListener('click', (e) => {
+          e.stopPropagation();
+          ncInvPicked.delete(id);
+          ncRenderInvChips();
+          ncRenderInvSuggest(input.value);
+        });
+        chip.appendChild(x);
+        chips.insertBefore(chip, input);
+      });
+      if (btn) {
+        btn.disabled = !ncInvPicked.size;
+        const what = ncInvTarget && ncInvTarget.isGroup ? 'group' : 'channel';
+        btn.textContent = ncInvPicked.size
+          ? 'Add ' + ncInvPicked.size + ' to ' + what
+          : 'Add';
+      }
+    }
+
+    function ncRenderInvSuggest(filter) {
+      const box = document.getElementById('nc_invSuggest');
+      if (!box) return;
+      const f = String(filter || '').trim().toLowerCase();
+      // Nothing typed means no list. The box carries a border and a background, so
+      // rendering it empty draws a grey bar under the field for no reason.
+      if (!f) { box.innerHTML = ''; return; }
+      const already = new Set(ncInvMemberIds);
+      const hits = dmTeammatesCache.filter(p =>
+        !ncIsDeactivated(p) && !already.has(p.id) && !ncInvPicked.has(p.id)
+        && ((p.full_name || '').toLowerCase().includes(f) || (p.email || '').toLowerCase().includes(f))
+      ).slice(0, 6);
+      if (!hits.length) {
+        // Said separately from "no such person", because the two look identical in an
+        // empty list and only one of them means you typed the name wrong.
+        const inThere = dmTeammatesCache.some(p => already.has(p.id)
+          && ((p.full_name || '').toLowerCase().includes(f) || (p.email || '').toLowerCase().includes(f)));
+        box.innerHTML = '<div style="padding:8px 9px;color:var(--text-3);font-size:11.5px;">'
+          + (inThere ? 'Already in this conversation' : 'No one matches that') + '</div>';
+        return;
+      }
+      box.innerHTML = hits.map(p => {
+        const role = (p.role || '').replace(/_/g, ' ');
+        const meta = role
+          ? '<span style="margin-left:8px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3);flex-shrink:0;white-space:nowrap;">' + chatEsc(role) + '</span>'
+          : '';
+        const sub = p.full_name && p.email
+          ? '<span style="color:var(--text-3);font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + chatEsc(p.email) + '</span>'
+          : '';
+        return '<div class="nc_invite-suggest-item" data-inv-id="' + chatEsc(p.id) + '"'
+          + ' style="display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:7px;cursor:pointer;font-size:12px;">'
+          + ncInvAvatar(p)
+          + '<span style="display:flex;flex-direction:column;line-height:1.25;min-width:0;flex:1;overflow:hidden;">'
+          + '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + chatEsc(ncInvName(p)) + '</span>'
+          + sub + '</span>' + meta + '</div>';
+      }).join('');
+    }
+
+    // Who is in it already, shown rather than only used to filter the picker: "add Noor"
+    // and "Noor is already here" are the same keystrokes, and the second one is the
+    // answer more often.
+    function ncRenderInvMembers() {
+      const list = document.getElementById('nc_invMembers');
+      const count = document.getElementById('nc_invCount');
+      if (count) count.textContent = '· ' + ncInvMemberIds.length;
+      if (!list) return;
+      const me = ncMyId();
+      list.innerHTML = ncInvMemberProfiles.map(p => {
+        const isMe = p.id === me;
+        return '<div style="display:flex;align-items:center;gap:9px;padding:6px 7px;font-size:12px;color:var(--text);">'
+          + ncInvAvatar(p)
+          + '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + chatEsc(ncInvName(p))
+          + (isMe ? ' <span style="color:var(--text-3);font-size:10px;font-weight:600;">(you)</span>' : '')
+          + '</span></div>';
+      }).join('') || '<div style="padding:8px 9px;color:var(--text-3);font-size:11.5px;">Nobody yet</div>';
+    }
+
+    async function ncLoadInvPeople() {
+      if (!ncInvTarget) return;
+      if (!dmTeammatesCache.length) {
+        const { data } = await NCSB().from('profiles')
+          .select('id, full_name, email, avatar_url, avatar_bg, avatar_fg, role, deactivated_at')
+          .neq('id', ncMyId()).order('full_name');
+        dmTeammatesCache = data || [];
+      }
+      // Read the membership rather than deriving it from whatever the sidebar last drew.
+      // Offering somebody who is already in the conversation turns the add into a
+      // duplicate-key error, which reads to the user as "it is broken".
+      const { data: mem } = await NCSB().from('channel_members')
+        .select('profile_id').eq('channel_id', ncInvTarget.id);
+      ncInvMemberIds = (mem || []).map(m => m.profile_id);
+      // Fetched, not taken from a cache: the list has to include me, and every people
+      // cache in this module is built by excluding me from it.
+      if (ncInvMemberIds.length) {
+        const { data: profs } = await NCSB().from('profiles')
+          .select('id, full_name, email, avatar_url, avatar_bg, avatar_fg, role')
+          .in('id', ncInvMemberIds).order('full_name');
+        ncInvMemberProfiles = profs || [];
+      } else {
+        ncInvMemberProfiles = [];
+      }
+      ncRenderInvMembers();
+      const input = document.getElementById('nc_invInput');
+      ncRenderInvSuggest(input ? input.value : '');
+    }
+
+    async function ncOpenInviteModal(channelId, label, isGroup) {
+      if (!channelId) return;
+      // The label the SIDEBAR shows, not the one the menu computed. A group DM carries no
+      // name of its own in plenty of cases, and what reaches here then is the bare word
+      // "conversation" -- so the form was headed "Add people to conversation", which reads
+      // as though it had failed to load rather than as the name of anything. The row
+      // carries the resolved label in its title attribute, which is the same string the
+      // list is drawing.
+      let shown = (label && label !== 'conversation' && label !== 'channel') ? label : '';
+      if (!shown) {
+        const rowEl = document.querySelector('[data-nc-dm-channel-id="' + channelId + '"]');
+        shown = (rowEl && rowEl.getAttribute('title')) || 'this conversation';
+      }
+      ncInvTarget = { id: channelId, label: shown, isGroup: !!isGroup };
+      ncInvPicked.clear();
+      ncInvMemberIds = [];
+      ncInvMemberProfiles = [];
+      const nameEl = document.getElementById('nc_invChName');
+      if (nameEl) nameEl.textContent = (!isGroup && shown !== 'this conversation' ? '#' : '') + ncInvTarget.label;
+      const subEl = document.getElementById('nc_invSub');
+      // Said before the add, not after. A group DM hands over every message in it, and
+      // that is the one thing somebody would want to know first.
+      if (subEl) subEl.textContent = isGroup
+        ? 'Anyone you add can read the whole conversation, including what was said before they joined.'
+        : 'They will be able to see this channel.';
+      const input = document.getElementById('nc_invInput');
+      if (input) input.value = '';
+      const box = document.getElementById('nc_invSuggest');
+      if (box) box.innerHTML = '';
+      ncRenderInvChips();
+      ncRenderInvMembers();
+      if (typeof openModal === 'function') openModal('nc_inviteToChannelModal');
+      else { const m = document.getElementById('nc_inviteToChannelModal'); if (m) m.classList.add('on'); }
+      setTimeout(() => { const i = document.getElementById('nc_invInput'); if (i) i.focus(); }, 80);
+      await ncLoadInvPeople();
+    }
+
+    async function ncInviteSubmit() {
+      if (!ncInvTarget || !ncInvPicked.size) return;
+      const target = ncInvTarget;
+      const btn = document.getElementById('nc_invSubmit');
+      const restore = () => { if (btn) { btn.disabled = false; ncRenderInvChips(); } };
+      if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
+      const ids = [...ncInvPicked];
+      const rows = ids.map(id => ({ channel_id: target.id, profile_id: id }));
+      // .select() and a zero-rows branch. An insert RLS will not accept raises, but one
+      // it accepts and then cannot read back comes home as success with no data, and
+      // closing the modal on that tells somebody they added a person they did not.
+      const { data, error } = await NCSB().from('channel_members')
+        .insert(rows).select('profile_id');
+      if (error) {
+        restore();
+        if (typeof toast === 'function') toast({ type:'error',
+          message: 'Could not add: ' + (error.message || 'refused') });
+        return;
+      }
+      if (!data || !data.length) {
+        restore();
+        if (typeof toast === 'function') toast({ type:'error',
+          message: 'Nobody was added — you may not have permission on this conversation.' });
+        return;
+      }
+      const names = data.map(r => {
+        const p = dmTeammatesCache.find(x => x.id === r.profile_id);
+        return p ? ncInvName(p) : 'someone';
+      });
+      // Tell the people already in it. There is no system-message type in this schema, so
+      // it is an ordinary message from whoever did the adding -- which is also who it
+      // should be attributed to. Failing to post it must not undo a membership that was
+      // written, so it is tried and the outcome only logged.
+      if (target.isGroup) {
+        try {
+          const meName = (window.giantCurrentProfile
+            && (window.giantCurrentProfile.full_name || window.giantCurrentProfile.email)) || 'Someone';
+          const { error: noteErr } = await NCSB().from('messages').insert({
+            channel_id: target.id, author_id: ncMyId(),
+            body: meName + ' added ' + ncInvList(names) + ' to the group.'
+          }).select('id');
+          if (noteErr) console.warn('[nc] could not post the added-to-group note:', noteErr);
+        } catch (e) { console.warn('[nc] could not post the added-to-group note:', e); }
+      }
+      if (typeof closeModal === 'function') closeModal('nc_inviteToChannelModal');
+      else { const m = document.getElementById('nc_inviteToChannelModal'); if (m) m.classList.remove('on'); }
+      ncInvPicked.clear();
+      await loadChannels();
+      // A group wears its members as its name and its header count, so both are wrong
+      // until the open conversation is drawn again.
+      if (activeChannelId === target.id) await switchChannel(target.id);
+      if (typeof toast === 'function') toast({ type:'success',
+        message: 'Added ' + ncInvList(names) + ' to ' + (target.isGroup ? 'the group' : '#' + target.label) });
+    }
+
+    (function wireInviteToChannel(){
+      const input = document.getElementById('nc_invInput');
+      const box = document.getElementById('nc_invSuggest');
+      const btn = document.getElementById('nc_invSubmit');
+      if (!input || !box || !btn) return;
+      input.addEventListener('input', () => ncRenderInvSuggest(input.value));
+      input.addEventListener('focus', () => ncRenderInvSuggest(input.value));
+      // Delegated, because the rows are rebuilt on every keystroke.
+      box.addEventListener('click', (e) => {
+        const item = e.target.closest('.nc_invite-suggest-item');
+        if (!item) return;
+        ncInvPicked.add(item.dataset.invId);
+        input.value = '';
+        ncRenderInvChips();
+        ncRenderInvSuggest('');
+        input.focus();
+      });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !input.value && ncInvPicked.size) {
+          ncInvPicked.delete([...ncInvPicked].pop());
+          ncRenderInvChips();
+        }
+      });
+      btn.addEventListener('click', ncInviteSubmit);
+    })();
 
     (function wireChannelInvite(){
       const input = document.getElementById('nc_newChannelInvite');
