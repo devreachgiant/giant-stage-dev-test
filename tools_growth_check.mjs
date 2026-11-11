@@ -169,10 +169,15 @@ await step('opening a client gives Luke\'s side drawer, not a centred sheet', as
       // 0 means it is flush with the right edge; a centred sheet leaves a big gap.
       fromRight: Math.round(innerWidth - r.right),
       fillsHeight: Math.round(r.height) >= Math.round(innerHeight) - 2,
-      tabs: !!sh.querySelector('[data-gr-tab]'),
+      /* `[data-gr-tab]` was the OLD strip's attribute. The rebuilt one uses
+         data-gr-ptab, so this query found nothing and "the tab strip is gone" passed
+         while a five-tab strip sat on the screen -- a check measuring an attribute
+         nobody writes any more is not a check. */
+      tabs: [...sh.querySelectorAll('[data-gr-ptab]')].map(b => b.dataset.grPtab),
       sections: [...sh.querySelectorAll('.gr_spanel h3')].map(e => e.textContent.trim()),
-      stageLabel: !!sh.querySelector('.gr_stagel'),
-      pillInHead: !!sh.querySelector('.gr_sh .gr_pill'),
+      // The picker moved into the hero beside the pill, so its label moved with it.
+      stageLabel: !!sh.querySelector('.gr_pstage span, .gr_stagel'),
+      pillInHead: !!sh.querySelector('.gr_phero .gr_pill'),
       // Still has to say what to do next, or the drawer is a tidy empty box.
       doNext: !!sh.querySelector('.gr_next')
     };
@@ -180,10 +185,15 @@ await step('opening a client gives Luke\'s side drawer, not a centred sheet', as
   check('a drawer, pinned to the right edge', !!m && m.fromRight === 0 && m.top === 0, JSON.stringify(m));
   check('about 520 wide, not a 780 sheet', !!m && m.w <= 560 && m.w >= 420, String(m && m.w));
   check('the full height of the window', !!m && m.fillsHeight, JSON.stringify(m));
-  check('the tab strip is gone', !!m && !m.tabs, String(m && m.tabs));
-  check('and what was behind it is stacked instead',
-    !!m && ['Info', 'Call notes', 'Sent emails', 'Meetings'].every(t => m.sections.indexOf(t) >= 0),
-    JSON.stringify(m && m.sections));
+  /* THESE TWO USED TO ASSERT THE OPPOSITE. The panel was one scrolling column, to match
+     the version of Luke's design that stacked everything; he has since rebuilt his
+     around five tabs and asked for this to match. Rewritten rather than deleted: what
+     they are really guarding is that the panel shows every part of the record SOMEWHERE,
+     and that is still worth holding -- it just lives behind five named tabs now. */
+  check('the panel carries the five tabs Luke rebuilt his around',
+    !!m && m.tabs.join(',') === 'emails,todo,notes,rec,details', JSON.stringify(m && m.tabs));
+  check('and the record is reachable rather than gone',
+    !!m && m.tabs.length === 5, JSON.stringify(m && m.tabs.length));
   check('the stage picker says Stage', !!m && m.stageLabel, String(m && m.stageLabel));
   check('the stage reads as a pill beside the name', !!m && m.pillInHead, String(m && m.pillInHead));
   check('and it still opens on what to do next', !!m && m.doNext, String(m && m.doNext));
@@ -476,6 +486,11 @@ await step('a to-do goes on the deal, not on the screen', async () => {
   });
   await page.waitForTimeout(1200);
   check('a client opens', !!CID, String(CID));
+  /* The to-dos moved behind the To do tab when the panel was rebuilt to Luke's. Opening
+     it is now part of reaching them; without this the fills below time out looking for
+     a box that is real but not on screen. */
+  await page.evaluate(() => document.querySelector('[data-gr-ptab="todo"]')?.click());
+  await page.waitForTimeout(700);
 
   const before = await row(CID);
   check('it starts with no to-dos', !(before && (before.todos || []).length),
@@ -548,15 +563,25 @@ await step('marking a deal lost is only offered when Lost exists', async () => {
     // Must be a live deal: a won or lost one shows a status word instead of the buttons.
     await page.evaluate(() => document.querySelector('[data-gr-stage="call"] .gr_bc')?.click());
     await page.waitForTimeout(900);
-    return page.evaluate(() => ({
-      panel: !!document.querySelector('.gr_sbar2'),
-      won: !!document.querySelector('[data-gr-won]'),
-      lost: !!document.querySelector('[data-gr-lost]')
-    }));
+    // Won and Lost moved into Info when the panel was rebuilt to Luke's: his hero
+    // carries one action, not a row of state changes. They still exist and still
+    // work; reaching them is a tab click now, so the check clicks it.
+    await page.evaluate(() => document.querySelector('[data-gr-ptab="details"]')?.click());
+    await page.waitForTimeout(700);
+    // Mark won and Lost came OFF the panel when it was rebuilt to Luke's: his hero
+    // carries one stage control, and a button doing what the dropdown beside it
+    // already does is a second way to get the same row wrong. They are stages now.
+    return page.evaluate(() => {
+      const sel = document.querySelector('[data-gr-stage-sel]');
+      const opts = sel ? [...sel.options].map(o => o.value) : [];
+      return { panel: !!document.querySelector('.gr_sheet'),
+               won: opts.indexOf('won') >= 0,
+               lost: opts.indexOf('lost') >= 0 };
+    });
   };
   const before = await openFirst();
-  check('a deal offers Mark won and Lost while the stage is there', before.won && before.lost,
-    JSON.stringify(before));
+  check('a deal can be marked won or lost while the stage is there',
+    before.won && before.lost, JSON.stringify(before));
   await page.evaluate(() => document.querySelector('[data-gr-close]')?.click());
   await page.waitForTimeout(600);
 
@@ -570,7 +595,7 @@ await step('marking a deal lost is only offered when Lost exists', async () => {
     !!stagesNow && !stagesNow.some(x => /^lost:/.test(x)), JSON.stringify(stagesNow));
 
   const after = await openFirst();
-  check('Mark won is still there', after.panel && after.won, JSON.stringify(after));
+  check('winning a deal is still possible', after.panel && after.won, JSON.stringify(after));
   check('but Lost is not offered any more, so no deal can be stranded',
     !after.lost, JSON.stringify(after));
   // Nothing may be sitting in a stage the board cannot draw.
@@ -1456,8 +1481,7 @@ await step('the Today widget is gone, and took nothing with it', async () => {
   await page.evaluate(() => [...document.querySelectorAll('.gr_setd [data-gr-settab]')]
     .find(b => /Team/i.test(b.textContent))?.click());
   await page.waitForTimeout(500);
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(400);
+  /* Save closes the dialog, so there is nothing to dismiss. */
   await screen('gr_inbox');
   await page.waitForTimeout(700);
   await page.evaluate(() => document.querySelector('[data-gr-tplbtn]')?.click());
@@ -1520,6 +1544,8 @@ await step('the Today widget is gone, and took nothing with it', async () => {
   await screen('gr_pipeline');
   await page.evaluate(() => document.querySelector('[data-gr-open]')?.click());
   await page.waitForTimeout(900);
+  await page.evaluate(() => document.querySelector('[data-gr-ptab="todo"]')?.click());
+  await page.waitForTimeout(700);
   const todos = await page.evaluate(() => {
     const box = document.querySelector('.gr_todos');
     const tick = document.querySelector('.gr_tdtick');
@@ -2661,8 +2687,10 @@ await step('Settings opens over the screen instead of becoming one', async () =>
   check('and leaves you on the screen you were already on',
     o.behind === before && before === 'gr_pipeline',
     JSON.stringify({ before: before, after: o.behind }));
-  check('with Templates, New, Package master, Reply style, Codes and Team',
-    o.tabs.join(' | ') === 'Templates | + New template | Package master | Reply style | Codes & signature | Team',
+  /* Reply style came OUT of this panel on 20261111 -- it is its own dialog off the
+     Inbox now, and leaving it here as well would be two editors for one setting. */
+  check('with Templates, New, Package master, Codes and Team',
+    o.tabs.join(' | ') === 'Templates | + New template | Package master | Codes & signature | Team',
     JSON.stringify(o.tabs));
 
   // Team is the half that had to survive the move.
@@ -2774,8 +2802,8 @@ await step('package emails are built from one master, not written six times', as
     boxed: (() => { const r = document.querySelector('.gr_tplr');
       return r ? Math.round(r.getBoundingClientRect().height) : 0; })()
   }));
-  check('the panel carries all six tabs',
-    g.tabs.join(' | ') === 'Templates | + New template | Package master | Reply style | Codes & signature | Team',
+  check('the panel carries all five tabs',
+    g.tabs.join(' | ') === 'Templates | + New template | Package master | Codes & signature | Team',
     JSON.stringify(g.tabs));
   /* The fixture is one of each kind on purpose: a list of one shape proves nothing about
      a split, and would pass just as well on code that never split anything. */
@@ -3241,28 +3269,33 @@ await step('Reply style decides how every draft is written', async () => {
      outside -- the chip lights up, the row is in the database -- and changes nothing
      about a single email. So the last two checks read the prompt that actually leaves
      the browser, not the row that was saved. */
-  await screen('gr_settings');
-  await page.evaluate(() => document.querySelector('[data-gr-settab="reply"]')?.click());
+  /* MOVED, not rewritten from scratch. These assertions were about the Reply style
+     TAB; the settings are now their own dialog off the Inbox, so they point at that.
+     What they test has not changed: the chips are pressable, something is always
+     chosen, and -- the one that matters -- the rules reach the model. */
+  await screen('gr_inbox');
+  await page.waitForTimeout(1100);
+  await page.evaluate(() => document.querySelector('[data-gr-replyopen]')?.click());
   await page.waitForTimeout(900);
 
   const panel = await page.evaluate(() => {
-    const chips = [...document.querySelectorAll('[data-gr-reply-set]')];
-    const box = (k) => document.querySelector('[data-gr-reply="' + k + '"]');
+    const chips = [...document.querySelectorAll('[data-gr-rdset]')];
+    const box = (k) => document.querySelector('[data-gr-rd="' + k + '"]');
     const size = (el) => { const r = el.getBoundingClientRect();
       return { w: Math.round(r.width), h: Math.round(r.height) }; };
     return {
-      tones: chips.filter(c => c.dataset.grReplySet === 'tone').map(c => c.textContent.trim()),
-      lens: chips.filter(c => c.dataset.grReplySet === 'length').length,
+      tones: chips.filter(c => c.dataset.grRdset === 'tone').map(c => c.textContent.trim()),
+      lens: chips.filter(c => c.dataset.grRdset === 'length').length,
       /* Measured, not counted. A chip the stylesheet collapsed is in the DOM and
          unpressable, which is the shape of bug this repo keeps shipping. */
       smallest: chips.length ? Math.min(...chips.map(c => size(c).w)) : 0,
       shortest: chips.length ? Math.min(...chips.map(c => size(c).h)) : 0,
       boxes: ['voice', 'always', 'never', 'steps', 'signoff'].filter(k => !!box(k)),
       pressed: chips.filter(c => c.getAttribute('aria-pressed') === 'true')
-                    .map(c => c.dataset.grReplySet + '=' + c.dataset.v)
+                    .map(c => c.dataset.grRdset + '=' + c.dataset.v)
     };
   });
-  check('the panel offers four tones and three lengths',
+  check('the dialog offers four tones and three lengths',
     panel.tones.length === 4 && panel.lens === 3, JSON.stringify(panel.tones));
   check('every chip is big enough to press',
     panel.smallest > 40 && panel.shortest > 14,
@@ -3278,7 +3311,7 @@ await step('Reply style decides how every draft is written', async () => {
      them. Correct to anything reading attributes, unreadable to a person. Compare the
      colours actually computed, the way an eye would. */
   const look = await page.evaluate(() => {
-    const chips = [...document.querySelectorAll('[data-gr-reply-set="tone"]')];
+    const chips = [...document.querySelectorAll('[data-gr-rdset="tone"]')];
     const on = chips.find(c => c.getAttribute('aria-pressed') === 'true');
     const off = chips.find(c => c.getAttribute('aria-pressed') !== 'true');
     if (!on || !off) return null;
@@ -3291,27 +3324,32 @@ await step('Reply style decides how every draft is written', async () => {
     JSON.stringify(look));
 
   await page.evaluate(() =>
-    document.querySelector('[data-gr-reply-set="tone"][data-v="direct"]')?.click());
-  await page.waitForTimeout(1200);
+    document.querySelector('[data-gr-rdset="tone"][data-v="direct"]')?.click());
+  await page.waitForTimeout(900);
+  /* IT IS A DRAFT NOW. Picking a tone lights the chip and writes nothing -- that is the
+     point of the dialog having a Save on it. Both halves are checked, because the chip
+     alone would pass with nothing stored and the row alone would pass with a dead chip. */
   const picked = await page.evaluate(() => ({
-    row: ((window.__mockDB.growth_settings || []).find(x => x.key === 'reply_style') || {}).value || null,
-    on: [...document.querySelectorAll('[data-gr-reply-set="tone"]')]
+    rowBefore: ((window.__mockDB.growth_settings || []).find(x => x.key === 'reply_style') || {}).value || null,
+    on: [...document.querySelectorAll('[data-gr-rdset="tone"]')]
           .filter(c => c.getAttribute('aria-pressed') === 'true').map(c => c.dataset.v)
   }));
-  /* Both sides. The row alone would pass with a screen that never repainted, and the
-     screen alone would pass with nothing saved. */
-  check('choosing a tone saves it and lights only that one',
-    picked.row && picked.row.tone === 'direct' && picked.on.join(',') === 'direct',
-    JSON.stringify({ saved: picked.row && picked.row.tone, on: picked.on }));
+  check('choosing a tone lights only that one',
+    picked.on.join(',') === 'direct', picked.on.join(','));
+  check('and it is still only a draft until Save is pressed',
+    !picked.rowBefore || picked.rowBefore.tone !== 'direct',
+    JSON.stringify(picked.rowBefore && picked.rowBefore.tone));
 
   const NEVER = 'Never mention the weather.';
-  await page.fill('[data-gr-reply="never"]', NEVER);
-  await page.evaluate(() => document.querySelector('[data-gr-reply="never"]')
-    ?.dispatchEvent(new Event('change', { bubbles: true })));
-  await page.waitForTimeout(1200);
+  await page.fill('[data-gr-rd="never"]', NEVER);
+  await page.evaluate(() => document.querySelector('[data-gr-rd="never"]')
+    ?.dispatchEvent(new Event('input', { bubbles: true })));
+  await page.waitForTimeout(500);
+  await page.evaluate(() => document.querySelector('[data-gr-rdsave]')?.click());
+  await page.waitForTimeout(1600);
   const typed = await page.evaluate(() =>
     ((window.__mockDB.growth_settings || []).find(x => x.key === 'reply_style') || {}).value || null);
-  check('typing a rule saves it without losing the tone beside it',
+  check('Save stores the rule and the tone chosen beside it',
     typed && typed.never === 'Never mention the weather.' && typed.tone === 'direct',
     JSON.stringify(typed && { never: typed.never, tone: typed.tone }));
 
@@ -3323,8 +3361,7 @@ await step('Reply style decides how every draft is written', async () => {
     return r.fulfill({ status: 200, contentType: 'application/json',
       body: JSON.stringify({ text: 'Hi there,\n\nDrafted.\n\nBest,' }) });
   });
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(400);
+  /* Save closes the dialog, so there is nothing to dismiss. */
   await screen('gr_inbox');
   await page.waitForTimeout(900);
   await page.evaluate(() => document.querySelector('#grInbox [data-gr-act]')?.click());
@@ -4194,8 +4231,9 @@ await step('the Growth settings tabs do not stretch one pill over two rows', asy
       offFg: off ? getComputedStyle(off).color : null
     };
   });
+  /* Five since Reply style moved out to its own dialog off the Inbox. */
   check('the tab strip is there with every tab on it',
-    !!t && t.tabs === 6, JSON.stringify(t && t.tabs));
+    !!t && t.tabs === 5, JSON.stringify(t && t.tabs));
   /* The old look was a painted container wrapping its children. Transparent is what
      makes a second row read as chips rather than as a broken control. */
   check('the container paints no pill behind the wrapped rows',
@@ -4289,6 +4327,423 @@ await step('a manager can add a sales rep from the Sales bonus screen', async ()
     JSON.stringify({ selected: after && after.selected, added: picked && picked.name }));
   check('the picker shuts once somebody is added',
     !!after && after.pickerClosed, JSON.stringify(after && after.pickerClosed));
+});
+
+/* ------------------------------------------------ reply settings, as its own dialog
+   It used to be a tab in the Growth settings panel that wrote on every blur. These
+   rules decide how an email to a client gets written, so half-finished wording saved
+   the moment you tab out of a box is a rule the next draft obeys. Luke's design has
+   Save and Discard for that reason.
+
+   THE DRAFT IS THE WHOLE POINT, so the assertion that matters is that typing changes
+   NOTHING in the database. Asserting the dialog opened would pass with the old
+   save-on-blur behaviour wired straight through it. */
+await step('reply settings is a dialog that holds a draft', async () => {
+  await screen('gr_inbox');
+  await page.waitForTimeout(1500);
+
+  const entry = await page.evaluate(() => ({
+    button: !!document.querySelector('[data-gr-replyopen]'),
+    /* One editor. Leaving the old tab in place would be two, and they would not even
+       agree -- the panel saved on blur, this saves on Save. */
+    oldTab: !!document.querySelector('[data-gr-settab-open="reply"]')
+  }));
+  check('the Inbox has a Reply settings button',
+    !!entry && entry.button, JSON.stringify(entry));
+  check('and the old settings tab is gone, so there is one editor',
+    !!entry && entry.oldTab === false, JSON.stringify(entry));
+
+  await page.evaluate(() => document.querySelector('[data-gr-replyopen]')?.click());
+  await page.waitForTimeout(900);
+  const open = await page.evaluate(() => {
+    const d = document.querySelector('#grReplyPanel.on .gr_rdd');
+    const r = d ? d.getBoundingClientRect() : null;
+    return {
+      painted: !!r && r.width > 300 && r.height > 300,
+      title: (document.querySelector('.gr_rdh h2') || {}).textContent,
+      state: (document.querySelector('#grRdState') || {}).textContent,
+      /* Nothing has been changed, so there is nothing to save or throw away. */
+      saveOff: !!(document.querySelector('[data-gr-rdsave]') || {}).disabled,
+      discardOff: !!(document.querySelector('[data-gr-rddiscard]') || {}).disabled,
+      fields: [...document.querySelectorAll('.gr_rdl b')].map(b => b.textContent)
+    };
+  });
+  check('it opens as a dialog with every field on it',
+    !!open && open.painted && open.fields.length === 7, JSON.stringify(open && open.fields));
+  check('it opens clean, with Save and Discard both dead',
+    !!open && /all changes saved/i.test(open.state) && open.saveOff && open.discardOff,
+    JSON.stringify(open && { s: open.state, save: open.saveOff, disc: open.discardOff }));
+
+  /* Typing. The footer has to wake up, the caret must not move, and the database must
+     not be touched. */
+  const typed = await page.evaluate(() => {
+    const t = document.querySelector('[data-gr-rd="always"]');
+    t.focus();
+    t.value = 'Their goal. One clear next step. And the timeline.';
+    t.dispatchEvent(new Event('input', { bubbles: true }));
+    t.setSelectionRange(5, 5);
+    return null;
+  });
+  await page.waitForTimeout(500);
+  const after = await page.evaluate(() => ({
+    state: (document.querySelector('#grRdState') || {}).textContent,
+    saveOn: !(document.querySelector('[data-gr-rdsave]') || {}).disabled,
+    caret: (document.querySelector('[data-gr-rd="always"]') || {}).selectionStart,
+    focused: document.activeElement === document.querySelector('[data-gr-rd="always"]'),
+    written: ((window.__mockDB.growth_settings || [])
+              .filter(r => r.key === 'reply_style').pop() || {}).value || null
+  }));
+  check('typing turns Save on and says there is something unsaved',
+    !!after && /unsaved/i.test(after.state) && after.saveOn, JSON.stringify(after && after.state));
+  /* The reason this is a dialog and not a tab. */
+  check('and typing writes NOTHING to the database until Save',
+    !!after && (after.written === null || after.written.always !== 'Their goal. One clear next step. And the timeline.'),
+    JSON.stringify(after && after.written));
+  /* Repainting the dialog on every letter would rebuild the textarea under the typing
+     hand and throw the caret to the end. Only the footer is allowed to change. */
+  check('the caret stays where it was while typing',
+    !!after && after.caret === 5 && after.focused,
+    JSON.stringify(after && { caret: after.caret, focused: after.focused }));
+
+  /* Discard puts it back to what is saved and leaves the dialog open: you discarded a
+     change, not the job of changing it. */
+  await page.evaluate(() => document.querySelector('[data-gr-rddiscard]')?.click());
+  await page.waitForTimeout(800);
+  const disc = await page.evaluate(() => ({
+    stillOpen: !!document.querySelector('#grReplyPanel.on'),
+    box: (document.querySelector('[data-gr-rd="always"]') || {}).value,
+    state: (document.querySelector('#grRdState') || {}).textContent
+  }));
+  check('Discard puts the box back and leaves the dialog open',
+    !!disc && disc.stillOpen && disc.box !== 'Their goal. One clear next step. And the timeline.'
+      && /all changes saved/i.test(disc.state), JSON.stringify(disc));
+
+  // and now for real
+  await page.evaluate(() => {
+    const t = document.querySelector('[data-gr-rd="always"]');
+    t.value = 'Their goal. One clear next step. And the timeline.';
+    t.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await page.waitForTimeout(400);
+  await page.evaluate(() => document.querySelector('[data-gr-rdsave]')?.click());
+  await page.waitForTimeout(1700);
+  const saved = await page.evaluate(() => ({
+    closed: !document.querySelector('#grReplyPanel.on'),
+    row: ((window.__mockDB.growth_settings || [])
+          .filter(r => r.key === 'reply_style').pop() || {}).value || null
+  }));
+  check('Save writes the row the drafts are actually written from',
+    !!saved && !!saved.row && saved.row.always === 'Their goal. One clear next step. And the timeline.',
+    JSON.stringify(saved && saved.row && saved.row.always));
+  /* The other fields must survive a save of one of them -- writing the box you touched
+     and nulling the rest is a quiet way to lose the sign off. */
+  check('and the rest of the settings survive saving one of them',
+    !!saved && !!saved.row && saved.row.signoff === 'Best, Luke'
+      && /dashes/i.test(saved.row.never || ''),
+    JSON.stringify(saved && saved.row && { s: saved.row.signoff, n: saved.row.never }));
+  check('the dialog closes once it is saved',
+    !!saved && saved.closed, JSON.stringify(saved && saved.closed));
+});
+
+/* --------------------------------------------- the money fields were a box in a box
+   .gr_bnmoney is a wrapper carrying the $ or the % with the input inside it, and the
+   WRAPPER is meant to be the field. The input is told border:0;background:transparent
+   where .gr_bnmoney is defined, and never got either: `.gr_field input` says the
+   opposite, has the SAME specificity (0,1,1) and sits later in the file, so it won. A
+   white 37px input sat boxed inside a 40px one, beside a Date field that is a single
+   clean box. Barely visible in dark, obvious the moment somebody opened light mode.
+
+   Measured, because "the input exists" was never in doubt. Both themes, because this
+   is exactly the bug that hides in one of them. */
+await step('the sale amount and rate are one box each, not two', async () => {
+  for (const theme of ['dark', 'light']) {
+    await page.evaluate(t => document.documentElement.setAttribute('data-theme', t), theme);
+    await screen('gr_bonus');
+    await page.waitForTimeout(1200);
+    const m = await page.evaluate(() => {
+      const inner = document.querySelector('.gr_bnmoney input');
+      if (!inner) return null;
+      const ci = getComputedStyle(inner);
+      const fields = [...document.querySelectorAll('.gr_bngrid .gr_field')].map(f => {
+        const box = f.querySelector('.gr_bnmoney') || f.querySelector('input');
+        return box ? Math.round(box.getBoundingClientRect().height) : 0;
+      });
+      return {
+        innerBg: ci.backgroundColor,
+        innerBorder: parseFloat(ci.borderTopWidth) || 0,
+        innerShadow: ci.boxShadow,
+        heights: fields
+      };
+    });
+    /* A transparent inner input is the whole fix: the wrapper paints the field. */
+    check('the inner input paints no box of its own (' + theme + ')',
+      !!m && m.innerBorder === 0
+        && /rgba\(0, 0, 0, 0\)|transparent/.test(m.innerBg)
+        && m.innerShadow === 'none',
+      JSON.stringify(m && { bg: m.innerBg, border: m.innerBorder, shadow: m.innerShadow }));
+    /* Amount, Date and rate are three different shapes of control. If they do not come
+       out the same height the row reads as broken however they are coloured. */
+    check('amount, date and rate are the same height (' + theme + ')',
+      !!m && m.heights.length === 3 && new Set(m.heights).size === 1 && m.heights[0] > 30,
+      JSON.stringify(m && m.heights));
+    /* LUKE'S FIELDS, not the settings-panel ones. .gr_field label is a 10px uppercase
+       micro-label with .1em tracking -- right for a dense panel, wrong over an empty box
+       on a form somebody fills in by hand, where "WHAT THEY BOUGHT" reads as a column
+       header. Measured because a label is still "there" either way. */
+    const look = await page.evaluate(() => {
+      const l = document.querySelector('.gr_bnform .gr_field>label');
+      const f = document.querySelector('.gr_bnform .gr_in');
+      const mi = document.querySelector('.gr_bnmoney input');
+      if (!l || !f || !mi) return null;
+      const cl = getComputedStyle(l), cf = getComputedStyle(f), cm = getComputedStyle(mi);
+      return { labelCase: cl.textTransform, labelSize: parseFloat(cl.fontSize),
+               labelTrack: cl.letterSpacing,
+               fieldRadius: parseFloat(cf.borderRadius), fieldSize: parseFloat(cf.fontSize),
+               moneySize: parseFloat(cm.fontSize), moneyWeight: cm.fontWeight,
+               text: l.textContent };
+    });
+    check('the form labels are words, not uppercase stamps (' + theme + ')',
+      !!look && look.labelCase === 'none' && look.labelSize >= 12
+        && (look.labelTrack === 'normal' || parseFloat(look.labelTrack) === 0),
+      JSON.stringify(look && { t: look.text, c: look.labelCase, s: look.labelSize }));
+    check('and the fields carry the reference radius and sizes (' + theme + ')',
+      !!look && look.fieldRadius >= 14 && look.fieldSize >= 15
+        && look.moneySize >= 18 && Number(look.moneyWeight) >= 700,
+      JSON.stringify(look && { r: look.fieldRadius, f: look.fieldSize,
+                               m: look.moneySize, w: look.moneyWeight }));
+  }
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await page.waitForTimeout(400);
+});
+
+/* --------------------------------------------- the Inbox header, three on one line
+   The gear used to sit on the "Attached to" line at 26px, which put the way to change
+   the mailbox somewhere other than the two other things you can do to this screen, and
+   small enough to read as punctuation rather than a control. Luke has all three
+   together. Heights are measured because .gr_ghost and .btn-red are padding-sized and
+   came out at 32 and 30 against a gear built to "match" at 36 -- the row stepped down
+   twice across three buttons and every one of them was "there". */
+await step('the Inbox header carries its three controls on one line', async () => {
+  await screen('gr_inbox');
+  await page.waitForTimeout(1300);
+  const h = await page.evaluate(() => {
+    const acts = document.querySelector('.gr_hacts');
+    if (!acts) return null;
+    const btns = [...acts.children];
+    const box = btns.map(b => b.getBoundingClientRect());
+    return {
+      count: btns.length,
+      labels: btns.map(b => b.textContent.trim()),
+      heights: box.map(r => Math.round(r.height)),
+      tops: box.map(r => Math.round(r.top)),
+      /* Luke's has no glyph on Email templates; ours was the only button in Growth
+         carrying one. */
+      envelope: /✉/.test(acts.textContent),
+      gearOnAcctLine: !!document.querySelector('.gr_acct .gr_acctg'),
+      acct: (document.querySelector('.gr_acct') || {}).textContent
+    };
+  });
+  check('all three controls are in the header',
+    !!h && h.count === 3, JSON.stringify(h && h.labels));
+  check('and they are the same height, on one line',
+    !!h && new Set(h.heights).size === 1 && new Set(h.tops).size === 1,
+    JSON.stringify(h && { heights: h.heights, tops: h.tops }));
+  check('Email templates carries no envelope glyph',
+    !!h && h.envelope === false, JSON.stringify(h && h.labels[1]));
+  /* Moved, not duplicated: two gears doing the same thing is worse than one in the
+     wrong place. */
+  check('the gear moved off the mailbox line rather than being copied',
+    !!h && h.gearOnAcctLine === false && /growth@/.test(h.acct || ''),
+    JSON.stringify(h && h.acct));
+});
+
+/* ------------------------------------------------- the client panel, rebuilt to Luke's
+   The panel used to be one scrolling column. That was itself a deliberate change, made
+   to match the version of Luke's design that stacked everything, and the reason is worth
+   keeping in mind: tabs hide four sections behind a click each, so opening a deal tells
+   you one thing and you go looking for the rest. He has since rebuilt his around five
+   tabs and asked for this to match.
+
+   What makes it survivable is the COUNTS -- an empty tab says so without being opened --
+   so those are checked as hard as the tabs themselves. */
+await step('the client panel is built the way Luke rebuilt his', async () => {
+  await screen('gr_pipeline');
+  await page.waitForTimeout(1400);
+  await page.evaluate(() => document.querySelector('.gr_bc')?.click());
+  await page.waitForTimeout(1300);
+
+  const h = await page.evaluate(() => {
+    const sheet = document.querySelector('#grSheet.on');
+    if (!sheet) return null;
+    const av = document.querySelector('.gr_pav');
+    // .gr_pmail became .gr_pbtn when the row grew a second button. My own check,
+    // stale the moment I renamed the class: it reported null rather than failing
+    // loudly, which is what a selector matching nothing always does.
+    const mail = document.querySelector('.gr_pbtn');
+    const strip = document.querySelector('.gr_ptabs');
+    const btns = [...document.querySelectorAll('[data-gr-ptab)'.replace(')', ']'))];
+    return {
+      name: (document.querySelector('.gr_phero h2') || {}).textContent,
+      sub: (document.querySelector('.gr_phero p') || {}).textContent,
+      avatar: av ? Math.round(av.getBoundingClientRect().width) : 0,
+      primary: mail ? mail.textContent.trim() : null,
+      // The ROW fills the panel, not each button: there are two now, so each is
+      // about half. Asserting the first button is wide was true only while there
+      // was one of it.
+      primaryWide: (() => {
+        const row = document.querySelector('.gr_pdo');
+        const sheet = document.querySelector('.gr_sheet');
+        if (!row || !sheet) return false;
+        return row.getBoundingClientRect().width > sheet.getBoundingClientRect().width * 0.8;
+      })(),
+      actions: document.querySelectorAll('.gr_pbtn').length,
+      tabs: btns.map(b => b.dataset.grPtab),
+      /* The strip must not overflow and no tab may be clipped -- an even flex split gave
+         every tab 71px while "Recordings" needed 82, so the long one ran into its
+         neighbour and both were still "there". */
+      clipped: btns.filter(b => b.scrollWidth > b.getBoundingClientRect().width + 1)
+                   .map(b => b.textContent.trim()),
+      stripOverflow: !!strip && strip.scrollWidth > strip.clientWidth + 1
+    };
+  });
+  check('the hero carries the name and the company and email under it',
+    !!h && !!h.name && /·|@/.test(h.sub || ''), JSON.stringify(h && { n: h.name, s: h.sub }));
+  check('with a large avatar rather than a list-sized one',
+    !!h && h.avatar >= 60, JSON.stringify(h && h.avatar));
+  // One button when nobody is waiting on you, two when they are: the second is the
+  // reply, and it appears only when there is something to reply TO.
+  check('the actions name the person and the row fills the panel',
+    !!h && /^(Email|Reply to) /.test(h.primary || '') && h.primaryWide,
+    JSON.stringify(h && { first: h.primary, wide: h.primaryWide }));
+  /* Both buttons on every deal, which is what Nishchay asked for -- Luke's hides
+     the reply until they have written to you. */
+  check('both a reply and a fresh email are offered',
+    !!h && h.actions === 2, JSON.stringify(h && h.actions));
+  check('the five tabs are the ones he has, in his order',
+    !!h && h.tabs.join(',') === 'emails,todo,notes,rec,details',
+    JSON.stringify(h && h.tabs));
+  check('no tab is clipped by its neighbour',
+    !!h && h.clipped.length === 0 && h.stripOverflow === false,
+    JSON.stringify(h && { clipped: h.clipped, overflow: h.stripOverflow }));
+
+  /* EACH TAB SHOWS ITS OWN THING. A strip that paints but always renders the same pane
+     is the shape of bug that passes every structural check above. */
+  const panes = {};
+  for (const t of ['emails', 'todo', 'notes', 'rec', 'details']) {
+    await page.evaluate(k => document.querySelector('[data-gr-ptab="' + k + '"]')?.click(), t);
+    await page.waitForTimeout(700);
+    panes[t] = await page.evaluate(() => {
+      const p = document.querySelector('.gr_ppane');
+      return { len: ((p || {}).textContent || '').trim().length,
+               sel: [...document.querySelectorAll('[data-gr-ptab]')]
+                      .filter(b => b.getAttribute('aria-selected') === 'true')
+                      .map(b => b.dataset.grPtab).join(',') };
+    });
+  }
+  check('clicking a tab selects that tab and no other',
+    Object.keys(panes).every(k => panes[k].sel === k),
+    JSON.stringify(Object.keys(panes).map(k => k + '->' + panes[k].sel)));
+  check('and every pane has something in it',
+    Object.keys(panes).every(k => panes[k].len > 15),
+    JSON.stringify(Object.keys(panes).map(k => k + ':' + panes[k].len)));
+  /* Five tabs showing the same markup would satisfy everything above. */
+  const distinct = new Set(Object.keys(panes).map(k => panes[k].len)).size;
+  check('the panes are genuinely different from each other',
+    distinct >= 4, distinct + ' distinct pane sizes out of 5');
+
+  /* The to-dos, the follow-up buttons and "already done it" all moved into To do. They
+     do real work and a visual match that dropped them would be a bad trade. */
+  await page.evaluate(() => document.querySelector('[data-gr-ptab="todo"]')?.click());
+  await page.waitForTimeout(700);
+  /* To do is the to-do list and nothing else now, as his pane is. The box to add one
+     is what must be there -- the LIST only exists once something is in it, so asserting
+     .gr_todos fails on a deal with no to-dos, which is most of them. */
+  const todo = await page.evaluate(() => ({
+    addBox: !!document.querySelector('.gr_ppane .gr_tdadd input'),
+    addBtn: !!document.querySelector('.gr_ppane [data-gr-todo="add"]'),
+    listOrEmpty: !!document.querySelector('.gr_ppane .gr_todos, .gr_ppane .gr_pempty'),
+    followUp: !!document.querySelector('.gr_ppane [data-gr-fu]'),
+    logged: !!document.querySelector('.gr_ppane [data-gr-logmail]')
+  }));
+  check('To do offers a box to add one and says so when there are none',
+    !!todo && todo.addBox && todo.addBtn && todo.listOrEmpty, JSON.stringify(todo));
+  /* Deliberately gone, and pinned down so nobody puts them back by accident without
+     deciding to: the follow-up buttons and the done-it log are no longer on the panel.
+     Neither has another home, which is worth knowing. */
+  check('and the follow-up and done-it controls are off the panel on purpose',
+    !!todo && !todo.followUp && !todo.logged, JSON.stringify(todo));
+
+  await page.evaluate(() => document.querySelector('[data-gr-close]')?.click());
+  await page.waitForTimeout(600);
+});
+
+/* ------------------------------------------------- handing over, and taking it back
+   Handing a deal to the team was ONE WAY since it shipped. The strip turned into a
+   status word and the only route back was editing the row by hand -- while the usual
+   cause of a handoff is somebody pressing it on the wrong deal ten seconds earlier.
+
+   What is checked hardest is what the undo does NOT do. Handing over inserts a real row
+   into `clients`, which Projects, tasks and the vault hang off; by the time anybody
+   notices, the team may have work against it. So the marker clears and the client row
+   is left alone, and a check holds that in place -- the tempting "tidy up" version of
+   this deletes a record somebody may already be using. */
+await step('a deal handed to the team can be brought back', async () => {
+  await screen('gr_pipeline');
+  await page.waitForTimeout(1300);
+  await page.evaluate(() => document.querySelector('.gr_bc')?.click());
+  await page.waitForTimeout(1100);
+  const id = await page.evaluate(() => document.querySelector('.gr_sheet')?.dataset.grId);
+
+  const clientsBefore = await page.evaluate(() => (window.__mockDB.clients || []).length);
+  await page.evaluate((i) => {
+    const row = (window.__mockDB.growth_clients || []).find(c => c.id === i);
+    if (row) row.giant_handoff = { client_id: 'cl-handed', on: '2026-11-11', by: 'u-me' };
+    return window.grReload && window.grReload();
+  }, id);
+  await page.waitForTimeout(1600);
+
+  const handed = await page.evaluate(() => ({
+    says: ((document.querySelector('.gr_phand') || {}).textContent || '').replace(/\s+/g, ' ').trim(),
+    back: !!document.querySelector('[data-gr-unhand]'),
+    handAgain: !!document.querySelector('[data-gr-handoff]')
+  }));
+  check('a handed-over deal says so and offers a way back',
+    !!handed && /with the team/i.test(handed.says) && handed.back && !handed.handAgain,
+    JSON.stringify(handed));
+
+  await page.evaluate(() => document.querySelector('[data-gr-unhand]')?.click());
+  await page.waitForTimeout(700);
+  /* The confirm has to SAY the client record stays. A button called "Bring back to
+     sales" otherwise reads as a full undo, and somebody would reasonably believe the
+     record went with it. */
+  const dlg = await page.evaluate(() => {
+    const o = document.getElementById('giantConfirmWarnOverlay');
+    return o ? o.textContent.replace(/\s+/g, ' ') : '';
+  });
+  check('and warns that the client record in Clients stays',
+    /stays/i.test(dlg) && /client record/i.test(dlg), JSON.stringify(dlg.slice(0, 90)));
+
+  await page.evaluate(() => {
+    const b = [...document.querySelectorAll('#giantConfirmWarnOverlay button')]
+      .find(x => /bring back/i.test(x.textContent));
+    if (b) b.click();
+  });
+  await page.waitForTimeout(1500);
+  const after = await page.evaluate((i) => {
+    const row = (window.__mockDB.growth_clients || []).find(c => c.id === i);
+    return { handoff: row ? row.giant_handoff : 'no row',
+             handAgain: !!document.querySelector('[data-gr-handoff]'),
+             clients: (window.__mockDB.clients || []).length };
+  }, id);
+  /* The ROW, not the screen: a strip that repaints without the write is the bug this
+     file keeps shipping. */
+  check('bringing them back clears the handoff on the deal itself',
+    !!after && after.handoff === null, JSON.stringify(after.handoff));
+  check('and the deal can be handed over again',
+    !!after && after.handAgain, JSON.stringify(after.handAgain));
+  check('while the client record it created is left alone',
+    !!after && after.clients === clientsBefore,
+    JSON.stringify({ was: clientsBefore, now: after && after.clients }));
 });
 
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));

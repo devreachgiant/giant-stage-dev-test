@@ -6561,8 +6561,215 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
    and walking to another screen to do it loses the thing that sent you. z-index sits
    above the deal sheet (60) and below the template preview (70), so a preview opened
    from in here still lands on top. */
+/* The client panel, as Luke rebuilt it: a hero, one primary action, then tabs. */
+.gr_phero{position:relative;padding:8px 0 4px;}
+.gr_phero .gr_x{position:absolute;top:16px;right:18px;}
+/* HIS NUMBERS, not ones that looked about right: 68px at radius 22, the name at
+   800 25px/1.1, the company-and-email line at 400 14px. Taken from .pn-av and .pn-id
+   in his source rather than read off a screenshot, which is how the first pass ended
+   up at 74px and 27px. */
+.gr_pav{width:68px;height:68px;border-radius:22px;display:flex;align-items:center;
+  justify-content:center;color:#fff;font-size:23px;font-weight:800;letter-spacing:-.01em;
+  margin-bottom:14px;}
+.gr_phero h2{margin:0;font-size:25px;line-height:1.1;font-weight:800;letter-spacing:-.02em;
+  overflow-wrap:anywhere;}
+.gr_phero p{margin:6px 0 0;font-size:14px;font-weight:400;color:var(--text-3);
+  overflow-wrap:anywhere;}
+/* The close button is a 36px circle at 20/20, as .pl2-x is. */
+.gr_pclose{position:absolute;top:20px;right:20px;width:36px;height:36px;border-radius:50%;
+  display:grid;place-items:center;font-size:17px;line-height:1;z-index:4;}
+.gr_sheet{position:relative;}
+/* .pl2-stagepick: the label is a word beside the control, not above it. */
+.gr_pstage{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;
+  color:var(--text-3);}
+.gr_pstage select{border:0;border-radius:99px;background:var(--surface-2);color:var(--text);
+  padding:9px 14px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;}
+.gr_pchips{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:10px;}
+.gr_pdo{display:flex;gap:10px;flex-wrap:wrap;padding:14px 0 0;}
+.gr_pbtn{flex:1 1 160px;box-sizing:border-box;cursor:pointer;text-align:center;border:0;
+  padding:15px 18px;border-radius:18px;font:inherit;font-size:15px;font-weight:800;
+  color:#fff;background:var(--red,#D00400);}
+.gr_pbtn:hover{filter:brightness(1.06);}
+.gr_pbtn:disabled{opacity:.4;cursor:default;filter:none;}
+/* The reply is the quieter of the two on purpose: it is the obvious thing to press, so
+   it does not also need to be the loudest. */
+.gr_pbtn.reply{background:var(--text);color:var(--surface);}
+.gr_pwarn{margin:8px 0 0;font-size:13px;color:var(--text-3);}
+/* The strip scrolls rather than wraps: five tabs with counts will not always fit, and a
+   second row of tabs reads as two groups of something. */
+.gr_ptabs{display:flex;gap:4px;margin:8px 0 0;padding:5px;background:var(--surface-2);
+  border-radius:99px;overflow-x:auto;scrollbar-width:none;}
+.gr_ptabs::-webkit-scrollbar{display:none;}
+/* flex so the five fill the strip rather than leaving a ragged gap on the right, but
+   `1 1 auto` and NOT `1 1 0`: an even split gives every tab 71px and "Recordings" needs
+   82, so the long one overflowed its own box and ran into "Info" beside it. Luke can
+   use an even split because his panel is wider than ours. Sizing to content first and
+   sharing what is left over fills the strip at any width. */
+.gr_ptabs button{flex:1 1 auto;min-width:0;display:inline-flex;align-items:center;gap:6px;
+  justify-content:center;border:0;background:none;color:var(--text-3);font:inherit;
+  font-size:13.5px;font-weight:700;padding:10px 8px;border-radius:99px;cursor:pointer;
+  white-space:nowrap;}
+/* SELECTED IS LIGHT, as his is -- the same inversion the Reply button uses. Ours made
+   the chosen tab a DARK pill on a dark bar, which is the quietest thing it could have
+   been: the one tab you are looking at was the one hardest to pick out. */
+.gr_ptabs button[aria-selected="true"]{background:var(--text);color:var(--surface);
+  box-shadow:0 2px 8px rgba(0,0,0,.25);}
+/* The count is the whole reason a tab strip is tolerable here: an empty tab says so
+   without being opened. A badge rather than faint text, because faint text at 11px
+   beside a label is the thing people stop seeing. */
+/* AND THE BADGES ARE THE OTHER WAY ROUND. Red marks a tab you have NOT opened with
+   something in it -- that is the whole job of the count. On the tab you are already
+   reading it is just a number, so it goes quiet. Ours had it backwards: the one count
+   you could already see was shouting, and the four you could not were grey. */
+.gr_ptabs button b{flex:none;font-size:11px;font-weight:700;line-height:1;
+  padding:2px 7px;border-radius:99px;background:var(--red,#D00400);color:#fff;}
+/* On the white pill the badge has to go DARKER, not lighter: --surface at 70% is a
+   near-black blob on white and the number inside it vanished. A tint of the pill's own
+   text colour reads at any theme, because it is derived from the thing it sits on. */
+.gr_ptabs button[aria-selected="true"] b{
+  background:color-mix(in srgb,var(--surface) 14%,transparent);color:var(--surface);}
+.gr_pdotw{width:6px;height:6px;border-radius:99px;background:var(--red,#D00400);display:inline-block;}
+/* HIS .pn-body IS A COLUMN WITH A GAP, and ours was a plain block -- so every pane
+   stacked its sections edge to edge. Follow up sat on top of Already done it sat
+   on top of To do with nothing between them, and three separate things read as one
+   long card. One rule here rather than a margin on each section, because the next
+   section somebody adds would not have the margin. */
+.gr_ppane{padding:4px 0 22px;display:flex;flex-direction:column;gap:12px;}
+/* One gap, owned by the pane. Several of the things it lays out carry their own
+   margin-bottom from wherever else they are used -- .gr_card is 14px app-wide --
+   so without this the spacing came out 12, 23 and 24 in the same column. Scoped
+   to direct children so nothing outside the panel moves. */
+/* .gr_sheet in front so this is (0,2,0) and cannot lose on source order. The first
+   attempt was `.gr_ppane>*`, which ties with .gr_pfc's own (0,1,0) rule -- and
+   .gr_pfc is defined later in the file, so it won and those sections stayed 23px
+   apart while their neighbours sat at 12. Third time this file has caught me with
+   equal specificity decided by position. */
+.gr_sheet .gr_ppane>*{margin-bottom:0;}
+/* The tail, shut. A summary rather than a button so it needs no handler and keeps
+   working if the row is repainted underneath it. */
+.gr_pmore{margin-top:10px;}
+.gr_pmore summary{list-style:none;cursor:pointer;font-size:12.5px;font-weight:700;
+  color:var(--text-3);padding:6px 0;}
+.gr_pmore summary::-webkit-details-marker{display:none;}
+.gr_pmore summary:hover{color:var(--text-2);}
+.gr_pmore>div{white-space:pre-wrap;overflow-wrap:anywhere;font-size:13px;line-height:1.55;
+  color:var(--text-3);padding-top:4px;}
+/* The add row, and its button. .gr_ghost is a grey pill; his is the white one the
+   Reply button uses, because adding is the thing this pane is for. */
+.gr_tdaddb{flex:none;border:0;border-radius:99px;background:var(--text);color:var(--surface);
+  font:inherit;font-size:13.5px;font-weight:700;padding:10px 20px;cursor:pointer;}
+.gr_tdaddb:hover{filter:brightness(.92);}
+/* Quiet, as his ghost one is: bringing a deal back is a correction, not an action the
+   strip should be advertising. */
+.gr_phandback{height:38px;padding:0 16px;border-radius:12px;border:0;font:inherit;
+  font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap;
+  background:var(--surface-2);color:var(--text);box-shadow:inset 0 0 0 1px var(--line);}
+.gr_phandback:hover{color:var(--text);box-shadow:inset 0 0 0 1px var(--text-3);}
+/* ---- the panel's panes, ported from Luke's source rather than from a screenshot ----
+   His class names are in brackets so the next person can find the original. */
+
+/* The handoff strip (.ho). Sits above everything, because whose desk this person is on
+   changes what the rest of the panel is FOR. */
+/* DOUBLE PADDING. The sheet already insets 22px; every section below then added its
+   own 24px, so the content sat 46px from each edge and ran in 427px of a 520px panel --
+   Luke's runs in 472. Everything looked a size small because it WAS a size small. The
+   sheet owns the gutter now and the sections own none. */
+.gr_phand{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  flex-wrap:wrap;margin:0 0 14px;padding:14px 16px;border-radius:18px;
+  background:var(--surface);box-shadow:0 0 0 1px var(--line);}
+.gr_phandt{display:flex;align-items:center;gap:12px;min-width:0;}
+.gr_phandt b{display:block;font-size:15px;font-weight:800;color:var(--text);}
+.gr_phandt>div>span{font-size:13px;line-height:1.4;color:var(--text-3);}
+.gr_phdot{width:10px;height:10px;border-radius:99px;flex:0 0 auto;background:var(--red,#D00400);
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--red,#D00400) 22%,transparent);}
+.gr_phdot.team{background:#1A9E62;box-shadow:0 0 0 4px color-mix(in srgb,#1A9E62 22%,transparent);}
+
+/* Next step (.pn-next): a tinted card, not a grey one -- it is the only thing in the
+   pane you are meant to act on. */
+.gr_pnext{background:color-mix(in srgb,var(--red,#D00400) 10%,var(--surface));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--red,#D00400) 22%,transparent);
+  border-radius:20px;padding:16px 18px;display:flex;flex-direction:column;gap:4px;}
+.gr_pnext>span{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--text-3);}
+.gr_pnext b{font-size:18px;line-height:1.25;font-weight:800;color:var(--text);}
+.gr_pnext p{margin:0;font-size:14px;line-height:1.5;color:var(--text);}
+
+/* A message (.pn-msg). A <details>, so a thread of six is six lines and one open body
+   rather than a wall you scroll past to reach the newest. */
+.gr_pthread{display:flex;flex-direction:column;gap:10px;}
+.gr_pmsg{background:var(--surface);border-radius:18px;padding:0 16px;
+  box-shadow:inset 3px 0 0 #D9467A,0 0 0 1px var(--line);}
+.gr_pmsg.out{background:color-mix(in srgb,var(--red,#D00400) 9%,var(--surface));
+  box-shadow:inset 3px 0 0 var(--red,#D00400),0 0 0 1px var(--line);}
+.gr_pmsg summary{list-style:none;cursor:pointer;display:grid;
+  grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:14px 0;}
+.gr_pmsg summary::-webkit-details-marker{display:none;}
+.gr_pava{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+  font-size:12px;font-weight:800;color:#fff;background:#D9467A;}
+.gr_pmsg.out .gr_pava{background:var(--red,#D00400);}
+.gr_pmt{display:flex;flex-direction:column;min-width:0;}
+.gr_pmt b{font-size:14px;font-weight:700;color:var(--text);}
+.gr_pmt span{font-size:13px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;}
+.gr_pmsg time{font-size:12px;font-weight:500;color:var(--text-3);white-space:nowrap;}
+.gr_pmb{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14.5px;line-height:1.65;
+  color:var(--text);padding:0 0 18px 46px;}
+
+/* The empty state (.pn-empty) is a card, not a grey sentence: an empty tab you opened
+   on purpose should say what to do, not look broken. */
+.gr_pempty{display:flex;flex-direction:column;align-items:center;gap:6px;padding:28px 16px;
+  text-align:center;background:var(--surface);border-radius:18px;color:var(--text-3);
+  font-size:14px;box-shadow:0 0 0 1px var(--line);}
+.gr_pempty b{color:var(--text);font-size:16px;font-weight:800;}
+.gr_pill2{width:52px;height:52px;border-radius:18px;background:var(--surface-2);
+  display:grid;place-items:center;font-size:24px;box-shadow:0 0 0 1px var(--line);
+  margin-bottom:4px;color:var(--red,#D00400);}
+
+/* Info tiles (.pn-tiles): two to a row, the long ones full width. */
+.gr_ptiles{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.gr_ptile{background:var(--surface);border-radius:16px;padding:14px;display:flex;
+  flex-direction:column;gap:4px;box-shadow:0 0 0 1px var(--line);min-width:0;}
+.gr_ptile.wide{grid-column:1/-1;}
+.gr_ptile>span{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--text-3);}
+.gr_ptile b{font-size:15px;font-weight:600;color:var(--text);overflow-wrap:anywhere;}
+/* The section label above a group of cards (RECORDINGS / ZOOM CALLS). */
+.gr_plab{margin:4px 0 8px;font-size:11px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--text-3);}
+.gr_plink{display:inline-block;margin-top:6px;color:var(--red,#D00400);font-size:13.5px;
+  font-weight:700;text-decoration:none;}
+.gr_plink:hover{text-decoration:underline;}
 .gr_setw{position:fixed;inset:0;z-index:62;display:none;background:rgba(8,8,10,.45);}
 .gr_setw.on{display:block;}
+/* Reply settings, as Luke drew it: a dialog in the middle rather than a tab in the side
+   panel. Centred because it is one decision made on purpose, not a drawer you keep open
+   while doing something else -- which is also why it has a footer you have to press. */
+.gr_rdw{position:fixed;inset:0;z-index:64;display:none;background:rgba(8,8,10,.6);
+  align-items:center;justify-content:center;padding:22px;}
+.gr_rdw.on{display:flex;}
+.gr_rdd{background:var(--surface);border:1px solid var(--line);border-radius:20px;
+  width:min(680px,100%);max-height:min(860px,92vh);display:flex;flex-direction:column;
+  box-shadow:0 30px 80px rgba(0,0,0,.55);overflow:hidden;}
+.gr_rdh{position:relative;padding:22px 26px 16px;border-bottom:1px solid var(--line);}
+.gr_rdh h2{margin:2px 0 4px;font-size:22px;font-weight:800;letter-spacing:-.02em;}
+.gr_rdh p{margin:0;font-size:13px;color:var(--text-3);}
+.gr_rdeyebrow{display:block;font-size:10px;font-weight:800;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--red,#D00400);}
+.gr_rdh .gr_x{position:absolute;top:18px;right:20px;}
+.gr_rdb{flex:1;overflow-y:auto;padding:20px 26px;display:flex;flex-direction:column;gap:18px;}
+/* Label beside the control on a wide dialog, stacked when there is no room for both. */
+.gr_rdf{display:grid;grid-template-columns:190px 1fr;gap:16px;align-items:start;}
+.gr_rdl b{display:block;font-size:14px;font-weight:700;}
+.gr_rdl span{display:block;font-size:12px;color:var(--text-3);margin-top:2px;}
+.gr_rdf textarea.gr_in{min-height:0;resize:vertical;}
+.gr_rdfoot{display:flex;align-items:center;gap:10px;padding:14px 26px;
+  border-top:1px solid var(--line);background:var(--surface-2);}
+.gr_rdstate{flex:1;display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text-3);}
+.gr_rdstate::before{content:'';width:7px;height:7px;border-radius:99px;background:#1A9E62;}
+.gr_rdstate.dirty{color:var(--text-2);}
+.gr_rdstate.dirty::before{background:var(--amber,#F2A93B);}
+.gr_rdfoot button[disabled]{opacity:.45;cursor:default;}
+@media(max-width:620px){.gr_rdf{grid-template-columns:1fr;gap:7px;}}
 .gr_setd{position:fixed;top:0;right:0;bottom:0;width:min(680px,100%);background:var(--bg);
   border-left:1px solid var(--line);overflow-y:auto;overscroll-behavior:contain;
   display:flex;flex-direction:column;gap:18px;padding:24px 26px 40px;
@@ -6639,7 +6846,12 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_spanel{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 18px;}
 .gr_spanel h3{margin:0 0 10px;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3);}
 .gr_stagel{font-size:13px;font-weight:600;color:var(--text-3);}
-.gr_ss .gr_pill{border-radius:99px;padding:2px 10px;font-size:12px;font-weight:700;}
+/* The pill was styled ONLY inside .gr_ss, the old header row. Moving it into the hero
+   left it with no rule at all -- 16px at weight 400, no padding, no radius, which reads
+   as a stray word rather than a pill. Scoped to both places now. Luke's numbers:
+   600 12px, 4px 10px, fully round. */
+.gr_ss .gr_pill,.gr_pchips .gr_pill{border-radius:99px;padding:4px 10px;font-size:12px;
+  font-weight:600;line-height:1.3;display:inline-block;}
 .gr_sh{display:flex;align-items:center;gap:14px;padding:22px 24px 12px;}
 .gr_si{flex:1;min-width:0;}
 .gr_si h2{margin:0;font-size:25px;font-weight:800;letter-spacing:-.03em;}
@@ -6665,14 +6877,32 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_stabs{display:flex;gap:3px;margin:2px 24px 0;padding:4px;background:var(--surface);border-radius:99px;}
 .gr_stabs button{flex:1;border:0;background:none;color:var(--text-3);font:inherit;font-size:13px;font-weight:600;padding:9px 10px;border-radius:99px;cursor:pointer;white-space:nowrap;}
 .gr_stabs button[aria-pressed="true"]{background:var(--surface-3);color:var(--text);}
-.gr_sbody{padding:18px 24px 26px;display:flex;flex-direction:column;gap:13px;}
+/* The third gutter. .gr_sbody wrapped the tabs and the pane in another 24px, so those
+   two ran 48px narrower than the hero above them -- the strip looked inset from a panel
+   it is supposed to span. The sheet's own padding is the only gutter now. */
+.gr_sbody{padding:14px 0 26px;display:flex;flex-direction:column;gap:13px;}
 /* Do next is the loudest thing on the sheet on purpose -- it is the only part that tells
    you what to do rather than what happened. --paper-ink/--paper are the one pair that is
    the same hex in both themes, so this card stays a black card with white type either way;
    the inset hairline is what keeps its edge visible against dark mode's near-black page. */
-.gr_next{background:var(--paper-ink);color:var(--paper);border-radius:18px;padding:18px 20px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);}
-.gr_next.hot{background:var(--red);box-shadow:none;}
-.gr_next.ok{background:var(--surface);color:var(--text);box-shadow:none;}
+/* HIS .pn-next: a TINT with a ring, not a solid block. Ours inverted the card -- paper
+   on ink, and solid red when there was a reply waiting -- which made the one card you
+   are meant to read the loudest thing on a panel where everything else is quiet. A red
+   rectangle the size of a paragraph reads as an error, not as "here is the next step". */
+.gr_next{background:color-mix(in srgb,var(--red,#D00400) 10%,var(--surface));
+  color:var(--text);border-radius:20px;padding:16px 18px;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--red,#D00400) 22%,transparent);}
+.gr_next.hot{background:color-mix(in srgb,var(--red,#D00400) 14%,var(--surface));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--red,#D00400) 30%,transparent);}
+.gr_next.ok{background:var(--surface);color:var(--text);
+  box-shadow:inset 0 0 0 1px var(--line);}
+/* No margin-bottom: the pane's gap owns the space now, and a margin on top of it
+   made these sections sit 24px apart while their neighbours sat at 12. */
+.gr_next{display:flex;flex-direction:column;gap:4px;}
+.gr_next .gr_nk{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--text-3);}
+.gr_next>b{font-size:18px;line-height:1.25;font-weight:800;}
+.gr_next>p{margin:0;font-size:14px;line-height:1.5;opacity:.85;}
 .gr_nk{font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;opacity:.65;font-weight:700;}
 .gr_nq{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:8px 0 14px;}
 .gr_next.ok .gr_nq{margin-bottom:0;}
@@ -6730,6 +6960,27 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_acct{display:flex;align-items:center;gap:8px;margin:-6px 0 14px;font-size:12.5px;
   color:var(--text-3);}
 .gr_acct b{color:var(--text);font-weight:600;}
+/* ONE HEIGHT FOR ALL THREE, set here rather than assumed. .gr_ghost and .btn-red are
+   padding-sized and come out at 32px and 30px, so a gear built to "match" by eye landed
+   at 36 and the row stepped down twice across three buttons. Giving the row a height
+   instead of guessing each button's is the only version that stays true when somebody
+   changes the padding on one of them. */
+.gr_hacts>button,.gr_hacts>a{min-height:36px;display:inline-flex;align-items:center;
+  justify-content:center;box-sizing:border-box;
+  /* ONE SHAPE AND ONE TYPE SIZE for the row. .gr_ghost is a 99px pill at 13px/600 and
+     .btn-red is a 9px rect at 12px/700 -- two different buttons standing next to each
+     other, which reads as one of them having been dropped in from somewhere else. The
+     colours still differ, because one is the primary action and the other is not; the
+     geometry should not. Scoped to this row so neither class moves anywhere else. */
+  border-radius:11px;padding:0 16px;font-size:12px;font-weight:700;}
+/* The glyph, not the label: the row rule above sets 12px for the two word buttons and
+   a 12px gear is a speck. Needs to out-specify that rule, not just sit near it. */
+.gr_hacts>.gr_hgear{padding:0;font-size:15px;font-weight:400;}
+.gr_hgear{width:36px;height:36px;flex:none;display:inline-flex;align-items:center;
+  justify-content:center;border:0;border-radius:11px;background:var(--surface-2);
+  color:var(--text-3);font-size:15px;line-height:1;cursor:pointer;font-family:inherit;}
+.gr_hgear:hover{color:var(--text);background:var(--surface-3,var(--surface-2));
+  box-shadow:inset 0 0 0 1px var(--line);}
 .gr_acctg{width:26px;height:26px;border-radius:8px;border:1px solid var(--line);
   background:var(--surface-2);color:var(--text-3);cursor:pointer;line-height:1;}
 .gr_acctg:hover{color:var(--text);border-color:var(--text-3);}
@@ -6937,6 +7188,41 @@ input.gr_lkurl:focus{outline:0;border-color:var(--sc);}
 .gr_bnform .gr_ct h2{margin:0 0 3px;}
 .gr_bnform .gr_ct .gr_n2{margin-left:0;font-size:13px;font-weight:500;
   text-transform:none;letter-spacing:0;color:var(--text-3);}
+/* A BOX INSIDE A BOX. The money and rate fields are a wrapper carrying the $ and the %
+   with the input inside it, and the wrapper paints the field. The input is told
+   `border:0;background:transparent` up where .gr_bnmoney is defined -- and never got
+   either, because `.gr_field input` says the opposite, carries the SAME specificity
+   (0,1,1) and sits later in the file, so it won. The result was a white 37px input
+   boxed inside a 40px beige one, next to a Date field that is a single clean box.
+   Invisible-ish in dark, where surface and surface-2 are close; obvious in light.
+
+   `all:unset` rather than another border:0, because that is a rule that cannot lose the
+   next time somebody adds a selector -- which is how it lost the first time. Luke's own
+   design does the same thing for the same reason.
+
+   The whole row moves to a RING instead of a border, as his does: a box-shadow does not
+   take up space, so the three fields line up at one height without juggling padding,
+   and focus becomes a red ring rather than a colour change nobody notices. */
+.gr_bnform .gr_in,
+.gr_bnform .gr_bnmoney{
+  border:0;border-radius:14px;background:var(--surface);
+  box-shadow:0 0 0 1px var(--line);padding:12px 14px;
+  font-size:15px;font-weight:500;line-height:1.25;box-sizing:border-box;}
+.gr_bnform .gr_bnmoney{display:flex;align-items:center;gap:6px;padding:0 14px;}
+.gr_bnform .gr_bnmoney input{
+  all:unset;font-family:inherit;font-size:18px;font-weight:700;color:var(--text);
+  padding:10px 0;width:100%;min-width:0;box-sizing:border-box;}
+.gr_bnform .gr_bnmoney i,.gr_bnform .gr_bnmoney em{
+  font-style:normal;font-size:15px;font-weight:700;color:var(--text-3);flex:none;}
+.gr_bnform .gr_in:focus,
+.gr_bnform .gr_bnmoney:focus-within{outline:0;box-shadow:0 0 0 2px var(--red,#D00400);}
+/* THE LABELS ARE WORDS, NOT STAMPS. .gr_field label is a 10px uppercase micro-label
+   with .1em tracking, which is right for a dense settings panel and wrong on a form
+   somebody fills in by hand -- "WHAT THEY BOUGHT" over an empty box reads as a column
+   header. Luke's are sentence case at 12px, and that is what a label on a form is. */
+.gr_bnform .gr_field>label{font-size:12px;font-weight:600;letter-spacing:0;
+  text-transform:none;color:var(--text-3);}
+.gr_bnform .gr_field>label .gr_mute{font-size:12px;}
 .gr_bngrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;}
 .gr_bnprev{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;
   background:color-mix(in srgb,#1A9E62 12%,var(--surface));border-radius:16px;padding:17px 19px;margin-top:2px;}
@@ -98138,15 +98424,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         mine.length
           ? mine.length + ' waiting for your reply'
           : 'Nothing is waiting on you',
+        /* THREE BUTTONS ON ONE LINE, as Luke drew it. The gear used to sit down on the
+           "Attached to" line, which put the way to change the mailbox in a different
+           place from the other two things you can do to this screen -- and at 26px it
+           read as part of the sentence rather than as a control. It is up here now, at
+           the same height as its neighbours, and the mailbox line is just a statement
+           of fact again. The envelope came off Email templates: it was the only button
+           in Growth carrying a glyph, and Luke's has none. */
         (grIsStaff()
           ? '<div class="gr_hacts">' +
-            '<button class="gr_ghost" data-gr-settab-open="reply">Reply settings</button>' +
-            '<button class="btn-red" data-gr-tplbtn>&#9993; Email templates</button></div>'
+            '<button class="gr_ghost" data-gr-replyopen>Reply settings</button>' +
+            '<button class="btn-red" data-gr-tplbtn>Email templates</button>' +
+            '<button class="gr_hgear" data-gr-go="gr_connectors" ' +
+              'aria-label="Change the attached mailbox" ' +
+              'title="Change the attached mailbox">&#9881;</button></div>'
           : '')) +
-      '<div class="gr_acct">Attached to <b>' + esc(GR_MAILBOX) + '</b>' +
-        (grIsStaff() ? '<button class="gr_acctg" data-gr-go="gr_connectors" ' +
-          'aria-label="Change the attached mailbox" title="Change the attached mailbox">' +
-          '&#9881;</button>' : '') + '</div>' +
+      '<div class="gr_acct">Attached to <b>' + esc(GR_MAILBOX) + '</b></div>' +
       '<section class="gr_card gr_pneed"><div class="gr_ct"><i class="gr_pdot g"></i>' +
         '<h2>Needs your reply</h2>' +
         '<span class="gr_n g">' + mine.length + '</span></div>' +
@@ -100724,6 +101017,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
   const grReplyCfg = () => Object.assign({}, GR_REPLY_DEF, grSettings.reply_style || {});
 
+  /* REPLY SETTINGS IS ITS OWN DIALOG, and it holds a DRAFT.
+
+     It used to be a tab in the Growth settings panel that wrote on every blur. That is
+     the right behaviour for a settings tab and the wrong one here: these rules decide
+     how an email to a client gets written, and half-finished wording saved the moment
+     you tab out of a box is a rule the next draft obeys. Luke's design has Save and
+     Discard on it for that reason, so there is a point at which you have decided.
+
+     Everything is edited in grReplyDraft and nothing reaches the database until Save.
+     Discard throws the draft away, which is why it is worth having at all. */
+  let grReplyOpen = false, grReplyDraft = null;
+  const grReplyDirty = () => {
+    if (!grReplyDraft) return false;
+    const saved = grReplyCfg();
+    return Object.keys(GR_REPLY_DEF).some(k =>
+      String(grReplyDraft[k] == null ? '' : grReplyDraft[k]) !==
+      String(saved[k] == null ? '' : saved[k]));
+  };
+
   /* The settings as a prompt fragment. Only the boxes somebody filled in are sent: an
      empty rule written out as "Always cover: (not set)" is still an instruction, and
      the model does something with it. */
@@ -100776,6 +101088,62 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       area('steps', 'Steps', 'how to write each reply, in order',
            '1. Answer their question first. 2. Keep it short. 3. End with one next step.', 3) +
       '</section>';
+  }
+
+  /* The same fields grReplyPart drew, in a dialog of their own. Written against the
+     DRAFT rather than the saved settings, so what you see is what Save would write. */
+  function grReplyModal() {
+    const r = grReplyDraft || grReplyCfg();
+    const chips = (key, opts) => '<div class="gr_chips">' + opts.map(o =>
+      '<button class="gr_chip' + (r[key] === o[0] ? ' on' : '') + '" data-gr-rdset="' + key +
+      '" data-v="' + o[0] + '" aria-pressed="' + (r[key] === o[0]) + '">' + esc(o[1]) +
+      '</button>').join('') + '</div>';
+    const area = (key, label, hint, ph, rows) =>
+      '<div class="gr_rdf"><div class="gr_rdl"><b>' + esc(label) + '</b>' +
+      (hint ? '<span>' + esc(hint) + '</span>' : '') + '</div>' +
+      '<textarea class="gr_in" rows="' + (rows || 3) + '" data-gr-rd="' + key +
+      '" placeholder="' + esc(ph) + '">' + esc(r[key] || '') + '</textarea></div>';
+    const row = (label, hint, body) =>
+      '<div class="gr_rdf"><div class="gr_rdl"><b>' + esc(label) + '</b>' +
+      '<span>' + esc(hint) + '</span></div>' + body + '</div>';
+
+    const dirty = grReplyDirty();
+    return '<div class="gr_rdd" role="dialog" aria-label="Reply settings">' +
+      '<div class="gr_rdh"><span class="gr_rdeyebrow">Auto drafts</span>' +
+        '<h2>Reply settings</h2>' +
+        '<p>Every draft follows these. Nothing sends by itself.</p>' +
+        '<button class="gr_x" data-gr-rdclose aria-label="Close">&#10005;</button></div>' +
+      '<div class="gr_rdb">' +
+        row('Tone', 'How it sounds', chips('tone', GR_TONES)) +
+        row('Length', 'How long each reply is', chips('length', GR_LENS)) +
+        row('Sign off', 'Last line of every reply',
+            '<input class="gr_in" data-gr-rd="signoff" value="' + esc(r.signoff || '') +
+            '" placeholder="Best, Luke">') +
+        area('voice', 'Your language', 'Paste replies you like. Drafts copy this style.',
+             'Hey Michael, great chat today. Here is what I would do next...', 4) +
+        area('always', 'Always cover', 'Points every reply should hit.',
+             'Their goal. One clear next step.', 3) +
+        area('never', 'Never', 'Things a draft must not do.',
+             'Never use dashes. No bullet points. No emojis.', 2) +
+        area('steps', 'Steps', 'How to write each reply, in order.',
+             '1. Answer their question first. 2. Keep it short. 3. End with one next step.', 3) +
+      '</div>' +
+      '<div class="gr_rdfoot">' +
+        '<span class="gr_rdstate' + (dirty ? ' dirty' : '') + '" id="grRdState">' +
+          (dirty ? 'Unsaved changes' : 'All changes saved') + '</span>' +
+        '<button class="gr_ghost" data-gr-rddiscard' + (dirty ? '' : ' disabled') +
+          '>Discard</button>' +
+        '<button class="btn-red" data-gr-rdsave' + (dirty ? '' : ' disabled') +
+          '>Save settings</button>' +
+      '</div></div>';
+  }
+
+  function grRenderReplyPanel() {
+    const w = $('grReplyPanel');
+    if (!w) return;
+    if (!grReplyOpen || !grIsStaff()) { w.classList.remove('on'); w.innerHTML = ''; return; }
+    w.innerHTML = grReplyModal();
+    w.classList.add('on');
   }
 
   function grSigPart() {
@@ -100834,8 +101202,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     /* Pipeline is not here any more. Stages belong with the board they are the columns
        of -- renaming one in a settings screen meant leaving the thing you were looking
        at to change it. Everything it could do, the board can do now. */
+    /* Reply style is NOT a tab here any more. It is its own dialog off the Inbox, which
+       is where you are when you care about how a draft reads. Leaving it here as well
+       would be two editors for one setting -- and the two would not even agree, because
+       this panel saves on blur and the dialog saves when you press Save. */
     const tabs = [['templates','Templates'],['new','+ New template'],['master','Package master'],
-                  ['reply','Reply style'],['email','Codes & signature'],['team','Team']];
+                  ['email','Codes & signature'],['team','Team']];
     if (tabs.map(function (t) { return t[0]; }).indexOf(grSetTab) < 0) grSetTab = 'templates';
     let body = '';
 
@@ -100849,6 +101221,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       body = grMasterPart();
 
     } else if (grSetTab === 'reply') {
+      /* Somebody's saved tab, or an old link. The tab is gone; send them to the dialog
+         rather than painting a panel arm that no longer has a tab to reach it. */
+      grSetTab = 'templates'; grReplyOpen = true;
+      setTimeout(function () { grRenderReplyPanel(); }, 0);
       body = grReplyPart();
 
     } else if (grSetTab === 'email') {
@@ -101092,21 +101468,80 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
      Open ones first. A list that keeps finished work at the top stops being a list of
      what is left, which is the only thing it is for. */
+  /* WHAT A REPLY ACTUALLY SAYS, and what is just attached to it.
+
+     A client's reply arrives with their signature block and, from anyone at a company
+     with a legal department, a confidentiality notice longer than the message. One of
+     Jason's replies is three sentences followed by twenty lines of job title, phone
+     number and "intended solely for use by the recipient". Three of the twenty-five
+     messages here are like that; the longest is 2,553 characters.
+
+     COLLAPSED, NEVER DELETED. The tail is still there behind a toggle, because this
+     guesses -- and a guess that silently eats the last paragraph of a client's email is
+     worse than a long email. Two things are looked for, both conservative:
+
+       - a disclaimer opener, which is boilerplate with a recognisable first line;
+       - a run of lines that are a formatted signature: *Name*, *Director*, E:, W:, T:,
+         a bare address or a bare url.
+
+     It refuses to cut inside the first 120 characters, so a message that IS a signature
+     is left whole rather than reduced to nothing. */
+  /* A STARTER IS A STRONG SIGNAL; a continuer is not. Run against the real mailbox, a
+     single pattern cut a Google Calendar invite in half: "Guests / Matthew Overbay -
+     organizer / big@reachgiant.com / ..." is a run of bare addresses, and a bare address
+     is the whole of a guest list as readily as the end of a footer. So only a formatted
+     name or a LABELLED contact line may open a signature; bare addresses and urls can
+     only continue one that has already started. */
+  const GR_SIGSTART = /^\s*(\*[^*]{1,60}\*\s*$|(e|w|t|m|tel|mob|mobile|phone|fax|web|email)\s*[:.]\s*\S)/i;
+  const GR_SIGLINE = /^\s*(\*[^*]{1,60}\*\s*$|(e|w|t|m|tel|mob|mobile|phone|fax|web|email)\s*[:.]|https?:\/\/|www\.|<?[^\s@]+@[^\s@]+\.[a-z]{2,}>?\s*$)/i;
+  const GR_DISCLAIM = /^\s*(the information contained|this e-?mail( and any attachments)? (is|are|may be)|this message (is|and any)|disclaimer\b|confidentiality notice|please consider the environment)/i;
+
+  function grSplitTail(body) {
+    const text = String(body || '');
+    const lines = text.split('\n');
+    let cut = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (GR_DISCLAIM.test(lines[i])) { cut = i; break; }
+      /* A signature is a RUN, not one line: "T: 0781..." on its own inside a paragraph
+         is a sentence, three of them in a row are a footer. */
+      if (GR_SIGSTART.test(lines[i])) {
+        let j = i;
+        while (j < lines.length && (GR_SIGLINE.test(lines[j]) || !lines[j].trim())) j++;
+        const run = lines.slice(i, j).filter(l => l.trim()).length;
+        if (run >= 2) { cut = i; break; }
+        i = j;
+      }
+    }
+    if (cut < 0) return { head: text, tail: '' };
+    const head = lines.slice(0, cut).join('\n').replace(/\s+$/, '');
+    if (head.length < 120) return { head: text, tail: '' };
+    return { head: head, tail: lines.slice(cut).join('\n').replace(/^\s+/, '') };
+  }
+
   function grDealTodos(c) {
     const list = (c.todos || []).slice().sort((a, b) => (a.done ? 1 : 0) - (b.done ? 1 : 0));
     const open = list.filter(t => !t.done).length;
-    return '<div class="gr_note gr_todos"><span>To do' +
-      (open ? ' \u00B7 ' + open + ' open' : '') + '</span>' +
-      list.map(t =>
+    /* THE BOX FIRST, THEN THE LIST, as his To do pane has it: the thing you came to
+       do is add one. Ours buried the input under however many to-dos were already
+       there, so adding the eleventh meant scrolling past ten.
+
+       An empty list gets a card saying so rather than a bare input hanging under a
+       heading, which reads as something that failed to load. */
+    return '<div class="gr_tdadd"><input class="gr_in" id="grTodoNew" maxlength="200"' +
+        ' placeholder="Add a to-do for ' + esc(grFirst(c)) + '\u2026" aria-label="New to-do">' +
+        '<button class="gr_tdaddb" data-gr-todo="add" data-cid="' + c.id + '">Add</button></div>' +
+      (list.length
+        ? '<div class="gr_note gr_todos">' +
+          list.map(t =>
         '<div class="gr_tdo' + (t.done ? ' gr_done' : '') + '">' +
           '<button class="gr_tdtick" data-gr-todo="tick" data-cid="' + c.id + '" data-tid="' + esc(t.id) + '"' +
             ' aria-label="' + (t.done ? 'Mark not done' : 'Mark done') + '">' + (t.done ? '&#10003;' : '') + '</button>' +
           '<span>' + esc(t.text) + '</span>' +
           '<button class="gr_tdx" data-gr-todo="del" data-cid="' + c.id + '" data-tid="' + esc(t.id) + '"' +
-            ' aria-label="Delete this to-do">&#10005;</button></div>').join('') +
-      '<div class="gr_tdadd"><input class="gr_in" id="grTodoNew" maxlength="200"' +
-        ' placeholder="Add a to-do, e.g. Send the case study" aria-label="New to-do">' +
-        '<button class="gr_ghost" data-gr-todo="add" data-cid="' + c.id + '">Add</button></div></div>';
+            ' aria-label="Delete this to-do">&#10005;</button></div>').join('') + '</div>'
+        : '<div class="gr_pempty"><div class="gr_pill2">&#9745;</div>' +
+          '<b>Nothing to do yet</b>' +
+          '<span>Type the next step above and press Enter.</span></div>');
   }
 
   /* THE CALL, AS IT WAS BOOKED. Calendly asks ten questions on the booking form -- budget,
@@ -101197,15 +101632,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const ms = grMeetings.filter(m => m.client_id === c.id)
       .sort((a, b) => new Date(b.starts_at) - new Date(a.starts_at));
     const notes = (c.call_notes || []).length + (c.team_notes || []).length;
-    const tabs = [['overview', 'Overview'],
-                  ['notes', 'Call notes' + (notes ? ' (' + notes + ')' : '')],
-                  ['emails', 'Emails' + (th.length ? ' (' + th.length + ')' : '') + (grWaiting(c) ? ' \u25CF' : '')],
-                  ['meetings', 'Meetings' + (ms.length ? ' (' + ms.length + ')' : '')],
-                  ['details', 'Info']];
-    /* ONE SCROLLING COLUMN, no tab strip. Luke's panel stacks the next action, Info,
-       To do, Notes and the sent emails; ours hid four of those behind a click each, so
-       opening a deal told you one thing and you had to go looking for the rest. Each
-       former tab is a section now, in the order he has them. */
+    /* THE TAB STRIP IS BACK, and this comment is the second half of an argument.
+
+       It used to say "ONE SCROLLING COLUMN, no tab strip", because Luke's panel at the
+       time stacked everything and ours hid four sections behind a click each -- opening
+       a deal told you one thing and you had to go looking for the rest. That was true
+       and it is still the risk. Luke has since rebuilt his around five tabs and asked
+       for this to match, and he is the one who lives in it.
+
+       What makes it survivable is the COUNTS. Emails 3, Recordings 1, To do 2: a tab
+       with nothing behind it says so without being opened, which is the thing a bare
+       tab strip cannot do and the reason the old one was worth removing. */
+    const recs = ms.filter(m => m.recording_url);
+    const openTodos = (c.todos || []).filter(t => !t.done).length;
+    const tabs = [['emails',   'Emails',     th.length, grWaiting(c)],
+                  ['todo',     'To do',      openTodos, false],
+                  ['notes',    'Notes',      notes,     false],
+                  ['rec',      'Recordings', recs.length, false],
+                  ['details',  'Info',       0,         false]];
+    if (!tabs.some(t => t[0] === grTab)) grTab = 'emails';
     const sect = (title, inner) =>
       '<section class="gr_spanel"><h3>' + title + '</h3>' + inner + '</section>';
     const emailsHtml = (function () {
@@ -101214,9 +101659,34 @@ User (no attachment): "create a post for our new alpaca pillow launch"
          context for it. Below, it would sit under however many messages there are. */
       body = grDraftCard(c);
       body += th.length
-        ? th.map(m => '<div class="gr_bub ' + m.direction + '"><div class="gr_bh2"><b>' + (m.direction === 'in' ? esc(grFirst(c)) : 'You') + '</b><time>' + esc(grFmt(m.sent_at)) + '</time></div><p>' + esc(m.body) + '</p></div>').join('')
-        : '<p class="gr_mute">No emails yet.</p>';
-      body += '<div class="gr_acts"><button class="btn-red" data-gr-act="' + c.id + '" data-t="' + (na ? na.t : 'followup') + '">Write an email</button></div>';
+        /* HIS MESSAGE, which is a <details>. Ours printed every email in full, one
+           after another, so a thread of six was a wall you scrolled past to reach the
+           newest -- and the newest is the one you came for. The first is open and the
+           rest are a line each: who, what it was about, when. */
+        /* WRAPPED, which it was not. .gr_pthread carries the 10px gap between one
+           email and the next and the messages were emitted as bare siblings, so the
+           rule styled nothing and the thread ran together as one block. */
+        ? '<div class="gr_pthread">' + th.map((m, i) => {
+            const inb = m.direction === 'in';
+            return '<details class="gr_pmsg ' + (inb ? 'in' : 'out') + '"' + (i === th.length - 1 ? ' open' : '') + '>' +
+              '<summary><span class="gr_pava">' + esc(inb ? grInitials(c.name) : 'ME') + '</span>' +
+              '<span class="gr_pmt"><b>' + (inb ? esc(grFirst(c)) : 'You') + '</b>' +
+              '<span>' + esc(m.subject || (inb ? 'Reply' : 'Email')) + '</span></span>' +
+              '<time>' + esc(grFmt(m.sent_at)) + '</time></summary>' +
+              (function () {
+                const sp = grSplitTail(m.body || '');
+                return '<div class="gr_pmb">' + esc(sp.head || '(no text)') +
+                  (sp.tail
+                    ? '<details class="gr_pmore"><summary>Signature and legal notice</summary>' +
+                      '<div>' + esc(sp.tail) + '</div></details>'
+                    : '') + '</div>';
+              })() + '</details>';
+          }).join('') + '</div>'
+        : '<div class="gr_pempty"><div class="gr_pill2">&#9993;</div><b>No emails yet</b>' +
+          '<span>Send the first one with the button above.</span></div>';
+      /* No "Write an email" under the thread any more: the actions row at the top of
+         the panel is that button, and two of them meant scrolling past a thread to
+         reach the lower copy of something already on screen. */
       return body;
     })();
     const notesHtml = (function () {
@@ -101291,94 +101761,85 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<div class="gr_acts"><button class="gr_danger" data-gr-remove="' + c.id + '">Remove client</button></div>';
       return body;
     })();
-    const overviewHtml = (function () {
-      let body;
+    /* THE OVERVIEW WAS ONE BLOB, and Luke's panel puts its parts in three places: the
+       next step rides at the top of the Emails pane, the four facts and the summary are
+       the record and belong under Info, and the follow-up and "already done it" buttons
+       are things you DO, so they sit with the to-dos. Named once here. */
+    /* HIS .pn-next IS A STATEMENT, not a control. Ours carried a Reply button and a
+       template picker -- so with the actions row above it the panel offered "Reply to
+       Cesar" twice, eight pixels apart, doing the same thing. The card says where things
+       stand; the row does something about it.
+
+       Nothing is lost with the template picker: the composer has its own Template
+       button, which is where you are when you care which one. */
+    const nextHtml = (function () {
       const li = grLastIn(c);
+      const card = (cls, title, text) =>
+        '<div class="gr_next' + cls + '"><span class="gr_nk">Next step</span>' +
+        '<b>' + esc(title) + '</b>' + (text ? '<p>' + esc(text) + '</p>' : '') + '</div>';
+      return li
+        ? card(' hot', grFirst(c) + ' wrote back ' + grAgo(grDaysAgo(li.sent_at)) + '.',
+               'Answer them before anything else on this deal.')
+        : na
+        ? card('', GR_DO[na.t] || na.label, na.label)
+        : card(' ok', 'Nothing to do right now.', '');
+    })();
+
+    const factsHtml = (function () {
       const nm = grNextMeeting(c);
-      const notes = (c.call_notes || []).length;
-      const pick = '<button class="gr_dot" data-gr-pick="template" data-id="' + c.id + '">Use a template <span aria-hidden="true">&#9662;</span></button>';
-      body =
-        (li
-          ? '<div class="gr_next hot"><div class="gr_nk">They replied</div>' +
-            '<div class="gr_nq">' + esc(grFirst(c) + ' wrote back ' + grAgo(grDaysAgo(li.sent_at)) + '.') + '</div>' +
-            '<div class="gr_doa"><button class="gr_dob" data-gr-act="' + c.id + '" data-t="reply">' +
-              '&#9993; Reply to ' + esc(grFirst(c)) + '</button>' + pick + '</div></div>'
-          : na
-          ? '<div class="gr_next"><div class="gr_nk">Do next</div>' +
-            '<div class="gr_nq">' + esc(GR_DO[na.t] || na.label) + '</div>' +
-            '<div class="gr_doa"><button class="gr_dob" data-gr-act="' + c.id + '" data-t="' + na.t + '">' +
-              '&#9993; ' + esc(na.label) + '</button>' + pick + '</div></div>'
-          : '<div class="gr_next ok"><div class="gr_nk">All good</div>' +
-            '<div class="gr_nq">Nothing to do right now.</div></div>') +
-
-        '<div class="gr_facts">' +
-          '<div><span>Stage</span><b>' + esc(grStageLabel(c.stage)) + '</b></div>' +
-          '<div><span>Last contact</span><b>' + esc(grAgo(grDaysAgo(grLastTouch(c)))) + '</b></div>' +
-          '<div><span>Meeting</span><b>' + esc(nm ? grDayLabel(nm.starts_at) : c.calls_held ? 'Call done' : 'None booked') + '</b></div>' +
-          '<div><span>Follow up</span><b>' + esc(c.follow_up_on ? grFmt(c.follow_up_on) : 'Not set') + '</b></div>' +
-        '</div>' +
-
-        (c.summary ? '<div class="gr_note"><span>Summary</span><p>' + esc(c.summary) + '</p>' +
-          '</div>' : '') +
-
-        (grActive(c) ? '<div class="gr_fuc"><span>Follow up</span><div class="gr_acts">' +
-          (c.follow_up_on
-            ? '<b>' + esc(grFmt(c.follow_up_on)) + '</b><button class="gr_chip" data-gr-fu="clear">Clear</button>'
-            : [3, 5, 7].map(n => '<button class="gr_chip" data-gr-fu="' + n + '">In ' + n + ' days</button>').join('')) +
-          '</div></div>' : '') +
-
-        /* Work that happened somewhere else. People ring clients from their phone and
-           reply from Gmail on a laptop, and until now neither left a mark here -- so the
-           deal looked abandoned, the stale badge came up and the follow-up writer offered
-           to chase somebody who was spoken to an hour ago. Both are undoable, because
-           they are one click and the usual mistake is the wrong client. */
-        (grActive(c)
-          ? '<div class="gr_fuc"><span>Already done it?</span><div class="gr_acts">' +
-            '<button class="gr_chip" data-gr-logmail="' + c.id + '">+ Email sent</button>' +
-            '<button class="gr_chip" data-gr-logcall="' + c.id + '">+ Call held</button>' +
-            '</div></div>'
-          : '') +
-
-        grDealTodos(c) +
-
-        (function () {
-          // What has actually happened, newest first. Meetings and emails are real rows;
-          // the log is whatever the app wrote as it went.
-          const acts = [];
-          grMeetings.filter(m => m.client_id === c.id).forEach(m => acts.push({
-            d: String(m.starts_at).slice(0, 10),
-            t: (new Date(m.starts_at) < Date.now() ? 'Meeting held' : 'Meeting booked') + ' \u00B7 ' + grHm(m.starts_at) }));
-          grThread(c).forEach(m => acts.push({
-            d: String(m.sent_at).slice(0, 10),
-            t: (m.direction === 'in' ? grFirst(c) + ' replied' : 'Email sent') + (m.subject ? ' \u00B7 ' + m.subject : '') }));
-          (c.activity_log || []).forEach(l => acts.push({ d: l.d, t: l.note }));
-          if (!acts.length) return '';
-          acts.sort((a, b) => a.d < b.d ? 1 : -1);
-          return '<div class="gr_note"><span>What has happened</span><div class="gr_tl">' +
-            acts.slice(0, 8).map(a => '<div><i></i><time>' + esc(grFmt(a.d)) + '</time><span>' +
-              esc(a.t) + '</span></div>').join('') + '</div></div>';
-        })();
+      /* HIS TILES (.pn-tiles): two to a row, each one label-over-value, and the long
+         ones full width. Ours was a four-across strip that squeezed "None booked" onto
+         two lines at this panel width. Only the facts that exist are drawn -- a tile
+         reading "Not set" is a tile telling you nothing. */
+      const tile = (label, val, wide) => val
+        ? '<div class="gr_ptile' + (wide ? ' wide' : '') + '"><span>' + esc(label) +
+          '</span><b>' + esc(val) + '</b></div>' : '';
+      const own2 = grPerson(c.owner_id);
+      let body = '<div class="gr_ptiles">' +
+        tile('Owner', own2 && own2.full_name) +
+        tile('Last contact', grAgo(grDaysAgo(grLastTouch(c)))) +
+        tile('Company', c.company) +
+        tile('Email', c.email) +
+        tile('Next step', c.next_step || (na ? na.label : '')) +
+        tile('Calls', String(c.calls_held || 0)) +
+        tile('Summary', c.summary, true) +
+        tile('Next meeting', nm ? grDayLabel(nm.starts_at) + ' \u00B7 ' + grHm(nm.starts_at) : 'Not booked', true) +
+        '</div>';
+      /* The activity timeline came off with everything else Luke's Info does not
+       show. It was the one thing here that was a LOG rather than a fact, and the
+       Emails tab already carries the thread it was mostly repeating. */
       return body;
     })();
 
-    const body = overviewHtml +
-      sect('Info', detailsHtml) +
-      sect('Call notes', notesHtml) +
-      sect('Sent emails', emailsHtml) +
-      sect('Meetings', meetingsHtml);
+    /* Things you do, with the to-dos. Both are undoable one-click logs, and the usual
+       mistake with them is the wrong client rather than the wrong button. */
+    const doHtml = (grActive(c)
+        ? '<div class="gr_fuc"><span>Follow up</span><div class="gr_acts">' +
+          (c.follow_up_on
+            ? '<b>' + esc(grFmt(c.follow_up_on)) + '</b><button class="gr_chip" data-gr-fu="clear">Clear</button>'
+            : [3, 5, 7].map(n => '<button class="gr_chip" data-gr-fu="' + n + '">In ' + n + ' days</button>').join('')) +
+          '</div></div>'
+        : '') +
+      /* Work that happened somewhere else. People ring clients from their phone and
+         reply from Gmail on a laptop, and until now neither left a mark here -- so the
+         deal looked abandoned, the stale badge came up and the follow-up writer offered
+         to chase somebody who was spoken to an hour ago. */
+      (grActive(c)
+        ? '<div class="gr_fuc"><span>Already done it?</span><div class="gr_acts">' +
+          '<button class="gr_chip" data-gr-logmail="' + c.id + '">+ Email sent</button>' +
+          '<button class="gr_chip" data-gr-logcall="' + c.id + '">+ Call held</button>' +
+          '</div></div>'
+        : '') +
+      grDealTodos(c);
 
     const heat = grHeat(c), own = grPerson(c.owner_id);
     const handed = c.giant_handoff && c.giant_handoff.client_id;
-    wrap.innerHTML =
-      '<div class="gr_sheet" data-gr-id="' + c.id + '">' +
-        '<div class="gr_sh">' + grAvatar(c.name, col, 'gr_lg') +
-          '<div class="gr_si"><h2>' + esc(c.name) + '</h2><div class="gr_ss">' +
-            '<span class="gr_pill" style="background:' + grTint(col, .18) + ';color:' + col + '">' +
-              esc(grStageLabel(c.stage)) + '</span>' +
-            (c.company ? '<span>' + esc(c.company) + '</span>' : '') + '</div></div>' +
-          '<button class="gr_x" data-gr-close aria-label="Close">&#10005;</button></div>' +
-
-        '<div class="gr_sbar">' +
+    /* THE RECORD BAR. Stage, how warm they are, who owns them, whether they are a
+       ReachGiant client yet, won/lost, and how far along they are. All of it true and
+       none of it the reason you opened the panel, so it sits at the top of Info rather
+       than between the one button and the tabs. */
+    const recordHtml =
+        '<div class="gr_sbar gr_sbarhide">' +
           '<span class="gr_stagel">Stage</span>' +
           '<select class="gr_stage" data-gr-stage-sel aria-label="Stage" style="background:' + grTint(col, .2) +
             ';box-shadow:inset 0 0 0 1px ' + grTint(col, .5) + '">' +
@@ -101411,7 +101872,165 @@ User (no attachment): "create a post for our new alpaca pillow launch"
                                     : 'Lost' + (c.lost_reason ? ' \u00B7 ' + c.lost_reason : '')) +
               '</span>') + '</div>' +
 
-        grJourney(c) +
+        grJourney(c);
+
+    /* RECORDINGS, which had no home of its own. A call's recording has always been
+       drawn on the Meetings row once the call is over; from a deal that meant scrolling
+       a list of meetings to find the one that was recorded. Luke gives it a tab, and
+       the count tells you whether it is worth opening. */
+    /* TWO GROUPS, as his has: what was recorded, and what is merely booked. A call with
+       a Zoom link and a call with a recording are different things to want, and a single
+       list of "meetings" made you read every row to find out which was which. */
+    const upcoming = ms.filter(m => !m.recording_url && m.zoom_url);
+    const recHtml = (recs.length
+        ? '<h3 class="gr_plab">Recordings</h3>' + recs.map(m =>
+            '<div class="gr_spanel"><h3>' + esc(m.title || 'Call') + '</h3>' +
+            '<p class="gr_mute">' + esc(grDayLabel(m.starts_at)) + '</p>' +
+            grRecHtml(m) + '</div>').join('')
+        : '<div class="gr_pempty"><div class="gr_pill2">&#9654;</div><b>No recording yet</b>' +
+          '<span>Zoom sends one through a few minutes after a call ends, and it lands ' +
+          'here on its own.</span></div>') +
+      (upcoming.length
+        ? '<h3 class="gr_plab">Zoom calls</h3>' + upcoming.map(m =>
+            '<div class="gr_spanel"><h3>' + esc(m.title || 'Call') + '</h3>' +
+            '<p class="gr_mute">' + esc(grDayLabel(m.starts_at)) + ' \u00B7 ' +
+              esc(grHm(m.starts_at)) + '</p>' +
+            '<a class="gr_plink" href="' + esc(m.zoom_url) + '" target="_blank" ' +
+              'rel="noopener">Open Zoom link</a></div>').join('')
+        : '');
+
+    /* ONE PANE, not five stacked. overviewHtml -- what to do next, the four facts, the
+       summary, the follow-up buttons -- rides above the pane rather than inside one of
+       them: it is the answer to "what do I do about this person", which is the question
+       you opened the panel with whichever tab you then read. */
+    /* Luke's order inside a pane: the next step FIRST on Emails, because that is the
+       thing to act on and the thread below it is the context for it. */
+    /* ONE THING PER PANE, as his screenshots have them. To do is the to-do list and
+       nothing else; Info is the tiles and nothing else.
+
+       WHAT THIS TAKES AWAY, so it is written down rather than discovered: the
+       follow-up buttons (In 3/5/7 days) and the "Already done it?" log are gone
+       from the panel, and so is the contact edit form. Mark won and Lost are NOT
+       lost -- the Stage picker in the hero carries both, which is where Luke's
+       puts them -- and neither is the handoff, which is the Hand to team button
+       at the top. Those four were duplicates; the other three are not, and if
+       they are wanted they need a home rather than a second copy of one. */
+    const paneHtml =
+      grTab === 'todo'    ? grDealTodos(c)
+    : grTab === 'notes'   ? notesHtml
+    : grTab === 'rec'     ? recHtml
+    : grTab === 'details' ? factsHtml
+    :                       nextHtml + emailsHtml;
+
+    const tabStrip = '<nav class="gr_ptabs" role="tablist" aria-label="Client sections">' +
+      tabs.map(function (t) {
+        return '<button type="button" role="tab" data-gr-ptab="' + t[0] + '"' +
+          ' aria-selected="' + (grTab === t[0]) + '">' + esc(t[1]) +
+          (t[2] ? '<b>' + t[2] + '</b>' : '') +
+          (t[3] ? '<i class="gr_pdotw" aria-label="waiting on a reply"></i>' : '') +
+          '</button>';
+      }).join('') + '</nav>';
+
+    /* The tabs sit directly under the primary action, as his do. Nothing stacks above
+       them any more: the whole point of the strip is that the panel opens showing one
+       thing, and an overview above it would be the old scrolling column with a tab
+       strip bolted on. */
+    const body = tabStrip + '<div class="gr_ppane">' + paneHtml + '</div>';
+
+    wrap.innerHTML =
+      '<div class="gr_sheet" data-gr-id="' + c.id + '">' +
+        /* WHOSE DESK THIS PERSON IS ON, above everything else, because it changes what
+           the rest of the panel is for. Ours said the same thing as a lone white button
+           reading "Add to ReachGiant clients" halfway down -- a verb with no statement
+           of where things stand. His says the state first and offers the move second. */
+        (grIsStaff()
+          ? '<div class="gr_phand">' +
+            '<div class="gr_phandt"><span class="gr_phdot' + (handed ? ' team' : '') + '"></span>' +
+              '<div><b>' + (handed ? 'With the team' : 'With you') + '</b>' +
+              '<span>' + (handed
+                ? 'Their work is run by the team now.'
+                : 'After they pay and do their onboarding call, hand them to the team.') +
+              '</span></div></div>' +
+            /* A WAY BACK, which there was not. You could hand a deal over and that
+               was that -- the strip turned into a status word and the only route
+               back was editing the row by hand. Luke's has "Bring back to sales"
+               for the same reason: the usual cause of a handoff is somebody
+               pressing it on the wrong deal, ten seconds earlier. */
+            (handed
+              ? '<button class="gr_phandback" data-gr-unhand="' + c.id + '">' +
+                'Bring back to sales</button>'
+              : '<button class="btn-red" data-gr-handoff="' + c.id + '">Hand to team</button>') +
+            '</div>'
+          : '') +
+        /* LUKE'S HERO. The name is the heading it always should have been, the company
+           and the email sit under it on one line, and the stage pill and the Stage
+           picker are beside each other rather than in separate bars -- they say the
+           same thing, so a pill that disagreed with the select was always possible. */
+        /* The X is the panel's, not the hero's. Hung off the hero it sat BELOW the
+           handoff strip, which put the way out halfway down the thing you wanted out
+           of. His .pl2-x is pinned to the panel at 20/20. */
+        '<button class="gr_x gr_pclose" data-gr-close aria-label="Close">&#10005;</button>' +
+        '<header class="gr_phero">' +
+          '<div class="gr_pav" style="background:' + col + '">' +
+            esc(grInitials(c.name)) + '</div>' +
+          '<h2>' + esc(c.name) + '</h2>' +
+          ((c.company || c.email)
+            ? '<p>' + [c.company, c.email].filter(Boolean).map(esc).join(' &middot; ') + '</p>'
+            : '') +
+          /* The stage, twice over and on purpose: a pill you read and a picker you
+             change, side by side as Luke has them. Dropping the pill when this became a
+             hero was a real loss -- the stage is the first thing you want off a deal and
+             a <select> reads as a control to operate, not a fact to take in. */
+          /* Pill AND picker on one row, as his pn-chips has them: a stage you read
+             next to the stage you change. They were in different parts of the panel,
+             which is how a pill that disagreed with the select was ever possible. */
+          '<div class="gr_pchips">' +
+            '<span class="gr_pill" style="background:' + grTint(col, .18) + ';color:' + col + '">' +
+              esc(grStageLabel(c.stage)) + '</span>' +
+            '<label class="gr_pstage"><span>Stage</span>' +
+              '<select data-gr-stage-sel aria-label="Stage">' +
+              grStages.map(st => '<option value="' + st.key + '"' +
+                (st.key === c.stage ? ' selected' : '') + '>' + esc(st.label) + '</option>').join('') +
+              '</select></label>' +
+          '</div>' +
+        '</header>' +
+
+        /* The one thing you came to do, full width, as he has it. */
+        /* HIS ACTIONS ROW (.pn-actions). Two buttons when they are waiting on you: the
+           reply to the thing they actually sent, and a fresh email. One when they are
+           not. Ours only ever offered the second, so answering a reply meant opening the
+           composer and finding the thread yourself.
+
+           The Email button is DISABLED without an address rather than hidden, with the
+           reason underneath -- a button that vanishes teaches nobody where to go, and
+           the place to fix it is a tab away. */
+        (grActive(c)
+          ? '<div class="gr_pdo">' +
+            /* BOTH BUTTONS, ALWAYS. Luke's hides the reply unless they have written to
+               you, and ours matched that exactly. Nishchay wants the pair on every
+               deal, so the row is the same shape whichever one you open.
+
+               It is DISABLED rather than live when there is no message to reply to,
+               the same way Email is without an address: a reply to a thread that does
+               not exist opens a blank composer pretending to be a reply, and the
+               quoted nothing underneath is how an empty 'Re:' reaches a client. */
+            '<button class="gr_pbtn reply" data-gr-act="' + c.id + '" data-t="reply"' +
+              (grWaiting(c) ? '' : ' disabled title="They have not written yet"') + '>' +
+              'Reply to ' + esc(grFirst(c)) + '</button>' +
+            '<button class="gr_pbtn" data-gr-act="' + c.id + '" data-t="' +
+              (na ? na.t : 'followup') + '"' + (c.email ? '' : ' disabled') + '>' +
+              'Email ' + esc(grFirst(c)) + '</button>' +
+            '</div>' +
+            (c.email ? '' : '<p class="gr_pwarn">Add ' + esc(grFirst(c)) +
+              '\u2019s email address under Info to send.</p>')
+          : '') +
+
+        /* WHAT USED TO SIT BETWEEN THE BUTTON AND THE TABS. Four rows -- the stage
+           bar, won/lost, and the progress strip -- stood where Luke has nothing, so the
+           tabs were pushed a screen down and the panel opened on furniture rather than
+           on the person. They are in Info now, with the rest of the record. Kept, not
+           dropped: Mark won and Add to ReachGiant clients do real work. */
+
 
         '<div class="gr_sbody">' + body + '</div>' +
       '</div>' + (grComposer ? grComposerHtml(c) : '') + (grLost ? grLostHtml(c) : '') +
@@ -101845,6 +102464,38 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   /* Hand the deal to the rest of Giant. This really creates the client row -- a button
      that only ticked a box here would leave somebody retyping the same details into
      Clients, which is the whole reason Growth moved in. */
+  /* UNDOING IT, and what undoing it does NOT do.
+
+     Handing over inserts a real row into `clients` -- the main ReachGiant table, which
+     Projects, tasks and the vault all hang off. By the time somebody notices the wrong
+     deal was handed over, the team may already have put work against that record.
+
+     So this clears the MARKER and leaves the client row alone. The deal comes back to
+     sales, which is the thing being asked for; the client record is somebody else's to
+     remove if it should not exist, and deleting it from here would take whatever has
+     been attached to it since with no warning. The confirm says so in those words,
+     because a button called "Bring back to sales" otherwise reads as a full undo. */
+  async function grUnhand(c) {
+    const where = c.giant_handoff && c.giant_handoff.client_id;
+    const ok = await window.giantConfirmWarn(
+      'Bring ' + grFirst(c) + ' back to sales?',
+      'This deal goes back to being yours.' +
+      (where ? ' The client record already created in ReachGiant Clients STAYS -- the team '
+             + 'may have work against it by now. Remove it there if it should not exist.' : ''),
+      'Bring back', 'warning');
+    if (!ok) return;
+    const s2 = sb(); if (!s2) return;
+    const { data, error } = await s2.from('growth_clients')
+      .update({ giant_handoff: null, updated_at: new Date().toISOString() })
+      .eq('id', c.id).select('id');
+    if (error) { grToast('Could not do that. ' + error.message); return; }
+    // RLS refuses by returning no rows rather than by raising.
+    if (!data || !data.length) { grToast('Bringing them back was refused.'); return; }
+    c.giant_handoff = null;
+    grToast(grFirst(c) + ' is back with sales');
+    grRender();
+  }
+
   async function grHandoff(c) {
     const s2 = sb(); if (!s2) return;
     const nm = c.company || c.name;
@@ -102194,6 +102845,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       else if (grScreen === 'gr_bonus') grRenderBonus();
       grRenderSheet();
       grRenderSetPanel();
+      grRenderReplyPanel();
       grBadges();
     } catch (e) { /* one broken screen must not take the app with it */ }
   }
@@ -102257,6 +102909,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
 
     const aiw = e.target.closest('[data-gr-ai]');
     if (aiw) { grAiWrite(aiw.dataset.grAi); return; }
+    const uh = e.target.closest('[data-gr-unhand]');
+    if (uh) {
+      const c2 = grClients.find(x => x.id === uh.dataset.grUnhand);
+      if (c2) grUnhand(c2);
+      return;
+    }
     const ho = e.target.closest('[data-gr-handoff]');
     if (ho) { const c = grClients.find(x => x.id === ho.dataset.grHandoff); if (c) grHandoff(c); return; }
     if (e.target.closest('[data-gr-cdraft]')) { grSaveDraft(); return; }
@@ -102739,6 +103397,12 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const mc = e.target.closest('[data-gr-mcancel]');
     if (mc) { e.stopPropagation(); grMeetCancel(mc.dataset.grMcancel); return; }
 
+    /* Switching a tab repaints the SHEET, not the whole screen. grRender rebuilds the
+       list behind it as well, which throws the scroll position of the page under the
+       panel away every time you glance at Notes. */
+    const ptb = e.target.closest('[data-gr-ptab]');
+    if (ptb) { grTab = ptb.dataset.grPtab; grRenderSheet(); return; }
+
     const pv = e.target.closest('[data-gr-pview]');
     if (pv) { grPView = pv.dataset.grPview; grRender(); return; }
     const chip = e.target.closest('[data-gr-chip]');
@@ -103097,6 +103761,51 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     /* Tone and length are buttons rather than a dropdown, because there are four of one
        and three of the other and you choose once. They save on the press -- the text
        boxes beside them save on blur, which a button never has. */
+    if (e.target.closest('[data-gr-replyopen]')) {
+      if (!grIsStaff()) return;
+      grReplyOpen = true; grReplyDraft = Object.assign({}, grReplyCfg());
+      grRenderReplyPanel(); return;
+    }
+    /* Closing with unsaved work asks first. giantConfirmWarn, never confirm() -- a
+       confirm() guard is a no-op in the desktop build, so the X would do nothing there. */
+    const rdx = e.target.closest('[data-gr-rdclose]');
+    if (rdx || e.target === $('grReplyPanel')) {
+      if (grReplyDirty()) {
+        window.giantConfirmWarn('Close without saving?',
+          'The reply settings you changed will not be kept.', 'Close', 'warning')
+          .then(function (ok) {
+            if (!ok) return;
+            grReplyOpen = false; grReplyDraft = null; grRenderReplyPanel();
+          });
+        return;
+      }
+      grReplyOpen = false; grReplyDraft = null; grRenderReplyPanel(); return;
+    }
+    const rdd = e.target.closest('[data-gr-rddiscard]');
+    if (rdd) {
+      /* Back to what is saved, dialog stays open: you discarded a change, not the job
+         of changing it. */
+      grReplyDraft = Object.assign({}, grReplyCfg());
+      grRenderReplyPanel(); grToast('Changes discarded'); return;
+    }
+    const rds = e.target.closest('[data-gr-rdsave]');
+    if (rds) {
+      const draft = Object.assign({}, grReplyDraft || grReplyCfg());
+      grSetting('reply_style', draft).then(function (r) {
+        if (!r) { grToast('Saving the reply settings was refused.'); window.grReload(); return; }
+        grReplyDraft = Object.assign({}, draft);
+        grReplyOpen = false; grReplyDraft = null;
+        grRenderReplyPanel();
+      });
+      return;
+    }
+    const rdc = e.target.closest('[data-gr-rdset]');
+    if (rdc) {
+      if (!grReplyDraft) grReplyDraft = Object.assign({}, grReplyCfg());
+      grReplyDraft[rdc.dataset.grRdset] = rdc.dataset.v;
+      grRenderReplyPanel(); return;
+    }
+
     const rset = e.target.closest('[data-gr-reply-set]');
     if (rset) {
       const cfg = Object.assign({}, grReplyCfg());
@@ -103416,7 +104125,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     }
     const tab = e.target.closest('[data-gr-tab]');
     if (tab) { grTab = tab.dataset.grTab; grRender(); return; }
-    if (e.target.closest('[data-gr-close]')) { grOpenId = null; grMeetId = null; grComposer = null; grLost = null; grRender(); return; }
+    /* The X, or the dim outside it. .gr_sheetwrap already covers the viewport behind
+       the panel, so a click landing ON the wrapper rather than inside the sheet is a
+       click outside -- `e.target === wrap` and not `closest`, which would also catch
+       every click within the panel it contains.
+
+       Not while a composer, a lost-reason box or a won box is open: those are forms
+       with typing in them, and losing a half-written email to a stray click beside it
+       is worse than having to find the X. */
+    const sheetWrap = $('grSheet');
+    const outside = sheetWrap && e.target === sheetWrap && !grComposer && !grLost && !grWon;
+    if (e.target.closest('[data-gr-close]') || outside) {
+      grOpenId = null; grMeetId = null; grComposer = null; grLost = null; grRender(); return;
+    }
     /* The dimmed area counts as closing, which the deal sheet never did. A panel you
        opened from a nav item has to be dismissable without hunting for the X. */
     if (e.target.closest('[data-gr-setclose]') || e.target === $('grSetPanel')) {
@@ -103447,6 +104168,26 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   });
 
   document.addEventListener('input', function (e) {
+    /* THE DRAFT, AND ONLY THE FOOTER REPAINTS. Rebuilding the dialog on every letter
+       would replace the textarea under the typing hand and throw the caret to the end,
+       which is the bug the package fields below already carry a comment about. The one
+       thing that has to change as you type is whether Save is live, so that line and
+       those two buttons are updated in place and nothing else is touched. */
+    const rd = e.target.dataset && e.target.dataset.grRd;
+    if (rd) {
+      if (!grReplyDraft) grReplyDraft = Object.assign({}, grReplyCfg());
+      grReplyDraft[rd] = e.target.value;
+      const st = $('grRdState'), dirty = grReplyDirty();
+      if (st) {
+        st.textContent = dirty ? 'Unsaved changes' : 'All changes saved';
+        st.classList.toggle('dirty', dirty);
+      }
+      const sv = document.querySelector('[data-gr-rdsave]');
+      const ds = document.querySelector('[data-gr-rddiscard]');
+      if (sv) sv.disabled = !dirty;
+      if (ds) ds.disabled = !dirty;
+      return;
+    }
     const dft = { grTplN: 'n', grTplS: 's', grTplB: 'b' }[e.target.id];
     if (dft) { grTplDraft[dft] = e.target.value; return; }     // no re-render: it is a draft
     /* The package fields repaint only the preview box. A full render would rebuild the
@@ -103883,6 +104624,13 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       sp.setAttribute('data-role-min', 'manager');
       sp.setAttribute('data-client-hidden', '');
       document.body.appendChild(sp);
+    }
+    if (!$('grReplyPanel')) {
+      const rp = document.createElement('div');
+      rp.id = 'grReplyPanel'; rp.className = 'gr_rdw';
+      rp.setAttribute('data-role-min', 'manager');
+      rp.setAttribute('data-client-hidden', '');
+      document.body.appendChild(rp);
     }
     /* A reload restores the last screen from localStorage, and somebody's last screen
        may still be gr_settings from before it became a panel. That screen is empty now,
