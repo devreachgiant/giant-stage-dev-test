@@ -6659,6 +6659,12 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_tdaddb{flex:none;border:0;border-radius:99px;background:var(--text);color:var(--surface);
   font:inherit;font-size:13.5px;font-weight:700;padding:10px 20px;cursor:pointer;}
 .gr_tdaddb:hover{filter:brightness(.92);}
+.gr_sigimg{display:block;max-width:100%;height:auto;margin-top:10px;border-radius:6px;}
+.gr_sigrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;}
+.gr_sigup{cursor:pointer;}
+/* On is stated, not implied by an absence: a switch that only looks different when it
+   is off leaves you guessing which way round it is. */
+.gr_chip.on{background:color-mix(in srgb,#1A9E62 18%,var(--surface));color:#1A9E62;}
 /* Quiet, as his ghost one is: bringing a deal back is a correction, not an action the
    strip should be advertising. */
 .gr_phandback{height:38px;padding:0 16px;border-radius:12px;border:0;font:inherit;
@@ -9479,7 +9485,7 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
       <!-- Growth: the sales side. Lived in a separate Claude artifact until now. Reps see
            only their own clients, so every item is data-client-hidden and the two admin
            ones are manager+. The database enforces the same split -- 20261021120000. -->
-      <div class="nav-group-label nav-group-toggle" data-navgroup="growth" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.8l5 1.9v3.6c0 3.2-2.1 5.6-5 6.9-2.9-1.3-5-3.7-5-6.9V3.7l5-1.9Z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="group-label-text">Growth</span><span style="margin-left:6px;background:#D00400;color:#fff;border-radius:4px;padding:1px 5px;font-size:8.5px;font-weight:700;letter-spacing:.06em;">NEW</span><svg class="nav-group-chev" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="nav-group-label nav-group-toggle" data-navgroup="growth" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M8 1.8l5 1.9v3.6c0 3.2-2.1 5.6-5 6.9-2.9-1.3-5-3.7-5-6.9V3.7l5-1.9Z" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="group-label-text">Sales CRM</span><span style="margin-left:6px;background:#D00400;color:#fff;border-radius:4px;padding:1px 5px;font-size:8.5px;font-weight:700;letter-spacing:.06em;">NEW</span><svg class="nav-group-chev" width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div class="nav-rail" id="railGrowth" data-navgroup-body="growth" data-role-min="manager" data-client-hidden>
         <div class="nav-pill" id="pillGrowth" style="opacity:0;"></div>
         <div class="nav-item" data-screen="gr_home" data-label="Home" data-role-min="manager" data-client-hidden><span class="ico"><svg viewBox="0 0 16 16" fill="none"><path d="M2.5 7.2 8 2.5l5.5 4.7M4 6.6v7h8v-7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Home <span class="badge" id="grHomeBadge" style="display:none;">0</span></div>
@@ -55076,6 +55082,16 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const inline = (t) => giantEscHtml(t)
         // Links before bold, or the ** inside a link label is matched across the
         // brackets and the link comes out as half a tag.
+        /* IMAGES FIRST. ![alt](url) contains [alt](url), so the link rule below
+           would match the tail of it and leave a stray "!" in front of an anchor.
+           Same giantSafeUrl as links -- an image src is a URL somebody else can
+           put in a settings box, and it goes out in mail we send. */
+        .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, function (m, alt, url) {
+          const safe = giantSafeUrl(url.replace(/&amp;/g, '&'));
+          if (!safe) return alt;
+          return '<img src="' + giantEscHtml(safe) + '" alt="' + giantEscHtml(alt) +
+            '" style="max-width:100%;height:auto;border:0;display:block">';
+        })
         .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (m, label, url) {
           const safe = giantSafeUrl(url.replace(/&amp;/g, '&'));
           return safe ? '<a href="' + giantEscHtml(safe) + '">' + label + '</a>' : label;
@@ -55109,6 +55125,13 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
        that cannot be acted on. */
     window.giantMdToText = function (md) {
       return String(md == null ? '' : md).replace(/\r\n/g, '\n')
+        /* An image has no plain-text rendering worth having: "ReachGiant
+           (https://...gif)" under a signature is a url nobody wants. Dropped
+           entirely, and before the link rule for the same reason as above. The
+           plain part still carries the name and address as lines of text, which
+           is what a client sees when their mail app blocks remote images -- and
+           most block them on a first email. */
+        .replace(/!\[[^\]]*\]\([^)\s]+\)\s*/g, '')
         .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '$1 ($2)')
         .replace(/\*\*([^*]+)\*\*/g, '$1');
     };
@@ -100818,7 +100841,20 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<span class="gr_hint">' + (grGmail.email
           ? 'Leave it empty to use ' + esc(grGmail.email) + ', the mailbox Growth sends from.'
           : 'Connect Gmail and this defaults to the mailbox Growth sends from.') +
-        '</span></div></section>';
+        '</span></div>' +
+      /* A SIGNATURE ON ITS OWN, through the real send path. Testing it inside a
+         template buries the thing you are checking under a page of copy, and the
+         preview above cannot answer the question that matters -- whether the image
+         survives the trip and what it looks like when a mail app blocks it. This
+         sends the signature and nothing else, so what lands in the inbox IS the
+         thing under test. */
+      '<div class="gr_acts">' +
+        '<button class="btn-red"' + (grTestBusy === 'sig' ? ' disabled' : '') +
+          ' data-gr-sigtest>' + (grTestBusy === 'sig' ? 'Sending\u2026' : 'Send a test signature') +
+        '</button>' +
+        '<span class="gr_hint">Sends just the signature, through the same path a real ' +
+          'email takes.</span>' +
+      '</div></section>';
   }
 
   /* PACKAGE EMAILS AND THE REST, APART. Six rows that are all "Google Ads Management
@@ -101028,6 +101064,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      Everything is edited in grReplyDraft and nothing reaches the database until Save.
      Discard throws the draft away, which is why it is worth having at all. */
   let grReplyOpen = false, grReplyDraft = null;
+  let grSigBusy = false;   // an upload in flight, so the button can say so
   const grReplyDirty = () => {
     if (!grReplyDraft) return false;
     const saved = grReplyCfg();
@@ -101158,6 +101195,38 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       '<div class="gr_two">' + f('name', 'Name', 'Luke Griffin') + f('title', 'Title or company', 'ReachGiant') + '</div>' +
       '<div class="gr_two">' + f('phone', 'Phone', '') + f('email', 'Email', 'big@reachgiant.com') + '</div>' +
       f('site', 'Website', 'reachgiant.com') +
+      /* A LINK, NOT AN UPLOAD. The picture has to be fetchable by the recipient's
+         mail client, which has no login here -- so it is a public url, and a box
+         that takes one is honest about that. The line underneath says the part
+         nobody expects: most clients block remote images on a first email, so the
+         text above is what a stranger actually reads. */
+      /* UPLOAD OR PASTE, AND A SWITCH THAT KEEPS THE LINK.
+
+         The box on its own meant whoever wanted a new picture had to get it hosted
+         somewhere public first, which is a job nobody on a sales team should have to do
+         to change a logo. The button puts it in the same bucket the rest of the app
+         uses and fills the box in.
+
+         Turning it off CLEARS NOTHING. Emptying the box to stop sending the image loses
+         the link, and the next person who wants it back has to find the file again --
+         so off is a flag beside the url, and on puts the same picture back. */
+      f('image', 'Signature image (optional)',
+        'https://... or use Upload') +
+      '<div class="gr_acts gr_sigrow">' +
+        '<label class="gr_ghost gr_sigup">' +
+          (grSigBusy ? 'Uploading\u2026' : 'Upload a picture') +
+          '<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" ' +
+            'data-gr-sigfile hidden' + (grSigBusy ? ' disabled' : '') + '></label>' +
+        (grSigLines().image
+          ? '<button class="gr_chip' + (sig.image_off ? '' : ' on') + '" data-gr-sigtoggle ' +
+            'aria-pressed="' + (!sig.image_off) + '">' +
+            (sig.image_off ? 'Image off' : 'Image on') + '</button>' +
+            '<button class="gr_ghost gr_sm" data-gr-sigclear>Remove</button>'
+          : '') +
+      '</div>' +
+      '<p class="gr_mute">Sent under the lines above, not instead of them. Many '
+        + 'mail apps block images on a first email, so the name and address stay '
+        + 'as text.</p>' +
       '<div class="gr_sigprev">' + grSigPreview() + '</div></section>';
   }
 
@@ -101172,12 +101241,86 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       .replace(/\{name\}/gi, who.first)
       .replace(/\{company\}/gi, who.company);
   }
+  /* What a client would receive, and nothing else. Uses grSigSend -- the same string
+     the two real send paths use -- rather than rebuilding it here, because a test that
+     constructs its own version tests the test. */
+  /* PUTTING A PICTURE WHERE A MAIL CLIENT CAN REACH IT.
+
+     The recipient's mail app has no login here, so this lands in a public bucket and the
+     stored value is the PUBLIC url -- not a signed one, which expires and would leave
+     every email sent before then showing a broken image.
+
+     A size limit, because the file goes out with every email: a 3MB animation is a 3MB
+     download for the client on every message, and a mail app that gives up on it shows
+     nothing at all. Checked before the upload, so a refusal costs nothing.
+
+     upsert:false on a timestamped path, so replacing the picture cannot overwrite the
+     one that already-sent emails still point at. */
+  const GR_SIG_MAX = 2 * 1024 * 1024;
+  async function grSigUpload(file) {
+    if (!file) return;
+    if (!/^image\/(png|jpeg|gif|webp)$/.test(file.type || '')) {
+      grToast('That needs to be a PNG, JPEG, GIF or WebP.'); return;
+    }
+    if (file.size > GR_SIG_MAX) {
+      grToast('That is ' + Math.round(file.size / 1024) + 'kB. Keep it under 2MB \u2014 it is ' +
+        'downloaded with every email you send.');
+      return;
+    }
+    const s2 = sb(); if (!s2) return;
+    grSigBusy = true; grRender();
+    try {
+      const ext = (String(file.name || '').split('.').pop() || 'png').toLowerCase();
+      const path = 'growth/signature-' + (me() || 'anon') + '-' + Date.now() + '.' + ext;
+      const { error } = await s2.storage.from('template-media')
+        .upload(path, file, { upsert: false, contentType: file.type });
+      if (error) throw new Error(error.message);
+      const { data: pub } = s2.storage.from('template-media').getPublicUrl(path);
+      const url = pub && pub.publicUrl;
+      if (!url) throw new Error('No public link came back for it.');
+      const sg = Object.assign({}, grSettings.signature || {}, { image: url });
+      delete sg.image_off;          // uploading one is asking for it to be used
+      grSigBusy = false;
+      const ok = await grSetting('signature', sg);
+      if (!ok) { grToast('Saving it was refused.'); window.grReload(); return; }
+      grToast('Picture updated. It goes on every email from here.');
+    } catch (e) {
+      grSigBusy = false; grRender();
+      grToast('That did not upload. ' + String((e && e.message) || e).slice(0, 100));
+    }
+  }
+
+  async function grSigTest() {
+    const to = grTestTo();
+    if (!to) { grToast('Put an address in Send tests to first.'); return; }
+    if (!window.giantGmailSend) { grToast('Connect Gmail first.'); return; }
+    const sig = grSigSend();
+    if (!sig) { grToast('There is no signature to send yet.'); return; }
+    grTestBusy = 'sig'; grRender();
+    try {
+      await window.giantGmailSend({
+        to: to,
+        subject: 'Signature test from Giant',
+        body: 'This is what the signature looks like on a real email.\n\n' +
+              'If the picture below is missing, your mail app has blocked it \u2014 which ' +
+              'is what most of them do on a first email from an address they do not know. ' +
+              'The lines above it are what a client reads in that case.\n\n' + sig
+      });
+      grToast('Sent to ' + to + '. Open it to see what a client gets.');
+    } catch (e) {
+      /* Say what failed. "Could not send" with the reason thrown away is the message
+         that makes somebody check their spam folder for an email that never left. */
+      grToast('Gmail refused it: ' + String((e && e.message) || e).slice(0, 110));
+    }
+    grTestBusy = null; grRender();
+  }
+
   async function grTplTest(list, label) {
     const to = grTestTo();
     if (!to) { grToast('Put an address in Send tests to first.'); return; }
     if (!window.giantGmailSend) { grToast('Connect Gmail first.'); return; }
     grTestBusy = label; grRender();
-    const who = { first: 'Luke', company: 'Test Company' }, sig = grSigText();
+    const who = { first: 'Luke', company: 'Test Company' }, sig = grSigSend();
     let sent = 0, err = '';
     for (const t of list) {
       try {
@@ -101349,17 +101492,58 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   /* The signature lives in Growth settings, one row, shared. It is shown under the
      composer and appended at send -- never typed into the body, or editing the body
      would leave two of them. */
+  /* NEVER SET IS NOT THE SAME AS DELIBERATELY EMPTY.
+
+     Name and email were `g.email || grGmail.email`, so clearing either box made it come
+     straight back -- the name from your profile, the address from the connected mailbox.
+     Helpful the first time somebody opens the screen and impossible to get past after
+     that: there was no way to send a signature that is just a name and a logo, because
+     two of its four lines could not be removed.
+
+     A key that is present is what the person typed, empty string included. The fallback
+     only applies to a key that was never written at all. */
   function grSigLines() {
     const g = grSettings.signature || {};
+    const set = (k) => Object.prototype.hasOwnProperty.call(g, k);
     return {
-      name:  g.name || (window.giantCurrentProfile && window.giantCurrentProfile.full_name) || '',
-      title: g.title || '', phone: g.phone || '',
-      email: g.email || grGmail.email || '', site: g.site || ''
+      name:  set('name')  ? String(g.name  || '')
+             : ((window.giantCurrentProfile && window.giantCurrentProfile.full_name) || ''),
+      title: String(g.title || ''),
+      phone: String(g.phone || ''),
+      email: set('email') ? String(g.email || '') : (grGmail.email || ''),
+      site:  String(g.site  || ''),
+      image: String(g.image || '')
     };
   }
   function grSigText() {
     const g = grSigLines();
     return [g.name, g.title, g.phone, g.email, g.site].filter(Boolean).join('\n');
+  }
+
+  /* THE SIGNATURE AS IT IS SENT, image and all -- and only where an image can render.
+
+     Six places ask for the signature and four of them cannot show a picture: the
+     settings preview and the template preview draw their own markup, the copy button
+     puts text on a clipboard, and the composer builds a Gmail compose URL. Those stay
+     on grSigText. The two that hand a body to giantGmailSend use this.
+
+     The lines stay as text underneath, because most mail clients block remote images on
+     a first email from a stranger -- so the name and the address are what a recipient
+     actually reads, and the picture rides on top of them rather than instead of them.
+     giantMdToText drops the markdown and giantMdToHtml turns it into an <img>, which is
+     how one string can be both halves of a multipart/alternative.
+
+     The comment under grSigPreview said a logo could not be sent because Growth sends
+     text/plain. That was true of the editor and never true of the send path:
+     buildEmailRaw has always built an HTML part beside the plain one. What was missing
+     was image support in the converter, not a way to send HTML. */
+  function grSigSend() {
+    const g = grSigLines(), text = grSigText();
+    const img = String(g.image || '').trim();
+    // Off is a flag, not a missing url: turning it back on must restore the same
+    // picture rather than asking somebody to find the file again.
+    if (!img || (grSettings.signature || {}).image_off) return text;
+    return (text ? text + '\n\n' : '') + '![' + (g.name || 'ReachGiant') + '](' + img + ')';
   }
   /* ONE SOURCE, SO THE TWO PREVIEWS CANNOT DISAGREE. This drew the signature its own
      way -- email, site and phone on a single line joined by bars, in a different order
@@ -101376,12 +101560,19 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      HTML send path first; until there is one, promising it here would be the screen
      lying. */
   function grSigPreview() {
+    const off = !!(grSettings.signature || {}).image_off;
     const text = grSigText();
-    if (!text) return '<p class="gr_mute">No signature set yet. Add one in Growth settings and it goes on every email from here.</p>';
+    // Shown greyed when off rather than hidden: a preview that silently drops it
+    // cannot tell you whether the link is still there.
+    const img = off ? '' : String(grSigLines().image || '').trim();
+    if (!text && !img) return '<p class="gr_mute">No signature set yet. Add one in Growth settings and it goes on every email from here.</p>';
     return '<div class="gr_sig">' +
-      text.split('\n').map(function (line, i) {
+      text.split('\n').filter(Boolean).map(function (line, i) {
         return i === 0 ? '<b>' + esc(line) + '</b>' : '<span>' + esc(line) + '</span>';
       }).join('') +
+      /* The real url, loaded for real. A preview that draws a placeholder would
+         not tell you the one thing worth knowing: whether the link works. */
+      (img ? '<img class="gr_sigimg" src="' + esc(img) + '" alt="Signature image">' : '') +
       '</div>';
   }
 
@@ -102615,7 +102806,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     k.busy = true; k.status = 'Sending...'; k.kind = ''; grRender();
     const th = grThread(c);
     const lastIn = th.filter(m => m.direction === 'in').pop();
-    const sig = grSigText();
+    const sig = grSigSend();
     try {
       await window.giantGmailSend({
         to: c.email, subject: k.subject, body: k.body + (sig ? '\n\n' + sig : ''),
@@ -103806,6 +103997,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       grRenderReplyPanel(); return;
     }
 
+    if (e.target.closest('[data-gr-sigtest]')) { grSigTest(); return; }
+    if (e.target.closest('[data-gr-sigtoggle]')) {
+      const sg = Object.assign({}, grSettings.signature || {});
+      sg.image_off = !sg.image_off;
+      grSetting('signature', sg).then(function (r) { if (!r) window.grReload(); });
+      return;
+    }
+    if (e.target.closest('[data-gr-sigclear]')) {
+      window.giantConfirmWarn('Remove the signature picture?',
+        'The link is forgotten. Use the switch instead if you only want to stop sending '
+        + 'it for now.', 'Remove', 'warning').then(function (ok) {
+        if (!ok) return;
+        const sg = Object.assign({}, grSettings.signature || {});
+        sg.image = ''; delete sg.image_off;
+        grSetting('signature', sg).then(function (r) { if (!r) window.grReload(); });
+      });
+      return;
+    }
+
     const rset = e.target.closest('[data-gr-reply-set]');
     if (rset) {
       const cfg = Object.assign({}, grReplyCfg());
@@ -104232,6 +104442,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   // Settings fields save when you leave them, not on every keystroke: one write per edit
   // rather than one per character, and the row that comes back proves it landed.
   document.addEventListener('change', function (e) {
+    // A file input fires change, never click.
+    const sf = e.target.closest && e.target.closest('[data-gr-sigfile]');
+    if (sf) { grSigUpload(sf.files && sf.files[0]); sf.value = ''; return; }
     const d = e.target.dataset || {};
 
     // Insert drops a placeholder where the caret is, not at the end. Typing {name} by
