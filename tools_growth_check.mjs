@@ -4804,6 +4804,79 @@ await step('a signature line that was deliberately emptied stays empty', async (
     r.neverSet.email === 'FELL-BACK', JSON.stringify(r.neverSet));
 });
 
+
+/* A REFUSED THREAD MUST NOT EAT THE EMAIL. The composer attaches the thread id of the
+   client's last inbound message so the reply lands underneath it. Gmail answers 404
+   "Requested entity was not found" when that conversation is no longer in the mailbox,
+   and it refuses the WHOLE message -- so an email somebody wrote and pressed Send on
+   went nowhere, over where it would have been filed. Annie hit exactly this.
+
+   Asserted on the REQUESTS MADE, not on the toast: the toast said "sent" in some paths
+   already, and a check that reads it cannot tell a message that left from one that did
+   not. Two calls, the first carrying the id and refused, the second carrying none and
+   accepted, is the whole claim. */
+await step('a reply is still sent when its conversation is gone', async () => {
+  /* gc-2 by name, not whichever deal happens to be on screen. It is the only fixture
+     deal with an inbound message, so it is the only one that can produce a thread id
+     for Gmail to refuse -- and the first version of this check opened whatever was
+     there, got no thread id, and could measure nothing.
+
+     Last in the file on purpose: sending CLOSES the composer, and run in the middle it
+     pulled the composer out from under the five template checks that follow the one
+     which opens it. */
+  await screen('gr_pipeline');
+  await page.waitForTimeout(800);
+  await page.evaluate(() => document.querySelector('[data-gr-open="gc-2"]')?.click());
+  await page.waitForTimeout(800);
+  await page.evaluate(() => document.querySelector('[data-gr-act]')?.click());
+  await page.waitForTimeout(1000);
+  const r = await page.evaluate(async () => {
+    const of = window.fetch;
+    const calls = [];
+    window.fetch = async (u, o) => {
+      if (String(u).includes('gmail.googleapis.com') && o && o.body) {
+        const p = JSON.parse(o.body);
+        calls.push({ threadId: p.threadId || null, hasRaw: !!p.raw });
+        if (p.threadId) {
+          return new Response(
+            JSON.stringify({ error: { code: 404, message: 'Requested entity was not found.' } }),
+            { status: 404, headers: { 'content-type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({ id: 'sent-without-thread' }),
+          { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return of(u, o);
+    };
+    try {
+      /* Send is TWO presses. The first button only arms it -- the one that actually
+         sends appears after, reading "Yes, send to <name>". Clicking for the second
+         without the first finds nothing, which is what the first run of this check
+         reported. */
+      const arm = document.querySelector('[data-gr-cconfirm]');
+      if (!arm) return { noArmButton: true, calls };
+      if (arm.disabled) return { armDisabled: true, why: arm.getAttribute('title'), calls };
+      arm.click();
+      await new Promise(r => setTimeout(r, 500));
+      const snd = document.querySelector('[data-gr-csend]');
+      if (!snd) return { noButton: true, calls };
+      snd.click();
+      await new Promise(r => setTimeout(r, 2500));
+      return { calls, stillOpen: !!document.querySelector('[data-gr-cwrap]') };
+    } finally { window.fetch = of; }
+  });
+  const calls = (r && r.calls) || [];
+  // Said separately, because "the deal we opened has no inbound mail" and "the retry did
+  // not happen" look identical in a bare false and only one of them is a bug.
+  if (!calls.length || !calls[0] || !calls[0].threadId) {
+    check('a reply is still sent when its conversation is gone', false,
+      'could not measure: the open deal sent no thread id — ' + JSON.stringify(r));
+    return;
+  }
+  check('a reply is still sent when its conversation is gone',
+    calls.length === 2 && !!calls[0].threadId && !calls[1].threadId && calls[1].hasRaw,
+    JSON.stringify(r));
+});
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');
