@@ -251,6 +251,51 @@ check('the run reports what it did, split by direction and by deal',
   r.matched === 3 && r.inbound === 2 && r.outbound === 1 && r.deals === 2,
   JSON.stringify({ m: r.matched, i: r.inbound, o: r.outbound, d: r.deals }));
 
+
+/* ------------------------------ a deal on our own domain matches the whole mailbox
+
+   Every message in growth@ has somebody from here on one end of it -- that is what
+   makes it our mailbox. So a deal carrying a reachgiant.com address matches most of the
+   inbox and files it under that one client, in both directions. A test deal on
+   big@reachgiant.com had 1,632 messages under it, 989 of them marked as sent by us, and
+   it grew by 440 in the four hours between it being noticed and this being written. A
+   second on dev@ took 557 more.
+
+   No screen could show this as wrong: the Emails tab was faithfully drawing the rows it
+   had been given. The Calendly sync has refused our own domain since it was written --
+   somebody here booking the link is a test, not a lead -- and this is that rule applied
+   to mail. */
+const OURS = [{ id: 'd-us', email: 'big@reachgiant.com' },
+              { id: 'd-michael', email: DEAL }];
+
+calls = stubFetch(plan([mail({ gmail_id: 'ours1' })], [], { deals: OURS }));
+r = await runMessageSync();
+check('a deal on our own domain is refused rather than matched',
+  Array.isArray(r.ignored) && r.ignored.includes('big@reachgiant.com'),
+  JSON.stringify(r.ignored));
+
+/* THE QUERY, not the result. Filtering the matches afterwards would leave the mailbox
+   still being searched for our own address, and a later change could drop the filter
+   while every other check here stayed green. The address must never be asked for. */
+const asked = calls.filter(c => /from_email=in|&or=/.test(c.url)).map(c => c.url).join(' ');
+check('and its address is never used to search the mailbox',
+  asked.length > 0 && !/big(%40|@)reachgiant\.com/i.test(asked),
+  asked ? 'searched for: ' + decodeURIComponent(asked).slice(0, 110) : 'no address query was made');
+
+/* The real client on the same list has to keep working, or the cure is worse. */
+check('while a real client address on the same list still matches',
+  written(calls).length === 1 && written(calls)[0].client_id === 'd-michael',
+  JSON.stringify(written(calls).map(x => x.client_id)));
+
+/* When it is the ONLY deal there is nothing left to search for, and saying so beats
+   returning a cheerful zero that reads like an empty mailbox. */
+calls = stubFetch(plan([], [], { deals: [{ id: 'd-us', email: 'big@reachgiant.com' }] }));
+r = await runMessageSync();
+check('and a pipeline of nothing but our own addresses matches nothing at all',
+  r.matched === 0 && Array.isArray(r.ignored) && r.ignored.length === 1
+    && /own domain/.test(String(r.note)),
+  JSON.stringify({ matched: r.matched, ignored: r.ignored, note: r.note }));
+
 globalThis.fetch = realFetch;
 for (const x of results) console.log((x.pass ? 'PASS  ' : 'FAIL  ') + x.name + (x.detail ? '   ' + x.detail : ''));
 const bad = results.filter(x => !x.pass);

@@ -7465,6 +7465,27 @@ input.gr_lkurl:focus{outline:0;border-color:var(--sc);}
    reads as a form to fill in, four small cards read as things you can glance at. */
 .gr_pfc{background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin-bottom:11px;}
 .gr_pft{font-size:11px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);margin-bottom:9px;}
+/* THE CONTACT CARD ON A DEAL, which is the one .gr_pfc somebody fills in rather than
+   reads. The shared .gr_field puts 5px between a label and its box and nothing at all
+   between one row and the next, which is fine for the single field it was written for
+   and tight to the point of unreadable once there are five stacked up.
+
+   Scoped to .gr_pcon on purpose. Loosening .gr_field itself would have moved every form
+   in Growth -- Settings, the templates, the signature -- to fix one card. Every rule
+   here carries that class, so each sits a whole class above the .gr_field rule it
+   refines and the result does not depend on which one the file reaches first, which is
+   how the money fields lost this argument twice before. */
+.gr_pcon{padding:16px 17px 18px;margin-bottom:14px;}
+.gr_pcon .gr_pft{margin-bottom:14px;}
+.gr_pcon .gr_field{gap:8px;}
+.gr_pcon > .gr_two{margin-top:16px;gap:15px;}
+.gr_pcon .gr_field label{letter-spacing:.08em;color:var(--text-3);}
+.gr_pcon .gr_field input{padding:11px 13px;border-radius:11px;}
+.gr_pcon .gr_field input::placeholder{color:var(--text-3);opacity:.55;}
+/* A focus somebody can see, in the app's own colour. Taking the outline off without
+   putting something back is how a keyboard user loses their place entirely. */
+.gr_pcon .gr_field input:focus{outline:none;border-color:var(--red);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--red) 16%, transparent);}
 .gr_tzb{display:flex;align-items:baseline;gap:9px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line);}
 .gr_tzb b{font-size:21px;font-weight:800;letter-spacing:-.02em;}
 .gr_tzb span{font-size:12px;color:var(--text-3);}
@@ -97362,6 +97383,14 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     if (error) { grToast('Could not add. ' + error.message); return; }
     if (!data || !data.length) { grToast('Adding was refused.'); return; }
     grClients.unshift(data[0]); grOpenId = data[0].id; grTab = 'details'; grRender();
+    /* Straight into the name. The row is created as "New client" because something has
+       to go in a NOT NULL column, and leaving the cursor anywhere else is what produced
+       a pipeline of identical cards -- the rename is the next thing anybody wants and
+       it should not have to be gone looking for. Selected, so typing replaces it. */
+    setTimeout(function () {
+      const i = document.getElementById('grf_name');
+      if (i) { i.focus(); i.select(); }
+    }, 80);
   }
 
   async function grRemoveClient(c) {
@@ -102234,8 +102263,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
             esc(p.full_name || 'Unnamed') + '</option>').join('') + '</select></div></div>' : '') +
         '<div class="gr_pfc"><div class="gr_pft">Notes</div>' +
         '<div class="gr_field"><label for="grfSum">Your own notes</label>' +
-        '<textarea id="grfSum" data-gr-f="summary">' + esc(c.summary) + '</textarea></div></div>' +
-        '<div class="gr_acts"><button class="gr_danger" data-gr-remove="' + c.id + '">Remove client</button></div>';
+        '<textarea id="grfSum" data-gr-f="summary">' + esc(c.summary) + '</textarea></div></div>';
       return body;
     })();
     /* THE OVERVIEW WAS ONE BLOB, and Luke's panel puts its parts in three places: the
@@ -102272,16 +102300,41 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         ? '<div class="gr_ptile' + (wide ? ' wide' : '') + '"><span>' + esc(label) +
           '</span><b>' + esc(val) + '</b></div>' : '';
       const own2 = grPerson(c.owner_id);
-      let body = '<div class="gr_ptiles">' +
+      /* THE RECORD, AND YOU CAN CHANGE IT. These five were tiles -- label over value,
+         read-only -- which is right for a fact the app works out and wrong for a fact
+         somebody typed. "+ New client" writes a row literally called New client with no
+         address on it and opens this tab expecting the rest to be filled in here, so
+         without these the pipeline fills with deals named New client that nobody can
+         rename or write to. Four of them were on screen when this was reported.
+
+         No form and no Save: data-gr-f saves the field on the way out of it, which is
+         what Owner and Notes in the next tab have always done, and grSave asks for the
+         row back so a refusal is spoken rather than left looking like it worked. */
+      const fld = (k, label, ph, type) =>
+        '<div class="gr_field"><label for="grf_' + k + '">' + esc(label) + '</label>' +
+        '<input id="grf_' + k + '" type="' + (type || 'text') + '" data-gr-f="' + k + '"' +
+        ' value="' + esc(c[k] || '') + '" placeholder="' + esc(ph || '') + '" autocomplete="off"></div>';
+      let body = '<div class="gr_pfc gr_pcon"><div class="gr_pft">Contact</div>' +
+        fld('name', 'Name', 'Their name') +
+        '<div class="gr_two">' + fld('email', 'Email', 'name@company.com', 'email') +
+          fld('phone', 'Phone', '') + '</div>' +
+        '<div class="gr_two">' + fld('company', 'Company', 'Their company') +
+          fld('website', 'Website', 'company.com') + '</div>' +
+        '</div>' +
+        '<div class="gr_ptiles">' +
         tile('Owner', own2 && own2.full_name) +
         tile('Last contact', grAgo(grDaysAgo(grLastTouch(c)))) +
-        tile('Company', c.company) +
-        tile('Email', c.email) +
         tile('Next step', c.next_step || (na ? na.label : '')) +
         tile('Calls', String(c.calls_held || 0)) +
         tile('Summary', c.summary, true) +
         tile('Next meeting', nm ? grDayLabel(nm.starts_at) + ' \u00B7 ' + grHm(nm.starts_at) : 'Not booked', true) +
-        '</div>';
+        '</div>' +
+        /* Removing a deal lived at the foot of NOTES, which is not where anybody looks
+           for it -- the report that prompted this said there was no delete at all. It
+           sits with the record it deletes. The confirmation it already had stays: it
+           says the removal cannot be undone, and it is the app's own dialog rather than
+           confirm(), which does nothing at all in the desktop build. */
+        '<div class="gr_acts"><button class="gr_danger" data-gr-remove="' + c.id + '">Remove client</button></div>';
       /* The activity timeline came off with everything else Luke's Info does not
        show. It was the one thing here that was a LOG rather than a fact, and the
        Emails tab already carries the thread it was mostly repeating. */
