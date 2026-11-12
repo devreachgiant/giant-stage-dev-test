@@ -639,9 +639,14 @@
     { id: 'gx-2', client_id: 'gc-2', direction: 'out', subject: "Here's the plan",
       body: 'Hi Cesar, here is what I would do.', sent_at: giso(5, 0),
       thread_id: '', external_id: null, created_at: giso(5, 0) },
+    /* A REAL THREAD ID, because every inbound row in production has one -- the Gmail
+       sync is the only thing that writes them, and it writes what Gmail gave it. Left
+       empty here, the composer never attached one, so the whole reply-into-an-existing-
+       conversation path was unreachable from a check and the failure that eventually
+       reached a user could not have been caught. */
     { id: 'gx-3', client_id: 'gc-2', direction: 'in', subject: "Re: Here's the plan",
       body: 'This looks good. Can you send the agreement?', sent_at: giso(1, 0),
-      thread_id: '', external_id: null, created_at: giso(1, 0) }
+      thread_id: '18c2f0a9b4e5d6f7', external_id: null, created_at: giso(1, 0) }
   ];
   /* ONE OF EACH PAYMENT STATE, because the bonus screen splits on it and tells three
      different stories: unpaid, part paid, paid in full. Three unpaid sales would pass

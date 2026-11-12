@@ -101479,7 +101479,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     return '<section class="gr_card"><div class="gr_ct"><h2>Email signature</h2>' +
       '<span class="gr_n2">Added to every email</span></div>' +
       '<div class="gr_two">' + f('name', 'Name', 'Luke Griffin') + f('title', 'Title or company', 'ReachGiant') + '</div>' +
-      '<div class="gr_two">' + f('phone', 'Phone', '') + f('email', 'Email', 'big@reachgiant.com') + '</div>' +
+      '<div class="gr_two">' + f('phone', 'Phone', '') + f('email', 'Email', grGmail.email || 'growth@reachgiant.com') + '</div>' +
       f('site', 'Website', 'reachgiant.com') +
       /* A LINK, NOT AN UPLOAD. The picture has to be fetchable by the recipient's
          mail client, which has no login here -- so it is a public url, and a box
@@ -103093,23 +103093,46 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const th = grThread(c);
     const lastIn = th.filter(m => m.direction === 'in').pop();
     const sig = grSigSend();
+    const body = k.body + (sig ? '\n\n' + sig : '');
+    const tid = (lastIn && lastIn.thread_id) || undefined;
+    let loose = false;                 // sent, but not inside the old conversation
     try {
-      await window.giantGmailSend({
-        to: c.email, subject: k.subject, body: k.body + (sig ? '\n\n' + sig : ''),
-        threadId: (lastIn && lastIn.thread_id) || undefined
-      });
+      await window.giantGmailSend({ to: c.email, subject: k.subject, body, threadId: tid });
     } catch (e) {
-      k.busy = false; k.confirm = false;
-      // Nothing was sent, and saying otherwise would be worse than the failure itself.
-      k.status = 'Gmail refused it, so nothing was sent. ' + String((e && e.message) || e).slice(0, 120);
-      k.kind = 'bad'; grRender(); return;
+      /* A THREAD ID IS NOT WORTH AN EMAIL. Passing one is what makes the reply appear
+         underneath the client's existing conversation rather than on its own, and Gmail
+         answers "Requested entity was not found" when it cannot find that conversation
+         in the mailbox -- which is what happens once somebody has deleted it. It then
+         refuses the WHOLE message, so a reply somebody wrote and pressed Send on went
+         nowhere, over where it would have been filed.
+
+         Threading is where a message appears; sending is the point of the button. So the
+         id is dropped and it goes again as its own conversation, and the person is told
+         that is what happened rather than left to discover it. Only retried when there
+         was an id to drop: without one, the failure is about the message itself and
+         trying the identical thing twice would just fail twice. */
+      if (!tid) {
+        k.busy = false; k.confirm = false;
+        k.status = 'Gmail refused it, so nothing was sent. ' + String((e && e.message) || e).slice(0, 120);
+        k.kind = 'bad'; grRender(); return;
+      }
+      try {
+        await window.giantGmailSend({ to: c.email, subject: k.subject, body });
+        loose = true;
+      } catch (e2) {
+        k.busy = false; k.confirm = false;
+        k.status = 'Gmail refused it, so nothing was sent. ' + String((e2 && e2.message) || e2).slice(0, 120);
+        k.kind = 'bad'; grRender(); return;
+      }
     }
     const rec = { subject: k.subject, body: k.body };
     grComposer = null;
     if (c.follow_up_draft) await grSave(c, { follow_up_draft: null });
     await grLogEmail(c, rec);
     if (lastIn) grSave(c, { handled_msg: lastIn.id });
-    grToast('Sent to ' + grFirst(c));
+    grToast(loose
+      ? 'Sent to ' + grFirst(c) + ' — as a new conversation, because the old one is no longer in the mailbox.'
+      : 'Sent to ' + grFirst(c));
   }
 
   function grStartComposer(c, t) {
