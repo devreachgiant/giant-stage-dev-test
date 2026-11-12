@@ -4877,6 +4877,49 @@ await step('a reply is still sent when its conversation is gone', async () => {
     JSON.stringify(r));
 });
 
+
+/* A DEAL YOU CAN NAME. Info was six read-only tiles, which is right for a fact the app
+   works out and wrong for one somebody typed. "+ New client" writes a row called
+   literally "New client" with no address and opens this tab for the rest to be filled
+   in -- so with nothing editable here, every deal added from the board was stuck with
+   that name and no email, and the board filled with identical cards. Removing a deal
+   was real but lived at the foot of NOTES, which is why it was reported missing.
+
+   Asserted on the ROW, not on the input: setting .value and reading it back proves
+   nothing about whether anything was saved, and that is the shape of check that would
+   have passed against the old read-only tiles had they carried an input at all. */
+await step('the record on a deal can be edited and the deal removed', async () => {
+  await screen('gr_pipeline');
+  await page.waitForTimeout(800);
+  await page.evaluate(() => document.querySelector('[data-gr-open="gc-1"]')?.click());
+  await page.waitForTimeout(700);
+  const r = await page.evaluate(async () => {
+    const tab = document.querySelector('[data-gr-ptab="details"]');
+    if (!tab) return { noInfoTab: true };
+    tab.click();
+    await new Promise(r => setTimeout(r, 600));
+    const fields = ['name', 'email', 'company', 'phone', 'website']
+      .map(k => ({ k, there: !!document.querySelector('#grf_' + k + '[data-gr-f="' + k + '"]') }));
+    const removeOnInfo = !!document.querySelector('[data-gr-remove]');
+    const el = document.getElementById('grf_email');
+    if (!el) return { fields, removeOnInfo, noEmailField: true };
+    el.value = 'edited@example.com';
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    await new Promise(r => setTimeout(r, 900));
+    // The stored row, which is the only thing that says the edit left the screen.
+    const row = (window.__mockDB.growth_clients || []).find(x => x.id === 'gc-1');
+    return { fields, removeOnInfo, saved: row && row.email };
+  });
+  const missing = ((r && r.fields) || []).filter(f => !f.there).map(f => f.k);
+  check('every contact field on a deal is editable',
+    !!r && !r.noInfoTab && missing.length === 0, JSON.stringify({ missing, r }));
+  check('and editing one writes it to the deal',
+    !!r && r.saved === 'edited@example.com', JSON.stringify(r && r.saved));
+  // Where somebody would look for it, which is with the record it deletes.
+  check('removing a deal is offered on the same tab as the record',
+    !!r && r.removeOnInfo === true, JSON.stringify(r && r.removeOnInfo));
+});
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');

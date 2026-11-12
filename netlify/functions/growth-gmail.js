@@ -139,14 +139,41 @@ async function runMessageSync() {
              note: MAILBOX + ' is not connected to any account yet' };
   }
 
+  /* A DEAL ON OUR OWN DOMAIN MATCHES THE WHOLE MAILBOX.
+
+     Every message in growth@ has somebody from here on one end of it -- that is what
+     makes it our mailbox. So the moment a deal carries a reachgiant.com address, the
+     from/to filter below matches most of the inbox and files it all under that one
+     deal, in both directions, as that client's correspondence.
+
+     This is not hypothetical. A deal created as a test with big@reachgiant.com had
+     1,632 messages under it: Prime Day offers, Stripe receipts, a LE MARSHAND invite,
+     "Are Philosophy and Science the Same Thing?" -- 989 of them marked as sent BY us.
+     A second one on dev@ took 557 more. It grew by 440 in the four hours between
+     noticing it and fixing it, because every sync adds to it.
+
+     The Calendly sync has refused our own domain since it was written, for the same
+     reason in a different shape: somebody here booking the link to see what it looks
+     like is a test, not a lead. This is that rule, applied to mail.
+
+     Taken from MAILBOX rather than written in, so there is one place that says who we
+     are and no constant to fall out of date. Reported in `ignored` rather than dropped
+     silently -- a deal that quietly matches nothing is the next bug of this kind. */
+  const ourDomain = String(MAILBOX || '').split('@')[1] || '';
   const deals = await sb('growth_clients?select=id,email');
   const byAddr = new Map();
+  const ignored = [];
   (deals || []).forEach(d => {
     const e = String(d.email || '').trim().toLowerCase();
-    if (e) byAddr.set(e, d.id);
+    if (!e) return;
+    if (ourDomain && e.endsWith('@' + ourDomain)) { ignored.push(e); return; }
+    byAddr.set(e, d.id);
   });
   if (!byAddr.size) {
-    return { ok: true, matched: 0, written: 0, note: 'No deal has an email address yet' };
+    return { ok: true, matched: 0, written: 0, ignored,
+             note: ignored.length
+               ? 'The only deal addresses are on our own domain, which would match the whole mailbox'
+               : 'No deal has an email address yet' };
   }
 
   const addrs = [...byAddr.keys()];
@@ -208,7 +235,7 @@ async function runMessageSync() {
   }
 
   if (!rows.length) {
-    return { ok: true, matched: 0, written: 0,
+    return { ok: true, matched: 0, written: 0, ignored,
              note: 'No mail in ' + MAILBOX + ' matches a deal address' };
   }
 
@@ -227,6 +254,7 @@ async function runMessageSync() {
     ok: true,
     matched: rows.length,
     written: written,
+    ignored,
     inbound: ins,
     outbound: rows.length - ins,
     deals: new Set(rows.map(r => r.client_id)).size,
