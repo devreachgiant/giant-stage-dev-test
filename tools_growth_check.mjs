@@ -5175,6 +5175,107 @@ await step('the address a message is sent as is one of the connected mailboxes',
   await sendWith(1);   // put it back for anything after this
 });
 
+/* --------------------------------------------------------- speaking into the notes
+   Asked for by the person who lives on this screen: after a call there is a lot to
+   write down and typing is the slow way to do it.
+
+   Driven with a FAKE MICROPHONE -- getUserMedia, MediaRecorder and the ai-dictate call
+   all replaced -- so the whole path runs: press, record, stop, transcribe, and the
+   words land in the box. Asserting the helper exists would prove none of that; what
+   matters is the text arriving in #grNote, at the cursor, without the panel being
+   rebuilt underneath it. */
+await step('you can speak a note into the pipeline instead of typing it', async () => {
+  await screen('gr_pipeline');
+  await page.evaluate(() => document.querySelector('[data-gr-open]')?.click());
+  await page.waitForTimeout(900);
+  await page.evaluate(() => document.querySelector('[data-gr-ptab="notes"]')?.click());
+  await page.waitForTimeout(900);
+
+  const there = await page.evaluate(() => ({
+    box: !!document.getElementById('grNote'),
+    btn: !!document.querySelector('[data-gr-dictate]'),
+    helper: typeof (window.giantDictate || {}).toggle === 'function'
+  }));
+  check('the notes box offers a Dictate button beside Add note',
+    there.box && there.btn && there.helper, JSON.stringify(there));
+
+  const r = await page.evaluate(async () => {
+    const of = window.fetch; let asked = null;
+    window.fetch = async (u, o) => {
+      if (String(u).includes('ai-dictate')) {
+        asked = JSON.parse(o.body);
+        return new Response(JSON.stringify({ text: 'they want the proposal by Friday' }),
+          { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+      return of(u, o);
+    };
+    const realGum = navigator.mediaDevices && navigator.mediaDevices.getUserMedia;
+    const realMR = window.MediaRecorder;
+    try {
+      navigator.mediaDevices.getUserMedia = async () => ({ getTracks: () => [{ stop() {} }] });
+      window.MediaRecorder = class {
+        static isTypeSupported() { return true; }
+        constructor() { this.state = 'inactive'; this.mimeType = 'audio/webm'; }
+        start() { this.state = 'recording'; if (this.onstart) this.onstart(); }
+        stop() {
+          this.state = 'inactive';
+          if (this.ondataavailable) this.ondataavailable({ data: new Blob(['xx'], { type: 'audio/webm' }) });
+          if (this.onstop) this.onstop();
+        }
+      };
+      const box = document.getElementById('grNote');
+      box.__same = 'marked';                  // survives only if the NODE survives
+      box.value = 'Call went well. Next steps.';
+      box.setSelectionRange(15, 15);          // just after "Call went well."
+
+      const press = () => document.querySelector('[data-gr-dictate]').click();
+      press();
+      await new Promise(r2 => setTimeout(r2, 250));
+      const mid = {
+        label: (document.querySelector('[data-gr-dictate]').textContent || '').trim(),
+        pressed: document.querySelector('[data-gr-dictate]').getAttribute('aria-pressed')
+      };
+      press();                                   // stop
+      await new Promise(r2 => setTimeout(r2, 900));
+      const el = document.getElementById('grNote');
+      return { mid: mid, asked: asked,
+               value: el ? el.value : null,
+               label: (document.querySelector('[data-gr-dictate]').textContent || '').trim(),
+               sameNode: !!(el && el.__same === 'marked') };
+    } finally {
+      window.fetch = of;
+      if (realGum) navigator.mediaDevices.getUserMedia = realGum;
+      window.MediaRecorder = realMR;
+    }
+  });
+
+  check('pressing it starts recording and says so on the button',
+    !!r.mid && r.mid.pressed === 'true' && /stop/i.test(r.mid.label), JSON.stringify(r.mid));
+  check('stopping sends the audio to the transcriber',
+    !!r.asked && typeof r.asked.audio_base64 === 'string' && r.asked.audio_base64.length > 0,
+    JSON.stringify(r.asked && { mime: r.asked.mime, bytes: (r.asked.audio_base64 || '').length }));
+  /* WHERE THE CURSOR WAS, which is the whole point -- somebody who stops mid-note to
+     say the next bit means it to go where they stopped. Asserted by position rather
+     than by the exact string, so spacing can change without this going red. With the
+     cursor at the END this check cannot fail, because appending and inserting give the
+     same answer; it sits in the middle for that reason. */
+  const pos = r.value ? {
+    kept:   r.value.indexOf('Call went well.') === 0,
+    before: r.value.indexOf('they want the proposal by Friday') < r.value.indexOf('Next steps.'),
+    tail:   r.value.indexOf('Next steps.') !== -1
+  } : null;
+  check('and the words arrive where the cursor was, not stuck on the end',
+    !!pos && pos.kept && pos.before && pos.tail, JSON.stringify({ pos: pos, value: r.value }));
+  /* THE SAME NODE, not merely a box with the same id. This asked `!!el` and passed
+     against a sabotage that re-rendered the panel mid-dictation and threw the typing
+     away -- getElementById happily returned the replacement. The mark is a property
+     put on the element before recording: it survives a render only if the node does. */
+  check('the box is the same one you were typing into, not a fresh replacement',
+    r.sameNode === true, JSON.stringify({ sameNode: r.sameNode, value: r.value }));
+  check('and the button goes back to offering Dictate',
+    /dictate/i.test(r.label), JSON.stringify(r.label));
+});
+
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
 const bad = results.filter(r => !r.pass);
 console.log('\n' + (results.length - bad.length) + ' of ' + results.length + ' checks passed');

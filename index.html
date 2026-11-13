@@ -6660,6 +6660,13 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
   font:inherit;font-size:13.5px;font-weight:700;padding:10px 20px;cursor:pointer;}
 .gr_tdaddb:hover{filter:brightness(.92);}
 .gr_sigimg{display:block;width:200px;max-width:100%;height:auto;margin-top:10px;border-radius:6px;}
+/* Dictate: the recording state has to be visible without reading the label, because the
+   microphone is live and the only other sign of it is the browser's own indicator. */
+.gr_dicton{color:var(--red);border-color:var(--red);}
+.gr_dicton svg{animation:gr_dictpulse 1.2s ease-in-out infinite;}
+@keyframes gr_dictpulse{0%,100%{opacity:1}50%{opacity:.35}}
+.gr_dicts{font-size:11.5px;color:var(--text-3);align-self:center;}
+@media (prefers-reduced-motion:reduce){.gr_dicton svg{animation:none}}
 .gr_sigrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;}
 .gr_sigup{cursor:pointer;}
 /* On is stated, not implied by an absence: a switch that only looks different when it
@@ -8551,6 +8558,130 @@ window.giantConfirmWarn = function(title, message, confirmLabel, tone){
     ov.addEventListener('click', (e)=>{ if(e.target===ov) finish(false); });
   });
 };
+
+/* ───────── DICTATION, FOR ANY BOX ─────────
+   Speak into a textarea instead of typing into it. The machinery -- microphone,
+   MediaRecorder, the WAV conversion and the call to ai-dictate -- is the same wherever
+   it is offered, so it lives here once rather than being copied behind each button.
+
+   ONE RECORDING AT A TIME, deliberately: the microphone is one device and two buttons
+   both listening to it is not a feature anybody asked for. Calling toggle() while a
+   recording is running stops that recording, whichever box started it.
+
+   The caller gets told what is happening through onState so it can label its own button
+   however it likes; this returns no markup and owns no element but the textarea it was
+   handed. States: 'recording', 'working', 'idle'.
+
+   WAV, NOT WEBM, WHEN IT CAN. Gemini takes either, but a 16kHz mono WAV is a fraction of
+   the bytes and decodes everywhere. When the browser cannot decode its own recording the
+   original goes up untouched rather than the attempt failing the dictation. */
+window.giantDictate = (function () {
+  let rec = null, stream = null, chunks = [], busy = false, owner = null;
+
+  function wav(buf, rate) {
+    const src = buf.getChannelData(0);
+    const ratio = buf.sampleRate / rate;
+    const n = Math.floor(src.length / ratio);
+    const view = new DataView(new ArrayBuffer(44 + n * 2));
+    const ws = (o, t) => { for (let i = 0; i < t.length; i++) view.setUint8(o + i, t.charCodeAt(i)); };
+    ws(0, 'RIFF'); view.setUint32(4, 36 + n * 2, true); ws(8, 'WAVE'); ws(12, 'fmt ');
+    view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+    view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true);
+    view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+    ws(36, 'data'); view.setUint32(40, n * 2, true);
+    for (let i = 0; i < n; i++) {
+      const v = Math.max(-1, Math.min(1, src[Math.floor(i * ratio)] || 0));
+      view.setInt16(44 + i * 2, v < 0 ? v * 0x8000 : v * 0x7FFF, true);
+    }
+    return new Blob([view], { type: 'audio/wav' });
+  }
+
+  async function toWav(blob) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    const ctx = new AC();
+    try {
+      const buf = await ctx.decodeAudioData((await blob.arrayBuffer()).slice(0));
+      return buf ? wav(buf, 16000) : null;
+    } catch (e) { return null; }
+    finally { try { ctx.close(); } catch (e2) {} }
+  }
+
+  const b64 = (blob) => new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(blob);
+  });
+
+  function stopMic() {
+    try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+    stream = null;
+  }
+
+  function recording() { return !!(rec && rec.state === 'recording'); }
+
+  async function toggle(opts) {
+    const o = opts || {};
+    const say = typeof o.onState === 'function' ? o.onState : function () {};
+    if (busy) return;
+    if (recording()) { try { rec.stop(); } catch (e) {} return; }
+    const target = o.target;
+    if (!target) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      say('idle', 'This browser cannot record audio.'); return;
+    }
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch (e) { say('idle', 'Microphone blocked. Allow it for this site and try again.'); return; }
+    try {
+      rec = (window.MediaRecorder && MediaRecorder.isTypeSupported('audio/webm'))
+        ? new MediaRecorder(stream, { mimeType: 'audio/webm' })
+        : new MediaRecorder(stream);
+    } catch (e) { stopMic(); say('idle', 'Could not start the microphone.'); return; }
+    owner = target;
+    chunks = [];
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onstart = () => say('recording', '');
+    rec.onstop = async () => {
+      stopMic();
+      const blob = new Blob(chunks, { type: (rec && rec.mimeType) || 'audio/webm' });
+      rec = null;
+      if (!blob.size) { say('idle', ''); return; }
+      busy = true; say('working', '');
+      try {
+        let send = blob, mime = blob.type || 'audio/webm';
+        const w = await toWav(blob);
+        if (w && w.size) { send = w; mime = 'audio/wav'; }
+        const res = await fetch('/.netlify/functions/ai-dictate', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ audio_base64: await b64(send), mime: mime })
+        });
+        const data = await res.json().catch(() => ({}));
+        busy = false;
+        if (!res.ok) { say('idle', data.error || 'That did not come back as words.'); return; }
+        const text = String(data.text || '').trim();
+        if (!text) { say('idle', 'No speech in that.'); return; }
+        /* AT THE CURSOR, not at the end: somebody who stopped mid-sentence to say the
+           next bit out loud means it to go where they stopped. The space in front is
+           only added when there is something to separate it from. */
+        const el = owner;
+        const at = el.selectionStart == null ? el.value.length : el.selectionStart;
+        const gap = at > 0 && !/\s$/.test(el.value.slice(0, at)) ? ' ' : '';
+        const ins = gap + text + ' ';
+        el.value = el.value.slice(0, at) + ins + el.value.slice(at);
+        try { el.focus(); el.setSelectionRange(at + ins.length, at + ins.length); } catch (e) {}
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        say('idle', '');
+        if (typeof o.onText === 'function') o.onText(text);
+      } catch (e) {
+        busy = false; say('idle', 'That did not come back as words.');
+      }
+    };
+    try { rec.start(); } catch (e) { stopMic(); say('idle', 'Could not start recording.'); }
+  }
+
+  return { toggle: toggle, recording: recording, working: function () { return busy; } };
+})();
 </script>
 
 <!-- ============================================================================
@@ -102297,7 +102428,22 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         : '<p class="gr_mute">No call notes yet. Paste what came out of the call below.</p>') +
         '<div class="gr_field"><label for="grNote">Add a note for the team</label>' +
           '<textarea id="grNote" rows="3" placeholder="What came out of the call..."></textarea></div>' +
-        '<div class="gr_acts"><button class="btn-red" data-gr-addnote="' + c.id + '">Add note</button></div>' +
+        /* SPEAK IT INSTEAD OF TYPING IT. Asked for by the person who lives on this
+           screen: after a call you have a lot to write down and a keyboard is the slow
+           way to do it. The machinery is window.giantDictate, shared, so this button is
+           a label and a target box and nothing else.
+
+           NO grRender WHILE IT RUNS. The panel is rebuilt from state on every render and
+           #grNote is an ordinary textarea, so a render mid-dictation throws away both
+           the recording's button and whatever was already typed into the box. The state
+           is written straight onto the button instead. */
+        '<div class="gr_acts"><button class="btn-red" data-gr-addnote="' + c.id + '">Add note</button>' +
+          '<button class="gr_ghost" type="button" data-gr-dictate aria-pressed="false">' +
+            '<svg viewBox="0 0 16 16" width="13" height="13" fill="none" aria-hidden="true">' +
+            '<rect x="6" y="2" width="4" height="7" rx="2" stroke="currentColor" stroke-width="1.4"/>' +
+            '<path d="M3.5 7.5a4.5 4.5 0 009 0M8 12v2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>' +
+            '</svg> Dictate</button>' +
+          '<span class="gr_dicts" data-gr-dictstatus></span></div>' +
         (tn.length ? '<div class="gr_sub">Team notes</div>' + tn.map(n =>
           '<div class="gr_note"><span>' + esc(n.by || 'Team') + ' · ' + esc(grFmt(String(n.d || '').slice(0, 10))) + '</span>' +
           '<p>' + esc(n.t) + '</p></div>').join('') : '');
@@ -104048,6 +104194,30 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     /* Switching a tab repaints the SHEET, not the whole screen. grRender rebuilds the
        list behind it as well, which throws the scroll position of the page under the
        panel away every time you glance at Notes. */
+    if (e.target.closest('[data-gr-dictate]')) {
+      const btn = e.target.closest('[data-gr-dictate]');
+      const box = document.getElementById('grNote');
+      if (!box || !window.giantDictate) return;
+      window.giantDictate.toggle({
+        target: box,
+        onState: function (state, message) {
+          /* Written onto the button that is on screen NOW, looked up again rather than
+             captured: a render between pressing and finishing would leave this holding
+             a node that is no longer in the document, and the button would sit on
+             "Stop" for ever. */
+          const b = document.querySelector('[data-gr-dictate]');
+          const st = document.querySelector('[data-gr-dictstatus]');
+          if (b) {
+            b.setAttribute('aria-pressed', state === 'recording' ? 'true' : 'false');
+            b.classList.toggle('gr_dicton', state === 'recording');
+            const label = state === 'recording' ? ' Stop' : state === 'working' ? ' Writing it down' : ' Dictate';
+            if (b.lastChild) b.lastChild.nodeValue = label;
+          }
+          if (st) st.textContent = message || '';
+        }
+      });
+      return;
+    }
     const ptb = e.target.closest('[data-gr-ptab]');
     if (ptb) { grTab = ptb.dataset.grPtab; grRenderSheet(); return; }
 
