@@ -27,7 +27,7 @@
     + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">'
       + '<rect width="400" height="300" fill="#3a3a3a"/></svg>');
 
-  const log = { queries: [], unsupported: [], writes: [], realtime: [], storage: [], rpc: [] };
+  const log = { queries: [], unsupported: [], writes: [], realtime: [], storage: [], uploads: [], rpc: [] };
 
   // ── fixtures ─────────────────────────────────────────────────────────────
   const ME = 'u-me';
@@ -1411,7 +1411,18 @@
       functions: { invoke: (n) => { log.rpc.push('fn:' + n); return Promise.resolve({ data: null, error: null }); } },
       storage: {
         from: (bucket) => ({
-          upload: (path) => { log.storage.push('upload:' + bucket + '/' + path); return Promise.resolve({ data: { path }, error: null }); },
+          /* The options too, in their own list. log.storage is a list of strings that
+             other checks match on with startsWith, so the content type goes beside it
+             rather than into it: an upload that stores the wrong type arrives in a
+             mail client as a download instead of a picture, and the only place that
+             is visible is the argument. */
+          upload: (path, body, opts) => {
+            log.storage.push('upload:' + bucket + '/' + path);
+            log.uploads.push({ bucket: bucket, path: path,
+              contentType: (opts && opts.contentType) || null,
+              size: (body && body.size) || 0, name: (body && body.name) || null });
+            return Promise.resolve({ data: { path }, error: null });
+          },
           // A data: URI, not a fake host. The Media gallery puts this straight into an
           // <img src>, and a https://mock.local/... URL made the browser try to resolve
           // it -- six DNS failures in the console per run, which is exactly the signal
