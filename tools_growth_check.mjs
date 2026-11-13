@@ -3182,39 +3182,58 @@ await step('a finished call carries its recording, and an unfinished one does no
   check('opening the block does not open the call over the top of it',
     sheetOpen === false, String(sheetOpen));
 
-  /* WHAT THE SUMMARISER IS TOLD ABOUT WHO WAS TALKING. Zoom's captions carry no
-     speaker, and this account produces captions and not transcripts, so most calls
-     arrive as an unattributed stream of talk. Asked to split that into "what they want"
-     and "what we said", a model will hand back "the client said their budget is 1.5k"
-     with no way of knowing it was us who said it -- a confident wrong answer in the one
-     place on this screen that costs money. The prompt has to say which kind it has.
+  /* WHAT THE BUTTON ASKS FOR, now that the wording lives server-side. The prompt used
+     to be built here and sent to claude-api, and these two checks read it off that
+     request. It is in _growth_summary now, shared with the recordings sync so the two
+     cannot drift, and the attribution rules are asserted against the real function in
+     tools_growth_zoom_check.mjs -- which can see the prompt, where this can only see
+     the request.
 
-     Both fixtures run through the same button, so a prompt that said the same thing
-     either way would fail here rather than read plausibly in production. */
-  const promptFor = async (mid) => {
+     What is left for this layer is the browser's half of the contract, and it is worth
+     asserting: WHICH CALL, and NOT THE TRANSCRIPT. The page no longer loads transcripts
+     at all, and a summary built from something the browser passed up would be a summary
+     of whatever the browser passed up. */
+  const askFor = async (mid) => {
     let sent = null;
-    await page.route('**/claude-api', r => {
+    await page.route('**/growth-zoom*action=summarise*', r => {
       sent = JSON.parse(r.request().postData() || '{}');
       return r.fulfill({ status: 200, contentType: 'application/json',
-        body: JSON.stringify({ text: 'What they want\nSomething\n\nDo next\nNothing' }) });
+        body: JSON.stringify({ summary: 'What they want\nSomething\n\nDo next\nNothing',
+                               summary_at: new Date().toISOString(), summary_source: 'claude' }) });
     });
     await page.evaluate((id) => {
       const d = document.querySelector('[data-gr-meet="' + id + '"] details.gr_rec');
       d.open = true; d.querySelector('[data-gr-sum]').click();
     }, mid);
     await page.waitForTimeout(1500);
-    await page.unroute('**/claude-api');
-    return (sent && sent.system) || '';
+    await page.unroute('**/growth-zoom*action=summarise*');
+    return sent;
   };
 
-  const namedP = await promptFor('gm-4');
-  check('a transcript that names its speakers lets the summary say who said what',
-    /may say who said what/i.test(namedP) && !/NO SPEAKER NAMES/.test(namedP),
-    namedP.slice(-90));
-  const blindP = await promptFor('gm-6');
-  check('captions with no speaker forbid attributing anything to either side',
-    /NO SPEAKER NAMES/.test(blindP) && /[Nn]ever say who said something/.test(blindP) &&
-    /never guess\s+which side is the client/.test(blindP), blindP.slice(-110));
+  const asked = await askFor('gm-4');
+  check('Summarise this call names the call and sends nothing else',
+    !!asked && asked.id === 'gm-4' && Object.keys(asked).length === 1,
+    JSON.stringify(asked));
+  check('and the transcript is not shipped up from the browser to be summarised',
+    !!asked && !('transcript' in asked), JSON.stringify(Object.keys(asked || {})));
+  /* And what comes back has to land on the call, or pressing the button appears to do
+     nothing until a reload.
+
+     THE BLOCK IS REOPENED FIRST, and that is not the check being lenient. Summarising
+     ends in a render and <details> is redrawn shut, so the summary is in the panel and
+     not on the screen until somebody opens "After the call" again. That is a real
+     annoyance and it predates this work -- grSummarise has always ended in grRender --
+     so it is noted rather than quietly fixed here. What this asserts is the thing that
+     would be broken if the response were dropped: that the words are on the call at
+     all, without a reload. */
+  const landed = await page.evaluate(() => {
+    const d = document.querySelector('[data-gr-meet="gm-4"] details.gr_rec');
+    if (d) d.open = true;
+    const el = document.querySelector('[data-gr-meet="gm-4"]');
+    return el ? (el.innerText || '') : '';
+  });
+  check('the summary that comes back is on the call without a reload',
+    /What they want/.test(landed), JSON.stringify(landed.slice(0, 120)));
 
   // A note typed and left behind has to reach the row, not just the textarea.
   await page.evaluate(() => {
@@ -5173,6 +5192,79 @@ await step('the address a message is sent as is one of the connected mailboxes',
     !gone.err && !!gone.login && gone.from !== gone.login, JSON.stringify(gone));
 
   await sendWith(1);   // put it back for anything after this
+});
+
+/* ------------------------------------------------------- the transcript of the call
+   Asked for: the words from the Zoom call, on the deal. They were already being
+   DOWNLOADED -- select('*') on growth_meetings pulled all 15 stored transcripts into
+   the browser on every Growth load, 362 kB measured, for text no screen displayed --
+   so the work was to stop paying that on every load and show it when it is wanted.
+
+   The first check is the one that is easy to get wrong: it measures what the LIST
+   carries, because putting the transcript on screen while still loading every one of
+   them would look identical from the panel. */
+await step('a call transcript is fetched when it is opened, not on every page load', async () => {
+  /* THE LIST QUERY ITSELF. Showing the transcript on the panel while still loading
+     every one of them on page load looks identical from the screen, so this is read off
+     the columns the load actually asked for. */
+  const listSel = await page.evaluate(() => {
+    const m = (window.__mock.log.selects || [])
+      .filter(q => q.table === 'growth_meetings');
+    return { first: m.length ? m[0].cols : null, count: m.length };
+  });
+  check('the page load asks growth_meetings for named columns, not everything',
+    !!listSel.first && listSel.first !== '*', JSON.stringify(listSel.first || '').slice(0, 90));
+  check('and the transcript is not one of them',
+    !!listSel.first && listSel.first.split(',').map(c => c.trim()).indexOf('transcript') === -1,
+    JSON.stringify(listSel.first || '').slice(0, 90));
+  check('while the flag that replaces it is',
+    !!listSel.first && listSel.first.indexOf('has_transcript') !== -1,
+    JSON.stringify(listSel.first || '').slice(0, 90));
+
+  await screen('gr_pipeline');
+  await page.evaluate(() => document.querySelector('[data-gr-open]')?.click());
+  await page.waitForTimeout(900);
+  await page.evaluate(() => document.querySelector('[data-gr-ptab="rec"]')?.click());
+  await page.waitForTimeout(900);
+
+  /* The rows the screen is drawn from. A transcript key on these means the list is
+     still carrying the text, whatever the panel happens to show. */
+  const rows = await page.evaluate(() => {
+    const el = document.querySelector('[data-gr-tr]');
+    return { detailsThere: !!el, id: el ? el.dataset.grTr : null };
+  });
+  check('the deal shows a transcript to open', rows.detailsThere === true, JSON.stringify(rows));
+
+  const before = await page.evaluate(() => (window.__mock.log.queries || []).length);
+  const opened = await page.evaluate(async () => {
+    const det = document.querySelector('[data-gr-tr]');
+    const id = det.dataset.grTr;
+    const body = document.querySelector('[data-gr-trbody="' + id + '"]');
+    const was = body ? body.textContent : null;
+    det.querySelector('summary').click();
+    await new Promise(r => setTimeout(r, 900));
+    const now = document.querySelector('[data-gr-trbody="' + id + '"]');
+    return { was: was, now: now ? now.textContent : null, open: det.open };
+  });
+  check('opening it puts the words on screen',
+    /note taker|Traffic is down/i.test(opened.now || ''), JSON.stringify((opened.now || '').slice(0, 70)));
+  check('and they were not there before it was opened',
+    !/note taker|Traffic is down/i.test(opened.was || ''), JSON.stringify(opened.was));
+  const after = await page.evaluate(() => (window.__mock.log.queries || []).length);
+  check('which cost one read, made when it was asked for',
+    after > before, JSON.stringify({ before, after }));
+
+  /* Opening the same call again must not fetch it a second time. */
+  const again = await page.evaluate(async () => {
+    const det = document.querySelector('[data-gr-tr]');
+    const n0 = window.__mock.log.queries.length;
+    det.querySelector('summary').click();          // shut
+    await new Promise(r => setTimeout(r, 300));
+    det.querySelector('summary').click();          // open again
+    await new Promise(r => setTimeout(r, 700));
+    return { reads: window.__mock.log.queries.length - n0 };
+  });
+  check('opening it twice does not read it twice', again.reads === 0, JSON.stringify(again));
 });
 
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));

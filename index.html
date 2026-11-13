@@ -7850,6 +7850,16 @@ input.gr_lkurl:focus{outline:0;border-color:var(--sc);}
 .gr_rec>summary:hover{background:var(--surface);}
 .gr_rec>summary em{font-style:normal;font-weight:600;color:var(--text-3);font-size:11.5px;}
 .gr_recb{padding:2px 14px 14px;display:flex;flex-direction:column;gap:14px;}
+/* The transcript. Its own scroll, because four thousand words inside a panel that also
+   scrolls means the page moves when you meant the words to. pre-wrap: the stored text is
+   one line per caption and those line breaks are the only structure it has. */
+.gr_tr{margin-top:2px;}
+.gr_tr>summary{cursor:pointer;font-size:12.5px;color:var(--text-2);padding:3px 0;}
+.gr_tr>summary:hover{color:var(--text);}
+.gr_trb{margin-top:8px;max-height:320px;overflow:auto;white-space:pre-wrap;
+  font-size:12.5px;line-height:1.6;color:var(--text-2);background:var(--surface);
+  border:1px solid var(--line);border-radius:9px;padding:12px 14px;
+  overscroll-behavior:contain;}
 .gr_recl{display:flex;flex-wrap:wrap;gap:7px;align-items:center;}
 .gr_rech{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--text-3);display:flex;align-items:center;gap:9px;margin-bottom:7px;}
 .gr_rech button{margin-left:auto;}
@@ -97328,7 +97338,17 @@ User (no attachment): "create a post for our new alpaca pillow launch"
          new screen being broken rather than the load. */
       const [cl, mt, ms, tp, st, pf, tk, wc, dc, cd, rn, bn] = await Promise.all([
         s.from('growth_clients').select('*').order('updated_at', { ascending: false }),
-        s.from('growth_meetings').select('*').order('starts_at', { ascending: true }),
+        /* EVERY COLUMN BUT THE TRANSCRIPT. select('*') pulled all 15 stored
+           transcripts into the browser on every Growth load -- 362 kB measured, for
+           text no screen displayed, growing with every call Zoom syncs and paid by
+           everyone who opens Growth. has_transcript is a generated column that answers
+           the only question the list actually asks of it (is there one), and the text
+           itself is fetched for one meeting when somebody opens it. Named columns
+           rather than '*' because PostgREST has no "all except"; a column added later
+           has to be added here too, which is what the check on this is for. */
+        s.from('growth_meetings')
+         .select('id,client_id,title,starts_at,minutes,actual_min,zoom_url,source,brief,brief_at,external_id,created_at,invitee,recording_url,recording_passcode,recording_at,recording_minutes,recording_files,has_transcript,summary,summary_at,summary_source,notes,notes_at,summary_checked_at,cancelled_at,hidden_at,hidden_by')
+         .order('starts_at', { ascending: true }),
         s.from('growth_messages').select('*').order('sent_at', { ascending: true }),
         s.from('growth_templates').select('*').order('position', { ascending: true }),
         // qa_examples is 364KB of call transcripts that only the Q and A screen reads,
@@ -98036,7 +98056,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
           '<span class="gr_rech" style="margin:12px 0 0">' +
             esc(m.summary_source === 'zoom' ? 'Written by Zoom' : 'Written by Claude from the transcript') +
           '</span>'
-        : m.transcript
+        : m.has_transcript
           ? '<button class="gr_ghost gr_sm" data-gr-sum="' + esc(m.id) + '">Summarise this call</button>'
           /* Said plainly, because "no summary" and "no transcript to make one from" are
              fixed in different places and look identical on the screen. */
@@ -98051,6 +98071,25 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         '<div><span class="gr_rech">Summary' +
           (m.summary ? '<button class="gr_ghost gr_sm" data-gr-sumcopy="' + esc(m.id) + '">Copy</button>' : '') +
         '</span>' + summary + '</div>' +
+        /* THE WORDS THEMSELVES, under the summary rather than instead of it. A call
+           runs to about four thousand words, so this is shut until asked for and
+           scrolls inside its own box: inlined raw it would bury the notes, the
+           recording and everything else on the panel. Only offered when there is one
+           -- the summary line above already says so when there is not, and two
+           sentences saying the same absence is one too many. */
+        (m.has_transcript
+          ? '<div><span class="gr_rech">Transcript' +
+              '<button class="gr_ghost gr_sm" data-gr-trcopy="' + esc(m.id) + '">Copy</button>' +
+            '</span>' +
+            '<details class="gr_tr" data-gr-tr="' + esc(m.id) + '">' +
+              '<summary>Read what was said</summary>' +
+              '<div class="gr_trb" data-gr-trbody="' + esc(m.id) + '">' +
+                (typeof m.transcript === 'string'
+                  ? esc(m.transcript) || '<span class="gr_mute">Zoom kept a transcript for this call but there are no words in it.</span>'
+                  : '<span class="gr_mute">Fetching it\u2026</span>') +
+              '</div>' +
+            '</details></div>'
+          : '') +
         '<div><span class="gr_rech">Notes</span>' +
           '<textarea data-gr-note="' + esc(m.id) + '" rows="2" ' +
             'placeholder="What you want to remember about this call.">' + esc(m.notes || '') + '</textarea>' +
@@ -98083,53 +98122,48 @@ User (no attachment): "create a post for our new alpaca pillow launch"
   /* Zoom's AI Companion writes a summary only when it is switched on and only on some
      plans, so this is the path that always works: the transcript is already on the row,
      and Claude reads it. grBrief does the same thing from the other end of the call. */
+  /* THE TRANSCRIPT, FETCHED WHEN IT IS WANTED. Kept on the row after the first fetch,
+     so opening the same call twice costs one request. null means the read failed and is
+     NOT the same as '': a refusal must not be reported as "this call has no transcript",
+     which is the shape of lie this repo keeps finding in RLS-refused reads. */
+  async function grTranscript(id) {
+    const m = grMeetings.find(x => x.id === id);
+    if (!m) return null;
+    if (typeof m.transcript === 'string') return m.transcript;
+    if (!m.has_transcript) return '';
+    const s2 = sb(); if (!s2) return null;
+    const { data, error } = await s2.from('growth_meetings')
+      .select('transcript').eq('id', id).maybeSingle();
+    if (error || !data) return null;
+    m.transcript = String(data.transcript || '');
+    return m.transcript;
+  }
+
+  /* ONE PROMPT, AND IT IS NOT HERE. This built its own system prompt and called
+     claude-api directly, while the recordings sync needed the same summary written the
+     moment a transcript lands -- two descriptions of one job, certain to drift, and the
+     copy that drifted unnoticed would be the one running on the timer. Both go through
+     growth-zoom's summarise action now, which is the only place the wording lives.
+
+     The transcript is not sent from here either. The page stopped loading transcripts,
+     and a summary built from what the browser handed up would be a summary of what the
+     browser handed up; the function reads the row itself. */
   async function grSummarise(id) {
     const m = grMeetings.find(x => x.id === id);
     if (!m || m._sum) return;
-    if (!m.transcript) { grToast('There is no transcript for this call yet.'); return; }
-    const c = grClients.find(x => x.id === m.client_id);
-    /* WHO SAID WHAT, OR NOBODY DID. Zoom's audio transcript names the speaker on each
-       line; its live closed captions name nobody, and the captions are what this
-       account produces until "Create audio transcript" is switched on in Zoom. Asked to
-       summarise an unattributed wall of talk, a model will hand back "the client said
-       their budget is 1.5k" with no way of knowing it was us who said it -- a confident
-       wrong answer in the one place it costs money. So the prompt is told which it has,
-       and told to stop attributing when it cannot tell. */
-    const attributed = (String(m.transcript).match(/^[^\n:]{2,30}:\s/gm) || []).length >= 5;
+    if (!m.has_transcript) { grToast('There is no transcript for this call yet.'); return; }
     m._sum = true; grRender();
     try {
-      const res = await fetch('/.netlify/functions/claude-api', {
+      const res = await fetch('/.netlify/functions/growth-zoom?action=summarise', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          max_tokens: 900,
-          system: 'You summarise a sales call from its transcript, for the person who was ' +
-            'on it. Use ONLY what is in the transcript. If something was not said, leave it ' +
-            'out rather than filling it in. Four headings on their own lines: What they want ' +
-            '/ What we said / Objections / Do next. Under Do next put only what somebody ' +
-            'actually committed to, and nothing you think they should do. Plain text, no ' +
-            'markdown, no dashes.' +
-            (attributed
-              ? ' Each line names its speaker; you may say who said what.'
-              : ' THIS TRANSCRIPT HAS NO SPEAKER NAMES. It is a stream of captions and you ' +
-                'cannot tell who is talking. Never say who said something, and never guess ' +
-                'which side is the client. Write what was DISCUSSED and what was AGREED, ' +
-                'without attributing any of it. If a point only makes sense knowing who ' +
-                'said it, leave it out.'),
-          messages: [{ role: 'user', content: JSON.stringify({
-            client: c ? c.name : m.title, company: c ? c.company : '',
-            when: m.starts_at, minutes: m.recording_minutes || m.minutes,
-            // An hour of talk is well inside this; the cap is here so a runaway
-            // transcript cannot turn one button into a very expensive one.
-            transcript: String(m.transcript).slice(0, 60000) }) }]
-        })
+        body: JSON.stringify({ id: id })
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'AI error');
-      const text = String(data.text || '').trim();
-      if (!text) throw new Error('nothing came back');
-      const r = await grWrite('growth_meetings', 'update',
-        { summary: text, summary_at: new Date().toISOString(), summary_source: 'claude' }, m.id);
-      if (r) { m.summary = text; m.summary_at = r[0].summary_at; m.summary_source = 'claude'; }
+      const data = await res.json().catch(function () { return {}; });
+      if (!res.ok) throw new Error(data.error || 'that did not work');
+      if (!data.summary) throw new Error('nothing came back');
+      m.summary = data.summary;
+      m.summary_at = data.summary_at;
+      m.summary_source = data.summary_source || 'claude';
     } catch (e) {
       grToast('Could not summarise. ' + String((e && e.message) || e).slice(0, 80));
     }
@@ -104012,6 +104046,39 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const br = e.target.closest('[data-gr-brief]');
     if (br) { e.stopPropagation(); grBrief(br.dataset.grBrief); return; }
 
+    /* On the summary's CLICK rather than the details' toggle event, because toggle does
+       not bubble and this panel is drawn and thrown away constantly -- a listener bound
+       per <details> would have to be rebound on every render. Read .open BEFORE the
+       browser flips it: at click time it still says what it was, so this fetches on the
+       way open and does nothing on the way shut. */
+    const trs = e.target.closest('[data-gr-tr] > summary');
+    if (trs) {
+      const det = trs.parentElement;
+      const id = det.dataset.grTr;
+      if (!det.open) {
+        grTranscript(id).then(function (text) {
+          const box = document.querySelector('[data-gr-trbody="' + id + '"]');
+          if (!box) return;
+          if (text === null) { box.textContent = 'Could not read the transcript for this call.'; return; }
+          if (!text) { box.textContent = 'Zoom kept a transcript for this call but there are no words in it.'; return; }
+          box.textContent = text;
+        });
+      }
+      return;   // the browser opens or shuts it; nothing here re-renders the panel
+    }
+    const trc = e.target.closest('[data-gr-trcopy]');
+    if (trc) {
+      e.stopPropagation();
+      const id = trc.dataset.grTrcopy;
+      grTranscript(id).then(function (text) {
+        if (text === null) { grToast('Could not read the transcript for this call.'); return; }
+        if (!text) { grToast('There are no words in that transcript.'); return; }
+        navigator.clipboard.writeText(text).then(
+          function () { grToast('Transcript copied.'); },
+          function () { grToast('Your browser would not let Giant copy it.'); });
+      });
+      return;
+    }
     const sry = e.target.closest('[data-gr-sum]');
     if (sry) { e.stopPropagation(); grSummarise(sry.dataset.grSum); return; }
     const cp2 = e.target.closest('[data-gr-sumcopy]');

@@ -27,7 +27,7 @@
     + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">'
       + '<rect width="400" height="300" fill="#3a3a3a"/></svg>');
 
-  const log = { queries: [], unsupported: [], writes: [], realtime: [], storage: [], uploads: [], rpc: [] };
+  const log = { queries: [], unsupported: [], writes: [], realtime: [], storage: [], uploads: [], selects: [], rpc: [] };
 
   // ── fixtures ─────────────────────────────────────────────────────────────
   const ME = 'u-me';
@@ -631,6 +631,14 @@
         'Yeah, and then it jumped out.\nI do not think we need that.\nIt is recording on Zoom now.',
       summary: null, summary_at: null, summary_source: null, notes: null, notes_at: null }
   ];
+  /* has_transcript is GENERATED in the database -- `transcript is not null and
+     length(btrim(transcript)) > 0` -- so it is derived here rather than written onto
+     each fixture by hand. A hand-set flag is one somebody edits a transcript without
+     updating, and then the mock answers a question the real table answers differently,
+     which is the whole value of the mock gone. */
+  DB.growth_meetings.forEach(function (m) {
+    m.has_transcript = !!(m.transcript && String(m.transcript).trim());
+  });
   // gc-2's last message is INBOUND and unhandled, so exactly one deal needs a reply.
   DB.growth_messages = [
     { id: 'gx-1', client_id: 'gc-1', direction: 'out', subject: 'Good chat today',
@@ -1149,6 +1157,7 @@
        and a check cannot tell `select *` from one that deliberately leaves a row out. */
     log.queries.push(t + '.' + this._mode +
       (this._f.length ? '[' + this._f.map(f => f.join(' ')).join(',') + ']' : ''));
+    if (this._mode === 'select') log.selects.push({ table: t, cols: this._cols });
     if (hidden.has(t)) return MISSING(t);
     try {
       if (this._mode === 'select') {

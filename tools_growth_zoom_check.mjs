@@ -377,8 +377,20 @@ function recPlan(recs, rows, opts) {
       body: { message: 'Meeting does not exist: JvtODmK9RwOFHFj1g7t9lA==.' } }],
     ['/accounts/me/recordings', typeof recs === 'function' ? recs
       : { body: { meetings: recs, download_access_token: o.dlToken || '' } }],
-    ['growth_meetings', (u, opt) => (opt.method === 'POST' || opt.method === 'PATCH')
-      ? { body: [{}] } : { body: rows || [] }]
+    /* has_transcript is a GENERATED column -- `transcript is not null and
+       length(btrim(transcript)) > 0` -- and the sync now reads it rather than dragging
+       every transcript into the function to ask one yes/no question. Derived here from
+       what the fixture says, so a fixture cannot describe a row the real table could
+       not produce, and so adding a transcript to a fixture cannot forget the flag.
+
+       The fixtures' own `transcript` is still served, because the summariser asks for
+       that column by name for the one call it is summarising. */
+    ['growth_meetings', (u, opt) => {
+      if (opt.method === 'POST' || opt.method === 'PATCH') return { body: [{}] };
+      return { body: (rows || []).map(r => Object.assign({}, r, {
+        has_transcript: !!(r.transcript && String(r.transcript).trim())
+      })) };
+    }]
   ];
 }
 /* 20 days by default, so the range is ONE window and a count of one recording means
@@ -647,6 +659,124 @@ check('a caption file with no timings left in it is still the words',
   vttToText(VTT).split('\n').length === 2 && vttToText(VTT).indexOf('-->') === -1,
   JSON.stringify(vttToText(VTT)));
 
+
+/* ======================================================= the summary nobody pressed for
+   Fifteen calls had a transcript and exactly ONE had a summary, because summarising was
+   a button you had to go and press. The transcript is four thousand words; the summary
+   is the part anybody reads. So the sync writes one as the transcript lands.
+
+   None of this is visible from a screen -- it happens on a timer, against Anthropic --
+   so these are the only place it exists. Driven by replacing fetch and running the
+   function, the same as everything above. */
+const AI_OK = { body: { content: [{ type: 'text', text:
+  'What they want\nSEO for three sites.\n\nDo next\nSend the proposal.' }] } };
+const withAI = (plan, reply) => plan.concat([['api.anthropic.com', reply || AI_OK]]);
+const aiCalls = (c) => c.filter(x => x.url.includes('api.anthropic.com')).length;
+
+process.env.ANTHROPIC_API_KEY = 'test-key';
+
+/* A transcript arrives, Zoom has no summary of its own: one gets written. */
+calls = stubFetch(withAI(recPlan([REC()], [{ id: 'row-1', zoom_url: 'https://us06web.zoom.us/j/88123' }])));
+res = await doRec();
+check('a call whose transcript just arrived gets a summary written for it',
+  !!patched(calls) && /SEO for three sites/.test(patched(calls).summary || ''),
+  JSON.stringify((patched(calls) || {}).summary || '').slice(0, 70));
+check('and it is marked as ours, not as Zoom\u2019s',
+  !!patched(calls) && patched(calls).summary_source === 'claude',
+  JSON.stringify((patched(calls) || {}).summary_source));
+/* The prompt has to carry the words. Sending the metadata and no transcript would
+   still come back with confident prose, which is the failure that looks like success. */
+const sent = (() => {
+  const c = calls.find(x => x.url.includes('api.anthropic.com'));
+  try { return JSON.parse(c.opts.body); } catch (e) { return null; }
+})();
+check('the transcript itself is what gets sent to be summarised',
+  !!sent && /Thanks for making the time/.test(JSON.stringify(sent.messages || '')),
+  JSON.stringify(sent && (sent.messages || [])[0] || '').slice(0, 90));
+/* CAPTIONS NAME NOBODY, and this fixture is captions: two lines happen to start with a
+   name, which is under the five it takes to call a transcript attributed. A summary
+   that says "the client said their budget is 1.5k" off an unattributed stream is a
+   confident wrong answer in the one place it costs money, so the prompt must be told.
+   (This check first asserted the opposite and failed: the code was right.) */
+check('a stream of captions tells the summary it cannot say who spoke',
+  !!sent && /NO SPEAKER NAMES/.test(String(sent.system || '')) &&
+  !/may say who said what/.test(String(sent.system || '')),
+  JSON.stringify(String(sent && sent.system || '').slice(-70)));
+
+/* And the other branch, which only exists above five attributed lines. Zoom's real
+   audio transcript names the speaker on every line, and that one may be attributed. */
+const NAMED_VTT = 'WEBVTT\n\n' + [1, 2, 3, 4, 5, 6].map(n =>
+  n + '\n00:0' + n + ':00.000 --> 00:0' + n + ':05.000\n' +
+  (n % 2 ? 'Luke: Line number ' + n + '.' : 'Rob: Answer number ' + n + '.')).join('\n\n');
+calls = stubFetch(withAI(recPlan([REC()], [{ id: 'row-1', zoom_url: 'https://us06web.zoom.us/j/88123' }],
+  { download: { raw: NAMED_VTT } })));
+res = await doRec();
+const namedSent = (() => {
+  const c = calls.find(x => x.url.includes('api.anthropic.com'));
+  try { return JSON.parse(c.opts.body); } catch (e) { return null; }
+})();
+check('a transcript that names its speakers lets the summary attribute what was said',
+  !!namedSent && /may say who said what/.test(String(namedSent.system || '')) &&
+  !/NO SPEAKER NAMES/.test(String(namedSent.system || '')),
+  JSON.stringify(String(namedSent && namedSent.system || '').slice(-70)));
+
+/* ZOOM'S OWN WINS. It is free and it is the host's words. */
+calls = stubFetch(withAI(recPlan([REC()], [{ id: 'row-1', zoom_url: 'https://us06web.zoom.us/j/88123' }],
+  { summary: { body: { summary_overview: 'Zoom wrote this one.' } } })));
+res = await doRec();
+check('Zoom\u2019s own summary is used and Anthropic is never asked',
+  !!patched(calls) && /Zoom wrote this one/.test(patched(calls).summary || '') &&
+  patched(calls).summary_source === 'zoom' && aiCalls(calls) === 0,
+  JSON.stringify({ src: (patched(calls) || {}).summary_source, ai: aiCalls(calls) }));
+
+/* A summary already on the row is never replaced, by either path. */
+calls = stubFetch(withAI(recPlan([REC()],
+  [{ id: 'row-1', zoom_url: 'https://us06web.zoom.us/j/88123',
+     transcript: 'already here', summary: 'written last week' }])));
+res = await doRec();
+check('a summary already written is not asked for again',
+  aiCalls(calls) === 0 && (patched(calls) || {}).summary === undefined,
+  JSON.stringify({ ai: aiCalls(calls), summary: (patched(calls) || {}).summary }));
+
+/* THE CAP. There is a backlog of calls with a transcript and no summary; without this
+   the first run after deploy summarises every one of them in one burst. */
+/* FIVE DIFFERENT calls. REC takes overrides, so distinct ids and uuids -- five copies
+   of one recording would be deduplicated by meeting number and prove nothing about a
+   cap. */
+const many = [1, 2, 3, 4, 5].map(n => REC({ id: 88000 + n, uuid: 'UU' + n + '==' }));
+calls = stubFetch(withAI(recPlan(many, [])));
+res = await doRec();
+check('a backlog is summarised a few at a time, not all at once',
+  aiCalls(calls) === 3, 'anthropic calls: ' + aiCalls(calls));
+
+/* A failure must not cost the recording, the transcript or the notes. */
+calls = stubFetch(withAI(recPlan([REC()], [{ id: 'row-1', zoom_url: 'https://us06web.zoom.us/j/88123' }]),
+  { ok: false, status: 500, body: { error: 'overloaded' } }));
+res = await doRec();
+let aiBody = JSON.parse(res.body);
+check('a summary that cannot be written does not fail the sync',
+  res.statusCode === 200 && aiBody.updated === 1 && aiBody.transcripts === 1,
+  JSON.stringify({ code: res.statusCode, updated: aiBody.updated, transcripts: aiBody.transcripts }));
+check('and the transcript is still stored even though the summary failed',
+  !!patched(calls) && /Thanks for making the time/.test(patched(calls).transcript || ''),
+  JSON.stringify((patched(calls) || {}).transcript || '').slice(0, 60));
+check('while the run says out loud that it could not write one',
+  /summary could not be written/i.test(aiBody.hint || ''), JSON.stringify(aiBody.hint || '').slice(0, 90));
+
+/* No key is not a failure either: Giant runs without one and the rest still syncs. */
+delete process.env.ANTHROPIC_API_KEY;
+calls = stubFetch(withAI(recPlan([REC()], [{ id: 'row-1', zoom_url: 'https://us06web.zoom.us/j/88123' }])));
+res = await doRec();
+aiBody = JSON.parse(res.body);
+check('with no Anthropic key the sync still runs and simply writes no summary',
+  res.statusCode === 200 && aiCalls(calls) === 0 && (patched(calls) || {}).summary === undefined,
+  JSON.stringify({ code: res.statusCode, ai: aiCalls(calls) }));
+
+/* And the listing that drives all of this stopped dragging every transcript in. */
+check('the sync asks for the transcript flag, not every transcript',
+  calls.some(c => /growth_meetings\?select=.*has_transcript/.test(c.url)) &&
+  !calls.some(c => /growth_meetings\?select=[^&]*\btranscript\b[^_]/.test(c.url.replace('has_transcript', 'FLAG'))),
+  JSON.stringify((calls.find(c => c.url.includes('growth_meetings?select=')) || {}).url || '').slice(0, 120));
 
 globalThis.fetch = realFetch;
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
