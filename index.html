@@ -55219,7 +55219,10 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       const bound = 'giant_' + Date.now().toString(36) + '_' +
         Math.random().toString(36).slice(2, 10);
       const lines = [];
-      lines.push(`From: ${fromEmail}`);
+      /* Only when we actually know it. Gmail fills From in with the authenticated
+         account when the header is absent, which is right every time; a GUESSED From is
+         wrong every time the guess is wrong, and Gmail rejects the whole message. */
+      if (fromEmail) lines.push(`From: ${fromEmail}`);
       lines.push(`To: ${to}`);
       lines.push(`Subject: ${mimeHeaderWord(subject)}`);
       if (inReplyTo) lines.push(`In-Reply-To: ${inReplyTo}`);
@@ -55242,11 +55245,35 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       return b64utf8(message).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     }
 
+    /* THE ADDRESS WE SEND AS, worked out the same way the screen works it out.
+
+       This was `tokenRow?.email || session.user.email`, and the screen beside it used
+       `rows.find(r => r.slot === slot) || rows[0]`. Two fallbacks for one question. The
+       stored slot lives in localStorage, so a browser left pointing at a slot that no
+       longer has a row -- somebody who once connected a second mailbox -- got a
+       composer that said "Sends from growth@reachgiant.com" and a message stamped with
+       their GIANT LOGIN instead: anelemanci991@gmail.com for one person,
+       big@reachgiant.com for another. Neither is an address the growth@ token may send
+       as, so Gmail refused the lot with "Requested entity was not found" and the reply
+       went nowhere. Intermittent, per-device, and invisible on screen, because the
+       screen was reading the other fallback.
+
+       A Giant login is not a mailbox and must never be used as one. The connected
+       mailbox for the chosen slot, else the first connected mailbox, else nothing at
+       all -- and nothing at all is safe, because buildEmailRaw then leaves the header
+       off and Gmail uses the account the token belongs to. */
+    async function gmailSendAsAddress() {
+      const { data: rows } = await supabase.from('gmail_tokens')
+        .select('slot, email').eq('profile_id', session.user.id).order('slot');
+      const list = (rows || []).filter(function (r) { return r && r.email; });
+      if (!list.length) return '';
+      const slot = gmailCurrentSlot();
+      const exact = list.find(function (r) { return r.slot === slot; });
+      return (exact || list[0]).email;
+    }
+
     async function sendGmailMessage({ to, subject, body, threadId, inReplyTo }) {
-      // Get user email from gmail_tokens
-      const { data: tokenRow } = await supabase.from('gmail_tokens').select('email')
-        .eq('profile_id', session.user.id).eq('slot', gmailCurrentSlot()).maybeSingle();
-      const fromEmail = tokenRow?.email || session.user.email;
+      const fromEmail = await gmailSendAsAddress();
       const raw = buildEmailRaw({ to, subject, body, inReplyTo, references: inReplyTo, fromEmail });
       const payload = { raw };
       if (threadId) payload.threadId = threadId;
