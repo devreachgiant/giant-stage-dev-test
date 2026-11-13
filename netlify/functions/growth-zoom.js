@@ -40,6 +40,11 @@
 // for the whole Zoom account. That is why save and disconnect check the caller's role
 // here, from their own login, and why nothing ever sends the values back to the browser.
 
+const { summarise } = require('./_growth_summary');
+
+/* Three a run. See the note at the write for why there is a cap at all. */
+const AI_SUMMARIES_PER_RUN = 3;
+
 const KEY = 'zoom_s2s';
 
 const json = (code, body) => ({
@@ -331,7 +336,11 @@ async function runRecordingSync(creds, days) {
   /* Everything already on the screen, by MEETING NUMBER -- the one key Calendly and
      Zoom both carry. Without it a recorded Calendly booking arrives a second time as
      a Zoom row and reads as a real second call with the same client. */
-  const existing = await sb('growth_meetings?select=id,zoom_url,external_id,transcript,summary,summary_checked_at');
+  /* has_transcript, not transcript. This pulled the full text of every stored
+     transcript into the function on every run -- 362 kB measured -- to answer one
+     yes/no question per row. The text is fetched below, for the few calls actually
+     being summarised. */
+  const existing = await sb('growth_meetings?select=id,client_id,zoom_url,external_id,has_transcript,summary,summary_checked_at');
   const byNumber = new Map();
   for (const row of (existing || [])) {
     const n = meetingNumber(row.zoom_url);
@@ -341,6 +350,7 @@ async function runRecordingSync(creds, days) {
   }
 
   let updated = 0, added = 0, transcripts = 0, summaries = 0, noTranscript = 0;
+  let written = 0;                       // summaries THIS run wrote itself, for the cap
   const hints = [];
 
   for (const rec of found.recordings) {
@@ -364,7 +374,7 @@ async function runRecordingSync(creds, days) {
     };
 
     // The transcript is the slow call, so it is made once and never again.
-    if (!(row && row.transcript)) {
+    if (!(row && row.has_transcript)) {
       /* TRANSCRIPT FIRST, and the order matters. Zoom can produce two text files for
          one call and they are not the same thing: TRANSCRIPT is the audio transcript
          and carries WHO SAID WHAT, CC is the live closed captions and carries no
@@ -400,6 +410,53 @@ async function runRecordingSync(creds, days) {
         patch.summary_at = new Date().toISOString();
         patch.summary_source = 'zoom';
         summaries++;
+      }
+    }
+
+    /* NOBODY PRESSES THE BUTTON. Fifteen calls had a transcript and exactly one had a
+       summary, because summarising was something you had to go and do. A transcript is
+       four thousand words; the summary is the part anybody reads. So when Zoom has none
+       of its own and there is a transcript, it is written here, as the transcript lands.
+
+       CAPPED PER RUN, and that cap is the whole reason this is safe to switch on. There
+       is a backlog of calls with a transcript and no summary, and without a cap the
+       first run after deploy would summarise every one of them in one burst. At three a
+       run, every half hour, a backlog drains in a couple of hours and a normal run does
+       none or one.
+
+       Zoom's own summary still wins -- it is free and it is the host's words -- and an
+       existing summary is never replaced. A failure here goes into the hint and does NOT
+       fail the sync: the recording, the transcript and the notes are worth saving
+       whether or not a summary could be written. */
+    if (!patch.summary && !(row && row.summary) && written < AI_SUMMARIES_PER_RUN &&
+        process.env.ANTHROPIC_API_KEY && (patch.transcript || (row && row.has_transcript))) {
+      try {
+        let text = patch.transcript;
+        if (!text && row) {
+          const got = await sb('growth_meetings?id=eq.' + row.id + '&select=transcript');
+          text = got && got[0] ? got[0].transcript : '';
+        }
+        let who = null;
+        if (row && row.client_id) {
+          const cl = await sb('growth_clients?id=eq.' + row.client_id + '&select=name,company');
+          who = cl && cl[0] ? cl[0] : null;
+        }
+        const out = await summarise({
+          transcript: text,
+          client: who ? who.name : (rec.topic || ''),
+          company: who ? who.company : '',
+          when: rec.start_time,
+          minutes: patch.recording_minutes
+        });
+        if (out) {
+          patch.summary = out;
+          patch.summary_at = new Date().toISOString();
+          patch.summary_source = 'claude';
+          written++; summaries++;
+        }
+      } catch (e) {
+        const msg = 'A summary could not be written: ' + String(e.message || e).slice(0, 120);
+        if (hints.indexOf(msg) === -1) hints.push(msg);
       }
     }
 
@@ -441,6 +498,13 @@ async function runRecordingSync(creds, days) {
 
 const STAFF = ['owner', 'manager', 'inhouse_dev'];
 const isStaff = (p) => !!p && STAFF.includes(String(p.role));
+
+/* Summarising is not a connector setting. Syncing pulls the whole Zoom account in and
+   is rightly owner/manager only; writing a summary of one call is ordinary work for the
+   person whose call it was, and the people who live on this screen are 'growth'. Gating
+   it to STAFF would take the button away from exactly the people who use it. */
+const GROWTH = STAFF.concat('growth');
+const inGrowth = (p) => !!p && GROWTH.includes(String(p.role));
 
 exports.zoomCreds = zoomCreds;
 exports.runRecordingSync = runRecordingSync;
@@ -586,6 +650,56 @@ exports.handler = async (event) => {
     } catch (e) {
       // scope:true tells the screen this is a settings problem in Zoom, not a wrong key.
       return json(400, { error: e.hint || String(e.message || e).slice(0, 200), scope: !!e.hint });
+    }
+  }
+
+  /* ------------------------------------------------------------- summarise one call
+     THE SAME PROMPT THE TIMER USES. The button used to build its own in index.html and
+     call claude-api, so there were two descriptions of one job and they would drift --
+     and the one that drifted unnoticed would be the one running at 3am. This is the
+     browser's way into _growth_summary, nothing more.
+
+     The transcript is read HERE rather than sent up from the page: the page no longer
+     loads transcripts at all, and a summary built from whatever the caller pasted in
+     would be a summary of whatever the caller pasted in. */
+  if (action === 'summarise') {
+    const profile = await callerProfile(auth);
+    if (!profile) return json(401, { error: 'Sign in first.' });
+    if (!inGrowth(profile)) return json(403, { error: 'Only the Growth team can summarise a call.' });
+
+    let body = {};
+    try { body = JSON.parse(event.body || '{}'); } catch (e) { /* the guard below */ }
+    const id = String(body.id || '');
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return json(400, { error: 'Which call?' });
+
+    const rows = await sb('growth_meetings?id=eq.' + id +
+      '&select=id,client_id,title,starts_at,recording_minutes,minutes,summary,transcript');
+    const m = rows && rows[0];
+    if (!m) return json(404, { error: 'That call is not here.' });
+    if (!String(m.transcript || '').trim()) {
+      return json(400, { error: 'There is no transcript for this call yet.' });
+    }
+
+    let who = null;
+    if (m.client_id) {
+      const cl = await sb('growth_clients?id=eq.' + m.client_id + '&select=name,company');
+      who = cl && cl[0] ? cl[0] : null;
+    }
+    try {
+      const text = await summarise({
+        transcript: m.transcript,
+        client: who ? who.name : (m.title || ''),
+        company: who ? who.company : '',
+        when: m.starts_at,
+        minutes: m.recording_minutes || m.minutes
+      });
+      if (!text) return json(400, { error: 'Nothing came back to store.' });
+      const at = new Date().toISOString();
+      await sb('growth_meetings?id=eq.' + id, 'PATCH',
+        { summary: text, summary_at: at, summary_source: 'claude' });
+      return json(200, { summary: text, summary_at: at, summary_source: 'claude' });
+    } catch (e) {
+      return json(400, { error: String(e.message || e).slice(0, 200) });
     }
   }
 
