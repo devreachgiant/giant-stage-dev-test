@@ -2259,6 +2259,17 @@ await step('a template previews as the mail it becomes', async () => {
     mdOk && JSON.stringify(mdOk.text));
   check('the fragment carries the paragraphs and no second document',
     !!mdOk && /^<p>/.test(mdOk.frag) && !/<html|<body|DOCTYPE/i.test(mdOk.frag), mdOk && mdOk.frag.slice(0, 60));
+  /* THE DOCUMENT HAD NO HEAD. A phone handed HTML with no viewport lays it out at a
+     desktop width and scales it, which is how a 320px signature arrived wider than
+     the column holding it and was cut off down the middle. Asserted on the document,
+     not the fragment: the fragment is the in-app preview and must stay a fragment. */
+  check('the mail document declares a viewport, so a phone does not invent one',
+    !!mdOk && /<meta name="viewport" content="width=device-width/.test(mdOk.html),
+    mdOk && mdOk.html.slice(0, 140));
+  check('and a charset, because the MIME header is not the only thing that reads it',
+    !!mdOk && /<meta charset="utf-8">/.test(mdOk.html), mdOk && mdOk.html.slice(0, 140));
+  check('while the fragment still carries neither',
+    !!mdOk && !/<meta/i.test(mdOk.frag), mdOk && mdOk.frag.slice(0, 60));
   /* These bodies are typed by people and then become markup in somebody else's mail
      client. Escaped first, and only http(s) ever reaches an href. */
   check('a tag typed into a template arrives as text, not as markup',
@@ -4419,6 +4430,10 @@ await step('reply settings is a dialog that holds a draft', async () => {
       && /all changes saved/i.test(disc.state), JSON.stringify(disc));
 
   // and now for real
+  const beforeSign = await page.evaluate(() => {
+    const i = document.querySelector('[data-gr-rd="signoff"]');
+    return i ? i.value : null;
+  });
   await page.evaluate(() => {
     const t = document.querySelector('[data-gr-rd="always"]');
     t.value = 'Their goal. One clear next step. And the timeline.';
@@ -4437,10 +4452,15 @@ await step('reply settings is a dialog that holds a draft', async () => {
     JSON.stringify(saved && saved.row && saved.row.always));
   /* The other fields must survive a save of one of them -- writing the box you touched
      and nulling the rest is a quiet way to lose the sign off. */
+  /* Against what the box HELD, not against a literal. This read `=== 'Best, Luke'`,
+     so it was pinning the shipped default rather than measuring that an untouched
+     field survives -- and it failed the moment that default stopped naming a person,
+     which is a check reporting on the wrong thing. */
   check('and the rest of the settings survive saving one of them',
-    !!saved && !!saved.row && saved.row.signoff === 'Best, Luke'
+    !!saved && !!saved.row && beforeSign !== null && saved.row.signoff === beforeSign
       && /dashes/i.test(saved.row.never || ''),
-    JSON.stringify(saved && saved.row && { s: saved.row.signoff, n: saved.row.never }));
+    JSON.stringify({ was: beforeSign, s: saved.row && saved.row.signoff,
+                     n: saved.row && saved.row.never }));
   check('the dialog closes once it is saved',
     !!saved && saved.closed, JSON.stringify(saved && saved.closed));
 });
@@ -4778,6 +4798,37 @@ await step('a signature image reaches the html and never the plain text', async 
     window.giantMdToHtml('![x](javascript:alert(1))'));
   check('and a javascript src is refused rather than written into an email',
     !/<img/.test(bad) && !/javascript:/.test(bad), JSON.stringify(bad.slice(-60)));
+
+  /* THE PICTURE ARRIVED OFF THE EDGE OF A PHONE. The img went out with
+     max-width:100% and nothing else, which is not a cap: it resolves against a
+     containing block the mail client sizes itself, and iOS Mail gives the body more
+     width than the card it draws, so a 320px logo rendered at natural size and was
+     cut off mid-word. Asserted on the WIDTH ATTRIBUTE as well as the style, because
+     the attribute is the half that mobile and older clients obey -- a style-only cap
+     passes a regex and still arrives wrong.
+
+     And on the plain part, because the width is written in the markdown: a converter
+     that renders the image but leaves the suffix behind puts " =200)" under the
+     sign-off for every client that blocks images. */
+  const w = await page.evaluate(() => {
+    const src = 'Best,\n\nAnnie\n\n![Annie](https://example.test/sig.gif =200)';
+    return { html: window.giantMdToHtml(src), text: window.giantMdToText(src) };
+  });
+  const tag = (w.html.match(/<img [^>]*>/) || ['none'])[0];
+  check('the signature image goes out with a width attribute, not just a percentage',
+    / width="200"/.test(tag), JSON.stringify(tag.slice(0, 120)));
+  check('and a pixel width in the style beside the max-width that cannot cap it',
+    /style="[^"]*width:200px;[^"]*max-width:100%/.test(tag), JSON.stringify(tag.slice(0, 120)));
+  check('and the width never shows up in the plain part under the sign-off',
+    !/=200/.test(w.text) && !/sig\.gif/.test(w.text) && /Annie/.test(w.text),
+    JSON.stringify(w.text.replace(/\s+/g, ' ')));
+  /* An image written without one is still an image -- the suffix is optional, and a
+     body somebody typed a picture into must not stop rendering because of this. */
+  const plain = await page.evaluate(() =>
+    window.giantMdToHtml('![x](https://example.test/a.png)'));
+  check('an image with no width still renders, uncapped',
+    /<img [^>]*src="https:\/\/example\.test\/a\.png"/.test(plain) && !/width="/.test(plain),
+    JSON.stringify((plain.match(/<img [^>]*>/) || ['none'])[0].slice(0, 100)));
 });
 
 /* A FIELD YOU CLEAR HAS TO STAY CLEARED. name and email fell back to the profile and to
@@ -4918,6 +4969,138 @@ await step('the record on a deal can be edited and the deal removed', async () =
   // Where somebody would look for it, which is with the record it deletes.
   check('removing a deal is offered on the same tab as the record',
     !!r && r.removeOnInfo === true, JSON.stringify(r && r.removeOnInfo));
+});
+
+/* ------------------------------------------------- the width, on the path that sends
+   The converter checks above prove the markdown renders a capped img. They would all
+   still pass with the width dropped from the string the signature actually builds --
+   which is the shape of a check that measures nothing. This one stubs the send and
+   reads the body Growth hands it, so it is the mail that is asserted, not the helper
+   that formats it. */
+await step('the signature Growth sends carries the width, not just the converter', async () => {
+  await page.evaluate(() => {
+    const r = (window.__mockDB.growth_settings || []).find(x => x.key === 'signature');
+    if (r) r.value = Object.assign({}, r.value, { image: 'https://example.test/annie.gif' });
+    delete (r && r.value || {}).image_off;
+    window.__sentSig = null;
+    window.giantGmailSend = async (args) => { window.__sentSig = args; return { id: 'stub' }; };
+  });
+  await page.evaluate(() => window.grReload && window.grReload());
+  await page.waitForTimeout(1200);
+  await screen('gr_settings');
+  await page.evaluate(() => document.querySelector('[data-gr-settab="email"]')?.click());
+  await page.waitForTimeout(800);
+  await page.evaluate(() => document.querySelector('[data-gr-sigtest]')?.click());
+  await page.waitForTimeout(1200);
+  const sent = await page.evaluate(() => window.__sentSig);
+  check('pressing Send a test signature reaches the send path',
+    !!sent && typeof sent.body === 'string', JSON.stringify(sent && Object.keys(sent || {})));
+  check('and the body it hands over asks for the picture at a fixed width',
+    !!sent && /!\[[^\]]*\]\(https:\/\/example\.test\/annie\.gif =200\)/.test(sent.body),
+    JSON.stringify(String((sent && sent.body) || '').slice(-120)));
+  /* And the preview on the same screen is shown at that width. A preview wider than
+     the mail is the drift this file already has three checks about. */
+  const px = await page.evaluate(() => {
+    const i = document.querySelector('.gr_sigprev .gr_sigimg');
+    return i ? Math.round(i.getBoundingClientRect().width) : -1;
+  });
+  check('and the preview on screen is drawn at the same 200px', px === 200, String(px));
+});
+
+/* ---------------------------------------------------- a GIF the browser did not name
+   "It will not let me upload a GIF." The picker allowed one and the bucket allowed
+   one; the guard did not, because it read file.type and nothing else, and a browser
+   that has no mapping for .gif hands over an empty string. So a GIF was refused with
+   a message listing GIF among the things it accepts.
+
+   Driven through the real input, with a File whose type is blank -- which is the
+   whole bug. Asserted on the upload that reached storage AND on the content type it
+   was given, because a file stored as application/octet-stream opens as a download in
+   the recipient's mail client rather than rendering as the signature. */
+await step('a GIF the browser could not name is still uploaded as a GIF', async () => {
+  await screen('gr_settings');
+  await page.evaluate(() => document.querySelector('[data-gr-settab="email"]')?.click());
+  await page.waitForTimeout(800);
+  const r = await page.evaluate(async () => {
+    if (!document.querySelector('[data-gr-sigfile]')) {
+      return { err: 'no upload control on Codes & signature' };
+    }
+    const before = window.__mock.log.uploads.length;
+    /* Looked up EVERY time. An upload re-renders the panel, so a reference held across
+       one is detached: the second file went to a node not in the document and the
+       check passed its own dispatch into nothing. */
+    const put = (name, type) => {
+      const input = document.querySelector('[data-gr-sigfile]');
+      if (!input) return false;
+      const dt = new DataTransfer();
+      dt.items.add(new File([new Uint8Array([71, 73, 70, 56, 57, 97])], name, { type: type }));
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    };
+    put('annie-signature.gif', '');            // the browser named nothing
+    await new Promise(r => setTimeout(r, 1400));
+    const blank = window.__mock.log.uploads.slice(before);
+    const mid = window.__mock.log.uploads.length;
+    put('annie-signature.gif', 'application/octet-stream');  // or named it wrongly
+    await new Promise(r => setTimeout(r, 1400));
+    const octet = window.__mock.log.uploads.slice(mid);
+    const mid2 = window.__mock.log.uploads.length;
+    put('notes.txt', 'text/plain');            // and this one really is not an image
+    await new Promise(r => setTimeout(r, 1000));
+    return { blank, octet, refused: window.__mock.log.uploads.slice(mid2) };
+  });
+  check('a .gif with no type at all reaches storage',
+    !r.err && r.blank && r.blank.length === 1, JSON.stringify(r));
+  check('and is stored as image/gif, not as a download',
+    !!r.blank && !!r.blank[0] && r.blank[0].contentType === 'image/gif',
+    JSON.stringify(r.blank && r.blank[0]));
+  check('and its path keeps the .gif extension',
+    !!r.blank && !!r.blank[0] && /\.gif$/.test(r.blank[0].path),
+    JSON.stringify(r.blank && r.blank[0] && r.blank[0].path));
+  check('an octet-stream .gif is read the same way',
+    !!r.octet && r.octet.length === 1 && r.octet[0].contentType === 'image/gif',
+    JSON.stringify(r.octet));
+  /* The fallback must not become "anything with a name". */
+  check('and a text file is still refused',
+    !!r.refused && r.refused.length === 0, JSON.stringify(r.refused));
+});
+
+/* ------------------------------------------------- nothing Giant ships names a person
+   An email sent from growth@ -- Annie's mailbox, under Annie's logo -- arrived signed
+   "Best, Luke". Nobody had typed that: it was the shipped default for the reply style,
+   and there was no reply_style row in the database, so the default WAS the setting.
+   The same name was in the package master and in the two after-the-call emails.
+
+   Read off the screens rather than off the source, because the source having the right
+   string proves nothing about which of the several defaults a screen actually reads.
+   A name belongs in the box on Reply settings, where somebody can put one. */
+await step('nothing Giant ships signs a client email with a person\'s name', async () => {
+  await screen('gr_settings');
+  await page.evaluate(() => document.querySelector('[data-gr-replyopen]')?.click());
+  await page.waitForTimeout(900);
+  /* The DIALOG's field, which is the one Reply settings opens now -- not the older
+     [data-gr-reply] input, which a wrong selector here would have silently missed. */
+  const sign = await page.evaluate(() => {
+    const i = document.querySelector('[data-gr-rd="signoff"]');
+    return i ? { value: i.value, placeholder: i.getAttribute('placeholder') || '' } : null;
+  });
+  check('the sign-off it starts you with is just a sign-off',
+    !!sign && sign.value === 'Best,', JSON.stringify(sign));
+  check('and the box does not suggest a name either',
+    !!sign && !/\b(Luke|Annie|Matthew|Nishchay)\b/.test(sign.placeholder), JSON.stringify(sign));
+  await page.evaluate(() => document.querySelector('[data-gr-rdclose]')?.click());
+  await page.waitForTimeout(600);
+
+  await page.evaluate(() => document.querySelector('[data-gr-settab="master"]')?.click());
+  await page.waitForTimeout(900);
+  const master = await page.evaluate(() => {
+    const t = document.querySelector('[data-gr-mt="body"]');
+    return t ? t.value : null;
+  });
+  check('the package master ends on a sign-off with no name under it',
+    typeof master === 'string' && /Best,\s*$/.test(master) && !/\bLuke\b/.test(master),
+    JSON.stringify(String(master || '').slice(-50)));
 });
 
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));

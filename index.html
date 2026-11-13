@@ -6659,7 +6659,7 @@ body:has(.screen[data-screen="chat2"].on) .gai-fab{display:none;}
 .gr_tdaddb{flex:none;border:0;border-radius:99px;background:var(--text);color:var(--surface);
   font:inherit;font-size:13.5px;font-weight:700;padding:10px 20px;cursor:pointer;}
 .gr_tdaddb:hover{filter:brightness(.92);}
-.gr_sigimg{display:block;max-width:100%;height:auto;margin-top:10px;border-radius:6px;}
+.gr_sigimg{display:block;width:200px;max-width:100%;height:auto;margin-top:10px;border-radius:6px;}
 .gr_sigrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;}
 .gr_sigup{cursor:pointer;}
 /* On is stated, not implied by an absence: a switch that only looks different when it
@@ -55108,11 +55108,24 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
            would match the tail of it and leave a stray "!" in front of an anchor.
            Same giantSafeUrl as links -- an image src is a URL somebody else can
            put in a settings box, and it goes out in mail we send. */
-        .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, function (m, alt, url) {
+        /* "![alt](url =200)" -- an optional width, in pixels, after the address.
+           max-width:100% ALONE IS NOT A CAP ON A PHONE. It resolves against a
+           containing block that mail clients size for themselves, and iOS Mail gives
+           the body a width wider than the card it draws, so a 320px logo rendered at
+           its natural size and ran off the right-hand edge mid-word. The signature
+           that renders correctly on the same phone -- the one on the Inbox -- is the
+           one with an explicit pixel cap, so this is that cap, written both ways:
+           the WIDTH ATTRIBUTE, which is the thing old and mobile clients actually
+           obey, and the style for the ones that strip attributes. max-width:100%
+           stays underneath both, so a screen narrower than the cap still wins. */
+        .replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+=(\d{1,4}))?\)/g, function (m, alt, url, w) {
           const safe = giantSafeUrl(url.replace(/&amp;/g, '&'));
           if (!safe) return alt;
-          return '<img src="' + giantEscHtml(safe) + '" alt="' + giantEscHtml(alt) +
-            '" style="max-width:100%;height:auto;border:0;display:block">';
+          const px = w ? parseInt(w, 10) : 0;
+          return '<img src="' + giantEscHtml(safe) + '" alt="' + giantEscHtml(alt) + '"' +
+            (px ? ' width="' + px + '"' : '') +
+            ' style="' + (px ? 'width:' + px + 'px;' : '') +
+            'max-width:100%;height:auto;border:0;display:block">';
         })
         .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, function (m, label, url) {
           const safe = giantSafeUrl(url.replace(/&amp;/g, '&'));
@@ -55137,7 +55150,17 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
       if (opts && opts.fragment) return body;
       /* An inline style, not a stylesheet: Gmail and Outlook strip <style> blocks, so a
          class here would arrive unstyled. Times New Roman is the default otherwise. */
-      return '<!DOCTYPE html><html><body style="font-family:-apple-system,Segoe UI,Roboto,' +
+      /* A HEAD, FOR THE PHONE. There was none at all: no charset, no viewport. A mail
+         client on a phone that is handed a document with no viewport lays it out at a
+         desktop width and then scales, which is why a logo that is 320px wide arrived
+         wider than the column it was in and was cut off down the middle. The charset
+         goes with it -- the MIME part declares UTF-8 and a client that reads the
+         document on its own does not see that header.
+         width=device-width, not a fixed number: the point is to stop it inventing one. */
+      return '<!DOCTYPE html><html><head>' +
+        '<meta charset="utf-8">' +
+        '<meta name="viewport" content="width=device-width,initial-scale=1">' +
+        '</head><body style="font-family:-apple-system,Segoe UI,Roboto,' +
         'Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#1a1a1a;">' +
         body + '</body></html>';
     };
@@ -55153,7 +55176,7 @@ document.querySelectorAll('.cd-tab').forEach(t=>{
            plain part still carries the name and address as lines of text, which
            is what a client sees when their mail app blocks remote images -- and
            most block them on a first email. */
-        .replace(/!\[[^\]]*\]\([^)\s]+\)\s*/g, '')
+        .replace(/!\[[^\]]*\]\([^)\s]+(?:\s+=\d{1,4})?\)\s*/g, '')
         .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, '$1 ($2)')
         .replace(/\*\*([^*]+)\*\*/g, '$1');
     };
@@ -100416,9 +100439,9 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       questions: [],
       emails: [
         { label: 'Send pricing', subject: 'Your pricing from ReachGiant',
-          body: 'Hi {name},\n\nThanks for your time today. As promised, here is our pricing for {company}:\n\n{pricing}\n\nLet me know if you have any questions.\n\nBest,\nLuke' },
+          body: 'Hi {name},\n\nThanks for your time today. As promised, here is our pricing for {company}:\n\n{pricing}\n\nLet me know if you have any questions.\n\nBest,' },
         { label: 'Send payment link', subject: 'Getting started with ReachGiant',
-          body: 'Hi {name},\n\nThanks for your time today. Here is your payment link to get started:\n\n{payment_link}\n\nLet me know if you have any questions.\n\nBest,\nLuke' }
+          body: 'Hi {name},\n\nThanks for your time today. Here is your payment link to get started:\n\n{payment_link}\n\nLet me know if you have any questions.\n\nBest,' }
       ]
     }
   };
@@ -100993,7 +101016,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      email too, which is the right answer. */
   const GR_MASTER_DEFAULT = {
     subject: 'Getting started with ReachGiant',
-    body: 'Hi {name},\n\nWe are looking forward to working with you.\n\nOnce your payment is received and we have your signed contract and onboarding form, we will get started right away. Matthew, our Head of Client Services, will reach out to set up a Zoom call and guide you through onboarding.\n\nOn that call, we will review your goals, confirm access, and go over the next steps.\n\nPayment\n{package}\n[Pay here via Stripe]({payment_link})\n{discount}\n\nOnboarding Form\nYou can complete the onboarding form here\n[Start onboarding](https://www.reachgiant.com/onboarding)\n\nAgreement page\nPlease review and sign your agreement here\n[Open agreement](https://www.reachgiant.com/agreement)\n\nOnce we receive everything, we will review your details and start preparing your campaigns. Most accounts go live in about a week.\n\nLet me know if you have any questions.\n\nBest,\nLuke'
+    body: 'Hi {name},\n\nWe are looking forward to working with you.\n\nOnce your payment is received and we have your signed contract and onboarding form, we will get started right away. Matthew, our Head of Client Services, will reach out to set up a Zoom call and guide you through onboarding.\n\nOn that call, we will review your goals, confirm access, and go over the next steps.\n\nPayment\n{package}\n[Pay here via Stripe]({payment_link})\n{discount}\n\nOnboarding Form\nYou can complete the onboarding form here\n[Start onboarding](https://www.reachgiant.com/onboarding)\n\nAgreement page\nPlease review and sign your agreement here\n[Open agreement](https://www.reachgiant.com/agreement)\n\nOnce we receive everything, we will review your details and start preparing your campaigns. Most accounts go live in about a week.\n\nLet me know if you have any questions.\n\nBest,'
   };
   function grMaster() {
     const m = grSettings.tpl_master;
@@ -101353,8 +101376,15 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      without a deploy and everybody's next draft follows it. Kept deliberately small:
      these are the seven things Luke actually asked for, and a settings screen with
      twenty knobs is one nobody sets. */
+  /* NO NAME IN THE DEFAULT. This read 'Best, Luke', and there was no reply_style row
+     in the database, so the default was what every draft actually used: mail sent from
+     growth@ -- Annie's mailbox, under Annie's logo -- was being written with "Sign off
+     with: Best, Luke" in its prompt. A person's name belongs in the box on Reply
+     settings, which anybody can fill in; it does not belong in what Giant ships. The
+     signature underneath carries the name anyway, which is why the newer templates
+     already ended "Best," and only the older ones carried a name. */
   const GR_REPLY_DEF = {
-    tone: 'warm', length: 'short', signoff: 'Best, Luke',
+    tone: 'warm', length: 'short', signoff: 'Best,',
     voice: '', always: '', steps: '',
     /* Seeded rather than blank, because the dashes are the giveaway this repo keeps
        fighting and an empty box teaches nobody that. */
@@ -101430,7 +101460,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       '<div class="gr_field"><label for="grRepsignoff">Sign off ' +
         '<span class="gr_mute">last line of every reply</span></label>' +
         '<input id="grRepsignoff" class="gr_in" data-gr-reply="signoff" value="' +
-        esc(r.signoff || '') + '" placeholder="Best, Luke"></div>' +
+        esc(r.signoff || '') + '" placeholder="Best,"></div>' +
       area('voice', 'Your language', 'paste replies you like, drafts copy this style',
            'Hey Michael, great chat today. Here is what I would do next...', 4) +
       area('always', 'Always cover', 'points every reply should hit',
@@ -101470,7 +101500,7 @@ User (no attachment): "create a post for our new alpaca pillow launch"
         row('Length', 'How long each reply is', chips('length', GR_LENS)) +
         row('Sign off', 'Last line of every reply',
             '<input class="gr_in" data-gr-rd="signoff" value="' + esc(r.signoff || '') +
-            '" placeholder="Best, Luke">') +
+            '" placeholder="Best,">') +
         area('voice', 'Your language', 'Paste replies you like. Drafts copy this style.',
              'Hey Michael, great chat today. Here is what I would do next...', 4) +
         area('always', 'Always cover', 'Points every reply should hit.',
@@ -101530,7 +101560,11 @@ User (no attachment): "create a post for our new alpaca pillow launch"
       '<div class="gr_acts gr_sigrow">' +
         '<label class="gr_ghost gr_sigup">' +
           (grSigBusy ? 'Uploading\u2026' : 'Upload a picture') +
-          '<input type="file" accept="image/png,image/jpeg,image/gif,image/webp" ' +
+          /* Extensions beside the types. A file picker on a machine with no mapping
+             for .gif greys the file out when the filter is types only, which is the
+             other half of "it will not let me upload a GIF". */
+          '<input type="file" accept="image/png,image/jpeg,image/gif,image/webp,' +
+            '.png,.jpg,.jpeg,.gif,.webp" ' +
             'data-gr-sigfile hidden' + (grSigBusy ? ' disabled' : '') + '></label>' +
         (grSigLines().image
           ? '<button class="gr_chip' + (sig.image_off ? '' : ' on') + '" data-gr-sigtoggle ' +
@@ -101572,9 +101606,42 @@ User (no attachment): "create a post for our new alpaca pillow launch"
      upsert:false on a timestamped path, so replacing the picture cannot overwrite the
      one that already-sent emails still point at. */
   const GR_SIG_MAX = 2 * 1024 * 1024;
+  /* The same 200px the Inbox signature uses. That one arrives right on a phone and
+     this one did not; the only difference between them was the cap. */
+  const GR_SIG_W = 200;
+  /* THE NAME IS EVIDENCE TOO, AND SOMETIMES IT IS THE ONLY EVIDENCE.
+
+     The guard read file.type and nothing else, so a GIF whose type the browser did not
+     fill in -- an empty string, or the application/octet-stream a file manager hands
+     over when it has no mapping for the extension -- was turned away with "that needs
+     to be a PNG, JPEG, GIF or WebP", which reads as "GIFs are not allowed" when the
+     file plainly is one. The type is still preferred when it says something useful;
+     the extension is what answers when it does not.
+
+     The resolved type is then what gets STORED as the content type, rather than the
+     blank the browser gave us. A file served as application/octet-stream is a download
+     in the recipient's mail client, not a picture, so guessing right here is not
+     cosmetic -- it is the difference between a signature and an attachment. */
+  const GR_SIG_TYPES = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+    gif: 'image/gif', webp: 'image/webp'
+  };
+  const GR_SIG_EXT = {
+    'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp'
+  };
+  function grSigType(file) {
+    const declared = String((file && file.type) || '').toLowerCase().split(';')[0].trim();
+    if (/^image\/(png|jpeg|gif|webp)$/.test(declared)) return declared;
+    const name = String((file && file.name) || '');
+    const dot = name.lastIndexOf('.');
+    // lastIndexOf, not split: a name with no dot at all would otherwise hand back the
+    // whole name as its own extension and be matched against the table.
+    return dot > 0 ? (GR_SIG_TYPES[name.slice(dot + 1).toLowerCase()] || '') : '';
+  }
   async function grSigUpload(file) {
     if (!file) return;
-    if (!/^image\/(png|jpeg|gif|webp)$/.test(file.type || '')) {
+    const type = grSigType(file);
+    if (!type) {
       grToast('That needs to be a PNG, JPEG, GIF or WebP.'); return;
     }
     if (file.size > GR_SIG_MAX) {
@@ -101585,10 +101652,10 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     const s2 = sb(); if (!s2) return;
     grSigBusy = true; grRender();
     try {
-      const ext = (String(file.name || '').split('.').pop() || 'png').toLowerCase();
+      const ext = GR_SIG_EXT[type];
       const path = 'growth/signature-' + (me() || 'anon') + '-' + Date.now() + '.' + ext;
       const { error } = await s2.storage.from('template-media')
-        .upload(path, file, { upsert: false, contentType: file.type });
+        .upload(path, file, { upsert: false, contentType: type });
       if (error) throw new Error(error.message);
       const { data: pub } = s2.storage.from('template-media').getPublicUrl(path);
       const url = pub && pub.publicUrl;
@@ -101858,7 +101925,8 @@ User (no attachment): "create a post for our new alpaca pillow launch"
     // Off is a flag, not a missing url: turning it back on must restore the same
     // picture rather than asking somebody to find the file again.
     if (!img || (grSettings.signature || {}).image_off) return text;
-    return (text ? text + '\n\n' : '') + '![' + (g.name || 'ReachGiant') + '](' + img + ')';
+    return (text ? text + '\n\n' : '') + '![' + (g.name || 'ReachGiant') + '](' +
+      img + ' =' + GR_SIG_W + ')';
   }
   /* ONE SOURCE, SO THE TWO PREVIEWS CANNOT DISAGREE. This drew the signature its own
      way -- email, site and phone on a single line joined by bars, in a different order
