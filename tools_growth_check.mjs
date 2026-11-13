@@ -4983,6 +4983,9 @@ await step('the signature Growth sends carries the width, not just the converter
     if (r) r.value = Object.assign({}, r.value, { image: 'https://example.test/annie.gif' });
     delete (r && r.value || {}).image_off;
     window.__sentSig = null;
+    /* Kept, and put back at the end of this step. A stub left in place is not a stub,
+       it is a change to the app for every check that follows. */
+    window.__realGmailSend = window.giantGmailSend;
     window.giantGmailSend = async (args) => { window.__sentSig = args; return { id: 'stub' }; };
   });
   await page.evaluate(() => window.grReload && window.grReload());
@@ -5005,6 +5008,12 @@ await step('the signature Growth sends carries the width, not just the converter
     return i ? Math.round(i.getBoundingClientRect().width) : -1;
   });
   check('and the preview on screen is drawn at the same 200px', px === 200, String(px));
+  await page.evaluate(() => {
+    if (window.__realGmailSend) { window.giantGmailSend = window.__realGmailSend; }
+    delete window.__realGmailSend;
+  });
+  const restored = await page.evaluate(() => String(window.giantGmailSend).indexOf('__sentSig') === -1);
+  check('and the real send is put back so later checks are not stubbed', restored, String(restored));
 });
 
 /* ---------------------------------------------------- a GIF the browser did not name
@@ -5101,6 +5110,69 @@ await step('nothing Giant ships signs a client email with a person\'s name', asy
   check('the package master ends on a sign-off with no name under it',
     typeof master === 'string' && /Best,\s*$/.test(master) && !/\bLuke\b/.test(master),
     JSON.stringify(String(master || '').slice(-50)));
+});
+
+/* ------------------------------------------ the From header, when the slot has moved
+   Reported from live: "Gmail refused it, so nothing was sent. Requested entity was not
+   found", intermittently, for two different people, with the composer saying "Sends
+   from growth@reachgiant.com" the whole time.
+
+   Two fallbacks for one question. The screen read `rows.find(slot) || rows[0]`; the
+   sender read `tokenRow?.email || session.user.email`. The slot is remembered in
+   localStorage, so a browser pointing at a slot with no row stamped the message with
+   the person's GIANT LOGIN -- an address the connected mailbox may not send as -- and
+   Gmail rejected the whole thing.
+
+   Driven through the real send with the wire intercepted, because the From header is
+   the thing Gmail refuses and a helper returning the right string proves nothing about
+   what was put on the message. */
+await step('the address a message is sent as is one of the connected mailboxes', async () => {
+  const sendWith = (slot) => page.evaluate(async (slotVal) => {
+    try { if (slotVal === null) localStorage.removeItem('giant.gmailSlot');
+          else localStorage.setItem('giant.gmailSlot', String(slotVal)); } catch (e) {}
+    const of = window.fetch; let raw = null;
+    window.fetch = async (u, o) => {
+      if (String(u).includes('gmail.googleapis.com') && o && o.body) {
+        raw = JSON.parse(o.body).raw;
+        return new Response(JSON.stringify({ id: 'x' }), { status: 200,
+          headers: { 'content-type': 'application/json' } });
+      }
+      return of(u, o);
+    };
+    try {
+      await window.giantGmailSend({ to: 'me@example.com', subject: 'From header', body: 'Hi' });
+    } catch (e) { return { err: String((e && e.message) || e) }; }
+    finally { window.fetch = of; }
+    if (!raw) return { err: 'nothing reached Gmail' };
+    const msg = new TextDecoder().decode(Uint8Array.from(
+      atob(raw.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)));
+    /* The login address from the SAME place the sender read it, rather than from a
+       profile object that might hold something else. */
+    let login = null;
+    try {
+      const sess = await window.giantSupabase.auth.getSession();
+      login = sess && sess.data && sess.data.session && sess.data.session.user
+        ? sess.data.session.user.email : null;
+    } catch (e) {}
+    return { from: (msg.match(/^From: (.*)$/m) || [, null])[1],
+             login: login,
+             boxes: ((window.__mockDB.gmail_tokens || [])
+                     .map(r => r.email).filter(Boolean)) };
+  }, slot);
+
+  /* The slot that is actually connected: it must pick THAT mailbox, not merely any. */
+  const two = await sendWith(2);
+  check('the chosen slot decides the address when that slot is connected',
+    !two.err && two.from === 'hello@reachgiant.com', JSON.stringify(two));
+
+  /* THE BUG: a remembered slot with no row behind it. */
+  const gone = await sendWith(7);
+  check('a slot that no longer exists falls back to a connected mailbox',
+    !gone.err && !!gone.from && gone.boxes.indexOf(gone.from) !== -1, JSON.stringify(gone));
+  check('and never to the Giant login, which is not a mailbox',
+    !gone.err && !!gone.login && gone.from !== gone.login, JSON.stringify(gone));
+
+  await sendWith(1);   // put it back for anything after this
 });
 
 for (const r of results) console.log((r.pass ? 'PASS  ' : 'FAIL  ') + r.name + (r.detail ? '   ' + r.detail : ''));
