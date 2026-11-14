@@ -32,6 +32,22 @@ git fetch origin && git status    # should say: up to date with origin/main
 
 `HEAD detached at v0.0.21` means you checked out a tag. `git checkout main && git pull`.
 
+### Say who you are, before your first commit
+
+The GitHub account is shared across the team. That is deliberate, and it means `git log`
+cannot tell who wrote what unless you set it yourself. Do this once, in the repo, before
+you commit anything:
+
+```bash
+git config user.name "Your Name"
+git config user.email "you@reachgiant.com"
+git config user.name    # check it took
+```
+
+Repo-local on purpose (no `--global`), so it cannot leak into your own projects. It costs
+ten seconds and it is the only thing that makes `git blame` worth running here. A commit
+authored by the shared account tells whoever is debugging at 2am precisely nothing.
+
 ## 2. Environment
 
 ```bash
@@ -73,6 +89,21 @@ owns:
 from inside a module will find some other screen's element and silently operate on the wrong
 screen. Two of the nastier bugs in this repo's history were exactly that.
 
+### Put new work in its own `<script>` block
+
+The single biggest cost of more than one developer here is that **almost every commit
+touches `index.html`** — 152 of the last 153 did, in a file of 109,000 lines. Two people
+editing the middle of it at once is how you get a merge conflict in a file where a bad
+merge once interleaved two `<script>` blocks into something that parsed and ran wrong.
+
+So: a new feature is a new `<style>` block and a new `<script>` block **appended at the
+end**, with its own id and class prefix, injecting whatever markup it needs at runtime.
+Workshop is the worked example — about 3,400 lines added that way, and when it merged it
+produced no conflict in `index.html` at all.
+
+Editing existing code is of course still necessary. Just do not grow a feature by
+inserting it into the middle of somebody else's screen.
+
 ### Editing rules
 
 **Never replace a span of lines. Always anchor on exact text.**
@@ -103,15 +134,41 @@ verify, make the next.
 
 ## 4. Verify before you commit
 
-Four checks. All four must pass. They take about ten minutes together, almost all of it the
-last one.
+**The first three take eight seconds together. Never skip them.**
 
 ```bash
-python3 tools_newchat_parse.py        # every inline <script> parses
-python3 tools_newchat_audit.py        # cross-screen leaks, dead references, scope errors
-python3 tools_newchat_isolation.py    # the original Chat screen is untouched
-node tools_newchat_clickthrough.mjs   # ~260 real browser checks against a mock Supabase
+python3 tools_newchat_parse.py        # every inline <script> parses          ~1s
+python3 tools_newchat_audit.py        # cross-screen leaks, scope errors      ~7s
+python3 tools_newchat_isolation.py    # the original Chat screen is untouched <1s
 ```
+
+Then the suite for whatever you touched. These need no browser and no network — they
+replace `fetch` and drive the function directly, so they see things no screen can show:
+
+```bash
+node tools_growth_check.mjs             # Growth, the biggest one              ~3m
+node tools_growth_zoom_check.mjs        # the Zoom connector
+node tools_growth_calendly_check.mjs    # the Calendly sync
+node tools_growth_gmail_check.mjs       # mail -> deal matching
+node tools_workshop_ahrefs_check.mjs    # the Ahrefs connector
+node tools_workshop_connect_check.mjs   # per-client connectors
+```
+
+And the expensive one, which is the only check that notices you breaking a screen you
+were not working on:
+
+```bash
+node tools_newchat_clickthrough.mjs     # ~410 checks, a real browser          ~6m
+```
+
+Run the click-through before any push to `main`, whenever you touch shared code
+(`window.giant*`, anything without a module prefix), and when you have changed a screen
+the module suites do not cover. Skip it while iterating on one module's CSS and lean on
+that module's own suite instead — that is the common case.
+
+**One click-through check fails on `main` and has for months:**
+`a Needs you row lands on the message that put it there`. So **409/410 is the clean
+result**. A different number is yours. Do not spend your first afternoon on that one.
 
 The click-through needs Playwright:
 
@@ -227,22 +284,29 @@ select count(*) from public.clients;
 
 ## 8. Where things stand right now
 
-> Updated 2026-10-06. This section ages fast — trust `git log` over it.
+> Updated 2026-11-14. This section ages fast — trust `git log` over it.
 
-- **`main`** is live, current, and safe to branch from.
+- **`main`** is live, current, and safe to branch from. It auto-deploys: a push to `main`
+  is in front of the whole company within a couple of minutes. There is no staging site.
+- **Nothing verifies a push.** The one GitHub workflow triggers the Netlify deploy and runs
+  no checks at all. The suites in §4 are run by hand, by whoever is pushing. That is you.
 - Gated to owner / manager / in-house dev: **Projects 2.0**, **Pod System**, and the
   **Archive** screen (the old Chat, in-house dev only).
-- **Unmerged and worth knowing about**, both local-only until pushed:
-  - `feature/project-columns` — custom columns for Projects 2.0, plus a visual pass. All
-    checks green, but it has only ever run against the test fixture, never a real board.
-  - `feature/meetings-turn-screenshare` — video-call TURN and screenshare. Finished, but
-    needs `TURN_KEY_ID` and `TURN_API_TOKEN` in Netlify before it does anything.
-- Recently shipped: channel rename, the Clients list, attachment downloads (including
-  Download all as a zip), and message forwarding.
-- There are around 60 local branches. Most are dead. A branch name is not evidence that
-  anything is live.
+- **Workshop** — a second workspace beside Operations, for SEO and AI search work. On
+  `feature/workshop-tab`, not merged, and gated to in-house dev only while it is built.
+  Roughly 5,600 lines. Its Ahrefs connector is live in production; its WordPress and
+  Calendly connectors are built and wired but no client credential has been stored yet.
+- **Growth** is the sales pipeline, live and in daily use. Recently: call transcripts on a
+  deal, summaries written automatically as a transcript arrives, dictation in the notes,
+  and a fix to the address outgoing mail is sent as.
+- There are around **100 branches**, local and remote. Most are dead. A branch name is not
+  evidence that anything is live — check `git log origin/main..<branch>` before believing one.
 - **Migrations are applied by hand.** A file in `supabase/migrations/` has not necessarily
-  run. This is the one place a second developer can silently diverge from production.
+  run, and one that has run may have no file. This is the one place a second developer can
+  silently diverge from production. Ask before you apply anything.
+- **There is no staging database.** `supabase db query --linked` is production, for
+  everybody, always. Dry-run every write inside a transaction you roll back, and make the
+  dry run prove the outcome rather than just that it ran.
 
 ## 9. How a release actually goes out
 
