@@ -8623,6 +8623,91 @@ g.RG={has:has,check:check,snap:snap,TEMPLATES:TEMPLATES,build:build,render:rende
       db.collection("settings").onSnapshot(function(s){var o={};docs(s).forEach(function(d){o[d.id]=d.v});data.settings=o;render()});
     }catch(e){}
   })();
+  /* ===== GIANT LIVE DATA: real clients and Search Console (start) =====
+     Runs only when this page is served by Giant (http/https) and not inside Claude, where claude.use("db")
+     supplies the data instead. Nothing here draws anything new: it fills the same objects the page already
+     draws from, and routes the existing Search Console "Test" button to netlify/functions/workshop-gsc.js.
+       * No sample numbers: window.RG_WORKSHOP_SAMPLE is switched off, so no sample client or number can
+         appear next to real clients.
+       * Login: the Giant session in this browser (same site, same Supabase project, same storage key).
+       * Clients: the `clients` table, read with the person's own login, so its RLS decides who sees what.
+       * Search Console status: shown through the page's own check records (data.seoQ), which is what the
+         Connections cards, the setup wizard and the "N of 6 connected" counters already read.
+       * Search Console numbers: kept in data.seoAll["gsc_<client id>"] for the client being viewed.
+     Secrets never come here: the Google login is exchanged and stored by the Netlify function. */
+  (function(){
+    var LIVE=/^https?:$/.test(location.protocol)&&typeof window.claude==="undefined";
+    if(!LIVE)return;
+    window.RG_WORKSHOP_SAMPLE=null;
+    var FN="/.netlify/functions/workshop-gsc",SBC=null,ROLE=null,GSC={connected:false,can_edit:false},LOADED={};
+    var UUIDRE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    function safeRender(){try{render()}catch(e){console.error(e)}}
+    function note(id,name){data.seoCos={list:[{id:id,name:name,url:"",platform:null,connected:false}]}}
+    function domainOf(w){var s=String(w||"").trim().toLowerCase().replace(/^[a-z]+:\/\//,"").replace(/[\/?#].*$/,"").replace(/:\d+$/,"").replace(/^www\./,"");return/^[a-z0-9.-]+\.[a-z]{2,}$/.test(s)?s:""}
+    function load(src){return new Promise(function(ok,no){var s=document.createElement("script");s.src=src;s.onload=ok;s.onerror=function(){no(new Error("Could not load "+src))};document.head.appendChild(s)})}
+    function rand(n){var a=new Uint8Array(n),c="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",s="";crypto.getRandomValues(a);for(var i=0;i<n;i++)s+=c.charAt(a[i]%c.length);return s}
+    function api(method,action,params,body){
+      var qs="?action="+encodeURIComponent(action);Object.keys(params||{}).forEach(function(k){qs+="&"+encodeURIComponent(k)+"="+encodeURIComponent(params[k])});
+      return SBC.auth.getSession().then(function(r){var t=r&&r.data&&r.data.session&&r.data.session.access_token;if(!t)throw new Error("Your Giant login has expired. Sign in to Giant again.");
+        var h={Authorization:"Bearer "+t};if(body)h["Content-Type"]="application/json";
+        return fetch(FN+qs,{method:method,headers:h,body:body?JSON.stringify(body):undefined})})
+      .then(function(r){return r.json().catch(function(){return{}}).then(function(j){if(!r.ok)throw new Error(j.error||("Search Console request failed ("+r.status+")"));return j})})}
+    /* One check record per client for Search Console; g34Chk and the Connections cards read the newest. */
+    function putCheck(cid,state,err,at){var id="gsc-live-"+cid,q=(data.seoQ||[]).filter(function(x){return x._id!==id});q.push({_id:id,type:"check",what:"gsc",site:cid,state:state,error:err||null,requested_at:at||new Date().toISOString()});data.seoQ=q}
+    function loadData(cid){return api("GET","data",{client_id:cid}).then(function(d){data.seoAll=data.seoAll||{};data.seoAll["gsc_"+cid]=d;safeRender()}).catch(function(e){console.warn("[workshop-gsc] data",e.message)})}
+    function connectGoogle(cid){
+      var st="wsgsc-"+rand(32);try{sessionStorage.setItem("wsgsc_state",st);sessionStorage.setItem("wsgsc_client",cid||"")}catch(e){}
+      api("GET","auth_url",{redirect_uri:location.origin+"/workshop.html",state:st}).then(function(r){location.href=r.url}).catch(function(e){toast(e.message)})}
+    function gscTest(cid){
+      if(!SBC||!ROLE){toast("Sign in to Giant first, then open Workshop again.");return}
+      if(!UUIDRE.test(String(cid||""))){toast("Choose a client first.");return}
+      if(!GSC.connected){if(!GSC.can_edit){toast("Search Console is not connected yet. Ask an owner or manager to connect it.");return}connectGoogle(cid);return}
+      if(!GSC.can_edit){toast("Only an owner or manager can test Search Console.");return}
+      putCheck(cid,"queued");safeRender();
+      api("POST","sync",{},{client_id:cid}).then(function(r){
+        putCheck(cid,r.ok?"done":"failed",r.ok?null:r.error);
+        if(r.ok){toast("Search Console: "+r.daily_rows+" days fetched for "+r.property+".",true);LOADED[cid]=1;return loadData(cid)}
+        toast(r.error||"Search Console could not be synced.")
+      }).catch(function(e){putCheck(cid,"failed",e.message);toast(e.message)}).then(safeRender)}
+    /* The existing Test / Test connections buttons queue a "check" through seoQ. Search Console checks are
+       answered here, for real; every other check goes to the page's own seoQ exactly as before. */
+    var seoQ0=seoQ;seoQ=function(id,obj){if(obj&&obj.type==="check"&&obj.what==="gsc")return gscTest(obj.site||(seoCo().cur||{}).id);return seoQ0(id,obj)};
+    /* Load the stored numbers when a connected client is opened (once per client per page load). */
+    var renderCW1=renderCW;renderCW=function(){renderCW1.apply(this,arguments);try{var c=seoCo().cur;if(c&&UUIDRE.test(c.id)&&!LOADED[c.id]&&g34Chk(c.id,"gsc")==="on"){LOADED[c.id]=1;loadData(c.id)}}catch(e){}};
+    function googleReturn(){
+      var u=new URL(location.href),code=u.searchParams.get("code"),err=u.searchParams.get("error"),st=u.searchParams.get("state")||"";
+      if(st.indexOf("wsgsc-")!==0)return null;
+      var want=null,cid=null;try{want=sessionStorage.getItem("wsgsc_state");cid=sessionStorage.getItem("wsgsc_client");sessionStorage.removeItem("wsgsc_state");sessionStorage.removeItem("wsgsc_client")}catch(e){}
+      try{history.replaceState({},"",location.pathname)}catch(e){}
+      if(err){toast("Google sign-in was cancelled ("+err+").");return null}
+      if(!code||!want||st!==want){toast("That Google sign-in could not be verified. Press Test on Search Console again.");return null}
+      toast("Connecting Search Console…",true);
+      return api("POST","connect",{},{code:code,redirect_uri:location.origin+"/workshop.html"}).then(function(r){
+        GSC.connected=true;GSC.account=r.account||null;
+        toast(r.warning?"Connected as "+(r.account||"your Google account")+", but: "+r.warning:"Search Console connected as "+(r.account||"your Google account")+".",!r.warning);
+        if(cid&&UUIDRE.test(cid)){SF.co=cid;SF.dash=false;SF.cwt="connect";try{localStorage.setItem("seo_co",cid)}catch(e){}gscTest(cid)}
+      }).catch(function(e){toast(e.message)})}
+    note("_loading","Loading clients…");safeRender();
+    load("/config.js").then(function(){return window.supabase&&window.supabase.createClient?null:load("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2")}).then(function(){
+      if(!window.supabase||!window.GIANT_SUPABASE_URL||!window.GIANT_SUPABASE_ANON_KEY)throw new Error("Giant settings did not load, so clients cannot be shown.");
+      SBC=window.supabase.createClient(window.GIANT_SUPABASE_URL,window.GIANT_SUPABASE_ANON_KEY);
+      return SBC.auth.getSession()}).then(function(r){
+      var s=r&&r.data&&r.data.session;
+      if(!s){note("_signin","Sign in to Giant first");toast("Sign in to Giant first, then open Workshop again.");return}
+      return SBC.from("profiles").select("role").eq("id",s.user.id).single().then(function(p){
+        ROLE=p&&p.data&&p.data.role;
+        if(!ROLE||ROLE==="client"){ROLE=null;note("_team","Workshop is for the ReachGiant team");return}
+        return SBC.from("clients").select("id,name,company_website").order("name").then(function(res){
+          if(res.error)throw new Error("Clients could not be loaded: "+res.error.message);
+          var list=(res.data||[]).map(function(c){return{id:c.id,name:c.name||"Unnamed client",url:domainOf(c.company_website),platform:null,connected:false}});
+          if(!list.length){note("_none","No clients yet");return}
+          data.seoCos={list:list};
+          return api("GET","status").then(function(st){GSC=st}).catch(function(e){GSC={connected:false,can_edit:false};console.warn("[workshop-gsc] status",e.message)})
+            .then(function(){return api("GET","clients")}).then(function(r2){(r2.items||[]).forEach(function(i){if(i.status==="ok")putCheck(i.client_id,"done",null,i.tested_at);else if(i.status==="failed")putCheck(i.client_id,"failed",i.error,i.tested_at)})}).catch(function(){})
+            .then(googleReturn)})})
+    }).catch(function(e){toast(e.message||String(e))}).then(safeRender);
+  })();
+  /* ===== GIANT LIVE DATA (end) ===== */
 })();
 </script>
 
