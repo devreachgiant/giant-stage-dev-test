@@ -8636,8 +8636,14 @@ g.RG={has:has,check:check,snap:snap,TEMPLATES:TEMPLATES,build:build,render:rende
        * Search Console numbers: kept in data.seoAll["gsc_<client id>"] for the client being viewed.
      Secrets never come here: the Google login is exchanged and stored by the Netlify function. */
   (function(){
-    var LIVE=/^https?:$/.test(location.protocol)&&typeof window.claude==="undefined";
-    if(!LIVE)return;
+    if(!/^https?:$/.test(location.protocol))return;
+    /* "Inside Claude" is decided by asking for the database, not by whether window.claude exists: this page
+       installs its own stand-in window.claude (the "draft it for me" writer above), whose use("db") refuses.
+       A real host answers with a database and this block stays out of its way. The answer comes back as a
+       microtask, before the browser paints, so the sample clients never flash up on the live site. */
+    var probe;try{probe=Promise.resolve(window.claude&&window.claude.use?window.claude.use("db"):null)}catch(e){probe=Promise.resolve(null)}
+    probe.then(function(db){if(!db)start()},function(){start()});
+    function start(){
     window.RG_WORKSHOP_SAMPLE=null;
     var FN="/.netlify/functions/workshop-gsc",SBC=null,ROLE=null,GSC={connected:false,can_edit:false},LOADED={};
     var UUIDRE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -8706,6 +8712,7 @@ g.RG={has:has,check:check,snap:snap,TEMPLATES:TEMPLATES,build:build,render:rende
             .then(function(){return api("GET","clients")}).then(function(r2){(r2.items||[]).forEach(function(i){if(i.status==="ok")putCheck(i.client_id,"done",null,i.tested_at);else if(i.status==="failed")putCheck(i.client_id,"failed",i.error,i.tested_at)})}).catch(function(){})
             .then(googleReturn)})})
     }).catch(function(e){toast(e.message||String(e))}).then(safeRender);
+    }
   })();
   /* ===== GIANT LIVE DATA (end) ===== */
 })();
